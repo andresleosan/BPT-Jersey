@@ -1,38 +1,12 @@
-const classLineup = [
-  { time: "4:15 PM", name: "Kids BJJ", detail: "Ages 5–8", tone: "violet" },
-  { time: "5:15 PM", name: "Junior BJJ", detail: "Ages 9–13", tone: "ink" },
-  { time: "6:30 PM", name: "Adults Gi", detail: "All levels", tone: "violet" },
-] as const;
-
-const platformAreas = [
-  {
-    label: "Families",
-    title: "Know what happens next.",
-    copy: "Schedules, attendance, progress, memberships, and documents in one trusted family view.",
-  },
-  {
-    label: "Coaches",
-    title: "Coach with context.",
-    copy: "See the room, record meaningful progress, and keep every student moving forward.",
-  },
-  {
-    label: "Academy",
-    title: "Run the day clearly.",
-    copy: "Check-ins, child collection, payments, and follow-ups stay visible when the mat gets busy.",
-  },
-] as const;
-
-function ArrowIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" width="20" height="20">
-      <path d="M4 10h11M11 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  );
-}
+import { academyContent } from "../content/academy";
 
 export default function HomePage() {
   return (
-    <main>
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
+
       <header className="site-header">
         <a className="wordmark" href="#top" aria-label="BPT Jersey home">
           <span>BPT</span>
@@ -40,116 +14,185 @@ export default function HomePage() {
         </a>
 
         <nav className="primary-nav" aria-label="Primary navigation">
-          <a href="#academy">The academy</a>
-          <a href="#platform">The platform</a>
+          <a href="#top">Home</a>
+          <a href="#classes">Classes</a>
+          <a href="#programs">Programs</a>
+          <a href="#locations">Locations</a>
+          <a href="#contact">Contact</a>
           <a className="nav-cta" href="#contact">
-            Start training
+            Book a free class
           </a>
         </nav>
       </header>
 
-      <section className="hero" id="top" aria-labelledby="hero-title">
-        <div className="hero-copy">
-          <p className="eyebrow">Brazilian Power Team · Jersey</p>
-          <h1 id="hero-title">
-            Built for the mat.
-            <span>Ready for everything around it.</span>
-          </h1>
-          <p className="hero-intro">
-            One disciplined home for training, families, coaches, and the daily work that keeps a
-            Brazilian Jiu-Jitsu academy moving.
-          </p>
-          <div className="hero-actions">
-            <a className="button button-primary" href="#academy">
-              Discover BPT Jersey
-              <ArrowIcon />
-            </a>
-            <a className="button button-secondary" href="#platform">
-              Explore the platform
-            </a>
+      <main id="main-content" tabIndex={-1}>
+        <section className="hero" id="top" aria-labelledby="hero-title">
+          <div className="hero-copy">
+            <p className="eyebrow">Brazilian Power Team · Jersey</p>
+            <h1 id="hero-title">{academyContent.identity.title}</h1>
+            <p className="hero-intro">{academyContent.identity.intro}</p>
+            <div className="hero-actions">
+              <a className="button button-primary" href="#classes">
+                View classes
+              </a>
+              <a className="button button-secondary" href="#contact">
+                Book a free class
+              </a>
+            </div>
           </div>
-          <p className="location-line">
-            <span aria-hidden="true" />
-            Brazilian Jiu-Jitsu in Jersey, Channel Islands
-          </p>
-        </div>
 
-        <aside className="mat-board" aria-label="Sample academy schedule">
-          <div className="board-kicker">
-            <span>On the mat</span>
-            <span>Today</span>
+          <aside className="hero-location" id="locations" aria-label="Academy location">
+            <p className="section-kicker">Train in Jersey</p>
+            <address>
+              <strong>{academyContent.location.name}</strong>
+              <span>{academyContent.location.address}</span>
+              <span>
+                {academyContent.location.locality}, {academyContent.location.postcode}
+              </span>
+            </address>
+          </aside>
+        </section>
+
+        <section className="classes-section" id="classes" aria-labelledby="classes-title">
+          <div className="section-heading">
+            <p className="section-kicker">The weekly timetable</p>
+            <h2 id="classes-title">Classes in Jersey</h2>
+            <p>{academyContent.notes.booking}</p>
           </div>
-          <h2>Tonight at BPT</h2>
-          <ol className="class-lineup">
-            {classLineup.map((classItem) => (
-              <li key={classItem.time}>
-                <span
-                  className={`class-marker class-marker-${classItem.tone}`}
-                  aria-hidden="true"
-                />
-                <time>{classItem.time}</time>
-                <span className="class-name">{classItem.name}</span>
-                <span className="class-detail">{classItem.detail}</span>
+
+          <div className="schedule-table-wrap schedule-board">
+            <table className="schedule-table">
+              <caption>Published class schedule</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Location</th>
+                  <th scope="col">Days</th>
+                  <th scope="col">Time</th>
+                  <th scope="col">Discipline</th>
+                  <th scope="col">Level</th>
+                </tr>
+              </thead>
+              <tbody>
+                {academyContent.schedule.map((entry) => (
+                  <tr
+                    className="schedule-row"
+                    key={`${entry.location}-${entry.days}-${entry.time}-${entry.discipline}`}
+                  >
+                    <td className="schedule-location">{entry.location}</td>
+                    <td className="schedule-day">{entry.days}</td>
+                    <td className="schedule-time">
+                      <time>{entry.time}</time>
+                    </td>
+                    <td className="schedule-discipline">{entry.discipline}</td>
+                    <td className="schedule-level">{entry.level}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="instructors-block">
+            <div className="section-heading">
+              <p className="section-kicker">The coaching team</p>
+              <h3>Learn from experienced instructors</h3>
+            </div>
+            <ul className="instructor-list">
+              {academyContent.instructors.map((instructor) => (
+                <li className="instructor-card" key={instructor.name}>
+                  <strong>{instructor.name}</strong>
+                  <span>{instructor.credential}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section className="programs-section" id="programs" aria-labelledby="programs-title">
+          <div className="section-heading">
+            <p className="section-kicker">Choose your starting point</p>
+            <h2 id="programs-title">Find your way onto the mat</h2>
+          </div>
+          <ul className="program-list program-grid">
+            {academyContent.programs.map((program) => (
+              <li className="program-card" key={program.label}>
+                <p className="card-label">{program.label}</p>
+                <h3>{program.title}</h3>
+                <p>{program.description}</p>
               </li>
             ))}
-          </ol>
-          <div className="board-footer">
-            <span>Doors open 15 minutes before class</span>
-            <span className="live-status">
-              <span aria-hidden="true" />
-              Academy ready
-            </span>
+          </ul>
+        </section>
+
+        <section className="fees-section" id="fees" aria-labelledby="fees-title">
+          <div className="section-heading">
+            <p className="section-kicker">Published fees</p>
+            <h2 id="fees-title">Simple ways to train</h2>
           </div>
-        </aside>
-      </section>
+          <ul className="fee-list fee-grid">
+            {academyContent.fees.map((fee) => (
+              <li className="fee-card" key={fee.label}>
+                <p className="card-label">{fee.label}</p>
+                <p className="fee-amount">{fee.amount}</p>
+                <p>{fee.detail}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="fee-note">{academyContent.notes.booking}</p>
+        </section>
 
-      <section className="academy-section" id="academy" aria-labelledby="academy-title">
-        <p className="section-number">01 / The academy</p>
-        <div className="section-heading">
-          <h2 id="academy-title">Train with purpose. Belong to the team.</h2>
-          <p>
-            BPT Jersey brings serious Brazilian Jiu-Jitsu instruction into a welcoming environment
-            where children and adults can build skill, confidence, and discipline.
-          </p>
-        </div>
-        <div className="academy-principles" aria-label="Academy principles">
-          <p>Technical standards</p>
-          <p>Clear progression</p>
-          <p>Strong community</p>
-        </div>
-      </section>
-
-      <section className="platform-section" id="platform" aria-labelledby="platform-title">
-        <div className="platform-heading">
-          <p className="section-number">02 / The platform</p>
-          <h2 id="platform-title">One academy. One clear system.</h2>
-        </div>
-        <div className="platform-grid">
-          {platformAreas.map((area) => (
-            <article key={area.label}>
-              <p>{area.label}</p>
-              <h3>{area.title}</h3>
-              <p>{area.copy}</p>
+        <section className="platform-section" id="platform" aria-labelledby="platform-title">
+          <div className="section-heading">
+            <p className="section-kicker">A clearer academy experience</p>
+            <h2 id="platform-title">One academy. One clear system.</h2>
+            <p>
+              Keep the details around training clear for families, coaches, and the academy team.
+            </p>
+          </div>
+          <div className="platform-preview">
+            <article className="platform-card">
+              <p className="card-label">Families</p>
+              <h3>Stay close to progress.</h3>
+              <p>See schedules, attendance, memberships, and progress in one trusted view.</p>
             </article>
-          ))}
-        </div>
-      </section>
+            <article className="platform-card">
+              <p className="card-label">Coaches</p>
+              <h3>Coach with context.</h3>
+              <p>Keep the room, student progress, and next steps visible as training develops.</p>
+            </article>
+            <article className="platform-card">
+              <p className="card-label">Academy team</p>
+              <h3>Run the day clearly.</h3>
+              <p>Bring classes, attendance, memberships, and follow-up into one clear system.</p>
+            </article>
+          </div>
+        </section>
 
-      <section className="contact-section" id="contact" aria-labelledby="contact-title">
-        <div>
-          <p className="eyebrow">Your first class starts here</p>
-          <h2 id="contact-title">Step onto the mat.</h2>
-        </div>
-        <a className="button button-light" href="https://bptjersey.com/" rel="noreferrer">
-          Visit BPT Jersey
-          <ArrowIcon />
-        </a>
-      </section>
+        <section className="contact-section" id="contact" aria-labelledby="contact-title">
+          <div className="section-heading">
+            <p className="section-kicker">Your first class starts here</p>
+            <h2 id="contact-title">Start with a free class</h2>
+            <p>{academyContent.notes.contact}</p>
+            <div className="hero-actions">
+              <a className="button button-secondary" href="#contact">
+                Book a free class
+              </a>
+            </div>
+          </div>
+          <address className="contact-details">
+            <strong>{academyContent.location.name}</strong>
+            <span>
+              {academyContent.location.address}, {academyContent.location.locality},{" "}
+              {academyContent.location.postcode}
+            </span>
+          </address>
+        </section>
+      </main>
 
-      <footer>
+      <footer className="site-footer">
         <p>Brazilian Power Team Jersey</p>
-        <p>Discipline on the mat. Clarity beyond it.</p>
+        <p>Train with purpose. Belong to the team.</p>
+        <p>Public information last verified {academyContent.lastVerified}.</p>
       </footer>
-    </main>
+    </>
   );
 }
