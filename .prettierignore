@@ -1,0 +1,11 @@
+.agents/
+.claude/
+.cronos/
+**/.next/
+**/build/
+**/coverage/
+**/dist/
+**/lib/
+**/node_modules/
+**/out/
+pnpm-lock.yaml

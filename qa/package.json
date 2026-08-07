@@ -1,0 +1,17 @@
+{
+  "name": "@bpt-jersey/qa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "node run-e2e.mjs",
+    "test:e2e:repeat": "node run-e2e.mjs --grep @smoke --repeat-each=5",
+    "test:e2e:smoke": "node run-e2e.mjs --grep @smoke",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.1",
+    "@playwright/test": "1.61.1",
+    "firebase": "12.16.0"
+  }
+}

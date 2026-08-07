@@ -1,0 +1,61 @@
+# Base de 1 Titán — Cronos la completa con lo específico del stack elegido (STACK.md).
+
+# Secretos y credenciales — nunca deben llegar al repo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.cer
+secrets/
+credentials/
+
+# Google Cloud / Firebase / Apps Script
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+.clasprc.json
+.firebase/
+.firebase-config/
+.firebase-emulators/
+.playwright-browsers/
+firebase-debug.log
+
+# Dependencias e instalación
+node_modules/
+.pnpm-store/
+vendor/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Builds y artefactos
+apps/web/next-env.d.ts
+.next/
+dist/
+build/
+lib/
+out/
+*.log
+*.tsbuildinfo
+coverage/
+
+# Reportes de QA (browser-qa-e2e, v3.3.0) — se regeneran en cada corrida, no se versionan
+qa/reports/
+qa/visuals/
+playwright-report/
+test-results/
+
+# Editor / sistema operativo
+.DS_Store
+.vscode/
+.idea/
+Thumbs.db
+
+# Bases de datos locales
+*.sqlite3
+*.db
+
+# Backups que dejan los scripts de la agencia al actualizar
+*.bak-*

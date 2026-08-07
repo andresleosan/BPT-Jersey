@@ -1,0 +1,17 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "qa"
+
+allowBuilds:
+  "@firebase/util": false
+  protobufjs: false
+  # Firebase CLI can run without the optional native acceleration. Keep its
+  # network/build install script disabled to reduce supply-chain surface.
+  re2: false
+  # Its postinstall may prepare/download a native binary; the optional platform
+  # package is sufficient for our lint workflow, so execution stays blocked.
+  unrs-resolver: false
+
+catalog:
+  zod: 4.4.3
