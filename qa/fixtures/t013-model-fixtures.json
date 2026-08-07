@@ -1,0 +1,96 @@
+{
+  "firestore": [
+    {
+      "path": "academies/demo-academy",
+      "data": {
+        "academyId": "demo-academy",
+        "schemaVersion": 1,
+        "status": "active",
+        "displayName": "Synthetic Academy"
+      }
+    },
+    {
+      "path": "academies/demo-academy/students/student-demo-1",
+      "data": {
+        "academyId": "demo-academy",
+        "schemaVersion": 1,
+        "studentId": "student-demo-1",
+        "familyId": "family-demo-1",
+        "displayName": "Synthetic Student",
+        "active": true,
+        "status": "active"
+      }
+    },
+    {
+      "path": "academies/demo-academy/sessions/session-demo-1",
+      "data": {
+        "academyId": "demo-academy",
+        "schemaVersion": 1,
+        "sessionId": "session-demo-1",
+        "programId": "program-demo-bjj",
+        "locationId": "location-demo",
+        "startAt": "2026-08-11T17:30:00Z",
+        "endAt": "2026-08-11T18:30:00Z",
+        "status": "scheduled"
+      }
+    },
+    {
+      "path": "academies/demo-academy/bookings/session-demo-1__student-demo-1",
+      "data": {
+        "academyId": "demo-academy",
+        "schemaVersion": 1,
+        "bookingId": "session-demo-1__student-demo-1",
+        "sessionId": "session-demo-1",
+        "studentId": "student-demo-1",
+        "status": "requested",
+        "createdAt": "2026-08-07T12:00:00Z"
+      }
+    },
+    {
+      "path": "academies/demo-academy/attendance/session-demo-1__student-demo-1",
+      "data": {
+        "academyId": "demo-academy",
+        "schemaVersion": 1,
+        "attendanceId": "session-demo-1__student-demo-1",
+        "sessionId": "session-demo-1",
+        "studentId": "student-demo-1",
+        "state": "present",
+        "occurredAt": "2026-08-11T17:35:00Z"
+      }
+    },
+    {
+      "path": "academies/demo-academy/paymentEvents/payment-event-demo-1",
+      "data": {
+        "academyId": "demo-academy",
+        "schemaVersion": 1,
+        "eventId": "payment-event-demo-1",
+        "provider": "synthetic",
+        "providerEventId": "provider-event-demo-1",
+        "eventType": "payment_succeeded",
+        "idempotencyKey": "synthetic-event-demo-1",
+        "receivedAt": "2026-08-11T18:00:00Z"
+      }
+    },
+    {
+      "path": "academies/demo-academy/healthProfiles/student-demo-1",
+      "data": {
+        "academyId": "demo-academy",
+        "schemaVersion": 1,
+        "healthProfileId": "student-demo-1",
+        "studentId": "student-demo-1",
+        "minimumOperationalSupport": "synthetic-only",
+        "status": "active"
+      }
+    }
+  ],
+  "rtdb": [
+    {
+      "path": "academies/demo-academy/presence/session-demo-1/student-demo-1",
+      "data": {
+        "state": "checked_in",
+        "lastSeenAt": "2026-08-11T17:35:30Z",
+        "sessionVersion": 1
+      }
+    }
+  ]
+}

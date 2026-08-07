@@ -14,8 +14,8 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 | T004 | Configurar Firebase CLI, proyectos/emuladores dev y archivos de entorno sin secretos | T001 | aprobada | Auth/Firestore/RTDB emulators + 3 Rules tests pasan |
 | T005 | Configurar Playwright, proyectos por viewport y artefactos no versionados | T002 | aprobada | E2E smoke desktop/móvil 2/2 y estabilidad 10/10 pasan |
 | T006 | Crear CI inicial con lint, tipos, unitarias, Rules y E2E smoke | T003,T005 | aprobada | Pipeline CI verde en `main` (run 31142117581) |
-| T007 | Documentar clasificación de datos, amenazas y matriz preliminar de acceso | - | pendiente | Documento revisado sin gaps críticos |
-| T008 | Confirmar programas, horarios, ubicaciones, capacidad, precios y reglas de membership | - | bloqueada | Aprobación del operador/academia |
+| T007 | Documentar clasificación de datos, amenazas y matriz preliminar de acceso | - | aprobada | Documento revisado sin gaps críticos |
+| T008 | Confirmar programas, horarios, ubicaciones, capacidad, precios y reglas de membership | - | pendiente | Aprobación del operador/academia |
 | T009 | Confirmar criterios y ponderaciones de evaluación/reconocimiento | - | bloqueada | Aprobación de head coach |
 | T010 | Seleccionar proveedor de pagos disponible en Jersey | - | bloqueada | ADR y costos aprobados |
 | T011 | Confirmar política de retención, residencia y borrado con asesoría aplicable a Jersey | - | bloqueada | Política aprobada |
@@ -24,8 +24,8 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
 |---|---|---|---|---|
-| T012 | Definir módulos de dominio, contratos base y errores tipados | T002,T007 | pendiente | Pruebas unitarias de contratos |
-| T013 | Diseñar colecciones, índices, invariantes y plan de migraciones Firestore/RTDB | T007,T008 | pendiente | Modelo y rollback documentados |
+| T012 | Definir módulos de dominio, contratos base y errores tipados | T002,T007 | aprobada | Pruebas unitarias de contratos |
+| T013 | Diseñar colecciones, índices, invariantes y plan de migraciones Firestore/RTDB | T007,T008 | aprobada | Modelo, rollback, fixture, índices y gate final documentados |
 | T014 | Implementar Auth email/password y Google con emulador | T004 | pendiente | Flujos de alta/login/logout probados |
 | T015 | Implementar roles y custom claims con mínimo privilegio | T013,T014 | pendiente | Matriz de roles probada |
 | T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia | T013,T015 | pendiente | Suite de Rules sin accesos indebidos |
@@ -176,3 +176,58 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 - QA local: formato, lint, typecheck, 2/2 unitarias, 3/3 Rules, build estático y 2/2 E2E smoke pasan; `pnpm install --frozen-lockfile --lockfile-only --offline` valida el lockfile.
 - Dependencias: `pnpm audit --audit-level high` pasa el gate y reporta únicamente las dos moderadas transitivas aceptadas temporalmente en `docs/security/dependency-risk-register.md`; no hay hallazgos high/critical.
 - Evidencia remota: GitHub Actions run `31142117581` sobre el commit `e2e7618` terminó en `success` el 2026-08-06, sin pasos fallidos: https://github.com/andresleosan/BPT-Jersey/actions/runs/31142117581.
+
+### T007 - 2026-08-06
+
+- Implementación documental: `docs/security/data-classification-threat-model-access-matrix.md` define cuatro niveles, clasifica 26 dominios del MVP, registra 17 amenazas STRIDE/abuso y delimita 24 dominios de acceso para siete actores.
+- Seguridad: `security-baseline` quedó trazado a controles y tareas posteriores; menores, salud, safeguarding, pagos, consentimientos, credenciales, archivos, audit logs, exports y backups tienen reglas negativas. No se detectaron gaps críticos sin mitigación o tarea bloqueante.
+- Decisiones externas: `T008-T011` permanecen explícitamente abiertas; el documento no afirma cumplimiento legal ni fija retención, residencia, proveedor de pagos o reglas operativas aún no aprobadas.
+- QA documental: búsquedas de cobertura confirmaron roles, clasificaciones, amenazas `THR-001` a `THR-017` y tareas propietarias; `git diff --check`, formato, lint, typecheck y unitarias 2/2 pasan.
+- Dependencias: `pnpm audit --audit-level high` no reporta high/critical; conserva las dos moderadas registradas.
+- Rules: la revalidación no se cuenta como aprobada en esta tarea porque otro proyecto (`hachi-greciaspa`) ocupa `8080/9099`; la configuración temporal en puertos alternativos confirmó además que el test actual fija `8080/9000`. No se modificaron Rules ni tests para ocultar el conflicto.
+- Pruebas avanzadas: contratos, carga y entradas hostiles de runtime no aplican a este entregable documental; sus casos y fronteras quedaron asignados a `T055`.
+- Aprobación: el operador aceptó el documento y autorizó continuar el 2026-08-06.
+
+### T012 - 2026-08-07
+
+- Implementación: `@bpt-jersey/domain` ahora expone el registro congelado de 14 módulos, 21 IDs nominales, `UtcDateTime`, paginación readonly, `Result`, contexto de actor, nueve errores de dominio serializables y una API pública explícita sin wildcard exports.
+- TDD: el subagente documentó rojo por módulos ausentes y verde `9/9`; Cronos verificó rojo por `result`/`actor-context` ausentes y verde `8/8`, rojo por `errors` ausente y verde `2/2`, y rojo por export runtime incompleto seguido de verde final.
+- Revisión: revisión independiente del bloque delegado -> `Spec compliance: PASS`, `Task quality: PASS`; revisión de integración -> sin hallazgos críticos/altos. Se reforzaron tests de exports runtime, retryability y serialización exacta.
+- Seguridad: sin endpoints, entradas externas, integraciones, secretos, datos personales, logs ni dependencias nuevas; los escaneos no hallaron imports de Firebase/React/Next/Zod/HTTP/proveedores. Los únicos textos coincidentes (`password`, `stack`, `cause`) son aserciones negativas de `errors.test.ts`.
+- QA: formato específico de `packages/domain/src/**/*.ts` aprobado; lint aprobado; typecheck raíz aprobado; unitarias `6` archivos/`17` pruebas aprobadas; `git diff --check` sin salida.
+- Gate externo: `corepack pnpm format:check` sigue fallando únicamente por `opencode.json`, modificación ajena a T012 que cambia Cronos a `4.2.0` y habilita delegación. No se modificó ese archivo para ocultar el cambio del operador.
+- Dependencias: `corepack pnpm audit --audit-level high` reporta únicamente las dos vulnerabilidades moderadas ya registradas; no hay high/critical.
+- Pruebas avanzadas: contratos interservicio, carga, entradas hostiles, Rules y E2E no aplican a esta base de contratos sin endpoints; permanecen asignadas a las tareas funcionales y `T055`.
+- Aprobación: el operador aprobó `T012` y autorizó continuar con `T013` el 2026-08-07.
+
+### T008 - 2026-08-07
+
+- Fuente pública: se consultaron `https://bptjersey.com/`, `/classes`, `/contact-us` y `/privacy-policy`; se registraron programas, ubicaciones, horarios y precios publicados con su procedencia.
+- Datos ficticios: capacidades, zona horaria, estados iniciales, booking window, cancelación, waitlist, billing, freeze, overdue, trial y refund quedaron marcados `(f)` en `docs/operations/academy-configuration-provisional.md`.
+- Decisiones pendientes: las contradicciones de kids/Carrefour/Strive/Age Concern, el texto `£8 class`, la dirección de Age Concern, capacidades, membresías, proveedor de pagos y `T011` permanecen `Pending approval`.
+- Seguridad: no se añadieron datos personales, credenciales, secretos, clientes reales ni configuración ejecutable. El texto público de cuenta de relleno se registró solo como observación externa y no se importó.
+- Estado: `T008` queda `pendiente`, con los datos provisionales disponibles pero sin aprobación operativa.
+- Recordatorio: revisar `T008` el **2026-08-08** y confirmar valores publicados, reemplazar los `(f)` y resolver las decisiones pendientes antes de cerrar la tarea.
+- Autorización de diseño (2026-08-07): el operador autorizó la opción 1; las relaciones estables pueden modelarse con valores `(f)` visibles como placeholders no productivos. `T008` permanece `pendiente` y ningún placeholder se convierte en una restricción de producción.
+
+### T013 - 2026-08-07
+
+- Implementación documental: `docs/adr/ADR-004-firestore-aggregate-boundaries.md` fija Firestore como fuente canónica, RTDB como presencia efímera, el límite de tenant `academies/{academyId}`, las colecciones directas por dominio, los IDs deterministas y las dependencias de `T008`, `T010`, `T011` y `T016`.
+- Autorización de diseño: el operador autorizó el modelado de relaciones estables con valores `(f)` como placeholders no productivos; esta autorización no aprueba `T008` ni convierte valores provisionales en restricciones operativas.
+- Estado previo: `T013` estaba `en-progreso` y conservaba la dependencia `T007,T008`.
+- Seguridad: revisión documental sin secretos, credenciales, datos reales ni apertura de una fuente canónica en RTDB; el límite de tenant y las dependencias posteriores quedan explícitos.
+- Verificación: `corepack pnpm exec prettier --check firestore.indexes.json` -> `Checking formatting...` y `All matched files use Prettier code style!`; `git -c safe.directory="F:/Proyectos/BPT Jersey/Dev" diff --check` -> sin salida; las búsquedas de límites requeridas confirmaron las fronteras del ADR y los estados de T008/T009/T010/T011/T013.
+
+#### Task 5 - gate final de evidencia
+
+- Implementación revisada: ADR-004, contrato `docs/data/firestore-data-model.md`, runbook `docs/data/migrations/README.md`, `firestore.indexes.json` con 16 índices compuestos, fixture sintético con 7 registros Firestore y 1 registro RTDB, y `qa/rules/t013-data-model.test.ts` con 1 prueba específica.
+- Seguridad: el escaneo sensible sobre `docs/adr`, `docs/data`, `qa/fixtures` y `qa/rules` no encontró valores secretos, credenciales, datos de tarjetas, clientes reales ni material de service account. Las 13 coincidencias de `docs/data` son prohibiciones documentales (`no secrets`, `no card numbers`, `no passwords`, etc.) sin valores sensibles. Tenant isolation, separación de Restricted, RTDB no canónico, ausencia de datos crudos de pago y backup más aprobación explícita para cambios destructivos quedaron confirmados.
+- Pruebas avanzadas: `corepack pnpm test:rules` ejecutó el emulador `demo-bpt-jersey` con default-deny intacto; pasó el fixture T013 y las negativas de Rules, con 2 archivos y 4 pruebas aprobadas. No hubo acceso a producción.
+- Incidente de entorno y revalidación: una repetición inmediata posterior de `test:rules` no pudo iniciar por `9099`/`8080`; `netstat` mostró únicamente conexiones `TIME_WAIT`, sin proceso escuchando. Tras 15 segundos, el mismo comando pasó nuevamente con 2 archivos/4 pruebas; no fue un fallo de T013 ni se cambió configuración o procesos.
+- Comandos: `corepack pnpm test:rules` -> 2 archivos/4 pruebas aprobadas, script exit 0; `corepack pnpm test` -> 6 archivos/17 pruebas aprobadas; `corepack pnpm lint` -> exit 0 sin errores; `corepack pnpm typecheck` -> 6 workspaces completados; `corepack pnpm exec prettier --check firestore.indexes.json qa/rules/t013-data-model.test.ts` -> todos los archivos usan el estilo Prettier; `git -c safe.directory="F:/Proyectos/BPT Jersey/Dev" diff --check` -> salida vacía, exit 0.
+- Formatter raíz: `corepack pnpm format:check` falla únicamente por `opencode.json` externo preexistente (`[warn] opencode.json`, exit 1). No se modificó ni ocultó ese archivo; el formatter específico de T013 sí pasó.
+- Fronteras: no hay cambios en `firestore.rules`, `database.rules.json`, `firebase.json`, `.firebaserc`, `apps/web` ni `apps/functions` versionables. Los cambios previos no relacionados en configuración de Cronos, `.gitignore`, `AGENTS.md`, `.cronos/` y `packages/domain/src/index.ts` se conservaron sin alterarlos.
+- Dependencias abiertas: `T008` continúa `pendiente`; `T009`, `T010` y `T011` continúan `bloqueadas`; `T016` conserva la propiedad de las Rules concretas. Los valores `(f)` y `Pending approval` siguen siendo placeholders no productivos.
+- Operaciones: no se ejecutaron migraciones, `up`, `down`, backups, restauraciones, despliegues, cambios de Rules, operaciones destructivas, gastos, manejo de secretos ni commits. El emulador usado por `test:rules` no es una aprobación operativa.
+- Checkpoint previo: `T013` pasó a `revisión` con evidencia del gate final; no se iniciaron T015/T016.
+- Aprobación del operador (2026-08-07): el operador aceptó explícitamente T013 después de la revisión integral y la verificación fresca; T013 pasa a `aprobada`. T008-T011 y T016 conservan sus estados y ownership sin cambios.
