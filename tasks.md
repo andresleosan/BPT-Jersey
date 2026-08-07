@@ -13,7 +13,7 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 | T003 | Configurar Vitest, Testing Library y convenciones de pruebas | T002 | aprobada | Vitest + RTL: 2 archivos/2 pruebas aprobados |
 | T004 | Configurar Firebase CLI, proyectos/emuladores dev y archivos de entorno sin secretos | T001 | aprobada | Auth/Firestore/RTDB emulators + 3 Rules tests pasan |
 | T005 | Configurar Playwright, proyectos por viewport y artefactos no versionados | T002 | aprobada | E2E smoke desktop/móvil 2/2 y estabilidad 10/10 pasan |
-| T006 | Crear CI inicial con lint, tipos, unitarias, Rules y E2E smoke | T003,T005 | revisión | Workflow implementado y gates locales verdes; falta ejecución en GitHub |
+| T006 | Crear CI inicial con lint, tipos, unitarias, Rules y E2E smoke | T003,T005 | aprobada | Pipeline CI verde en `main` (run 31142117581) |
 | T007 | Documentar clasificación de datos, amenazas y matriz preliminar de acceso | - | pendiente | Documento revisado sin gaps críticos |
 | T008 | Confirmar programas, horarios, ubicaciones, capacidad, precios y reglas de membership | - | bloqueada | Aprobación del operador/academia |
 | T009 | Confirmar criterios y ponderaciones de evaluación/reconocimiento | - | bloqueada | Aprobación de head coach |
@@ -175,4 +175,4 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 - Seguridad: permisos globales reducidos a `contents: read`; sin secretos ni pasos de despliegue; timeout y cancelación de ejecuciones obsoletas; todas las GitHub Actions están fijadas a commits inmutables verificados contra sus tags oficiales.
 - QA local: formato, lint, typecheck, 2/2 unitarias, 3/3 Rules, build estático y 2/2 E2E smoke pasan; `pnpm install --frozen-lockfile --lockfile-only --offline` valida el lockfile.
 - Dependencias: `pnpm audit --audit-level high` pasa el gate y reporta únicamente las dos moderadas transitivas aceptadas temporalmente en `docs/security/dependency-risk-register.md`; no hay hallazgos high/critical.
-- Estado: `revisión`, no `aprobada`, porque la evidencia de salida exige un pipeline verde en una branch de GitHub y aún no se ha autorizado commit/push.
+- Evidencia remota: GitHub Actions run `31142117581` sobre el commit `e2e7618` terminó en `success` el 2026-08-06, sin pasos fallidos: https://github.com/andresleosan/BPT-Jersey/actions/runs/31142117581.
