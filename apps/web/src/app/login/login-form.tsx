@@ -1,15 +1,20 @@
 "use client";
 
 import { useState, useSyncExternalStore, type FormEvent } from "react";
+import type { MultiFactorError } from "firebase/auth";
 
 import {
+  clearPendingMfaError,
   createClientWithEmail,
+  rememberMfaError,
+  resolveTotpChallenge,
   sendPasswordReset,
   signInWithEmail,
   signInWithGoogle,
 } from "../../lib/auth-client";
 import { defaultDestination, sanitizeReturnPath, toAuthMessage } from "../../lib/login-flow";
 import type { AuthDestination, LoginRole } from "../../lib/login-flow";
+import { AdminMfaChallenge } from "../admin/admin-mfa";
 
 type LoginMode = "sign-in" | "create-client";
 type FieldErrors = Readonly<{ email?: string; password?: string }>;
@@ -21,6 +26,15 @@ type LoginFormProps = Readonly<{
 
 function validEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+function isMfaRequiredError(error: unknown): error is MultiFactorError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "auth/multi-factor-auth-required"
+  );
 }
 
 function destinationAfterLogin(role: LoginRole, returnPath?: AuthDestination): void {
@@ -49,6 +63,7 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
   const [authError, setAuthError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mfaError, setMfaError] = useState<MultiFactorError>();
   const locationSearch = useLocationSearch();
   const queryParams = new URLSearchParams(locationSearch);
   const queryRole = queryParams.get("role");
@@ -80,6 +95,8 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
     setFieldErrors({});
     setAuthError("");
     setNotice("");
+    clearPendingMfaError();
+    setMfaError(undefined);
   }
 
   function validate(): FieldErrors {
@@ -115,6 +132,12 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
       }
       destinationAfterLogin(activeRole, returnPath);
     } catch (error) {
+      if (activeRole === "administrator" && isMfaRequiredError(error)) {
+        rememberMfaError(error);
+        setMfaError(error);
+        return;
+      }
+
       setAuthError(toAuthMessage(error));
     } finally {
       setBusy(false);
@@ -130,6 +153,12 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
       await signInWithGoogle();
       destinationAfterLogin(activeRole, returnPath);
     } catch (error) {
+      if (activeRole === "administrator" && isMfaRequiredError(error)) {
+        rememberMfaError(error);
+        setMfaError(error);
+        return;
+      }
+
       setAuthError(toAuthMessage(error));
     } finally {
       setBusy(false);
@@ -154,6 +183,25 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
     } finally {
       setBusy(false);
     }
+  }
+
+  if (mfaError && activeRole === "administrator") {
+    return (
+      <section className="login-card" aria-labelledby="admin-mfa-title">
+        <AdminMfaChallenge
+          onCancel={async () => {
+            clearPendingMfaError();
+            setMfaError(undefined);
+          }}
+          onComplete={async (code) => {
+            await resolveTotpChallenge(mfaError, code);
+            clearPendingMfaError();
+            setMfaError(undefined);
+            destinationAfterLogin(activeRole, returnPath);
+          }}
+        />
+      </section>
+    );
   }
 
   return (

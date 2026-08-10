@@ -110,7 +110,7 @@ describe("LoginForm", () => {
     );
   });
 
-  it("renders a generic sign-in error when Firebase requests an unsupported MFA step", async () => {
+  it("routes an administrator MFA-required sign-in into the TOTP challenge", async () => {
     authOperations.signInWithEmail.mockRejectedValue({
       code: "auth/multi-factor-auth-required",
     });
@@ -121,8 +121,10 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText("Password"), "password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/couldn't complete sign-in/i));
-    expect(screen.getByLabelText("Email address")).toBeVisible();
-    expect(authOperations.rememberMfaError).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /verify your authenticator/i })).toBeVisible(),
+    );
+    expect(screen.queryByLabelText("Email address")).not.toBeInTheDocument();
+    expect(authOperations.rememberMfaError).toHaveBeenCalledOnce();
   });
 });

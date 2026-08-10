@@ -3,6 +3,8 @@ import Image from "next/image";
 
 import { LoginForm } from "./login-form";
 
+import "../admin/admin.css";
+
 export const metadata: Metadata = {
   title: "Account access",
   description: "Sign in to your BPT Jersey client or administrator account.",
