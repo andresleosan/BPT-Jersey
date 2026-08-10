@@ -47,6 +47,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build domain runtime
+        run: pnpm --filter @bpt-jersey/domain build:runtime
+
       - name: Check formatting
         run: pnpm format:check
 
