@@ -69,6 +69,8 @@ jobs:
         run: pnpm test:rules
 
       - name: Build the public web app
+        env:
+          NEXT_PUBLIC_ADMIN_E2E: "true"
         run: pnpm --filter @bpt-jersey/web build
 
       - name: Install Playwright Chromium
