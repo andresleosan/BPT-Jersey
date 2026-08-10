@@ -37,7 +37,13 @@ export default function HomePage() {
         <section className="hero" id="top" aria-labelledby="hero-title">
           <div className="hero-copy">
             <p className="eyebrow">Brazilian Power Team · Jersey</p>
-            <h1 id="hero-title">{academyContent.identity.title}</h1>
+            <h1 aria-label={academyContent.identity.title} id="hero-title">
+              {academyContent.identity.titleLines.map((line) => (
+                <span aria-hidden="true" className="hero-title-line" key={line}>
+                  {line}
+                </span>
+              ))}
+            </h1>
             <p className="hero-intro">{academyContent.identity.intro}</p>
             <div className="hero-actions">
               <a className="button button-primary" href="#classes">

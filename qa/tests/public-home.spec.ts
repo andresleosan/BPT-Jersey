@@ -18,12 +18,30 @@ test.describe("public homepage @smoke", () => {
     expect(response?.ok()).toBe(true);
     const initialUrl = new URL(page.url());
     await expect(page).toHaveTitle(/BPT Jersey/);
-    await expect(
-      page.getByRole("heading", {
-        name: /Brazilian Jiu-Jitsu, MMA & Self-Defence/i,
-        level: 1,
-      }),
-    ).toBeVisible();
+    const heroTitle = page.getByRole("heading", {
+      name: "Brazilian Jiu-Jitsu, MMA & Self-Defence",
+      level: 1,
+    });
+
+    await expect(heroTitle).toBeVisible();
+    await expect(heroTitle.locator(".hero-title-line")).toHaveText([
+      "Brazilian Jiu-",
+      "Jitsu, MMA",
+      "& Self-Defence",
+    ]);
+    const titleLines = heroTitle.locator(".hero-title-line");
+    await expect(titleLines).toHaveCount(3);
+    for (let index = 0; index < 3; index += 1) {
+      await expect
+        .poll(() =>
+          titleLines.nth(index).evaluate((line) => {
+            const range = document.createRange();
+            range.selectNodeContents(line);
+            return range.getClientRects().length;
+          }),
+        )
+        .toBe(1);
+    }
     const primaryNavigation = page.getByRole("navigation", { name: "Primary navigation" });
     await expect(primaryNavigation).toBeVisible();
     await expect(

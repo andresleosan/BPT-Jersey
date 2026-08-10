@@ -8,12 +8,16 @@ describe("web test harness", () => {
     render(<HomePage />);
 
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
+    const heroTitle = screen.getByRole("heading", {
+      level: 1,
+      name: "Brazilian Jiu-Jitsu, MMA & Self-Defence",
+    });
+
+    expect(heroTitle).toBeVisible();
+    expect(heroTitle.querySelectorAll(".hero-title-line")).toHaveLength(3);
     expect(
-      screen.getByRole("heading", {
-        level: 1,
-        name: /Brazilian Jiu-Jitsu, MMA & Self-Defence/i,
-      }),
-    ).toBeVisible();
+      [...heroTitle.querySelectorAll(".hero-title-line")].map((line) => line.textContent),
+    ).toEqual(["Brazilian Jiu-", "Jitsu, MMA", "& Self-Defence"]);
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Classes in Jersey" })).toBeVisible();
     expect(screen.getByText("Office 9, 13 Library Place")).toBeVisible();

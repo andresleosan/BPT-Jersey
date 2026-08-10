@@ -32,6 +32,7 @@ export const academyContent = {
   ],
   identity: {
     title: "Brazilian Jiu-Jitsu, MMA & Self-Defence",
+    titleLines: ["Brazilian Jiu-", "Jitsu, MMA", "& Self-Defence"] as const,
     intro:
       "Train with purpose in a welcoming Jersey academy built around skill, confidence, discipline, and community.",
   },

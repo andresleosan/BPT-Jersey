@@ -6,6 +6,14 @@ describe("public academy content", () => {
   it("contains the published identity, location, programs, instructors, and contact", () => {
     expect(academyContent.lastVerified).toBe("2026-08-07");
     expect(academyContent.identity.title).toBe("Brazilian Jiu-Jitsu, MMA & Self-Defence");
+    expect(academyContent.identity.titleLines).toEqual([
+      "Brazilian Jiu-",
+      "Jitsu, MMA",
+      "& Self-Defence",
+    ]);
+    expect(
+      `${academyContent.identity.titleLines[0]}${academyContent.identity.titleLines[1]} ${academyContent.identity.titleLines[2]}`,
+    ).toBe(academyContent.identity.title);
     expect(academyContent.location.name).toBe("Town Office");
     expect(academyContent.location.address).toBe("Office 9, 13 Library Place");
     expect(academyContent.location.locality).toBe("St Helier, Jersey");
