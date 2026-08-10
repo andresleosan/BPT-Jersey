@@ -18,19 +18,21 @@
   },
   "agent": {
     "cronos": {
-      "description": "Cronos 4.1.0 — agente único: arquitectura, backend, frontend, datos, integraciones, seguridad, QA, rendimiento y despliegue",
+      "description": "Cronos 4.2.0 — agente primario con delegación controlada: arquitectura, backend, frontend, datos, integraciones, seguridad, QA, rendimiento y despliegue",
       "mode": "primary",
-      "tools": {
-        "write": true,
-        "edit": true,
-        "bash": true
+      "permission": {
+        "task": "allow"
       }
     }
   },
+  "subagent_depth": 1,
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": ["npx", "@playwright/mcp@latest"],
+      "command": [
+        "npx",
+        "@playwright/mcp@latest"
+      ],
       "enabled": false
     }
   }

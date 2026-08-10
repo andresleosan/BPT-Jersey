@@ -3,7 +3,7 @@
 Este archivo no es un catálogo fijo de modelos. Los proveedores, los modelos gratuitos y sus catálogos cambian todo el tiempo — lo que tenía sentido hardcodear en julio de 2026 puede no existir en un mes. Por eso describe un **proceso de descubrimiento y un criterio de recomendación por fase**, no una lista de nombres.
 
 ## Por qué "por fase" y no "por Titán" (cambio desde v3.0.0)
-Hasta v2.0.1, cada uno de los 10 Titanes tenía su propio modelo asignado en `opencode.json`, corriendo en paralelo como subagentes distintos. Desde v3.0.0, Cronos es un único agente — un único `model` activo en `opencode.json` en cada momento. Eso no significa que un solo modelo sea igual de bueno para todo: seguir siendo fuerte en generación de código no lo vuelve automáticamente el mejor auditor de su propio código, ni el más barato para tareas repetitivas de DevOps. Por eso Cronos **recomienda cambiar de modelo entre fases**, aunque el cambio sea manual — es una recomendación explícita en cada transición de fase, no una asignación fija de una vez.
+Hasta v2.0.1, cada uno de los 10 Titanes tenía su propio modelo asignado en `opencode.json`. Desde v3.0.0, Cronos usa un modelo primario activo por sesión y desde v4.2.0 puede crear subagentes temporales con lo que el runtime tenga disponible. Eso no restaura modelos fijos por Titán: Cronos sigue recomendando por fase y conserva la revisión final, especialmente en seguridad y QA.
 
 Lo usa Cronos en A3/B3 de `MASTER_PROMPT.md` (al crear o auditar un proyecto) y en el paso 7.1 de cada tarea (al cambiar de fase), y `scripts/elegir-modelo.sh` para cambiarlo manualmente en cualquier momento.
 

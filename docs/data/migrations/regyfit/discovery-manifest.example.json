@@ -1,0 +1,314 @@
+{
+  "schemaVersion": "1",
+  "sourceSystem": "regyfit",
+  "capturedAtUtc": "2026-08-07T12:00:00.000Z",
+  "capabilities": {
+    "export": {
+      "available": false,
+      "formats": []
+    },
+    "api": {
+      "available": false,
+      "documented": false
+    }
+  },
+  "modules": [
+    {
+      "key": "students",
+      "label": "Students",
+      "route": "/admin/students",
+      "observedRoles": ["admin", "coach"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "moduleCode",
+          "label": "Module code",
+          "dataType": "text",
+          "sensitivity": "public",
+          "required": true
+        },
+        {
+          "name": "recordStatus",
+          "label": "Record status",
+          "dataType": "select",
+          "sensitivity": "internal",
+          "required": true
+        },
+        {
+          "name": "displayName",
+          "label": "Student display name",
+          "dataType": "text",
+          "sensitivity": "confidential",
+          "required": true
+        },
+        {
+          "name": "supportNeeds",
+          "label": "Support needs (restricted)",
+          "dataType": "text",
+          "sensitivity": "restricted",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "families",
+      "label": "Families",
+      "route": "/admin/families",
+      "observedRoles": ["admin", "finance"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "familyReference",
+          "label": "Family reference",
+          "dataType": "reference",
+          "sensitivity": "confidential",
+          "required": true
+        },
+        {
+          "name": "relationshipState",
+          "label": "Relationship state",
+          "dataType": "select",
+          "sensitivity": "internal",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "classes",
+      "label": "Classes",
+      "route": "/admin/classes",
+      "observedRoles": ["admin", "coach"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "classReference",
+          "label": "Class reference",
+          "dataType": "reference",
+          "sensitivity": "public",
+          "required": true
+        },
+        {
+          "name": "classState",
+          "label": "Class state",
+          "dataType": "select",
+          "sensitivity": "internal",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "attendance",
+      "label": "Attendance",
+      "route": "/admin/attendance",
+      "observedRoles": ["admin", "coach"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "attendanceState",
+          "label": "Attendance state",
+          "dataType": "select",
+          "sensitivity": "confidential",
+          "required": true
+        },
+        {
+          "name": "occurredAt",
+          "label": "Occurred at",
+          "dataType": "datetime",
+          "sensitivity": "restricted",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "memberships",
+      "label": "Memberships",
+      "route": "/admin/memberships",
+      "observedRoles": ["admin", "finance"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "membershipState",
+          "label": "Membership state",
+          "dataType": "select",
+          "sensitivity": "confidential",
+          "required": true
+        },
+        {
+          "name": "planReference",
+          "label": "Plan reference",
+          "dataType": "reference",
+          "sensitivity": "internal",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "payments",
+      "label": "Payments",
+      "route": "/admin/payments",
+      "observedRoles": ["admin", "finance"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "amountMinor",
+          "label": "Amount in minor units",
+          "dataType": "currency",
+          "sensitivity": "restricted",
+          "required": true
+        },
+        {
+          "name": "currencyCode",
+          "label": "Currency code",
+          "dataType": "text",
+          "sensitivity": "restricted",
+          "required": true
+        },
+        {
+          "name": "providerReference",
+          "label": "Provider reference",
+          "dataType": "reference",
+          "sensitivity": "restricted",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "assessments",
+      "label": "Assessments",
+      "route": "/admin/assessments",
+      "observedRoles": ["admin", "coach"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "assessmentState",
+          "label": "Assessment state",
+          "dataType": "select",
+          "sensitivity": "confidential",
+          "required": true
+        },
+        {
+          "name": "reviewStatus",
+          "label": "Review status",
+          "dataType": "select",
+          "sensitivity": "restricted",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "crm",
+      "label": "CRM leads",
+      "route": "/admin/crm/leads",
+      "observedRoles": ["admin", "staff"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "leadState",
+          "label": "Lead state",
+          "dataType": "select",
+          "sensitivity": "internal",
+          "required": true
+        },
+        {
+          "name": "followUpStatus",
+          "label": "Follow-up status",
+          "dataType": "select",
+          "sensitivity": "confidential",
+          "required": false
+        }
+      ]
+    },
+    {
+      "key": "documents",
+      "label": "Documents",
+      "route": "/admin/documents",
+      "observedRoles": ["admin", "staff"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "documentClass",
+          "label": "Document class",
+          "dataType": "select",
+          "sensitivity": "restricted",
+          "required": true
+        },
+        {
+          "name": "retentionState",
+          "label": "Retention state",
+          "dataType": "select",
+          "sensitivity": "internal",
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "audit",
+      "label": "Audit events",
+      "route": "/admin/audit",
+      "observedRoles": ["admin", "auditor"],
+      "discoveryActions": ["list", "search", "view"],
+      "fields": [
+        {
+          "name": "eventType",
+          "label": "Event type",
+          "dataType": "select",
+          "sensitivity": "restricted",
+          "required": true
+        },
+        {
+          "name": "resultState",
+          "label": "Result state",
+          "dataType": "select",
+          "sensitivity": "internal",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "mappings": [
+    {
+      "sourceEntity": "students",
+      "sourceField": "recordStatus",
+      "targetPath": "students.status",
+      "strategy": "direct",
+      "sensitivity": "internal",
+      "reason": "Keep the synthetic status field in the matching BPT collection."
+    },
+    {
+      "sourceEntity": "students",
+      "sourceField": "displayName",
+      "targetPath": "students.displayName",
+      "strategy": "normalize",
+      "sensitivity": "confidential",
+      "reason": "Normalize the synthetic display label before writing the target field."
+    },
+    {
+      "sourceEntity": "families",
+      "sourceField": "externalFamilyRef",
+      "targetPath": "families.primaryContactUserId",
+      "strategy": "lookup",
+      "sensitivity": "confidential",
+      "reason": "Resolve a synthetic family reference through the approved identity lookup."
+    },
+    {
+      "sourceEntity": "users",
+      "sourceField": "loginSecret",
+      "targetPath": "users.status",
+      "strategy": "exclude",
+      "sensitivity": "restricted",
+      "reason": "Exclude a source authentication marker from every write."
+    },
+    {
+      "sourceEntity": "payments",
+      "sourceField": "providerReference",
+      "targetPath": "payments.providerReference",
+      "strategy": "manual-review",
+      "sensitivity": "restricted",
+      "reason": "Hold a restricted payment reference for manual review."
+    }
+  ],
+  "notes": [
+    "Metadata-only inventory; row values are intentionally omitted.",
+    "Synthetic contract pending controlled read-only discovery."
+  ]
+}

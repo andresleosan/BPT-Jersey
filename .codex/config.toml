@@ -19,9 +19,8 @@
 # vez de ignorarlo. Sin estas dos líneas, Codex usa el modelo por defecto de tu cuenta. Antes de
 # fijar uno real acá, corre el Paso 1 de MODELOS.md (sección Codex CLI): dentro de una sesión,
 # "/model" abre un selector con todo lo disponible para tu cuenta/proveedores configurados.
-model = "gpt-5.6-luna"
-model_provider = "openai"
-model_reasoning_effort = "xhigh"
+# model = "gpt-5.6"
+# model_provider = "openai"
 
 # ─── Permisos y sandbox (equivalente a permission.bash de OpenCode) ─────────
 # approval_policy: "untrusted" | "on-request" | "on-failure" | "never".
@@ -43,9 +42,9 @@ network_access = false
 # ─── MCP: Playwright (equivalente a mcp.playwright de opencode.template.json) ─
 # Deshabilitado por defecto — descomenta solo cuando el proyecto lo necesite (ver skill
 # browser-qa-e2e en SKILLS.md) y confirma primero que "npx @playwright/mcp" funciona en tu máquina.
-[mcp_servers.playwright]
-command = "corepack"
-args = ["pnpm", "dlx", "@playwright/mcp@0.0.79"]
+# [mcp_servers.playwright]
+# command = "npx"
+# args = ["@playwright/mcp@latest"]
 
 # ─── Proveedores personalizados (para que el modelo NUNCA quede restringido) ─
 # Codex CLI no está limitado a modelos de OpenAI: cualquier proveedor compatible con su API se

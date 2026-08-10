@@ -3,7 +3,7 @@
 ## Path and identity conventions
 
 - Firestore root: `academies/{academyId}`.
-- Direct subcollections: `users`, `families`, `students`, `staff`, `relationships`, `locations`, `programs`, `classes`, `sessions`, `plans`, `bookings`, `attendance`, `checkouts`, `memberships`, `invoices`, `payments`, `paymentEvents`, `assessments`, `skillProgress`, `recognitions`, `leads`, `messages`, `deliveryEvents`, `healthProfiles`, `safeguardingCases`, `consents`, `documents`, `auditEvents`, and `exports`.
+- Direct subcollections: `users`, `families`, `students`, `staff`, `relationships`, `locations`, `programs`, `classes`, `sessions`, `plans`, `bookings`, `attendance`, `checkouts`, `memberships`, `invoices`, `payments`, `paymentEvents`, `assessments`, `skillProgress`, `recognitions`, `leads`, `messages`, `deliveryEvents`, `healthProfiles`, `safeguardingCases`, `consents`, `documents`, `auditEvents`, `exports`, and `regyfitAccessRecords`.
 - RTDB presence: `academies/{academyId}/presence/{sessionId}/{studentId}`.
 - Booking document ID: `{sessionId}__{studentId}`.
 - Attendance document ID: `{sessionId}__{studentId}`.
@@ -49,6 +49,25 @@ not approve operational values.
 - `T016` remains the owner of concrete Firestore and RTDB Rules.
 
 ## Classification and ownership
+
+### Regyfit access records
+
+`regyfitAccessRecords` is a source-specific `Restricted` snapshot collection at
+`academies/{academyId}/regyfitAccessRecords/{sourceId}`. It is not canonical
+identity data and must not be reconciled into `students` or `users` by this
+contract. Documents contain the observed member display name, member number,
+login count, last login, source identity, import run, capture time, and IP.
+
+The backend/import command is the only writer. Firestore Rules permit a direct
+complete-document `get` only to an authenticated `owner` whose `academyId`
+claim matches the path and whose document field also matches the path. Collection
+`list` is not a direct client capability because Rules cannot safely field-filter
+the mixed document; administrators use a backend projection that omits `ip`.
+Rules do not grant `administrator` direct reads.
+`headCoach`, `coach`, `guardian`, and `adultStudent` have no access. All client
+creates, updates, and deletes are denied. Import audit entries store only
+academy, actor, action, target, purpose, correlation, count, hash, and run
+metadata; they never copy a source record or restricted field.
 
 Classification applies during capture, transit, storage, caching, querying,
 logging, export, backup, restore, and deletion. A record, payload, export, or
@@ -139,6 +158,12 @@ mutable history.
 | `students`      | `studentId`, `academyId`, `familyId`, `displayName`, `dateOfBirthOrAgeBand`, `active`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`, `status`                                               | `familyId` references `families`; the minor is a protected subject, not an authenticated account.                     | `Restricted`                                                          | Family/identity backend; tutor requests are checked against a current `relationships` record.                      | Deactivation or approved retention workflow; no normal hard delete when referenced by attendance, progress, consent, or safeguarding history.      |
 | `staff`         | `staffId`, `academyId`, `userId`, `roleAssignments`, `active`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`, `status`                                                                       | `userId` references `users`; `roleAssignments` may reference approved programs, classes, or locations.                | `Confidential`                                                        | Staff/identity backend; role and assignment changes require an authorized backend actor.                           | Deactivation revokes interactive access and effective assignments; preserve historical authorship and audit.                                       |
 | `relationships` | `relationshipId`, `academyId`, `familyId`, `studentId`, `adultUserId`, `relationshipType`, `permissions`, `validFrom`, `validTo`, `status`; as a mutable record, the common envelope also applies when applicable. | `familyId` -> `families`, `studentId` -> `students`, `adultUserId` -> `users`; all references must share `academyId`. | `Confidential`; the tutor-minor link is `Restricted` in exports/logs. | Family/identity backend; guardians can request changes, but cannot self-approve a privilege expansion.             | Validity and `status` changes preserve history and require audit; no embedded family/student relationship arrays.                                  |
+
+Owner role provisioning uses the backend-only deterministic lock path
+`academies/{academyId}/adminRoleLocks/{uid}`. The lock carries a short numeric
+lease and is acquired, checked, and released in Firestore transactions. Stale
+leases may be replaced; malformed or active locks fail closed. Rules do not
+grant clients access to this coordination collection.
 
 The `family -> relationship -> student` chain is the source of truth for
 tutor access. `families` does not embed all students, and `students` does not

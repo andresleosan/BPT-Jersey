@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1",
+  "sourceSystem": "regyfit",
+  "capturedAtUtc": "2026-08-07T23:45:19.427Z",
+  "capabilities": {
+    "export": { "available": false, "formats": [] },
+    "api": { "available": false, "documented": false }
+  },
+  "modules": [
+    {
+      "key": "admin2",
+      "label": "Brazillian Power Team Jersey",
+      "route": "/admin2/index.php",
+      "observedRoles": ["status"],
+      "discoveryActions": [],
+      "fields": []
+    },
+    {
+      "key": "mail_editor",
+      "label": "Mail Editor",
+      "route": "/admin2/modulos/centro_comunica/mail_editor/index.php",
+      "observedRoles": [],
+      "discoveryActions": [],
+      "fields": []
+    },
+    {
+      "key": "quest_manager-php",
+      "label": "Quest Manager Php",
+      "route": "/admin2/modulos/centro_comunica/mail_editor/quest_manager.php",
+      "observedRoles": [],
+      "discoveryActions": [],
+      "fields": []
+    },
+    {
+      "key": "image_manager-php",
+      "label": "Image Manager Php",
+      "route": "/admin2/modulos/centro_comunica/mail_editor/image_manager.php",
+      "observedRoles": [],
+      "discoveryActions": [],
+      "fields": []
+    },
+    {
+      "key": "video_tutoriais-php",
+      "label": "Video tutoriais",
+      "route": "/admin2/modulos/updates/video_tutoriais.php",
+      "observedRoles": [],
+      "discoveryActions": ["SEARCH"],
+      "fields": []
+    }
+  ],
+  "notes": [
+    "Read-only structural discovery through an authenticated browser session.",
+    "Row values, field values, cookies, storage, credentials, documents, and screenshots were omitted.",
+    "Additional frame routes were visible structurally but did not expose metadata signals: imagens.php, icons_new2.php, and duplica_semana_auto.php.",
+    "No official export or documented API was verified during this session."
+  ]
+}

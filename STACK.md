@@ -22,8 +22,8 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 
 ## Frontend
 
-- Tecnología: Next.js 16.3.0, React 19.2.8 y TypeScript 6.0.3, con salida estática donde sea posible y experiencia PWA responsive.
-- Por qué: permite combinar sitio público indexable y aplicación autenticada en un solo proyecto, tipado de extremo a extremo y despliegue en Firebase Hosting sin introducir un servidor web adicional para el camino normal.
+- Tecnología: Next.js 16.3.0, React 19.2.8 y TypeScript 6.0.3, con salida estática para Cloudflare Pages y experiencia PWA responsive.
+- Por qué: permite combinar sitio público indexable y aplicación autenticada en un solo proyecto, tipado de extremo a extremo y despliegue estático en Cloudflare Pages sin introducir un servidor web adicional para el camino normal.
 - Idioma: todo el contenido visible al usuario será inglés.
 
 ## Identidad visual (`design-benchmark`)
@@ -68,9 +68,11 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 
 ## Hosting / Despliegue
 
-- Servicio: Firebase Hosting para frontend estático/PWA; Firebase Cloud Functions para backend.
+- Servicio: Cloudflare Pages para el frontend estático/PWA (`https://bptjersey.pages.dev`); Firebase Cloud Functions para backend.
+- Build de Pages: ejecutar `next build` desde `apps/web` y publicar `apps/web/out`.
+- Variables de Pages: configurar los seis `NEXT_PUBLIC_FIREBASE_*` públicos por entorno, `NEXT_PUBLIC_FIREBASE_ENV=staging` (o `production`) y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false`; nunca configurar material de Admin SDK en el frontend. La guardia de build/runtime rechaza emuladores fuera de `local`.
 - CI/CD: GitHub Actions con entornos separados (`dev`, `staging`, `production`), emuladores y aprobación manual para producción.
-- Por qué: reduce componentes operativos y conserva despliegue independiente de frontend y Functions.
+- Por qué: conserva el frontend estático independiente de Functions y fija el target aprobado de Cloudflare Pages.
 - Producción: prohibida hasta cumplir las cinco condiciones de despliegue de Cronos.
 
 ## Testing
@@ -83,7 +85,10 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 
 ## Integraciones externas
 
-- Firebase Authentication: email/password y Google inicialmente; MFA obligatorio para owner/admin. Phone Auth queda pendiente de justificación.
+- Firebase Authentication: email/password y Google; Email/Password y Google deben estar habilitados en cada proyecto. Los dominios autorizados deben incluir `bptjersey.pages.dev` y el origen local de QA. MFA es obligatorio para owner/admin. Phone Auth queda pendiente de justificación.
+- Firebase Emulator Suite: uso exclusivamente local. Un `.env.local` no versionado puede declarar `NEXT_PUBLIC_FIREBASE_ENV=local` y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`; los builds de Cloudflare Pages, staging y producción deben declarar el entorno correspondiente y `false`. No se acepta un flag de emulador verdadero en esos entornos.
+- Autorización de Auth: la selección Administrator/Client es solo contexto de UX. Las cuentas administrativas se provisionan fuera del registro público y Functions/Rules validan `academyId` más `owner` o `administrator`. Owner/administrator además requieren evidencia Firebase `firebase.sign_in_second_factor=totp`; `mfaEnrolled` no sustituye ese claim. Cliente permanece MFA-free en T017.
+- MFA TOTP: Firebase Authentication es la única autoridad para secretos, enrolamiento y desafíos. El setup QR/URI, secreto y códigos permanecen en memoria del flujo; no se escriben en Firestore, RTDB, claims, localStorage, URLs, logs ni artefactos. Phone/SMS Auth queda deliberadamente fuera.
 - Proveedor de pagos: por confirmar para Jersey, detrás de una interfaz independiente; hosted checkout y webhooks firmados.
 - Cloudflare R2: almacenamiento privado compatible con S3.
 - Email/SMS transaccional: proveedor por confirmar; comunicación a menores debe permanecer visible al tutor.
@@ -93,13 +98,12 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 
 - Firebase: plan Blaze obligatorio para Cloud Functions y Phone Auth. En escala inicial de una sola academia se estima **USD 0-25/mes** de infraestructura si el uso permanece cerca de las cuotas gratuitas; escenario de crecimiento inicial: **USD 25-100/mes**, excluyendo SMS y comisiones de pago.
 - Cloudflare R2 Standard: estimado **USD 0/mes** hasta 10 GB-mes, 1 millón de operaciones Clase A y 10 millones Clase B; fuera de eso, USD 0.015/GB-mes, USD 4.50/millón Clase A y USD 0.36/millón Clase B. Egress directo desde R2: sin cargo.
-- Firebase Hosting: 10 GB de almacenamiento y 360 MB/día de transferencia sin costo; excedentes facturados en Blaze.
 - Firestore Standard: 1 GiB, 50,000 lecturas/día, 20,000 escrituras/día, 20,000 borrados/día y 10 GiB/mes de egress incluidos antes de cobro por uso.
 - Realtime Database: 1 GB almacenado y aproximadamente 10 GB/mes descargado sin costo; Spark limita a 100 conexiones simultáneas, Blaze admite hasta 200,000 por base.
 - Cloud Functions: hasta 2 millones de invocaciones mensuales sin costo dentro de Blaze, además de cuotas de cómputo y red.
 - Authentication: 50,000 MAU sin costo aplica a Blaze con Identity Platform; Phone Auth se factura por SMS y no se presupuestará como “10,000 verificaciones gratuitas”.
 - Pagos y mensajería: costo pendiente hasta elegir proveedores y volumen.
-- Alertas configuradas: **no**. Antes de staging deben crearse presupuestos/alertas de Google Cloud y notificaciones de Cloudflare; Firebase/Google Cloud no se tratará como un hard cap automático.
+- Alertas configuradas: **no**. El repositorio de Artifact Registry de staging tiene cleanup policy de 7 días; aún deben crearse presupuestos/alertas de Google Cloud y notificaciones de Cloudflare. Firebase/Google Cloud no se tratará como un hard cap automático.
 - Fuentes verificadas el 2026-08-06: https://firebase.google.com/pricing, https://firebase.google.com/docs/auth/limits y https://developers.cloudflare.com/r2/pricing/.
 
 ## Gestión de secretos
@@ -108,12 +112,13 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 - `.env.example`: sí; contiene solo nombres de variables y el project ID seguro `demo-bpt-jersey`, sin credenciales reales.
 - Producción: Secret Manager/secretos de Functions y secretos cifrados del CI. Las credenciales de R2 y proveedores nunca llegan al cliente.
 - Firebase Web config no se trata como secreto; la seguridad depende de Rules, App Check, Auth y validación de backend.
+- T017 live MFA: variables `T017_MFA_*` solo se inyectan localmente para staging no productivo; CI y producción deben mantener el proyecto live omitido. Recuperación exige intervención del operador en Firebase Auth para eliminar/re-enrolar el factor dedicado. No hay migración de datos; rollback es restaurar código y retirar el factor de staging.
 
 ## Decisiones de arquitectura
 
 1. **Monolito modular en monorepo pnpm**, no microservicios: una sola academia y un solo equipo no justifican coordinación distribuida. Los límites de módulo permiten extraer servicios más adelante.
 2. **Firestore como fuente canónica y RTDB solo efímero**: evita dos verdades para pagos, asistencia o progreso.
-3. **Frontend estático/PWA en Firebase Hosting y backend en Functions**: evita App Hosting/Cloud Run para el camino principal y mantiene costos/operación predecibles.
+3. **Frontend estático/PWA en Cloudflare Pages y backend en Functions**: evita App Hosting/Cloud Run para el camino principal y mantiene costos/operación predecibles.
 4. **R2 privado mediante adaptador de almacenamiento**: reduce costo de objetos y egress sin acoplar el dominio a la API S3.
 5. **Integraciones asíncronas solo donde existen consumidores reales**: webhooks, notificaciones y reportes lentos; no se introduce event sourcing general ni colas “por si acaso”.
 

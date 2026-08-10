@@ -29,7 +29,7 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 | T014 | Implementar Auth email/password y Google con emulador | T004 | pendiente | Flujos de alta/login/logout probados |
 | T015 | Implementar roles y custom claims con mínimo privilegio | T013,T014 | pendiente | Matriz de roles probada |
 | T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia | T013,T015 | pendiente | Suite de Rules sin accesos indebidos |
-| T017 | Implementar MFA obligatorio para owner/admin | T014,T015 | pendiente | E2E de enrolamiento y enforcement |
+| T017 | Implementar MFA obligatorio para owner/admin | T014,T015 | revisión | Unitarias, typecheck, build, E2E sintético desktop/móvil y proyecto live opt-in omitido sin credenciales |
 | T018 | Implementar consentimiento versionado y registro de aceptación | T013,T016 | pendiente | Historial y revocación probados |
 | T019 | Implementar audit log append-only para cambios sensibles | T012,T013,T016 | pendiente | Intentos de alteración rechazados |
 
@@ -38,6 +38,7 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
 |---|---|---|---|---|
 | T020 | Construir design tokens, shell responsive y navegación accesible por rol | T002,T015 | pendiente | Visual QA + WCAG smoke |
+| T020A | Integrar identidad visual oficial: logo en home, login, shell admin y acceso requerido; favicon solo como favicon; añadir navegación Home | T002,T017,T020 | revisión | Assets verificados, metadata/favicon, textos de marca conservados, rutas Home, responsive y visual QA desktop/móvil |
 | T021 | Implementar perfiles de adultos, menores y tutores | T016,T020 | pendiente | CRUD autorizado y validado |
 | T022 | Implementar familias multi-child, contactos y relaciones autorizadas | T021 | pendiente | E2E de tutor con varios menores |
 | T023 | Implementar datos médicos/soporte con acceso restringido | T021,T011 | pendiente | Pruebas negativas por rol |
@@ -231,3 +232,143 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 - Operaciones: no se ejecutaron migraciones, `up`, `down`, backups, restauraciones, despliegues, cambios de Rules, operaciones destructivas, gastos, manejo de secretos ni commits. El emulador usado por `test:rules` no es una aprobación operativa.
 - Checkpoint previo: `T013` pasó a `revisión` con evidencia del gate final; no se iniciaron T015/T016.
 - Aprobación del operador (2026-08-07): el operador aceptó explícitamente T013 después de la revisión integral y la verificación fresca; T013 pasa a `aprobada`. T008-T011 y T016 conservan sus estados y ownership sin cambios.
+
+### Regyfit discovery foundation - 2026-08-07
+
+- Estado: `en revisión`; la sesión autenticada permitió una captura estructural read-only, pero todavía no se observaron entidades ni campos fuente suficientes para aprobar un mapeo de migración.
+- Implementación: contratos de manifiesto, validación de seguridad, sanitización, captura de frames same-origin y pruebas offline en `packages/domain/src/migration/` y `qa/src/regyfit/`.
+- Evidencia live: manifiesto sanitizado con 5 módulos (`admin2`, `mail_editor`, `quest_manager-php`, `image_manager-php`, `video_tutoriais-php`) y 3 rutas adicionales observadas solo como frames.
+- Seguridad: no se guardaron filas, valores, cookies, storage, credenciales, documentos, screenshots ni acciones mutantes; exportación oficial y API documentada quedaron `not verified`.
+- QA: `corepack pnpm test` -> 10 archivos/40 pruebas aprobadas; `corepack pnpm --dir qa typecheck` -> exit 0; `corepack pnpm lint` -> exit 0; Playwright Regyfit offline -> 2/2 aprobadas y 2 live omitidas por falta de variables de entorno.
+- Dependencias: `corepack pnpm audit --audit-level high` -> sin high/critical; `corepack pnpm audit` conserva 2 vulnerabilidades moderadas transitivas (`uuid` y `@opentelemetry/core`) fuera del alcance de esta tarea.
+- Rendimiento: no aplica como release grande; la captura live fue limitada a 40 rutas, solo same-origin, con parámetros estructurales allowlisted y sin navegación a segmentos mutantes.
+
+### Regyfit access admin integration - Task 3A - 2026-08-08
+
+- Implementación verificada: locks de provisioning con `phase` obligatorio, `leaseDeadline` absoluto, renovación acotada, fencing por `lockId`, recuperación de leases expirados y compensación fail-closed; el heartbeat espera renovaciones en vuelo antes de limpiar.
+- Seguridad: revisión específica sin secretos, endpoints sin autorización, exposición nueva de datos sensibles ni logs de registros; el bootstrap de owner continúa restringido a hosts loopback de los emuladores. Las dos vulnerabilidades moderadas transitivas permanecen registradas en `docs/security/dependency-risk-register.md`; no hay high/critical.
+- QA: `corepack pnpm exec vitest run apps/functions/src/auth/admin-authorization.test.ts apps/functions/src/auth/admin-provisioning.test.ts` -> 2 archivos/32 pruebas aprobadas; `corepack pnpm test` -> 14 archivos/83 pruebas aprobadas; `corepack pnpm --filter @bpt-jersey/functions typecheck` -> exit 0; `corepack pnpm lint` -> exit 0; Prettier específico -> todos los archivos usan el estilo; `git diff --check` -> salida vacía.
+- Estado: resolución del blocker verificada y documentada; queda en `revisión` hasta aprobación explícita del operador. No se ejecutaron despliegues, migraciones, importación real ni commits.
+
+### Regyfit access admin integration - Task 4 - 2026-08-08
+
+- Implementación: shell administrativo data-free en `/admin`, con navegación semántica, skip link nativo, foco visible, sidebar responsive BPT y seis módulos en estado `Not yet imported`; la ruta permanece Server Component y no activa Firebase ni lee registros.
+- QA: `corepack pnpm exec vitest run --project web apps/web/src/app/admin/page.test.tsx` -> 5/5; `corepack pnpm --filter @bpt-jersey/web typecheck` -> exit 0; `corepack pnpm --dir qa typecheck` -> exit 0; `corepack pnpm lint` -> exit 0; Prettier específico -> todos los archivos usan el estilo; build web -> `/admin` prerenderizado; `corepack pnpm --dir qa exec node run-e2e.mjs tests/admin-shell.spec.ts --project=desktop-chromium --project=mobile-chromium` -> 2/2 en desktop/móvil, con foco nativo, ausencia de datos/IP/secretos, errores de consola vacíos y sin overflow horizontal en document/body.
+- Seguridad: sin endpoints nuevos, secretos, datos reales, Firebase, logs sensibles ni dependencias nuevas. Las dos vulnerabilidades moderadas transitivas continúan registradas; no hay high/critical.
+- Observación menor aparcada: el servidor estático de QA requiere reescribir `/admin` a `admin.html`; el test conserva la URL semántica y valida el documento generado, sin cambiar la configuración del servidor.
+- Estado: Task 4 verificada y en `revisión` hasta aprobación explícita del operador. No se ejecutaron despliegues, migraciones, importación real ni commits.
+
+### Regyfit access admin integration - Task 5 - 2026-08-08
+
+- Implementación: contrato de snapshot `RegyfitAccessRecord`, mapper con validación estricta, normalización UTC, IDs de origen opacos, proyecciones owner/safe y unicidad por `sourceId`; no deriva `userId`, `studentId` ni identidad Auth.
+- Backend: lectura read-only únicamente desde `academies/{actor.academyId}/regyfitAccessRecords`, autorización con claims/academy scope, owner recibe `IP`, administrator recibe proyección sin `IP`, roles no administrativos y documentos fuera de scope son rechazados.
+- QA: focused -> 2 archivos/17 pruebas; `corepack pnpm test:unit` -> 17 archivos/105 pruebas; typecheck de domain/functions -> exit 0; lint -> exit 0; Prettier específico -> todos los archivos pasan; audit -> sin high/critical, dos moderadas transitivas ya registradas.
+- Seguridad: se rechazan tipos inválidos, campos inesperados, prototipos no planos, valores con forma de credencial, timestamps no canónicos, IDs vacíos, requests `null` y duplicados; los errores de documentos no incluyen valores sensibles.
+- Observaciones menores aparcadas: los fallos de infraestructura de Firestore se propagan desde el servicio inyectable y el `context` tipado del mapper no tiene una comprobación runtime de prototipo plano; ambos quedan fuera del contrato `unknown`/scope de esta tarea.
+- Estado: Task 5 verificada y en `revisión` hasta aprobación explícita del operador. No se ejecutaron despliegues, migraciones, importación real ni commits.
+
+### Regyfit access admin integration - Task 6 - 2026-08-08
+
+- Implementación: panel read-only responsive con búsqueda case-insensitive por `memberDisplayName`, `memberNumber` y `sourceId`; filtros `all/active/inactive` derivados solo de `loginCount`; estados no-results diferenciados; detalle completo de la proyección; IP restringida únicamente a owner.
+- Seguridad y límites: props owner/administrator discriminadas en TypeScript; administrator no renderiza IP aun con objeto malformado; ruta directa y `/admin` permanecen data-free con role preview administrator en el panel; no hay Firebase Admin, staging root, `fetch`, secretos ni endpoints genéricos en la web.
+- Accesibilidad: labels asociados, botones keyboard-accessible, `aria-controls`/`aria-expanded`, focus al detalle, región descriptiva, `aria-live` para estados vacíos, tabla adaptable a cards, focus visible y `prefers-reduced-motion`.
+- QA: focused panel+shell -> 2 archivos/13 pruebas; web -> 5 archivos/23 pruebas; web typecheck -> exit 0; lint -> exit 0; Prettier específico -> pasa; web build -> `/admin` y `/admin/regyfit-access-records` prerenderizados.
+- Alcance diferido: Task 7 debe añadir autenticación/denegación, bootstrap controlado, wiring backend/proyección real y E2E desktop/móvil antes de cargar cualquier registro.
+- Estado: Task 6 verificada y en `revisión` hasta aprobación explícita del operador. No se ejecutaron despliegues, migraciones, importación real ni commits.
+
+### Regyfit access admin integration - Task 7 - 2026-08-08
+
+- Implementación: `/admin` y `/admin/regyfit-access-records` comparten una gate; build normal usa Firebase Auth y falla cerrado para signed-out/denied; la boundary E2E exige flag baked y hostname loopback, con roles allowlisted y sin activar el bypass en hosts no loopback.
+- Bootstrap E2E: records solo sintéticos e inyectados por `page.addInitScript` para owner/administrator; `coach`, `guardian` y `adultStudent` no reciben records. Owner recibe IP; administrator recibe safe projection sin IP. El `importRunId` permanece visible por formar parte de `Omit<RegyfitAccessRecord, "ip">` aprobado.
+- QA: build normal -> exit 0 sin records/IP sintéticos en HTML/chunks; build E2E -> exit 0; focused web/admin bootstrap -> 35/35; `corepack pnpm test` -> 19 archivos/129 pruebas; Playwright admin -> 24/24 desktop + Pixel 7; typechecks web/QA, lint y Prettier -> exit 0; audit sin high/critical, dos moderadas transitivas registradas.
+- Entorno: `qa/run-e2e.mjs` solo propaga `BASE_URL`, `CI`, `PLAYWRIGHT_BROWSERS_PATH` y el flag E2E; no lee staging, secretos ni credenciales reales. No se ejecutaron Firebase Auth real, despliegues, migraciones, importación ni commits.
+- Alcance pendiente: la lectura backend real/callable sigue pendiente antes de cargar registros reales; Task 8 conserva la propiedad del importer y la integración real debe usar la proyección autorizada de Functions.
+- Estado: Task 7 verificada y en `revisión` hasta aprobación explícita del operador.
+
+### Regyfit access admin integration - Task 8 - 2026-08-08
+
+- Implementación: importer emulator-only/idempotente con path fijo `<privateRoot>/<runId>/<moduleKey>/chunk-000000.jsonl`, marcador privado no-symlink, root fuera del checkout, gates exactos de run/módulo/ruta/conteo, mapping de dominio y escritura determinista por `sourceId`.
+- Seguridad: `importRegyfitAccessRecords` valida target antes de leer staging o Firestore; rechaza producción, emulator remoto y staging sin confirmación. Errores y receipt no incluyen root, rutas privadas, raw lines ni valores de registros. Audit único metadata-only.
+- Idempotencia: `REGYFIT_CAPTURED_AT` fijo y UTC canónico, hash lexical/canónico estable, repetición -> `skippedCount=10`, conflicto no sobrescribe y transacción falla sin audit parcial.
+- QA: focused importer -> 2 archivos/16 pruebas; `corepack pnpm test:unit` -> 21 archivos/145 pruebas; typecheck Functions/QA -> exit 0; lint, Prettier y `node --check` -> pass; audit sin high/critical, dos moderadas transitivas registradas.
+- Observación menor: los symlinks intermedios del path se rechazan por `realpath`, aunque no tienen fixture separado; no se leyó staging real ni se inició Emulator.
+- Estado: Task 8 verificada y en `revisión` hasta aprobación explícita del operador. El run real queda estrictamente para Task 9 con checkpoint operativo y confirmación explícita.
+- Próximo gate: confirmar export/API oficial o relevar explícitamente los flujos de entidades/campos faltantes bajo el mismo límite read-only antes de diseñar migración ejecutable.
+
+### Regyfit access admin integration - Task 9 - 2026-08-09
+
+- Adaptación aprobada: el staging real contiene 10 envelopes de captura; el importer ahora valida el envelope, convierte `logins`, normaliza `lastLogin` desde `Europe/Jersey` a UTC y conserva `memberNumber` ausente como `null`, sin reconciliar identidades.
+- QA de implementación: dominio `8/8`, importer `14/14`, backend projections `12/12`, panel web `9/9`; suite unitaria completa `151/151`; Rules `8/8`; admin E2E sintético `30/30` con 2 discovery live omitidos; QA typecheck, Functions build, runtime domain build, lint y `node --check` pasan.
+- Dry-run real sin escritura: `plannedCount=10`, `skippedCount=0`, hash `a351dd5e8372e7100ca82b9b5e238d5265b3f091aca596039efb8356aee51c02`, audit path sanitizado `academies/demo-academy/auditEvents/regyfit-access-regyfit-20260808-acessos-01`.
+- Baseline y autorización: el service account externo al checkout corresponde a `bptjersey-f5a25`; la colección y el audit scope estaban vacíos antes de aplicar. No se usó Emulator ni producción.
+- Importación real: primer run `importedCount=10`, `skippedCount=0`; repetición idempotente `importedCount=0`, `skippedCount=10`; hash y audit path coinciden con el dry-run.
+- Verificación post-import: `count=10`, `distinctSourceIdCount=10`, `importRunIdCount=10`, `auditEventCount=1`, `unexpectedFieldCount=0`, `auditMetadataOnly=true`.
+- Estado: Task 9 verificada y en `revisión` hasta aprobación explícita del operador. Producción permanece intacta; rollback no destructivo: eliminar únicamente documentos del `importRunId` aprobado.
+
+### Regyfit real panel wiring - 2026-08-09
+
+- Implementación: callable `listRegyfitAccessRecords` exportado por Functions; reutiliza la autorización por claims/academy y las proyecciones owner/safe existentes. El navegador usa `httpsCallable` y nunca recibe Admin SDK, service accounts ni staging paths.
+- Web: `AdminAccessRecordsContent` carga la proyección real después de Auth, muestra estados de carga/error sanitizados y conserva datos sintéticos solo con `NEXT_PUBLIC_ADMIN_E2E=true` en loopback.
+- Runtime: Functions smoke `functions-runtime-ok`; `main` corregido a `lib/src/index.js`; runtime domain acotado a los submódulos usados por Functions; `apps/functions/scripts/build-deploy-artifact.mjs` compila, prepara imports ESM, empaqueta sin `workspace:*`/`catalog:` y valida el artefacto antes del deploy.
+- QA: suite completa `156/156`; Rules `8/8`; backend focused `45/45`; web callable/panel `26/26`; typechecks Functions/web/QA, lint, builds y formato específico pasan; E2E sintético `30/30` con 2 discovery live omitidos.
+- Deploy: deploy exclusivo a `bptjersey-f5a25` completado; `listRegyfitAccessRecords` aparece `ACTIVE`, callable v2, Node 22, `us-central1`. Smoke HTTP sin identidad devuelve `403` en vez de `404`, confirmando que el endpoint existe y permanece protegido. Artifact Registry quedó con cleanup policy de 7 días en `us-central1`.
+- Rollback: redeployar la revisión anterior de `apps/functions` con el mismo artefacto portable; los 10 documentos importados no se modifican y pueden eliminarse únicamente filtrando el `importRunId` aprobado.
+- Limitación de verificación: no se ejecutó una lectura live owner/administrator porque no hay credenciales de Firebase Auth de staging disponibles en esta sesión; las proyecciones están cubiertas por `45/45` focused tests y el callable está publicado.
+- Estado: Task 9 y el wiring real quedan en `revisión` hasta una verificación Auth live. Las alertas de facturación de Google Cloud siguen pendientes de configurar por el operador. Producción permanece intacta.
+
+### Unified Login Gateway - hallazgos I-1 a I-6 y M-1 a M-3 - 2026-08-09
+
+- Estado: `revisión`; no se desplegó, migró, crearon usuarios reales, leyeron secretos ni modificó el historial Git.
+- Correcciones: `.gitignore` conserva secretos/builds ignorados y permite versionar `apps/web/src/lib/**`; Google atraviesa una sola boundary y conserva el adaptador de emulador; emuladores quedan local-only con guardia de build/runtime y documentación explícita para Cloudflare/staging; account/shop prueban el contrato real `role=client` y destinos allowlisted; el lint global pasa sin warnings; el skip link apunta a `#login-form`; Playwright cubre teclado, foco, validación ARIA, selector, consola y overflow en desktop/móvil; se agregó el proyecto `live-auth` opt-in, local-only y sin artefactos que puedan contener credenciales.
+- QA: `node_modules/.bin/vitest.cmd run --project web --project node` -> 29 archivos, 187 pruebas aprobadas; `node_modules/.bin/eslint.cmd . --max-warnings 0` -> aprobado; typecheck directo web/UI/config/QA -> aprobado; build normal de `apps/web` -> aprobado; E2E gateway -> 8/8 desktop/móvil; E2E sintético completo con build local `NEXT_PUBLIC_ADMIN_E2E=true` -> 38/38 aprobadas y 4 omitidas por suites live/read-only; `node qa/run-e2e.mjs --project=live-auth` -> 1 omitida por falta de habilitación/credenciales locales; `git diff --check` -> sin salida.
+- Dependencias: `corepack pnpm audit --audit-level high` -> 2 vulnerabilidades moderadas transitivas ya existentes, sin high/critical; permanecen registradas fuera del alcance del gateway.
+- Guardia de entorno: build con `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true` y `NEXT_PUBLIC_FIREBASE_ENV=staging` rechazado antes de compilar; el build normal fue restaurado y aprobado después.
+- Limitación Auth live: no se ejecutó login real cliente/admin porque esta sesión no tiene una sesión local no productiva provista por el operador; no se reclama esa evidencia. La prueba queda disponible con `UNIFIED_LOGIN_LIVE_AUTH=true` y las cuatro variables inyectadas fuera del repositorio, omitida en CI.
+- Formato/tipos: el check específico de código, QA, `STACK.md` y el informe pasa; el check global señala `tasks.md` por su formato histórico y `opencode.json` por un cambio preexistente ajeno. El wrapper `corepack pnpm typecheck` aborta por purga no interactiva de pnpm. Functions/domain directo conserva el fallo preexistente de extensiones `.js` en imports relativos bajo `node16`; no se amplió el alcance del gateway.
+- Rollback: para frontend, publicar la revisión anterior de Cloudflare Pages; para backend, redeplegar la revisión anterior de Functions con el artefacto portable. Esta corrección no aplicó cambios de backend, migraciones ni despliegues.
+
+### Unified Login Gateway - verificación live y logout - 2026-08-09
+
+- Deploy frontend: Cloudflare Pages project `bptjersey`, production deployment `486fd9dd`, publicado en `https://bptjersey.pages.dev`; `/login` y `/admin` responden HTTP 200.
+- Auth staging: la cuenta administrativa de prueba recibió únicamente `academyId=demo-academy` y `role=administrator`; no se alteraron contraseña, email, verificación ni otros usuarios.
+- Verificación manual: operador confirmó acceso de cliente a `/account`, cierre de sesión con retorno al login y acceso administrativo con claims válidas a `/admin`.
+- Corrección: el shell administrativo ahora muestra `Sign out`; el logout de cliente redirige a `/login?role=client&returnTo=/account`.
+- QA posterior: suite unitaria `188/188`, lint global, typecheck web, Prettier específico y `git diff --check` aprobados; build Next y E2E gateway `8/8` aprobados en la misma entrega.
+- Rollback: restaurar el deployment anterior de Cloudflare Pages; no hubo cambios de Functions, Firestore ni migraciones.
+- Estado: `revisión`; producción funcional publicada, sin verificación de compra porque catálogo, carrito y pagos permanecen fuera de alcance.
+
+### T016 - Firestore Rules boundary - 2026-08-09
+
+- Estado: `revisión`; se cerró la lectura directa de `academies/{academyId}/regyfitAccessRecords` para todos los roles y se mantuvo la proyección autorizada exclusivamente en Functions.
+- TDD: se cambió primero `qa/rules/regyfit-access-records.test.ts`; el focused emulator rojo falló solo porque el owner `getDoc` todavía sucedía bajo la excepción existente. Después se eliminó `isAcademyOwner` y el `allow get` positivo de `firestore.rules`.
+- Implementación: `firestore.rules` conserva `allow create, update, delete: if false` y el fallback global `allow read, write: if false`; `database.rules.json` permanece sin cambios con `.read=false` y `.write=false`; `apps/functions/src/regyfit/access-records.ts` y sus proyecciones permanecen sin cambios.
+- QA focused: `node_modules/.bin/firebase.cmd emulators:exec --project demo-bpt-jersey --only firestore "node node_modules/vitest/vitest.mjs run --project rules qa/rules/regyfit-access-records.test.ts"` -> `4/4`; `node_modules/.bin/vitest.cmd run apps/functions/src/regyfit/access-records.test.ts` -> `13/13`.
+- QA completo: `node_modules/.bin/firebase.cmd emulators:exec --project demo-bpt-jersey --only auth,firestore,database "node node_modules/vitest/vitest.mjs run --project rules"` -> 3 archivos, `8/8`; solo fixtures sintéticos y emuladores locales.
+- Shape/security: assertion de Rules/RTDB -> `rules-shape-ok`; no hay cláusulas positivas `allow get/read/list`, no hay lectura web directa de Regyfit y ningún rol conserva write access. Los mensajes del emulator son únicamente denegaciones esperadas.
+- Regresión: `node_modules/.bin/vitest.cmd run --project web --project node` -> 29 archivos, `188/188`; `node_modules/.bin/tsc.cmd --noEmit -p apps/web/tsconfig.json` -> aprobado; `node_modules/.bin/eslint.cmd . --max-warnings 0` -> aprobado; Prettier de `qa/rules` -> aprobado; `git diff --check` -> sin salida.
+- Datos/operaciones: no se modificaron documentos, índices, migraciones, backups, staging o producción; no se crearon usuarios, leyeron secretos, desplegó ni hizo commit. No requiere backup porque el cambio es solo textual de Rules/prueba.
+- Rollback textual: restaurar la versión anterior de `firestore.rules` y `qa/rules/regyfit-access-records.test.ts`; `database.rules.json` no requiere rollback ni restauración de datos.
+- Concern: `node node_modules/prettier/bin/prettier.cjs --check tasks.md` mantiene el warning histórico de formato de `tasks.md`; no se reformateó el archivo completo para evitar cambios fuera de T016.
+
+### T017 - MFA TOTP - 2026-08-09
+
+- Implementación: `requireAdminActor` exige exactamente `request.auth.token.firebase.sign_in_second_factor === "totp"`; ausencia, factor distinto y `mfaEnrolled` sin evidencia Firebase producen `permission-denied`. Los fixtures de provisioning y Regyfit usan evidencia TOTP sintética sin alterar la forma de `AdminActor`.
+- Web Auth: la boundary Firebase expone únicamente enrolamiento TOTP en memoria, assertion de enrolamiento/desafío, detección de `enrolledFactors` y `getIdTokenResult(user, true)`. El resolver MFA queda en memoria durante el login administrativo; no se usa SMS/Phone Auth.
+- Gate/UI: `AdminAuthProvider` distingue `mfa-enrollment-required`, `mfa-required`, `authorized`, `denied` y `signed-out`; `AdminGate` no renderiza `AdminShell` hasta confirmar evidencia TOTP. El wizard y desafío tienen labels, `aria-live`, errores genéricos, teclado y layout responsive. Cliente permanece fuera del flujo MFA.
+- E2E: `qa/tests/admin-auth.spec.ts` exige `adminTestMfa=verified` para el shell sintético y comprueba owner/administrator fuera del shell antes de MFA en desktop y Pixel 7. El proyecto `t017-mfa-live` desactiva screenshots/traces/video, es serial y solo acepta variables locales `T017_MFA_*`; su corrida sin habilitación -> `2 skipped`.
+- Seguridad: QR/URI, secreto y código se mantienen solo en memoria de Auth/componente; no se escriben en Firestore, RTDB, custom claims, localStorage, URLs de navegación, logs, reportes ni artefactos. No existe bypass público ni código fijo. Recuperación requiere eliminar/re-enrolar el factor dedicado desde Firebase Auth por el operador.
+- QA: `node_modules/.bin/vitest.cmd run apps/functions/src/auth/admin-authorization.test.ts apps/functions/src/regyfit/access-records.test.ts` -> `24/24`; boundary MFA -> `14/14`; provider/UI/login focused -> `17/17`; suite completa `node_modules/.bin/vitest.cmd run --project web --project node` -> `31 archivos, 203 pruebas`; typecheck web y QA -> exit 0; lint global -> exit 0; Prettier específico -> todos pasan; build web normal y build E2E -> exit 0; Functions tsc directo -> exit 0; E2E admin sintético -> `18/18` desktop/móvil; login gateway -> `8/8` desktop/móvil.
+- Dependencias: `corepack pnpm audit --audit-level high` -> dos vulnerabilidades moderadas transitivas ya registradas, sin high/critical. `corepack pnpm --filter @bpt-jersey/functions build` no pudo completar porque pnpm intentó purgar `node_modules` sin TTY; el equivalente directo `tsc` pasó y no se cambió la configuración para ocultar la limitación.
+- Operaciones y secretos: no se desplegó, migró, crearon usuarios, leyeron/escribieron secretos, modificó historial Git ni hizo commit. La verificación live real de Firebase/TOTP queda pendiente de una cuenta administrativa staging dedicada y código inyectado por el operador; no se afirma esa evidencia en esta tarea.
+- Rollback: restaurar las revisiones anteriores de web/Functions; si se usa staging, retirar únicamente el factor TOTP de la cuenta dedicada en Firebase Auth. No hay migración de Firestore/RTDB ni backup de datos requerido.
+
+### T020A - Identidad visual y navegación Home - 2026-08-09
+
+- Implementación: `apps/web/public/bpt-jersey-logo.png` contiene el logo oficial y `apps/web/public/favicon.png` contiene el favicon separado. El logo se agregó al header público, al panel izquierdo del login, al sidebar autenticado y como watermark de los estados de acceso admin. Los textos existentes `BPT Jersey` y `BPT / Jersey` se conservaron junto a los assets.
+- Navegación: login, shell admin y acceso admin bloqueado exponen un enlace `Home` hacia `/`; la navegación pública conserva su `Home` hacia `#top`.
+- Metadata: `layout.tsx` usa exclusivamente `favicon.png` para `icon`, `shortcut` y `apple`; el favicon no se renderiza como logo.
+- Accesibilidad: alt del logo, foco visible, orden de tabulación actualizado para el nuevo Home y layout responsive desktop/móvil conservado.
+- QA: focused branding `8/8`; suite unitaria completa `33 archivos, 205 pruebas`; `corepack pnpm lint` -> exit 0; `corepack pnpm typecheck` -> exit 0; Prettier específico -> todos pasan; build web E2E -> exit 0; E2E sintético con `NEXT_PUBLIC_ADMIN_E2E=true` -> `42/42` ejecutables aprobados y `11` live/opt-in omitidos sin credenciales.
+- Seguridad: no se añadieron endpoints, dependencias, secretos, datos de usuarios ni permisos. Los assets son archivos estáticos locales; el watermark no contiene información operativa.
+- Operaciones: no se desplegó, migró, modificaron datos, leyeron secretos ni hicieron commits. La actualización de contratos E2E agrega `adminTestMfa=verified` a rutas sintéticas protegidas por T017.
+- Rollback: retirar los dos assets y revertir los cambios de branding/metadata/tests; no requiere migración ni backup.

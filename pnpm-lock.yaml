@@ -74,6 +74,9 @@ importers:
 
   apps/functions:
     dependencies:
+      '@bpt-jersey/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       firebase-admin:
         specifier: 14.2.0
         version: 14.2.0(supports-color@7.2.0)
@@ -90,6 +93,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@bpt-jersey/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       firebase:
         specifier: 12.16.0
         version: 12.16.0
@@ -118,6 +124,9 @@ importers:
 
   qa:
     devDependencies:
+      '@bpt-jersey/domain':
+        specifier: workspace:*
+        version: link:../packages/domain
       '@firebase/rules-unit-testing':
         specifier: 5.0.1
         version: 5.0.1(firebase@12.16.0)

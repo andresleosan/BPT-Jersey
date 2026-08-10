@@ -1,0 +1,62 @@
+migrationId: "regyfit-foundation-example"
+modelVersion: "bpt-domain-contract-2026-08"
+author: "migration-contract-example"
+createdAt: "2026-08-07T12:00:00.000Z"
+scope:
+  environment: "emulator"
+  projectId: "demo-bpt-jersey"
+  academyIds:
+    - "demo-academy"
+  collections:
+    - "students"
+    - "families"
+    - "classes"
+    - "attendance"
+    - "memberships"
+    - "payments"
+    - "assessments"
+    - "documents"
+    - "auditEvents"
+  expectedDocumentCounts:
+    students: "synthetic fixture only"
+    families: "synthetic fixture only"
+    classes: "synthetic fixture only"
+    attendance: "synthetic fixture only"
+    memberships: "synthetic fixture only"
+    payments: "synthetic fixture only"
+  exclusions:
+    - "live source rows"
+    - "authentication material"
+    - "raw payment data"
+    - "private documents"
+up:
+  mode: "dry-run-then-apply"
+  description: "Validate metadata contracts and synthetic fixture shape without source or production writes."
+  preconditions:
+    - "Synthetic fixture validation passes."
+    - "Operator review remains pending."
+  checkpointPlan:
+    - "Validate the manifest and mapping contract."
+    - "Run a dry-run against isolated emulator fixtures."
+    - "Reconcile synthetic counts and references."
+downOrRestore:
+  strategy: "Remove isolated emulator state; no source mutation."
+  trigger: "Any validation, reconciliation, or scope failure."
+  procedure: "Stop the emulator run and remove only the isolated synthetic fixture state."
+verificationQueries:
+  - id: "manifest-contract"
+    description: "Validate the metadata-only Regyfit manifest against the BPT domain contract."
+    expected: "Validation succeeds with no row values."
+  - id: "synthetic-scope"
+    description: "Confirm every fixture reference uses the demo academy scope."
+    expected: "All synthetic references remain inside demo-academy."
+backupReference:
+  reference: "emulator-fixture-only-no-backup"
+  scope: "demo-academy synthetic fixtures only"
+  verifiedAt: "2026-08-07T12:00:00.000Z"
+  restorationEvidence: "not applicable; isolated emulator example"
+operatorApproval:
+  status: "pending"
+  approvedBy: null
+  approvedAt: null
+  approvedScope: null

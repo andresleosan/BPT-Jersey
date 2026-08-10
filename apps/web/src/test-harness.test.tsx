@@ -21,7 +21,7 @@ describe("web test harness", () => {
 
     const bookingLinks = screen.getAllByRole("link", { name: "Book a free class" });
 
-    expect(bookingLinks).toHaveLength(3);
+    expect(bookingLinks).toHaveLength(2);
     bookingLinks.forEach((bookingLink) => {
       expect(bookingLink).toHaveAttribute("href", "#contact");
     });
@@ -31,5 +31,6 @@ describe("web test harness", () => {
       "#contact",
     );
     expect(screen.queryByRole("link", { name: "Visit BPT Jersey" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
   });
 });

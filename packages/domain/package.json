@@ -4,9 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./migration/regyfit-access": {
+      "types": "./src/migration/regyfit-access.ts",
+      "default": "./lib/migration/regyfit-access.js"
+    },
+    "./auth/admin-contracts": {
+      "types": "./src/auth/admin-contracts.ts",
+      "default": "./lib/auth/admin-contracts.js"
+    }
   },
   "scripts": {
+    "build:runtime": "tsc -p tsconfig.runtime.json && node scripts/prepare-runtime.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   }
 }

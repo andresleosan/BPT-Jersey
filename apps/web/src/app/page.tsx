@@ -1,4 +1,5 @@
 import { academyContent } from "../content/academy";
+import Image from "next/image";
 
 export default function HomePage() {
   return (
@@ -9,6 +10,13 @@ export default function HomePage() {
 
       <header className="site-header">
         <a className="wordmark" href="#top" aria-label="BPT Jersey home">
+          <Image
+            alt="BPT Jersey logo"
+            className="site-logo"
+            height={96}
+            src="/bpt-jersey-logo.png"
+            width={144}
+          />
           <span>BPT</span>
           <span>Jersey</span>
         </a>
@@ -19,8 +27,8 @@ export default function HomePage() {
           <a href="#programs">Programs</a>
           <a href="#locations">Locations</a>
           <a href="#contact">Contact</a>
-          <a className="nav-cta" href="#contact">
-            Book a free class
+          <a className="nav-cta" href="/login">
+            Sign in
           </a>
         </nav>
       </header>

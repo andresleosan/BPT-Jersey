@@ -30,7 +30,7 @@ export type { UtcDateTime } from "./time";
 export type { Page, PageCursor, PageRequest } from "./pagination";
 export { err, ok } from "./result";
 export type { Err, Ok, Result } from "./result";
-export { userRoles } from "./actor-context";
+export { administrativeRoles, userRoles } from "./actor-context";
 export type {
   ActorContext,
   AnonymousActorContext,
@@ -38,6 +38,12 @@ export type {
   UserActorContext,
   UserRole,
 } from "./actor-context";
+export {
+  canReadRegyfitAccess,
+  canReadRestrictedIp,
+  parseAdminClaims,
+} from "./auth/admin-contracts";
+export type { AdminClaims, AdminRole } from "./auth/admin-contracts";
 export { domainErrorCodes } from "./errors";
 export type {
   DomainError,
@@ -46,3 +52,30 @@ export type {
   IntegrationArea,
   ValidationIssue,
 } from "./errors";
+
+export {
+  regyfitEntityNames,
+  regyfitMappingStrategies,
+  regyfitSensitivities,
+  validateRegyfitDiscoveryManifest,
+  validateRegyfitMapping,
+} from "./migration/regyfit-contracts";
+export type {
+  RegyfitCapabilityMetadata,
+  RegyfitDiscoveryManifest,
+  RegyfitEntityName,
+  RegyfitFieldSnapshot,
+  RegyfitMapping,
+  RegyfitMappingStrategy,
+  RegyfitModuleSnapshot,
+  RegyfitSensitivity,
+} from "./migration/regyfit-contracts";
+
+export {
+  assertUniqueSourceIds,
+  mapRegyfitAccessRow,
+  normalizeRegyfitAccessEnvelope,
+  toRestrictedRegyfitAccessProjection,
+  toSafeRegyfitAccessProjection,
+} from "./migration/regyfit-access";
+export type { RegyfitAccessRecord, RegyfitAccessSourceRow } from "./migration/regyfit-access";

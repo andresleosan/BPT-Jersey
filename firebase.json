@@ -1,9 +1,9 @@
 {
   "functions": {
-    "source": "apps/functions",
+    "source": ".firebase-functions",
     "codebase": "default",
     "runtime": "nodejs22",
-    "predeploy": ["corepack pnpm --dir apps/functions build"]
+    "predeploy": ["node apps/functions/scripts/build-deploy-artifact.mjs"]
   },
   "firestore": {
     "rules": "firestore.rules",

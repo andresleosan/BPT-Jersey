@@ -5,6 +5,7 @@
   },
   "include": [
     "src/**/*.ts",
+    "unit/**/*.test.ts",
     "tests/**/*.ts",
     "rules/**/*.ts",
     "setup/**/*.ts",

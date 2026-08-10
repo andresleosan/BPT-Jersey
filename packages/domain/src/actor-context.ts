@@ -9,6 +9,8 @@ export const userRoles = Object.freeze([
   "adultStudent",
 ] as const);
 
+export const administrativeRoles = Object.freeze(["owner", "administrator"] as const);
+
 export type UserRole = (typeof userRoles)[number];
 
 export type AnonymousActorContext = Readonly<{

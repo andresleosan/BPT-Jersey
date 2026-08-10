@@ -11,7 +11,37 @@ const playwrightCli = require.resolve("@playwright/test/cli");
 const extraArguments = process.argv.slice(2);
 const projectBrowserCache = resolve(import.meta.dirname, "..", ".playwright-browsers");
 
-const testEnvironment = { ...process.env };
+const testEnvironment = {
+  BASE_URL: process.env.BASE_URL ?? localBaseUrl,
+  ...(process.env.CI ? { CI: process.env.CI } : {}),
+  ...(process.env.NEXT_PUBLIC_ADMIN_E2E
+    ? { NEXT_PUBLIC_ADMIN_E2E: process.env.NEXT_PUBLIC_ADMIN_E2E }
+    : {}),
+  ...(process.env.PLAYWRIGHT_BROWSERS_PATH
+    ? { PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH }
+    : existsSync(projectBrowserCache)
+      ? { PLAYWRIGHT_BROWSERS_PATH: projectBrowserCache }
+      : {}),
+};
+
+for (const variable of [
+  "UNIFIED_LOGIN_LIVE_AUTH",
+  "UNIFIED_LOGIN_CLIENT_EMAIL",
+  "UNIFIED_LOGIN_CLIENT_PASSWORD",
+  "UNIFIED_LOGIN_ADMIN_EMAIL",
+  "UNIFIED_LOGIN_ADMIN_PASSWORD",
+  "T017_MFA_LIVE",
+  "T017_MFA_ADMIN_EMAIL",
+  "T017_MFA_ADMIN_PASSWORD",
+  "T017_MFA_TOTP_CODE",
+  "T017_MFA_CLIENT_EMAIL",
+  "T017_MFA_CLIENT_PASSWORD",
+]) {
+  if (process.env[variable]) {
+    testEnvironment[variable] = process.env[variable];
+  }
+}
+
 if (!testEnvironment.PLAYWRIGHT_BROWSERS_PATH && existsSync(projectBrowserCache)) {
   testEnvironment.PLAYWRIGHT_BROWSERS_PATH = projectBrowserCache;
 }
@@ -75,6 +105,7 @@ try {
   if (!process.env.BASE_URL) {
     serverProcess = spawn(process.execPath, ["serve-static.mjs"], {
       cwd: import.meta.dirname,
+      env: testEnvironment,
       stdio: ["ignore", "inherit", "inherit"],
       windowsHide: true,
     });

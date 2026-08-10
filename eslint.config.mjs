@@ -28,6 +28,7 @@ export default defineConfig([
     "**/build/**",
     "**/coverage/**",
     "**/dist/**",
+    ".firebase-functions/**",
     "**/lib/**",
     "**/node_modules/**",
     "**/out/**",

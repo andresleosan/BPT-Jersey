@@ -21,6 +21,11 @@ export const metadata: Metadata = {
   },
   description:
     "Train Brazilian Jiu-Jitsu with Brazilian Power Team Jersey and manage every academy touchpoint in one clear place.",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export const viewport: Viewport = {

@@ -34,5 +34,25 @@ export default defineConfig({
       name: "mobile-chromium",
       use: { ...devices["Pixel 7"] },
     },
+    {
+      name: "live-auth",
+      testMatch: /login-gateway-live\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        screenshot: "off",
+        trace: "off",
+        video: "off",
+      },
+    },
+    {
+      name: "t017-mfa-live",
+      testMatch: /admin-mfa-live\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        screenshot: "off",
+        trace: "off",
+        video: "off",
+      },
+    },
   ],
 });
