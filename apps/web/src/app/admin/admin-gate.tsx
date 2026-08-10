@@ -17,8 +17,7 @@ import { AdminMfaChallenge } from "./admin-mfa";
 import { AdminShell } from "./admin-shell";
 
 type AdminTestRole = AdminRole | "coach" | "guardian" | "adultStudent";
-type GateStatus =
-  "loading" | "signed-out" | "denied" | "authorized";
+type GateStatus = "loading" | "signed-out" | "denied" | "authorized";
 
 const AdminGateSessionContext = createContext<AdminSession | undefined>(undefined);
 
