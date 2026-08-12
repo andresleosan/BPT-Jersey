@@ -1,6 +1,6 @@
 # Members reales y navegación administrativa responsive
 
-Fecha: 2026-08-12  
+Fecha: 2026-08-12
 Estado: aprobado para especificación; pendiente de revisión escrita antes de implementación
 
 ## Objetivo
