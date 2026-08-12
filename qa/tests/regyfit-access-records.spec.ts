@@ -46,7 +46,7 @@ test.describe("Regyfit access records authorization and projection", () => {
     const errors = trackBrowserHealth(page);
     await installStaticAdminRoute(page);
     await injectSyntheticAdminRecords(page, "owner");
-    await page.goto("/admin/regyfit-access-records?adminTestRole=owner&adminTestMfa=verified");
+    await page.goto("/admin/regyfit-access-records?adminTestRole=owner");
 
     await expect(page.getByTestId("regyfit-access-records-panel")).toBeVisible();
     await expect(page.getByRole("table", { name: "Regyfit access records" })).toBeVisible();
@@ -84,9 +84,7 @@ test.describe("Regyfit access records authorization and projection", () => {
     const errors = trackBrowserHealth(page);
     await installStaticAdminRoute(page);
     await injectSyntheticAdminRecords(page, "administrator");
-    await page.goto(
-      "/admin/regyfit-access-records?adminTestRole=administrator&adminTestMfa=verified",
-    );
+    await page.goto("/admin/regyfit-access-records?adminTestRole=administrator");
 
     await expect(page.getByTestId("regyfit-access-records-panel")).toBeVisible();
     await expect(page.getByTestId("regyfit-access-record-row")).toHaveCount(2);

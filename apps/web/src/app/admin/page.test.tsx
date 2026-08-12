@@ -2,6 +2,12 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const navigationMocks = vi.hoisted(() => ({ pathname: "/admin" }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => navigationMocks.pathname,
+}));
+
 import { AdminOverview } from "./page";
 import { AdminGateSessionProvider } from "./admin-gate";
 import { AdminShell } from "./admin-shell";
@@ -27,6 +33,7 @@ function renderAuthenticatedPreview() {
 describe("administrative shell", () => {
   afterEach(() => {
     cleanup();
+    navigationMocks.pathname = "/admin";
   });
 
   it("renders an authenticated shell with accessible landmarks and navigation", () => {
@@ -60,26 +67,30 @@ describe("administrative shell", () => {
     renderAuthenticatedPreview();
 
     const skipLink = screen.getByRole("link", { name: "Skip to main content" });
-    const overviewLink = within(
+    const membersLink = within(
       screen.getByRole("navigation", { name: "Admin navigation" }),
-    ).getByRole("link", { name: "Overview" });
+    ).getByRole("link", { name: "Members" });
 
     await user.tab();
     expect(skipLink).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("link", { name: "BPT Jersey home" })).toHaveFocus();
     await user.tab();
-    expect(overviewLink).toHaveFocus();
-    expect(overviewLink).toHaveAttribute("href", "#overview");
+    expect(screen.getByRole("link", { name: "Overview" })).toHaveFocus();
+    await user.tab();
+    expect(membersLink).toHaveFocus();
+    expect(membersLink).toHaveAttribute("href", "/admin/members");
   });
 
-  it("exposes the English module labels and marks Overview as active", () => {
+  it("exposes the operational English modules and marks the current route as active", () => {
     renderAuthenticatedPreview();
 
     const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
     const labels = [
       "Overview",
       "Members",
+      "Groups / Teams",
+      "Activities",
       "Attendance",
       "Reports",
       "CRM",
@@ -90,33 +101,50 @@ describe("administrative shell", () => {
     labels.forEach((label) => {
       expect(within(navigation).getByRole("link", { name: label })).toBeVisible();
     });
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(9);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
-      "aria-current",
-      "page",
+      "href",
+      "/admin",
     );
   });
 
-  it("keeps uncaptured modules data-free with explicit import states", () => {
+  it("marks Members active without leaving legacy hash links", () => {
+    navigationMocks.pathname = "/admin/members/search";
     renderAuthenticatedPreview();
 
-    const emptyStates = screen.getAllByTestId("admin-empty-state");
-    const expectedModules = [
-      "Members",
-      "Attendance",
-      "Reports",
-      "CRM",
-      "Finance",
-      "Regyfit Access Records",
-    ];
+    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    expect(within(navigation).getByRole("link", { name: "Members" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(navigation).getByRole("link", { name: "Members" })).toHaveAttribute(
+      "href",
+      "/admin/members",
+    );
+    expect(navigation.querySelectorAll('a[href^="#"]').length).toBe(0);
+  });
 
-    expect(screen.getAllByRole("article")).toHaveLength(expectedModules.length);
-    expect(emptyStates).toHaveLength(expectedModules.length);
-    expectedModules.forEach((label) => {
-      expect(screen.getByRole("heading", { level: 3, name: label })).toBeVisible();
-    });
-    emptyStates.forEach((emptyState) => {
-      expect(emptyState).toHaveTextContent("Not yet imported");
-    });
+  it("keeps the Members route active for member subroutes", () => {
+    navigationMocks.pathname = "/admin/members/search";
+    renderAuthenticatedPreview();
+
+    expect(
+      within(screen.getByRole("navigation", { name: "Admin navigation" })).getByRole("link", {
+        name: "Members",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders the operational dashboard instead of placeholder module cards", () => {
+    renderAuthenticatedPreview();
+
+    expect(screen.getByRole("heading", { name: "Today's academy view" })).toBeVisible();
+    expect(screen.getByRole("article", { name: "8 Classes today" })).toBeVisible();
+    expect(screen.getByRole("table", { name: "Today's classes" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Add new member" })).toHaveAttribute(
+      "href",
+      "/admin/members/add",
+    );
 
     const pageText = document.body.textContent ?? "";
     expect(pageText).not.toMatch(
@@ -134,7 +162,7 @@ describe("administrative shell", () => {
 
     expect(main).toHaveClass("admin-main");
     expect(main).toHaveClass("admin-main-content");
-    expect(navigationLinks).toHaveLength(7);
+    expect(navigationLinks).toHaveLength(9);
     navigationLinks.forEach((link) => {
       expect(link.tagName).toBe("A");
       expect(link).toHaveAttribute("href");

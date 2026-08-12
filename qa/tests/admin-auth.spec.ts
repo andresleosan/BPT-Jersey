@@ -42,16 +42,12 @@ async function installStaticAdminRoute(page: Page, pathname: string): Promise<vo
   });
 }
 
-function roleUrl(pathname: string, role?: AdminTestRole, mfa?: "verified"): string {
+function roleUrl(pathname: string, role?: AdminTestRole): string {
   if (!role) {
     return pathname;
   }
 
-  const params = new URLSearchParams({ adminTestRole: role });
-  if (mfa) {
-    params.set("adminTestMfa", mfa);
-  }
-  return `${pathname}?${params.toString()}`;
+  return `${pathname}?${new URLSearchParams({ adminTestRole: role }).toString()}`;
 }
 
 test.describe("admin authentication boundary", () => {
@@ -79,28 +75,15 @@ test.describe("admin authentication boundary", () => {
 
       for (const pathname of adminPaths) {
         await installStaticAdminRoute(page, pathname);
-        await page.goto(roleUrl(pathname, role, "verified"));
+        await page.goto(roleUrl(pathname, role));
         expect(new URL(page.url()).searchParams.get("adminTestRole")).toBe(role);
         await expect(page.getByTestId("admin-shell")).toBeVisible();
         await expect(page.getByText(new RegExp(`${role} access`, "i"))).toBeVisible();
-        await expect(page.getByTestId("regyfit-access-records-panel")).toBeVisible();
+        if (pathname === "/admin/regyfit-access-records") {
+          await expect(page.getByTestId("regyfit-access-records-panel")).toBeVisible();
+        }
       }
 
-      await expectNoBrowserHealthProblems(page, errors);
-    });
-  }
-
-  for (const role of ["owner", "administrator"] as const) {
-    test(`keeps ${role} outside the shell until MFA is verified`, async ({ page }) => {
-      const errors = trackBrowserHealth(page);
-
-      await installStaticAdminRoute(page, "/admin");
-      await page.goto(roleUrl("/admin", role));
-
-      await expect(page.getByRole("heading", { name: "Verify your authenticator" })).toBeVisible();
-      await expect(page.getByLabel("Authenticator code")).toBeVisible();
-      await expect(page.getByTestId("admin-shell")).toHaveCount(0);
-      await expect(page.getByTestId("regyfit-access-records-panel")).toHaveCount(0);
       await expectNoBrowserHealthProblems(page, errors);
     });
   }

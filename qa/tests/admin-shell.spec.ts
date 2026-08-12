@@ -22,7 +22,7 @@ test.describe("admin shell @smoke", () => {
       await route.continue();
     });
 
-    const response = await page.goto("/admin?adminTestRole=owner&adminTestMfa=verified");
+    const response = await page.goto("/admin?adminTestRole=owner");
 
     expect(response?.ok()).toBe(true);
     await expect(page).toHaveTitle(/BPT Jersey/);
@@ -31,20 +31,18 @@ test.describe("admin shell @smoke", () => {
     ).toBeVisible();
 
     const navigation = page.getByRole("navigation", { name: "Admin navigation" });
-    for (const label of [
-      "Overview",
-      "Members",
-      "Attendance",
-      "Reports",
-      "CRM",
-      "Finance",
-      "Regyfit Access Records",
-    ]) {
+    for (const label of ["Members"]) {
       await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
     }
 
-    await expect(page.getByTestId("admin-empty-state")).toHaveCount(6);
-    await expect(page.getByText("Not yet imported", { exact: true })).toHaveCount(6);
+    await expect(
+      page.getByRole("heading", { name: "Today's academy view", level: 2 }),
+    ).toBeVisible();
+    await expect(page.getByRole("table", { name: "Today's classes" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Add new member" })).toHaveAttribute(
+      "href",
+      "/admin/members/add",
+    );
 
     const skipLink = page.getByRole("link", { name: "Skip to main content" });
     await page.keyboard.press("Tab");

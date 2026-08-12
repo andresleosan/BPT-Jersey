@@ -41,7 +41,7 @@ Antes de cerrar reglas de negocio deben confirmarse:
 
 1. Programas, grupos de edad y habilidad, clases Gi/No-Gi/beginner/advanced/competition, capacidad, ubicaciones, horarios y precios.
 2. Reglas de cinturones y stripes, pagos, cancelaciones y congelación de membresías.
-3. Roles iniciales: owner, administrator/reception, head coach, coach, parent/guardian y adult student.
+3. Roles iniciales: administrator/reception, head coach, coach, parent/guardian y adult student. `owner` no es un rol de negocio visible, pero el claim técnico `owner` es el único autorizado para conceder o revocar accesos administrativos.
 4. Criterios uniformes de desempeño: attendance, punctuality, focus, discipline, technical progress, training performance, effort, resilience, respect y teamwork.
 5. Proveedor de pagos disponible para una academia en Jersey, conservando una capa independiente del proveedor.
 
@@ -82,7 +82,7 @@ Todos los bloques siguientes pertenecen al primer release. El puntaje RICE simpl
 - Phase 2: booking avanzado, automatización de cobros/CRM/notificaciones, autoservicio completo y asistencia offline.
 - Phase 3: biblioteca técnica, currículo, evaluación por técnica, promociones y portal completo de progreso.
 - Phase 4: goals/streaks, resúmenes familiares automatizados, apps nativas y comunidad.
-- Phase 5: referrals, eventos, competencias, clases privadas y retail.
+- Phase 5: referrals, eventos, competencias, clases privadas y retail avanzado fuera de la tienda inicial aprobada.
 - Phase 6: analítica predictiva, IA, multi-academia, white label y SaaS.
 - Autorizaciones de salida de menores, promociones, pagos, diagnósticos o decisiones de safeguarding mediante IA.
 

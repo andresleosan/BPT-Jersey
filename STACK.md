@@ -85,10 +85,10 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 
 ## Integraciones externas
 
-- Firebase Authentication: email/password y Google; Email/Password y Google deben estar habilitados en cada proyecto. Los dominios autorizados deben incluir `bptjersey.pages.dev` y el origen local de QA. MFA es obligatorio para owner/admin. Phone Auth queda pendiente de justificación.
+- Firebase Authentication: email/password y Google; Email/Password y Google deben estar habilitados en cada proyecto. Los dominios autorizados deben incluir `bptjersey.pages.dev` y el origen local de QA. MFA queda fuera del rediseño aprobado del panel administrativo. Phone Auth queda pendiente de justificación.
 - Firebase Emulator Suite: uso exclusivamente local. Un `.env.local` no versionado puede declarar `NEXT_PUBLIC_FIREBASE_ENV=local` y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`; los builds de Cloudflare Pages, staging y producción deben declarar el entorno correspondiente y `false`. No se acepta un flag de emulador verdadero en esos entornos.
-- Autorización de Auth: la selección Administrator/Client es solo contexto de UX. Las cuentas administrativas se provisionan fuera del registro público y Functions/Rules validan `academyId` más `owner` o `administrator`. Owner/administrator además requieren evidencia Firebase `firebase.sign_in_second_factor=totp`; `mfaEnrolled` no sustituye ese claim. Cliente permanece MFA-free en T017.
-- MFA TOTP: Firebase Authentication es la única autoridad para secretos, enrolamiento y desafíos. El setup QR/URI, secreto y códigos permanecen en memoria del flujo; no se escriben en Firestore, RTDB, claims, localStorage, URLs, logs ni artefactos. Phone/SMS Auth queda deliberadamente fuera.
+- Autorización de Auth: la selección Administrator/Client es solo contexto de UX. Las cuentas administrativas se provisionan fuera del registro público y Functions/Rules validan `academyId` más el acceso administrativo. Los administradores aprobados operan el panel, pero solo el claim `owner` puede conceder o revocar accesos administrativos. Cliente y administrador quedan sin MFA en este rediseño aprobado.
+- MFA TOTP: queda fuera del alcance del panel administrativo aprobado. No se implementan enrolamiento, desafíos ni secretos MFA en estos flujos; Phone/SMS Auth queda deliberadamente fuera.
 - Proveedor de pagos: por confirmar para Jersey, detrás de una interfaz independiente; hosted checkout y webhooks firmados.
 - Cloudflare R2: almacenamiento privado compatible con S3.
 - Email/SMS transaccional: proveedor por confirmar; comunicación a menores debe permanecer visible al tutor.

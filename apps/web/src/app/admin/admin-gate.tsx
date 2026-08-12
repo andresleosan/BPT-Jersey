@@ -13,7 +13,6 @@ import type { AdminRole } from "@bpt-jersey/domain";
 
 import { AdminAuthProvider, useAdminSession, type AdminSession } from "../../lib/admin-auth";
 import { adminSessionForTestRole, isAdminE2EEnabled } from "../../lib/admin-test-bootstrap";
-import { AdminMfaChallenge } from "./admin-mfa";
 import { AdminShell } from "./admin-shell";
 
 type AdminTestRole = AdminRole | "coach" | "guardian" | "adultStudent";
@@ -112,7 +111,6 @@ function E2EAdminGate({ children }: { children: ReactNode }) {
     | { status: "loading" }
     | { status: "signed-out" }
     | { status: "denied" }
-    | { status: "mfa-required" }
     | { status: "authorized"; role: Extract<AdminRole, "owner" | "administrator"> }
   >({ status: "loading" });
 
@@ -129,11 +127,6 @@ function E2EAdminGate({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (new URLSearchParams(window.location.search).get("adminTestMfa") !== "verified") {
-      startTransition(() => setState({ status: "mfa-required" }));
-      return;
-    }
-
     startTransition(() => setState({ status: "authorized", role }));
   }, []);
 
@@ -147,16 +140,6 @@ function E2EAdminGate({ children }: { children: ReactNode }) {
 
   if (state.status === "signed-out" || state.status === "denied") {
     return <AccessState status={state.status} />;
-  }
-
-  if (state.status === "mfa-required") {
-    return (
-      <AdminMfaChallenge
-        onComplete={async () => {
-          throw new Error("Synthetic MFA verification is disabled in contract tests.");
-        }}
-      />
-    );
   }
 
   return <div className="admin-auth-loading" aria-busy="true" />;

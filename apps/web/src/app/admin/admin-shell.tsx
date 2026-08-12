@@ -1,18 +1,23 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 
 import type { AdminSession } from "../../lib/admin-auth";
 
 import "./admin.css";
 
 const navigationItems = [
-  { label: "Overview", href: "#overview" },
-  { label: "Members", href: "#members" },
-  { label: "Attendance", href: "#attendance" },
-  { label: "Reports", href: "#reports" },
-  { label: "CRM", href: "#crm" },
-  { label: "Finance", href: "#finance" },
-  { label: "Regyfit Access Records", href: "#regyfit-access-records" },
+  { label: "Overview", href: "/admin" },
+  { label: "Members", href: "/admin/members" },
+  { label: "Groups / Teams", href: "/admin/groups" },
+  { label: "Activities", href: "/admin/activities" },
+  { label: "Attendance", href: "/admin/attendance" },
+  { label: "Reports", href: "/admin/reports" },
+  { label: "CRM", href: "/admin/crm" },
+  { label: "Finance", href: "/admin/finance" },
+  { label: "Regyfit Access Records", href: "/admin/regyfit-access-records" },
 ] as const;
 
 export function AdminShell({
@@ -24,7 +29,14 @@ export function AdminShell({
   onSignOut?: () => Promise<void>;
   session: AdminSession;
 }) {
+  const pathname = usePathname() ?? "";
   const roleLabel = session.role === "owner" ? "Owner access" : "Administrator access";
+
+  function isCurrentRoute(href: string): boolean {
+    return href === "/admin"
+      ? pathname === href
+      : pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   return (
     <>
@@ -55,7 +67,7 @@ export function AdminShell({
             <ul className="admin-nav-list">
               {navigationItems.map((item) => (
                 <li key={item.label}>
-                  <a href={item.href} aria-current={item.label === "Overview" ? "page" : undefined}>
+                  <a href={item.href} aria-current={isCurrentRoute(item.href) ? "page" : undefined}>
                     <span aria-hidden="true">-&gt;</span>
                     {item.label}
                   </a>
@@ -67,7 +79,7 @@ export function AdminShell({
           <div className="admin-sidebar-footer">
             <p className="admin-sidebar-kicker">Current access</p>
             <p className="admin-role">{roleLabel}</p>
-            <p className="admin-sidebar-note">Data surfaces remain empty until imported.</p>
+            <p className="admin-sidebar-note">Synthetic preview / connected sources protected.</p>
           </div>
         </aside>
 

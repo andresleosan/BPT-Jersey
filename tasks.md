@@ -29,7 +29,7 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 | T014 | Implementar Auth email/password y Google con emulador | T004 | pendiente | Flujos de alta/login/logout probados |
 | T015 | Implementar roles y custom claims con mínimo privilegio | T013,T014 | pendiente | Matriz de roles probada |
 | T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia | T013,T015 | pendiente | Suite de Rules sin accesos indebidos |
-| T017 | Implementar MFA obligatorio para owner/admin | T014,T015 | revisión | Unitarias, typecheck, build, E2E sintético desktop/móvil y proyecto live opt-in omitido sin credenciales |
+| T017 | Implementar MFA obligatorio para owner/admin | T014,T015 | cancelada | Sustituida por el rediseño administrativo aprobado el 2026-08-11, sin MFA |
 | T018 | Implementar consentimiento versionado y registro de aceptación | T013,T016 | pendiente | Historial y revocación probados |
 | T019 | Implementar audit log append-only para cambios sensibles | T012,T013,T016 | pendiente | Intentos de alteración rechazados |
 
@@ -352,16 +352,80 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 
 ### T017 - MFA TOTP - 2026-08-09
 
-- Implementación: `requireAdminActor` exige exactamente `request.auth.token.firebase.sign_in_second_factor === "totp"`; ausencia, factor distinto y `mfaEnrolled` sin evidencia Firebase producen `permission-denied`. Los fixtures de provisioning y Regyfit usan evidencia TOTP sintética sin alterar la forma de `AdminActor`.
+- Implementación histórica: T017 exigía exactamente `request.auth.token.firebase.sign_in_second_factor === "totp"`; quedó cancelada y sustituida por ADR-005, por lo que la autorización actual valida únicamente autenticación, claims administrativos y alcance de academia.
 - Web Auth: la boundary Firebase expone únicamente enrolamiento TOTP en memoria, assertion de enrolamiento/desafío, detección de `enrolledFactors` y `getIdTokenResult(user, true)`. El resolver MFA queda en memoria durante el login administrativo; no se usa SMS/Phone Auth.
-- Gate/UI: `AdminAuthProvider` distingue `mfa-enrollment-required`, `mfa-required`, `authorized`, `denied` y `signed-out`; `AdminGate` no renderiza `AdminShell` hasta confirmar evidencia TOTP. El wizard y desafío tienen labels, `aria-live`, errores genéricos, teclado y layout responsive. Cliente permanece fuera del flujo MFA.
-- E2E: `qa/tests/admin-auth.spec.ts` exige `adminTestMfa=verified` para el shell sintético y comprueba owner/administrator fuera del shell antes de MFA en desktop y Pixel 7. El proyecto `t017-mfa-live` desactiva screenshots/traces/video, es serial y solo acepta variables locales `T017_MFA_*`; su corrida sin habilitación -> `2 skipped`.
+- Gate/UI histórico: los componentes TOTP siguen disponibles para el flujo opt-in documentado, pero el `AdminGate` actual no exige enrolamiento ni desafío MFA.
+- E2E histórico: esta tarea fue cancelada y sustituida por ADR-005; sus pruebas TOTP y el proyecto `t017-mfa-live` permanecen como material histórico/opt-in, no como requisito del panel actual.
 - Seguridad: QR/URI, secreto y código se mantienen solo en memoria de Auth/componente; no se escriben en Firestore, RTDB, custom claims, localStorage, URLs de navegación, logs, reportes ni artefactos. No existe bypass público ni código fijo. Recuperación requiere eliminar/re-enrolar el factor dedicado desde Firebase Auth por el operador.
 - QA: `node_modules/.bin/vitest.cmd run apps/functions/src/auth/admin-authorization.test.ts apps/functions/src/regyfit/access-records.test.ts` -> `24/24`; boundary MFA -> `14/14`; provider/UI/login focused -> `17/17`; suite completa `node_modules/.bin/vitest.cmd run --project web --project node` -> `31 archivos, 203 pruebas`; typecheck web y QA -> exit 0; lint global -> exit 0; Prettier específico -> todos pasan; build web normal y build E2E -> exit 0; Functions tsc directo -> exit 0; E2E admin sintético -> `18/18` desktop/móvil; login gateway -> `8/8` desktop/móvil.
 - Seguimiento del login: el commit publicado aún convertía `auth/multi-factor-auth-required` en el mensaje genérico; el cambio local en `login-form.tsx` enruta ese error administrativo al desafío TOTP y conserva el resolver en memoria. Prueba enfocada -> `12/12`; suite completa -> `33 archivos, 205 pruebas`; typecheck web, lint, Prettier específico, build Next y E2E login sintético -> `8/8` desktop/móvil.
 - Dependencias: `corepack pnpm audit --audit-level high` -> dos vulnerabilidades moderadas transitivas ya registradas, sin high/critical. `corepack pnpm --filter @bpt-jersey/functions build` no pudo completar porque pnpm intentó purgar `node_modules` sin TTY; el equivalente directo `tsc` pasó y no se cambió la configuración para ocultar la limitación.
 - Operaciones y secretos: no se desplegó, migró, crearon usuarios, leyeron/escribieron secretos, modificó historial Git ni hizo commit. La verificación live real de Firebase/TOTP queda pendiente de una cuenta administrativa staging dedicada y código inyectado por el operador; el seguimiento local todavía no está publicado.
-- Rollback: restaurar las revisiones anteriores de web/Functions; si se usa staging, retirar únicamente el factor TOTP de la cuenta dedicada en Firebase Auth. No hay migración de Firestore/RTDB ni backup de datos requerido.
+ - Rollback: restaurar las revisiones anteriores de web/Functions; si se usa staging, retirar únicamente el factor TOTP de la cuenta dedicada en Firebase Auth. No hay migración de Firestore/RTDB ni backup de datos requerido.
+
+### Task 4 - Members and reports fixes - 2026-08-11
+
+- Alcance corregido: navegación admin sin hashes legacy y `aria-current` derivado de la ruta; `getMemberReportSummary` count-only con aggregate Firestore bounded; filtros web serializados con las 11 claves allowlisted; expiración de URL PDF ISO, futura y acotada; apertura de pestaña durante el gesto; export journal específico y durable antes de R2; rate limit transaccional por academia/administrador; límites de filas/tamaño; fallback seguro para Unicode en PDF; estados de tabla y counters separados.
+- TDD rojo: focused web inicial -> 3 archivos, 11 pruebas fallidas por los contratos nuevos; focused Functions/PDF inicial -> 2 archivos, 5 pruebas fallidas, incluyendo la reproducción `WinAnsi cannot encode` para CJK. No se modificó código productivo antes de observar estos fallos.
+- TDD verde: `corepack pnpm exec vitest run --project web apps/web/src/lib/members-client.test.ts apps/web/src/app/admin/members/search/page.test.tsx apps/web/src/app/admin/page.test.tsx` -> 3 archivos, 21/21; `corepack pnpm exec vitest run --project node apps/functions/src/members/member-report-pdf.test.ts apps/functions/src/members/member-callables.test.ts` -> 2 archivos, 38/38.
+- Suite inicial de la segunda ronda: `corepack pnpm test` -> 40 archivos, 277/277 pruebas aprobadas.
+- Tipos, lint y build: `corepack pnpm typecheck` -> exit 0 en 6 workspaces; `corepack pnpm lint` -> exit 0 sin warnings; `corepack pnpm build` -> Functions y Next.js build estático exit 0, rutas `/admin`, `/admin/members/search` y `/admin/regyfit-access-records` prerenderizadas.
+- Formato: Prettier específico de los archivos modificados -> exit 0. `corepack pnpm format:check` -> exit 0 después de normalizar el artefacto generado `apps/web/next-env.d.ts`.
+- Browser smoke: corrida normal sin flag E2E -> 2/4 aprobadas (homepage desktop/móvil) y 2 admin fallidas porque el build protegido queda signed-out sin `NEXT_PUBLIC_ADMIN_E2E`; después se actualizó el contrato de navegación y se ejecutó build sintético local con `NEXT_PUBLIC_ADMIN_E2E=true`; `corepack pnpm --dir qa test:e2e:smoke` -> 4/4 desktop/móvil, sin errores de consola ni overflow.
+- Seguridad y dependencias: revisión sobre cambios sin secretos, PII en logs, URLs PDF construidas por cliente ni endpoints nuevos sin autorización; rate limit server-side requerido en `MemberCallableServices`; URLs firmadas de upload/download validadas como HTTPS absolutas; clave de rate limit no ambigua; `corepack pnpm audit --audit-level high` -> sin high/critical, 2 moderadas transitivas ya registradas en `docs/security/dependency-risk-register.md` (`uuid` y `@opentelemetry/core`).
+- Operaciones: no se leyeron secretos, no se modificó Git, no se desplegó, no se migró ni se accedió a staging/producción. Concern residual: el aggregate Firestore y el rate limiter transaccional están cubiertos por adapters y tests inyectados, pero no se ejecutó una prueba contra un emulador Firestore específico para esas dos operaciones en esta ronda.
+- Tercera ronda: `MemberStore.list(academyId, limit)` exige un límite; search usa `MAX_MEMBER_SEARCH_ROWS=10_000` y lee `limit(max+1)`, mientras reportes/PDF usan `MAX_MEMBER_REPORT_ROWS=2_000` y rechazan `resource-exhausted` antes de materializar/generar por encima del límite. El codec y los offsets de paginación HMAC no cambiaron.
+- TDD: focused inicial de esta ronda -> 2 archivos, 5 fallos esperados (overflow search/report y URLs signer inválidas); focused verde -> `2 archivos, 47/47`.
+- Corrección `noNumber`: `createFirestoreMemberStore.countByReport` usa la ruta bounded y `matchesMemberReport`, por lo que la ausencia real de `membershipNumber` equivale exactamente a `undefined`; no usa `where == null`.
+- Integración local: `corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only firestore "node node_modules/vitest/vitest.mjs run --config qa/integration/vitest.config.ts"` -> `1 archivo, 4/4`, con documentos sintéticos aislados y limpieza explícita. Cubre `countByReport/noNumber`, rate limiter transaccional y aislamiento de tuplas, y journals Firestore de report export/import cleanup. La suite unitaria normal no incluye `qa/integration`.
+- QA final: `corepack pnpm test` -> `40 archivos, 287/287`; `corepack pnpm test:rules` -> `4 archivos, 9/9` en la evidencia previa; `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm format:check` y builds web/Functions -> exit 0. `corepack pnpm audit --audit-level high` -> 2 moderadas transitivas conocidas, sin high/critical.
+- Incidentes de entorno: una ejecución paralela de las dos Emulator Suites chocó en puertos y falló; la repetición secuencial de `test:rules` pasó. La integración emite un `MetadataLookupWarning` no fatal bajo el proyecto demo; no usa credenciales ni proyecto real.
+- Estado: continúa en `revisión`; no se marca `aprobada` ni se ejecutan Git, despliegues o migraciones.
+
+#### Post-verificación de la regresión temporal - 2026-08-12
+
+- Hallazgo: dos aserciones de `page.test.tsx` consultaban el DOM con `getByRole` inmediatamente después de una actualización React en `startTransition`; la llamada mock ya había ocurrido, pero la fila todavía no estaba renderizada bajo la suite global.
+- Corrección mínima: ambas aserciones usan `await screen.findByRole`, sin cambios en producción ni debilitamiento del contrato accesible. Revisión independiente: sin hallazgos.
+- QA: `corepack pnpm test` -> 45 archivos, 364/364 pruebas; `corepack pnpm test:rules` -> 4 archivos, 9/9; integración Firestore con emulador local -> 1 archivo, 6/6; lint, typecheck, `format:check` y build normal -> exit 0.
+- Browser QA: build local explícito con `NEXT_PUBLIC_ADMIN_E2E=true` y `corepack pnpm --dir qa test:e2e:smoke` -> 4/4 desktop/móvil; después se restauró y verificó el build normal sin el flag. La corrida normal del smoke sobre el build protegido no se considera evidencia sintética válida porque las rutas admin deben quedar signed-out sin ese flag.
+- Seguridad: sin endpoints, secretos, PII, logs sensibles, permisos, migraciones ni despliegues nuevos. `corepack pnpm audit --audit-level high` conserva únicamente las 2 vulnerabilidades moderadas transitivas registradas; no hay high/critical.
+
+### Visible administrative panel delivery - 2026-08-12
+
+- Alcance aprobado por el operador: construir primero el panel administrativo visible completo,
+  tomando la página replicada como contrato de campos, filtros, acciones rápidas y lenguaje visual.
+  La tienda virtual queda para una fase posterior.
+- Especificación: `docs/superpowers/specs/2026-08-12-administrative-panel-visible-delivery-design.md`.
+- Plan: `docs/superpowers/plans/2026-08-12-visible-administrative-panel-delivery.md`.
+- Implementación visible: `Overview`, `Members`, `Groups / Teams`, `Activities`, `Attendance`,
+  `Reports`, `CRM` y `Finance` tienen rutas reales, navegación protegida por `AdminGate`, tablas,
+  filtros, métricas, estados y acciones de preview. Members conserva los 11 filtros y los campos
+  replicados; Members add/search/import permanecen disponibles.
+- Barra de acciones: el dashboard expone `Add new member`, `Search members`, `Groups / teams`,
+  `Create / manage activities`, `Attendance`, `Finance` y `Reports` como enlaces navegables.
+- Datos: `apps/web/src/app/admin/preview-data.ts` contiene únicamente fixtures sintéticos locales,
+  marcados como `synthetic-preview`; no representan importación real ni datos del cliente.
+- QA focused: primitivas, dashboard, Members, Groups, Activities, Attendance, Finance, Reports y
+  CRM -> 10 archivos, 18/18 pruebas; typecheck -> exit 0.
+- QA global: `corepack pnpm test` -> 54 archivos, 374/374 pruebas; `corepack pnpm lint` -> exit 0;
+  `corepack pnpm typecheck` -> exit 0; `corepack pnpm format:check` -> exit 0; `corepack pnpm build`
+  -> exit 0 con las rutas admin prerenderizadas.
+- Browser QA: build explícito con `NEXT_PUBLIC_ADMIN_E2E=true` y
+  `corepack pnpm --dir qa test:e2e:smoke` -> 4/4 desktop/móvil; sin errores de consola ni overflow.
+  El build normal fue restaurado después. El servidor estático QA ahora responde correctamente a
+  los sidecars metadata-only de Next sin convertirlos en falsos errores de recursos.
+- Seguridad: no se añadieron endpoints públicos, secretos, PII real, pagos, importación PDF,
+   migraciones ni despliegues. `corepack pnpm audit --audit-level high` conserva únicamente las 2
+   vulnerabilidades moderadas transitivas registradas; no hay high/critical.
+- Revisión posterior: el claim técnico `owner` es el único autorizado para conceder o revocar
+  accesos administrativos; la exportación de PII queda permitida sin restricción adicional; las
+  búsquedas, reportes y contadores usan rate limiting durable por academia, administrador y
+  operación, con scopes independientes para no bloquear los ocho contadores entre sí.
+- TDD de rate limiting: prueba roja -> las lecturas no consumían cupo; prueba verde -> focused
+  `apps/functions/src/members/member-callables.test.ts` `67/67` y focused web/backend `73/73`.
+- Estado: `revisión`. El panel visible está listo para demostración con preview sintético; la
+  persistencia real de Groups, Activities, Attendance, Finance, Reports y CRM requiere una fase
+  posterior de callables/Firestore y no debe presentarse como conectada todavía.
 
 ### T020A - Identidad visual y navegación Home - 2026-08-09
 
@@ -371,7 +435,7 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 - Accesibilidad: alt del logo, foco visible, orden de tabulación actualizado para el nuevo Home y layout responsive desktop/móvil conservado.
 - QA: focused branding `8/8`; suite unitaria completa `33 archivos, 205 pruebas`; `corepack pnpm lint` -> exit 0; `corepack pnpm typecheck` -> exit 0; Prettier específico -> todos pasan; build web E2E -> exit 0; E2E sintético con `NEXT_PUBLIC_ADMIN_E2E=true` -> `42/42` ejecutables aprobados y `11` live/opt-in omitidos sin credenciales.
 - Seguridad: no se añadieron endpoints, dependencias, secretos, datos de usuarios ni permisos. Los assets son archivos estáticos locales; el watermark no contiene información operativa.
-- Operaciones: no se desplegó, migró, modificaron datos, leyeron secretos ni hicieron commits. La actualización de contratos E2E agrega `adminTestMfa=verified` a rutas sintéticas protegidas por T017.
+- Operaciones: no se desplegó, migró, modificaron datos, leyeron secretos ni hicieron commits. Las rutas sintéticas actuales ya no requieren `adminTestMfa=verified`, en línea con ADR-005.
 - Rollback: retirar los dos assets y revertir los cambios de branding/metadata/tests; no requiere migración ni backup.
 - Ajuste visual posterior: `apps/web/src/content/academy.ts` conserva el título canónico con coma y añade tres grupos de línea; `apps/web/src/app/page.tsx` los renderiza como spans visuales con nombre accesible completo; `globals.css` ajusta el ritmo vertical, tracking y ancho responsive para evitar que la coma parezca un acento sobre la `D`.
 - TDD/QA: contrato enfocado primero falló por el título local sin coma y la ausencia de `titleLines`; después pasó `4/4`. Suite unitaria completa `corepack pnpm test:unit` -> `33 archivos, 205 pruebas`; Prettier específico, ESLint específico y `tsc --noEmit -p apps/web/tsconfig.json` -> exit 0; build web -> exit 0; E2E homepage desktop/móvil -> `2/2`; captura visual desktop/móvil inspeccionada sin overflow horizontal ni errores de consola.

@@ -49,20 +49,6 @@ function extractAdminClaims(token: unknown): Record<string, unknown> {
   return { academyId: claims.academyId, role: claims.role };
 }
 
-function hasTotpSecondFactor(token: unknown): boolean {
-  if (typeof token !== "object" || token === null || Array.isArray(token)) {
-    return false;
-  }
-
-  const firebaseClaims = (token as Record<string, unknown>).firebase;
-  return (
-    typeof firebaseClaims === "object" &&
-    firebaseClaims !== null &&
-    !Array.isArray(firebaseClaims) &&
-    (firebaseClaims as Record<string, unknown>).sign_in_second_factor === "totp"
-  );
-}
-
 export function requireAdminActor(request: CallableRequest): AdminActor {
   const uid = request.auth?.uid;
   if (typeof uid !== "string" || uid.trim().length === 0) {
@@ -72,10 +58,6 @@ export function requireAdminActor(request: CallableRequest): AdminActor {
   const claims = parseAdminClaims(extractAdminClaims(request.auth?.token));
   if (!claims.ok) {
     throw new HttpsError("permission-denied", "Administrative claims are required");
-  }
-
-  if (!hasTotpSecondFactor(request.auth?.token)) {
-    throw new HttpsError("permission-denied", "Administrative MFA is required");
   }
 
   return Object.freeze({

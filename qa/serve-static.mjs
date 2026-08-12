@@ -17,7 +17,13 @@ const contentTypes = new Map([
 ]);
 
 function resolvePublicFile(pathname) {
-  const requestedPath = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  const normalizedPath = pathname.replace(/^\/+|\/+$/g, "");
+  const requestedPath =
+    normalizedPath.length === 0
+      ? "index.html"
+      : extname(normalizedPath).length > 0
+        ? normalizedPath
+        : `${normalizedPath}.html`;
   const filePath = resolve(publicRoot, requestedPath);
   const pathFromRoot = relative(publicRoot, filePath);
 
@@ -71,6 +77,11 @@ const server = createServer(async (request, response) => {
 
     createReadStream(filePath).pipe(response);
   } catch {
+    if (pathname.includes("/__next.") && pathname.endsWith(".txt")) {
+      response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end();
+      return;
+    }
     response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     response.end("Not Found");
   }

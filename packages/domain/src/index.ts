@@ -79,3 +79,28 @@ export {
   toSafeRegyfitAccessProjection,
 } from "./migration/regyfit-access";
 export type { RegyfitAccessRecord, RegyfitAccessSourceRow } from "./migration/regyfit-access";
+
+export {
+  matchesMemberReport,
+  memberGenders,
+  memberOrderByValues,
+  memberReportKeys,
+  membershipStatuses,
+  parseMemberImportPreview,
+  parseMemberRecord,
+  parseMemberSearchFilters,
+  paymentStatuses,
+} from "./members/member-contracts";
+export type {
+  MemberAuditMetadata,
+  MemberGender,
+  MemberImportChange,
+  MemberImportPreview,
+  MemberImportSourceReport,
+  MemberOrderBy,
+  MemberRecord,
+  MemberReportKey,
+  MemberSearchFilters,
+  MembershipStatus,
+  PaymentStatus,
+} from "./members/member-contracts";

@@ -56,26 +56,19 @@ describe("admin authorization boundary", () => {
     expect(actor).toEqual({ uid: "owner-1", academyId: "academy-1", role: "owner" });
   });
 
-  it("rejects an administrative token without Firebase MFA evidence", () => {
-    expect(() =>
-      requireAdminActor(requestWithAuth("owner-1", { academyId: "academy-1", role: "owner" })),
-    ).toThrowError(expect.objectContaining({ code: "permission-denied" }));
-  });
-
-  it("rejects an mfaEnrolled custom claim without Firebase MFA evidence", () => {
-    expect(() =>
+  it("accepts an administrative token without MFA in the approved initial design", () => {
+    expect(
       requireAdminActor(
-        requestWithAuth("owner-1", {
+        requestWithAuth("administrator-1", {
           academyId: "academy-1",
-          role: "owner",
-          mfaEnrolled: true,
+          role: "administrator",
         }),
       ),
-    ).toThrowError(expect.objectContaining({ code: "permission-denied" }));
+    ).toEqual({ uid: "administrator-1", academyId: "academy-1", role: "administrator" });
   });
 
-  it("rejects a non-TOTP Firebase second factor", () => {
-    expect(() =>
+  it("does not make Firebase MFA metadata part of the initial authorization contract", () => {
+    expect(
       requireAdminActor(
         requestWithAuth("administrator-1", {
           academyId: "academy-1",
@@ -83,7 +76,7 @@ describe("admin authorization boundary", () => {
           firebase: { sign_in_second_factor: "password" },
         }),
       ),
-    ).toThrowError(expect.objectContaining({ code: "permission-denied" }));
+    ).toEqual({ uid: "administrator-1", academyId: "academy-1", role: "administrator" });
   });
 
   it("accepts owner and administrator tokens with Firebase TOTP evidence", () => {
