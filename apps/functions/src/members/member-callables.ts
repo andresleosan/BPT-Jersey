@@ -13,7 +13,7 @@ import {
   parseMemberSearchFilters,
   type MemberImportPreview,
   type MemberReportKey,
-} from "@bpt-jersey/domain";
+} from "@bpt-jersey/domain/members";
 import { requireAdminActor } from "../auth/admin-authorization.js";
 import {
   createR2ClientFromEnvironment,
@@ -47,6 +47,7 @@ import {
   type ParsedMemberRow,
   type ParsedMemberReport,
 } from "./member-pdf-import.js";
+import { formatMemberPdfTextItems } from "./member-pdf-text.js";
 
 export { MAX_MEMBER_REPORT_ROWS, MAX_MEMBER_SEARCH_ROWS } from "./member-service.js";
 
@@ -872,13 +873,46 @@ function defaultServices(): MemberCallableServices {
 
 type PdfParseResult = Readonly<{ text: string }>;
 
+type PdfTextPage = Readonly<{
+  getTextContent: (
+    options: Readonly<{ normalizeWhitespace: boolean; disableCombineTextItems: boolean }>,
+  ) => Promise<{
+    items: readonly Readonly<{ str: string; transform: readonly number[] }>[];
+  }>;
+}>;
+
+type PdfParseOptions = Readonly<{
+  pagerender?: (page: PdfTextPage) => Promise<string>;
+}>;
+
 async function extractPdfText(bytes: Uint8Array): Promise<string> {
   const pdfParse = createRequire(import.meta.url)("pdf-parse") as
-    | ((input: Uint8Array) => Promise<PdfParseResult>)
-    | { default?: (input: Uint8Array) => Promise<PdfParseResult> };
+    | ((input: Uint8Array, options?: PdfParseOptions) => Promise<PdfParseResult>)
+    | { default?: (input: Uint8Array, options?: PdfParseOptions) => Promise<PdfParseResult> };
   const parser = typeof pdfParse === "function" ? pdfParse : pdfParse.default;
   if (parser === undefined) throw new Error("PDF parser unavailable");
-  const result = await parser(bytes);
+  let pageNumber = 0;
+  const result = await parser(bytes, {
+    pagerender: async (page) => {
+      pageNumber += 1;
+      const content = await page.getTextContent({
+        disableCombineTextItems: true,
+        normalizeWhitespace: false,
+      });
+      return formatMemberPdfTextItems(
+        content.items.flatMap((item) => {
+          const x = item.transform[4];
+          const y = item.transform[5];
+          return typeof x === "number" &&
+            typeof y === "number" &&
+            Number.isFinite(x) &&
+            Number.isFinite(y)
+            ? [{ page: pageNumber, str: item.str, x, y }]
+            : [];
+        }),
+      );
+    },
+  });
   if (typeof result.text !== "string") throw new Error("PDF text is invalid");
   return result.text;
 }

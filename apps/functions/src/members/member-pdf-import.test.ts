@@ -67,6 +67,33 @@ describe("member PDF import parser", () => {
     }
   });
 
+  it("accepts the shortened titles and English columns used by the exported reports", () => {
+    const exportedTitles = [
+      ["ACTIVE MEMBERS (1)", "active"],
+      ["ATLETAS ATIVOS REGULARIZADOS (1)", "activeRegularized"],
+      ["ATLETAS ATIVOS COM NÚMERO DE SÓCIO (1)", "withNumber"],
+      ["INACTIVE MEMBERS (1)", "inactive"],
+      ["ATLETAS ATIVOS SEM NÚMERO DE SÓCIO (1)", "noNumber"],
+      ["ATLETAS REGULARIZADOS (1)", "regularized"],
+      ["SUSPENSOS (1)", "suspended"],
+      ["TOTAL DE ATLETAS NA BASE DE DADOS (1)", "total"],
+    ] as const;
+
+    for (const [title, report] of exportedTitles) {
+      const inactive = report === "inactive";
+      const row = inactive
+        ? "M-TEST | Layout Member | ID-TEST | 01 Jan 2000 | VAT-TEST | +4470000000 | 02 Feb 2020"
+        : "M-TEST | Layout Member | ID-TEST | 01 Jan 2000 | VAT-TEST | +4470000000";
+      const parsed = parseMemberReport(
+        reportFixture(title, [row], {
+          header: inactive ? inactiveEnglishHeader : englishHeader,
+          inactive,
+        }),
+      );
+      expect(parsed.report).toBe(report);
+    }
+  });
+
   it("parses synthetic rows, repeated page furniture, empty fields, and HTML phone entities", () => {
     const text = [
       "TOTAL MEMBERS IN DATABASE (2)",
@@ -354,6 +381,52 @@ describe("member PDF import parser", () => {
         expect.objectContaining({ kind: "conflict" }),
       ]),
     );
+  });
+
+  it("resolves status overlap with suspended taking precedence over active", () => {
+    const active = parseMemberReport(
+      reportFixture("ACTIVE MEMBERS IN DATABASE (1)", [
+        "M-021 | Synthetic Status Member |  | 21 Jan 2021 |  | ",
+      ]),
+    );
+    const suspended = parseMemberReport(
+      reportFixture("SUSPENDED MEMBERS IN DATABASE (1)", [
+        "M-021 | Synthetic Status Member |  | 21 Jan 2021 |  | ",
+      ]),
+    );
+
+    const result = deduplicateMemberRows([active, suspended]);
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({ membershipStatus: "suspended" });
+    expect(result.duplicates).toEqual([expect.objectContaining({ kind: "duplicate" })]);
+  });
+
+  it("keeps inactive status differences as conflicts instead of resolving them", () => {
+    const active = parseMemberReport(
+      reportFixture("ACTIVE MEMBERS IN DATABASE (1)", [
+        "M-022 | Synthetic Status Conflict |  | 22 Feb 2022 |  | ",
+      ]),
+    );
+    const inactive = parseMemberReport(
+      reportFixture(
+        "INACTIVE MEMBERS IN DATABASE (1)",
+        ["M-022 | Synthetic Status Conflict |  | 22 Feb 2022 |  |  | 23 Feb 2023"],
+        { inactive: true },
+      ),
+    );
+    const suspended = parseMemberReport(
+      reportFixture("SUSPENDED MEMBERS IN DATABASE (1)", [
+        "M-022 | Synthetic Status Conflict |  | 22 Feb 2022 |  | ",
+      ]),
+    );
+
+    expect(deduplicateMemberRows([active, inactive]).duplicates).toEqual([
+      expect.objectContaining({ kind: "conflict", fields: ["membershipStatus"] }),
+    ]);
+    expect(deduplicateMemberRows([inactive, suspended]).duplicates).toEqual([
+      expect.objectContaining({ kind: "conflict", fields: ["membershipStatus"] }),
+    ]);
   });
 
   it("uses a deterministic fingerprint for repeated rows without identifiers", () => {

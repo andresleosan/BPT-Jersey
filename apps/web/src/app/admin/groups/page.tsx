@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import { AdminDataTable, AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { previewData, type PreviewGroup } from "../preview-data";
-import { AdminGate } from "../admin-gate";
 
 import "../admin.css";
 
@@ -124,9 +123,5 @@ export function GroupsPage() {
 }
 
 export default function GroupsRoute() {
-  return (
-    <AdminGate>
-      <GroupsPage />
-    </AdminGate>
-  );
+  return <GroupsPage />;
 }

@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("admin shell @smoke", () => {
-  test("renders the data-free shell without overflow across viewports", async ({ page }) => {
+  test("renders the data-free shell without overflow across viewports", async ({
+    page,
+  }, testInfo) => {
     const browserErrors: string[] = [];
 
     page.on("console", (message) => {
@@ -14,8 +16,11 @@ test.describe("admin shell @smoke", () => {
     // The static export writes this route as admin.html; keep the test URL semantic as /admin.
     await page.route("**/*", async (route) => {
       const requestUrl = new URL(route.request().url());
-      if (requestUrl.pathname === "/admin") {
-        requestUrl.pathname = "/admin.html";
+      if (requestUrl.pathname.startsWith("/admin")) {
+        if (requestUrl.pathname === "/admin") {
+          requestUrl.pathname = "/admin.html";
+        }
+        requestUrl.searchParams.set("adminTestRole", "owner");
         await route.continue({ url: requestUrl.toString() });
         return;
       }
@@ -30,9 +35,31 @@ test.describe("admin shell @smoke", () => {
       page.getByRole("heading", { name: "Academy control room", level: 1 }),
     ).toBeVisible();
 
-    const navigation = page.getByRole("navigation", { name: "Admin navigation" });
-    for (const label of ["Members"]) {
-      await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+    const desktopNavigation = page.locator(".admin-desktop-navigation");
+    const skipLink = page.getByRole("link", { name: "Skip to main content" });
+    await page.keyboard.press("Tab");
+    await expect(skipLink).toBeFocused();
+    await skipLink.press("Enter");
+    await expect(page.locator("main#admin-main-content")).toBeFocused();
+
+    if (testInfo.project.name === "mobile-chromium") {
+      await expect(page.locator(".admin-sidebar")).toBeHidden();
+      const menuButton = page.getByRole("button", { name: "Open admin navigation" });
+      await expect(menuButton).toBeVisible();
+      await menuButton.click();
+      const drawer = page.getByRole("dialog", { name: "Admin navigation" });
+      await expect(drawer).toBeVisible();
+      await expect(drawer.getByRole("img", { name: "BPT Jersey mobile logo" })).toBeVisible();
+      await expect(page.locator(".admin-mobile-backdrop")).toBeVisible();
+      await expect(drawer.getByRole("link", { name: "Members", exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(drawer).not.toBeVisible();
+    } else {
+      await expect(page.locator(".admin-sidebar")).toBeVisible();
+      await expect(
+        desktopNavigation.getByRole("link", { name: "Members", exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole("button", { name: /admin navigation/i })).toBeHidden();
     }
 
     await expect(
@@ -43,12 +70,6 @@ test.describe("admin shell @smoke", () => {
       "href",
       "/admin/members/add",
     );
-
-    const skipLink = page.getByRole("link", { name: "Skip to main content" });
-    await page.keyboard.press("Tab");
-    await expect(skipLink).toBeFocused();
-    await skipLink.press("Enter");
-    await expect(page.locator("main#admin-main-content")).toBeFocused();
 
     const bodyText = await page.locator("body").innerText();
     expect(bodyText).not.toMatch(
@@ -64,5 +85,45 @@ test.describe("admin shell @smoke", () => {
     expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.documentClientWidth);
     expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.bodyClientWidth);
     expect(browserErrors).toEqual([]);
+  });
+
+  test("selects a route from the mobile drawer without horizontal overflow", async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile-chromium");
+
+    await page.route("**/*", async (route) => {
+      const requestUrl = new URL(route.request().url());
+      if (requestUrl.pathname.startsWith("/admin")) {
+        if (requestUrl.pathname === "/admin") {
+          requestUrl.pathname = "/admin.html";
+        }
+        requestUrl.searchParams.set("adminTestRole", "owner");
+        await route.continue({ url: requestUrl.toString() });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.goto("/admin?adminTestRole=owner");
+    await page.getByRole("button", { name: "Open admin navigation" }).click();
+    await page
+      .getByRole("dialog", { name: "Admin navigation" })
+      .getByRole("link", {
+        name: "Members",
+        exact: true,
+      })
+      .click();
+    await expect(page).toHaveURL(/\/admin\/members/);
+    await expect(page.getByRole("dialog", { name: "Admin navigation" })).not.toBeVisible();
+
+    const dimensions = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      documentClientWidth: document.documentElement.clientWidth,
+      bodyWidth: document.body.scrollWidth,
+      bodyClientWidth: document.body.clientWidth,
+    }));
+    expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.documentClientWidth);
+    expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.bodyClientWidth);
   });
 });

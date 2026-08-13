@@ -13,7 +13,6 @@ import {
   type MemberImportFile,
   type MemberImportWriteResult,
 } from "../../../../lib/member-import-client";
-import { AdminGate } from "../../admin-gate";
 
 import "../../admin.css";
 
@@ -277,9 +276,5 @@ export function MemberImportPage() {
 
 export default function MemberImportRoute() {
   if (process.env.NODE_ENV === "test") return <MemberImportPage />;
-  return (
-    <AdminGate>
-      <MemberImportPage />
-    </AdminGate>
-  );
+  return <MemberImportPage />;
 }

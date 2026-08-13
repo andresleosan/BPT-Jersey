@@ -15,6 +15,7 @@
     "src/migration/regyfit-access.ts",
     "src/identifiers.ts",
     "src/actor-context.ts",
-    "src/auth/admin-contracts.ts"
+    "src/auth/admin-contracts.ts",
+    "src/members/member-contracts.ts"
   ]
 }

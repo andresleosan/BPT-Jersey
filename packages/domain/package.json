@@ -12,6 +12,10 @@
     "./auth/admin-contracts": {
       "types": "./src/auth/admin-contracts.ts",
       "default": "./lib/auth/admin-contracts.js"
+    },
+    "./members": {
+      "types": "./src/members/member-contracts.ts",
+      "default": "./lib/members/member-contracts.js"
     }
   },
   "scripts": {

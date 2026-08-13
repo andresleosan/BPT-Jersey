@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { AdminFilterBar, AdminSectionHeader } from "../admin-ui";
-import { AdminGate } from "../admin-gate";
 
 import "../admin.css";
 
@@ -89,9 +88,5 @@ export function CrmPage() {
 }
 
 export default function CrmRoute() {
-  return (
-    <AdminGate>
-      <CrmPage />
-    </AdminGate>
-  );
+  return <CrmPage />;
 }

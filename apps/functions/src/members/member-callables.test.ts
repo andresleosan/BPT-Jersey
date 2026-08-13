@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CallableRequest } from "firebase-functions/v2/https";
-import { matchesMemberReport } from "@bpt-jersey/domain";
+import { matchesMemberReport } from "@bpt-jersey/domain/members";
 
 import {
   confirmMemberPdfImportHandler,

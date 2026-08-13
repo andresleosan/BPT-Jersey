@@ -45,12 +45,22 @@ type ReportDefinition = Readonly<{
   regularized: boolean;
 }>;
 
+const exportedEnglishHeaderTitles = new Set([
+  "atletas ativos regularizados",
+  "atletas ativos com numero de socio",
+  "atletas ativos sem numero de socio",
+  "atletas regularizados",
+  "suspensos",
+  "total de atletas na base de dados",
+]);
+
 const reportDefinitions: readonly ReportDefinition[] = [
   {
     report: "activeRegularized",
     titlePatterns: [
       /^active regularized members? in database \((\d+)\)$/,
       /^atletas ativos com pagamentos regularizados na base de dados \((\d+)\)$/,
+      /^atletas ativos regularizados \((\d+)\)$/,
     ],
     status: "active",
     regularized: true,
@@ -60,6 +70,7 @@ const reportDefinitions: readonly ReportDefinition[] = [
     titlePatterns: [
       /^regularized members? in database \((\d+)\)$/,
       /^atletas com pagamentos regularizados na base de dados \((\d+)\)$/,
+      /^atletas regularizados \((\d+)\)$/,
     ],
     regularized: true,
   },
@@ -68,6 +79,7 @@ const reportDefinitions: readonly ReportDefinition[] = [
     titlePatterns: [
       /^members? with member number in database \((\d+)\)$/,
       /^atletas com numero de socio na base de dados \((\d+)\)$/,
+      /^atletas ativos com numero de socio \((\d+)\)$/,
     ],
     regularized: false,
   },
@@ -76,6 +88,7 @@ const reportDefinitions: readonly ReportDefinition[] = [
     titlePatterns: [
       /^members? without member number in database \((\d+)\)$/,
       /^atletas sem numero de socio na base de dados \((\d+)\)$/,
+      /^atletas ativos sem numero de socio \((\d+)\)$/,
     ],
     regularized: false,
   },
@@ -84,6 +97,7 @@ const reportDefinitions: readonly ReportDefinition[] = [
     titlePatterns: [
       /^inactive members? in database \((\d+)\)$/,
       /^atletas inativos na base de dados \((\d+)\)$/,
+      /^inactive members? \((\d+)\)$/,
     ],
     status: "inactive",
     regularized: false,
@@ -93,6 +107,7 @@ const reportDefinitions: readonly ReportDefinition[] = [
     titlePatterns: [
       /^suspended members? in database \((\d+)\)$/,
       /^atletas suspensos na base de dados \((\d+)\)$/,
+      /^suspensos \((\d+)\)$/,
     ],
     status: "suspended",
     regularized: false,
@@ -102,6 +117,7 @@ const reportDefinitions: readonly ReportDefinition[] = [
     titlePatterns: [
       /^active members? in database \((\d+)\)$/,
       /^atletas ativos na base de dados \((\d+)\)$/,
+      /^active members? \((\d+)\)$/,
     ],
     status: "active",
     regularized: false,
@@ -180,20 +196,29 @@ function definitionForReport(report: MemberReportKey): ReportDefinition {
   return definition;
 }
 
-function titleMatch(
-  text: string,
-):
-  | Readonly<{ definition: ReportDefinition; count: number; language: "english" | "portuguese" }>
+function titleMatch(text: string):
+  | Readonly<{
+      definition: ReportDefinition;
+      count: number;
+      language: "english" | "portuguese";
+      exportedEnglishHeader: boolean;
+    }>
   | undefined {
   const normalized = normalizeForMatching(text);
   for (const definition of reportDefinitions) {
-    for (const [patternIndex, pattern] of definition.titlePatterns.entries()) {
+    for (const pattern of definition.titlePatterns) {
       const match = pattern.exec(normalized);
       if (match !== null) {
         return {
           definition,
           count: Number(match[1]),
-          language: patternIndex === 0 ? "english" : "portuguese",
+          language:
+            normalized.includes("atletas") || normalized.includes("suspensos")
+              ? "portuguese"
+              : "english",
+          exportedEnglishHeader: exportedEnglishHeaderTitles.has(
+            normalized.replace(/ \(\d+\)$/u, ""),
+          ),
         };
       }
     }
@@ -369,7 +394,11 @@ export function parseMemberReport(
   }
   if (title.count > maxRows) throw new MemberPdfImportLimitError();
   const header = lines.map(cleanText).find((line) => headerLanguage(line) !== undefined);
-  if (header === undefined || headerLanguage(header) !== title.language) {
+  if (
+    header === undefined ||
+    (headerLanguage(header) !== title.language &&
+      !(title.exportedEnglishHeader && headerLanguage(header) === "english"))
+  ) {
     throw new Error("Missing or incompatible member report header language");
   }
   const inactiveHeader = isInactiveHeader(header);
@@ -431,6 +460,29 @@ type ComparableField =
 
 type ComparableValue = string | undefined;
 
+function resolvedMembershipStatus(
+  current: ParsedMemberRow["membershipStatus"],
+  incoming: ParsedMemberRow["membershipStatus"],
+): ParsedMemberRow["membershipStatus"] {
+  if (current === undefined) return incoming;
+  if (incoming === undefined) return current;
+  return current === "active" && incoming === "suspended"
+    ? "suspended"
+    : current === "suspended" && incoming === "active"
+      ? "suspended"
+      : current;
+}
+
+function isResolvableStatusDifference(
+  current: ParsedMemberRow["membershipStatus"],
+  incoming: ParsedMemberRow["membershipStatus"],
+): boolean {
+  return (
+    (current === "active" && incoming === "suspended") ||
+    (current === "suspended" && incoming === "active")
+  );
+}
+
 function comparableFields(): readonly ComparableField[] {
   return [
     "membershipNumber",
@@ -448,7 +500,12 @@ function comparableFields(): readonly ComparableField[] {
 
 function mergeRows(current: ParsedMemberRow, incoming: ParsedMemberRow): ParsedMemberRow {
   const merged: Record<string, unknown> = { ...current };
+  merged.membershipStatus = resolvedMembershipStatus(
+    current.membershipStatus,
+    incoming.membershipStatus,
+  );
   for (const field of comparableFields()) {
+    if (field === "membershipStatus") continue;
     const value: ComparableValue = incoming[field];
     if (
       (merged[field] === undefined || merged[field] === "") &&
@@ -481,6 +538,11 @@ export function deduplicateMemberRows(
         const left: ComparableValue = existing[field];
         const right: ComparableValue = row[field];
         if (left === undefined || right === undefined) return false;
+        if (
+          field === "membershipStatus" &&
+          isResolvableStatusDifference(existing.membershipStatus, row.membershipStatus)
+        )
+          return false;
         return field === "membershipNumber"
           ? normalizeStableValue(left) !== normalizeStableValue(right)
           : left !== right;

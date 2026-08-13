@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { AdminDataTable, AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { previewData, type PreviewClass } from "../preview-data";
-import { AdminGate } from "../admin-gate";
 
 import "../admin.css";
 
@@ -123,9 +122,5 @@ export function OverviewPage() {
 }
 
 export default function OverviewRoute() {
-  return (
-    <AdminGate>
-      <OverviewPage />
-    </AdminGate>
-  );
+  return <OverviewPage />;
 }

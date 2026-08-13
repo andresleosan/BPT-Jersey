@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import { AdminSectionHeader } from "../admin-ui";
 import { previewData } from "../preview-data";
-import { AdminGate } from "../admin-gate";
 
 import "../admin.css";
 
@@ -65,9 +64,5 @@ export function ReportsPage() {
 }
 
 export default function ReportsRoute() {
-  return (
-    <AdminGate>
-      <ReportsPage />
-    </AdminGate>
-  );
+  return <ReportsPage />;
 }

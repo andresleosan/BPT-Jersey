@@ -443,3 +443,125 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 - Cierre de revisión: cada grupo usa `white-space: nowrap` y el mínimo móvil baja a `2.6rem`; E2E comprueba que cada grupo conserva un único rect físico en desktop y móvil.
 - Seguridad: solo se modificaron contenido público, markup server-rendered y CSS; no hay endpoints, secretos, dependencias, permisos, datos ni integraciones nuevas. `corepack pnpm audit --audit-level high` conserva únicamente las dos vulnerabilidades moderadas transitivas ya registradas, sin hallazgos high/critical.
 - Operaciones: no se desplegó, migró, modificaron datos, leyeron secretos ni hicieron commits. Rollback: restaurar `page.tsx`, `globals.css`, `academy.ts` y sus contratos de prueba; no requiere migración ni backup.
+
+### Responsive admin navigation drawer - 2026-08-12
+
+- Implementación: `AdminShell` conserva un sidebar desktop y añade un drawer móvil con el logo
+  oficial, sección activa, botón de cierre, backdrop, `Escape`, cierre al seleccionar una ruta,
+  `aria-expanded`, `aria-controls`, `aria-modal` y foco restaurado al control invocador. La
+  navegación reutiliza los mismos `next/link` y permanece separada semánticamente por viewport.
+- Responsive/a11y: el sidebar desaparece bajo `48rem`; el drawer queda fijo bajo el header, con
+  targets mínimos de `44px`, foco visible, `overflow-x: clip` heredado y reduced motion existente.
+  El backdrop usa el nombre accesible distinto `Dismiss admin navigation` para evitar controles
+  ambiguos.
+- TDD/QA: regresión inicial detectó dos fallos reales: foco automático en el montaje inicial y
+  consulta ambigua de tres botones de cierre. Corrección mínima aplicada; focused
+  `corepack pnpm exec vitest run apps/web/src/app/admin/page.test.tsx apps/web/src/app/admin/layout.test.tsx`
+  -> `2 archivos, 10/10`; suite completa `corepack pnpm test:unit` -> `56 archivos, 386/386`.
+- Gates: `corepack pnpm typecheck` -> exit 0; `corepack pnpm format:check` -> exit 0; build web
+  normal -> exit 0; ESLint específico de los archivos TypeScript modificados -> exit 0. El lint
+  global inspecciona además un worktree ajeno (`.worktrees/admin-access-requests`) y falla por
+  una advertencia preexistente fuera de este cambio; no se modificó ese worktree.
+- Browser QA: build sintético explícito con `NEXT_PUBLIC_ADMIN_E2E=true` y
+  `corepack pnpm --dir qa exec node run-e2e.mjs tests/admin-shell.spec.ts --project=desktop-chromium --project=mobile-chromium`
+  -> `3/3` ejecutables aprobados y `1` omitido por ser caso móvil en desktop. Verifica sidebar,
+  drawer/logo/backdrop, `Escape`, foco skip-link, selección de Members, URL destino, overflow y
+  ausencia de errores de consola. El harness estático conserva `adminTestRole` en rutas admin;
+  no se alteró la protección de producción.
+- Seguridad: no se añadieron endpoints, secretos, PII real, acceso directo a Firestore ni
+  dependencias. `corepack pnpm audit --audit-level high` conserva únicamente las 2 vulnerabilidades
+  moderadas transitivas ya registradas, sin high/critical. No se versionaron PDFs ni artefactos QA.
+- Estado: Task 2 queda en `revisión` hasta aprobación explícita del operador. No se hicieron
+  commits, push, despliegues, migraciones ni importaciones reales.
+
+### Task 3 - Validación de lote PDF real - 2026-08-12
+
+- Discovery externo no versionado: se inspeccionaron los ocho PDFs en
+  `F:\Proyectos\BPT Jersey\Varios` con `pdf-parse`; no se copiaron archivos, filas, nombres,
+  campos, cookies ni credenciales al repositorio o a los logs. La extracción inicial mostró que
+  el texto concatena columnas por coordenadas y elimina celdas vacías.
+- Corrección TDD: prueba roja en `member-pdf-text.test.ts` por módulo ausente; implementación
+  mínima de `formatMemberPdfTextItems` que reconstruye las seis/siete columnas por anclas X y
+  conserva vacíos. Regresión sintética del layout -> `1/1`; parser existente + títulos operativos
+  -> `16/16`.
+- Contrato observado: títulos reales incluyen `ACTIVE MEMBERS`, `ATLETAS ATIVOS REGULARIZADOS`,
+  `ATLETAS ATIVOS COM NÚMERO DE SÓCIO`, `ATLETAS ATIVOS SEM NÚMERO DE SÓCIO`, `INACTIVE MEMBERS`,
+  `ATLETAS REGULARIZADOS`, `SUSPENSOS` y `TOTAL DE ATLETAS NA BASE DE DADOS`; algunos títulos
+  portugueses usan el encabezado inglés exportado. La allowlist de esa combinación quedó limitada
+  a los títulos observados y no relaja los títulos históricos genéricos.
+- Preview local agregado, sin confirmación: 8/8 reportes parseados; páginas por archivo
+  `3,3,1,4,3,3,1,7`; filas declaradas/parseadas `115/115`, `97/97`, `27/27`, `128/128`,
+  `88/88`, `98/98`, `1/1`, `243/243`; total fuente `797`; resultado deduplicado `243`;
+  duplicados `553`; conflictos `1`; filas sin número de socio en el resultado deduplicado `96`.
+- Seguridad: la extracción permanece detrás del callable autenticado existente, con validación de
+  bytes PDF, límites de filas y preview explícito; no se añaden endpoints, secretos, logs de PII,
+  acceso directo browser-Firestore ni escritura automática. No se confirmó el lote, no se ejecutó
+  Firestore ni se tocó R2 real.
+- QA del cambio: `corepack pnpm exec vitest run --project node apps/functions/src/members/member-pdf-text.test.ts apps/functions/src/members/member-pdf-import.test.ts`
+  -> `2 archivos, 16/16`; `corepack pnpm --filter @bpt-jersey/functions typecheck` -> exit 0;
+  `corepack pnpm --filter @bpt-jersey/functions build` -> exit 0; ESLint específico -> exit 0.
+- Estado: parser/layout en `revisión`; la confirmación de importación queda bloqueada hasta que el
+  operador revise los agregados y el conflicto del preview, conforme al flujo aprobado. No se
+  hicieron commits, push, despliegues, migraciones ni escrituras de datos.
+
+#### Resolución aprobada de estado - 2026-08-12
+
+- Decisión del operador: el solapamiento de estado se resuelve con `suspended` prevaleciendo sobre
+  `active`. La regla queda limitada a `membershipStatus`; discrepancias de identidad o campos
+  personales continúan bloqueando la importación.
+- TDD: prueba roja para la precedencia `active`/`suspended`; implementación mínima en
+  `deduplicateMemberRows`; prueba verde `apps/functions/src/members/member-pdf-import.test.ts`
+  -> `17/17`.
+- Preview real regenerado sin PII: 8 reportes, `797` filas fuente, `243` canónicos, `554`
+  duplicados, `0` conflictos, `96` sin número de socio; estados finales `active=114`,
+  `inactive=128`, `suspended=1`.
+- QA: focused backend `5 archivos, 99/99`; suite global controlada
+  `corepack pnpm exec vitest run --project web --project node --maxWorkers=1` -> `57 archivos,
+  389/389`; typecheck Functions y build Functions pasan; ESLint específico pasa; audit mantiene
+  solo las dos vulnerabilidades moderadas transitivas registradas.
+- Hallazgo de entorno: la corrida paralela estándar tuvo timeout de workers y 11 errores no
+  controlados; la repetición con un worker pasó completa. No se cambió configuración ni se
+  atribuyó el timeout al código.
+- Producción: continúa bloqueada por el gate operativo: falta referencia verificable de backup
+  reciente, restauración probada y `projectId` exacto. No se ejecutó callable real, confirmación,
+  escritura Firestore, R2, despliegue ni migración.
+
+### Real Member PDF Import - Task 4 - 2026-08-12
+
+- Estado: `revisión`; no se marca aprobada ni desplegada. La migración YAML queda en
+  `status: dry-run-passed`; no afirma aplicación live.
+- Seguridad: guards exactos para `staging/bptjersey-f5a25/demo-academy`, rechazo explícito de
+  producción/emulador en CLI, límite de PDF de 10 MiB, límites de filas/escrituras, validación de
+  `importRunId`, tenant scope e idempotencia; rollback probado como planner-only y sin borrado.
+  No se observaron hallazgos críticos/high en los archivos revisados.
+- Scan de artefactos: `glob **/*.pdf` y `glob **/*receipt*.json` dentro del checkout -> ningún
+  resultado. No se copiaron PDFs ni se persistió receipt. `.env.example` y `apps/web/.env.local`
+  existen, pero no fueron leídos; no hay secretos encontrados en runner, CLI o YAML. Los valores
+  PII de tests son sintéticos y permanecen en fixtures/contratos de prueba.
+- Unitarias: `corepack pnpm test` -> `59` archivos, `427/427` pruebas; warnings no fatales de
+  `DEP0190` y sourcemaps temporales faltantes del fixture de deploy.
+- Rules: `corepack pnpm test:rules` -> `4` archivos, `9/9`; solo emuladores demo y denegaciones
+  esperadas en stderr.
+- Integración: `corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only firestore
+  "node node_modules/vitest/vitest.mjs run --config qa/integration/vitest.config.ts
+  qa/integration/member-pdf-import.test.ts"` -> `1` archivo, `6/6`; `MetadataLookupWarning` no fatal.
+- Gates técnicos: `corepack pnpm typecheck` -> exit 0; `corepack pnpm format:check` -> exit 0;
+  `corepack pnpm build` -> Functions y Next exit 0. `corepack pnpm lint` -> exit 1 únicamente por
+  warning preexistente en `.worktrees/admin-access-requests/.../admin-shell.tsx`, fuera de este cambio.
+- Audit: `corepack pnpm audit --audit-level high` -> `2` vulnerabilidades moderadas conocidas,
+  ninguna high/critical; permanecen en el registro existente.
+- Browser: build sintético con `NEXT_PUBLIC_ADMIN_E2E=true` + `corepack pnpm --dir qa test:e2e:smoke`
+  -> `5/5` ejecutables, `1` omitido esperado; luego build normal restaurado y verificado. No hubo
+  sesión Auth live ni lectura live del panel.
+- Dry-run real: CLI `--dry-run` contra la fuente aprobada -> `8` reportes, `797` filas fuente,
+  `243` canónicos, `554` duplicados, `0` conflictos, `96` sin número, estados `114/128/1`, hash
+  `aa9340de9528c2a46f898667fe3e554beabbdba6b8c03ec02b8b757f0ab2fc4f`; coincidió con YAML. No se
+  usó `--confirm`, `--yes-confirm-staging`, Admin, Firestore staging ni producción.
+- Verificación final: rollback planner focused -> `1/1`; `git -c safe.directory='F:/Proyectos/BPT Jersey/Dev'
+  diff --check` -> sin salida. No se modificó Git/configuración ni se hizo commit.
+- Formato documental: `corepack pnpm exec prettier --check tasks.md
+  docs/data/migrations/member-pdf-import-run-2026-08-12.yaml
+  .superpowers/sdd/2026-08-12-real-member-pdf-import/task-4-report.md` -> warning histórico en
+  `tasks.md`; no se reformateó el ledger completo para evitar cambios fuera de alcance.
+- Gates residuales: backup staging verificado, restauración probada, confirmación explícita y
+  cualquier staging apply/verification siguen pendientes; no ejecutar en esta tarea.

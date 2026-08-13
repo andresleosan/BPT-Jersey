@@ -54,6 +54,7 @@ export type MemberRecord = Readonly<{
   updatedAt: string;
   updatedBy: string;
   source: string;
+  importRunId?: string;
   schemaVersion: "1";
 }>;
 
@@ -153,6 +154,19 @@ function validateOptionalText(
   return validateText(value[key], [...path, key], issues);
 }
 
+function validateOptionalBoundedText(
+  value: RecordValue,
+  key: string,
+  maxLength: number,
+  path: Path,
+  issues: ValidationIssue[],
+): string | undefined {
+  const parsed = validateOptionalText(value, key, path, issues);
+  if (parsed !== undefined && parsed.length > maxLength)
+    addIssue(issues, [...path, key], "max_length");
+  return parsed;
+}
+
 function validateEnum<T extends string>(
   value: unknown,
   allowed: readonly T[],
@@ -237,6 +251,7 @@ function parseMemberRecordValue(
       "updatedAt",
       "updatedBy",
       "source",
+      "importRunId",
       "schemaVersion",
     ],
     [],
@@ -277,6 +292,7 @@ function parseMemberRecordValue(
   const updatedAt = validateIsoDate(value.updatedAt, ["updatedAt"], issues);
   const updatedBy = validateText(value.updatedBy, ["updatedBy"], issues);
   const source = validateText(value.source, ["source"], issues);
+  const importRunId = validateOptionalBoundedText(value, "importRunId", 128, [], issues);
   const schemaVersion = validateEnum(
     value.schemaVersion,
     ["1"] as const,
@@ -325,6 +341,7 @@ function parseMemberRecordValue(
     frequency,
     trainingCenter,
     inactiveAt,
+    importRunId,
   };
   for (const [key, optionalValue] of Object.entries(optionalFields)) {
     if (optionalValue !== undefined) parsed[key] = optionalValue;

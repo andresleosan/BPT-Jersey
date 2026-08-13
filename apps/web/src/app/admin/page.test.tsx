@@ -62,6 +62,29 @@ describe("administrative shell", () => {
     expect(screen.getByText("Shell content")).toBeVisible();
   });
 
+  it("opens and closes the logo-led mobile navigation drawer with Escape", async () => {
+    const user = userEvent.setup();
+    renderAuthenticatedPreview();
+
+    const menuButton = screen.getByRole("button", { name: "Open admin navigation" });
+    expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog", { name: "Admin navigation" })).not.toBeInTheDocument();
+
+    await user.click(menuButton);
+
+    const drawer = screen.getByRole("dialog", { name: "Admin navigation" });
+    expect(drawer).toBeVisible();
+    expect(screen.getByRole("img", { name: "BPT Jersey mobile logo" })).toBeVisible();
+    expect(within(drawer).getByRole("button", { name: "Close admin navigation" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Admin navigation" })).not.toBeInTheDocument();
+    expect(menuButton).toHaveFocus();
+  });
+
   it("supports keyboard focus through the skip link and admin navigation", async () => {
     const user = userEvent.setup();
     renderAuthenticatedPreview();

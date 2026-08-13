@@ -10,7 +10,6 @@ import {
   AdminStatusBadge,
 } from "../admin-ui";
 import { previewData, type PreviewPayment } from "../preview-data";
-import { AdminGate } from "../admin-gate";
 
 import "../admin.css";
 
@@ -104,9 +103,5 @@ export function FinancePage() {
 }
 
 export default function FinanceRoute() {
-  return (
-    <AdminGate>
-      <FinancePage />
-    </AdminGate>
-  );
+  return <FinancePage />;
 }

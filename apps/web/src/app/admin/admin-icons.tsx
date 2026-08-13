@@ -1,7 +1,16 @@
 import type { SVGProps } from "react";
 
 export type AdminIconName =
-  "activity" | "attendance" | "finance" | "member-add" | "members" | "reports" | "search" | "teams";
+  | "activity"
+  | "attendance"
+  | "close"
+  | "finance"
+  | "member-add"
+  | "members"
+  | "menu"
+  | "reports"
+  | "search"
+  | "teams";
 
 export function AdminIcon({ name, ...props }: { name: AdminIconName } & SVGProps<SVGSVGElement>) {
   const common = {
@@ -62,6 +71,8 @@ export function AdminIcon({ name, ...props }: { name: AdminIconName } & SVGProps
           <path d="M3 19h18" />
         </>
       ) : null}
+      {name === "menu" ? <path d="M4 7h16M4 12h16M4 17h16" /> : null}
+      {name === "close" ? <path d="m6 6 12 12M18 6 6 18" /> : null}
     </svg>
   );
 }

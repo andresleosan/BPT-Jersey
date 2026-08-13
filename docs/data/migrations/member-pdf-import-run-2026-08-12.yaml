@@ -1,0 +1,79 @@
+migrationId: member-pdf-import-2026-08-12-01
+modelVersion: member-record-schema-1
+author: Cronos
+createdAt: 2026-08-12T22:14:45.415Z
+status: dry-run-passed
+scope:
+  environment: staging
+  projectId: bptjersey-f5a25
+  academyIds:
+    - demo-academy
+  collections:
+    - members
+    - auditEvents
+    - memberImportOperations
+  expectedDocumentCounts:
+    sourceReports: 8
+    sourceRows: 797
+    canonicalRows: 243
+    duplicates: 554
+    conflicts: 0
+    rowsWithoutMembershipNumber: 96
+    active: 114
+    inactive: 128
+    suspended: 1
+  exclusions:
+    - production data
+    - source PDFs
+    - raw PDF text and source rows
+    - users, families, students, groups, activities, attendance, finance, reports, and CRM
+up:
+  mode: dry-run-then-apply
+  description: bounded additive import of canonical member records from the approved eight-report source set
+  sourceHash: aa9340de9528c2a46f898667fe3e554beabbdba6b8c03ec02b8b757f0ab2fc4f
+  operationId: member-pdf-import-637b47bd76a964e42346a820b16dcf57feb3595139667eab4c2faa03c7f9305d
+  importRunId: member-pdf-20260812-01
+  preconditions:
+    - dry-run receipt matched the approved aggregate counts
+    - target guard accepted only bptjersey-f5a25/demo-academy/staging
+    - no emulator or production target was used
+    - no Firestore write occurred during dry-run
+  checkpointPlan:
+    - verify backup and restoration evidence for the scoped staging collections
+    - execute confirm only with fresh matching receipt and explicit staging confirmation
+    - verify counts, tenant scope, operation idempotency, and metadata-only audit
+execution:
+  dryRun:
+    status: passed
+    generatedAt: 2026-08-12T22:41:21.638Z
+    writeStatus: not-executed
+  stagingApply:
+    status: not-executed
+    reason: pending verified staging backup, restoration evidence, and separate operator confirmation
+downOrRestore:
+  strategy: planner-only exact-run selection for imported records; restore pre-import backup for updates
+  trigger: approved reversal or failed post-import reconciliation
+  procedure: select only academies/demo-academy/members records with source member-pdf-import and importRunId member-pdf-20260812-01; do not delete during planner mode
+verificationQueries:
+  - id: dry-run-counts
+    description: compare receipt aggregate counts with the approved source contract
+    expected: 8 reports, 797 source rows, 243 canonical rows, 554 duplicates, 0 conflicts, statuses 114/128/1
+  - id: tenant-scope
+    description: every persisted member academyId equals demo-academy and path scope
+    expected: no out-of-tenant records
+  - id: idempotency
+    description: repeat operation with same operationId and sourceHash
+    expected: original result returned without duplicate creations
+  - id: audit-metadata
+    description: inspect the single import audit event
+    expected: metadata-only event without member values or raw source data
+backupReference:
+  reference: pending-operator-verified-staging-backup
+  scope: academies/demo-academy/members, auditEvents, memberImportOperations
+  verifiedAt: null
+  restorationEvidence: pending before staging apply
+operatorApproval:
+  status: pending
+  approvedBy: operator
+  approvedAt: 2026-08-12T22:14:45.415Z
+  approvedScope: dry-run only; staging apply remains blocked pending backup/restoration verification

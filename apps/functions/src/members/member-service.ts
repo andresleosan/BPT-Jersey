@@ -3,17 +3,16 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 
-import {
-  matchesMemberReport,
-  parseMemberRecord,
-  type MemberGender,
-  type MemberImportPreview,
-  type MemberRecord,
-  type MemberReportKey,
-  type MemberSearchFilters,
-  type MembershipStatus,
-  type PaymentStatus,
-} from "@bpt-jersey/domain";
+import type {
+  MemberGender,
+  MemberImportPreview,
+  MemberRecord,
+  MemberReportKey,
+  MemberSearchFilters,
+  MembershipStatus,
+  PaymentStatus,
+} from "@bpt-jersey/domain/members";
+import { matchesMemberReport, parseMemberRecord } from "@bpt-jersey/domain/members";
 import type { ParsedMemberRow } from "./member-pdf-import.js";
 
 export const MEMBER_PAGE_SIZE = 50;
@@ -23,6 +22,8 @@ export const MAX_MEMBER_REPORT_ROWS = 2_000;
 export const MAX_MEMBER_REPORT_SUMMARY_ROWS = 10_000;
 export const MAX_MEMBER_IMPORT_MATCH_ROWS = 10_000;
 export const MAX_MEMBER_IMPORT_WRITE_ROWS = 400;
+const MAX_IMPORT_RUN_ID_LENGTH = 128;
+const SAFE_IMPORT_RUN_ID_PATTERN = /^[A-Za-z0-9._:-]+$/u;
 
 export type MemberCreationInput = Readonly<{
   membershipNumber?: string;
@@ -72,6 +73,7 @@ export type MemberImportMatch = Readonly<{
   membershipStatus: MembershipStatus;
   paymentStatus: PaymentStatus;
   inactiveAt?: string;
+  importRunId?: string;
 }>;
 
 export type MemberImportWriteResult = Readonly<{
@@ -162,6 +164,8 @@ export type MemberService = Readonly<{
       preview: MemberImportPreview;
       now: string;
       createId: () => string;
+      operationId?: string;
+      importRunId?: string;
     }>,
   ) => Promise<MemberImportWriteResult>;
 }>;
@@ -194,6 +198,7 @@ export function createMemoryMemberStore(initial: readonly MemberRecord[] = []): 
     create: async (record) => {
       if (records.has(record.memberId))
         throw new HttpsError("already-exists", "Member already exists");
+      validateMemberRecordForImport(record);
       records.set(record.memberId, { ...record });
     },
     list: async (academyId, limit) =>
@@ -203,6 +208,7 @@ export function createMemoryMemberStore(initial: readonly MemberRecord[] = []): 
         (record) => record.academyId === academyId && matchesMemberReport(record, report),
       ).length,
     applyImport: async ({ academyId, actorId, operationId, sourceHash, mutations, result }) => {
+      validateImportOperationId(operationId);
       const existing = operations.get(operationId);
       if (existing) {
         if (
@@ -223,6 +229,7 @@ export function createMemoryMemberStore(initial: readonly MemberRecord[] = []): 
           if (mutation.kind === "create") {
             if (!mutation.record || mutation.record.academyId !== academyId)
               throw new HttpsError("failed-precondition", "Member import mutation is out of scope");
+            validateMemberRecordForImport(mutation.record);
             records.set(mutation.memberId, { ...mutation.record });
           } else {
             const current = records.get(mutation.memberId);
@@ -232,12 +239,14 @@ export function createMemoryMemberStore(initial: readonly MemberRecord[] = []): 
               current.updatedAt !== mutation.expectedUpdatedAt
             )
               throw new HttpsError("aborted", "Member changed during import");
-            records.set(mutation.memberId, {
+            const updatedRecord = {
               ...current,
               ...mutation.updates,
               updatedAt: current.updatedAt,
               updatedBy: actorId,
-            });
+            } as MemberRecord;
+            validateMemberRecordForImport(updatedRecord);
+            records.set(mutation.memberId, updatedRecord);
           }
           writes += 1;
         }
@@ -278,6 +287,23 @@ function parseImportWriteResult(value: unknown): MemberImportWriteResult | undef
   });
 }
 
+function validateImportOperationId(operationId: unknown): string {
+  if (
+    typeof operationId !== "string" ||
+    operationId.trim().length === 0 ||
+    operationId.length > MAX_IMPORT_RUN_ID_LENGTH ||
+    !SAFE_IMPORT_RUN_ID_PATTERN.test(operationId)
+  ) {
+    throw new HttpsError("failed-precondition", "Member import operation ID is invalid");
+  }
+  return operationId;
+}
+
+function validateMemberRecordForImport(record: MemberRecord): void {
+  const parsed = parseMemberRecord(record);
+  if (!parsed.ok) throw new Error("Invalid member record in import mutation");
+}
+
 const memberRecordFields = [
   "memberId",
   "academyId",
@@ -299,6 +325,7 @@ const memberRecordFields = [
   "updatedAt",
   "updatedBy",
   "source",
+  "importRunId",
   "schemaVersion",
 ] as const;
 
@@ -517,6 +544,7 @@ function buildImportMutations(
   actorId: string,
   now: string,
   createId: () => string,
+  importRunId: string,
 ): Readonly<{ mutations: readonly MemberImportMutation[]; result: MemberImportWriteResult }> {
   if (rows.length > MAX_MEMBER_IMPORT_WRITE_ROWS) {
     throw new HttpsError("resource-exhausted", "Member import has too many writes");
@@ -559,6 +587,7 @@ function buildImportMutations(
         updatedAt: now,
         updatedBy: actorId,
         source: "member-pdf-import",
+        importRunId,
         schemaVersion: "1",
       });
       if (generatedIds.has(record.memberId)) {
@@ -635,6 +664,7 @@ export function createMemberService(
         source: "admin",
         schemaVersion: "1" as const,
       }) as MemberRecord;
+      validateMemberRecordForImport(record);
       await store.create(record);
       return memberId;
     },
@@ -655,6 +685,7 @@ export function createMemberService(
           membershipStatus,
           paymentStatus,
           inactiveAt,
+          importRunId,
         }) => ({
           memberId,
           ...(membershipNumber === undefined ? {} : { membershipNumber }),
@@ -667,6 +698,7 @@ export function createMemberService(
           membershipStatus,
           paymentStatus,
           ...(inactiveAt === undefined ? {} : { inactiveAt }),
+          ...(importRunId === undefined ? {} : { importRunId }),
         }),
       );
     },
@@ -700,20 +732,37 @@ export function createMemberService(
       }
       return Object.freeze({ report, count });
     },
-    applyImportPreview: async ({ academyId, actorId, preview, now, createId }) => {
+    applyImportPreview: async ({
+      academyId,
+      actorId,
+      preview,
+      now,
+      createId,
+      operationId,
+      importRunId,
+    }) => {
       if (preview.conflicts.length > 0) {
         throw new HttpsError("failed-precondition", "Import preview contains conflicts");
       }
       const source = (preview as Partial<ServerMemberImportPreview>)[memberImportPreviewSource];
       if (source === undefined)
         throw new HttpsError("failed-precondition", "Import preview is unavailable");
+      const stableOperationId = validateImportOperationId(operationId ?? preview.previewId);
       const members = await readAcademyMembers(store, academyId, MAX_MEMBER_IMPORT_MATCH_ROWS);
-      const plan = buildImportMutations(source.rows, members, academyId, actorId, now, createId);
+      const plan = buildImportMutations(
+        source.rows,
+        members,
+        academyId,
+        actorId,
+        now,
+        createId,
+        importRunId ?? stableOperationId,
+      );
       return store.applyImport({
         academyId,
         actorId,
         now,
-        operationId: preview.previewId,
+        operationId: stableOperationId,
         sourceHash: source.sourceHash,
         reportKeys: preview.sourceReports.map((source) => source.report),
         mutations: plan.mutations,
@@ -733,6 +782,7 @@ type FirestoreTransaction = Readonly<{
 export function createFirestoreMemberStore(firestore: Firestore = getFirestore()): MemberStore {
   return {
     create: async (record) => {
+      validateMemberRecordForImport(record);
       const reference = firestore
         .collection(`academies/${record.academyId}/members`)
         .doc(record.memberId);
@@ -773,6 +823,7 @@ export function createFirestoreMemberStore(firestore: Firestore = getFirestore()
       mutations,
       result,
     }) => {
+      validateImportOperationId(operationId);
       if (mutations.length > MAX_MEMBER_IMPORT_WRITE_ROWS)
         throw new HttpsError("resource-exhausted", "Member import has too many writes");
       const operationReference = firestore
@@ -811,6 +862,7 @@ export function createFirestoreMemberStore(firestore: Firestore = getFirestore()
             if (snapshot.exists)
               throw new HttpsError("aborted", "Member import identity collision");
             if (mutation.record === undefined) throw new Error("Invalid member import creation");
+            validateMemberRecordForImport(mutation.record);
             transaction.create(reference, mutation.record);
           } else {
             if (!snapshot.exists) throw new HttpsError("aborted", "Member changed during import");
@@ -821,6 +873,13 @@ export function createFirestoreMemberStore(firestore: Firestore = getFirestore()
             ) {
               throw new HttpsError("aborted", "Member changed during import");
             }
+            const updatedRecord = {
+              ...current,
+              ...mutation.updates,
+              updatedAt: now,
+              updatedBy: actorId,
+            } as MemberRecord;
+            validateMemberRecordForImport(updatedRecord);
             transaction.set(
               reference,
               {

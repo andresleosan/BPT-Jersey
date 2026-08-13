@@ -5,7 +5,7 @@ import {
   parseMemberImportPreview,
   type MemberImportPreview,
   type MemberReportKey,
-} from "@bpt-jersey/domain";
+} from "@bpt-jersey/domain/members";
 
 export type MemberImportPreviewStore = Readonly<{
   save: (preview: MemberImportPreviewRecord) => Promise<void>;

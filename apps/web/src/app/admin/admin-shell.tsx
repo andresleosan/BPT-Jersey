@@ -2,9 +2,12 @@
 
 import type { ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import type { AdminSession } from "../../lib/admin-auth";
+import { AdminIcon } from "./admin-icons";
 
 import "./admin.css";
 
@@ -31,11 +34,64 @@ export function AdminShell({
 }) {
   const pathname = usePathname() ?? "";
   const roleLabel = session.role === "owner" ? "Owner access" : "Administrator access";
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const navigationInitializedRef = useRef(false);
 
   function isCurrentRoute(href: string): boolean {
     return href === "/admin"
       ? pathname === href
       : pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  function closeNavigation(): void {
+    setNavigationOpen(false);
+  }
+
+  useEffect(() => {
+    if (!navigationInitializedRef.current) {
+      navigationInitializedRef.current = true;
+      return;
+    }
+
+    if (navigationOpen) {
+      closeButtonRef.current?.focus();
+    } else if (menuButtonRef.current) {
+      menuButtonRef.current.focus();
+    }
+  }, [navigationOpen]);
+
+  useEffect(() => {
+    if (!navigationOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") closeNavigation();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navigationOpen]);
+
+  function renderNavigation(className: string) {
+    return (
+      <nav aria-label="Admin navigation" className={className}>
+        <ul className="admin-nav-list">
+          {navigationItems.map((item) => (
+            <li key={item.label}>
+              <Link
+                aria-current={isCurrentRoute(item.href) ? "page" : undefined}
+                href={item.href}
+                onClick={closeNavigation}
+              >
+                <span aria-hidden="true">-&gt;</span>
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    );
   }
 
   return (
@@ -46,7 +102,7 @@ export function AdminShell({
 
       <div className="admin-shell" data-testid="admin-shell">
         <aside className="admin-sidebar" aria-label="Administrative navigation">
-          <a className="admin-brand" href="/" aria-label="BPT Jersey home">
+          <Link className="admin-brand" href="/" aria-label="BPT Jersey home">
             <Image
               alt="BPT Jersey logo"
               className="admin-logo"
@@ -56,25 +112,14 @@ export function AdminShell({
             />
             <span className="admin-brand-mark">BPT</span>
             <span className="admin-brand-name">Jersey</span>
-          </a>
+          </Link>
 
           <div className="admin-sidebar-heading">
             <p className="admin-sidebar-kicker">Private workspace</p>
             <p className="admin-sidebar-title">Run the day clearly.</p>
           </div>
 
-          <nav aria-label="Admin navigation">
-            <ul className="admin-nav-list">
-              {navigationItems.map((item) => (
-                <li key={item.label}>
-                  <a href={item.href} aria-current={isCurrentRoute(item.href) ? "page" : undefined}>
-                    <span aria-hidden="true">-&gt;</span>
-                    {item.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          {renderNavigation("admin-desktop-navigation")}
 
           <div className="admin-sidebar-footer">
             <p className="admin-sidebar-kicker">Current access</p>
@@ -85,7 +130,22 @@ export function AdminShell({
 
         <div className="admin-workspace">
           <header className="admin-header">
-            <div>
+            <button
+              aria-controls="admin-mobile-navigation"
+              aria-expanded={navigationOpen}
+              aria-label={navigationOpen ? "Close admin navigation" : "Open admin navigation"}
+              className="admin-mobile-menu-button"
+              onClick={() => setNavigationOpen((open) => !open)}
+              ref={menuButtonRef}
+              type="button"
+            >
+              <AdminIcon
+                name={navigationOpen ? "close" : "menu"}
+                height="1.25rem"
+                width="1.25rem"
+              />
+            </button>
+            <div className="admin-header-title">
               <p className="admin-header-kicker">BPT Jersey / Admin</p>
               <h1>Academy control room</h1>
             </div>
@@ -94,9 +154,9 @@ export function AdminShell({
                 <span className="admin-status-dot" aria-hidden="true" />
                 Authenticated shell
               </p>
-              <a className="admin-home-link" href="/">
+              <Link className="admin-home-link" href="/">
                 Home
-              </a>
+              </Link>
               {onSignOut ? (
                 <button className="admin-signout" onClick={() => void onSignOut()} type="button">
                   Sign out
@@ -104,6 +164,48 @@ export function AdminShell({
               ) : null}
             </div>
           </header>
+
+          {navigationOpen ? (
+            <>
+              <button
+                aria-label="Dismiss admin navigation"
+                className="admin-mobile-backdrop"
+                onClick={closeNavigation}
+                type="button"
+              />
+              <div
+                aria-label="Admin navigation"
+                aria-modal="true"
+                className="admin-mobile-navigation"
+                id="admin-mobile-navigation"
+                role="dialog"
+              >
+                <div className="admin-mobile-navigation-header">
+                  <Image
+                    alt="BPT Jersey mobile logo"
+                    height={56}
+                    src="/bpt-jersey-logo.png"
+                    width={84}
+                  />
+                  <div>
+                    <strong>BPT Jersey</strong>
+                    <span>{navigationItems.find((item) => isCurrentRoute(item.href))?.label}</span>
+                  </div>
+                  <button
+                    aria-expanded="true"
+                    aria-label="Close admin navigation"
+                    className="admin-mobile-close-button"
+                    onClick={closeNavigation}
+                    ref={closeButtonRef}
+                    type="button"
+                  >
+                    <AdminIcon name="close" height="1.25rem" width="1.25rem" />
+                  </button>
+                </div>
+                {renderNavigation("admin-mobile-navigation-links")}
+              </div>
+            </>
+          ) : null}
 
           <main className="admin-main admin-main-content" id="admin-main-content" tabIndex={-1}>
             {children}

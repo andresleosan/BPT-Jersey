@@ -5,7 +5,7 @@ import type { RegyfitAccessRecord } from "@bpt-jersey/domain";
 import type { AdminRole } from "@bpt-jersey/domain";
 import type { ReactElement } from "react";
 
-import { AdminGate, useAdminGateSession } from "../admin-gate";
+import { useAdminGateSession } from "../admin-gate";
 import {
   isAdminE2EEnabled,
   readInjectedRegyfitRecordsForRole,
@@ -357,9 +357,5 @@ export default function RegyfitAccessRecordsRoute(): ReactElement {
     return <RegyfitAccessRecordsPage records={[]} role="administrator" />;
   }
 
-  return (
-    <AdminGate>
-      <AdminAccessRecordsContent />
-    </AdminGate>
-  );
+  return <AdminAccessRecordsContent />;
 }

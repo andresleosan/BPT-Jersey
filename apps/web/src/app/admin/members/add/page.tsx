@@ -4,7 +4,6 @@ import { useRef, useState, type FormEvent } from "react";
 import type { MemberGender } from "@bpt-jersey/domain";
 
 import { createMember, type CreateMemberInput } from "../../../../lib/members-client";
-import { AdminGate } from "../../admin-gate";
 
 import "../../admin.css";
 
@@ -295,9 +294,5 @@ export default function AddMemberRoute() {
     return <AddMemberPage />;
   }
 
-  return (
-    <AdminGate>
-      <AddMemberPage />
-    </AdminGate>
-  );
+  return <AddMemberPage />;
 }

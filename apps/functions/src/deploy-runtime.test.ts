@@ -1,0 +1,98 @@
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { rewriteDeployRuntimeImports } from "./deploy-runtime.js";
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
+  );
+});
+
+describe("deploy runtime import preparation", () => {
+  it("rewrites domain subpaths in a temporary copied runtime and rejects leftovers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bpt-member-runtime-"));
+    temporaryDirectories.push(root);
+    const sourceRoot = join(root, "lib", "src", "auth");
+    await mkdir(join(root, "lib", "src", "auth"), { recursive: true });
+    await mkdir(sourceRoot, { recursive: true });
+    const outputPath = join(sourceRoot, "index.js");
+    await writeFile(
+      outputPath,
+      [
+        'import "@bpt-jersey/domain/members";',
+        'import "@bpt-jersey/domain/auth/admin-contracts";',
+        'import "@bpt-jersey/domain/migration/regyfit-access";',
+      ].join("\n"),
+    );
+
+    await rewriteDeployRuntimeImports(sourceRoot);
+
+    const prepared = await readFile(outputPath, "utf8");
+    expect(prepared).toContain("../../domain/members/member-contracts.js");
+    expect(prepared).toContain("../../domain/auth/admin-contracts.js");
+    expect(prepared).toContain("../../domain/migration/regyfit-access.js");
+    expect(prepared).not.toMatch(/@bpt-jersey\/domain/u);
+  });
+
+  it("prepares a copied Functions and domain runtime layout without workspace imports", async () => {
+    const repositoryRoot = join(import.meta.dirname, "..", "..", "..");
+    const packageManager = "corepack";
+    execFileSync(packageManager, ["pnpm", "--filter", "@bpt-jersey/domain", "build:runtime"], {
+      cwd: repositoryRoot,
+      stdio: "pipe",
+      shell: process.platform === "win32",
+    });
+    execFileSync(packageManager, ["pnpm", "--filter", "@bpt-jersey/functions", "build"], {
+      cwd: repositoryRoot,
+      stdio: "pipe",
+      shell: process.platform === "win32",
+    });
+    const root = await mkdtemp(join(tmpdir(), "bpt-deploy-layout-"));
+    temporaryDirectories.push(root);
+    const deployRoot = join(root, "functions");
+    const domainRoot = join(deployRoot, "lib", "domain");
+    await mkdir(deployRoot, { recursive: true });
+    await cp(
+      join(repositoryRoot, "apps", "functions", "node_modules"),
+      join(deployRoot, "node_modules"),
+      { recursive: true },
+    );
+    await cp(
+      join(repositoryRoot, "packages", "domain", "lib"),
+      join(root, "packages", "domain", "lib"),
+      { recursive: true },
+    );
+    await cp(join(import.meta.dirname, "..", "..", "..", "packages", "domain", "lib"), domainRoot, {
+      recursive: true,
+    });
+    await cp(join(import.meta.dirname, "..", "lib"), join(deployRoot, "lib"), {
+      recursive: true,
+    });
+
+    await writeFile(
+      join(deployRoot, "package.json"),
+      await readFile(join(repositoryRoot, "apps", "functions", "package.json"), "utf8"),
+    );
+    // The runtime preparation script is intentionally a JavaScript deploy artifact.
+    // @ts-expect-error The script has no generated TypeScript declaration.
+    const prepareDeployRuntime = (await import("../scripts/prepare-deploy-runtime.mjs"))
+      .prepareDeployRuntime as (input: { repositoryRoot: URL; deployRoot: URL }) => Promise<void>;
+    const temporaryRepositoryRoot = pathToFileURL(`${root}/`);
+    const temporaryDeployRoot = pathToFileURL(`${deployRoot}/`);
+    await prepareDeployRuntime({
+      repositoryRoot: temporaryRepositoryRoot,
+      deployRoot: temporaryDeployRoot,
+    });
+    const indexPath = join(deployRoot, "lib", "src", "index.js");
+    const indexSource = await readFile(indexPath, "utf8");
+    expect(indexSource).not.toMatch(/@bpt-jersey\/domain/u);
+    await import(pathToFileURL(indexPath).href);
+  }, 30_000);
+});

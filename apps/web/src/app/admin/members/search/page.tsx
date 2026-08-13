@@ -20,7 +20,6 @@ import {
   type MemberSearchProjection,
   type MemberSearchResult,
 } from "../../../../lib/members-client";
-import { AdminGate } from "../../admin-gate";
 
 import "../../admin.css";
 
@@ -497,9 +496,5 @@ export function SearchMembersPage() {
 
 export default function SearchMembersRoute() {
   if (process.env.NODE_ENV === "test") return <SearchMembersPage />;
-  return (
-    <AdminGate>
-      <SearchMembersPage />
-    </AdminGate>
-  );
+  return <SearchMembersPage />;
 }
