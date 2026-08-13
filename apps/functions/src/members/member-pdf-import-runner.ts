@@ -403,6 +403,7 @@ export async function buildMemberPdfImportPlan(
     academyId: string;
     runId: string;
     capturedAt: string;
+    extractText?: (filePath: string) => Promise<string>;
   }>,
 ): Promise<MemberPdfImportPlan> {
   validateMemberPdfImportTarget({
@@ -421,7 +422,7 @@ export async function buildMemberPdfImportPlan(
     validateMemberPdfImportFileSize(fileStats.size);
     const bytes = await readFile(file);
     validateMemberPdfImportFileSize(bytes.byteLength);
-    const text = await extractPdfText(bytes);
+    const text = await (input.extractText?.(file) ?? extractPdfText(bytes));
     reports.push(parseMemberPdfImportReport(text));
   }
   validateMemberPdfImportReportSet(reports);

@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   buildMemberPdfImportPlan,
@@ -23,13 +27,11 @@ import type { MemberPdfImportPlan, MemberPdfImportReceipt } from "./member-pdf-i
 import type { ParsedMemberReport } from "./member-pdf-import.js";
 import type { MemberReportKey } from "@bpt-jersey/domain";
 
-const approvedRoot = "F:\\Proyectos\\BPT Jersey\\Varios";
 const approvedTarget = {
   target: "staging" as const,
   projectId: "bptjersey-f5a25",
   academyId: "demo-academy",
 };
-
 const syntheticPlan = {
   sourceRoot: "synthetic-source-root",
   target: "staging" as const,
@@ -90,9 +92,77 @@ function fakeExecutionServices(applyCalls: { count: number }) {
   };
 }
 
+const syntheticReportDefinitions = [
+  { fileName: "01-total.pdf", report: "total", ids: range(1, 243) },
+  { fileName: "02-active.pdf", report: "active", ids: range(1, 114) },
+  { fileName: "03-with-number.pdf", report: "withNumber", ids: range(1, 147) },
+  { fileName: "04-no-number.pdf", report: "noNumber", ids: range(148, 243) },
+  { fileName: "05-inactive.pdf", report: "inactive", ids: range(115, 242) },
+  { fileName: "06-regularized.pdf", report: "regularized", ids: range(1, 68) },
+  { fileName: "07-active-regularized.pdf", report: "activeRegularized", ids: [] },
+  { fileName: "08-suspended.pdf", report: "suspended", ids: [243] },
+] as const;
+
+const reportTitles = {
+  total: "TOTAL MEMBERS IN DATABASE",
+  active: "ACTIVE MEMBERS IN DATABASE",
+  withNumber: "MEMBERS WITH MEMBER NUMBER IN DATABASE",
+  noNumber: "MEMBERS WITHOUT MEMBER NUMBER IN DATABASE",
+  inactive: "INACTIVE MEMBERS IN DATABASE",
+  regularized: "REGULARIZED MEMBERS IN DATABASE",
+  activeRegularized: "ACTIVE REGULARIZED MEMBERS IN DATABASE",
+  suspended: "SUSPENDED MEMBERS IN DATABASE",
+} as const;
+
+const syntheticHeader = "Member Nº | Name | ID Card Nº | Birthdate | VAT Number | Mobile nº";
+const syntheticInactiveHeader = `${syntheticHeader} | Data inativo`;
+const syntheticFooter = "Document produced by www.regyfit.com on 11-08-2026 at 10:30 Page 1/1";
+const temporaryRoots: string[] = [];
+
+function range(start: number, end: number): number[] {
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+function syntheticReportText(report: keyof typeof reportTitles, ids: readonly number[]): string {
+  const inactive = report === "inactive";
+  const rows = ids.map((id) => {
+    const membershipNumber = id >= 148 ? "" : `M-${String(id).padStart(3, "0")}`;
+    const inactiveAt = inactive ? " | 02 Feb 2025" : "";
+    return `${membershipNumber} | Synthetic Member ${id} | ID-${id} | 01 Jan 2000 | VAT-${id} | +4470000000${inactiveAt}`;
+  });
+  return [
+    `${reportTitles[report]} (${ids.length})`,
+    inactive ? syntheticInactiveHeader : syntheticHeader,
+    ...rows,
+    syntheticFooter,
+  ].join("\n");
+}
+
+async function createSyntheticPdfSource(): Promise<{
+  root: string;
+  texts: ReadonlyMap<string, string>;
+}> {
+  const root = await mkdtemp(join(tmpdir(), "member-pdf-runner-"));
+  temporaryRoots.push(root);
+  const texts = new Map<string, string>();
+  for (const definition of syntheticReportDefinitions) {
+    const filePath = join(root, definition.fileName);
+    await writeFile(filePath, "synthetic PDF placeholder");
+    texts.set(filePath, syntheticReportText(definition.report, definition.ids));
+  }
+  return { root, texts };
+}
+
 describe("member PDF import runner", () => {
+  afterEach(async () => {
+    await Promise.all(
+      temporaryRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
+    );
+  });
+
   it("discovers the eight approved regular PDFs in deterministic order", async () => {
-    const files = await discoverMemberPdfFiles(approvedRoot);
+    const { root } = await createSyntheticPdfSource();
+    const files = await discoverMemberPdfFiles(root);
 
     expect(files).toHaveLength(8);
     expect(files).toEqual([...files].sort(compareMemberPdfFileNames));
@@ -171,11 +241,17 @@ describe("member PDF import runner", () => {
   });
 
   it("builds the approved eight-report plan with safe aggregate metadata", async () => {
+    const { root, texts } = await createSyntheticPdfSource();
     const plan = await buildMemberPdfImportPlan({
-      sourceRoot: approvedRoot,
+      sourceRoot: root,
       ...approvedTarget,
       runId: "member-pdf-20260812-01",
       capturedAt: "2026-08-12T12:00:00.000Z",
+      extractText: async (filePath) => {
+        const text = texts.get(filePath);
+        if (text === undefined) throw new Error(`Missing synthetic report: ${basename(filePath)}`);
+        return text;
+      },
     });
 
     expect(plan.reports).toHaveLength(8);
