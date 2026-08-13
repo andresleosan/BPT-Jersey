@@ -60,7 +60,27 @@ describe("Search members page", () => {
       "Order by",
     ].forEach((label) => expect(screen.getByLabelText(label)).toBeVisible());
     expect(screen.getByRole("button", { name: "SEARCH" })).toBeVisible();
+    expect(screen.getAllByTestId("member-report-row")).toHaveLength(8);
+    expect(screen.getByTestId("member-report-row-total")).toHaveTextContent("-");
+    expect(screen.getByRole("button", { name: "Download total members report" })).toHaveTextContent(
+      "Download",
+    );
     expect(screen.getAllByRole("button", { name: /Download .* report/ })).toHaveLength(8);
+  });
+
+  it("renders loaded report counts in the compact rows", async () => {
+    const user = userEvent.setup();
+    clientMocks.searchMembers.mockResolvedValue({ members: [] });
+    clientMocks.getMemberReportSummary.mockImplementation((report: string) =>
+      Promise.resolve({ report, count: report === "total" ? 243 : 0 }),
+    );
+
+    render(<SearchMembersPage />);
+    await user.click(screen.getByRole("button", { name: "SEARCH" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("member-report-row-total")).toHaveTextContent("243"),
+    );
   });
 
   it("defers the search and sends the exact approved filters", async () => {

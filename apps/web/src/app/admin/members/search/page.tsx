@@ -197,28 +197,25 @@ function ReportCounters({
   onDownload: (report: MemberReportKey) => void;
 }) {
   return (
-    <section className="admin-module-grid" aria-labelledby="member-reports-title">
+    <section className="member-report-list" aria-labelledby="member-reports-title">
       <h3 className="visually-hidden" id="member-reports-title">
         Member reports
       </h3>
       {memberReportKeys.map((report) => (
-        <article className="admin-module-card" key={report}>
-          <div className="admin-module-card-header">
-            <p className="admin-card-index" aria-hidden="true">
-              {String(counts[report] ?? "-")}
-            </p>
-            <p className="admin-card-label">Report</p>
-          </div>
+        <article className="member-report-row" data-testid="member-report-row" key={report}>
+          <p className="member-report-count" data-testid={`member-report-row-${report}`}>
+            <span className="visually-hidden">{reportLabels[report]}: </span>
+            {String(counts[report] ?? "-")}
+          </p>
           <h4>{reportLabels[report]}</h4>
           <button
-            className="regyfit-filter-button"
+            aria-label={`Download ${reportLabels[report].toLowerCase()} report`}
+            className="member-report-download"
             disabled={busyReport !== undefined}
             onClick={() => onDownload(report)}
             type="button"
           >
-            {busyReport === report
-              ? "Preparing report..."
-              : `Download ${reportLabels[report].toLowerCase()} report`}
+            {busyReport === report ? "Preparing..." : "Download"}
           </button>
         </article>
       ))}

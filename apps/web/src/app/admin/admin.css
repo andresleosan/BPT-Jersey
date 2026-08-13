@@ -170,6 +170,17 @@
   gap: 0.65rem;
 }
 
+.admin-section-header .admin-auth-button {
+  margin-top: 0;
+}
+
+.admin-section-header .admin-auth-button,
+.admin-section-header .admin-home-link {
+  align-items: center;
+  display: inline-flex;
+  min-height: 2.9rem;
+}
+
 .admin-status-badge {
   border: 1px solid currentColor;
   display: inline-flex;
@@ -833,6 +844,64 @@
   margin-top: clamp(2.5rem, 6vw, 5rem);
 }
 
+.member-report-list {
+  background: var(--gi-white);
+  border-top: 1px solid var(--mat-ink);
+  margin-top: 1.5rem;
+}
+
+.member-report-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  min-width: 0;
+  padding: 0.65rem 0.8rem;
+}
+
+.member-report-count {
+  color: var(--bpt-purple);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.35rem;
+  line-height: 1;
+  margin: 0;
+}
+
+.member-report-row h4 {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  margin: 0;
+  min-width: 0;
+}
+
+.member-report-download {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--bpt-purple);
+  border-radius: 0;
+  color: var(--bpt-purple-dark);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.35rem 0.65rem;
+  white-space: nowrap;
+}
+
+.member-report-download:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.member-report-download:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
 .admin-module-card {
   background: var(--gi-white);
   border-top: 0.35rem solid var(--mat-ink);
@@ -1446,6 +1515,17 @@
 
   .admin-module-card {
     min-height: 15rem;
+  }
+
+  .member-report-row {
+    gap: 0.55rem 0.75rem;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    padding-inline: 0.65rem;
+  }
+
+  .member-report-download {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .regyfit-access-controls {

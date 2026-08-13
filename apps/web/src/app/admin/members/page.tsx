@@ -148,14 +148,14 @@ export function MembersPage() {
     <section className="admin-module-page" aria-labelledby="members-title">
       <AdminSectionHeader
         actions={
-          <div className="admin-section-actions">
+          <>
             <Link className="admin-auth-button" href="/admin/members/add">
               Add new member
             </Link>
             <Link className="admin-home-link" href="/admin/members/search">
               Search members
             </Link>
-          </div>
+          </>
         }
         description="The member directory shows the approved fields from the connected member source."
         eyebrow="Members / Connected directory"
