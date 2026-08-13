@@ -70,46 +70,6 @@ export function AdminMetric({
   );
 }
 
-export function AdminDataTable<T extends object>({
-  caption,
-  columns,
-  rows,
-  rowKey,
-}: {
-  caption: string;
-  columns: readonly { key: string; label: string; render: (row: T) => ReactNode }[];
-  rows: readonly T[];
-  rowKey: (row: T, index: number) => string;
-}) {
-  return (
-    <div className="admin-data-table-wrap">
-      <table className="admin-data-table">
-        <caption className="visually-hidden">{caption}</caption>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column.key} scope="col">
-                {column.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={rowKey(row, index)}>
-              {columns.map((column) => (
-                <td data-label={column.label} key={column.key}>
-                  {column.render(row)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 export function AdminFilterBar({ children }: { children: ReactNode }) {
   return <div className="admin-filter-bar">{children}</div>;
 }

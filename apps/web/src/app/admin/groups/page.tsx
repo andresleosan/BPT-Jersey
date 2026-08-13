@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 
-import { AdminDataTable, AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminDataTable } from "../admin-data-table";
 import { previewData, type PreviewGroup } from "../preview-data";
 
 import "../admin.css";

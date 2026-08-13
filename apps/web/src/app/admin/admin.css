@@ -242,6 +242,34 @@
   width: 100%;
 }
 
+.admin-table-sort-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  gap: 0.35rem;
+  letter-spacing: inherit;
+  padding: 0.35rem 0;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.admin-table-sort-button:focus-visible {
+  outline: 2px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.admin-table-sort-indicator {
+  color: var(--bpt-purple);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
 .admin-data-table th,
 .admin-data-table td {
   border-bottom: 1px solid var(--line);
@@ -353,10 +381,6 @@
     min-width: 0;
   }
 
-  .admin-data-table thead {
-    display: none;
-  }
-
   .admin-data-table,
   .admin-data-table tbody,
   .admin-data-table tr,
@@ -385,6 +409,15 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+  }
+
+  .admin-data-table th {
+    padding: 0.45rem 0;
+  }
+
+  .admin-table-sort-button {
+    font-size: 0.65rem;
+    white-space: nowrap;
   }
 }
 

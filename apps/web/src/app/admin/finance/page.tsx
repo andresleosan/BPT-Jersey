@@ -2,13 +2,8 @@
 
 import { useState } from "react";
 
-import {
-  AdminDataTable,
-  AdminFilterBar,
-  AdminMetric,
-  AdminSectionHeader,
-  AdminStatusBadge,
-} from "../admin-ui";
+import { AdminFilterBar, AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminDataTable } from "../admin-data-table";
 import { previewData, type PreviewPayment } from "../preview-data";
 
 import "../admin.css";

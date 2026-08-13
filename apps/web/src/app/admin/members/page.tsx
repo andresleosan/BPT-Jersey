@@ -8,7 +8,8 @@ import {
   type MemberSearchProjection,
   type MemberSearchResult,
 } from "../../../lib/members-client";
-import { AdminDataTable, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminDataTable } from "../admin-data-table";
 
 import "../admin.css";
 

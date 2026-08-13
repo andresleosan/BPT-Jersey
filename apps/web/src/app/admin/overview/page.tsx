@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 
-import { AdminDataTable, AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminDataTable } from "../admin-data-table";
 import { previewData, type PreviewClass } from "../preview-data";
 
 import "../admin.css";
