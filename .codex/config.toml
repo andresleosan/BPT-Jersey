@@ -40,11 +40,10 @@ sandbox_mode = "workspace-write"
 network_access = false
 
 # ─── MCP: Playwright (equivalente a mcp.playwright de opencode.template.json) ─
-# Deshabilitado por defecto — descomenta solo cuando el proyecto lo necesite (ver skill
-# browser-qa-e2e en SKILLS.md) y confirma primero que "npx @playwright/mcp" funciona en tu máquina.
-# [mcp_servers.playwright]
-# command = "npx"
-# args = ["@playwright/mcp@latest"]
+# Habilitado para QA browser y discovery read-only. La versión queda fijada para reproducibilidad.
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@0.0.79"]
 
 # ─── Proveedores personalizados (para que el modelo NUNCA quede restringido) ─
 # Codex CLI no está limitado a modelos de OpenAI: cualquier proveedor compatible con su API se

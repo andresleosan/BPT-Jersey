@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { getApps } from "firebase-admin/app";
 
 import { rewriteDeployRuntimeImports } from "./deploy-runtime.js";
 
@@ -93,6 +94,13 @@ describe("deploy runtime import preparation", () => {
     const indexPath = join(deployRoot, "lib", "src", "index.js");
     const indexSource = await readFile(indexPath, "utf8");
     expect(indexSource).not.toMatch(/@bpt-jersey\/domain/u);
+    const callableSource = await readFile(
+      join(deployRoot, "lib", "src", "members", "member-callables.js"),
+      "utf8",
+    );
+    expect(callableSource).toContain('defineSecret("MEMBER_PAGE_TOKEN_SECRET")');
+    expect(callableSource).toContain("secrets: [memberPageTokenSecret]");
     await import(pathToFileURL(indexPath).href);
+    expect(getApps()).toHaveLength(1);
   }, 30_000);
 });

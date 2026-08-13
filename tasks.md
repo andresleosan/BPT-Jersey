@@ -26,24 +26,24 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 |---|---|---|---|---|
 | T012 | Definir módulos de dominio, contratos base y errores tipados | T002,T007 | aprobada | Pruebas unitarias de contratos |
 | T013 | Diseñar colecciones, índices, invariantes y plan de migraciones Firestore/RTDB | T007,T008 | aprobada | Modelo, rollback, fixture, índices y gate final documentados |
-| T014 | Implementar Auth email/password y Google con emulador | T004 | pendiente | Flujos de alta/login/logout probados |
-| T015 | Implementar roles y custom claims con mínimo privilegio | T013,T014 | pendiente | Matriz de roles probada |
-| T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia | T013,T015 | pendiente | Suite de Rules sin accesos indebidos |
+| T014 | Implementar Auth email/password y Google con emulador | T004 | revisión | Gateway unificado, email/Google, logout y E2E documentados; falta aprobación formal del ledger |
+| T015 | Implementar roles y custom claims con mínimo privilegio | T013,T014 | revisión | Claims y autorización administrativa probados; la matriz completa de roles del MVP sigue pendiente |
+| T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia | T013,T015 | revisión | Rules default-deny, boundary Regyfit y suites Rules probadas; falta aprobación formal |
 | T017 | Implementar MFA obligatorio para owner/admin | T014,T015 | cancelada | Sustituida por el rediseño administrativo aprobado el 2026-08-11, sin MFA |
 | T018 | Implementar consentimiento versionado y registro de aceptación | T013,T016 | pendiente | Historial y revocación probados |
-| T019 | Implementar audit log append-only para cambios sensibles | T012,T013,T016 | pendiente | Intentos de alteración rechazados |
+| T019 | Implementar audit log append-only para cambios sensibles | T012,T013,T016 | revisión | Audit events administrativos/importaciones probados; el audit log completo del MVP sigue pendiente |
 
 ## M2 - Familias, estudiantes y personal
 
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
 |---|---|---|---|---|
-| T020 | Construir design tokens, shell responsive y navegación accesible por rol | T002,T015 | pendiente | Visual QA + WCAG smoke |
+| T020 | Construir design tokens, shell responsive y navegación accesible por rol | T002,T015 | revisión | Shell responsive, navegación por rol y QA teclado/móvil documentados; falta aprobación formal |
 | T020A | Integrar identidad visual oficial: logo en home, login, shell admin y acceso requerido; favicon solo como favicon; añadir navegación Home | T002,T017,T020 | revisión | Assets verificados, metadata/favicon, textos de marca conservados, rutas Home, responsive y visual QA desktop/móvil |
-| T021 | Implementar perfiles de adultos, menores y tutores | T016,T020 | pendiente | CRUD autorizado y validado |
+| T021 | Implementar perfiles de adultos, menores y tutores | T016,T020 | revisión | Miembros y paneles reales/preview implementados; relaciones completas del MVP siguen pendientes |
 | T022 | Implementar familias multi-child, contactos y relaciones autorizadas | T021 | pendiente | E2E de tutor con varios menores |
 | T023 | Implementar datos médicos/soporte con acceso restringido | T021,T011 | pendiente | Pruebas negativas por rol |
-| T024 | Implementar documentos y waivers privados en R2 con URLs firmadas | T018,T021 | pendiente | Acceso autorizado, expiración y CORS probados |
-| T025 | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff | T015,T020 | pendiente | Alta, desactivación y revocación probadas |
+| T024 | Implementar documentos y waivers privados en R2 con URLs firmadas | T018,T021 | revisión | Adaptador R2 y URLs firmadas para documentos/PDF probados; waivers completos siguen pendientes |
+| T025 | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff | T015,T020 | revisión | Roles administrativos y provisioning probados; gestión completa de coaches/staff sigue pendiente |
 
 ## M3 - Agenda, reservas y asistencia
 
@@ -92,13 +92,13 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
 |---|---|---|---|---|
-| T049 | Implementar dashboard diario de clases, asistencia y child check-out | T031 | pendiente | Datos consistentes bajo concurrencia |
-| T050 | Implementar dashboard financiero, renovaciones y follow-ups CRM | T038,T044 | pendiente | Totales reconciliados |
-| T051 | Implementar reportes de students, attendance, memberships, revenue y CRM | T038,T043 | pendiente | Fixtures y totales verificados |
+| T049 | Implementar dashboard diario de clases, asistencia y child check-out | T031 | revisión | Panel visible con preview sintético; persistencia canónica real pendiente |
+| T050 | Implementar dashboard financiero, renovaciones y follow-ups CRM | T038,T044 | revisión | Panel financiero y seguimiento CRM visibles en preview; datos reales pendientes |
+| T051 | Implementar reportes de students, attendance, memberships, revenue y CRM | T038,T043 | revisión | Informes y exportes de miembros visibles/probados; conjunto completo del MVP pendiente |
 | T052 | Implementar reportes de progreso, reconocimiento y assessment coverage | T042 | pendiente | Filtros y privacidad probados |
-| T053 | Implementar exportación de datos autorizada y auditable | T019,T051,T052 | pendiente | Export por rol sin fuga de datos |
+| T053 | Implementar exportación de datos autorizada y auditable | T019,T051,T052 | revisión | Exportación PDF de miembros con límites, rate limit y cleanup probada; exportación general pendiente |
 | T054 | Configurar backups, restauración y runbook de rollback | T013,T024 | pendiente | Restauración de staging demostrada |
-| T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T017-T054 | pendiente | Reportes sin fallos críticos |
+| T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T017-T054 | revisión | Unitarias, Rules, integración y E2E sintético documentadas; QA completo por rol y release pendientes |
 | T056 | Ejecutar piloto con datos controlados y corregir hallazgos | T055 | pendiente | Acta de piloto aprobada |
 | T057 | Preparar checklist de producción, monitoreo, costos y rollback | T056 | pendiente | Gates de despliegue completos |
 | T058 | Desplegar a producción con confirmación explícita del operador | T057 | pendiente | Deployment verificado y rollback disponible |
@@ -122,7 +122,52 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 - T070 - Referrals, eventos, privadas, competencias y retail.
 - T071 - Analytics, IA asistida, multi-academia, white label y SaaS.
 
+## Tareas complementarias integradas desde la evidencia del proyecto
+
+Estas tareas no reemplazan las tareas MVP numeradas. Registran trabajo posterior que existía en
+la evidencia, pero no tenía un ID propio en el backlog. `tasks.md` conserva el estado oficial y
+la evidencia; `Lista/Lista.js` debe reflejar esta sección sin crear tareas fuera de este archivo.
+
+| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
+|---|---|---|---|---|
+| T072 | Ejecutar descubrimiento estructural read-only de Regyfit | T007,T013 | revisión | Manifiesto sanitizado, contratos y Playwright offline 2/2; entidades fuente todavía insuficientes para aprobar el mapeo |
+| T073 | Implementar autorización, locks y provisioning administrativo de Regyfit | T015,T016 | revisión | Locks renovables, fencing, recuperación y compensación fail-closed; 32 pruebas focused y 83 de suite documentadas |
+| T074 | Construir shell y panel read-only administrativo de Regyfit | T020,T015 | revisión | Shell responsive, proyecciones owner/safe, filtros, foco, 24 E2E sintéticos; falta aprobación/live Auth completa |
+| T075 | Implementar importer Regyfit idempotente y aplicar lote aprobado | T073,T074 | revisión | Importer protegido, dry-run e importación de 10 registros verificada; lectura live owner/administrator y alertas de facturación pendientes |
+| T076 | Publicar callable protegido de registros Regyfit | T074,T075 | revisión | Callable v2 desplegado y smoke sin identidad devuelve 403; verificación Auth live queda pendiente |
+| T077 | Implementar gateway unificado de login, logout y acceso administrativo | T014,T015 | revisión | Email/Google, destinos allowlisted, logout, E2E sintético y verificación manual staging documentados; live Auth automatizado opt-in |
+| T078 | Entregar panel administrativo visible con preview sintético | T020,T021 | revisión | Overview, Members, Groups, Activities, Attendance, Reports, CRM y Finance con filtros y QA 374/374; persistencia real posterior |
+| T079 | Implementar operaciones de miembros, informes y exportación PDF protegida | T021,T024,T053 | revisión | Callables, límites, rate limit, export journal, PDF Unicode, integración Firestore y QA 427/427 documentados |
+| T080 | Validar lote real de PDFs de miembros y planificar importación | T079,T054 | revisión | 8 reportes, 243 canónicos, 0 conflictos tras resolución y dry-run aprobado; backup/restauración y apply staging pendientes |
+| T081 | Implementar navegación responsive administrativa y tablas ordenables | T020,T078 | revisión | Drawer móvil, foco, responsive, ordenación y E2E desktop/móvil documentados; aprobación formal pendiente |
+| T082 | Establecer sincronización permanente entre `tasks.md` y `Lista/` | T001 | aprobada | Regla persistente añadida a `AGENTS.md`, Copilot y `MASTER_PROMPT.md`; 83 entradas únicas sincronizadas y `Lista.js` verificado |
+
+## Regla permanente de continuidad y sincronización
+
+Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pierda el chat:
+
+1. Antes de trabajar, leer `BRIEF.md`, `STACK.md` y `tasks.md`; `tasks.md` es el ledger recuperable y la fuente oficial del estado.
+2. Todo cambio de código, documentación, prueba, configuración, diseño o despliegue debe pertenecer a una tarea existente de `tasks.md`.
+3. Si el trabajo no tiene tarea, crear primero una tarea con ID único, alcance, dependencias, estado `pendiente` y evidencia esperada; después comenzar el trabajo.
+4. Al iniciar una tarea, cambiarla a `en-progreso` y registrar la fecha, el alcance y el plan o especificación relacionado.
+5. Al terminar una unidad de trabajo, actualizar inmediatamente la fila y añadir debajo la evidencia real: archivos, comandos, resultados, limitaciones, riesgos y rollback cuando corresponda.
+6. No marcar `aprobada` solo porque exista código o una especificación: exige pruebas reales, revisión de seguridad y aprobación humana cuando el flujo lo requiera.
+7. Si hay implementación o pruebas, pero falta aprobación, usar `revisión`; si falta una decisión externa, usar `bloqueada`; si no hay trabajo real, usar `pendiente`.
+8. Actualizar `tasks.md` antes de actualizar `Lista/Lista.js`; la lista visual solo puede representar tareas, estados y evidencias que estén registradas aquí.
+9. `Lista/Lista.js`, `Lista.html` y `Lista.css` deben actualizarse en el mismo cambio lógico que `tasks.md`; no se permite dejar el panel visual con datos inventados o atrasados.
+10. Al comenzar una nueva sesión, revisar el último estado de `tasks.md`, los cambios del workspace y la evidencia reciente antes de continuar; no depender de la memoria del chat.
+11. Antes de cerrar la sesión, verificar que no existan cambios de código sin tarea, estados desactualizados o evidencia ausente; dejar la siguiente acción escrita en `tasks.md`.
+
 ## Evidencia del ciclo de autocrítica
+
+### T082 - 2026-08-13
+
+- Implementación: regla permanente de continuidad añadida a `AGENTS.md`, `.github/copilot-instructions.md` y `.cronos/MASTER_PROMPT.md`; `tasks.md` queda definido como ledger persistente y fuente única de verdad entre sesiones.
+- Sincronización: `Lista/Lista.js` declara `sourceLedger: "tasks.md"`, representa 83 entradas únicas, incluye `T072-T082` y conserva los estados reconciliados del ledger.
+- QA: `node --check Lista/Lista.js` -> exit 0; VM global -> `entries=83`, `uniqueIds=83`, `sourceLedger=tasks.md`, `T072-T082 PASS`, estados esperados PASS; controles de panel, checklist, filtros y expandir/contraer global verificados en la corrida de Task 9.
+- Formato: `git diff --check -- tasks.md AGENTS.md .github/copilot-instructions.md .cronos/MASTER_PROMPT.md Lista/Lista.js Lista/Lista.html Lista/Lista.css` -> salida vacía, exit 0.
+- Seguridad y operaciones: no se leyeron secretos, no se modificaron datos, no se desplegó, no se migró y no se ejecutaron operaciones destructivas.
+- Estado: `T082` pasa a `aprobada` porque la regla, la reconciliación y la verificación tienen evidencia real. La publicación en GitHub continúa sujeta a un commit autorizado.
 
 ### T001 - 2026-08-06
 

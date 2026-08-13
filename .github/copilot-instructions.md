@@ -17,3 +17,13 @@ No marques ninguna tarea como terminada sin evidencia real de que corriste las p
 correspondientes. No apliques ni sugieras un despliegue a producción, una migración destructiva, ni
 un gasto nuevo en APIs de pago sin que el operador lo confirme explícitamente en el chat. Habla
 siempre en español, salvo nombres de archivos o variables de código.
+
+## Ledger persistente obligatorio
+
+`tasks.md` es la fuente única de verdad y el punto de recuperación entre sesiones. Antes de cualquier
+cambio, léelo junto con `BRIEF.md` y `STACK.md`. Toda tarea nueva debe registrarse primero en
+`tasks.md`; cada avance debe actualizar inmediatamente su estado, fecha, archivos, pruebas, evidencia,
+limitaciones y siguiente acción. No dejes código, documentación, pruebas o configuración sin una
+tarea correspondiente. Actualiza `tasks.md` antes de `Lista/`, y mantén ambos sincronizados en el
+mismo cambio lógico. Al comenzar una sesión nueva, reconcilia el workspace y `tasks.md` sin depender
+del historial del chat.

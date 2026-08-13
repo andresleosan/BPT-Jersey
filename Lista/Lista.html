@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BPT Jersey | Revisión del proyecto</title>
+    <link rel="stylesheet" href="Lista.css">
+    <script src="Lista.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
+
+    <div id="app">
+      <header>
+        <p>Revisión del proyecto</p>
+        <h1>BPT Jersey</h1>
+        <p>
+          Fecha de corte:
+          <time id="last-updated" datetime="2026-08-13">13 de agosto de 2026</time>
+        </p>
+        <p>Vista de seguimiento basada en documentación versionada.</p>
+
+        <nav aria-label="Navegación de fases">
+          <ul>
+            <li><a href="#phase-0">Fase 0</a></li>
+            <li><a href="#mvp">MVP</a></li>
+            <li><a href="#special-lines">Líneas especiales</a></li>
+            <li><a href="#v2">Ruta v2</a></li>
+            <li><a href="#v3">Ruta v3</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <main id="main-content">
+        <section aria-labelledby="summary-heading">
+          <h2 id="summary-heading">Resumen del proyecto</h2>
+          <div id="summary-grid">
+             <div data-status="aprobada" data-render-target="status-cards"></div>
+             <div data-status="revisión" data-render-target="status-cards"></div>
+             <div data-status="en-progreso" data-render-target="status-cards"></div>
+             <div data-status="pendiente" data-render-target="status-cards"></div>
+            <div data-status="bloqueada" data-render-target="status-cards"></div>
+            <div data-status="cancelada" data-render-target="status-cards"></div>
+            <div data-render-target="total-card"></div>
+            <div data-render-target="global-progress" aria-label="Progreso global"></div>
+          </div>
+        </section>
+
+        <section id="filters" aria-labelledby="filters-heading">
+          <h2 id="filters-heading">Filtrar seguimiento</h2>
+          <form>
+            <div>
+              <label for="search-input">Buscar</label>
+              <input id="search-input" name="search" type="search" autocomplete="off">
+            </div>
+            <div>
+              <label for="status-filter">Estado</label>
+              <select id="status-filter" name="status">
+                <option value="">Todos los estados</option>
+              </select>
+            </div>
+            <div>
+              <label for="track-filter">Línea de trabajo</label>
+              <select id="track-filter" name="track">
+                <option value="">Todas las líneas</option>
+              </select>
+            </div>
+            <button type="reset">Limpiar filtros</button>
+          </form>
+          <p id="filter-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <div id="phase-0" class="phase-anchor" aria-hidden="true"></div>
+        <div id="mvp" class="phase-anchor" aria-hidden="true"></div>
+        <div id="special-lines" class="phase-anchor" aria-hidden="true"></div>
+        <div id="v2" class="phase-anchor" aria-hidden="true"></div>
+        <div id="v3" class="phase-anchor" aria-hidden="true"></div>
+
+         <section aria-labelledby="phases-heading">
+           <h2 id="phases-heading">Fases y progreso</h2>
+           <div id="phase-controls" aria-label="Controles globales de fases">
+             <button id="expand-all" type="button">Expandir todo</button>
+             <button id="collapse-all" type="button">Contraer todo</button>
+           </div>
+           <div id="phase-list"></div>
+          <p id="empty-state" role="status" aria-live="polite" hidden>
+            No hay tareas que coincidan con los filtros seleccionados.
+          </p>
+        </section>
+
+        <section id="maintenance" aria-labelledby="maintenance-heading">
+          <h2 id="maintenance-heading">Mantenimiento</h2>
+          <p>
+             <code>tasks.md</code> es la fuente única de verdad. Registra allí toda tarea nueva antes de
+             trabajar, actualiza su estado y evidencia al terminar cada avance, y después sincroniza
+             <code>Lista.js</code>. Verifica el panel y sube los archivos juntos en el mismo cambio lógico.
+          </p>
+        </section>
+      </main>
+
+      <button id="back-to-top" class="back-to-top" type="button" aria-label="Volver al inicio" hidden>
+        <img src="../apps/web/public/bpt-jersey-logo.png" alt="">
+        <span>Inicio</span>
+      </button>
+
+      <footer>
+        <p>BPT Jersey · seguimiento de progreso</p>
+      </footer>
+    </div>
+  </body>
+</html>

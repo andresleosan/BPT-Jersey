@@ -24,6 +24,7 @@ export default defineConfig([
     ".agents/**",
     ".claude/**",
     ".cronos/**",
+    ".worktrees/**",
     "**/.next/**",
     "**/build/**",
     "**/coverage/**",

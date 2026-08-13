@@ -98,6 +98,17 @@ Continúa en el Paso 7 para ejecutar las mejoras aprobadas.
 
 ## Paso 7 — Construcción en ciclo (ambos flujos)
 
+### Ledger persistente entre sesiones
+
+`tasks.md` es la fuente única de verdad y el punto de recuperación si el chat se limpia, se cierra o
+entra otro agente. Antes de trabajar en cualquier sesión, lee `BRIEF.md`, `STACK.md` y `tasks.md`,
+revisa cambios del workspace y reconcilia la evidencia reciente. Toda tarea nueva se crea primero en
+`tasks.md` con ID, alcance, dependencias, estado y evidencia esperada. Cada cambio de código,
+documentación, prueba, configuración o despliegue actualiza inmediatamente su tarea con fecha,
+archivos, comandos, resultados, limitaciones y siguiente acción. `Lista/` solo puede reflejar tareas
+registradas en `tasks.md`; actualiza el ledger antes de la lista y mantenlos sincronizados en el mismo
+cambio lógico. Nunca cierres una sesión dejando una tarea nueva o un avance sin registrar.
+
 Para cada tarea de `tasks.md`:
 
 **7.1 — Recomendación de modelo al iniciar la fase.**

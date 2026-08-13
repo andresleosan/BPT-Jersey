@@ -2,9 +2,9 @@ migrationId: member-pdf-import-2026-08-12-01
 modelVersion: member-record-schema-1
 author: Cronos
 createdAt: 2026-08-12T22:14:45.415Z
-status: dry-run-passed
+status: production-applied
 scope:
-  environment: staging
+  environment: production
   projectId: bptjersey-f5a25
   academyIds:
     - demo-academy
@@ -31,12 +31,12 @@ up:
   mode: dry-run-then-apply
   description: bounded additive import of canonical member records from the approved eight-report source set
   sourceHash: aa9340de9528c2a46f898667fe3e554beabbdba6b8c03ec02b8b757f0ab2fc4f
-  operationId: member-pdf-import-637b47bd76a964e42346a820b16dcf57feb3595139667eab4c2faa03c7f9305d
-  importRunId: member-pdf-20260812-01
+  operationId: member-pdf-import-d04bbe82589e86e2414141d44495c301e0713492003a0615bd2acba1a30edf78
+  importRunId: member-pdf-20260813-01
   preconditions:
     - dry-run receipt matched the approved aggregate counts
-    - target guard accepted only bptjersey-f5a25/demo-academy/staging
-    - no emulator or production target was used
+    - target guard accepted only bptjersey-f5a25/demo-academy
+    - operator confirmed bptjersey-f5a25 is the production Firebase project; no separate staging Firebase project exists
     - no Firestore write occurred during dry-run
   checkpointPlan:
     - verify backup and restoration evidence for the scoped staging collections
@@ -45,15 +45,35 @@ up:
 execution:
   dryRun:
     status: passed
-    generatedAt: 2026-08-12T22:41:21.638Z
+    generatedAt: 2026-08-13T01:57:47.510Z
     writeStatus: not-executed
-  stagingApply:
-    status: not-executed
-    reason: pending verified staging backup, restoration evidence, and separate operator confirmation
+  productionApply:
+    status: passed
+    targetLabelUsed: staging-allowlist; project is production per operator confirmation
+    executedAt: 2026-08-13T02:12:04.088Z
+    result:
+      imported: 243
+      updated: 0
+      conflicts: 0
+    verification:
+      members: 243
+      matchingImportRun: 243
+      operations: 1
+      matchingOperations: 1
+      matchingAudits: 1
+      duplicateIds: 0
+      outOfTenant: 0
+    idempotency:
+      repeatedAt: 2026-08-13T02:15:02.996Z
+      result:
+        imported: 243
+        updated: 0
+        conflicts: 0
+      duplicateCreations: 0
 downOrRestore:
   strategy: planner-only exact-run selection for imported records; restore pre-import backup for updates
   trigger: approved reversal or failed post-import reconciliation
-  procedure: select only academies/demo-academy/members records with source member-pdf-import and importRunId member-pdf-20260812-01; do not delete during planner mode
+  procedure: select only academies/demo-academy/members records with source member-pdf-import and importRunId member-pdf-20260813-01; do not delete during planner mode
 verificationQueries:
   - id: dry-run-counts
     description: compare receipt aggregate counts with the approved source contract
@@ -68,12 +88,57 @@ verificationQueries:
     description: inspect the single import audit event
     expected: metadata-only event without member values or raw source data
 backupReference:
-  reference: pending-operator-verified-staging-backup
-  scope: academies/demo-academy/members, auditEvents, memberImportOperations
-  verifiedAt: null
-  restorationEvidence: pending before staging apply
+  reference: gs://bptjersey-f5a25-firestore-backup-20260812/member-pdf-import-preflight
+  operation: projects/bptjersey-f5a25/databases/(default)/operations/ASA5NzUyNTJhYjc0NGEtOTkzOC0zZDg0LTVhYjEtOGE3NzlhNzkkGnNlbmlsZXBpcAkKMxI
+  scope: collection groups members, auditEvents, memberImportOperations; export may include records outside demo-academy
+  bucketControls: uniformBucketLevelAccess, publicAccessPrevention=enforced, location=europe-west9
+  exportStatus: successful
+  verifiedAt: 2026-08-13T01:48:01.419570Z
+  restoration:
+    database: member-import-restore-20260813
+    operation: projects/bptjersey-f5a25/databases/member-import-restore-20260813/operations/AiA4ZDZmNWEzMDBmZGMtZTdhYS1hMDk0LTczNTktYTAyZjRjOTEkGnNlbmlsZXBpcAkKMxI
+    status: successful
+    verifiedCounts:
+      members: 0
+      auditEvents: 1
+      memberImportOperations: 0
+    cleanup:
+      status: deleted
+      verifiedAbsent: true
+  restorationEvidence: verified isolated Firestore restore; emulator was not used because native export format is not directly importable there
 operatorApproval:
-  status: pending
+  status: approved
   approvedBy: operator
-  approvedAt: 2026-08-12T22:14:45.415Z
-  approvedScope: dry-run only; staging apply remains blocked pending backup/restoration verification
+  approvedAt: 2026-08-13T02:00:00.000Z
+  approvedScope: production apply for bptjersey-f5a25/demo-academy, member-pdf-20260813-01, exact approved source hash and collections only
+releaseVerification:
+  frontend:
+    url: https://bptjersey.pages.dev/admin/members
+    status: 200
+    searchMembersAsset: verified
+  functions:
+    projectId: bptjersey-f5a25
+    active:
+      - searchMembers
+      - getMemberReportSummary
+    deploymentHash: d52b025fc9940a82df3babcc2dc5f753408bb200
+    incident:
+      - symptom: searchMembers returned HTTP 500 after the first production deploy
+        cause: Firebase Admin default app was not initialized in the deployed entrypoint
+        correction: initializeApp() added to apps/functions/src/index.ts
+        regression: apps/functions/src/deploy-runtime.test.ts verifies one initialized Admin app
+        correctedAt: 2026-08-13T02:58:22.708Z
+      - symptom: searchMembers returned HTTP 500 after the initialization correction
+        cause: MEMBER_PAGE_TOKEN_SECRET was missing from production configuration
+        correction: Secret Manager secret created and bound to member callables; value not persisted in repository
+        regression: deploy-runtime.test.ts verifies the secret binding in the deploy artifact
+        correctedAt: 2026-08-13T03:10:50.617Z
+    secretConfiguration:
+      name: MEMBER_PAGE_TOKEN_SECRET
+      version: 1
+      state: ENABLED
+      valueRecorded: false
+  firestore:
+    members: 243
+    matchingImportRun: 243
+    statuses: active=114, inactive=128, suspended=1

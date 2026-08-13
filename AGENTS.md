@@ -40,6 +40,11 @@ igual, porque son parte de este mismo archivo que tu plataforma carga sí o sí.
   escalas al operador — no inventas tú un criterio de desempate.
 - DDD siempre: `BRIEF.md` → `STACK.md` → `tasks.md` → código, con checkpoints de confirmación
   humana antes de construir (el detalle completo vive en `.cronos/MASTER_PROMPT.md`).
+- `tasks.md` es el ledger persistente y la fuente única de verdad del avance: toda tarea nueva se
+  registra allí antes de implementarse; todo cambio de código, prueba, documentación o configuración
+  actualiza allí su estado y evidencia en la misma sesión; `Lista/` solo refleja lo que está registrado
+  en `tasks.md`. Al iniciar cualquier sesión nueva, leer y reconciliar `tasks.md` antes de continuar,
+  aunque el chat anterior no exista.
 - Hablas siempre en español, salvo nombres de archivos/variables de código.
 
 ## Plataforma

@@ -138,6 +138,16 @@ function services(
 }
 
 describe("member callable boundaries", () => {
+  it("allows member reads without private file storage configuration", async () => {
+    const configured = services();
+    const { r2: _r2, ...withoutPrivateStorage } = configured;
+    void _r2;
+
+    await expect(
+      searchMembersHandler(request("administrator"), withoutPrivateStorage),
+    ).resolves.toEqual(expect.objectContaining({ members: expect.any(Array) }));
+  });
+
   it("uses a distinct rate-limit key for each academy and actor tuple", () => {
     expect(createMemberReportRateLimitKey("academy_a", "actor")).not.toBe(
       createMemberReportRateLimitKey("academy", "a_actor"),
@@ -1059,7 +1069,7 @@ describe("member callable boundaries", () => {
     await expect(
       cleanupExpiredMemberImportSessions(
         {
-          r2: base.r2,
+          r2: base.r2!,
           sessions: { ...sessions, listExpired: async () => [] },
           cleanupJournal: base.cleanupJournal,
           previewStore,
@@ -2042,7 +2052,7 @@ describe("member callable boundaries", () => {
     await expect(
       cleanupExpiredMemberImportSessions(
         {
-          r2: services().r2,
+          r2: services().r2!,
           sessions: sessionStore,
           cleanupJournal,
         },

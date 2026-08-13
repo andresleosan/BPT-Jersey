@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { z } from "zod";
 
@@ -50,6 +51,8 @@ import {
 import { formatMemberPdfTextItems } from "./member-pdf-text.js";
 
 export { MAX_MEMBER_REPORT_ROWS, MAX_MEMBER_SEARCH_ROWS } from "./member-service.js";
+
+const memberPageTokenSecret = defineSecret("MEMBER_PAGE_TOKEN_SECRET");
 
 const text = z.string().trim().min(1);
 const createMemberSchema = z.strictObject({
@@ -621,7 +624,7 @@ export function createFirestoreMemberImportCleanupJournal(
 
 export type MemberCallableServices = Readonly<{
   memberService: MemberService;
-  r2: R2Client;
+  r2?: R2Client;
   sessions: MemberImportSessionStore;
   cleanupJournal: MemberImportCleanupJournal;
   reportExports: MemberReportExportStore;
@@ -639,6 +642,12 @@ function nowOf(services: MemberCallableServices): Date {
 
 function idOf(services: MemberCallableServices): string {
   return services.createId?.() ?? crypto.randomUUID();
+}
+
+function requireR2(services: Readonly<{ r2?: R2Client }>): R2Client {
+  if (!services.r2)
+    throw new HttpsError("failed-precondition", "Private file storage is not configured");
+  return services.r2;
 }
 
 function parseRequest<T>(request: CallableRequest, schema: z.ZodType<T>): T {
@@ -761,7 +770,7 @@ async function parseImportReports(
   const sourceHashes: string[] = [];
   let totalRows = 0;
   for (const objectKey of session.objectKeys) {
-    const bytes = await services.r2.readObject(objectKey);
+    const bytes = await requireR2(services).readObject(objectKey);
     if (bytes[0] !== 37 || bytes[1] !== 80 || bytes[2] !== 68 || bytes[3] !== 70) {
       throw new HttpsError("invalid-argument", "Uploaded file is not a PDF");
     }
@@ -860,8 +869,16 @@ async function buildImportPreview(
 
 function defaultServices(): MemberCallableServices {
   return {
-    memberService: createMemberService(createFirestoreMemberStore(getFirestore())),
-    r2: createR2ClientFromEnvironment(),
+    memberService: createMemberService(createFirestoreMemberStore(getFirestore()), {
+      pageTokenSecret: memberPageTokenSecret.value(),
+    }),
+    ...(() => {
+      try {
+        return { r2: createR2ClientFromEnvironment() };
+      } catch {
+        return {};
+      }
+    })(),
     sessions: createFirestoreMemberImportSessionStore(getFirestore()),
     cleanupJournal: createFirestoreMemberImportCleanupJournal(getFirestore()),
     reportExports: createFirestoreMemberReportExportStore(getFirestore()),
@@ -1012,7 +1029,7 @@ async function compensateReportExport(
   cleanupEntry: CleanupJournalEntry,
 ): Promise<void> {
   try {
-    await services.r2.deleteObject(session.objectKey);
+    await requireR2(services).deleteObject(session.objectKey);
     await services.reportExports.save({
       ...session,
       status: "failed",
@@ -1079,7 +1096,7 @@ export async function getMemberReportPdfHandler(
   }
 
   try {
-    await services.r2.putObject(objectKey, pdfBytes, "application/pdf");
+    await requireR2(services).putObject(objectKey, pdfBytes, "application/pdf");
     await services.reportExports.save({ ...exportSession, status: "uploaded" });
   } catch {
     await compensateReportExport(services, exportSession, cleanupEntry);
@@ -1088,7 +1105,7 @@ export async function getMemberReportPdfHandler(
 
   try {
     return {
-      downloadUrl: await services.r2.createPdfDownloadUrl({
+      downloadUrl: await requireR2(services).createPdfDownloadUrl({
         objectKey,
         expiresInSeconds: 300,
       }),
@@ -1137,7 +1154,7 @@ export async function createMemberPdfImportSessionHandler(
   const uploads = await Promise.all(
     preparedFiles.map(async ({ metadata, objectKey }) => ({
       objectKey,
-      uploadUrl: await services.r2.createPdfUploadUrl({
+      uploadUrl: await requireR2(services).createPdfUploadUrl({
         ...metadata,
         objectKey,
         expiresInSeconds: 600,
@@ -1298,8 +1315,13 @@ export async function confirmMemberPdfImportHandler(
   return confirmed;
 }
 
-type CleanupServices = Pick<MemberCallableServices, "r2" | "sessions" | "cleanupJournal"> &
-  Readonly<{ reportExports?: MemberReportExportStore; previewStore?: MemberImportPreviewStore }>;
+type CleanupServices = Readonly<{
+  r2: R2Client;
+  sessions: MemberImportSessionStore;
+  cleanupJournal: MemberImportCleanupJournal;
+  reportExports?: MemberReportExportStore;
+  previewStore?: MemberImportPreviewStore;
+}>;
 
 function sessionToJournalEntry(session: ImportSession): CleanupJournalEntry {
   return {
@@ -1530,7 +1552,7 @@ export async function cleanupExpiredMemberImportSessions(
       if (!importSessionMissing) {
         for (const objectKey of revalidated.objectKeys) {
           try {
-            await services.r2.deleteObject(objectKey);
+            await requireR2(services).deleteObject(objectKey);
           } catch {
             cleanupFailed = true;
           }
@@ -1617,31 +1639,39 @@ export async function cleanupExpiredMemberImportSessions(
 }
 
 export const cleanupExpiredMemberImportSessionsSchedule = onSchedule(
-  { schedule: "every 15 minutes", timeZone: "UTC" },
-  async () => cleanupExpiredMemberImportSessions(defaultServices()),
+  { schedule: "every 15 minutes", timeZone: "UTC", secrets: [memberPageTokenSecret] },
+  async () => {
+    const services = defaultServices();
+    return cleanupExpiredMemberImportSessions({
+      ...services,
+      r2: requireR2(services),
+    });
+  },
 );
 
-export const createMember = onCall(async (request) =>
+const memberCallableOptions = { secrets: [memberPageTokenSecret] };
+
+export const createMember = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => createMemberHandler(request, services)),
 );
-export const searchMembers = onCall(async (request) =>
+export const searchMembers = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => searchMembersHandler(request, services)),
 );
-export const getMemberReport = onCall(async (request) =>
+export const getMemberReport = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => getMemberReportHandler(request, services)),
 );
-export const getMemberReportSummary = onCall(async (request) =>
+export const getMemberReportSummary = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => getMemberReportSummaryHandler(request, services)),
 );
-export const getMemberReportPdf = onCall(async (request) =>
+export const getMemberReportPdf = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => getMemberReportPdfHandler(request, services)),
 );
-export const createMemberPdfImportSession = onCall(async (request) =>
+export const createMemberPdfImportSession = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => createMemberPdfImportSessionHandler(request, services)),
 );
-export const previewMemberPdfImport = onCall(async (request) =>
+export const previewMemberPdfImport = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => previewMemberPdfImportHandler(request, services)),
 );
-export const confirmMemberPdfImport = onCall(async (request) =>
+export const confirmMemberPdfImport = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => confirmMemberPdfImportHandler(request, services)),
 );
