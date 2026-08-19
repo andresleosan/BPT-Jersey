@@ -7,9 +7,6 @@ const authOperations = vi.hoisted(() => ({
   sendPasswordReset: vi.fn(),
   signInWithEmail: vi.fn(),
   signInWithGoogle: vi.fn(),
-  clearPendingMfaError: vi.fn(),
-  rememberMfaError: vi.fn(),
-  resolveTotpChallenge: vi.fn(),
 }));
 
 vi.mock("../../lib/auth-client", () => authOperations);
@@ -110,9 +107,10 @@ describe("LoginForm", () => {
     );
   });
 
-  it("routes an administrator MFA-required sign-in into the TOTP challenge", async () => {
+  it("keeps an MFA-required email failure inside the MFA-free login flow", async () => {
     authOperations.signInWithEmail.mockRejectedValue({
       code: "auth/multi-factor-auth-required",
+      message: "resolver=private-value",
     });
     const user = userEvent.setup();
     render(<LoginForm initialRole="administrator" />);
@@ -121,10 +119,35 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText("Password"), "password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() =>
-      expect(screen.getByRole("heading", { name: /verify your authenticator/i })).toBeVisible(),
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/couldn't complete/i));
+    expect(screen.getByRole("heading", { name: "Team access" })).toBeVisible();
+    expect(screen.getByLabelText("Email address")).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: /verify your authenticator/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).not.toHaveTextContent(
+      /private-value|auth\/multi-factor-auth-required/i,
     );
-    expect(screen.queryByLabelText("Email address")).not.toBeInTheDocument();
-    expect(authOperations.rememberMfaError).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an MFA-required Google failure inside the MFA-free login flow", async () => {
+    authOperations.signInWithGoogle.mockRejectedValue({
+      code: "auth/multi-factor-auth-required",
+      message: "resolver=private-value",
+    });
+    const user = userEvent.setup();
+    render(<LoginForm initialRole="administrator" />);
+
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/couldn't complete/i));
+    expect(screen.getByRole("heading", { name: "Team access" })).toBeVisible();
+    expect(screen.getByLabelText("Email address")).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: /verify your authenticator/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).not.toHaveTextContent(
+      /private-value|auth\/multi-factor-auth-required/i,
+    );
   });
 });

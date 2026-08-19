@@ -33,8 +33,6 @@ const authEmulatorUrl = "http://127.0.0.1:9099";
 const firestoreEmulatorHost = "127.0.0.1";
 const firestoreEmulatorPort = 8080;
 
-type EmulatorAuthAdapter = (auth: Auth) => Promise<UserCredential>;
-
 export type MfaEnrollment = Readonly<{
   qrCodeUrl: string;
   secret: TotpSecret;
@@ -43,7 +41,6 @@ export type MfaEnrollment = Readonly<{
 let authEmulatorConnected = false;
 let firestoreEmulatorConnected = false;
 let functionsEmulatorConnected = false;
-let emulatorAuthAdapter: EmulatorAuthAdapter | undefined;
 const enrollmentUsers = new WeakMap<object, User>();
 
 function shouldUseFirebaseEmulators(): boolean {
@@ -120,26 +117,12 @@ export function getFirebaseFunctions(): Functions {
   return functions;
 }
 
-export function registerFirebaseEmulatorAuthAdapter(adapter: EmulatorAuthAdapter): void {
-  emulatorAuthAdapter = adapter;
-}
-
 export function subscribeToIdTokenChanges(listener: (user: User | null) => void): Unsubscribe {
   return onIdTokenChanged(getFirebaseAuth(), listener);
 }
 
 export function signInWithGoogle(): Promise<UserCredential> {
-  const auth = getFirebaseAuth();
-
-  if (shouldUseFirebaseEmulators()) {
-    if (!emulatorAuthAdapter) {
-      throw new Error("Firebase emulator auth adapter is not configured.");
-    }
-
-    return emulatorAuthAdapter(auth);
-  }
-
-  return signInWithPopup(auth, new GoogleAuthProvider());
+  return signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
 }
 
 export function signOutFromFirebase(): Promise<void> {

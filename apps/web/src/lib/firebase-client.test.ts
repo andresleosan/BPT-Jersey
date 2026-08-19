@@ -2,21 +2,29 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const firebaseApp = { name: "firebase-app" };
 const firebaseAuth = { name: "firebase-auth" };
-const firebaseSdk = vi.hoisted(() => ({
-  connectAuthEmulator: vi.fn(),
-  getAuth: vi.fn(() => firebaseAuth),
-  getIdTokenResult: vi.fn(),
-  getMultiFactorResolver: vi.fn(),
-  multiFactor: vi.fn(),
-  onIdTokenChanged: vi.fn(),
-  signInWithPopup: vi.fn(),
-  signOut: vi.fn(),
-  TotpMultiFactorGenerator: {
-    assertionForEnrollment: vi.fn(),
-    assertionForSignIn: vi.fn(),
-    generateSecret: vi.fn(),
-  },
-}));
+const firebaseSdk = vi.hoisted(() => {
+  const googleProvider = { providerId: "google.com" };
+
+  return {
+    connectAuthEmulator: vi.fn(),
+    getAuth: vi.fn(() => firebaseAuth),
+    getIdTokenResult: vi.fn(),
+    getMultiFactorResolver: vi.fn(),
+    googleProvider,
+    GoogleAuthProvider: vi.fn(function GoogleAuthProvider() {
+      return googleProvider;
+    }),
+    multiFactor: vi.fn(),
+    onIdTokenChanged: vi.fn(),
+    signInWithPopup: vi.fn(),
+    signOut: vi.fn(),
+    TotpMultiFactorGenerator: {
+      assertionForEnrollment: vi.fn(),
+      assertionForSignIn: vi.fn(),
+      generateSecret: vi.fn(),
+    },
+  };
+});
 
 vi.mock("firebase/app", () => ({
   getApps: vi.fn(() => [firebaseApp]),
@@ -26,7 +34,7 @@ vi.mock("firebase/app", () => ({
 vi.mock("firebase/auth", () => ({
   connectAuthEmulator: firebaseSdk.connectAuthEmulator,
   getAuth: firebaseSdk.getAuth,
-  GoogleAuthProvider: class GoogleAuthProvider {},
+  GoogleAuthProvider: firebaseSdk.GoogleAuthProvider,
   getIdTokenResult: firebaseSdk.getIdTokenResult,
   getMultiFactorResolver: firebaseSdk.getMultiFactorResolver,
   multiFactor: firebaseSdk.multiFactor,
@@ -58,7 +66,6 @@ import {
   completeTotpEnrollment,
   getFirebaseAuth,
   hasTotpEnrollment,
-  registerFirebaseEmulatorAuthAdapter,
   refreshAuthToken,
   resolveTotpChallenge,
   signInWithGoogle,
@@ -78,16 +85,21 @@ describe("firebase-client", () => {
     expect(() => getFirebaseAuth()).toThrow(/local-only/i);
   });
 
-  it("uses the registered emulator adapter for Google sign-in", async () => {
+  it("uses the Firebase popup flow after connecting the local Auth emulator", async () => {
     process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS = "true";
     process.env.NEXT_PUBLIC_FIREBASE_ENV = "local";
-    const adapter = vi.fn().mockResolvedValue({ user: { uid: "local-user" } });
-    registerFirebaseEmulatorAuthAdapter(adapter);
 
     await signInWithGoogle();
 
-    expect(adapter).toHaveBeenCalledWith(firebaseAuth);
-    expect(firebaseSdk.signInWithPopup).not.toHaveBeenCalled();
+    expect(firebaseSdk.connectAuthEmulator).toHaveBeenCalledWith(
+      firebaseAuth,
+      "http://127.0.0.1:9099",
+      { disableWarnings: true },
+    );
+    expect(firebaseSdk.signInWithPopup).toHaveBeenCalledWith(
+      firebaseAuth,
+      firebaseSdk.googleProvider,
+    );
   });
 
   it("keeps TOTP enrollment and challenge operations inside the Auth boundary", async () => {
