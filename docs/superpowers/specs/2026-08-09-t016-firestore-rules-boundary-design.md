@@ -1,8 +1,11 @@
 # T016 Firestore Rules Boundary
 
 **Fecha:** 2026-08-09
-**Estado:** Pendiente de revisión final del operador
+**Estado:** Ampliado por el diseño P1/T016 aprobado en `tasks.md` el 2026-08-19
 **Tarea:** T016 - Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia
+
+Este documento conserva la decisión Functions-only para Regyfit. El contrato reutilizable de actor,
+política, relación, asignación y propósito vive en el ledger canónico `tasks.md`.
 
 ## Objetivo
 

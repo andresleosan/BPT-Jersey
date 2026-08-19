@@ -20,13 +20,18 @@ describe("admin authorization boundary", () => {
     );
   });
 
-  it("rejects missing or invalid administrative claims", () => {
+  it("rejects missing administrative claims", () => {
     expect(() => requireAdminActor(requestWithAuth("user-1", {}))).toThrowError(
       expect.objectContaining({ code: "permission-denied" }),
     );
-    expect(() =>
-      requireAdminActor(requestWithAuth("user-1", { academyId: "academy-1", role: "coach" })),
-    ).toThrowError(expect.objectContaining({ code: "permission-denied" }));
+  });
+
+  it("rejects every non-administrative MVP role", () => {
+    for (const role of ["headCoach", "coach", "guardian", "adultStudent"] as const) {
+      expect(() =>
+        requireAdminActor(requestWithAuth(`${role}-1`, { academyId: "academy-1", role })),
+      ).toThrowError(expect.objectContaining({ code: "permission-denied" }));
+    }
   });
 
   it("accepts representative Firebase standard and profile claims", () => {
@@ -48,6 +53,8 @@ describe("admin authorization boundary", () => {
         email_verified: true,
         phone_number: "+15555550100",
         phone_number_verified: true,
+        mfaEnrolled: true,
+        locale: "en-GB",
         academyId: "academy-1",
         role: "owner",
       }),

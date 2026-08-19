@@ -2,10 +2,15 @@ import type { AcademyId } from "../identifiers";
 import { err, ok } from "../result";
 import type { Result } from "../result";
 import type { ValidationIssue } from "../errors";
-import { administrativeRoles } from "../actor-context";
+import { administrativeRoles, userRoles } from "../actor-context";
 import type { UserRole } from "../actor-context";
 
 export type AdminRole = (typeof administrativeRoles)[number];
+
+export type UserClaims = Readonly<{
+  academyId: AcademyId;
+  role: UserRole;
+}>;
 
 export type AdminClaims = Readonly<{
   academyId: AcademyId;
@@ -20,7 +25,7 @@ function issue(path: readonly (string | number)[], code: string): ValidationIssu
   return { path, code };
 }
 
-export function parseAdminClaims(value: unknown): Result<AdminClaims, ValidationIssue[]> {
+export function parseUserClaims(value: unknown): Result<UserClaims, ValidationIssue[]> {
   if (!isRecord(value)) {
     return err([issue([], "CLAIMS_MUST_BE_OBJECT")]);
   }
@@ -37,8 +42,8 @@ export function parseAdminClaims(value: unknown): Result<AdminClaims, Validation
   }
 
   const role = value.role;
-  if (!administrativeRoles.includes(role as AdminRole)) {
-    issues.push(issue(["role"], "ADMIN_ROLE_INVALID"));
+  if (!userRoles.includes(role as UserRole)) {
+    issues.push(issue(["role"], "USER_ROLE_INVALID"));
   }
 
   if (issues.length > 0) {
@@ -48,7 +53,24 @@ export function parseAdminClaims(value: unknown): Result<AdminClaims, Validation
   return ok(
     Object.freeze({
       academyId: academyId as AcademyId,
-      role: role as AdminRole,
+      role: role as UserRole,
+    }),
+  );
+}
+
+export function parseAdminClaims(value: unknown): Result<AdminClaims, ValidationIssue[]> {
+  const claims = parseUserClaims(value);
+  if (!claims.ok) {
+    return err(claims.error);
+  }
+  if (!administrativeRoles.includes(claims.value.role as AdminRole)) {
+    return err([issue(["role"], "ADMIN_ROLE_INVALID")]);
+  }
+
+  return ok(
+    Object.freeze({
+      academyId: claims.value.academyId,
+      role: claims.value.role as AdminRole,
     }),
   );
 }

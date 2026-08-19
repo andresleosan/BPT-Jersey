@@ -279,30 +279,38 @@ describe("administrative role provisioning", () => {
     ).rejects.toMatchObject({ code: "permission-denied" });
   });
 
-  it("rejects a malformed existing administrative claim pair on grant", async () => {
-    const target = googleUser();
-    target.customClaims = {
-      academyId: "academy-1",
-      role: "coach",
-      mfaEnrolled: true,
-    };
-    const services = createSyntheticServices([target]);
+  it("rejects every non-administrative existing claim pair on grant", async () => {
+    for (const role of ["headCoach", "coach", "guardian", "adultStudent"] as const) {
+      const target = googleUser();
+      target.customClaims = {
+        academyId: "academy-1",
+        role,
+        mfaEnrolled: true,
+      };
+      const services = createSyntheticServices([target]);
 
-    await expect(
-      provisionAdminRoleWithServices(
-        callableRequest("owner", "academy-1"),
-        { uid: target.uid, email: target.email, role: "administrator" },
-        services,
-      ),
-    ).rejects.toMatchObject({ code: "permission-denied" });
-    expect(target.customClaims).toEqual({
-      academyId: "academy-1",
-      role: "coach",
-      mfaEnrolled: true,
-    });
-    expect(services.firestore.records.has("academies/academy-1/adminRoleLocks/target-1")).toBe(
-      false,
-    );
+      await expect(
+        provisionAdminRoleWithServices(
+          callableRequest("owner", "academy-1"),
+          { uid: target.uid, email: target.email, role: "administrator" },
+          services,
+        ),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+      expect(target.customClaims).toEqual({
+        academyId: "academy-1",
+        role,
+        mfaEnrolled: true,
+      });
+      expect(services.firestore.records.has("academies/academy-1/adminRoleLocks/target-1")).toBe(
+        false,
+      );
+      expect(services.firestore.records.has("academies/academy-1/users/target-1")).toBe(false);
+      expect(
+        [...services.firestore.records.keys()].some((path) =>
+          path.startsWith("academies/academy-1/auditEvents/"),
+        ),
+      ).toBe(false);
+    }
   });
 
   it("reads and validates the target while holding the lock, then releases it on failure", async () => {

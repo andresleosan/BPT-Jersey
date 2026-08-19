@@ -29,6 +29,7 @@ describe("deploy runtime import preparation", () => {
       [
         'import "@bpt-jersey/domain/members";',
         'import "@bpt-jersey/domain/auth/admin-contracts";',
+        'import "@bpt-jersey/domain/authorization/access-policy";',
         'import "@bpt-jersey/domain/migration/regyfit-access";',
       ].join("\n"),
     );
@@ -38,6 +39,7 @@ describe("deploy runtime import preparation", () => {
     const prepared = await readFile(outputPath, "utf8");
     expect(prepared).toContain("../../domain/members/member-contracts.js");
     expect(prepared).toContain("../../domain/auth/admin-contracts.js");
+    expect(prepared).toContain("../../domain/authorization/access-policy.js");
     expect(prepared).toContain("../../domain/migration/regyfit-access.js");
     expect(prepared).not.toMatch(/@bpt-jersey\/domain/u);
   });

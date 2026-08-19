@@ -4,6 +4,7 @@ import { join } from "node:path";
 const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze({
   "@bpt-jersey/domain/members": "../../domain/members/member-contracts.js",
   "@bpt-jersey/domain/auth/admin-contracts": "../../domain/auth/admin-contracts.js",
+  "@bpt-jersey/domain/authorization/access-policy": "../../domain/authorization/access-policy.js",
   "@bpt-jersey/domain/migration/regyfit-access": "../../domain/migration/regyfit-access.js",
 });
 

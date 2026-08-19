@@ -6,62 +6,23 @@ import {
   type AdminRole,
 } from "@bpt-jersey/domain/auth/admin-contracts";
 
+import { requireUserActor } from "./user-authorization.js";
+
 export type AdminActor = Readonly<{
   uid: string;
   academyId: string;
   role: AdminRole;
 }>;
 
-const firebaseStandardClaimKeys = new Set([
-  "iss",
-  "aud",
-  "auth_time",
-  "user_id",
-  "uid",
-  "sub",
-  "iat",
-  "exp",
-  "firebase",
-  "tenant",
-  "name",
-  "picture",
-  "email",
-  "email_verified",
-  "phone_number",
-  "phone_number_verified",
-]);
-
-function extractAdminClaims(token: unknown): Record<string, unknown> {
-  if (typeof token !== "object" || token === null || Array.isArray(token)) {
-    return {};
-  }
-
-  for (const key of Reflect.ownKeys(token)) {
-    if (
-      typeof key !== "string" ||
-      (!firebaseStandardClaimKeys.has(key) && key !== "academyId" && key !== "role")
-    ) {
-      return {};
-    }
-  }
-
-  const claims = token as Record<string, unknown>;
-  return { academyId: claims.academyId, role: claims.role };
-}
-
 export function requireAdminActor(request: CallableRequest): AdminActor {
-  const uid = request.auth?.uid;
-  if (typeof uid !== "string" || uid.trim().length === 0) {
-    throw new HttpsError("unauthenticated", "Authentication is required");
-  }
-
-  const claims = parseAdminClaims(extractAdminClaims(request.auth?.token));
+  const actor = requireUserActor(request);
+  const claims = parseAdminClaims({ academyId: actor.academyId, role: actor.role });
   if (!claims.ok) {
     throw new HttpsError("permission-denied", "Administrative claims are required");
   }
 
   return Object.freeze({
-    uid,
+    uid: actor.userId,
     academyId: claims.value.academyId,
     role: claims.value.role,
   });

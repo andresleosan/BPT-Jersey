@@ -58,14 +58,11 @@ identity data and must not be reconciled into `students` or `users` by this
 contract. Documents contain the observed member display name, member number,
 login count, last login, source identity, import run, capture time, and IP.
 
-The backend/import command is the only writer. Firestore Rules permit a direct
-complete-document `get` only to an authenticated `owner` whose `academyId`
-claim matches the path and whose document field also matches the path. Collection
-`list` is not a direct client capability because Rules cannot safely field-filter
-the mixed document; administrators use a backend projection that omits `ip`.
-Rules do not grant `administrator` direct reads.
-`headCoach`, `coach`, `guardian`, and `adultStudent` have no access. All client
-creates, updates, and deletes are denied. Import audit entries store only
+The backend/import command is the only writer. Firestore Rules deny every direct
+client `get`, `list`, `create`, `update`, and `delete`. Authenticated owners use a
+backend projection that includes `ip`; administrators use a safe backend projection
+that omits `ip`. Rules do not grant either role direct reads.
+`headCoach`, `coach`, `guardian`, and `adultStudent` have no access. Import audit entries store only
 academy, actor, action, target, purpose, correlation, count, hash, and run
 metadata; they never copy a source record or restricted field.
 

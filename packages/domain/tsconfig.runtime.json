@@ -16,6 +16,7 @@
     "src/identifiers.ts",
     "src/actor-context.ts",
     "src/auth/admin-contracts.ts",
+    "src/authorization/access-policy.ts",
     "src/members/member-contracts.ts"
   ]
 }

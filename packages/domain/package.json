@@ -13,6 +13,10 @@
       "types": "./src/auth/admin-contracts.ts",
       "default": "./lib/auth/admin-contracts.js"
     },
+    "./authorization/access-policy": {
+      "types": "./src/authorization/access-policy.ts",
+      "default": "./lib/authorization/access-policy.js"
+    },
     "./members": {
       "types": "./src/members/member-contracts.ts",
       "default": "./lib/members/member-contracts.js"

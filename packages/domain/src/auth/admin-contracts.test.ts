@@ -1,8 +1,38 @@
 import { describe, expect, it } from "vitest";
 
-import { canReadRegyfitAccess, canReadRestrictedIp, parseAdminClaims } from "./admin-contracts";
+import { userRoles } from "../actor-context";
+import {
+  canReadRegyfitAccess,
+  canReadRestrictedIp,
+  parseAdminClaims,
+  parseUserClaims,
+} from "./admin-contracts";
 
 describe("administrative identity contracts", () => {
+  it("parses every academy-scoped MVP user role without granting admin access", () => {
+    for (const role of userRoles) {
+      const result = parseUserClaims({ academyId: "academy-demo", role });
+
+      expect(result).toEqual({
+        ok: true,
+        value: { academyId: "academy-demo", role },
+      });
+      expect(Object.isFrozen(result.ok ? result.value : undefined)).toBe(true);
+    }
+
+    for (const role of ["headCoach", "coach", "guardian", "adultStudent"] as const) {
+      expect(parseAdminClaims({ academyId: "academy-demo", role }).ok).toBe(false);
+    }
+  });
+
+  it("rejects malformed user claims and unknown fields", () => {
+    expect(parseUserClaims({ academyId: "academy-demo", role: "minor" }).ok).toBe(false);
+    expect(parseUserClaims({ academyId: " ", role: "guardian" }).ok).toBe(false);
+    expect(
+      parseUserClaims({ academyId: "academy-demo", role: "guardian", familyId: "family-1" }).ok,
+    ).toBe(false);
+  });
+
   it("accepts only an academy-scoped owner or administrator claim", () => {
     expect(parseAdminClaims({ academyId: "academy-demo", role: "owner" }).ok).toBe(true);
     expect(parseAdminClaims({ academyId: "academy-demo", role: "administrator" }).ok).toBe(true);

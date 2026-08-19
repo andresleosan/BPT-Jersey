@@ -42,8 +42,31 @@ export {
   canReadRegyfitAccess,
   canReadRestrictedIp,
   parseAdminClaims,
+  parseUserClaims,
 } from "./auth/admin-contracts";
-export type { AdminClaims, AdminRole } from "./auth/admin-contracts";
+export type { AdminClaims, AdminRole, UserClaims } from "./auth/admin-contracts";
+export {
+  accessDenialReasons,
+  accessOperations,
+  accessScopes,
+  dataClassifications,
+  evaluateAccess,
+} from "./authorization/access-policy";
+export type {
+  AccessDenialReason,
+  AccessEvaluationInput,
+  AccessFacts,
+  AccessGrant,
+  AccessOperation,
+  AccessRequirement,
+  AccessResource,
+  AccessScope,
+  ApprovalAccessEvidence,
+  AssignmentAccessEvidence,
+  DataClassification,
+  FamilyAccessEvidence,
+  ValidityWindow,
+} from "./authorization/access-policy";
 export { domainErrorCodes } from "./errors";
 export type {
   DomainError,
