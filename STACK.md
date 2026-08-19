@@ -2,23 +2,30 @@
 
 ## Resumen
 
-Aplicación web responsive/PWA en inglés, construida como monolito modular TypeScript con Next.js y React, Firebase como plataforma operativa y Cloudflare R2 para almacenamiento privado de archivos.
+Aplicación web responsive/PWA en inglés, construida como monolito modular TypeScript con Next.js
+y React, Firebase como plataforma operativa y Cloudflare R2 para almacenamiento privado. El MVP
+vigente es un piloto aislado con pagos manuales y avisos in-app; no incluye nuevas escrituras o
+despliegues productivos, cobros online ni mensajería externa.
 
 ## Nivel del proyecto
 
 **3 - empresarial.** El sistema combina operación multi-módulo, permisos por rol, datos de menores y salud, pagos, auditoría, comunicaciones y obligaciones de continuidad.
 
 - Ciclo de autocrítica completo: **sí**, con seguridad, QA, rendimiento antes de releases grandes y evidencia verificable.
-- Workflow completo de Superpowers: **no disponible en Codex CLI según el adaptador de Cronos**. Se aplicará la disciplina equivalente con las skills instaladas, pruebas, revisión y checkpoints; no se asumirá compatibilidad de OpenCode.
+- Workflow de Superpowers: **activo en la sesión OpenCode vigente** para diseño, planificación, TDD
+  y verificación. La ejecución previa bajo Codex aplicó la disciplina equivalente sin asumir
+  compatibilidad nativa.
 - Clasificación y stack: **aceptados por el operador en A2.1 el 2026-08-06**.
 
 ## Entorno
 
-- Plataforma de orquestación: Codex; el ejecutable `codex` no está disponible en el shell compartido, por lo que no fue posible capturar su versión CLI.
-- Compatibilidad con el core: el adaptador fue verificado documentalmente al 2026-08-03; esta sesión no permite una verificación empírica mediante `codex --version`.
+- Plataforma activa al 2026-08-18: OpenCode. El proyecto conserva configuración para Codex y VS
+  Code, pero esas plataformas no describen la sesión actual.
+- OpenCode MCP: `@playwright/mcp@0.0.79 --extension` verificado contra la pestaña Regyfit en modo
+  read-only. La conexión solo existe mientras el operador la autoriza en el navegador.
 - Runtime local detectado: Node.js v24.18.0.
 - Gestor de paquetes: pnpm 11.20.0 mediante Corepack, verificado en el entorno.
-- Superpowers instalado: no aplica en Codex CLI.
+- Superpowers instalado y utilizado: sí, en OpenCode.
 
 ## Frontend
 
@@ -59,6 +66,26 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 - Por qué: Firestore ofrece reglas de seguridad, transacciones, consultas e integración con Functions. RTDB no duplicará membresías, pagos, evaluaciones ni auditoría; esos registros permanecen en Firestore.
 - Integridad: pagos, consentimientos, asistencia y cambios sensibles usan eventos idempotentes, historial inmutable y soft delete/estado cuando corresponda.
 
+## Levels y progreso IBJJF
+
+- Fuente vinculante: los DOCX aprobados gobiernan edades, clases y tiempo; el inventario Regyfit
+  read-only gobierna jerarquía, orden, colores, cantidad de stripes y habilidades observadas.
+- Inventario sanitizado: `docs/data/ibjjf-levels-observed.sanitized.json`, schema 1, hash de
+  contenido `9b039b795f8178c42730ff567ef9283fb385895368115ac2621ce816a829835a`.
+- Cobertura observada: 171 definiciones, 27 belts, 144 stripes y 11 habilidades iniciales. No
+  contiene IDs fuente, HTML, códigos de acción, tokens, cookies ni datos personales.
+- Persistencia: `levelSystems`, `levelDefinitions`, `levelRequirements`, `studentLevelProgress` y
+  `levelPromotions` como subcolecciones de `academies/{academyId}`.
+- Versionado: una definición publicada queda inmutable. Los estudiantes conservan la versión usada
+  para su evaluación; editar requisitos crea una versión nueva.
+- Herencia: requisitos de técnicas distinguen `inherit`, `replace` y `none`; un array vacío de la
+  fuente no se interpreta automáticamente como ausencia de requisito.
+- Promoción: asistencia y skills solo generan elegibilidad/propuesta. Head coach es el único actor
+  que aprueba o rechaza belts/stripes, siempre con auditoría.
+- UI: `/admin/levels` para owner/head coach, `/coach/levels` para consulta y seguimiento asignado,
+  y `/account/progress` para progreso propio/familiar. Los belts se renderizan mediante SVG propio,
+  sin copiar HTML de Regyfit.
+
 ## Almacenamiento de archivos
 
 - Servicio: Cloudflare R2 Standard en bucket privado.
@@ -71,17 +98,44 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 - Servicio: Cloudflare Pages para el frontend estático/PWA (`https://bptjersey.pages.dev`); Firebase Cloud Functions para backend.
 - Build de Pages: ejecutar `next build` desde `apps/web` y publicar `apps/web/out`.
 - Variables de Pages: configurar los seis `NEXT_PUBLIC_FIREBASE_*` públicos por entorno, `NEXT_PUBLIC_FIREBASE_ENV=staging` (o `production`) y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false`; nunca configurar material de Admin SDK en el frontend. La guardia de build/runtime rechaza emuladores fuera de `local`.
-- CI/CD: GitHub Actions con entornos separados (`dev`, `staging`, `production`), emuladores y aprobación manual para producción.
+- CI actual: GitHub Actions ejecuta calidad, Rules, build y smoke sintético. No existe todavía CD,
+  GitHub Environments, aprobación automatizada por entorno ni rollback reproducible; completarlos
+  pertenece a `T057` y no se presentan como disponibles.
 - Por qué: conserva el frontend estático independiente de Functions y fija el target aprobado de Cloudflare Pages.
 - Producción: prohibida hasta cumplir las cinco condiciones de despliegue de Cronos.
 
 ## Testing
 
-- Herramientas: Vitest, React Testing Library, Firebase Emulator Suite, pruebas de Security Rules, Playwright E2E y pruebas contractuales de webhooks/pagos.
+- Herramientas: Vitest, React Testing Library, Firebase Emulator Suite, pruebas de Security Rules y
+  Playwright E2E. El piloto prueba finanzas manuales; los contratos de webhooks/cobros online se
+  exigirán cuando esa integración post-piloto exista.
 - Estrategia Nivel 3: unitarias para dominio, integración contra emuladores, E2E por rol y flujos críticos, contratos de integraciones, carga sobre check-in/dashboard y restauración de backups.
-- Playwright MCP configurado: **sí** en `.codex/config.toml`, fijado a `@playwright/mcp@0.0.79`; no estuvo expuesto como herramienta en esta sesión, por lo que la validación se ejecutó con Playwright CLI.
+- Playwright MCP configurado: **sí**. `.codex/config.toml` y `opencode.json` usan
+  `@playwright/mcp@0.0.79`; OpenCode añade `--extension` para reutilizar una pestaña autenticada solo
+  cuando el operador la conecta. El handshake read-only de `T083` fue verificado sin conservar
+  storage, cookies o tokens.
 - Suite E2E: `qa/tests/`.
-- Última corrida (2026-08-06): build estático aprobado; smoke desktop/móvil 2/2 y estabilidad repetida 10/10, sin errores de consola ni overflow horizontal.
+- Evidencia histórica más reciente: `tasks.md` registra suites amplias hasta el 2026-08-12 y CI
+  smoke el 2026-08-13. No existe todavía una corrida fresca del release candidate completo; P7 debe
+  repetir todos los gates antes de aprobar el piloto.
+
+## Fases de entrega del MVP aprobado
+
+1. **P0 - seguridad y alcance:** bloquear el importador production-as-staging, reconciliar los gates
+   de Auth y consolidar DOCX/Regyfit como fuentes.
+2. **P1 - registro:** adultos, familias, menores, tutores, salud mínima, disclaimers y sedes.
+3. **P2 - membresías:** catálogo, lifecycle, pagos manuales, deuda PAYG, invoices y penalizaciones.
+4. **P3 - operación:** staff, grupos, currículo, clases, seminarios, booking, capacidad y mínimo.
+5. **P4 - tatami:** QR, GPS asistido, manual/cash, check-in/out, asistencia y puntualidad.
+6. **P5 - progreso:** técnicas, evaluaciones, levels, belts/stripes, rachas, reconocimiento,
+   comparación adulta opt-in, propuestas y aprobación humana.
+7. **P6 - portales:** owner/admin, coach, miembro/tutor, avisos internos, cumpleaños y reportes.
+8. **P7 - cierre del piloto:** seguridad, Rules, contratos, integración, E2E por rol, accesibilidad,
+   carga, restauración y rollback.
+
+Cada fase trabaja con WIP=1 desde `tasks.md`, reemplaza previews por persistencia real y exige
+evidencia fresca antes de pasar a revisión. El gate final incorporará un comando raíz `verify:mvp` y
+CI con build normal, sin `NEXT_PUBLIC_ADMIN_E2E` como sustituto de Auth real de staging.
 
 ## Integraciones externas
 
@@ -89,7 +143,8 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 - Firebase Emulator Suite: uso exclusivamente local. Un `.env.local` no versionado puede declarar `NEXT_PUBLIC_FIREBASE_ENV=local` y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`; los builds de Cloudflare Pages, staging y producción deben declarar el entorno correspondiente y `false`. No se acepta un flag de emulador verdadero en esos entornos.
 - Autorización de Auth: la selección Administrator/Client es solo contexto de UX. Las cuentas administrativas se provisionan fuera del registro público y Functions/Rules validan `academyId` más el acceso administrativo. Los administradores aprobados operan el panel, pero solo el claim `owner` puede conceder o revocar accesos administrativos. Cliente y administrador quedan sin MFA en este rediseño aprobado.
 - MFA TOTP: queda fuera del alcance del panel administrativo aprobado. No se implementan enrolamiento, desafíos ni secretos MFA en estos flujos; Phone/SMS Auth queda deliberadamente fuera.
-- Proveedor de pagos: por confirmar para Jersey, detrás de una interfaz independiente; hosted checkout y webhooks firmados.
+- Pagos del piloto: registros manuales/cash auditables, invoices y receipts internos. El proveedor
+  para Jersey, hosted checkout y webhooks firmados quedan para una fase productiva posterior.
 - Cloudflare R2: almacenamiento privado compatible con S3.
 - Email/SMS transaccional: proveedor por confirmar; comunicación a menores debe permanecer visible al tutor.
 - Canales de marca: sitio, Instagram y Facebook oficiales como fuentes de contenido, no como dependencias operativas del MVP.
@@ -112,7 +167,23 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 - `.env.example`: sí; contiene solo nombres de variables y el project ID seguro `demo-bpt-jersey`, sin credenciales reales.
 - Producción: Secret Manager/secretos de Functions y secretos cifrados del CI. Las credenciales de R2 y proveedores nunca llegan al cliente.
 - Firebase Web config no se trata como secreto; la seguridad depende de Rules, App Check, Auth y validación de backend.
-- T017 live MFA: variables `T017_MFA_*` solo se inyectan localmente para staging no productivo; CI y producción deben mantener el proyecto live omitido. Recuperación exige intervención del operador en Firebase Auth para eliminar/re-enrolar el factor dedicado. No hay migración de datos; rollback es restaurar código y retirar el factor de staging.
+- Los artefactos históricos opt-in de `T017_MFA_*` no forman parte del piloto aprobado y no deben
+  ejecutarse en CI, staging o producción. Se conservarán o retirarán al reconciliar ADR-005 con el
+  threat model antes de cualquier release productiva.
+
+## Gates de seguridad abiertos
+
+- `bptjersey-f5a25` es producción, nunca staging. El runner de importación PDF que acepta ese
+  proyecto bajo `target: staging` es un hallazgo crítico y permanece bloqueado hasta separar
+  explícitamente los entornos y confirmaciones. No se ejecutará ninguna importación durante el MVP.
+- La decisión ADR-005 de operar sin MFA solo se acepta para el piloto con datos sintéticos o
+  sanitizados. Producción continúa bloqueada hasta reconciliar el threat model, MFA o mitigaciones
+  compensatorias con aceptación explícita del operador.
+- La política de retención/residencia de `T011`, backup integral, presupuestos, alertas y monitoreo
+  siguen siendo gates de producción; no se presentan como resueltos por el piloto.
+- La primera conexión de Playwright expuso un token efímero en salida de herramientas. La
+  inspección se detuvo, el operador rotó el token y el relevamiento continuó sin enumerar la URL de
+  conexión. Ningún valor se guardó en archivos del proyecto.
 
 ## Decisiones de arquitectura
 
@@ -121,6 +192,8 @@ Aplicación web responsive/PWA en inglés, construida como monolito modular Type
 3. **Frontend estático/PWA en Cloudflare Pages y backend en Functions**: evita App Hosting/Cloud Run para el camino principal y mantiene costos/operación predecibles.
 4. **R2 privado mediante adaptador de almacenamiento**: reduce costo de objetos y egress sin acoplar el dominio a la API S3.
 5. **Integraciones asíncronas solo donde existen consumidores reales**: webhooks, notificaciones y reportes lentos; no se introduce event sourcing general ni colas “por si acaso”.
+6. **Levels versionados y propios, sin sincronización Regyfit**: el inventario observado se usa como
+   seed sanitizado; BPT conserva su propio contrato, historial y aprobación humana.
 
 Alternativas descartadas:
 
@@ -131,9 +204,10 @@ Alternativas descartadas:
 
 ## Modelo recomendado
 
-- Modelo activo: `gpt-5.6-luna`, esfuerzo de razonamiento `xhigh`, detectado en `~/.codex/config.toml`.
-- Recomendación A3 para arquitectura/backend inicial: mantener `gpt-5.6-luna` con `xhigh`; el proyecto Nivel 3 requiere razonamiento sostenido, contexto amplio y tool-calling confiable.
-- Estado: confirmado por el operador en A3 el 2026-08-06 y escrito en `.codex/config.toml`.
+- Modelo activo en esta sesión OpenCode: `gpt-5.6-sol`, informado por el runtime. El proyecto no
+  fija un modelo OpenCode propio en `opencode.json`.
+- Configuración histórica Codex: `gpt-5.6-luna` con esfuerzo `xhigh`, confirmada por el operador el
+  2026-08-06 y conservada en `.codex/config.toml` para esa plataforma.
 - Alterno ante caída del proveedor: no hay bloques `[model_providers.*]` configurados. Es una limitación conocida; antes de la auditoría de seguridad conviene conectar un proveedor/modelo distinto y fuerte para reducir el punto ciego de autoauditoría.
 
 ## Convenciones de código

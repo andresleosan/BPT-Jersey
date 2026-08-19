@@ -4,6 +4,10 @@ Estados: `pendiente` -> `en-progreso` -> `revisión` -> `aprobada` -> `desplegad
 
 Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica Nivel 3: seguridad, pruebas relevantes, evidencia y rendimiento cuando corresponda.
 
+El alcance vinculante del piloto es el de `BRIEF.md` y `STACK.md` revisado el 2026-08-18. Los IDs
+históricos se conservan para no perder trazabilidad; las filas marcadas post-piloto no bloquean
+`T056` y se reubicarán al convertir las fases aprobadas en el plan atómico de implementación.
+
 ## M0 - Fundaciones y decisiones operativas
 
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
@@ -15,9 +19,9 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 | T005 | Configurar Playwright, proyectos por viewport y artefactos no versionados | T002 | aprobada | E2E smoke desktop/móvil 2/2 y estabilidad 10/10 pasan |
 | T006 | Crear CI inicial con lint, tipos, unitarias, Rules y E2E smoke | T003,T005 | aprobada | Pipeline CI verde en `main` (run 31142117581) |
 | T007 | Documentar clasificación de datos, amenazas y matriz preliminar de acceso | - | aprobada | Documento revisado sin gaps críticos |
-| T008 | Confirmar programas, horarios, ubicaciones, capacidad, precios y reglas de membership | - | pendiente | Aprobación del operador/academia |
+| T008 | Confirmar horarios concretos, capacidades y reglas comerciales todavía configurables | - | pendiente | Town/West, catálogo y reglas base aprobados en `BRIEF.md`; faltan horarios/capacidades y políticas de freeze/descuentos/refunds |
 | T009 | Confirmar criterios y ponderaciones de evaluación/reconocimiento | - | bloqueada | Aprobación de head coach |
-| T010 | Seleccionar proveedor de pagos disponible en Jersey | - | bloqueada | ADR y costos aprobados |
+| T010 | Seleccionar proveedor de pagos disponible en Jersey para post-piloto | - | bloqueada | ADR y costos aprobados; no bloquea pagos manuales ni `T056` |
 | T011 | Confirmar política de retención, residencia y borrado con asesoría aplicable a Jersey | - | bloqueada | Política aprobada |
 
 ## M1 - Identidad, autorización y auditoría
@@ -26,12 +30,12 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 |---|---|---|---|---|
 | T012 | Definir módulos de dominio, contratos base y errores tipados | T002,T007 | aprobada | Pruebas unitarias de contratos |
 | T013 | Diseñar colecciones, índices, invariantes y plan de migraciones Firestore/RTDB | T007,T008 | aprobada | Modelo, rollback, fixture, índices y gate final documentados |
-| T014 | Implementar Auth email/password y Google con emulador | T004 | revisión | Gateway unificado, email/Google, logout y E2E documentados; falta aprobación formal del ledger |
-| T015 | Implementar roles y custom claims con mínimo privilegio | T013,T014 | revisión | Claims y autorización administrativa probados; la matriz completa de roles del MVP sigue pendiente |
-| T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia | T013,T015 | revisión | Rules default-deny, boundary Regyfit y suites Rules probadas; falta aprobación formal |
+| T014 | Implementar Auth email/password y Google con emulador | T004,T084 | revisión | Google usa el popup SDK conectado al Auth Emulator; email/Google y login sin MFA revalidados con unitarias, integración local y E2E responsive |
+| T015 | Implementar roles y custom claims con mínimo privilegio | T013,T014 | revisión | Parser exacto para seis roles, compatibilidad administrativa y gates globales aprobados sin ampliar provisioning |
+| T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia | T013,T015 | revisión | Evaluador fail-closed, actor de seis roles, matriz Firebase exhaustiva y packaging verificados con gates globales |
 | T017 | Implementar MFA obligatorio para owner/admin | T014,T015 | cancelada | Sustituida por el rediseño administrativo aprobado el 2026-08-11, sin MFA |
 | T018 | Implementar consentimiento versionado y registro de aceptación | T013,T016 | pendiente | Historial y revocación probados |
-| T019 | Implementar audit log append-only para cambios sensibles | T012,T013,T016 | revisión | Audit events administrativos/importaciones probados; el audit log completo del MVP sigue pendiente |
+| T019 | Implementar audit log append-only para cambios sensibles | T012,T013,T016 | en-progreso | P1 reabre el audit log completo; eventos administrativos/importaciones existentes conservan cobertura parcial |
 
 ## M2 - Familias, estudiantes y personal
 
@@ -49,8 +53,8 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
 |---|---|---|---|---|
-| T026 | Implementar programas, clases recurrentes y sesiones únicas | T008,T013,T025 | pendiente | Reglas de recurrencia y timezone probadas |
-| T027 | Implementar elegibilidad, capacidad, roster, booking y cancelación básica | T021,T026 | pendiente | Conflictos y capacidad probados |
+| T026 | Implementar grupos, currículo, clases recurrentes, seminarios y sesiones únicas | T008,T013,T025 | pendiente | Reglas de recurrencia, currículo y timezone probadas |
+| T027 | Implementar elegibilidad, capacidad, roster, booking, mínimo y cancelación a una hora | T021,T026 | pendiente | Conflictos, capacidad, mínimo e idempotencia probados |
 | T028 | Implementar QR/PIN/name search/manual check-in | T022,T027 | pendiente | E2E de cuatro métodos |
 | T029 | Implementar puntualidad, asistencia, no-show y correcciones auditadas | T019,T028 | pendiente | Corrección conserva historial |
 | T030 | Implementar child check-out y autorización de recogida | T022,T029 | pendiente | E2E de todos los estados de salida |
@@ -60,13 +64,13 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
 |---|---|---|---|---|
-| T032 | Implementar catálogo y reglas de planes/membresías | T008,T013 | pendiente | Accesos y límites semanales probados |
+| T032 | Implementar catálogo y reglas base de planes/membresías | T013 | pendiente | Precios, sedes, accesos y límites semanales aprobados en `BRIEF.md` y probados |
 | T033 | Implementar lifecycle de membresía: trial, active, paused, overdue, cancelled | T032 | pendiente | Transiciones inválidas rechazadas |
-| T034 | Implementar adaptador provider-independent de pagos | T010,T012 | pendiente | Contract tests del adaptador |
-| T035 | Implementar hosted checkout y suscripciones sin datos crudos de tarjeta | T034 | pendiente | Flujo sandbox aprobado |
-| T036 | Implementar webhooks firmados, idempotentes y tolerantes a reintentos | T019,T035 | pendiente | Repetición/desorden no duplica cargos |
-| T037 | Implementar pagos manuales, facturas, recibos, balances y refunds | T033,T034 | pendiente | Conciliación y permisos probados |
-| T038 | Vincular estado de pago/membresía y alerta básica de fallo | T036,T037 | pendiente | Casos de fallo y recuperación probados |
+| T034 | Implementar adaptador provider-independent de pagos post-piloto | T010,T012 | pendiente | Contract tests del adaptador; fuera del piloto manual |
+| T035 | Implementar hosted checkout y suscripciones post-piloto sin datos crudos de tarjeta | T034 | pendiente | Flujo sandbox aprobado; fuera del piloto manual |
+| T036 | Implementar webhooks post-piloto firmados, idempotentes y tolerantes a reintentos | T019,T035 | pendiente | Repetición/desorden no duplica cargos; fuera del piloto manual |
+| T037 | Implementar pagos manuales, facturas, recibos, balances, deuda PAYG y refunds manuales | T019,T033 | pendiente | Conciliación, deuda PAYG y permisos probados |
+| T038 | Vincular estado manual de pago/membresía y restricciones por deuda | T037 | pendiente | Acceso, deuda PAYG y recuperación probados sin proveedor externo |
 
 ## M5 - Progreso y reconocimiento
 
@@ -74,52 +78,56 @@ Cada tarea con impacto en código debe pasar el ciclo completo de autocrítica N
 |---|---|---|---|---|
 | T039 | Implementar evaluaciones 1-5, notas basadas en evidencia y visibilidad familiar | T009,T021,T025 | pendiente | Permisos y correcciones probados |
 | T040 | Implementar skill checklist y resumen de progreso | T039 | pendiente | Estados y cálculo probados |
-| T041 | Implementar generación explicable de candidatos de reconocimiento | T029,T039 | pendiente | Pesos, mínimos y ausencias probados |
+| T041 | Implementar rachas y generación explicable de candidatos de reconocimiento | T029,T039 | pendiente | Pesos, mínimos, rachas y ausencias médicas probados |
 | T042 | Implementar revisión/aprobación exclusiva del head coach | T015,T041 | pendiente | Ninguna promoción automática/pública |
 
-## M6 - CRM y comunicaciones
+## M6 - Avisos y safeguarding; CRM post-piloto
 
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
 |---|---|---|---|---|
-| T043 | Implementar pipeline CRM, owner, next action y tareas | T021,T025 | pendiente | Transiciones y filtros probados |
-| T044 | Implementar timeline automático de lead/student/family | T019,T043 | pendiente | Eventos relevantes aparecen una vez |
-| T045 | Implementar announcements y mensajes de clase | T025,T026 | pendiente | Audiencia y entrega probadas |
-| T046 | Implementar email/in-app con historial de entrega | T045 | pendiente | Contract tests del proveedor |
-| T047 | Aplicar safeguarding: mensajes de menores visibles al tutor | T022,T046 | pendiente | Intentos privados bloqueados |
-| T048 | Implementar recordatorios de pagos y seguimiento de asistencia | T038,T044,T046 | pendiente | Reglas y opt-out probados |
+| T043 | Implementar pipeline CRM, owner, next action y tareas post-piloto | T021,T025 | pendiente | Transiciones y filtros probados; no bloquea `T056` |
+| T044 | Implementar timeline CRM automático post-piloto | T019,T043 | pendiente | Eventos relevantes aparecen una vez; no bloquea `T056` |
+| T045 | Implementar announcements y mensajes in-app de academia/clase | T025,T026 | pendiente | Audiencia, lectura y entrega interna probadas |
+| T046 | Implementar email/SMS e historial externo de entrega post-piloto | T045 | pendiente | Contract tests del proveedor; no bloquea `T056` |
+| T047 | Aplicar safeguarding a avisos de menores visibles al tutor | T022,T045 | pendiente | Intentos privados bloqueados |
+| T048 | Implementar recordatorios in-app de pagos y seguimiento de asistencia | T029,T038,T045 | pendiente | Reglas, audiencia y resolución probadas |
 
 ## M7 - Dashboard, reportes y cierre del MVP
 
 | ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
 |---|---|---|---|---|
 | T049 | Implementar dashboard diario de clases, asistencia y child check-out | T031 | revisión | Panel visible con preview sintético; persistencia canónica real pendiente |
-| T050 | Implementar dashboard financiero, renovaciones y follow-ups CRM | T038,T044 | revisión | Panel financiero y seguimiento CRM visibles en preview; datos reales pendientes |
-| T051 | Implementar reportes de students, attendance, memberships, revenue y CRM | T038,T043 | revisión | Informes y exportes de miembros visibles/probados; conjunto completo del MVP pendiente |
+| T050 | Implementar dashboard financiero, balances y renovaciones | T038 | revisión | Panel financiero visible en preview; persistencia real pendiente |
+| T051 | Implementar reportes de students, attendance, memberships y revenue manual | T029,T038 | revisión | Informes y exportes de miembros visibles/probados; conjunto del piloto pendiente |
 | T052 | Implementar reportes de progreso, reconocimiento y assessment coverage | T042 | pendiente | Filtros y privacidad probados |
 | T053 | Implementar exportación de datos autorizada y auditable | T019,T051,T052 | revisión | Exportación PDF de miembros con límites, rate limit y cleanup probada; exportación general pendiente |
 | T054 | Configurar backups, restauración y runbook de rollback | T013,T024 | pendiente | Restauración de staging demostrada |
-| T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T017-T054 | revisión | Unitarias, Rules, integración y E2E sintético documentadas; QA completo por rol y release pendientes |
+| T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T018,T019,T021-T033,T037-T042,T045,T047-T054,T083 | revisión | Unitarias, Rules, integración y E2E sintético documentadas; QA completo por rol y release pendientes |
 | T056 | Ejecutar piloto con datos controlados y corregir hallazgos | T055 | pendiente | Acta de piloto aprobada |
-| T057 | Preparar checklist de producción, monitoreo, costos y rollback | T056 | pendiente | Gates de despliegue completos |
-| T058 | Desplegar a producción con confirmación explícita del operador | T057 | pendiente | Deployment verificado y rollback disponible |
-| T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md` | T058 | pendiente | Lección registrada |
+| T057 | Preparar checklist post-piloto de producción, monitoreo, costos y rollback | T056 | pendiente | Gates de despliegue completos; no forma parte de la aceptación de `T056` |
+| T058 | Desplegar a producción con confirmación explícita del operador | T057 | pendiente | Deployment verificado y rollback disponible; fuera del piloto |
+| T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md` | T058 | pendiente | Lección registrada después de producción; fuera del piloto |
 
 ## v2 - post-lanzamiento
 
-- T060 - Booking windows, waitlists, créditos y reservas recurrentes.
+- T060 - Booking avanzado, waitlists, créditos y reservas recurrentes; el corte básico de una hora
+  ya pertenece a `T027`.
 - T061 - Retries, grace periods, proration, promos y workflows de freeze/cancel.
 - T062 - Retention alerts y CRM automation.
 - T063 - Parent/adult self-service ampliado.
-- T064 - Notificaciones automatizadas completas.
+- T064 - Notificaciones externas y automatizadas completas; los avisos in-app básicos pertenecen a
+  `T045` y `T048`.
 - T065 - Offline attendance con sincronización y resolución de conflictos.
-- T066 - Biblioteca técnica, currículo, lesson planning y promoción asistida.
+- T066 - Biblioteca técnica ampliada, lesson planning avanzado y automatizaciones de promoción; el
+  currículo básico y la aprobación humana pertenecen al piloto.
 
 ## v3 - crecimiento y escala
 
-- T067 - Goals, achievements, streaks y resúmenes familiares.
+- T067 - Goals, achievements y resúmenes familiares ampliados; las rachas básicas pertenecen a
+  `T041`.
 - T068 - Apps nativas iOS/Android.
 - T069 - Comunidad moderada.
-- T070 - Referrals, eventos, privadas, competencias y retail.
+- T070 - Referrals, privadas, competencias y retail; los seminarios operativos pertenecen a `T026`.
 - T071 - Analytics, IA asistida, multi-academia, white label y SaaS.
 
 ## Tareas complementarias integradas desde la evidencia del proyecto
@@ -141,6 +149,351 @@ la evidencia; `Lista/Lista.js` debe reflejar esta sección sin crear tareas fuer
 | T080 | Validar lote real de PDFs de miembros y planificar importación | T079,T054 | revisión | 8 reportes, 243 canónicos, 0 conflictos tras resolución y dry-run aprobado; backup/restauración y apply staging pendientes |
 | T081 | Implementar navegación responsive administrativa y tablas ordenables | T020,T078 | revisión | Drawer móvil, foco, responsive, ordenación y E2E desktop/móvil documentados; aprobación formal pendiente |
 | T082 | Establecer sincronización permanente entre `tasks.md` y `Lista/` | T001 | aprobada | Regla persistente añadida a `AGENTS.md`, Copilot y `MASTER_PROMPT.md`; 83 entradas únicas sincronizadas y `Lista.js` verificado |
+| T083 | Relevar `Levels: JIU-JITSU - IBJJF` read-only en Regyfit y recrear la sección `Levels` en BPT Jersey | T072,T084 | pendiente | Discovery, inventario y diseño aprobados; ejecución programada en P5 después de identidad y tatami |
+| T084 | Impedir que el importador de PDFs trate producción como staging y limitar writes al emulador | T080,T085 | revisión | Runner/CLI emulator-only, fuente sintética temporal, symlinks rechazados y gates globales verdes |
+| T085 | Fijar `nanoid >=3.3.18` y excluir caches Graphify del formatter | T002 | revisión | `nanoid@3.3.18`, audit sin high/critical y formato global verde sin modificar caches generadas |
+
+## Plan de implementación del MVP aprobado
+
+> **Para workers agentic:** usar `subagent-driven-development` o `executing-plans` al ejecutar
+> cada fase. Cada cambio funcional sigue RED -> GREEN -> REFACTOR, autocrítica y evidencia fresca.
+
+**Objetivo:** reemplazar previews por un MVP persistente y verificable en emuladores o staging
+separado, sin nuevas escrituras o despliegues productivos.
+
+**Arquitectura:** se extiende el monolito modular existente. Los contratos viven en
+`packages/domain`, los comandos autorizados y adapters Firestore en `apps/functions`, los clientes
+Firebase y UI responsive en `apps/web`, y los gates Rules/integración/E2E en `qa`. Firestore sigue
+siendo canónico; RTDB solo puede almacenar presencia efímera.
+
+**Stack:** TypeScript 6.0.3, Zod 4.4.3, Next.js 16.3.0, React 19.2.8, Firebase Admin/Functions,
+Vitest 4.1.10, Firebase Emulator Suite y Playwright 1.61.1.
+
+### Restricciones globales
+
+- UI, mensajes y contenido visible: inglés; documentación interna: español.
+- `bptjersey-f5a25` es producción y no puede ser alias de local, emulator o staging.
+- Piloto: datos sintéticos/sanitizados, pagos manuales, avisos in-app y ninguna dependencia de
+  proveedor de pago/email/SMS.
+- Toda entrada externa usa schema Zod estricto y `safeParse`; el backend deriva tenant, actor,
+  timestamps, estados sensibles e IDs no deterministas.
+- Menores no tienen cuenta, comparación pública ni comunicación privada con coaches.
+- Belts, stripes y reconocimientos son propuestas hasta aprobación humana del head coach.
+- WCAG 2.2 AA: teclado, foco visible/no oculto, labels, errores anunciados, targets >=24px,
+  reduced motion y desktop/mobile sin overflow.
+- No se crea una segunda fuente de verdad, una capa genérica anticipada ni compatibilidad retroactiva
+  sin un consumidor real.
+- No hay commit, migración, deploy ni gasto sin la autorización específica que corresponda.
+
+### Orden de ejecución
+
+| Fase | Orden WIP=1 | Salida verificable |
+|---|---|---|
+| P0 | `T085 -> T084` | Toolchain sin high advisories; importaciones productivas imposibles y dry-run/confirm solo contra emulador loopback. |
+| P1 | `T014 -> T015 -> T016 -> T019 -> T018 -> T021 -> T022 -> T023 -> T024 -> T025` | Auth/Rules/auditoría revalidados; adultos, familias, menores, salud, waivers y staff persistentes. |
+| P2 | `T032 -> T033 -> T037 -> T038` | Catálogo Town/West, lifecycle, pagos manuales y deuda PAYG. |
+| P3 | `T008 -> T026 -> T027` | Configuración aprobada; grupos, currículo, clases/seminarios, booking, mínimo y cancelación. |
+| P4 | `T028 -> T029 -> T030 -> T031` | Check-in/out, puntualidad, asistencia y vista operativa canónica. |
+| P5 | `T083 -> T009 -> T039 -> T040 -> T041 -> T042` | Levels, criterios aprobados, skills, evaluaciones, rachas y promociones/reconocimientos revisados. |
+| P6 | `T020 -> T045 -> T047 -> T048 -> T049 -> T050 -> T051 -> T052 -> T053` | Portales por rol, avisos internos, dashboards, reportes y exports autorizados. |
+| P7 | `T054 -> T055 -> T056` | Restauración, `verify:mvp`, E2E por rol y acta del piloto. |
+
+Cada fase recibe aquí su bloque de archivos/interfaces/pasos antes de tocar su código. Este corte
+just-in-time evita duplicar un plan especulativo para siete subsistemas y mantiene `tasks.md` como
+única fuente de verdad.
+
+### P0 / T084 - Guarda fail-closed del importador PDF
+
+**Archivos:**
+
+- Modificar: `apps/functions/src/members/member-pdf-import-runner.test.ts`
+- Modificar: `apps/functions/src/members/member-pdf-import-runner.ts`
+- Modificar: `qa/scripts/import-member-pdfs.mjs`
+- Modificar: `docs/data/migrations/README.md`
+- Modificar al cerrar: `tasks.md` y `Lista/Lista.js`
+
+**Interfaces que produce:**
+
+```ts
+type MemberPdfImportTargetInput = Readonly<{
+  target: string;
+  projectId: string;
+  academyId: string;
+}>;
+
+type MemberPdfImportTarget = Readonly<{
+  target: "emulator";
+  projectId: "demo-bpt-jersey";
+  academyId: "demo-academy";
+}>;
+
+type MemberPdfImportCliIo = Readonly<{
+  firestoreEmulatorHost?: string;
+}>;
+
+function validateMemberPdfImportCliEnvironment(
+  mode: "dry-run" | "confirm",
+  firestoreEmulatorHost: string | undefined,
+): void;
+```
+
+La validación acepta ausencia de host solo para `dry-run`. `confirm` exige exactamente
+`127.0.0.1:8080`; rechaza `localhost`, hosts remotos, producción, `staging`, proyectos desconocidos
+y flags ambiguos antes de `initializeApp`, lectura de receipts o lectura de PDFs.
+
+- [x] **Paso 1 - RED: escribir pruebas de frontera de entorno**
+
+```ts
+const emulatorTarget = {
+  target: "emulator" as const,
+  projectId: "demo-bpt-jersey",
+  academyId: "demo-academy",
+};
+
+expect(() =>
+  validateMemberPdfImportTarget({
+    target: "staging",
+    projectId: "bptjersey-f5a25",
+    academyId: "demo-academy",
+  }),
+).toThrow("Member PDF import target is not allowed");
+expect(() => validateMemberPdfImportCliEnvironment("confirm", undefined)).toThrow(
+  "Firestore emulator host is required",
+);
+expect(() =>
+  validateMemberPdfImportCliEnvironment("confirm", "127.0.0.1:8080"),
+).not.toThrow();
+```
+
+- [x] **Paso 2 - verificar RED**
+
+```powershell
+corepack pnpm exec vitest run --project node apps/functions/src/members/member-pdf-import-runner.test.ts
+```
+
+Resultado esperado: falla porque el contrato actual acepta producción como `staging` y la guarda no
+distingue `dry-run` de `confirm`.
+
+- [x] **Paso 3 - GREEN: aplicar el contrato mínimo emulator-only**
+
+```ts
+const approvedTarget = "emulator" as const;
+const approvedProjectId = "demo-bpt-jersey" as const;
+const approvedAcademyId = "demo-academy" as const;
+const approvedFirestoreEmulatorHost = "127.0.0.1:8080";
+
+export function validateMemberPdfImportCliEnvironment(
+  mode: "dry-run" | "confirm",
+  firestoreEmulatorHost: string | undefined,
+): void {
+  if (mode === "dry-run" && firestoreEmulatorHost === undefined) return;
+  if (firestoreEmulatorHost !== approvedFirestoreEmulatorHost) {
+    throw new Error("Firestore emulator host is required");
+  }
+}
+```
+
+Reemplazar los literales/flags `staging` por `emulator` y `--yes-confirm-staging` por
+`--yes-confirm-emulator` en runner, receipts y rollback planner. `runMemberPdfImportCli` valida
+inmediatamente después del parseo, antes de leer el receipt o construir el plan:
+
+```ts
+const input = parseMemberPdfImportCliArguments(argv);
+validateMemberPdfImportCliEnvironment(input.mode, io.firestoreEmulatorHost);
+```
+
+El script pasa el host al runner y no inicializa Admin hasta que target, host, receipt y
+confirmación hayan pasado:
+
+```js
+await runMemberPdfImportCli(process.argv.slice(2), createApplyServices(), {
+  firestoreEmulatorHost: process.env.FIRESTORE_EMULATOR_HOST,
+  readReceipt,
+  writeReceipt: async (path, content) =>
+    writeFile(path, `${content}\n`, { encoding: "utf8", flag: "wx" }),
+});
+```
+
+- [x] **Paso 4 - verificar GREEN y regresiones focused**
+
+```powershell
+corepack pnpm exec vitest run --project node apps/functions/src/members/member-pdf-import-runner.test.ts
+corepack pnpm exec vitest run --project node apps/functions/src/members/member-pdf-import.test.ts apps/functions/src/members/member-service.test.ts
+```
+
+Resultado esperado: todos los tests pasan; dry-run no llama `apply`/Admin y confirm solo llega a
+`apply` con proyecto demo + host loopback + receipt fresca + confirmación explícita.
+
+- [x] **Paso 5 - actualizar el runbook sin reescribir evidencia histórica**
+
+Añadir a `docs/data/migrations/README.md` una advertencia fechada que declare
+`member-pdf-import-run-2026-08-12.yaml` como evidencia histórica no reutilizable, prohíba tomar su
+label `staging-allowlist` como autorización y documente el comando emulator-only. No modificar el
+YAML histórico ni ejecutar importación.
+
+- [x] **Paso 6 - gates técnicos y de seguridad**
+
+```powershell
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm test:unit
+corepack pnpm test:rules
+corepack pnpm build
+git -c safe.directory='F:/Proyectos/BPT Jersey/Dev' diff --check
+```
+
+Además, buscar en runner/script cualquier allowlist productiva o flag viejo. La coincidencia del ID
+productivo solo es válida en pruebas negativas o documentación histórica.
+
+- [x] **Paso 7 - autocrítica y cierre del WIP**
+
+Revisar autorización previa a I/O, errores sin datos, ausencia de credenciales/logs, dependencia de
+host exacto, idempotencia y rollback. Registrar comandos/resultados en la evidencia de `T084`, pasar
+`T084` a `revisión`, desbloquear `T083` y sincronizar `Lista/Lista.js`. No crear commit sin pedido
+explícito.
+
+### P1 / T014 - Auth email/password y Google emulator-only, sin MFA
+
+**Objetivo:** revalidar el gateway de identidad ya existente contra el Auth Emulator local, corregir
+el flujo Google que hoy depende de un adapter nunca registrado y alinear el login activo con ADR-005:
+email/password y Google para cliente/administrador, sin que el selector conceda permisos y sin UI MFA.
+
+**Archivos:**
+
+- Modificar: `apps/web/src/lib/firebase-client.test.ts`
+- Modificar: `apps/web/src/lib/firebase-client.ts`
+- Modificar: `apps/web/src/app/login/login-form.test.tsx`
+- Modificar: `apps/web/src/app/login/login-form.tsx`
+- Crear: `qa/integration/auth-emulator.test.ts`
+- Modificar al cerrar: `tasks.md` y `Lista/Lista.js`
+
+**Interfaces conservadas:**
+
+```ts
+function getFirebaseAuth(): Auth;
+function signInWithGoogle(): Promise<UserCredential>;
+function signInWithEmail(email: string, password: string): Promise<UserCredential>;
+function createClientWithEmail(email: string, password: string): Promise<UserCredential>;
+```
+
+`getFirebaseAuth()` conecta `http://127.0.0.1:9099` solo cuando
+`NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true` y `NEXT_PUBLIC_FIREBASE_ENV=local`. Después,
+`signInWithGoogle()` usa siempre `signInWithPopup(auth, new GoogleAuthProvider())`: el SDK dirige ese
+mismo flujo a la página IdP local del emulador. `LoginRole` continúa siendo contexto UX; `/admin`
+sigue protegido por claims y `academyId` en `AdminAuthProvider`, propiedad de `T015`.
+
+- [x] **Paso 1 - RED: expresar Google emulator-native y login sin MFA**
+
+En `firebase-client.test.ts`, reemplazar la expectativa del adapter local por:
+
+```ts
+it("uses the Firebase popup flow after connecting the local Auth emulator", async () => {
+  process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS = "true";
+  process.env.NEXT_PUBLIC_FIREBASE_ENV = "local";
+
+  await signInWithGoogle();
+
+  expect(firebaseSdk.connectAuthEmulator).toHaveBeenCalledWith(
+    firebaseAuth,
+    "http://127.0.0.1:9099",
+    { disableWarnings: true },
+  );
+  expect(firebaseSdk.signInWithPopup).toHaveBeenCalledWith(
+    firebaseAuth,
+    expect.any(GoogleAuthProvider),
+  );
+});
+```
+
+En `login-form.test.tsx`, reemplazar el caso que espera un desafío TOTP por dos casos
+email/Google que entregan `auth/multi-factor-auth-required` y exigen un error genérico, manteniendo
+visible el formulario y sin renderizar `Verify your authenticator`.
+
+- [x] **Paso 2 - verificar RED**
+
+```powershell
+corepack pnpm exec vitest run --project web apps/web/src/lib/firebase-client.test.ts apps/web/src/app/login/login-form.test.tsx
+```
+
+Resultado esperado: fallos específicos porque Google local intenta usar el adapter huérfano y el
+login administrativo todavía renderiza `AdminMfaChallenge`.
+
+Resultado real 2026-08-18: `2` archivos, `3` fallos esperados y `9` pruebas aprobadas. Google falló
+con `Firebase emulator auth adapter is not configured`; email y Google no encontraron el alert
+genérico porque ambos renderizaron `Verify your authenticator`.
+
+- [x] **Paso 3 - GREEN: aplicar la corrección mínima**
+
+En `firebase-client.ts`, eliminar `EmulatorAuthAdapter`, `emulatorAuthAdapter` y
+`registerFirebaseEmulatorAuthAdapter`; mantener la conexión local fail-closed de
+`getFirebaseAuth()` y delegar Google directamente:
+
+```ts
+export function signInWithGoogle(): Promise<UserCredential> {
+  return signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+}
+```
+
+En `login-form.tsx`, eliminar el import/tipo `MultiFactorError`, las operaciones pending/resolver,
+`isMfaRequiredError`, el estado `mfaError` y el render de `AdminMfaChallenge`. Todos los errores de
+Firebase, incluido `auth/multi-factor-auth-required`, pasan por `toAuthMessage` sin código, email,
+token ni detalle de infraestructura. Los artefactos aislados de la cancelada `T017` no se conectan
+al gateway ni se ejecutan.
+
+- [x] **Paso 4 - verificar GREEN focused**
+
+```powershell
+corepack pnpm exec vitest run --project web apps/web/src/lib/firebase-client.test.ts apps/web/src/lib/auth-client.test.ts apps/web/src/lib/login-flow.test.ts apps/web/src/app/login/login-form.test.tsx apps/web/src/lib/client-auth.test.tsx apps/web/src/lib/admin-auth.test.tsx
+```
+
+Resultado esperado: todas las pruebas focused pasan; Google usa popup después de conectar el
+emulador y MFA-required queda sanitizado sin reemplazar el formulario.
+
+Resultado real 2026-08-18: `6` archivos y `40/40` pruebas focused aprobadas. El primer intento GREEN
+detectó un constructor mock inválido (`11/12`); se corrigió el doble para reflejar la clase del SDK y
+la repetición quedó limpia.
+
+- [x] **Paso 5 - integración real con Auth Emulator**
+
+Crear `qa/integration/auth-emulator.test.ts` con usuarios sintéticos únicos. Probar
+`createUserWithEmailAndPassword -> signOut -> signInWithEmailAndPassword` y un usuario Google con
+`GoogleAuthProvider.credential()` + `signInWithCredential()` usando un ID token JSON ficticio que el
+emulador admite. Borrar cada usuario y la app al finalizar; no usar red, credenciales ni proyectos
+reales.
+
+```powershell
+corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only auth "corepack pnpm exec vitest run --config qa/integration/vitest.config.ts qa/integration/auth-emulator.test.ts"
+```
+
+Resultado esperado: email/password y Google crean/autentican identidades solo en
+`127.0.0.1:9099`, y el proceso del emulador termina limpio.
+
+Resultado real 2026-08-18: `1` archivo, `2/2` pruebas aprobadas bajo el proyecto demo. El Auth
+Emulator confirmó alta/login email-password y credencial Google sintética; después cerró sus
+procesos. Los usuarios y la app se eliminaron en cleanup, sin credenciales ni red productiva.
+
+- [x] **Paso 6 - gates funcionales y globales**
+
+```powershell
+corepack pnpm test:unit
+corepack pnpm test:rules
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm build
+corepack pnpm --dir qa test:e2e tests/login-gateway.spec.ts --project=desktop-chromium --project=mobile-chromium
+corepack pnpm format:check
+git -c safe.directory='F:/Proyectos/BPT Jersey/Dev' diff --check
+```
+
+Además, buscar imports/referencias MFA dentro de `apps/web/src/app/login`; no debe quedar ninguno.
+La suite histórica `T017_MFA_*` permanece fuera de CI y no cuenta como evidencia del piloto.
+
+- [x] **Paso 7 - autocrítica y cierre del WIP**
+
+Aplicar `security-baseline`, verificando entorno local exacto, separación selector/claims, ausencia
+de registro administrativo, errores genéricos, no persistencia de credenciales/tokens y ningún
+acceso productivo. Registrar RED/GREEN/gates y limitaciones aquí, pasar `T014` a `revisión` y
+sincronizar `Lista/Lista.js`. No crear usuarios fuera del emulador, no desplegar y no hacer commit.
 
 ## Regla permanente de continuidad y sincronización
 
@@ -255,6 +608,11 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
 - Estado: `T008` queda `pendiente`, con los datos provisionales disponibles pero sin aprobación operativa.
 - Recordatorio: revisar `T008` el **2026-08-08** y confirmar valores publicados, reemplazar los `(f)` y resolver las decisiones pendientes antes de cerrar la tarea.
 - Autorización de diseño (2026-08-07): el operador autorizó la opción 1; las relaciones estables pueden modelarse con valores `(f)` visibles como placeholders no productivos. `T008` permanece `pendiente` y ningún placeholder se convierte en una restricción de producción.
+- Reconciliación 2026-08-18: los dos DOCX vinculantes y las decisiones del operador sustituyen para
+  el piloto los precios, sedes y reglas provisionales `(f)`. `BRIEF.md` contiene el catálogo
+  Town/West y `STACK.md` las fases P0-P7; proveedor, CRM, email/SMS y producción quedan post-piloto.
+- Pendiente vigente: confirmar horarios/capacidades configurables y políticas de freeze,
+  descuentos y refunds. Esto bloquea sus reglas específicas, no el catálogo base de `T032`.
 
 ### T013 - 2026-08-07
 
@@ -610,3 +968,1073 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
   `tasks.md`; no se reformateó el ledger completo para evitar cambios fuera de alcance.
 - Gates residuales: backup staging verificado, restauración probada, confirmación explícita y
   cualquier staging apply/verification siguen pendientes; no ejecutar en esta tarea.
+
+### T083 - Regyfit IBJJF Levels - 2026-08-18
+
+- Alcance aprobado: inspeccionar en modo estrictamente read-only la jerarquía completa
+  `Levels: JIU-JITSU - IBJJF`, incluyendo cada belt, sus stripes/niveles hijos, orden, edades,
+  clases mínimas, días mínimos y demás características observables; después recrear esa
+  capacidad como una sección nueva de BPT Jersey.
+- Fuente funcional: los dos DOCX indicados por el operador continúan como ley funcional; Regyfit
+  se usa únicamente para relevar la estructura detallada de niveles que los documentos no
+  enumeran por completo.
+- Seguridad: no se leerán ni registrarán credenciales, tokens, cookies, storage, datos de miembros
+  ni valores personales. No se pulsarán acciones de crear, editar, copiar, ordenar o eliminar.
+- Tooling inicial, resuelto después: antes del cambio, `opencode mcp list` reportó
+  `playwright disabled`; la
+  presencia del token de extensión se comprobó sin mostrar ni leer su valor. Tras habilitar el
+  servidor, un proceso nuevo de `opencode mcp list` reportó `playwright connected`. La sesión
+  activa en ese checkpoint todavía debía reiniciarse para incorporar las herramientas MCP y listar
+  sus targets.
+- QA inicial de configuración y ledger: `node --check Lista/Lista.js` -> exit 0; Prettier de
+  `opencode.json` y `Lista/Lista.js` -> aprobado; VM de la lista -> 84 entradas/84 IDs únicos,
+  `T083=bloqueada` en ese checkpoint histórico, fuente `tasks.md` y corte `2026-08-18`; parseo de
+  `opencode.json` -> aprobado;
+  `git diff --check` sobre los tres archivos -> salida vacía.
+- Diagnóstico de sesión: después del primer reinicio, `playwright_browser_tabs` devolvió únicamente
+  `about:blank`, sin el target autenticado de Regyfit. `npx @playwright/mcp@latest --help`
+  confirmó que la conexión a Chrome/Edge existente requiere `--extension`; se añadió esa opción a
+  `opencode.json`. El hallazgo es de configuración, no de la sesión Regyfit, y requiere recargar
+  OpenCode antes de repetir el handshake.
+- Incidente de credencial temporal: el primer listado de targets en modo extensión incluyó el token
+  efímero de control dentro de la URL de la página de conexión. Se detuvo la inspección antes de
+  leer Regyfit, el operador desconectó/reconectó la extensión y rotó el token. Ningún valor se
+  repitió ni persistió en el repositorio; el token anterior debe considerarse revocado.
+- Handshake posterior a la rotación: `playwright_browser_find` localizó exactamente
+  `Levels: JIU-JITSU - IBJJF` en el tabpanel `Levels`, sin enumerar URLs de conexión ni ejecutar
+  acciones mutantes. `T083` pasa a `en-progreso` para el inventario read-only.
+- Discovery estructural: el DOM ya contenía toda la jerarquía, por lo que no fue necesario pulsar
+  controles de expandir. Se identificaron 27 belts raíz y 144 stripes hijos mediante texto y clases
+  de relación; el editor de un nivel se abrió una vez en modo lectura y no se guardó ningún cambio.
+- Discovery de características: el endpoint oficial read-only
+  `GET /php8/admin/modulos/graduacoes/criar_nivel.php` se consultó con concurrencia máxima 4 y
+  devolvió únicamente criterios, paleta, stripe visual y habilidades seleccionadas. No se
+  conservaron HTML, inputs ocultos, códigos de acción, cookies, tokens ni datos personales.
+- Verificación independiente: cuatro lotes de `43/43/43/42` suman 171 registros, con 27 parents,
+  144 children, 0 IDs duplicados, 0 huérfanos y 0 errores materializados. Hay 15 niveles con
+  habilidades, 11 habilidades únicas y 165 requisitos: rating 2 en 15 casos y rating 3 en 150.
+- Discrepancias pendientes de decisión: White adulto exige 2 meses + 30 días en el parent, pero 2
+  meses + 15 días y una paleta distinta en sus cuatro stripes; `GREY AND WHITE BELT 7-8 and 8-10`
+  limita parent e hijos a edad máxima 8; White 4-7 no declara edad mínima; varios stripes White
+  infantiles dejan de heredar habilidades a partir del quinto. Ninguna discrepancia se corrige por
+  inferencia antes de confirmar la precedencia entre DOCX y Regyfit.
+- Decisiones del operador: los DOCX prevalecen para edades, clases y tiempo; Regyfit aporta
+  jerarquía, orden, colores y habilidades. A los 12 años, Kids o Teens se asigna por head coach y
+  Teens es la sugerencia. Los requisitos técnicos se acumulan y las promociones nunca son
+  automáticas.
+- Contrato aprobado: `BRIEF.md` consolida fuentes, catálogo y alcance del piloto; `STACK.md`
+  documenta arquitectura, rutas, colecciones, versionado, permisos, fases, QA y gates de seguridad
+  de Levels sin crear una especificación paralela.
+- Inventario canónico: `docs/data/ibjjf-levels-observed.sanitized.json` contiene 171 definiciones,
+  27 belts, 144 stripes y 11 habilidades, sin IDs Regyfit ni datos de sesión. Validación local: 0
+  keys duplicadas, 0 huérfanos y hash de contenido
+  `9b039b795f8178c42730ff567ef9283fb385895368115ac2621ce816a829835a` verificado. Los cuatro lotes
+  temporales se eliminaron después de consolidar este único artefacto.
+- Protección local: `.firebase-config/`, `.firebase-emulators/`, `.playwright-browsers/` y
+  `.playwright-mcp/` quedaron ignorados sin inspeccionar su contenido, para impedir que estado de
+  herramientas, binarios o una sesión del navegador entren por accidente al repositorio.
+- QA documental fresca: `node --check Lista/Lista.js` -> exit 0; VM del ledger -> 84 tareas, 84 IDs
+  únicos, estados sincronizados, `T083=en-progreso` y separación de track roadmap/MVP; Prettier de
+  `Lista/Lista.js`, `opencode.json` y el inventario -> aprobado; parseo de `opencode.json` ->
+  aprobado; `git -c safe.directory='F:/Proyectos/BPT Jersey/Dev' diff --check` -> salida vacía.
+- QA del inventario fresca: 171 definiciones, 27 belts, 144 stripes, 11 habilidades, 0 keys
+  duplicadas y 0 huérfanos; SHA-256 recalculado sobre el payload sin `contentHash` coincide con
+  `9b039b795f8178c42730ff567ef9283fb385895368115ac2621ce816a829835a`; `mutationsPerformed=false`.
+- Seguridad documental: el escaneo de los archivos entregables no encontró claves privadas, API
+  keys, credenciales ni valores de token/cookie/password. No se ejecutaron mutaciones, migraciones,
+  despliegues ni pruebas contra producción.
+- Estado vigente: `pendiente` para P5. El handshake, discovery, precedencia, inventario y diseño
+  están cerrados; la guarda crítica `T084` ya no bloquea y Levels espera identidad/tatami canónicos.
+
+### T085 - Dependencia y formatter - 2026-08-18
+
+- RED reproducible: `corepack pnpm audit --audit-level high` reportó `nanoid@3.3.17` con severidad
+  high (`GHSA-2v37-7h3g-55p8`) a través de `postcss@8.5.23`; `corepack pnpm format:check` falló en
+  nueve JSON generados bajo `apps/graphify-out/cache`.
+- Causa raíz: `postcss` permite `nanoid ^3.3.16`, pero el lockfile conservaba `3.3.17`; pnpm 11 ya
+  no lee `package.json#pnpm.overrides`. El primer intento se descartó al emitir pnpm esa advertencia,
+  sin presentarlo como solución.
+- Corrección mínima: override `nanoid: 3.3.18` en `pnpm-workspace.yaml`, lockfile regenerado y
+  `**/graphify-out/` en `.prettierignore`. No se formatearon, borraron ni versionaron los grafos.
+- GREEN: `corepack pnpm why nanoid` muestra una única versión `3.3.18`; audit reporta solo las dos
+  moderadas ya conocidas y 0 high/critical; `corepack pnpm format:check` pasa.
+- Estado: `revisión`. No cambió código funcional, no hubo deploy/migración y `T084` retoma el WIP.
+
+### T084 - Guarda emulator-only del importador PDF - 2026-08-18
+
+- Riesgo corregido: `bptjersey-f5a25` dejó de ser el `approvedProjectId` de un target llamado
+  staging. Runner, receipt, rollback planner y CLI aceptan solo `emulator`, `demo-bpt-jersey` y
+  `demo-academy`; confirm exige `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080` y
+  `--yes-confirm-emulator`.
+- Datos del piloto: el CLI ya no acepta `F:\Proyectos\BPT Jersey\Varios`; exige
+  `%TEMP%\bpt-member-pdf-fixtures`, rechaza roots symlink/junction y solo documenta fixtures
+  sintéticos. El YAML productivo de 2026-08-12 permanece intacto como evidencia no reutilizable.
+- TDD RED 1: runner focused -> 2 fallos/25 pass porque producción era aceptada y la guarda de host
+  no distinguía dry-run/confirm. RED 2 -> 7 fallos/21 pass al exigir la fuente temporal en vez de la
+  ruta real. RED 3 -> 1 fallo/28 pass al reproducir el bypass por junction.
+- GREEN focused: runner `29/29`; parser/servicio `36/36`. La suite completa posterior al cambio de
+  dependencias pasó con `59` archivos y `441/441` pruebas.
+- Gates: Rules `4` archivos/`9/9`; lint, typecheck de 6 workspaces, build Functions/Next (19 rutas),
+  `format:check`, `node --check qa/scripts/import-member-pdfs.mjs` y `git diff --check` aprobaron.
+  Audit: 0 high/critical y 2 moderadas conocidas.
+- Seguridad/operaciones: errores genéricos sin PII, guardas antes de receipt/PDF/Admin, proyecto
+  demo de Firebase y host loopback exacto. No se leyó la fuente real, no se ejecutó dry-run/confirm,
+  no se inicializó Admin, no hubo escritura, migración, deploy, gasto ni acceso productivo.
+- Rollback: cambio solo de código/configuración; restaurar runner, script y runbook previos. No hay
+  rollback de datos porque no se ejecutó ninguna importación.
+- Estado: `revisión`. P0 queda técnicamente cerrado y P1 abre `T014` como único WIP.
+
+### T014 - Auth email/password y Google emulator-only, sin MFA - 2026-08-18
+
+- Revalidación: ADR-005 y `STACK.md` excluyen MFA del piloto, pero el gateway activo todavía
+  convertía `auth/multi-factor-auth-required` en `AdminMfaChallenge`. Además, Google local exigía un
+  `EmulatorAuthAdapter` que ninguna ruta registraba, aunque el Auth Emulator ofrece el flujo IdP
+  interactivo del SDK.
+- TDD RED: focused inicial -> `2` archivos, `3` fallos esperados y `9` pruebas aprobadas. Google
+  falló con `Firebase emulator auth adapter is not configured`; email y Google renderizaron
+  `Verify your authenticator` en lugar del error genérico.
+- GREEN: `signInWithGoogle()` usa `signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider())`
+  después de la guarda local ya existente; `/login` eliminó estado/imports/render MFA y sanitiza
+  todos los fallos mediante `toAuthMessage`. Focused final -> `6` archivos, `40/40`.
+- Integración Auth Emulator: proyecto `demo-bpt-jersey`, loopback `127.0.0.1:9099`, `1` archivo y
+  `2/2`. Se verificó alta/logout/login email-password y credencial Google con token JSON sintético;
+  usuarios/app se limpiaron y los procesos del emulador cerraron correctamente.
+- QA global: `corepack pnpm test:unit` -> `59` archivos, `442/442`; `test:rules` -> `4` archivos,
+  `9/9`; lint y typecheck de 6 workspaces -> exit 0; build Functions/Next -> 19 rutas estáticas;
+  `format:check` y `git diff --check` -> aprobados.
+- Browser QA: la primera invocación incluía un `--` propagado al wrapper y ejecutó 51 tests sobre el
+  build normal (`23` fallos administrativos esperables, `16` pass, `12` skip). `--list` confirmó la
+  causa y el comando corregido seleccionó exactamente 8 casos: gateway desktop/Pixel 7 -> `8/8`;
+  repetición `--repeat-each=5` -> `40/40`, sin consola, page errors u overflow.
+- Seguridad: selector Administrator/Client sigue siendo solo contexto UX; `/admin` conserva claims
+  + `academyId`; no existe registro admin. Sin endpoint, secreto, storage de resolver/token, retries,
+  escritura, migración o deploy nuevos. Audit: 0 high/critical y 2 moderadas transitivas conocidas.
+- Pruebas avanzadas: contrato SDK + emulador y casos de entorno/error aplicaron y pasaron. Carga no
+  aplica a esta corrección de boundary sin endpoint propio ni release; el flujo MFA histórico de
+  `T017` permanece aislado y fuera de CI, no como evidencia del piloto.
+- Rollback: restaurar `firebase-client.ts`, `login-form.tsx` y sus pruebas; no existe rollback de
+  datos porque solo se usaron identidades sintéticas eliminadas del Auth Emulator.
+- Estado: `revisión`. `T014` queda técnicamente cerrado; el siguiente WIP de P1 es revalidar `T015`
+  contra la matriz completa de roles del MVP.
+
+### P1 / T015 - Contrato de claims para los seis roles con mínimo privilegio
+
+**Objetivo:** definir un contrato estricto y reutilizable para claims `academyId + role` de los seis
+actores autenticados del MVP, conservando `owner`/`administrator` como único subconjunto
+administrativo. Esta tarea no concede roles desde el navegador ni crea provisioning prematuro para
+coaches, tutores o adultos sin sus perfiles, relaciones y asignaciones canónicas.
+
+**Decisión aprobada por el operador el 2026-08-18:** las claims reconocen `owner`, `administrator`,
+`headCoach`, `coach`, `guardian` y `adultStudent`. El provisioning existente continúa limitado a
+owner/administrator; `T021`, `T022` y `T025` emitirán los demás roles cuando exista la evidencia de
+perfil, relación familiar o asignación correspondiente.
+
+**Archivos:**
+
+- Modificar: `packages/domain/src/auth/admin-contracts.test.ts`
+- Modificar: `packages/domain/src/auth/admin-contracts.ts`
+- Modificar: `packages/domain/src/index.ts`
+- Modificar: `apps/functions/src/auth/admin-authorization.ts`
+- Modificar: `apps/functions/src/auth/admin-authorization.test.ts`
+- Modificar: `apps/functions/src/auth/admin-provisioning.test.ts`
+- Modificar al cerrar: `tasks.md` y `Lista/Lista.js`
+
+**Interfaces que produce y conserva:**
+
+```ts
+type UserClaims = Readonly<{
+  academyId: AcademyId;
+  role: UserRole;
+}>;
+
+type AdminClaims = Readonly<{
+  academyId: AcademyId;
+  role: AdminRole;
+}>;
+
+function parseUserClaims(value: unknown): Result<UserClaims, ValidationIssue[]>;
+function parseAdminClaims(value: unknown): Result<AdminClaims, ValidationIssue[]>;
+```
+
+`parseUserClaims` acepta exactamente `academyId` y `role`, rechaza campos propios/no enumerables
+desconocidos y devuelve un valor congelado. `parseAdminClaims` reutiliza ese contrato y luego exige
+`owner | administrator`; reconocer un rol nunca concede permisos por sí mismo. Las relaciones,
+asignaciones, estado activo y propósito continúan siendo fronteras de sus módulos propietarios.
+
+- [x] **Paso 1 - RED: expresar el contrato exhaustivo de claims**
+
+En `admin-contracts.test.ts`, importar `parseUserClaims` y añadir:
+
+```ts
+it("parses every academy-scoped MVP user role without granting admin access", () => {
+  for (const role of userRoles) {
+    const result = parseUserClaims({ academyId: "academy-demo", role });
+
+    expect(result).toEqual({
+      ok: true,
+      value: { academyId: "academy-demo", role },
+    });
+    expect(Object.isFrozen(result.ok ? result.value : undefined)).toBe(true);
+  }
+
+  for (const role of ["headCoach", "coach", "guardian", "adultStudent"] as const) {
+    expect(parseAdminClaims({ academyId: "academy-demo", role }).ok).toBe(false);
+  }
+});
+
+it("rejects malformed user claims and unknown fields", () => {
+  expect(parseUserClaims({ academyId: "academy-demo", role: "minor" }).ok).toBe(false);
+  expect(parseUserClaims({ academyId: " ", role: "guardian" }).ok).toBe(false);
+  expect(
+    parseUserClaims({ academyId: "academy-demo", role: "guardian", familyId: "family-1" }).ok,
+  ).toBe(false);
+});
+```
+
+- [x] **Paso 2 - verificar RED**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/auth/admin-contracts.test.ts
+```
+
+Resultado esperado: falla porque `parseUserClaims`/`UserClaims` todavía no existen.
+
+Resultado real 2026-08-18: `1` archivo, `2` fallos esperados y `5` pruebas aprobadas. Ambos casos
+fallaron con `parseUserClaims is not a function`; los contratos administrativos existentes
+permanecieron verdes.
+
+- [x] **Paso 3 - GREEN: implementar parser genérico y narrowing administrativo**
+
+En `admin-contracts.ts`, validar con `Reflect.ownKeys`, `userRoles` y errores estructurados. El parser
+administrativo consume el resultado genérico y aplica únicamente el narrowing:
+
+```ts
+export function parseAdminClaims(value: unknown): Result<AdminClaims, ValidationIssue[]> {
+  const claims = parseUserClaims(value);
+  if (!claims.ok) return claims;
+  if (!administrativeRoles.includes(claims.value.role as AdminRole)) {
+    return err([issue(["role"], "ADMIN_ROLE_INVALID")]);
+  }
+
+  return ok(
+    Object.freeze({
+      academyId: claims.value.academyId,
+      role: claims.value.role as AdminRole,
+    }),
+  );
+}
+```
+
+Exportar `parseUserClaims` y `UserClaims` desde `packages/domain/src/index.ts`. No modificar
+`provisionAdminRoleWithServices`, `adminRoleSchema` ni el frontend: sus límites owner/admin son
+deliberados y deben seguir fail-closed.
+
+- [x] **Paso 4 - verificar GREEN focused**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/auth/admin-contracts.test.ts packages/domain/src/contracts.test.ts apps/functions/src/auth/admin-authorization.test.ts apps/functions/src/auth/admin-provisioning.test.ts
+```
+
+Resultado esperado: contrato genérico, exports, narrowing admin y provisioning pasan sin ampliar
+autoridad.
+
+Resultado real 2026-08-18: parser directo + entrypoint público -> `2` archivos, `14/14`. El export
+público tuvo un RED separado (`parseUserClaims is not a function`) antes de restaurarse. Focused
+completo posterior -> `4` archivos, `50/50`.
+
+- [x] **Paso 5 - reforzar las pruebas negativas de elevación**
+
+En `admin-authorization.test.ts`, comprobar que `requireAdminActor` rechaza por
+`permission-denied` cada rol no administrativo. En `admin-provisioning.test.ts`, convertir el caso
+aislado de `coach` en una tabla para `headCoach`, `coach`, `guardian` y `adultStudent`, verificando
+que ninguna entrada llega a `setCustomUserClaims` ni persiste usuario/auditoría.
+
+```ts
+for (const role of ["headCoach", "coach", "guardian", "adultStudent"] as const) {
+  expect(() =>
+    requireAdminActor(requestWithAuth(`${role}-1`, { academyId: "academy-1", role })),
+  ).toThrowError(expect.objectContaining({ code: "permission-denied" }));
+}
+```
+
+- [x] **Paso 6 - gates técnicos, de seguridad y regresión**
+
+```powershell
+corepack pnpm test:unit
+corepack pnpm test:rules
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm build
+corepack pnpm audit --audit-level high
+corepack pnpm format:check
+git -c safe.directory='F:/Proyectos/BPT Jersey/Dev' diff --check
+```
+
+Revisar que solo Admin SDK/backend pueda escribir custom claims, que el selector visual no aparezca
+en ningún contrato de autoridad, que roles no administrativos sigan fuera de `AdminGate` y que no se
+registren tokens/claims completos. No ejecutar provisioning, migración ni deploy.
+
+- [x] **Paso 7 - autocrítica y cierre del WIP**
+
+Registrar RED/GREEN/gates y la limitación intencional de lifecycle: `T021/T022/T025` siguen siendo
+propietarias de emisión/desactivación de roles no administrativos basada en datos canónicos. Si el
+loop pasa, cambiar `T015` a `revisión`, sincronizar `Lista/Lista.js` y abrir `T016` como siguiente WIP.
+No hacer commit sin pedido explícito.
+
+#### Evidencia de implementación T015 (2026-08-19)
+
+- Decisión humana: opción 1 aprobada; claims reconoce `owner`, `administrator`, `headCoach`, `coach`,
+  `guardian` y `adultStudent`, pero provisioning continúa limitado a owner/admin y los roles restantes
+  solo podrán emitirse desde `T021`, `T022` y `T025` con datos canónicos.
+- RED del contrato: `admin-contracts.test.ts` falló `2/7` antes de existir el parser; el RED
+  independiente del entrypoint público falló con `parseUserClaims is not a function`.
+- GREEN focused inicial: los cuatro archivos de contrato, autorización y provisioning aprobaron
+  `50/50`.
+- Autocrítica de seguridad: la búsqueda exhaustiva confirmó que `setCustomUserClaims()` solo aparece
+  en provisioning backend y sus pruebas; roles no administrativos, claves desconocidas y claims
+  exactas mantienen cobertura negativa.
+- Hallazgo y reproducción: provisioning preserva `mfaEnrolled` y `locale`, pero autorización las
+  rechazaba como custom claims desconocidas. El RED cruzado falló `1/11` con
+  `Administrative claims are required`; tras declarar solo esas dos claves como no autoritativas,
+  autorización y provisioning aprobaron `36/36`, incluido el rechazo de `tenantOverride`.
+- Gates finales: unitarias `445/445`; Rules con emuladores demo `9/9`; lint, typecheck, build de 19
+  rutas, formato y `git diff --check` aprobaron. Audit reportó 0 high/critical y las 2 moderadas
+  transitivas ya conocidas.
+- Clasificación: sin hallazgos críticos o altos; no hubo migración, despliegue, operación productiva,
+  gasto ni manejo de secretos. Carga y UI/E2E no aplican a esta frontera de contratos/autorización.
+- Limitación consciente: reconocer un rol no concede relaciones, asignaciones, propósito ni
+  clasificación de datos; esas fronteras quedan para `T016`, y la emisión de roles no administrativos
+  permanece diferida a sus tareas de ciclo de vida.
+
+### P1 / T016 - Diseño aprobado de autorización backend y frontera Firebase
+
+**Estado del diseño:** aprobado por el operador el 2026-08-19.
+
+**Objetivo:** conservar Firestore y RTDB cerrados al SDK cliente y establecer una frontera backend
+reutilizable que obligue a verificar tenant, actor activo, rol, propósito y alcance canónico antes de
+cualquier acceso permitido. Esta tarea no habilita módulos futuros ni convierte claims en permisos.
+
+#### Decisiones aprobadas
+
+- Firestore y RTDB mantienen `deny-by-default` total para acceso directo desde navegador, incluido
+  owner y los datos propios de un usuario. Todo acceso permitido del MVP pasa por Cloud Functions.
+- El cliente nunca envía roles, permisos, propósito autorizado ni hechos como `isGuardian` o
+  `isAssigned`. Solo puede enviar identificadores de recursos previstos por el contrato; Functions
+  valida la entrada, carga fuentes canónicas y construye los hechos de autorización.
+- Los servicios administrativos existentes no se amplían a roles no administrativos. La comprobación
+  persistente de desactivación se conecta cuando `T025` implemente el lifecycle canónico; `T016`
+  define y prueba el requisito sin inventar documentos ni estados.
+- No se agregan colecciones, índices, migraciones, datos persistentes ni excepciones positivas de
+  Rules.
+- `docs/data/firestore-data-model.md` conserva una frase obsoleta que permite `get` directo de
+  Regyfit al owner. La implementación debe alinearla con la frontera Functions-only ya aplicada por
+  Rules y aprobada en este diseño.
+
+#### Arquitectura y componentes
+
+- `packages/domain/src/authorization/access-policy.ts` será un evaluador puro y reutilizable. Define
+  operaciones, clasificación, alcance requerido y decisiones tipadas `allow/deny`.
+- Cada módulo declara requisitos de acceso como constantes internas revisables; ninguna política se
+  deriva de un payload del cliente. Los módulos posteriores aportan sus permisos concretos y resolvers
+  de fuentes canónicas conforme a la matriz de `T007`.
+- El evaluador exige siempre coincidencia de `academyId`, actor activo y propósito no vacío definido
+  por servidor. Cuando la política lo requiera, también exige identidad propia, relación familiar
+  vigente, asignación vigente o aprobación explícita.
+- `apps/functions/src/auth/user-authorization.ts` extrae claims estrictas mediante el contrato de
+  `T015` y construye un actor para los seis roles. `requireAdminActor()` conserva el narrowing
+  `owner | administrator` y sus consumidores actuales siguen fail-closed.
+- Las combinaciones no soportadas o sin evidencia suficiente se deniegan. El evaluador no consulta
+  Firebase ni recibe objetos de SDK para que su política pueda probarse de forma determinista.
+
+#### Flujo autorizado
+
+1. Function autentica la solicitud y obtiene un `UserActor` desde claims exactas.
+2. El handler valida identificadores y selecciona una política constante de su módulo.
+3. Un resolver backend carga el estado activo y, cuando corresponda, relación, asignación o evidencia
+   de aprobación desde documentos canónicos del mismo tenant.
+4. El handler construye hechos internos mínimos y llama al evaluador con un propósito constante de
+   servidor.
+5. Solo una decisión `allow` permite continuar hacia Admin SDK; toda otra decisión termina con
+   `permission-denied` genérico.
+
+#### Seguridad y errores
+
+- Un código interno de denegación puede distinguir actor inactivo, tenant cruzado, propósito ausente,
+  rol no permitido o alcance insuficiente para pruebas y observabilidad segura. Ese código no se
+  devuelve al cliente ni autoriza registrar tokens, claims completos, relaciones o datos sensibles.
+- El actor, la política y los hechos se tratan como valores inmutables. Las fechas de vigencia se
+  evalúan contra un instante inyectado por servidor, no contra tiempo enviado por el cliente.
+- Firestore prueba `get`, `list`, `create`, `update` y `delete` denegados en todas las colecciones
+  canónicas para anónimo y los seis roles. RTDB prueba lectura y escritura denegadas en `presence`.
+- La ausencia de una cláusula positiva de Rules es intencional: relación, asignación y propósito se
+  evalúan en Functions, no se duplican parcialmente en Rules.
+
+#### Estrategia de pruebas
+
+- Unitarias de dominio: casos positivos sintéticos para alcance de academia, identidad propia,
+  familia, asignación y aprobación; negativos para actor inactivo, tenant cruzado, propósito ausente,
+  rol no permitido, relación expirada, asignación ajena y clasificación incompatible.
+- Unitarias de Functions: anónimo, claims malformadas, claves extra/no enumerables, seis roles válidos
+  y narrowing administrativo sin regresión.
+- Rules con emuladores demo: matriz negativa de todas las colecciones canónicas y RTDB, sin staging ni
+  producción y con fixtures sintéticos.
+- Gates: focused RED/GREEN, suite unitaria completa, Rules, lint, typecheck, build, audit high, formato
+  y `git diff --check`.
+
+#### Fuera de alcance y rollback
+
+- `T016` no implementa perfiles, relaciones, asignaciones, consentimientos, salud, documentos ni
+  lifecycle de staff; esas responsabilidades permanecen en `T018` y `T021-T025`.
+- No implementa permisos positivos de módulos inexistentes, despliegues, migraciones, producción,
+  gasto, App Check ni cambios de retención/residencia bloqueados por `T011`.
+- El rollback es textual: restaurar los contratos, adapters y pruebas anteriores. No requiere backup
+  porque no se escriben ni transforman datos.
+
+#### Criterio de aceptación
+
+- Ningún rol ni usuario anónimo obtiene acceso directo por Firestore/RTDB.
+- Los seis roles pueden convertirse en actores autenticados estrictos sin recibir autoridad implícita.
+- El evaluador deniega por defecto y solo permite cuando política y hechos backend prueban tenant,
+  actividad, propósito y alcance.
+- Las pruebas negativas cubren colecciones canónicas, tenant, rol, relación y asignación; todos los
+  gates pasan con evidencia real antes de mover `T016` a `revisión`.
+
+### P1 / T016 - Plan de implementación
+
+> **Para ejecución agentic:** usar `subagent-driven-development` o `executing-plans` tarea por tarea.
+> En esta sesión la ejecución debe ser inline porque ya se alcanzó el máximo de subagentes. Cada paso
+> usa checkboxes y conserva `T016` como único WIP.
+
+**Goal:** implementar una política de autorización backend reutilizable para seis roles y demostrar
+que ningún cliente puede acceder directamente a datos canónicos de Firestore o RTDB.
+
+**Architecture:** un evaluador puro en `packages/domain` recibe actor, requisito constante del módulo,
+recurso y hechos resueltos por backend. Un adapter de Functions convierte claims exactas en
+`UserActorContext`; `requireAdminActor()` estrecha ese actor sin duplicar parsing. Firebase Rules no
+obtiene permisos positivos y su matriz negativa se prueba exhaustivamente en emuladores demo.
+
+**Tech Stack:** TypeScript, Vitest, Firebase Functions v2, Firebase Rules Unit Testing, Firestore y
+Realtime Database Emulator.
+
+#### Restricciones globales
+
+- Firestore y RTDB permanecen cerrados al SDK cliente para anónimo y los seis roles.
+- Claims, roles, propósitos, políticas y hechos de autorización nunca se aceptan desde el payload.
+- Todo fallo es fail-closed; Functions solo expone `unauthenticated` o `permission-denied` genérico.
+- No se crean perfiles, relaciones, asignaciones ni estados ficticios persistentes.
+- No se agregan dependencias, colecciones, índices, migraciones, secretos, despliegues ni operaciones
+  sobre staging/producción.
+- Fixtures y emuladores usan exclusivamente datos sintéticos y el proyecto `demo-bpt-jersey`.
+- Los permisos concretos de módulos futuros permanecen en `T018` y `T021-T025`.
+- No hacer commit, push o cambio de rama sin pedido explícito.
+
+---
+
+#### Task 1 - Evaluador puro de política y alcances
+
+**Files:**
+
+- Create: `packages/domain/src/authorization/access-policy.test.ts`
+- Create: `packages/domain/src/authorization/access-policy.ts`
+- Modify: `packages/domain/src/contracts.test.ts`
+- Modify: `packages/domain/src/index.ts`
+- Modify: `packages/domain/package.json`
+- Modify: `packages/domain/tsconfig.runtime.json`
+
+**Interfaces:**
+
+- Consumes: `UserActorContext`, `UserRole`, IDs branded y `Result` existentes.
+- Produces:
+
+```ts
+type AccessOperation = "read" | "create" | "update" | "approve" | "export" | "delete";
+type DataClassification = "Public" | "Internal" | "Confidential" | "Restricted";
+type AccessScope = "academy" | "self" | "family" | "assignment" | "approval";
+
+type AccessRequirement = Readonly<{
+  operation: AccessOperation;
+  classification: DataClassification;
+  allowedRoles: readonly UserRole[];
+  scope: AccessScope;
+  purpose: string;
+}>;
+
+type AccessResource = Readonly<{
+  resourceId: string;
+  academyId: AcademyId;
+  classification: DataClassification;
+  subjectUserId?: UserId;
+  familyId?: FamilyId;
+  studentId?: StudentId;
+  sessionId?: SessionId;
+}>;
+
+type ValidityWindow = Readonly<{ validFromMs: number; validToMs: number | null }>;
+type FamilyAccessEvidence = ValidityWindow &
+  Readonly<{
+    status: "active" | "inactive";
+    academyId: AcademyId;
+    adultUserId: UserId;
+    familyId: FamilyId;
+    studentId: StudentId;
+    operations: readonly AccessOperation[];
+  }>;
+type AssignmentAccessEvidence = ValidityWindow &
+  Readonly<{
+    status: "active" | "inactive";
+    academyId: AcademyId;
+    staffUserId: UserId;
+    studentId?: StudentId;
+    sessionId?: SessionId;
+    operations: readonly AccessOperation[];
+  }>;
+type ApprovalAccessEvidence = ValidityWindow &
+  Readonly<{
+    status: "approved" | "pending" | "rejected";
+    academyId: AcademyId;
+    resourceId: string;
+    operation: AccessOperation;
+  }>;
+
+type AccessFacts = Readonly<{
+  actorActive: boolean;
+  familyRelationship?: FamilyAccessEvidence;
+  assignment?: AssignmentAccessEvidence;
+  approval?: ApprovalAccessEvidence;
+}>;
+
+type AccessDenialReason =
+  | "INVALID_CONTEXT"
+  | "TENANT_MISMATCH"
+  | "ACTOR_INACTIVE"
+  | "PURPOSE_REQUIRED"
+  | "ROLE_DENIED"
+  | "CLASSIFICATION_MISMATCH"
+  | "SELF_SCOPE_DENIED"
+  | "FAMILY_SCOPE_DENIED"
+  | "ASSIGNMENT_SCOPE_DENIED"
+  | "APPROVAL_SCOPE_DENIED";
+
+type AccessGrant = Readonly<{
+  actor: UserActorContext;
+  resourceId: string;
+  operation: AccessOperation;
+  classification: DataClassification;
+  scope: AccessScope;
+  purpose: string;
+}>;
+
+type AccessEvaluationInput = Readonly<{
+  actor: UserActorContext;
+  requirement: AccessRequirement;
+  resource: AccessResource;
+  facts: AccessFacts;
+  nowMs: number;
+}>;
+
+function evaluateAccess(input: AccessEvaluationInput): Result<AccessGrant, AccessDenialReason>;
+```
+
+- [x] **Step 1 - escribir el RED del evaluador**
+
+Crear factories tipadas e incluir ocho casos: academia, self, familia vigente, asignación vigente,
+aprobación vigente, invariantes comunes, evidencia inválida/expirada e inmutabilidad. El caso familiar
+base debe ser equivalente a:
+
+```ts
+const result = evaluateAccess({
+  actor: Object.freeze({
+    kind: "user",
+    academyId: "academy-1" as AcademyId,
+    userId: "guardian-1" as UserId,
+    role: "guardian",
+  }),
+  requirement: Object.freeze({
+    operation: "read",
+    classification: "Restricted",
+    allowedRoles: Object.freeze(["guardian"] as const),
+    scope: "family",
+    purpose: "family profile access",
+  }),
+  resource: Object.freeze({
+    resourceId: "student-1",
+    academyId: "academy-1" as AcademyId,
+    classification: "Restricted",
+    familyId: "family-1" as FamilyId,
+    studentId: "student-1" as StudentId,
+  }),
+  facts: Object.freeze({
+    actorActive: true,
+    familyRelationship: Object.freeze({
+      status: "active",
+      adultUserId: "guardian-1" as UserId,
+      familyId: "family-1" as FamilyId,
+      studentId: "student-1" as StudentId,
+      operations: Object.freeze(["read"] as const),
+      validFromMs: 100,
+      validToMs: 300,
+    }),
+  }),
+  nowMs: 200,
+});
+
+expect(result).toEqual({
+  ok: true,
+  value: {
+    actor: expect.objectContaining({ userId: "guardian-1", role: "guardian" }),
+    resourceId: "student-1",
+    operation: "read",
+    classification: "Restricted",
+    scope: "family",
+    purpose: "family profile access",
+  },
+});
+expect(Object.isFrozen(result.ok ? result.value : undefined)).toBe(true);
+```
+
+La tabla negativa debe comprobar cada `AccessDenialReason`, IDs familiares/asignados ajenos,
+operación no incluida, `status` no activo/aprobado, `validFromMs > nowMs`, `validToMs <= nowMs`,
+`nowMs` no finito y scope assignment sin `studentId` ni `sessionId`.
+
+- [x] **Step 2 - ejecutar el RED**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/authorization/access-policy.test.ts packages/domain/src/contracts.test.ts
+```
+
+Expected: FAIL porque `authorization/access-policy` y sus exports todavía no existen; las pruebas
+anteriores de `contracts.test.ts` permanecen verdes.
+
+- [x] **Step 3 - implementar la decisión mínima fail-closed**
+
+Implementar primero las invariantes comunes en este orden: contexto numérico válido, tenant, actor
+activo, propósito, rol y clasificación. Después resolver el scope con un `switch` exhaustivo:
+
+```ts
+export function evaluateAccess(input: AccessEvaluationInput): Result<AccessGrant, AccessDenialReason> {
+  const { actor, requirement, resource, facts, nowMs } = input;
+  if (!Number.isFinite(nowMs) || resource.resourceId.trim().length === 0) {
+    return err("INVALID_CONTEXT");
+  }
+  if (actor.academyId !== resource.academyId) return err("TENANT_MISMATCH");
+  if (!facts.actorActive) return err("ACTOR_INACTIVE");
+  if (requirement.purpose.trim().length === 0) return err("PURPOSE_REQUIRED");
+  if (!requirement.allowedRoles.includes(actor.role)) return err("ROLE_DENIED");
+  if (requirement.classification !== resource.classification) {
+    return err("CLASSIFICATION_MISMATCH");
+  }
+
+  const scopeAllowed = evaluateScope(input);
+  if (!scopeAllowed.ok) return scopeAllowed;
+  return ok(
+    Object.freeze({
+      actor,
+      resourceId: resource.resourceId,
+      operation: requirement.operation,
+      classification: requirement.classification,
+      scope: requirement.scope,
+      purpose: requirement.purpose,
+    }),
+  );
+}
+```
+
+`evaluateScope()` debe comparar `academyId` y todos los IDs aplicables, exigir la operación exacta y tratar la
+ventana como `[validFromMs, validToMs)`. Scope `academy` no requiere evidencia adicional; `self`
+exige `subjectUserId === actor.userId`; los otros scopes fallan con su razón específica.
+
+- [x] **Step 4 - publicar el contrato sin romper runtime**
+
+Exportar constantes, función y tipos desde `packages/domain/src/index.ts`. Añadir el subpath runtime:
+
+```json
+"./authorization/access-policy": {
+  "types": "./src/authorization/access-policy.ts",
+  "default": "./lib/authorization/access-policy.js"
+}
+```
+
+En `contracts.test.ts`, importar desde el entrypoint público y comprobar que `accessOperations`,
+`dataClassifications`, `accessScopes`, `accessDenialReasons` y `evaluateAccess` existen y están
+congelados cuando corresponda.
+
+Incluir `src/authorization/access-policy.ts` en `tsconfig.runtime.json` para que el subpath default
+exista en `lib` durante CI y el packaging de Functions.
+
+- [x] **Step 5 - verificar GREEN focused**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/authorization/access-policy.test.ts packages/domain/src/contracts.test.ts
+corepack pnpm --filter @bpt-jersey/domain typecheck
+```
+
+Expected: 2 archivos y 16 pruebas aprobadas; typecheck exit 0.
+
+---
+
+#### Task 2 - Adapter de actor para los seis roles y narrowing administrativo
+
+**Files:**
+
+- Create: `apps/functions/src/auth/user-authorization.test.ts`
+- Create: `apps/functions/src/auth/user-authorization.ts`
+- Modify: `apps/functions/src/auth/admin-authorization.ts`
+- Verify: `apps/functions/src/auth/admin-authorization.test.ts`
+- Verify: `apps/functions/src/auth/admin-provisioning.test.ts`
+
+**Interfaces:**
+
+- Consumes: `parseUserClaims()`, `parseAdminClaims()`, `evaluateAccess()`,
+  `AccessEvaluationInput`, `AccessGrant`, `UserActorContext` y Firebase `CallableRequest`.
+- Produces:
+
+```ts
+function requireUserActor(request: CallableRequest): UserActorContext;
+function requireAuthorizedAccess(input: AccessEvaluationInput): AccessGrant;
+```
+
+- [x] **Step 1 - escribir el RED del adapter**
+
+Añadir ocho pruebas con request sintético: anónimo, claims ausentes, los seis roles válidos y actor
+congelado, claims estándar/perfil permitidas, clave custom desconocida y clave propia no enumerable.
+Añadir además un grant válido y una denegación que demuestre que `requireAuthorizedAccess()` nunca
+expone `AccessDenialReason`.
+El contrato positivo debe iterar:
+
+```ts
+for (const role of userRoles) {
+  const actor = requireUserActor(
+    requestWithAuth(`${role}-1`, { academyId: "academy-1", role }),
+  );
+  expect(actor).toEqual({
+    kind: "user",
+    userId: `${role}-1`,
+    academyId: "academy-1",
+    role,
+  });
+  expect(Object.isFrozen(actor)).toBe(true);
+}
+```
+
+El caso de perfil permite únicamente claims estándar de Firebase más `mfaEnrolled` y `locale`; una
+clave como `tenantOverride` debe producir `permission-denied`.
+
+- [x] **Step 2 - ejecutar el RED**
+
+```powershell
+corepack pnpm exec vitest run --project node apps/functions/src/auth/user-authorization.test.ts apps/functions/src/auth/admin-authorization.test.ts
+```
+
+Expected: FAIL porque `requireUserActor` no existe; las 11 pruebas administrativas siguen mostrando
+su estado independiente.
+
+- [x] **Step 3 - extraer y validar claims una sola vez**
+
+Mover la allowlist de token desde `admin-authorization.ts` a `user-authorization.ts` sin ampliarla.
+Validar todas las keys con `Reflect.ownKeys`, proyectar solo `academyId + role`, usar
+`parseUserClaims()` y devolver:
+
+```ts
+return Object.freeze({
+  kind: "user" as const,
+  userId: uid as UserId,
+  academyId: claims.value.academyId,
+  role: claims.value.role,
+});
+```
+
+UID ausente produce `unauthenticated`; token o claims inválidas producen `permission-denied`. No
+incluir valores del token en mensajes o logs.
+
+Implementar el mapper backend sin bifurcar por la razón interna:
+
+```ts
+export function requireAuthorizedAccess(input: AccessEvaluationInput): AccessGrant {
+  const decision = evaluateAccess(input);
+  if (!decision.ok) {
+    throw new HttpsError("permission-denied", "Access is not permitted");
+  }
+  return decision.value;
+}
+```
+
+- [x] **Step 4 - hacer que admin estreche el actor genérico**
+
+`requireAdminActor()` llama a `requireUserActor()`, valida `{ academyId, role }` con
+`parseAdminClaims()` y conserva exactamente su salida pública existente:
+
+```ts
+const actor = requireUserActor(request);
+const claims = parseAdminClaims({ academyId: actor.academyId, role: actor.role });
+if (!claims.ok) {
+  throw new HttpsError("permission-denied", "Administrative claims are required");
+}
+return Object.freeze({
+  uid: actor.userId,
+  academyId: claims.value.academyId,
+  role: claims.value.role,
+});
+```
+
+No modificar `assertAcademyScope()`, `getRegyfitProjectionScope()` ni provisioning.
+
+- [x] **Step 5 - verificar GREEN y no elevación**
+
+```powershell
+corepack pnpm exec vitest run --project node apps/functions/src/auth/user-authorization.test.ts apps/functions/src/auth/admin-authorization.test.ts apps/functions/src/auth/admin-provisioning.test.ts
+corepack pnpm --filter @bpt-jersey/functions typecheck
+```
+
+Expected: 3 archivos y 44 pruebas aprobadas; los cuatro roles no administrativos siguen rechazados
+por `requireAdminActor()` y provisioning no ejecuta mutaciones para ellos.
+
+---
+
+#### Task 3 - Matriz negativa exhaustiva de Firestore y RTDB
+
+**Files:**
+
+- Create: `qa/rules/client-data-boundary.test.ts`
+- Verify unchanged: `firestore.rules`
+- Verify unchanged: `database.rules.json`
+- Verify: `qa/rules/default-deny.test.ts`
+- Verify: `qa/rules/admin-members.test.ts`
+- Verify: `qa/rules/regyfit-access-records.test.ts`
+
+**Interfaces:**
+
+- Consumes: las 30 subcolecciones canónicas de `docs/data/firestore-data-model.md` y las colecciones
+  backend-only ya usadas por Functions.
+- Produces: una prueba de caracterización que bloquea cualquier permiso cliente futuro no diseñado.
+
+- [x] **Step 1 - enumerar rutas y actores exactos**
+
+Usar esta lista congelada, sin inferir nombres desde datos de prueba:
+
+```ts
+const canonicalCollections = Object.freeze([
+  "users", "families", "students", "staff", "relationships",
+  "locations", "programs", "classes", "sessions", "plans",
+  "bookings", "attendance", "checkouts", "memberships", "invoices",
+  "payments", "paymentEvents", "assessments", "skillProgress", "recognitions",
+  "leads", "messages", "deliveryEvents", "healthProfiles", "safeguardingCases",
+  "consents", "documents", "auditEvents", "exports", "regyfitAccessRecords",
+] as const);
+
+const academyBackendOnlyCollections = Object.freeze([
+  "members", "memberImportOperations", "adminRoleLocks",
+] as const);
+
+const rootBackendOnlyCollections = Object.freeze([
+  "memberReportExports", "memberReportRateLimits", "memberImportSessions",
+  "memberImportCleanupJournal", "memberImportPreviews",
+] as const);
+
+const actorCases = Object.freeze([
+  { name: "anonymous", uid: null, claims: undefined },
+  { name: "owner", uid: "owner-1", claims: { academyId, role: "owner" } },
+  { name: "administrator", uid: "administrator-1", claims: { academyId, role: "administrator" } },
+  { name: "headCoach", uid: "head-coach-1", claims: { academyId, role: "headCoach" } },
+  { name: "coach", uid: "coach-1", claims: { academyId, role: "coach" } },
+  { name: "guardian", uid: "guardian-1", claims: { academyId, role: "guardian" } },
+  { name: "adultStudent", uid: "adult-1", claims: { academyId, role: "adultStudent" } },
+] as const);
+```
+
+- [x] **Step 2 - sembrar solo fixtures sintéticos con Rules desactivadas**
+
+Para cada colección canónica/backend de academia crear
+`academies/demo-academy/{collection}/synthetic-1`; para cada colección backend raíz crear
+`{collection}/synthetic-1`, siempre con `{ academyId: "demo-academy", synthetic: true }`. Crear
+también el documento raíz de academia y `academies/demo-academy/presence/session-1/student-1` en
+RTDB. Limpiar ambos emuladores entre casos.
+
+- [x] **Step 3 - probar todas las operaciones por actor**
+
+Para cada uno de los siete actores, negar raíz de academia y, en cada colección canónica o
+backend-only, estas cinco operaciones:
+
+```ts
+await assertFails(getDoc(existing));
+await assertFails(getDocs(collection(firestore, `academies/${academyId}/${name}`)));
+await assertFails(setDoc(candidate, { academyId, synthetic: true }));
+await assertFails(updateDoc(existing, { synthetic: false }));
+await assertFails(deleteDoc(existing));
+```
+
+Negar también `get()` y `set()` en el path RTDB de presencia. Usar `it.each(actorCases)` con timeout
+explícito de 120 segundos por actor para que el volumen de assertions no se confunda con flakiness.
+
+- [x] **Step 4 - ejecutar la caracterización Rules**
+
+```powershell
+corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only firestore,database "node node_modules/vitest/vitest.mjs run --project rules qa/rules/client-data-boundary.test.ts"
+```
+
+Expected: 1 archivo y 7 pruebas aprobadas contra las Rules actuales. Este paso es una caracterización,
+no se debilitan Rules artificialmente para fabricar un RED; los RED conductuales están en Tasks 1 y
+2.
+
+- [x] **Step 5 - confirmar que producción Rules no necesita cambios**
+
+Usar la herramienta `grep` sobre `firestore.rules` con el patrón `allow\s+` y comprobar que cada
+match termina en `if false;`; buscar en `database.rules.json` el patrón
+`"\.(read|write)"\s*:\s*true`.
+
+Expected: Firestore solo muestra cláusulas `if false;` y RTDB no muestra matches. Si aparece una
+cláusula positiva, detener `T016` como hallazgo crítico; no adaptar la prueba para aceptarla.
+
+---
+
+#### Task 4 - Reconciliar contratos documentales y ledger visual
+
+**Files:**
+
+- Modify: `docs/data/firestore-data-model.md:53-70`
+- Modify: `docs/superpowers/specs/2026-08-09-t016-firestore-rules-boundary-design.md:1-12`
+- Modify: `Lista/Lista.js`
+- Modify at close: `tasks.md`
+
+**Interfaces:**
+
+- Consumes: la decisión Functions-only aprobada el 2026-08-19.
+- Produces: documentación sin una excepción directa obsoleta para owner y estado visual sincronizado.
+
+- [x] **Step 1 - corregir el contrato Regyfit obsoleto**
+
+Reemplazar la frase de `get` directo owner por el contrato vigente: backend/import es único escritor;
+Rules deniega todos los accesos directos; owner obtiene la proyección restricted con IP solo mediante
+Function; administrator obtiene la proyección safe sin IP; los otros cuatro roles no acceden.
+
+- [x] **Step 2 - marcar el diseño histórico como ampliado**
+
+Conservar su evidencia histórica y añadir al encabezado:
+
+```md
+**Estado:** ampliado por el diseño P1/T016 aprobado en `tasks.md` el 2026-08-19.
+
+Este documento conserva la decisión Functions-only para Regyfit. El contrato reutilizable de actor,
+política, relación, asignación y propósito vive en el ledger canónico `tasks.md`.
+```
+
+Reemplazar la línea de estado anterior; no conservar simultáneamente `Pendiente de revisión final del
+operador`.
+
+- [x] **Step 3 - sincronizar el estado parcial de Lista**
+
+Mantener `T016` como `en-progreso` y actualizar su evidencia a: diseño aprobado, evaluador/adapter en
+implementación y matriz Rules negativa en verificación. No cambiar otro ID todavía.
+
+- [x] **Step 4 - verificar contradicciones documentales y formato específico**
+
+Usar `grep` con el patrón
+`permit a direct complete-document|get directo solo|allow get.*owner` sobre ambos documentos y
+ejecutar:
+
+```powershell
+corepack pnpm exec prettier --check packages/domain/src/authorization apps/functions/src/auth qa/rules docs/data/firestore-data-model.md docs/superpowers/specs/2026-08-09-t016-firestore-rules-boundary-design.md Lista/Lista.js
+```
+
+Expected: la búsqueda no encuentra una concesión owner directa; Prettier aprueba todos los paths
+específicos.
+
+---
+
+#### Task 5 - Autocrítica, gates y cierre de T016
+
+**Files:**
+
+- Review: todos los archivos de Tasks 1-4
+- Modify if packaging requires the new subpath: `apps/functions/src/deploy-runtime.ts`
+- Test: `apps/functions/src/deploy-runtime.test.ts`
+- Modify: `tasks.md`
+- Modify: `Lista/Lista.js`
+
+**Interfaces:**
+
+- Consumes: implementación y evidencia completa de T016.
+- Produces: `T016` en `revisión` y `T019` como siguiente único WIP de P1.
+
+- [x] **Step 1 - ejecutar self-critique de seguridad**
+
+Invocar `self-critique-loop` y `security-baseline`. Usar `grep` para buscar
+`setCustomUserClaims|requireUserActor|requireAdminActor|evaluateAccess` en `apps/functions` y
+`packages/domain`, y `console\.(log|info|debug)|logger\.(info|debug)` en los archivos modificados.
+
+Solo backend escribe claims; no hay tokens/claims/hechos completos en logs; `requireAdminActor()`
+rechaza los cuatro roles no administrativos; ninguna decisión `allow` omite actividad, tenant,
+propósito, rol, clasificación o scope.
+
+- [x] **Step 2 - ejecutar focused final**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/authorization/access-policy.test.ts packages/domain/src/contracts.test.ts apps/functions/src/auth/user-authorization.test.ts apps/functions/src/auth/admin-authorization.test.ts apps/functions/src/auth/admin-provisioning.test.ts
+```
+
+Expected: 5 archivos y 62 pruebas aprobadas tras los RED adicionales del `self-critique-loop`.
+
+- [x] **Step 3 - ejecutar todos los gates desde el código final**
+
+```powershell
+corepack pnpm test:unit
+corepack pnpm test:rules
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm build
+corepack pnpm audit --audit-level high
+corepack pnpm format:check
+git -c safe.directory='F:/Proyectos/BPT Jersey/Dev' diff --check
+```
+
+Expected: 0 fallos de pruebas/lint/tipos/build/formato/diff y 0 vulnerabilidades high/critical. Las 2
+moderadas transitivas conocidas pueden permanecer registradas si el audit no cambia.
+
+- [x] **Step 4 - revisar rendimiento y QA avanzado proporcional**
+
+La matriz Rules debe terminar dentro del timeout explícito sin retries. UI/E2E, accesibilidad y carga
+HTTP son N/A porque no cambia frontend ni se publica endpoint; contratos, entradas hostiles, tenant
+cruzado, relaciones/asignaciones expiradas y Rules sí aplican y deben constar en evidencia.
+
+- [x] **Step 5 - cerrar el ledger sin operación productiva**
+
+Registrar RED/GREEN, conteos reales, hallazgos y limitaciones en `tasks.md`; mover `T016` a `revisión`,
+abrir `T019` como único `en-progreso` y sincronizar `Lista/Lista.js`. Validar 86 IDs únicos y estados
+coincidentes. No desplegar, migrar, crear usuarios, tocar secretos ni hacer commit.
+
+#### Evidencia de implementación T016 (2026-08-19)
+
+- Decisión humana: Firestore y RTDB permanecen totalmente cerrados al SDK cliente; toda autorización
+  positiva del MVP pasa por Functions. Los módulos futuros aportan políticas constantes y resolvers
+  canónicos, nunca roles, propósitos o hechos enviados por el cliente.
+- RED de dominio: el nuevo contrato falló porque `access-policy` y sus exports no existían; las 7
+  pruebas previas del entrypoint permanecieron verdes. GREEN inicial: evaluador + entrypoint `16/16` y
+  typecheck domain aprobado.
+- RED de Functions: `user-authorization` no existía y las 11 pruebas admin previas permanecieron
+  verdes. GREEN: actor estricto para seis roles, errores genéricos y narrowing administrativo
+  aprobaron `44/44`; el runtime domain se añadió a `tsconfig.runtime.json` para resolver el subpath en
+  CI/deploy.
+- Rules: caracterización focused `7/7` en 10,88 s. Recorre anónimo y seis roles contra documento raíz,
+  30 colecciones canónicas, 3 colecciones backend-only bajo academia, 5 colecciones backend-only raíz
+  y presencia RTDB; niega `get`, `list`, `create`, `update`, `delete`, lectura y escritura. Las Rules
+  productivas no cambiaron y todas sus cláusulas Firestore continúan en `if false;`; RTDB sigue
+  `.read/.write=false`.
+- Hallazgos de autocrítica corregidos con RED/GREEN: evidencia de relación/asignación/aprobación de
+  otra academia podía reutilizar IDs coincidentes; `actorActive` aceptaba un valor truthy no booleano;
+  claims de autoridad heredadas del prototipo podían proyectarse. Ahora cada evidencia exige
+  `academyId`, actividad exige `=== true` y `academyId/role` deben ser propiedades propias.
+- Hallazgo de packaging: la primera suite global quedó `463/464` porque el preparador de deploy no
+  reescribía el nuevo subpath. Se añadió un RED específico, el mapping a
+  `domain/authorization/access-policy.js` y se eliminó un import runtime raíz accidental del test;
+  packaging final `2/2` y focused de autorización final `62/62`.
+- Gates finales: unitarias `61` archivos, `464/464`; Rules `5` archivos, `16/16`; lint, typecheck de 6
+  workspaces, build Functions/Next de 19 rutas, formato y `git diff --check` aprobaron. Audit reportó 0
+  high/critical y las 2 moderadas transitivas conocidas.
+- Pruebas avanzadas: contrato domain/Functions/deploy, entradas hostiles, tenant cruzado, ventanas
+  expiradas, claims extra/no enumerables/heredadas y matriz Firebase aplicaron y pasaron. La suite
+  Rules terminó en 13,36 s sin retries, muy por debajo del timeout de 120 s. UI/E2E, accesibilidad y
+  carga HTTP son N/A porque no cambió frontend ni se publicó endpoint.
+- Seguridad/operaciones: sin hallazgos críticos o altos abiertos, dependencias nuevas, secretos, logs
+  sensibles, migraciones, escrituras productivas, despliegues, gastos o commits. El estado persistente
+  de desactivación y los permisos positivos concretos permanecen en `T025` y sus módulos propietarios.
+- Gap de capacidad: ninguno; TDD, debugging sistemático, security baseline, pruebas contractuales y
+  emuladores cubrieron los hallazgos. El siguiente único WIP de P1 es `T019`.
