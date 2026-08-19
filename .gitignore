@@ -17,7 +17,13 @@ serviceAccountKey.json
 .clasprc.json
 .firebase/
 .firebase-functions/
+.firebase-config/
+.firebase-emulators/
 firebase-debug.log
+
+# Estado y binarios locales de Playwright/MCP
+.playwright-browsers/
+.playwright-mcp/
 
 # Dependencias e instalación
 node_modules/

@@ -15,10 +15,8 @@ const {
   runMemberPdfImportCli,
   serializeMemberPdfImportReceipt,
   validateFirebaseAdminProjectId,
-  validateMemberPdfImportCliEnvironment,
 } = await import("../../apps/functions/lib/src/members/member-pdf-import-runner.js");
 
-validateMemberPdfImportCliEnvironment(process.env.FIRESTORE_EMULATOR_HOST);
 async function readReceipt(path) {
   if (!path) throw new Error("A matching dry-run receipt is required");
   try {
@@ -78,6 +76,7 @@ function createApplyServices() {
 
 async function main() {
   const run = await runMemberPdfImportCli(process.argv.slice(2), createApplyServices(), {
+    firestoreEmulatorHost: process.env.FIRESTORE_EMULATOR_HOST,
     readReceipt,
     writeReceipt: async (path, content) =>
       writeFile(path, `${content}\n`, { encoding: "utf8", flag: "wx" }),

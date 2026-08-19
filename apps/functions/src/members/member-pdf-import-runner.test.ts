@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -28,14 +28,14 @@ import type { ParsedMemberReport } from "./member-pdf-import.js";
 import type { MemberReportKey } from "@bpt-jersey/domain";
 
 const approvedTarget = {
-  target: "staging" as const,
-  projectId: "bptjersey-f5a25",
+  target: "emulator" as const,
+  projectId: "demo-bpt-jersey",
   academyId: "demo-academy",
 };
 const syntheticPlan = {
   sourceRoot: "synthetic-source-root",
-  target: "staging" as const,
-  projectId: "bptjersey-f5a25" as const,
+  target: "emulator" as const,
+  projectId: "demo-bpt-jersey" as const,
   academyId: "demo-academy" as const,
   runId: "synthetic-run-1",
   capturedAt: "2026-08-12T12:00:00.000Z",
@@ -117,6 +117,7 @@ const reportTitles = {
 const syntheticHeader = "Member Nº | Name | ID Card Nº | Birthdate | VAT Number | Mobile nº";
 const syntheticInactiveHeader = `${syntheticHeader} | Data inativo`;
 const syntheticFooter = "Document produced by www.regyfit.com on 11-08-2026 at 10:30 Page 1/1";
+const approvedSourceRoot = join(tmpdir(), "bpt-member-pdf-fixtures");
 const temporaryRoots: string[] = [];
 
 function range(start: number, end: number): number[] {
@@ -169,6 +170,18 @@ describe("member PDF import runner", () => {
     expect(files.every((file) => file.toLocaleLowerCase().endsWith(".pdf"))).toBe(true);
   });
 
+  it("rejects a source root that is a symbolic link or junction", async () => {
+    const targetRoot = await mkdtemp(join(tmpdir(), "member-pdf-target-"));
+    const linkParent = await mkdtemp(join(tmpdir(), "member-pdf-link-"));
+    const linkedRoot = join(linkParent, "source-link");
+    temporaryRoots.push(targetRoot, linkParent);
+    await symlink(targetRoot, linkedRoot, "junction");
+
+    await expect(discoverMemberPdfFiles(linkedRoot)).rejects.toThrow(
+      "Member PDF import source root cannot be a symbolic link",
+    );
+  });
+
   it("orders filenames by stable code-point comparison instead of locale", () => {
     expect(["á.pdf", "z.pdf", "a.pdf", "B.pdf"].sort(compareMemberPdfFileNames)).toEqual([
       "B.pdf",
@@ -178,7 +191,8 @@ describe("member PDF import runner", () => {
     ]);
   });
 
-  it("rejects every target except the allowlisted staging project and academy", () => {
+  it("accepts only the allowlisted emulator project and academy", () => {
+    expect(() => validateMemberPdfImportTarget(approvedTarget)).not.toThrow();
     expect(() =>
       validateMemberPdfImportTarget({
         target: "production",
@@ -189,7 +203,7 @@ describe("member PDF import runner", () => {
     expect(() =>
       validateMemberPdfImportTarget({
         ...approvedTarget,
-        target: "emulator",
+        target: "staging",
       }),
     ).toThrow("Member PDF import target is not allowed");
     expect(() =>
@@ -204,6 +218,27 @@ describe("member PDF import runner", () => {
         academyId: "unknown-academy",
       }),
     ).toThrow("Member PDF import target is not allowed");
+  });
+
+  it("rejects the production project even when it is labelled as staging", () => {
+    expect(() =>
+      validateMemberPdfImportTarget({
+        target: "staging",
+        projectId: "bptjersey-f5a25",
+        academyId: "demo-academy",
+      }),
+    ).toThrow("Member PDF import target is not allowed");
+  });
+
+  it("requires the exact loopback Firestore emulator host before confirmation", () => {
+    expect(() => validateMemberPdfImportCliEnvironment("dry-run", undefined)).not.toThrow();
+    expect(() => validateMemberPdfImportCliEnvironment("confirm", undefined)).toThrow(
+      "Firestore emulator host is required",
+    );
+    expect(() => validateMemberPdfImportCliEnvironment("confirm", "localhost:8080")).toThrow(
+      "Firestore emulator host is required",
+    );
+    expect(() => validateMemberPdfImportCliEnvironment("confirm", "127.0.0.1:8080")).not.toThrow();
   });
 
   it("rejects a report set that is not exactly the eight approved keys", () => {
@@ -266,8 +301,8 @@ describe("member PDF import runner", () => {
 
     const receipt = sanitizeMemberPdfImportReceipt(plan);
     expect(receipt).toMatchObject({
-      target: "staging",
-      projectId: "bptjersey-f5a25",
+      target: "emulator",
+      projectId: "demo-bpt-jersey",
       academyId: "demo-academy",
       runId: "member-pdf-20260812-01",
       reports: 8,
@@ -325,13 +360,13 @@ describe("member PDF import runner", () => {
       [
         "--dry-run",
         "--target",
-        "staging",
+        "emulator",
         "--project-id",
-        "bptjersey-f5a25",
+        "demo-bpt-jersey",
         "--academy-id",
         "demo-academy",
         "--source-root",
-        "F:\\Proyectos\\BPT Jersey\\Varios",
+        approvedSourceRoot,
         "--run-id",
         "synthetic-run-1",
         "--captured-at",
@@ -370,13 +405,13 @@ describe("member PDF import runner", () => {
       parseMemberPdfImportCliArguments([
         "--dry-run",
         "--target",
-        "staging",
+        "emulator",
         "--project-id",
-        "bptjersey-f5a25",
+        "demo-bpt-jersey",
         "--academy-id",
         "demo-academy",
         "--source-root",
-        "F:\\Proyectos\\BPT Jersey\\Varios",
+        approvedSourceRoot,
         "--run-id",
         "run-1",
         "--captured-at",
@@ -390,13 +425,13 @@ describe("member PDF import runner", () => {
         "--dry-run",
         "--dry-run",
         "--target",
-        "staging",
+        "emulator",
         "--project-id",
-        "bptjersey-f5a25",
+        "demo-bpt-jersey",
         "--academy-id",
         "demo-academy",
         "--source-root",
-        "F:\\Proyectos\\BPT Jersey\\Varios",
+        approvedSourceRoot,
         "--run-id",
         "run-1",
         "--captured-at",
@@ -407,13 +442,13 @@ describe("member PDF import runner", () => {
       parseMemberPdfImportCliArguments([
         "--dry-run",
         "--target",
-        "staging",
+        "emulator",
         "--project-id",
-        "bptjersey-f5a25",
+        "demo-bpt-jersey",
         "--academy-id",
         "demo-academy",
         "--source-root",
-        "F:\\Proyectos\\BPT Jersey\\Varios",
+        approvedSourceRoot,
         "--run-id",
         "run-1",
         "--captured-at",
@@ -426,9 +461,37 @@ describe("member PDF import runner", () => {
       parseMemberPdfImportCliArguments([
         "--confirm",
         "--target",
-        "staging",
+        "emulator",
         "--project-id",
-        "bptjersey-f5a25",
+        "demo-bpt-jersey",
+        "--academy-id",
+        "demo-academy",
+        "--source-root",
+        approvedSourceRoot,
+        "--run-id",
+        "run-1",
+        "--captured-at",
+        "2026-08-12T12:00:00.000Z",
+        "--yes-confirm-emulator",
+      ]),
+    ).toThrow("Confirm requires --receipt");
+  });
+
+  it("accepts only the allowlisted Firebase Admin project", () => {
+    expect(() => validateFirebaseAdminProjectId("demo-bpt-jersey")).not.toThrow();
+    expect(() => validateFirebaseAdminProjectId("bptjersey-f5a25")).toThrow(
+      "Firebase Admin project is not allowed",
+    );
+  });
+
+  it("rejects the historical real PDF source at the CLI boundary", () => {
+    expect(() =>
+      parseMemberPdfImportCliArguments([
+        "--dry-run",
+        "--target",
+        "emulator",
+        "--project-id",
+        "demo-bpt-jersey",
         "--academy-id",
         "demo-academy",
         "--source-root",
@@ -437,23 +500,14 @@ describe("member PDF import runner", () => {
         "run-1",
         "--captured-at",
         "2026-08-12T12:00:00.000Z",
-        "--yes-confirm-staging",
       ]),
-    ).toThrow("Confirm requires --receipt");
+    ).toThrow("Member PDF import source root is not approved");
   });
 
-  it("accepts only the allowlisted Firebase Admin project", () => {
-    expect(() => validateFirebaseAdminProjectId("bptjersey-f5a25")).not.toThrow();
-    expect(() => validateFirebaseAdminProjectId("demo-bpt-jersey")).toThrow(
-      "Firebase Admin project is not allowed",
+  it("rejects a remote Firestore emulator before CLI I/O", () => {
+    expect(() => validateMemberPdfImportCliEnvironment("confirm", "192.0.2.10:8080")).toThrow(
+      "Firestore emulator host is required",
     );
-  });
-
-  it("rejects emulator execution at the CLI environment boundary", () => {
-    expect(() => validateMemberPdfImportCliEnvironment("127.0.0.1:8080")).toThrow(
-      "Firebase emulator target is not allowed",
-    );
-    expect(() => validateMemberPdfImportCliEnvironment(undefined)).not.toThrow();
   });
 
   it("rejects missing or ambiguous execution modes", async () => {
@@ -464,7 +518,7 @@ describe("member PDF import runner", () => {
     ).rejects.toThrow("mode is required and must be unambiguous");
     await expect(
       executeMemberPdfImport(
-        executionInput({ mode: "confirm", yesConfirmStaging: false }),
+        executionInput({ mode: "confirm", yesConfirmEmulator: false }),
         services,
       ),
     ).rejects.toThrow("Explicit confirmation is required");
@@ -477,13 +531,13 @@ describe("member PDF import runner", () => {
         parseMemberPdfImportCliArguments([
           "--dry-run",
           "--target",
-          "staging",
+          "emulator",
           "--project-id",
-          "bptjersey-f5a25",
+          "demo-bpt-jersey",
           "--academy-id",
           "demo-academy",
           "--source-root",
-          "F:\\Proyectos\\BPT Jersey\\Varios",
+          approvedSourceRoot,
           "--run-id",
           runId,
           "--captured-at",
@@ -502,7 +556,7 @@ describe("member PDF import runner", () => {
     ).rejects.toThrow("Invalid member PDF import run ID");
   });
 
-  it("requires explicit confirmation before a staging apply", async () => {
+  it("requires explicit confirmation before an emulator apply", async () => {
     const applyCalls = { count: 0 };
 
     await expect(
@@ -525,7 +579,7 @@ describe("member PDF import runner", () => {
       executeMemberPdfImport(
         executionInput({
           mode: "confirm",
-          yesConfirmStaging: true,
+          yesConfirmEmulator: true,
           receipt: changedReceipt,
         }),
         fakeExecutionServices(applyCalls),
@@ -542,7 +596,7 @@ describe("member PDF import runner", () => {
       executeMemberPdfImport(
         executionInput({
           mode: "confirm",
-          yesConfirmStaging: true,
+          yesConfirmEmulator: true,
           receipt: expired,
           now: "2026-08-12T12:00:00.000Z",
           importRunId: syntheticPlan.runId,
@@ -555,7 +609,7 @@ describe("member PDF import runner", () => {
       executeMemberPdfImport(
         executionInput({
           mode: "confirm",
-          yesConfirmStaging: true,
+          yesConfirmEmulator: true,
           receipt: future,
           now: "2026-08-12T12:00:00.000Z",
           importRunId: syntheticPlan.runId,
@@ -609,8 +663,8 @@ describe("member PDF import runner", () => {
     );
 
     expect(result).toEqual({
-      target: "staging",
-      projectId: "bptjersey-f5a25",
+      target: "emulator",
+      projectId: "demo-bpt-jersey",
       academyId: "demo-academy",
       runId: "synthetic-run-1",
       selectedCount: 1,
@@ -624,7 +678,7 @@ describe("member PDF import runner", () => {
     await executeMemberPdfImport(
       executionInput({
         mode: "confirm",
-        yesConfirmStaging: true,
+        yesConfirmEmulator: true,
         receipt: syntheticReceipt,
       }),
       {

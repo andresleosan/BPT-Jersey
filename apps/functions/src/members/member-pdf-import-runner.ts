@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import type { MemberReportKey } from "@bpt-jersey/domain";
@@ -14,11 +15,13 @@ import {
 import { MAX_MEMBER_REPORT_ROWS, type MemberImportWriteResult } from "./member-service.js";
 import { formatMemberPdfTextItems } from "./member-pdf-text.js";
 
-const approvedProjectId = "bptjersey-f5a25";
+const approvedTarget = "emulator" as const;
+const approvedProjectId = "demo-bpt-jersey" as const;
 const approvedAcademyId = "demo-academy";
+const approvedFirestoreEmulatorHost = "127.0.0.1:8080";
 const maxRunIdLength = 128;
 const maxReceiptAgeMs = 15 * 60 * 1000;
-const approvedSourceRoot = "F:\\Proyectos\\BPT Jersey\\Varios";
+const approvedSourceRoot = resolve(tmpdir(), "bpt-member-pdf-fixtures");
 const safeRunIdPattern = /^[A-Za-z0-9._:-]+$/u;
 export const MAX_MEMBER_PDF_BYTES = 10 * 1024 * 1024;
 export const approvedMemberPdfReportKeys: readonly MemberReportKey[] = Object.freeze([
@@ -33,15 +36,21 @@ export const approvedMemberPdfReportKeys: readonly MemberReportKey[] = Object.fr
 ]);
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/u;
 
-export type MemberPdfImportTarget = Readonly<{
+export type MemberPdfImportTargetInput = Readonly<{
   target: string;
   projectId: string;
   academyId: string;
 }>;
 
+export type MemberPdfImportTarget = Readonly<{
+  target: typeof approvedTarget;
+  projectId: typeof approvedProjectId;
+  academyId: typeof approvedAcademyId;
+}>;
+
 export type MemberPdfImportPlan = Readonly<{
   sourceRoot: string;
-  target: "staging";
+  target: typeof approvedTarget;
   projectId: typeof approvedProjectId;
   academyId: typeof approvedAcademyId;
   runId: string;
@@ -59,7 +68,7 @@ export type MemberPdfImportPlan = Readonly<{
 }>;
 
 export type MemberPdfImportReceipt = Readonly<{
-  target: "staging";
+  target: typeof approvedTarget;
   projectId: typeof approvedProjectId;
   academyId: typeof approvedAcademyId;
   runId: string;
@@ -87,7 +96,7 @@ export type MemberPdfImportExecutionInput = Readonly<{
   capturedAt: string;
   mode: "dry-run" | "confirm";
   receipt?: MemberPdfImportReceipt;
-  yesConfirmStaging?: boolean;
+  yesConfirmEmulator?: boolean;
   now?: string;
 }>;
 
@@ -95,7 +104,7 @@ export type MemberPdfImportExecutionServices = Readonly<{
   buildPlan: (
     input: Omit<
       MemberPdfImportExecutionInput,
-      "mode" | "receipt" | "yesConfirmStaging" | "importRunId" | "now"
+      "mode" | "receipt" | "yesConfirmEmulator" | "importRunId" | "now"
     >,
   ) => Promise<MemberPdfImportPlan>;
   apply: (plan: MemberPdfImportPlan, importRunId: string) => Promise<MemberImportWriteResult>;
@@ -115,7 +124,7 @@ export type MemberPdfImportRollbackInput = Readonly<{
 }>;
 
 export type MemberPdfImportRollbackResult = Readonly<{
-  target: "staging";
+  target: typeof approvedTarget;
   projectId: typeof approvedProjectId;
   academyId: typeof approvedAcademyId;
   runId: string;
@@ -128,13 +137,13 @@ export type MemberPdfImportRollbackServices = Readonly<{
 
 export type MemberPdfImportCliArguments = Readonly<{
   mode: "dry-run" | "confirm";
-  target: "staging";
+  target: typeof approvedTarget;
   projectId: typeof approvedProjectId;
   academyId: typeof approvedAcademyId;
   sourceRoot: typeof approvedSourceRoot;
   runId: string;
   capturedAt: string;
-  yesConfirmStaging: boolean;
+  yesConfirmEmulator: boolean;
   receiptPath?: string;
 }>;
 
@@ -143,6 +152,7 @@ export type MemberPdfImportCliIo = Readonly<{
   writeReceipt?: (path: string, content: string) => Promise<void>;
   now?: string;
   initializeAdmin?: () => void;
+  firestoreEmulatorHost?: string;
 }>;
 
 export type MemberPdfImportCliResult = Readonly<{
@@ -202,8 +212,14 @@ export function validateFirebaseAdminProjectId(projectId: string): void {
   if (projectId !== approvedProjectId) throw new Error("Firebase Admin project is not allowed");
 }
 
-export function validateMemberPdfImportCliEnvironment(emulatorHost: string | undefined): void {
-  if (emulatorHost?.trim()) throw new Error("Firebase emulator target is not allowed");
+export function validateMemberPdfImportCliEnvironment(
+  mode: "dry-run" | "confirm",
+  firestoreEmulatorHost: string | undefined,
+): void {
+  if (mode === "dry-run" && firestoreEmulatorHost === undefined) return;
+  if (firestoreEmulatorHost !== approvedFirestoreEmulatorHost) {
+    throw new Error("Firestore emulator host is required");
+  }
 }
 
 export function parseMemberPdfImportCliArguments(
@@ -218,7 +234,7 @@ export function parseMemberPdfImportCliArguments(
     "--captured-at",
     "--receipt",
   ]);
-  const booleanFlags = new Set(["--dry-run", "--confirm", "--yes-confirm-staging"]);
+  const booleanFlags = new Set(["--dry-run", "--confirm", "--yes-confirm-emulator"]);
   const seen = new Set<string>();
   const values = new Map<string, string>();
   let mode: "dry-run" | "confirm" | undefined;
@@ -234,7 +250,7 @@ export function parseMemberPdfImportCliArguments(
       mode = flag.slice(2) as "dry-run" | "confirm";
       continue;
     }
-    if (flag === "--yes-confirm-staging") continue;
+    if (flag === "--yes-confirm-emulator") continue;
     const value = argv[index + 1];
     if (!value || value.startsWith("--")) throw new Error(`Missing value for ${flag}`);
     values.set(flag, value);
@@ -254,8 +270,8 @@ export function parseMemberPdfImportCliArguments(
   if (mode === "confirm" && !seen.has("--receipt")) {
     throw new Error("Confirm requires --receipt");
   }
-  if (mode !== "confirm" && seen.has("--yes-confirm-staging")) {
-    throw new Error("--yes-confirm-staging is only valid with --confirm");
+  if (mode !== "confirm" && seen.has("--yes-confirm-emulator")) {
+    throw new Error("--yes-confirm-emulator is only valid with --confirm");
   }
   const target = values.get("--target");
   const projectId = values.get("--project-id");
@@ -279,13 +295,13 @@ export function parseMemberPdfImportCliArguments(
   const receiptPath = values.get("--receipt");
   return Object.freeze({
     mode,
-    target: "staging",
+    target: approvedTarget,
     projectId: approvedProjectId,
     academyId: approvedAcademyId,
     sourceRoot: approvedSourceRoot,
     runId: requireRunId(runId),
     capturedAt,
-    yesConfirmStaging: seen.has("--yes-confirm-staging"),
+    yesConfirmEmulator: seen.has("--yes-confirm-emulator"),
     ...(receiptPath === undefined ? {} : { receiptPath }),
   });
 }
@@ -297,7 +313,10 @@ export function compareMemberPdfFileNames(left: string, right: string): number {
 
 export async function discoverMemberPdfFiles(sourceRoot: string): Promise<readonly string[]> {
   const root = requireText(sourceRoot, "source root", 4_096);
-  const rootStats = await stat(root);
+  const rootStats = await lstat(root);
+  if (rootStats.isSymbolicLink()) {
+    throw new Error("Member PDF import source root cannot be a symbolic link");
+  }
   if (!rootStats.isDirectory()) throw new Error("Member PDF import source root is not a directory");
   const entries = await readdir(root, { withFileTypes: true });
   return Object.freeze(
@@ -333,13 +352,13 @@ export function parseMemberPdfImportReport(text: string, maxRows = MAX_MEMBER_RE
   return parseMemberReport(text, { maxRows });
 }
 
-export function validateMemberPdfImportTarget(input: MemberPdfImportTarget): void {
+export function validateMemberPdfImportTarget(input: MemberPdfImportTargetInput): void {
   if (
     typeof input !== "object" ||
     input === null ||
     Array.isArray(input) ||
     Object.keys(input).some((key) => !["target", "projectId", "academyId"].includes(key)) ||
-    input.target !== "staging" ||
+    input.target !== approvedTarget ||
     input.projectId !== approvedProjectId ||
     input.academyId !== approvedAcademyId
   ) {
@@ -436,7 +455,7 @@ export async function buildMemberPdfImportPlan(
   }
   const plan: MemberPdfImportPlan = {
     sourceRoot: resolve(sourceRoot),
-    target: "staging" as const,
+    target: approvedTarget,
     projectId: approvedProjectId,
     academyId: approvedAcademyId,
     runId,
@@ -508,7 +527,7 @@ export function validateMemberPdfImportReceipt(receipt: unknown): MemberPdfImpor
     typeof receipt !== "object" ||
     receipt === null ||
     Array.isArray(receipt) ||
-    candidate.target !== "staging" ||
+    candidate.target !== approvedTarget ||
     candidate.projectId !== approvedProjectId ||
     candidate.academyId !== approvedAcademyId ||
     typeof candidate.sourceHash !== "string" ||
@@ -575,7 +594,7 @@ export async function executeMemberPdfImport(
     throw new Error("Member PDF import mode is required and must be unambiguous");
   }
   if (input.mode === "confirm") {
-    if (input.yesConfirmStaging !== true) {
+    if (input.yesConfirmEmulator !== true) {
       throw new Error("Explicit confirmation is required");
     }
     if (input.receipt === undefined) {
@@ -614,6 +633,7 @@ export async function runMemberPdfImportCli(
   io: MemberPdfImportCliIo = {},
 ): Promise<MemberPdfImportCliResult> {
   const input = parseMemberPdfImportCliArguments(argv);
+  validateMemberPdfImportCliEnvironment(input.mode, io.firestoreEmulatorHost);
   const receipt =
     input.mode === "confirm"
       ? validateMemberPdfImportReceipt(
@@ -632,7 +652,7 @@ export async function runMemberPdfImportCli(
       capturedAt: input.capturedAt,
       mode: input.mode,
       ...(receipt === undefined ? {} : { receipt }),
-      yesConfirmStaging: input.yesConfirmStaging,
+      yesConfirmEmulator: input.yesConfirmEmulator,
       ...(io.now === undefined ? {} : { now: io.now }),
     },
     services,
@@ -665,7 +685,7 @@ export async function planMemberPdfImportRollback(
     );
   }).length;
   return Object.freeze({
-    target: "staging",
+    target: approvedTarget,
     projectId: approvedProjectId,
     academyId: approvedAcademyId,
     runId: input.runId,

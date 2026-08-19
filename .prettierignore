@@ -5,6 +5,7 @@
 **/build/
 **/coverage/
 **/dist/
+**/graphify-out/
 **/lib/
 **/node_modules/
 **/out/

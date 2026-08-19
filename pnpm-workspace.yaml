@@ -13,5 +13,8 @@ allowBuilds:
   # package is sufficient for our lint workflow, so execution stays blocked.
   unrs-resolver: false
 
+overrides:
+  nanoid: 3.3.18
+
 catalog:
   zod: 4.4.3

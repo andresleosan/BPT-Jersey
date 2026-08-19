@@ -21,6 +21,31 @@ ya aplicada.
 backups ni restauraciones, no aprueba staging o produccion y no toca datos productivos. No se
 considera que T013 haya migrado datos.
 
+## Bloqueo de reutilizacion del importador PDF (T084, 2026-08-18)
+
+`member-pdf-import-run-2026-08-12.yaml` es evidencia historica de una ejecucion productiva. No es
+una allowlist, un receipt reutilizable ni una autorizacion para otra corrida. En particular, su
+texto `staging-allowlist` describe la etiqueta incorrecta usada entonces y no permite tratar
+`bptjersey-f5a25` como staging.
+
+El runner vigente acepta solamente `target=emulator`, `projectId=demo-bpt-jersey` y
+`academyId=demo-academy`. Un dry-run puede ejecutarse sin Firebase Admin ni host. Un confirm exige
+ademas `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`, receipt fresca y `--yes-confirm-emulator`; cualquier
+otro host, target o proyecto falla antes de leer el receipt, abrir los PDFs o inicializar Admin.
+La fuente CLI debe ser exactamente `%TEMP%\bpt-member-pdf-fixtures` y contener solo fixtures
+sinteticos. La ruta historica de PDFs reales y cualquier root symlink/junction quedan rechazados.
+Estas guardas no autorizan staging real ni produccion.
+
+```powershell
+corepack pnpm --filter @bpt-jersey/domain build:runtime
+corepack pnpm --filter @bpt-jersey/functions build
+node qa/scripts/import-member-pdfs.mjs --dry-run --target emulator --project-id demo-bpt-jersey --academy-id demo-academy --source-root "$env:TEMP\bpt-member-pdf-fixtures" --run-id synthetic-run-1 --captured-at 2026-08-18T00:00:00.000Z --receipt "$env:TEMP\bpt-member-pdf-receipt.json"
+```
+
+No ejecutar el ejemplo con datos reales ni convertirlo en `confirm` fuera de Firebase Emulator
+Suite. El archivo de receipt es efimero, debe quedar fuera del repositorio y no sustituye las
+pruebas o el rollback de la tarea activa.
+
 ## Reglas no negociables
 
 1. Toda migracion tiene un registro completo, un `up` y un `downOrRestore` antes de cualquier
