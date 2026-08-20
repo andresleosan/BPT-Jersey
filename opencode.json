@@ -29,8 +29,8 @@
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": ["npx", "@playwright/mcp@latest"],
-      "enabled": false
+      "command": ["npx", "@playwright/mcp@0.0.79", "--extension"],
+      "enabled": true
     }
   }
 }

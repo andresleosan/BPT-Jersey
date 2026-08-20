@@ -4,6 +4,7 @@ import {
   accessDenialReasons,
   accessOperations,
   accessScopes,
+  auditActions,
   dataClassifications,
   domainErrorCodes,
   domainModules,
@@ -11,6 +12,7 @@ import {
   evaluateAccess,
   ok,
   parseUserClaims,
+  parseAuditEventDraft,
   userRoles,
 } from "./index";
 import type {
@@ -150,6 +152,23 @@ describe("domain contracts", () => {
     expect(Object.isFrozen(accessScopes)).toBe(true);
     expect(Object.isFrozen(accessDenialReasons)).toBe(true);
     expect(evaluateAccess).toBeTypeOf("function");
+  });
+
+  it("exposes immutable audit contracts from the public entrypoint", () => {
+    expect(auditActions).toEqual([
+      "admin.role.granted",
+      "admin.role.revoked",
+      "member.import.confirmed",
+      "regyfit.access.imported",
+      "membership.created",
+      "membership.status.changed",
+      "invoice.created",
+      "invoice.voided",
+      "payment.recorded",
+      "invoice.status.changed",
+    ]);
+    expect(Object.isFrozen(auditActions)).toBe(true);
+    expect(parseAuditEventDraft).toBeTypeOf("function");
   });
 });
 

@@ -22,6 +22,12 @@ function AccountContent() {
       <p className="client-destination-intro">
         Your authenticated client area is ready for account and progress features as they are added.
       </p>
+      <a className="button button-primary profile-account-link" href="/account/profile">
+        Complete your profile
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/family">
+        View your family
+      </a>
       <dl className="client-identity">
         <div>
           <dt>Name</dt>

@@ -53,6 +53,10 @@ task-*-report.md
 playwright-report/
 test-results/
 
+# Estado local de herramientas de análisis y brainstorming
+.superpowers/
+graphify-out/
+
 # Editor / sistema operativo
 .DS_Store
 .vscode/

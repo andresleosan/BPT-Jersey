@@ -22,6 +22,7 @@ type Transaction = Readonly<{
   get: (ref: {
     path: string;
   }) => Promise<{ exists: boolean; data: () => StoredDocument | undefined }>;
+  create: (ref: { path: string }, data: StoredDocument) => Transaction;
   set: (ref: { path: string }, data: StoredDocument) => Transaction;
 }>;
 
@@ -47,7 +48,17 @@ function createFirestore(options: { failCommit?: boolean } = {}) {
             data: () => staged.get(ref.path) ?? records.get(ref.path),
           };
         },
+        create: (ref, data) => {
+          if (records.has(ref.path) || staged.has(ref.path)) {
+            throw new Error("synthetic firestore create collision");
+          }
+          staged.set(ref.path, { ...data });
+          return transaction;
+        },
         set: (ref, data) => {
+          if (ref.path.includes("/auditEvents/")) {
+            throw new Error("audit events must use transaction.create");
+          }
           staged.set(ref.path, { ...data });
           return transaction;
         },
@@ -376,17 +387,57 @@ describe("Regyfit access importer", () => {
     expect(audits).toHaveLength(1);
     expect(audits[0]?.[1]).toEqual(
       expect.objectContaining({
+        auditEventId: "regyfit-access-synthetic-run-1",
         actorId: "system-regyfit-importer",
         purpose: "approved Regyfit access import",
         sourceRoute,
         importRunId: "synthetic-run-1",
         recordCount: 10,
         contentSha256: first.contentSha256,
+        occurredAt: expect.anything(),
       }),
     );
     expect(audits[0]?.[1]).not.toHaveProperty("rawRecord");
     expect(audits[0]?.[1]).not.toHaveProperty("memberDisplayName");
     expect(audits[0]?.[1]).not.toHaveProperty("ip");
+  });
+
+  it("accepts an exact legacy audit replay without generated identity fields", async () => {
+    const root = await createChunk();
+    const { db, records } = createFirestore();
+    const first = await importRegyfitAccessRecords(config(root), db, timestamp);
+    const audit = records.get(first.auditEventPath);
+    expect(audit).toBeDefined();
+    const legacy = { ...(audit as StoredDocument) };
+    delete legacy.auditEventId;
+    delete legacy.occurredAt;
+    records.set(first.auditEventPath, legacy);
+
+    await expect(importRegyfitAccessRecords(config(root), db, timestamp)).resolves.toEqual({
+      ...first,
+      importedCount: 0,
+      skippedCount: 10,
+    });
+    expect(records.get(first.auditEventPath)).toEqual(legacy);
+  });
+
+  it("rejects divergent or extended audit replays without overwriting them", async () => {
+    const root = await createChunk();
+    for (const mutate of [
+      (audit: StoredDocument) => ({ ...audit, purpose: "changed purpose" }),
+      (audit: StoredDocument) => ({ ...audit, contentSha256: "f".repeat(64) }),
+      (audit: StoredDocument) => ({ ...audit, email: "person@example.test" }),
+    ]) {
+      const { db, records } = createFirestore();
+      const first = await importRegyfitAccessRecords(config(root), db, timestamp);
+      const changed = mutate(records.get(first.auditEventPath) as StoredDocument);
+      records.set(first.auditEventPath, changed);
+
+      await expect(importRegyfitAccessRecords(config(root), db, timestamp)).rejects.toThrow(
+        "Import conflicts with existing audit data",
+      );
+      expect(records.get(first.auditEventPath)).toEqual(changed);
+    }
   });
 
   it("aborts on a conflicting document without overwriting it or writing audit", async () => {

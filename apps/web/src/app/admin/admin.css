@@ -1649,3 +1649,249 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.family-admin-page {
+  max-width: 70rem;
+}
+
+.family-admin-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.family-admin-card,
+.family-created-card {
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  min-width: 0;
+  padding: clamp(1.15rem, 3vw, 2rem);
+}
+
+.family-admin-card h3,
+.family-created-card h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  line-height: 0.9;
+  margin: 0.55rem 0 1.25rem;
+  text-transform: uppercase;
+}
+
+.family-field {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.4rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.family-field input,
+.family-field select {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  letter-spacing: normal;
+  min-height: 2.9rem;
+  padding: 0.65rem 0.7rem;
+  text-transform: none;
+  width: 100%;
+}
+
+.family-field input:focus-visible,
+.family-field select:focus-visible,
+.family-preference input:focus-visible,
+.family-text-button:focus-visible,
+.family-add-button:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.family-field-error {
+  color: #6f1111;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.family-minors-fieldset {
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  margin: 0;
+}
+
+.family-minors-fieldset legend {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.family-helper {
+  color: var(--muted);
+  margin: 0.8rem 0 1.25rem;
+}
+
+.family-minor-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.family-minor-row {
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 1rem;
+}
+
+.family-minor-row-heading,
+.family-preferences,
+.family-submit,
+.family-message,
+.family-created-card {
+  grid-column: 1 / -1;
+}
+
+.family-minor-row-heading {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+}
+
+.family-minor-row-heading h3 {
+  font-size: 1.7rem;
+  margin: 0;
+}
+
+.family-preferences {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.family-preferences legend {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.family-preference-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.family-preference {
+  align-items: center;
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.family-preference:has(input:checked) {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.family-text-button,
+.family-add-button {
+  background: transparent;
+  border: 1px solid var(--bpt-purple);
+  color: var(--bpt-purple-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.family-text-button:hover,
+.family-add-button:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.family-text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.family-add-button {
+  margin-top: 1rem;
+}
+
+.family-submit {
+  justify-self: start;
+  margin-top: 0.25rem;
+}
+
+.family-message {
+  border-left: 0.3rem solid var(--bpt-purple);
+  margin: 0;
+  padding: 0.8rem 1rem;
+}
+
+.family-message-error {
+  background: #fff3f3;
+  border-left-color: #9c1c1c;
+  color: #6f1111;
+}
+
+.family-message-success {
+  background: var(--gi-white);
+  border-left-color: var(--bpt-lime);
+}
+
+.family-created-card {
+  border-top-color: var(--bpt-lime);
+  margin-top: 1rem;
+}
+
+.family-created-card ul {
+  border-top: 1px solid var(--line);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.family-created-card li {
+  border-bottom: 1px solid var(--line);
+  padding: 0.75rem 0;
+}
+
+.family-operation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 42rem) {
+  .family-minor-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .family-text-button,
+  .family-add-button {
+    transition: none;
+  }
+}

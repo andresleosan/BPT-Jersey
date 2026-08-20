@@ -1,9 +1,17 @@
 export type LoginRole = "administrator" | "client";
-export type AuthDestination = "/admin" | "/account" | "/shop" | "/checkout";
+export type AuthDestination =
+  | "/admin"
+  | "/account"
+  | "/account/profile"
+  | "/account/family"
+  | "/shop"
+  | "/checkout";
 
 const allowlistedDestinations = new Set<AuthDestination>([
   "/admin",
   "/account",
+  "/account/profile",
+  "/account/family",
   "/shop",
   "/checkout",
 ]);
@@ -30,7 +38,7 @@ export function defaultDestination(
 export type ClientSessionRequirement = Readonly<{
   status: "required";
   loginPath: string;
-  returnPath: "/account" | "/shop" | "/checkout";
+  returnPath: "/account" | "/account/profile" | "/account/family" | "/shop" | "/checkout";
 }>;
 
 export function requireClientSession(returnTo: string | null = null): ClientSessionRequirement {

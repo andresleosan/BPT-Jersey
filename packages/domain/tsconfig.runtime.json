@@ -16,7 +16,13 @@
     "src/identifiers.ts",
     "src/actor-context.ts",
     "src/auth/admin-contracts.ts",
+    "src/audit/audit-event.ts",
     "src/authorization/access-policy.ts",
-    "src/members/member-contracts.ts"
+    "src/members/member-contracts.ts",
+    "src/profiles/profile-contracts.ts",
+    "src/families/family-contracts.ts",
+    "src/memberships/plan-contracts.ts",
+    "src/memberships/membership-contracts.ts",
+    "src/finance/finance-contracts.ts"
   ]
 }

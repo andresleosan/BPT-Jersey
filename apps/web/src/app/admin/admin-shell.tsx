@@ -14,6 +14,7 @@ import "./admin.css";
 const navigationItems = [
   { label: "Overview", href: "/admin" },
   { label: "Members", href: "/admin/members" },
+  { label: "Families", href: "/admin/families" },
   { label: "Groups / Teams", href: "/admin/groups" },
   { label: "Activities", href: "/admin/activities" },
   { label: "Attendance", href: "/admin/attendance" },

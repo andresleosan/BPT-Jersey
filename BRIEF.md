@@ -77,34 +77,34 @@ cobros online reales y mensajería externa no bloquean este piloto.
 
 ### Catálogo inicial de memberships
 
-| Plan | Precio | Acceso vinculante |
-|---|---:|---|
-| Pay as you go | GBP 10 por sesión | Town y West; aplica la regla de deuda PAYG. |
-| BPT Jersey Adult | GBP 125/mes | Todas las clases y Open Mats de Town y West. |
-| West Kids 1x | GBP 95/mes | Una clase semanal y West Open Mats; sin Town Open Mats. |
-| West Kids 2x | GBP 115/mes | Dos clases semanales y acceso a Town Open Mats. |
-| West Adult | GBP 65/mes | Clases/Open Mats West sin límite y Town Open Mats. |
-| West Teens | GBP 45/mes | Dos clases semanales; Open Mat cuesta GBP 7.50 por sesión. |
-| Town Adult | GBP 85/mes | Clases y Open Mats Town sin límite. |
-| Town Kids 1x | GBP 95/mes | Una clase semanal. |
-| Town Kids 2x | GBP 135/mes | Dos clases semanales y Open Mats Town sin límite. |
-| Town Teens | GBP 45/mes | Dos clases semanales; Open Mat cuesta GBP 7.50 por sesión. |
+| Plan             |            Precio | Acceso vinculante                                          |
+| ---------------- | ----------------: | ---------------------------------------------------------- |
+| Pay as you go    | GBP 10 por sesión | Town y West; aplica la regla de deuda PAYG.                |
+| BPT Jersey Adult |       GBP 125/mes | Todas las clases y Open Mats de Town y West.               |
+| West Kids 1x     |        GBP 95/mes | Una clase semanal y West Open Mats; sin Town Open Mats.    |
+| West Kids 2x     |       GBP 115/mes | Dos clases semanales y acceso a Town Open Mats.            |
+| West Adult       |        GBP 65/mes | Clases/Open Mats West sin límite y Town Open Mats.         |
+| West Teens       |        GBP 45/mes | Dos clases semanales; Open Mat cuesta GBP 7.50 por sesión. |
+| Town Adult       |        GBP 85/mes | Clases y Open Mats Town sin límite.                        |
+| Town Kids 1x     |        GBP 95/mes | Una clase semanal.                                         |
+| Town Kids 2x     |       GBP 135/mes | Dos clases semanales y Open Mats Town sin límite.          |
+| Town Teens       |        GBP 45/mes | Dos clases semanales; Open Mat cuesta GBP 7.50 por sesión. |
 
 ## MVP piloto priorizado
 
 Todos los bloques siguientes pertenecen al piloto completo. El puntaje RICE simplificado ordena
 la construcción; no elimina requisitos obligatorios de los DOCX.
 
-| Orden | Capacidad | Alcance | Impacto | Confianza | Esfuerzo inverso | Puntaje | Motivo |
-|---:|---|---:|---:|---:|---:|---:|---|
-| 1 | Security, isolated pilot and audit trail | 5 | 5 | 5 | 4 | 4.75 | Bloquea escrituras ambiguas y protege menores, salud y finanzas. |
-| 2 | Adult, family, minor and staff registration | 5 | 5 | 5 | 3 | 4.50 | Fuente unificada de identidad, tutela, consentimiento y asignación. |
-| 3 | Memberships, PAYG debt and manual finance | 5 | 5 | 5 | 3 | 4.50 | Define acceso comercial sin depender de un proveedor externo. |
-| 4 | Groups, curriculum, classes and bookings | 5 | 5 | 5 | 2 | 4.25 | Habilita el calendario operativo y el autoservicio. |
-| 5 | Check-in/out, attendance and punctuality | 5 | 5 | 5 | 2 | 4.25 | Flujo diario crítico, incluida la seguridad de menores. |
-| 6 | IBJJF levels, skills and reviewed promotions | 4 | 5 | 5 | 2 | 4.00 | Implementa el progreso solicitado sin promociones automáticas. |
-| 7 | Role portals and in-app notifications | 4 | 4 | 5 | 3 | 4.00 | Conecta la operación de owner, staff, coach y familias. |
-| 8 | Dashboards, birthdays, reports and pilot QA | 4 | 4 | 4 | 2 | 3.50 | Cierra trazabilidad, visibilidad y evidencia de entrega. |
+| Orden | Capacidad                                    | Alcance | Impacto | Confianza | Esfuerzo inverso | Puntaje | Motivo                                                              |
+| ----: | -------------------------------------------- | ------: | ------: | --------: | ---------------: | ------: | ------------------------------------------------------------------- |
+|     1 | Security, isolated pilot and audit trail     |       5 |       5 |         5 |                4 |    4.75 | Bloquea escrituras ambiguas y protege menores, salud y finanzas.    |
+|     2 | Adult, family, minor and staff registration  |       5 |       5 |         5 |                3 |    4.50 | Fuente unificada de identidad, tutela, consentimiento y asignación. |
+|     3 | Memberships, PAYG debt and manual finance    |       5 |       5 |         5 |                3 |    4.50 | Define acceso comercial sin depender de un proveedor externo.       |
+|     4 | Groups, curriculum, classes and bookings     |       5 |       5 |         5 |                2 |    4.25 | Habilita el calendario operativo y el autoservicio.                 |
+|     5 | Check-in/out, attendance and punctuality     |       5 |       5 |         5 |                2 |    4.25 | Flujo diario crítico, incluida la seguridad de menores.             |
+|     6 | IBJJF levels, skills and reviewed promotions |       4 |       5 |         5 |                2 |    4.00 | Implementa el progreso solicitado sin promociones automáticas.      |
+|     7 | Role portals and in-app notifications        |       4 |       4 |         5 |                3 |    4.00 | Conecta la operación de owner, staff, coach y familias.             |
+|     8 | Dashboards, birthdays, reports and pilot QA  |       4 |       4 |         4 |                2 |    3.50 | Cierra trazabilidad, visibilidad y evidencia de entrega.            |
 
 ## Reglas no negociables del MVP
 
@@ -140,6 +140,8 @@ la construcción; no elimina requisitos obligatorios de los DOCX.
 - Grupos, currículo, clases, seminarios, bookings, cancelaciones y avisos internos.
 - QR/manual/GPS asistido, check-in/out, asistencia, puntualidad y operación preclase.
 - 27 belts, 144 stripes, técnicas, progreso y promociones aprobadas por head coach.
+- El alcance de Levels es completo dentro del MVP: las 171 definiciones observadas, los 27 belts,
+  los 144 stripes y las 11 habilidades deben recrearse; no se difiere ninguna parte a v2.
 - Portales por rol, cumpleaños, comparación adulta opt-in, dashboards y reportes.
 - QA por rol, accesibilidad, carga, Rules, restauración y rollback del piloto.
 

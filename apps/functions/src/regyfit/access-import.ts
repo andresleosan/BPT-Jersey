@@ -10,6 +10,13 @@ import {
   normalizeRegyfitAccessEnvelope,
 } from "@bpt-jersey/domain/migration/regyfit-access";
 import type { RegyfitAccessRecord, UtcDateTime } from "@bpt-jersey/domain";
+import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+
+import {
+  appendAuditEventInTransaction,
+  matchesAuditEventReplay,
+  type AuditCreateTransaction,
+} from "../audit/audit-writer.js";
 
 export type ImportConfig = Readonly<{
   privateStagingRoot: string;
@@ -329,6 +336,20 @@ export async function importRegyfitAccessRecords(
   const hash = contentHash(records);
   const paths = records.map(recordPath);
   const auditEventPath = auditPath(config);
+  const auditRef = db.doc(auditEventPath);
+  const auditDraft = {
+    academyId: config.academyId,
+    actorId: "system-regyfit-importer",
+    action: "regyfit.access.imported",
+    targetRef: `academies/${config.academyId}/regyfitAccessRecords`,
+    purpose: "approved Regyfit access import",
+    correlationId: `regyfit-access:${config.runId}`,
+    importRunId: config.runId,
+    moduleKey: config.moduleKey,
+    sourceRoute: config.sourceRoute,
+    recordCount: records.length,
+    contentSha256: hash,
+  } as unknown as AuditEventDraft;
   let importedCount = 0;
   let skippedCount = 0;
 
@@ -337,7 +358,7 @@ export async function importRegyfitAccessRecords(
       let transactionImportedCount = 0;
       let transactionSkippedCount = 0;
       const snapshots = await Promise.all(paths.map((path) => transaction.get(db.doc(path))));
-      const existingAudit = await transaction.get(db.doc(auditEventPath));
+      const existingAudit = await transaction.get(auditRef);
       for (const [index, snapshot] of snapshots.entries()) {
         const record = records[index];
         if (!record) fail("Import could not be completed");
@@ -353,24 +374,17 @@ export async function importRegyfitAccessRecords(
           fail("Import conflicts with existing data");
         }
       }
-      const audit = {
-        academyId: config.academyId,
-        actorId: "system-regyfit-importer",
-        action: "regyfit.access.imported",
-        targetRef: `academies/${config.academyId}/regyfitAccessRecords`,
-        purpose: "approved Regyfit access import",
-        correlationId: `regyfit-access:${config.runId}`,
-        importRunId: config.runId,
-        moduleKey: config.moduleKey,
-        sourceRoute: config.sourceRoute,
-        recordCount: records.length,
-        contentSha256: hash,
-        result: "completed",
-        schemaVersion: 1,
-      } satisfies Record<string, unknown>;
       if (!existingAudit.exists) {
-        transaction.set(db.doc(auditEventPath), audit);
-      } else if (canonicalJson(existingAudit.data()) !== canonicalJson(audit)) {
+        appendAuditEventInTransaction(
+          transaction as unknown as AuditCreateTransaction<typeof auditRef>,
+          auditRef,
+          auditDraft,
+        );
+      } else if (
+        !matchesAuditEventReplay(existingAudit.data(), auditRef.id, auditDraft, {
+          allowLegacyMissingGeneratedFields: true,
+        })
+      ) {
         fail("Import conflicts with existing audit data");
       }
       importedCount = transactionImportedCount;

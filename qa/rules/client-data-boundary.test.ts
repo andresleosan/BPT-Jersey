@@ -68,6 +68,10 @@ const rootBackendOnlyCollections = Object.freeze([
   "memberImportCleanupJournal",
   "memberImportPreviews",
 ] as const);
+const familyRelationshipCollections = Object.freeze(["families", "relationships"] as const);
+const planCollections = Object.freeze(["plans"] as const);
+const membershipCollections = Object.freeze(["memberships"] as const);
+const financeCollections = Object.freeze(["invoices", "payments"] as const);
 const academyCollections = Object.freeze([
   ...canonicalCollections,
   ...academyBackendOnlyCollections,
@@ -141,6 +145,102 @@ afterAll(async () => {
 });
 
 describe("client Firebase data boundary", () => {
+  it.each(actorCases)(
+    "keeps family and relationship collections deny-by-default for $name",
+    async ({ uid, claims }) => {
+      const context =
+        uid === null
+          ? testEnvironment.unauthenticatedContext()
+          : testEnvironment.authenticatedContext(uid, claims);
+      const firestore = context.firestore();
+
+      for (const name of familyRelationshipCollections) {
+        const existing = doc(firestore, `${academyRoot}/${name}/synthetic-1`);
+        const candidate = doc(firestore, `${academyRoot}/${name}/candidate-family-1`);
+        await Promise.all([
+          assertFails(getDoc(existing)),
+          assertFails(getDocs(collection(firestore, `${academyRoot}/${name}`))),
+          assertFails(setDoc(candidate, { academyId, synthetic: true })),
+          assertFails(updateDoc(existing, { synthetic: false })),
+          assertFails(deleteDoc(existing)),
+        ]);
+      }
+    },
+    120_000,
+  );
+
+  it.each(actorCases)(
+    "keeps plan collections deny-by-default for $name",
+    async ({ uid, claims }) => {
+      const context =
+        uid === null
+          ? testEnvironment.unauthenticatedContext()
+          : testEnvironment.authenticatedContext(uid, claims);
+      const firestore = context.firestore();
+
+      for (const name of planCollections) {
+        const existing = doc(firestore, `${academyRoot}/${name}/synthetic-1`);
+        const candidate = doc(firestore, `${academyRoot}/${name}/candidate-plan-1`);
+        await Promise.all([
+          assertFails(getDoc(existing)),
+          assertFails(getDocs(collection(firestore, `${academyRoot}/${name}`))),
+          assertFails(setDoc(candidate, { academyId, synthetic: true })),
+          assertFails(updateDoc(existing, { synthetic: false })),
+          assertFails(deleteDoc(existing)),
+        ]);
+      }
+    },
+    120_000,
+  );
+
+  it.each(actorCases)(
+    "keeps membership collections deny-by-default for $name",
+    async ({ uid, claims }) => {
+      const context =
+        uid === null
+          ? testEnvironment.unauthenticatedContext()
+          : testEnvironment.authenticatedContext(uid, claims);
+      const firestore = context.firestore();
+
+      for (const name of membershipCollections) {
+        const existing = doc(firestore, `${academyRoot}/${name}/synthetic-1`);
+        const candidate = doc(firestore, `${academyRoot}/${name}/candidate-membership-1`);
+        await Promise.all([
+          assertFails(getDoc(existing)),
+          assertFails(getDocs(collection(firestore, `${academyRoot}/${name}`))),
+          assertFails(setDoc(candidate, { academyId, synthetic: true })),
+          assertFails(updateDoc(existing, { synthetic: false })),
+          assertFails(deleteDoc(existing)),
+        ]);
+      }
+    },
+    120_000,
+  );
+
+  it.each(actorCases)(
+    "keeps finance collections deny-by-default for $name",
+    async ({ uid, claims }) => {
+      const context =
+        uid === null
+          ? testEnvironment.unauthenticatedContext()
+          : testEnvironment.authenticatedContext(uid, claims);
+      const firestore = context.firestore();
+
+      for (const name of financeCollections) {
+        const existing = doc(firestore, `${academyRoot}/${name}/synthetic-1`);
+        const candidate = doc(firestore, `${academyRoot}/${name}/candidate-finance-1`);
+        await Promise.all([
+          assertFails(getDoc(existing)),
+          assertFails(getDocs(collection(firestore, `${academyRoot}/${name}`))),
+          assertFails(setDoc(candidate, { academyId, synthetic: true })),
+          assertFails(updateDoc(existing, { synthetic: false })),
+          assertFails(deleteDoc(existing)),
+        ]);
+      }
+    },
+    120_000,
+  );
+
   it.each(actorCases)(
     "denies every direct Firestore and RTDB operation for $name",
     async ({ uid, claims }) => {

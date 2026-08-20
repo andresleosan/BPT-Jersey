@@ -1,0 +1,5125 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-08-18",
+  "source": {
+    "system": "Regyfit",
+    "levelSystem": "JIU-JITSU - IBJJF",
+    "url": "https://www.regyfit.com/admin2/index.php",
+    "method": "authenticated read-only UI and GET detail endpoints",
+    "mutationsPerformed": false
+  },
+  "precedence": {
+    "businessRules": "BPTJ FUNCTIONS APP.docx and BPT-memberships.docx",
+    "hierarchyVisualsAndObservedSkills": "Regyfit",
+    "conflicts": "DOCX wins; unresolved Regyfit anomalies remain flagged"
+  },
+  "counts": {
+    "definitions": 171,
+    "belts": 27,
+    "stripes": 144
+  },
+  "skillRequirementSets": [
+    {
+      "key": "white-foundation-v1",
+      "requirements": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    }
+  ],
+  "skillCatalog": [
+    {
+      "key": "tie-the-belt",
+      "displayLabel": "Tie The Belt",
+      "observedLabel": null,
+      "minimumRating": 2,
+      "sequence": 1
+    },
+    {
+      "key": "warm-up-1-technical-stand-up",
+      "displayLabel": "Warm Up 1 - Technical Stand Up",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 2
+    },
+    {
+      "key": "warm-up-10-sprawl-walking-backwards",
+      "displayLabel": "Warm Up 10 - Sprawl Walking Backwards",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 3
+    },
+    {
+      "key": "warm-up-2-bridges",
+      "displayLabel": "Warm Up 2 - Bridges",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 4
+    },
+    {
+      "key": "warm-up-3-front-breakfall",
+      "displayLabel": "Warm Up 3 - Front Breakfall",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 5
+    },
+    {
+      "key": "warm-up-4-back-breakfall",
+      "displayLabel": "Warm Up 4 - Back Breakfall",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 6
+    },
+    {
+      "key": "warm-up-5-front-roll",
+      "displayLabel": "Warm Up 5 - Front Roll",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 7
+    },
+    {
+      "key": "warm-up-6-backwards-roll",
+      "displayLabel": "Warm Up 6 - Backwards Roll",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 8
+    },
+    {
+      "key": "warm-up-7-shoulder-roll",
+      "displayLabel": "Warm Up 7 - Shoulder Roll",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 9
+    },
+    {
+      "key": "warm-up-8-hip-escapes-or-shrimping",
+      "displayLabel": "Warm Up 8 - Hip Escapes Or Shrimping",
+      "observedLabel": null,
+      "minimumRating": 3,
+      "sequence": 10
+    },
+    {
+      "key": "warm-up-9-hip-shuffles-forward-and-back",
+      "displayLabel": "Warm Up 9 - Hip Shuffles Forward And Back",
+      "observedLabel": "Warm Up 9 - Hip Shuffles Foward And Back",
+      "minimumRating": 3,
+      "sequence": 11
+    }
+  ],
+  "levels": [
+    {
+      "key": "white-belt-kids-4-5-and-5-7-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 1,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": ["missing-min-age"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-1st-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 1st Stripe",
+      "sequence": 2,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": ["missing-min-age"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-2nd-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 2nd Stripe",
+      "sequence": 3,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": ["missing-min-age"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-3rd-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 3rd Stripe",
+      "sequence": 4,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": ["missing-min-age"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-4th-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 4th Stripe",
+      "sequence": 5,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": ["missing-min-age"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-5th-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 5th Stripe",
+      "sequence": 6,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-min-age", "missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-6th-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 6th Stripe",
+      "sequence": 7,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-min-age", "missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-7th-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 7th Stripe",
+      "sequence": 8,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-min-age", "missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-8th-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 8th Stripe",
+      "sequence": 9,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-min-age", "missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-9th-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 9th Stripe",
+      "sequence": 10,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-min-age", "missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-10th-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 10th Stripe",
+      "sequence": 11,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-min-age", "missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-4-5-and-5-7yo-11th-stripe",
+      "parentKey": "white-belt-kids-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "White 4-5 and 5-7yo - 11th Stripe",
+      "sequence": 12,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-min-age", "missing-observed-skill-requirements"]
+    },
+    {
+      "key": "grey-and-white-belt-4-5-and-5-7-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 13,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-1st-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 1st Stripe",
+      "sequence": 14,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-2nd-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 2nd Stripe",
+      "sequence": 15,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-3rd-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 3rd Stripe",
+      "sequence": 16,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-4th-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 4th Stripe",
+      "sequence": 17,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-5th-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 5th Stripe",
+      "sequence": 18,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-6th-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 6th Stripe",
+      "sequence": 19,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-7th-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 7th Stripe",
+      "sequence": 20,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-8th-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 8th Stripe",
+      "sequence": 21,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-9th-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 9th Stripe",
+      "sequence": 22,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-10th-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 10th Stripe",
+      "sequence": 23,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-white-4-5-and-5-7yo-11th-stripe",
+      "parentKey": "grey-and-white-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and White 4-5 and 5-7yo - 11th Stripe",
+      "sequence": 24,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-belt-4-5-and-5-7-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 25,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-1st-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 1st Stripe",
+      "sequence": 26,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-2nd-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 2nd Stripe",
+      "sequence": 27,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-3rd-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 3rd Stripe",
+      "sequence": 28,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-4th-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 4th Stripe",
+      "sequence": 29,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-5th-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 5th Stripe",
+      "sequence": 30,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-6th-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 6th Stripe",
+      "sequence": 31,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-7th-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 7th Stripe",
+      "sequence": 32,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-8th-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 8th Stripe",
+      "sequence": 33,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-9th-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 9th Stripe",
+      "sequence": 34,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-10th-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 10th Stripe",
+      "sequence": 35,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-4-5-and-5-7yo-11th-stripe",
+      "parentKey": "grey-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey 4-5 and 5-7yo - 11th Stripe",
+      "sequence": 36,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-belt-4-5-and-5-7-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 37,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-1st-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 1st Stripe",
+      "sequence": 38,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-2nd-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 2nd Stripe",
+      "sequence": 39,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-3rd-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 3rd Stripe",
+      "sequence": 40,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-4th-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 4th Stripe",
+      "sequence": 41,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-5th-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 5th Stripe",
+      "sequence": 42,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-6th-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 6th Stripe",
+      "sequence": 43,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-7th-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 7th Stripe",
+      "sequence": 44,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-8th-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 8th Stripe",
+      "sequence": 45,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-9th-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 9th Stripe",
+      "sequence": 46,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-10th-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 10th Stripe",
+      "sequence": 47,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-and-black-4-5-and-5-7yo-11th-stripe",
+      "parentKey": "grey-and-black-belt-4-5-and-5-7-yo",
+      "kind": "stripe",
+      "name": "Grey and Black 4-5 and 5-7yo - 11th Stripe",
+      "sequence": 48,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#000000", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-belt-kids-7-8-and-8-10-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 49,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-7-8-and-8-10yo-1st-stripe",
+      "parentKey": "white-belt-kids-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "White 7-8 and 8-10yo - 1st Stripe",
+      "sequence": 50,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-7-8-and-8-10yo-2nd-stripe",
+      "parentKey": "white-belt-kids-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "White 7-8 and 8-10yo - 2nd Stripe",
+      "sequence": 51,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-7-8-and-8-10yo-3rd-stripe",
+      "parentKey": "white-belt-kids-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "White 7-8 and 8-10yo - 3rd Stripe",
+      "sequence": 52,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-7-8-and-8-10yo-4th-stripe",
+      "parentKey": "white-belt-kids-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "White 7-8 and 8-10yo - 4th Stripe",
+      "sequence": 53,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-7-8-and-8-10yo-5th-stripe",
+      "parentKey": "white-belt-kids-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "White 7-8 and 8-10yo - 5th Stripe",
+      "sequence": 54,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-7-8-and-8-10yo-6th-stripe",
+      "parentKey": "white-belt-kids-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "White 7-8 and 8-10yo - 6th Stripe",
+      "sequence": 55,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-7-8-and-8-10yo-7th-stripe",
+      "parentKey": "white-belt-kids-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "White 7-8 and 8-10yo - 7th Stripe",
+      "sequence": 56,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-observed-skill-requirements"]
+    },
+    {
+      "key": "white-7-8-and-8-10yo-8th-stripe",
+      "parentKey": "white-belt-kids-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "White 7-8 and 8-10yo - 8th Stripe",
+      "sequence": 57,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["missing-observed-skill-requirements"]
+    },
+    {
+      "key": "grey-and-white-belt-7-8-and-8-10-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 58,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-and-white-7-8-and-8-10yo-1st-stripe",
+      "parentKey": "grey-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey and White 7-8 and 8-10yo - 1st Stripe",
+      "sequence": 59,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-and-white-7-8-and-8-10yo-2nd-stripe",
+      "parentKey": "grey-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey and White 7-8 and 8-10yo - 2nd Stripe",
+      "sequence": 60,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-and-white-7-8-and-8-10yo-3rd-stripe",
+      "parentKey": "grey-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey and White 7-8 and 8-10yo - 3rd Stripe",
+      "sequence": 61,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-and-white-7-8-and-8-10yo-4th-stripe",
+      "parentKey": "grey-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey and White 7-8 and 8-10yo - 4th Stripe",
+      "sequence": 62,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-and-white-7-8-and-8-10yo-5th-stripe",
+      "parentKey": "grey-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey and White 7-8 and 8-10yo - 5th Stripe",
+      "sequence": 63,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-and-white-7-8-and-8-10yo-6th-stripe",
+      "parentKey": "grey-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey and White 7-8 and 8-10yo - 6th Stripe",
+      "sequence": 64,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-and-white-7-8-and-8-10yo-7th-stripe",
+      "parentKey": "grey-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey and White 7-8 and 8-10yo - 7th Stripe",
+      "sequence": 65,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-and-white-7-8-and-8-10yo-8th-stripe",
+      "parentKey": "grey-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey and White 7-8 and 8-10yo - 8th Stripe",
+      "sequence": 66,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#939598", "#ffffff", "#939598"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": ["name-age-range-conflict"]
+    },
+    {
+      "key": "grey-belt-7-8-and-8-10-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 67,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-7-8-and-8-10yo-1st-stripe",
+      "parentKey": "grey-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey 7-8 and 8-10yo - 1st Stripe",
+      "sequence": 68,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-7-8-and-8-10yo-2nd-stripe",
+      "parentKey": "grey-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey 7-8 and 8-10yo - 2nd Stripe",
+      "sequence": 69,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-7-8-and-8-10yo-3rd-stripe",
+      "parentKey": "grey-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey 7-8 and 8-10yo - 3rd Stripe",
+      "sequence": 70,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-7-8-and-8-10yo-4th-stripe",
+      "parentKey": "grey-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey 7-8 and 8-10yo - 4th Stripe",
+      "sequence": 71,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-7-8-and-8-10yo-5th-stripe",
+      "parentKey": "grey-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey 7-8 and 8-10yo - 5th Stripe",
+      "sequence": 72,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-7-8-and-8-10yo-6th-stripe",
+      "parentKey": "grey-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey 7-8 and 8-10yo - 6th Stripe",
+      "sequence": 73,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-7-8-and-8-10yo-7th-stripe",
+      "parentKey": "grey-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey 7-8 and 8-10yo - 7th Stripe",
+      "sequence": 74,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-7-8-and-8-10yo-8th-stripe",
+      "parentKey": "grey-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Grey 7-8 and 8-10yo - 8th Stripe",
+      "sequence": 75,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 76,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-7-8-and-8-10yo-1st-stripe",
+      "parentKey": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and White 7-8 and 8-10yo - 1st Stripe",
+      "sequence": 77,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-7-8-and-8-10yo-2nd-stripe",
+      "parentKey": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and White 7-8 and 8-10yo - 2nd Stripe",
+      "sequence": 78,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-7-8-and-8-10yo-3rd-stripe",
+      "parentKey": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and White 7-8 and 8-10yo - 3rd Stripe",
+      "sequence": 79,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-7-8-and-8-10yo-4th-stripe",
+      "parentKey": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and White 7-8 and 8-10yo - 4th Stripe",
+      "sequence": 80,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-7-8-and-8-10yo-5th-stripe",
+      "parentKey": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and White 7-8 and 8-10yo - 5th Stripe",
+      "sequence": 81,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-7-8-and-8-10yo-6th-stripe",
+      "parentKey": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and White 7-8 and 8-10yo - 6th Stripe",
+      "sequence": 82,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-7-8-and-8-10yo-7th-stripe",
+      "parentKey": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and White 7-8 and 8-10yo - 7th Stripe",
+      "sequence": 83,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-white-7-8-and-8-10yo-8th-stripe",
+      "parentKey": "yellow-and-white-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and White 7-8 and 8-10yo - 8th Stripe",
+      "sequence": 84,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffffff", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-belt-7-8-and-8-10-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 85,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-7-8-and-8-10yo-1st-stripe",
+      "parentKey": "yellow-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow 7-8 and 8-10yo - 1st Stripe",
+      "sequence": 86,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-7-8-and-8-10yo-2nd-stripe",
+      "parentKey": "yellow-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow 7-8 and 8-10yo - 2nd Stripe",
+      "sequence": 87,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-7-8-and-8-10yo-3rd-stripe",
+      "parentKey": "yellow-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow 7-8 and 8-10yo - 3rd Stripe",
+      "sequence": 88,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-7-8-and-8-10yo-4th-stripe",
+      "parentKey": "yellow-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow 7-8 and 8-10yo - 4th Stripe",
+      "sequence": 89,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-7-8-and-8-10yo-5th-stripe",
+      "parentKey": "yellow-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow 7-8 and 8-10yo - 5th Stripe",
+      "sequence": 90,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-7-8-and-8-10yo-6th-stripe",
+      "parentKey": "yellow-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow 7-8 and 8-10yo - 6th Stripe",
+      "sequence": 91,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-7-8-and-8-10yo-7th-stripe",
+      "parentKey": "yellow-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow 7-8 and 8-10yo - 7th Stripe",
+      "sequence": 92,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-7-8-and-8-10yo-8th-stripe",
+      "parentKey": "yellow-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow 7-8 and 8-10yo - 8th Stripe",
+      "sequence": 93,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 94,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-7-8-and-8-10yo-1st-stripe",
+      "parentKey": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and Black 7-8 and 8-10yo - 1st Stripe",
+      "sequence": 95,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-7-8-and-8-10yo-2nd-stripe",
+      "parentKey": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and Black 7-8 and 8-10yo - 2nd Stripe",
+      "sequence": 96,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-7-8-and-8-10yo-3rd-stripe",
+      "parentKey": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and Black 7-8 and 8-10yo - 3rd Stripe",
+      "sequence": 97,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-7-8-and-8-10yo-4th-stripe",
+      "parentKey": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and Black 7-8 and 8-10yo - 4th Stripe",
+      "sequence": 98,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-7-8-and-8-10yo-5th-stripe",
+      "parentKey": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and Black 7-8 and 8-10yo - 5th Stripe",
+      "sequence": 99,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-7-8-and-8-10yo-6th-stripe",
+      "parentKey": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and Black 7-8 and 8-10yo - 6th Stripe",
+      "sequence": 100,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-7-8-and-8-10yo-7th-stripe",
+      "parentKey": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and Black 7-8 and 8-10yo - 7th Stripe",
+      "sequence": 101,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-and-black-7-8-and-8-10yo-8th-stripe",
+      "parentKey": "yellow-and-black-belt-7-8-and-8-10-yo",
+      "kind": "stripe",
+      "name": "Yellow and Black 7-8 and 8-10yo - 8th Stripe",
+      "sequence": 102,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minimumTime": {
+          "years": 0,
+          "months": 1,
+          "days": 14
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#000000", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-belt-teens-10-12-and-13-15-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "WHITE BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 103,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-teens-10-12-and-13-15yo-1st-stripe",
+      "parentKey": "white-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "White Teens 10-12 and 13-15yo - 1st Stripe",
+      "sequence": 104,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-teens-10-12-and-13-15yo-2nd-stripe",
+      "parentKey": "white-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "White Teens 10-12 and 13-15yo - 2nd Stripe",
+      "sequence": 105,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-teens-10-12-and-13-15yo-3rd-stripe",
+      "parentKey": "white-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "White Teens 10-12 and 13-15yo - 3rd Stripe",
+      "sequence": 106,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-teens-10-12-and-13-15yo-4th-stripe",
+      "parentKey": "white-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "White Teens 10-12 and 13-15yo - 4th Stripe",
+      "sequence": 107,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": "white-foundation-v1",
+      "observedSkillRequirementsState": "configured",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-belt-teens-10-12-and-13-15-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREY BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 108,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-teens-10-12-and-13-15yo-1st-stripe",
+      "parentKey": "grey-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "Grey Teens 10-12 and 13-15yo - 1st Stripe",
+      "sequence": 109,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-teens-10-12-and-13-15yo-2nd-stripe",
+      "parentKey": "grey-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "Grey Teens 10-12 and 13-15yo - 2nd Stripe",
+      "sequence": 110,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-teens-10-12-and-13-15yo-3rd-stripe",
+      "parentKey": "grey-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "Grey Teens 10-12 and 13-15yo - 3rd Stripe",
+      "sequence": 111,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "grey-teens-10-12-and-13-15yo-4th-stripe",
+      "parentKey": "grey-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "Grey Teens 10-12 and 13-15yo - 4th Stripe",
+      "sequence": 112,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#939598", "#ffffff", "#fafafa"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-belt-teens-10-12-and-13-15-yo",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "YELLOW BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 113,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-teens-10-12-and-13-15yo-1st-stripe",
+      "parentKey": "yellow-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "Yellow Teens 10-12 and 13-15yo - 1st Stripe",
+      "sequence": 114,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-teens-10-12-and-13-15yo-2nd-stripe",
+      "parentKey": "yellow-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "Yellow Teens 10-12 and 13-15yo - 2nd Stripe",
+      "sequence": 115,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-teens-10-12-and-13-15yo-3rd-stripe",
+      "parentKey": "yellow-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "Yellow Teens 10-12 and 13-15yo - 3rd Stripe",
+      "sequence": 116,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "yellow-teens-10-12-and-13-15yo-4th-stripe",
+      "parentKey": "yellow-belt-teens-10-12-and-13-15-yo",
+      "kind": "stripe",
+      "name": "Yellow Teens 10-12 and 13-15yo - 4th Stripe",
+      "sequence": 117,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#ffda2d", "#ffd200", "#f7cc00"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-white-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "ORANGE AND WHITE BELT",
+      "sequence": 118,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#ffffff", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-white-1st-stripe",
+      "parentKey": "orange-and-white-belt",
+      "kind": "stripe",
+      "name": "Orange and White - 1st Stripe",
+      "sequence": 119,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#ffffff", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-white-2nd-stripe",
+      "parentKey": "orange-and-white-belt",
+      "kind": "stripe",
+      "name": "Orange and White - 2nd Stripe",
+      "sequence": 120,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#ffffff", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-white-3rd-stripe",
+      "parentKey": "orange-and-white-belt",
+      "kind": "stripe",
+      "name": "Orange and White - 3rd Stripe",
+      "sequence": 121,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#ffffff", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-white-4th-stripe",
+      "parentKey": "orange-and-white-belt",
+      "kind": "stripe",
+      "name": "Orange and White - 4th Stripe",
+      "sequence": 122,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#ffffff", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "ORANGE BELT",
+      "sequence": 123,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#f15a29", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-1st-stripe",
+      "parentKey": "orange-belt",
+      "kind": "stripe",
+      "name": "Orange - 1st Stripe",
+      "sequence": 124,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#f15a29", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-2nd-stripe",
+      "parentKey": "orange-belt",
+      "kind": "stripe",
+      "name": "Orange - 2nd Stripe",
+      "sequence": 125,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#f15a29", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-3rd-stripe",
+      "parentKey": "orange-belt",
+      "kind": "stripe",
+      "name": "Orange - 3rd Stripe",
+      "sequence": 126,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#f15a29", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-4th-stripe",
+      "parentKey": "orange-belt",
+      "kind": "stripe",
+      "name": "Orange - 4th Stripe",
+      "sequence": 127,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#f15a29", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-black-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "ORANGE AND BLACK BELT",
+      "sequence": 128,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#000000", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-black-1st-stripe",
+      "parentKey": "orange-and-black-belt",
+      "kind": "stripe",
+      "name": "Orange and Black - 1st Stripe",
+      "sequence": 129,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#000000", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-black-2nd-stripe",
+      "parentKey": "orange-and-black-belt",
+      "kind": "stripe",
+      "name": "Orange and Black - 2nd Stripe",
+      "sequence": 130,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#000000", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-black-3rd-stripe",
+      "parentKey": "orange-and-black-belt",
+      "kind": "stripe",
+      "name": "Orange and Black - 3rd Stripe",
+      "sequence": 131,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#000000", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "orange-and-black-4th-stripe",
+      "parentKey": "orange-and-black-belt",
+      "kind": "stripe",
+      "name": "Orange and Black - 4th Stripe",
+      "sequence": 132,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#f06639", "#000000", "#f04a15"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-white-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREEN AND WHITE BELT",
+      "sequence": 133,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#ffffff", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-white-1st-stripe",
+      "parentKey": "green-and-white-belt",
+      "kind": "stripe",
+      "name": "Green and White - 1st Stripe",
+      "sequence": 134,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#ffffff", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-white-2nd-stripe",
+      "parentKey": "green-and-white-belt",
+      "kind": "stripe",
+      "name": "Green and White - 2nd Stripe",
+      "sequence": 135,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#ffffff", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-white-3rd-stripe",
+      "parentKey": "green-and-white-belt",
+      "kind": "stripe",
+      "name": "Green and White - 3rd Stripe",
+      "sequence": 136,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#ffffff", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-white-4th-stripe",
+      "parentKey": "green-and-white-belt",
+      "kind": "stripe",
+      "name": "Green and White - 4th Stripe",
+      "sequence": 137,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#ffffff", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREEN BELT",
+      "sequence": 138,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#007f3e", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-1st-stripe",
+      "parentKey": "green-belt",
+      "kind": "stripe",
+      "name": "Green - 1st Stripe",
+      "sequence": 139,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#007f3e", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-2nd-stripe",
+      "parentKey": "green-belt",
+      "kind": "stripe",
+      "name": "Green - 2nd Stripe",
+      "sequence": 140,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#007f3e", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-3rd-stripe",
+      "parentKey": "green-belt",
+      "kind": "stripe",
+      "name": "Green - 3rd Stripe",
+      "sequence": 141,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#007f3e", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-4th-stripe",
+      "parentKey": "green-belt",
+      "kind": "stripe",
+      "name": "Green - 4th Stripe",
+      "sequence": 142,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#007f3e", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-black-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "GREEN AND BLACK BELT",
+      "sequence": 143,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-black-1st-stripe",
+      "parentKey": "green-and-black-belt",
+      "kind": "stripe",
+      "name": "Green and Black - 1st Stripe",
+      "sequence": 144,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-black-2nd-stripe",
+      "parentKey": "green-and-black-belt",
+      "kind": "stripe",
+      "name": "Green and Black - 2nd Stripe",
+      "sequence": 145,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-black-3rd-stripe",
+      "parentKey": "green-and-black-belt",
+      "kind": "stripe",
+      "name": "Green and Black - 3rd Stripe",
+      "sequence": 146,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "green-and-black-4th-stripe",
+      "parentKey": "green-and-black-belt",
+      "kind": "stripe",
+      "name": "Green and Black - 4th Stripe",
+      "sequence": 147,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#008c44", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 12,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "WHITE BELT",
+      "sequence": 148,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#e6e6e6", "#cdcdcd"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "white-1st-stripe",
+      "parentKey": "white-belt",
+      "kind": "stripe",
+      "name": "White - 1st Stripe",
+      "sequence": 149,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 15
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": [
+        "adult-white-stripe-duration-conflict",
+        "adult-white-stripe-palette-conflict"
+      ]
+    },
+    {
+      "key": "white-2nd-stripe",
+      "parentKey": "white-belt",
+      "kind": "stripe",
+      "name": "White - 2nd Stripe",
+      "sequence": 150,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 15
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": [
+        "adult-white-stripe-duration-conflict",
+        "adult-white-stripe-palette-conflict"
+      ]
+    },
+    {
+      "key": "white-3rd-stripe",
+      "parentKey": "white-belt",
+      "kind": "stripe",
+      "name": "White - 3rd Stripe",
+      "sequence": 151,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 15
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": [
+        "adult-white-stripe-duration-conflict",
+        "adult-white-stripe-palette-conflict"
+      ]
+    },
+    {
+      "key": "white-4th-stripe",
+      "parentKey": "white-belt",
+      "kind": "stripe",
+      "name": "White - 4th Stripe",
+      "sequence": 152,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minimumTime": {
+          "years": 0,
+          "months": 2,
+          "days": 15
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ffffff", "#000000", "#007539"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": [
+        "adult-white-stripe-duration-conflict",
+        "adult-white-stripe-palette-conflict"
+      ]
+    },
+    {
+      "key": "blue-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "BLUE BELT",
+      "sequence": 153,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#1e96c0", "#1890ba", "#1485ac"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "blue-1st-stripe",
+      "parentKey": "blue-belt",
+      "kind": "stripe",
+      "name": "Blue - 1st Stripe",
+      "sequence": 154,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#1e96c0", "#1890ba", "#1485ac"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "blue-2nd-stripe",
+      "parentKey": "blue-belt",
+      "kind": "stripe",
+      "name": "Blue - 2nd Stripe",
+      "sequence": 155,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#1e96c0", "#1890ba", "#1485ac"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "blue-3rd-stripe",
+      "parentKey": "blue-belt",
+      "kind": "stripe",
+      "name": "Blue - 3rd Stripe",
+      "sequence": 156,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#1e96c0", "#1890ba", "#1485ac"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "blue-4th-stripe",
+      "parentKey": "blue-belt",
+      "kind": "stripe",
+      "name": "Blue - 4th Stripe",
+      "sequence": 157,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#1e96c0", "#1890ba", "#1485ac"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "purple-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "PURPLE BELT",
+      "sequence": 158,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#8b2b9b", "#812990", "#7b2789"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "purple-1st-stripe",
+      "parentKey": "purple-belt",
+      "kind": "stripe",
+      "name": "Purple - 1st Stripe",
+      "sequence": 159,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#8b2b9b", "#812990", "#7b2789"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "purple-2nd-stripe",
+      "parentKey": "purple-belt",
+      "kind": "stripe",
+      "name": "Purple - 2nd Stripe",
+      "sequence": 160,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#8b2b9b", "#812990", "#7b2789"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "purple-3rd-stripe",
+      "parentKey": "purple-belt",
+      "kind": "stripe",
+      "name": "Purple - 3rd Stripe",
+      "sequence": 161,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#8b2b9b", "#812990", "#7b2789"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "purple-4th-stripe",
+      "parentKey": "purple-belt",
+      "kind": "stripe",
+      "name": "Purple - 4th Stripe",
+      "sequence": 162,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#8b2b9b", "#812990", "#7b2789"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "brown-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "BROWN BELT",
+      "sequence": 163,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#6d3415", "#602d12", "#562911"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "brown-1st-stripe",
+      "parentKey": "brown-belt",
+      "kind": "stripe",
+      "name": "Brown - 1st Stripe",
+      "sequence": 164,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#6d3415", "#602d12", "#562911"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "brown-2nd-stripe",
+      "parentKey": "brown-belt",
+      "kind": "stripe",
+      "name": "Brown - 2nd Stripe",
+      "sequence": 165,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#6d3415", "#602d12", "#562911"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "brown-3rd-stripe",
+      "parentKey": "brown-belt",
+      "kind": "stripe",
+      "name": "Brown - 3rd Stripe",
+      "sequence": 166,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#6d3415", "#602d12", "#562911"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "brown-4th-stripe",
+      "parentKey": "brown-belt",
+      "kind": "stripe",
+      "name": "Brown - 4th Stripe",
+      "sequence": 167,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minimumTime": {
+          "years": 0,
+          "months": 5,
+          "days": 28
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#6d3415", "#602d12", "#562911"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "black-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "BLACK BELT",
+      "sequence": 168,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 19,
+        "maxAge": null,
+        "minClasses": 150,
+        "minimumTime": {
+          "years": 2,
+          "months": 11,
+          "days": 30
+        }
+      },
+      "visual": {
+        "colorMode": 3,
+        "colors": ["#262626", "#121212", "#000000"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 23,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "red-and-black-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "RED AND BLACK BELT",
+      "sequence": 169,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 50,
+        "maxAge": null,
+        "minClasses": null,
+        "minimumTime": {
+          "years": 6,
+          "months": 11,
+          "days": 29
+        }
+      },
+      "visual": {
+        "colorMode": 2,
+        "colors": ["#ff0000", "#000000", "#cdcdcd"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 18,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "red-and-white-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "RED AND WHITE BELT",
+      "sequence": 170,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 57,
+        "maxAge": null,
+        "minClasses": null,
+        "minimumTime": {
+          "years": 6,
+          "months": 11,
+          "days": 29
+        }
+      },
+      "visual": {
+        "colorMode": 2,
+        "colors": ["#ff0000", "#ffffff", "#cdcdcd"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 18,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    },
+    {
+      "key": "red-belt",
+      "parentKey": null,
+      "kind": "belt",
+      "name": "RED BELT",
+      "sequence": 171,
+      "stripeNumber": null,
+      "observedCriteria": {
+        "minAge": 67,
+        "maxAge": null,
+        "minClasses": null,
+        "minimumTime": {
+          "years": 0,
+          "months": 0,
+          "days": 0
+        }
+      },
+      "visual": {
+        "colorMode": 1,
+        "colors": ["#ff0000", "#ffffff", "#cdcdcd"],
+        "stripeColor": "#ffffff",
+        "stripeCenter": 5,
+        "stripeWidth": 1,
+        "stripePosition": 1
+      },
+      "observedSkillRequirementSetKey": null,
+      "observedSkillRequirementsState": "none-observed",
+      "anomalyFlags": []
+    }
+  ],
+  "contentHash": "9b039b795f8178c42730ff567ef9283fb385895368115ac2621ce816a829835a"
+}

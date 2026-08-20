@@ -5,7 +5,6 @@ import {
   bootstrapEmulatorOwner,
   provisionAdminRoleWithServices,
   renewRoleLock,
-  writeImportAuditEvent,
 } from "./admin-provisioning.js";
 import type { FirestoreDocumentData } from "./admin-provisioning.js";
 
@@ -23,6 +22,7 @@ type SyntheticTransaction = {
     exists: boolean;
     data: () => FirestoreDocumentData | undefined;
   }>;
+  create: (ref: { readonly path: string }, data: FirestoreDocumentData) => SyntheticTransaction;
   set: (ref: { readonly path: string }, data: FirestoreDocumentData) => SyntheticTransaction;
   delete: (ref: { readonly path: string }) => SyntheticTransaction;
 };
@@ -72,8 +72,9 @@ function callableRequest(
 function createSyntheticServices(
   users: SyntheticUser[],
   options: SyntheticServicesOptions = {},
-): AdminProvisioningServices & { firestore: SyntheticFirestore } {
+): AdminProvisioningServices & { firestore: SyntheticFirestore & { createPaths: string[] } } {
   const records = new Map<string, FirestoreDocumentData>();
+  const createPaths: string[] = [];
   let nextAuditId = 0;
   let transactionCount = 0;
   const getDocument = (path: string) => ({
@@ -89,6 +90,7 @@ function createSyntheticServices(
     }),
     doc: getDocument,
     records,
+    createPaths,
     runTransaction: async <T>(callback: (transaction: SyntheticTransaction) => Promise<T>) => {
       transactionCount += 1;
       const shouldFailTransaction =
@@ -109,6 +111,15 @@ function createSyntheticServices(
           exists: records.has(ref.path),
           data: () => records.get(ref.path),
         }),
+        create: (ref, data) => {
+          if (records.has(ref.path) || staged.has(ref.path)) {
+            throw new Error("synthetic firestore create collision");
+          }
+          createPaths.push(ref.path);
+          stagedDeletes.delete(ref.path);
+          staged.set(ref.path, { ...data });
+          return transaction;
+        },
         set: (ref, data) => {
           stagedDeletes.delete(ref.path);
           staged.set(ref.path, { ...(records.get(ref.path) ?? {}), ...data });
@@ -150,6 +161,7 @@ function createSyntheticServices(
       return result;
     },
   } as SyntheticFirestore & {
+    createPaths: string[];
     runTransaction: <T>(callback: (transaction: SyntheticTransaction) => Promise<T>) => Promise<T>;
   };
 
@@ -233,6 +245,28 @@ describe("administrative role provisioning", () => {
     expect(userRecord?.lastRoleChangeAuditId).toEqual(expect.any(String));
     expect(userRecord?.createdAt).toBeDefined();
     expect(userRecord?.updatedAt).toBeDefined();
+    const auditEntries = [...services.firestore.records.entries()].filter(([path]) =>
+      path.startsWith("academies/academy-1/auditEvents/"),
+    );
+    expect(auditEntries).toHaveLength(1);
+    expect(auditEntries[0]?.[1]).toEqual({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      action: "admin.role.granted",
+      targetRef: "academies/academy-1/users/target-1",
+      purpose: "administrative role management",
+      correlationId: expect.stringMatching(/^owner-1:target-1:audit-[0-9]+$/u),
+      auditEventId: expect.stringMatching(/^audit-[0-9]+$/u),
+      occurredAt: expect.anything(),
+      result: "completed",
+      schemaVersion: 1,
+    });
+    expect(auditEntries[0]?.[1]).not.toHaveProperty("email");
+    expect(auditEntries[0]?.[1]).not.toHaveProperty("displayName");
+    expect(auditEntries[0]?.[1]).not.toHaveProperty("claims");
+    expect(
+      services.firestore.createPaths.filter((path) => path.includes("/auditEvents/")),
+    ).toHaveLength(1);
     expect(services.firestore.records.has("academies/academy-1/adminRoleLocks/target-1")).toBe(
       false,
     );
@@ -383,6 +417,49 @@ describe("administrative role provisioning", () => {
     expect(target.customClaims).toEqual({ mfaEnrolled: true });
     expect(services.firestore.records.get("academies/academy-1/users/target-1")).toEqual(
       expect.objectContaining({ active: true, adminRole: null }),
+    );
+    const audit = [...services.firestore.records.values()].find(
+      (record) => record.action === "admin.role.revoked",
+    );
+    expect(audit).toEqual(
+      expect.objectContaining({
+        academyId: "academy-1",
+        actorId: "owner-1",
+        targetRef: "academies/academy-1/users/target-1",
+        result: "completed",
+        schemaVersion: 1,
+      }),
+    );
+    expect(audit).not.toHaveProperty("email");
+    expect(audit).not.toHaveProperty("displayName");
+    expect(audit).not.toHaveProperty("claims");
+    expect(
+      services.firestore.createPaths.filter((path) => path.includes("/auditEvents/")),
+    ).toHaveLength(1);
+  });
+
+  it("compensates Auth and commits no user mutation when the audit create collides", async () => {
+    const target = googleUser();
+    target.customClaims = { mfaEnrolled: true };
+    const auditPath = "academies/academy-1/auditEvents/audit-0";
+    const existingAudit = { action: "preexisting.audit" };
+    const services = createSyntheticServices([target], {
+      onSetCustomUserClaims: (records) => records.set(auditPath, existingAudit),
+    });
+
+    await expect(
+      provisionAdminRoleWithServices(
+        callableRequest("owner", "academy-1"),
+        { uid: target.uid, email: target.email, role: "administrator" },
+        services,
+      ),
+    ).rejects.toThrow("synthetic firestore create collision");
+
+    expect(target.customClaims).toEqual({ mfaEnrolled: true });
+    expect(services.firestore.records.get(auditPath)).toEqual(existingAudit);
+    expect(services.firestore.records.has("academies/academy-1/users/target-1")).toBe(false);
+    expect(services.firestore.records.has("academies/academy-1/adminRoleLocks/target-1")).toBe(
+      false,
     );
   });
 
@@ -1072,39 +1149,5 @@ describe("administrative role provisioning", () => {
         process.env.FIRESTORE_EMULATOR_HOST = previousFirestoreEmulator;
       }
     }
-  });
-
-  it("writes import audit metadata without accepting a raw record", async () => {
-    const services = createSyntheticServices([]);
-    const event = {
-      academyId: "academy-1",
-      actorId: "system-importer",
-      action: "regyfit.access.imported",
-      targetRef: "academies/academy-1/regyfitAccessRecords",
-      purpose: "approved synthetic import validation",
-      correlationId: "correlation-1",
-      recordCount: 10,
-      contentSha256: "a".repeat(64),
-      importRunId: "run-1",
-    } as const;
-
-    await writeImportAuditEvent(services.firestore as never, event);
-
-    const audit = [...services.firestore.records.values()].find(
-      (record) => record.action === event.action,
-    );
-    expect(audit).toEqual(expect.objectContaining(event));
-    expect(audit).not.toHaveProperty("ip");
-    expect(audit).not.toHaveProperty("memberDisplayName");
-    expect(audit).not.toHaveProperty("memberNumber");
-    await expect(
-      writeImportAuditEvent(
-        services.firestore as never,
-        {
-          ...event,
-          rawRecord: { ip: "198.51.100.10" },
-        } as never,
-      ),
-    ).rejects.toMatchObject({ code: "invalid-argument" });
   });
 });

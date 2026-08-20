@@ -45,6 +45,8 @@ export {
   parseUserClaims,
 } from "./auth/admin-contracts";
 export type { AdminClaims, AdminRole, UserClaims } from "./auth/admin-contracts";
+export { auditActions, parseAuditEventDraft } from "./audit/audit-event";
+export type { AuditAction, AuditEventDraft } from "./audit/audit-event";
 export {
   accessDenialReasons,
   accessOperations,
@@ -127,3 +129,98 @@ export type {
   MembershipStatus,
   PaymentStatus,
 } from "./members/member-contracts";
+
+export {
+  deriveParticipantType,
+  parseStudentProfile,
+  parseUserProfile,
+  participantTypes as profileParticipantTypes,
+  trainingCenters,
+  trainingTimePreferences,
+} from "./profiles/profile-contracts";
+export {
+  PLAN_CATALOG,
+  billingPeriods,
+  evaluatePlanAccess,
+  parsePlanDraft,
+  parsePlanRecord,
+  participantTypes,
+  planIds,
+  sessionTypes,
+  siteValues,
+} from "./memberships/plan-contracts";
+export type {
+  BillingPeriod,
+  ParticipantType,
+  PlanAccessDecision,
+  PlanAccessInput,
+  PlanDraft,
+  PlanId,
+  PlanRecord,
+  SessionType,
+  Site,
+} from "./memberships/plan-contracts";
+
+export {
+  canTransitionMembership,
+  currentMembershipStatuses,
+  membershipStatuses as membershipLifecycleStatuses,
+  membershipTransitionTargets,
+  parseMembershipDraft,
+  parseMembershipRecord,
+} from "./memberships/membership-contracts";
+export type {
+  CurrentMembershipStatus,
+  MembershipCreateInput,
+  MembershipDraft,
+  MembershipRecord,
+  MembershipStatus as MembershipLifecycleStatus,
+  MembershipTransitionInput,
+} from "./memberships/membership-contracts";
+
+export {
+  familyPermissions,
+  familyStatuses,
+  parseFamilyRecord,
+  parseFamilyRelationship,
+  parseFamilyStudentDraft,
+  relationshipStatuses,
+  relationshipTypes,
+} from "./families/family-contracts";
+export type {
+  FamilyPermission,
+  FamilyRecord,
+  FamilyRelationship,
+  FamilyStatus,
+  FamilyStudentDraft,
+  GuardianFamilyProjection,
+  RelationshipStatus,
+  RelationshipType,
+  StaffFamilyProjection,
+} from "./families/family-contracts";
+export type {
+  ClientProfileProjection,
+  ParticipantType as ProfileParticipantType,
+  StudentProfile,
+  TrainingCenter,
+  TrainingTimePreference,
+  UserProfile,
+} from "./profiles/profile-contracts";
+
+export {
+  calculateAccountBalance,
+  calculateInvoiceBalance,
+  calculatePaygDebt,
+  chargeKinds,
+  invoiceStatuses,
+  manualPaymentMethods,
+  parseInvoiceRecord,
+  parseManualPaymentRecord,
+} from "./finance/finance-contracts";
+export type {
+  ChargeKind,
+  InvoiceRecord,
+  InvoiceStatus,
+  ManualPaymentMethod,
+  ManualPaymentRecord,
+} from "./finance/finance-contracts";

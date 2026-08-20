@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { getAuth } from "firebase-admin/auth";
 import { getApps, initializeApp } from "firebase-admin/app";
-import { FieldValue, getFirestore, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 
@@ -11,7 +11,9 @@ import {
   type AdminClaims,
   type AdminRole,
 } from "@bpt-jersey/domain/auth/admin-contracts";
+import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 
+import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { assertAcademyScope, requireAdminActor } from "./admin-authorization.js";
 import type { AdminActor } from "./admin-authorization.js";
 
@@ -29,6 +31,7 @@ type SyntheticDocumentSnapshot = Readonly<{
 
 type SyntheticTransaction = Readonly<{
   get: (ref: SyntheticDocumentReference) => Promise<SyntheticDocumentSnapshot>;
+  create: (ref: SyntheticDocumentReference, data: FirestoreDocumentData) => SyntheticTransaction;
   set: (ref: SyntheticDocumentReference, data: FirestoreDocumentData) => SyntheticTransaction;
   delete: (ref: SyntheticDocumentReference) => SyntheticTransaction;
 }>;
@@ -65,18 +68,6 @@ export type AdminProvisioningServices = Readonly<{
   firestore: SyntheticFirestore;
 }>;
 
-export type AuditEventMetadata = Readonly<{
-  academyId: string;
-  actorId: string;
-  action: string;
-  targetRef: string;
-  purpose: string;
-  correlationId: string;
-  recordCount: number;
-  contentSha256: string;
-  importRunId: string;
-}>;
-
 const adminRoleSchema = z.enum(["owner", "administrator"]);
 const targetSchema = z.strictObject({
   uid: z.string().trim().min(1).max(128),
@@ -85,18 +76,6 @@ const targetSchema = z.strictObject({
 });
 const actionSchema = z.enum(["grant", "revoke"]);
 const provisioningRequestSchema = z.strictObject({ action: actionSchema });
-const auditEventSchema = z.strictObject({
-  academyId: z.string().trim().min(1).max(128),
-  actorId: z.string().trim().min(1).max(128),
-  action: z.string().trim().min(1).max(128),
-  targetRef: z.string().trim().min(1).max(512),
-  purpose: z.string().trim().min(1).max(256),
-  correlationId: z.string().trim().min(1).max(256),
-  recordCount: z.number().int().nonnegative(),
-  contentSha256: z.string().regex(/^[a-f0-9]{64}$/),
-  importRunId: z.string().trim().min(1).max(256),
-});
-
 const roleLockLeaseMs = 30_000;
 const roleLockMaxLifetimeMs = roleLockLeaseMs * 5;
 const roleLockRenewalIntervalMs = Math.floor(roleLockLeaseMs / 3);
@@ -448,26 +427,6 @@ async function releaseRecoveredRoleLock(
   });
 }
 
-function auditDocument(
-  ref: { readonly id: string },
-  actor: AdminActor,
-  targetUid: string,
-  action: "grant" | "revoke",
-): FirestoreDocumentData {
-  return {
-    auditEventId: ref.id,
-    academyId: actor.academyId,
-    actorId: actor.uid,
-    action: action === "grant" ? "admin.role.granted" : "admin.role.revoked",
-    targetRef: `academies/${actor.academyId}/users/${targetUid}`,
-    purpose: "administrative role management",
-    correlationId: `${actor.uid}:${targetUid}:${ref.id}`,
-    occurredAt: FieldValue.serverTimestamp(),
-    result: "completed",
-    schemaVersion: 1,
-  };
-}
-
 async function persistUserAndAudit(
   services: AdminProvisioningServices,
   actor: AdminActor,
@@ -492,7 +451,14 @@ async function persistUserAndAudit(
     const status =
       typeof existing?.status === "string" ? existing.status : active ? "active" : "inactive";
 
-    transaction.set(auditRef, auditDocument(auditRef, actor, target.uid, action));
+    appendAuditEventInTransaction(transaction, auditRef, {
+      academyId: actor.academyId,
+      actorId: actor.uid,
+      action: action === "grant" ? "admin.role.granted" : "admin.role.revoked",
+      targetRef: `academies/${actor.academyId}/users/${target.uid}`,
+      purpose: "administrative role management",
+      correlationId: `${actor.uid}:${target.uid}:${auditRef.id}`,
+    } as unknown as AuditEventDraft);
     transaction.set(userRef, {
       userId: target.uid,
       academyId: actor.academyId,
@@ -740,21 +706,4 @@ export async function bootstrapEmulatorOwner(input: {
   } finally {
     await leaseRenewal.stop();
   }
-}
-
-export async function writeImportAuditEvent(
-  db: Firestore,
-  event: AuditEventMetadata,
-): Promise<void> {
-  const value = parseOrThrow(auditEventSchema.safeParse(event), "Invalid import audit metadata");
-  const auditRef = db.collection(`academies/${value.academyId}/auditEvents`).doc();
-  await auditRef.set({
-    auditEventId: auditRef.id,
-    ...value,
-    occurredAt: FieldValue.serverTimestamp(),
-    result: "completed",
-    schemaVersion: 1,
-    createdAt: FieldValue.serverTimestamp(),
-    createdBy: value.actorId,
-  });
 }

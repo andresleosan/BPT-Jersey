@@ -27,20 +27,30 @@ describe("deploy runtime import preparation", () => {
     await writeFile(
       outputPath,
       [
+        'import "@bpt-jersey/domain/audit";',
         'import "@bpt-jersey/domain/members";',
+        'import "@bpt-jersey/domain/memberships";',
+        'import "@bpt-jersey/domain/memberships/lifecycle";',
         'import "@bpt-jersey/domain/auth/admin-contracts";',
         'import "@bpt-jersey/domain/authorization/access-policy";',
         'import "@bpt-jersey/domain/migration/regyfit-access";',
+        'import "@bpt-jersey/domain/families";',
+        'import "@bpt-jersey/domain/finance";',
       ].join("\n"),
     );
 
     await rewriteDeployRuntimeImports(sourceRoot);
 
     const prepared = await readFile(outputPath, "utf8");
+    expect(prepared).toContain("../../domain/audit/audit-event.js");
     expect(prepared).toContain("../../domain/members/member-contracts.js");
+    expect(prepared).toContain("../../domain/memberships/plan-contracts.js");
+    expect(prepared).toContain("../../domain/memberships/membership-contracts.js");
     expect(prepared).toContain("../../domain/auth/admin-contracts.js");
     expect(prepared).toContain("../../domain/authorization/access-policy.js");
     expect(prepared).toContain("../../domain/migration/regyfit-access.js");
+    expect(prepared).toContain("../../domain/families/family-contracts.js");
+    expect(prepared).toContain("../../domain/finance/finance-contracts.js");
     expect(prepared).not.toMatch(/@bpt-jersey\/domain/u);
   });
 

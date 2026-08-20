@@ -59,6 +59,13 @@ function db() {
           exists: records.has(ref.path),
           data: () => staged.get(ref.path) ?? records.get(ref.path),
         }),
+        create: (ref: { path: string }, data: Record<string, unknown>) => {
+          if (records.has(ref.path) || staged.has(ref.path)) {
+            throw new Error("synthetic create collision");
+          }
+          staged.set(ref.path, data);
+          return transaction;
+        },
         set: (ref: { path: string }, data: Record<string, unknown>) => {
           staged.set(ref.path, data);
           return transaction;

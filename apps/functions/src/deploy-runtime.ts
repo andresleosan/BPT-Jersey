@@ -2,10 +2,16 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze({
+  "@bpt-jersey/domain/audit": "../../domain/audit/audit-event.js",
   "@bpt-jersey/domain/members": "../../domain/members/member-contracts.js",
+  "@bpt-jersey/domain/memberships/lifecycle": "../../domain/memberships/membership-contracts.js",
+  "@bpt-jersey/domain/memberships": "../../domain/memberships/plan-contracts.js",
+  "@bpt-jersey/domain/profiles": "../../domain/profiles/profile-contracts.js",
   "@bpt-jersey/domain/auth/admin-contracts": "../../domain/auth/admin-contracts.js",
   "@bpt-jersey/domain/authorization/access-policy": "../../domain/authorization/access-policy.js",
   "@bpt-jersey/domain/migration/regyfit-access": "../../domain/migration/regyfit-access.js",
+  "@bpt-jersey/domain/families": "../../domain/families/family-contracts.js",
+  "@bpt-jersey/domain/finance": "../../domain/finance/finance-contracts.js",
 });
 
 async function runtimeFiles(directory: string): Promise<readonly string[]> {
@@ -23,7 +29,9 @@ export async function rewriteDeployRuntimeImports(deploySourceRoot: string): Pro
   for (const outputPath of await runtimeFiles(deploySourceRoot)) {
     const source = await readFile(outputPath, "utf8");
     let prepared = source;
-    for (const [specifier, replacement] of Object.entries(domainImportReplacements)) {
+    for (const [specifier, replacement] of Object.entries(domainImportReplacements).sort(
+      ([left], [right]) => right.length - left.length,
+    )) {
       prepared = prepared.replaceAll(specifier, replacement);
     }
     if (/(?:from|import)\s*(?:[^"']*from\s*)?["']@bpt-jersey\/domain(?:["'/])/u.test(prepared)) {

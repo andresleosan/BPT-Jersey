@@ -5,6 +5,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./audit": {
+      "types": "./src/audit/audit-event.ts",
+      "default": "./lib/audit/audit-event.js"
+    },
     "./migration/regyfit-access": {
       "types": "./src/migration/regyfit-access.ts",
       "default": "./lib/migration/regyfit-access.js"
@@ -20,6 +24,26 @@
     "./members": {
       "types": "./src/members/member-contracts.ts",
       "default": "./lib/members/member-contracts.js"
+    },
+    "./profiles": {
+      "types": "./src/profiles/profile-contracts.ts",
+      "default": "./lib/profiles/profile-contracts.js"
+    },
+    "./families": {
+      "types": "./src/families/family-contracts.ts",
+      "default": "./lib/families/family-contracts.js"
+    },
+    "./memberships": {
+      "types": "./src/memberships/plan-contracts.ts",
+      "default": "./lib/memberships/plan-contracts.js"
+    },
+    "./memberships/lifecycle": {
+      "types": "./src/memberships/membership-contracts.ts",
+      "default": "./lib/memberships/membership-contracts.js"
+    },
+    "./finance": {
+      "types": "./src/finance/finance-contracts.ts",
+      "default": "./lib/finance/finance-contracts.js"
     }
   },
   "scripts": {

@@ -13,6 +13,12 @@ import type {
   PaymentStatus,
 } from "@bpt-jersey/domain/members";
 import { matchesMemberReport, parseMemberRecord } from "@bpt-jersey/domain/members";
+import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+
+import {
+  appendAuditEventInTransaction,
+  type AuditCreateTransaction,
+} from "../audit/audit-writer.js";
 import type { ParsedMemberRow } from "./member-pdf-import.js";
 
 export const MEMBER_PAGE_SIZE = 50;
@@ -775,7 +781,7 @@ export function createMemberService(
 type FirestoreDocument = Readonly<{ exists: boolean; data: () => unknown }>;
 type FirestoreTransaction = Readonly<{
   get: (reference: unknown) => Promise<FirestoreDocument>;
-  create: (reference: unknown, data: MemberRecord) => void;
+  create: (reference: unknown, data: Record<string, unknown>) => void;
   set: (reference: unknown, data: unknown, options?: unknown) => void;
 }>;
 
@@ -893,23 +899,24 @@ export function createFirestoreMemberStore(firestore: Firestore = getFirestore()
             );
           }
         }
-        transaction.create(auditReference, {
-          auditEventId: auditReference.id,
+        const auditDraft = {
           academyId,
           actorId,
           action: "member.import.confirmed",
           targetRef: `academies/${academyId}/members`,
           purpose: "confirmed member PDF import",
           correlationId: operationId,
-          occurredAt: now,
-          result: "completed",
           imported: result.imported,
           updated: result.updated,
           conflicts: result.conflicts,
           sourceHash,
           reportKeys,
-          schemaVersion: 1,
-        });
+        } as unknown as AuditEventDraft;
+        appendAuditEventInTransaction(
+          transaction as unknown as AuditCreateTransaction<typeof auditReference>,
+          auditReference,
+          auditDraft,
+        );
         transaction.create(operationReference, {
           operationId,
           academyId,

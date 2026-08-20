@@ -8,12 +8,7 @@ export {
   requireAdminActor,
 } from "./auth/admin-authorization.js";
 export type { AdminActor } from "./auth/admin-authorization.js";
-export {
-  bootstrapEmulatorOwner,
-  provisionAdminRole,
-  writeImportAuditEvent,
-} from "./auth/admin-provisioning.js";
-export type { AuditEventMetadata } from "./auth/admin-provisioning.js";
+export { bootstrapEmulatorOwner, provisionAdminRole } from "./auth/admin-provisioning.js";
 export { listRegyfitAccessRecords } from "./regyfit/access-records.js";
 export {
   cleanupExpiredMemberImportSessions,
@@ -27,3 +22,26 @@ export {
   previewMemberPdfImport,
   searchMembers,
 } from "./members/member-callables.js";
+export { getClientProfile, saveClientProfile } from "./profiles/profile-callables.js";
+export { createFamily, getFamily, updateFamily } from "./families/family-callables.js";
+export {
+  activatePlan,
+  deactivatePlan,
+  getPlan,
+  listPlans,
+  savePlan,
+} from "./memberships/plan-callables.js";
+export {
+  cancelMembership,
+  createMembership,
+  getMembership,
+  listMemberships,
+  transitionMembership,
+} from "./memberships/membership-callables.js";
+export {
+  getInvoice,
+  issueManualInvoice,
+  listFinancialAccount,
+  recordManualPayment,
+  voidManualInvoice,
+} from "./finance/finance-callables.js";

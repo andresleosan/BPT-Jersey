@@ -245,7 +245,23 @@ describe("Firestore adapters against the local emulator", () => {
       (document) => document.data().correlationId === operationId,
     );
     expect(importAudits).toHaveLength(1);
+    expect(importAudits[0]?.data()).toEqual(
+      expect.objectContaining({
+        action: "member.import.confirmed",
+        imported: 1,
+        updated: 1,
+        conflicts: 0,
+        sourceHash: "b".repeat(64),
+        reportKeys: ["total"],
+        result: "completed",
+        schemaVersion: 1,
+        auditEventId: expect.any(String),
+        occurredAt: expect.anything(),
+      }),
+    );
     expect(importAudits[0]?.data()).not.toHaveProperty("fullName");
+    expect(importAudits[0]?.data()).not.toHaveProperty("email");
+    expect(importAudits[0]?.data()).not.toHaveProperty("records");
     await Promise.all([
       deleteIfPresent(`${memberCollection}/${importedMemberId}`),
       deleteIfPresent(`academies/${academyId}/memberImportOperations/${operationId}`),

@@ -10,103 +10,109 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 
 ## M0 - Fundaciones y decisiones operativas
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T001 | Inicializar Git y el monorepo pnpm (`apps/web`, `apps/functions`, `packages/*`, `qa/`) | - | aprobada | `pnpm install --frozen-lockfile --offline` y listado de 7 workspaces pasan; audit sin vulnerabilidades |
-| T002 | Configurar TypeScript estricto, lint, formato y comandos raíz | T001 | aprobada | `pnpm lint`, `pnpm typecheck` y `pnpm format:check` pasan |
-| T003 | Configurar Vitest, Testing Library y convenciones de pruebas | T002 | aprobada | Vitest + RTL: 2 archivos/2 pruebas aprobados |
-| T004 | Configurar Firebase CLI, proyectos/emuladores dev y archivos de entorno sin secretos | T001 | aprobada | Auth/Firestore/RTDB emulators + 3 Rules tests pasan |
-| T005 | Configurar Playwright, proyectos por viewport y artefactos no versionados | T002 | aprobada | E2E smoke desktop/móvil 2/2 y estabilidad 10/10 pasan |
-| T006 | Crear CI inicial con lint, tipos, unitarias, Rules y E2E smoke | T003,T005 | aprobada | Pipeline CI verde en `main` (run 31142117581) |
-| T007 | Documentar clasificación de datos, amenazas y matriz preliminar de acceso | - | aprobada | Documento revisado sin gaps críticos |
-| T008 | Confirmar horarios concretos, capacidades y reglas comerciales todavía configurables | - | pendiente | Town/West, catálogo y reglas base aprobados en `BRIEF.md`; faltan horarios/capacidades y políticas de freeze/descuentos/refunds |
-| T009 | Confirmar criterios y ponderaciones de evaluación/reconocimiento | - | bloqueada | Aprobación de head coach |
-| T010 | Seleccionar proveedor de pagos disponible en Jersey para post-piloto | - | bloqueada | ADR y costos aprobados; no bloquea pagos manuales ni `T056` |
-| T011 | Confirmar política de retención, residencia y borrado con asesoría aplicable a Jersey | - | bloqueada | Política aprobada |
+| ID   | Tarea atómica                                                                          | Depende de | Estado    | Evidencia de salida                                                                                                                                                                                                            |
+| ---- | -------------------------------------------------------------------------------------- | ---------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T001 | Inicializar Git y el monorepo pnpm (`apps/web`, `apps/functions`, `packages/*`, `qa/`) | -          | aprobada  | `pnpm install --frozen-lockfile --offline` y listado de 7 workspaces pasan; audit sin vulnerabilidades                                                                                                                         |
+| T002 | Configurar TypeScript estricto, lint, formato y comandos raíz                          | T001       | aprobada  | `pnpm lint`, `pnpm typecheck` y `pnpm format:check` pasan                                                                                                                                                                      |
+| T003 | Configurar Vitest, Testing Library y convenciones de pruebas                           | T002       | aprobada  | Vitest + RTL: 2 archivos/2 pruebas aprobados                                                                                                                                                                                   |
+| T004 | Configurar Firebase CLI, proyectos/emuladores dev y archivos de entorno sin secretos   | T001       | aprobada  | Auth/Firestore/RTDB emulators + 3 Rules tests pasan                                                                                                                                                                            |
+| T005 | Configurar Playwright, proyectos por viewport y artefactos no versionados              | T002       | aprobada  | E2E smoke desktop/móvil 2/2 y estabilidad 10/10 pasan                                                                                                                                                                          |
+| T006 | Crear CI inicial con lint, tipos, unitarias, Rules y E2E smoke                         | T003,T005  | aprobada  | Pipeline CI verde en `main` (run 31142117581)                                                                                                                                                                                  |
+| T007 | Documentar clasificación de datos, amenazas y matriz preliminar de acceso              | -          | aprobada  | Documento revisado sin gaps críticos                                                                                                                                                                                           |
+| T008 | Confirmar horarios concretos, capacidades y reglas comerciales todavía configurables   | -          | bloqueada | Paquete de decisión `docs/operations/academy-configuration-decision-packet.md`; Town/West y catálogo aprobados en `BRIEF.md`; faltan confirmaciones operativas, horarios, capacidades y políticas de freeze/descuentos/refunds |
+| T009 | Confirmar criterios y ponderaciones de evaluación/reconocimiento                       | -          | bloqueada | Aprobación de head coach                                                                                                                                                                                                       |
+| T010 | Seleccionar proveedor de pagos disponible en Jersey para post-piloto                   | -          | bloqueada | ADR y costos aprobados; no bloquea pagos manuales ni `T056`                                                                                                                                                                    |
+| T011 | Confirmar política de retención, residencia y borrado con asesoría aplicable a Jersey  | -          | bloqueada | Política aprobada                                                                                                                                                                                                              |
 
 ## M1 - Identidad, autorización y auditoría
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T012 | Definir módulos de dominio, contratos base y errores tipados | T002,T007 | aprobada | Pruebas unitarias de contratos |
-| T013 | Diseñar colecciones, índices, invariantes y plan de migraciones Firestore/RTDB | T007,T008 | aprobada | Modelo, rollback, fixture, índices y gate final documentados |
-| T014 | Implementar Auth email/password y Google con emulador | T004,T084 | revisión | Google usa el popup SDK conectado al Auth Emulator; email/Google y login sin MFA revalidados con unitarias, integración local y E2E responsive |
-| T015 | Implementar roles y custom claims con mínimo privilegio | T013,T014 | revisión | Parser exacto para seis roles, compatibilidad administrativa y gates globales aprobados sin ampliar provisioning |
-| T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia | T013,T015 | revisión | Evaluador fail-closed, actor de seis roles, matriz Firebase exhaustiva y packaging verificados con gates globales |
-| T017 | Implementar MFA obligatorio para owner/admin | T014,T015 | cancelada | Sustituida por el rediseño administrativo aprobado el 2026-08-11, sin MFA |
-| T018 | Implementar consentimiento versionado y registro de aceptación | T013,T016 | pendiente | Historial y revocación probados |
-| T019 | Implementar audit log append-only para cambios sensibles | T012,T013,T016 | en-progreso | P1 reabre el audit log completo; eventos administrativos/importaciones existentes conservan cobertura parcial |
+| ID   | Tarea atómica                                                                  | Depende de     | Estado    | Evidencia de salida                                                                                                                                                       |
+| ---- | ------------------------------------------------------------------------------ | -------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T012 | Definir módulos de dominio, contratos base y errores tipados                   | T002,T007      | aprobada  | Pruebas unitarias de contratos                                                                                                                                            |
+| T013 | Diseñar colecciones, índices, invariantes y plan de migraciones Firestore/RTDB | T007,T008      | aprobada  | Modelo, rollback, fixture, índices y gate final documentados                                                                                                              |
+| T014 | Implementar Auth email/password y Google con emulador                          | T004,T084      | revisión  | Google usa el popup SDK conectado al Auth Emulator; email/Google y login sin MFA revalidados con unitarias, integración local y E2E responsive                            |
+| T015 | Implementar roles y custom claims con mínimo privilegio                        | T013,T014      | revisión  | Parser exacto para seis roles, compatibilidad administrativa y gates globales aprobados sin ampliar provisioning                                                          |
+| T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia      | T013,T015      | revisión  | Evaluador fail-closed, actor de seis roles, matriz Firebase exhaustiva y packaging verificados con gates globales                                                         |
+| T017 | Implementar MFA obligatorio para owner/admin                                   | T014,T015      | cancelada | Sustituida por el rediseño administrativo aprobado el 2026-08-11, sin MFA                                                                                                 |
+| T018 | Implementar consentimiento versionado y registro de aceptación                 | T016,T021-T024 | pendiente | Waiver único versionado, PDF firmado, aceptación/revocación y UI de registro; se ejecuta después de sus fundamentos                                                       |
+| T019 | Implementar audit log append-only para cambios sensibles                       | T012,T013,T016 | revisión  | Contrato discriminado, adapter create-only, tres writers migrados, replay Regyfit moderno/legacy, integración Firestore y gates documentados; sin migración ni despliegue |
 
 ## M2 - Familias, estudiantes y personal
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T020 | Construir design tokens, shell responsive y navegación accesible por rol | T002,T015 | revisión | Shell responsive, navegación por rol y QA teclado/móvil documentados; falta aprobación formal |
-| T020A | Integrar identidad visual oficial: logo en home, login, shell admin y acceso requerido; favicon solo como favicon; añadir navegación Home | T002,T017,T020 | revisión | Assets verificados, metadata/favicon, textos de marca conservados, rutas Home, responsive y visual QA desktop/móvil |
-| T021 | Implementar perfiles de adultos, menores y tutores | T016,T020 | revisión | Miembros y paneles reales/preview implementados; relaciones completas del MVP siguen pendientes |
-| T022 | Implementar familias multi-child, contactos y relaciones autorizadas | T021 | pendiente | E2E de tutor con varios menores |
-| T023 | Implementar datos médicos/soporte con acceso restringido | T021,T011 | pendiente | Pruebas negativas por rol |
-| T024 | Implementar documentos y waivers privados en R2 con URLs firmadas | T018,T021 | revisión | Adaptador R2 y URLs firmadas para documentos/PDF probados; waivers completos siguen pendientes |
-| T025 | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff | T015,T020 | revisión | Roles administrativos y provisioning probados; gestión completa de coaches/staff sigue pendiente |
+| ID    | Tarea atómica                                                                                                                             | Depende de     | Estado    | Evidencia de salida                                                                                                                                                                                       |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T020  | Construir design tokens, shell responsive y navegación accesible por rol                                                                  | T002,T015      | revisión  | Shell responsive, navegación por rol y QA teclado/móvil documentados; falta aprobación formal                                                                                                             |
+| T020A | Integrar identidad visual oficial: logo en home, login, shell admin y acceso requerido; favicon solo como favicon; añadir navegación Home | T002,T017,T020 | revisión  | Assets verificados, metadata/favicon, textos de marca conservados, rutas Home, responsive y visual QA desktop/móvil                                                                                       |
+| T021  | Implementar perfiles de adultos, menores y tutores                                                                                        | T016,T020      | revisión  | Domain 7/7, store 3/3, callables 4/4, web client/UI 12/12, suite completa 500/500, Rules 16/16, Firestore Emulator 8/8, lint/typecheck/build/formato, smoke E2E 5/5 y auditoría de seguridad sin críticos |
+| T022  | Implementar familias multi-child, contactos y relaciones autorizadas                                                                      | T021           | revisión  | Tasks 1-6 verificadas; suite `533/533`, Rules `23/23`, lint/typecheck/build/formato/diff pasan; E2E `2/2`; audit sin high/critical; dos moderadas transitivas DR-001                                      |
+| T023  | Implementar datos médicos/soporte con acceso restringido                                                                                  | T021,T011      | bloqueada | Spec reconciliada con `BPTJ FUNCTIONS APP.docx`: condición operacional max 1000 y etiqueta staff max 25; implementación bloqueada hasta resolver T011                                                     |
+| T024  | Implementar documentos y waivers privados en R2 con URLs firmadas                                                                         | T016,T021,T023 | pendiente | Subida y acceso privado del PDF firmado del waiver; evidencia, hash, permisos y expiración probados                                                                                                       |
+| T025  | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff                                                                | T015,T020      | revisión  | Roles administrativos y provisioning probados; gestión completa de coaches/staff sigue pendiente                                                                                                          |
+
+## M2A - Levels IBJJF MVP
+
+| ID   | Tarea atómica                                           | Depende de     | Estado    | Evidencia de salida                                                                                                          |
+| ---- | ------------------------------------------------------- | -------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| T083 | Recrear catálogo completo y sección MVP de Levels IBJJF | T025,T072,T084 | pendiente | MVP obligatorio: 171 definiciones, 27 belts, 144 stripes y 11 habilidades recreados con acceso por rol; nada se difiere a v2 |
 
 ## M3 - Agenda, reservas y asistencia
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T026 | Implementar grupos, currículo, clases recurrentes, seminarios y sesiones únicas | T008,T013,T025 | pendiente | Reglas de recurrencia, currículo y timezone probadas |
-| T027 | Implementar elegibilidad, capacidad, roster, booking, mínimo y cancelación a una hora | T021,T026 | pendiente | Conflictos, capacidad, mínimo e idempotencia probados |
-| T028 | Implementar QR/PIN/name search/manual check-in | T022,T027 | pendiente | E2E de cuatro métodos |
-| T029 | Implementar puntualidad, asistencia, no-show y correcciones auditadas | T019,T028 | pendiente | Corrección conserva historial |
-| T030 | Implementar child check-out y autorización de recogida | T022,T029 | pendiente | E2E de todos los estados de salida |
-| T031 | Implementar vista operativa en vivo sin duplicar la fuente canónica | T029,T030 | pendiente | Reconexión y consistencia probadas |
+| ID   | Tarea atómica                                                                         | Depende de     | Estado    | Evidencia de salida                                   |
+| ---- | ------------------------------------------------------------------------------------- | -------------- | --------- | ----------------------------------------------------- |
+| T026 | Implementar grupos, currículo, clases recurrentes, seminarios y sesiones únicas       | T008,T013,T025 | pendiente | Reglas de recurrencia, currículo y timezone probadas  |
+| T027 | Implementar elegibilidad, capacidad, roster, booking, mínimo y cancelación a una hora | T021,T026      | pendiente | Conflictos, capacidad, mínimo e idempotencia probados |
+| T028 | Implementar QR/PIN/name search/manual check-in                                        | T022,T027      | pendiente | E2E de cuatro métodos                                 |
+| T029 | Implementar puntualidad, asistencia, no-show y correcciones auditadas                 | T019,T028      | pendiente | Corrección conserva historial                         |
+| T030 | Implementar child check-out y autorización de recogida                                | T022,T029      | pendiente | E2E de todos los estados de salida                    |
+| T031 | Implementar vista operativa en vivo sin duplicar la fuente canónica                   | T029,T030      | pendiente | Reconexión y consistencia probadas                    |
 
 ## M4 - Membresías y pagos
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T032 | Implementar catálogo y reglas base de planes/membresías | T013 | pendiente | Precios, sedes, accesos y límites semanales aprobados en `BRIEF.md` y probados |
-| T033 | Implementar lifecycle de membresía: trial, active, paused, overdue, cancelled | T032 | pendiente | Transiciones inválidas rechazadas |
-| T034 | Implementar adaptador provider-independent de pagos post-piloto | T010,T012 | pendiente | Contract tests del adaptador; fuera del piloto manual |
-| T035 | Implementar hosted checkout y suscripciones post-piloto sin datos crudos de tarjeta | T034 | pendiente | Flujo sandbox aprobado; fuera del piloto manual |
-| T036 | Implementar webhooks post-piloto firmados, idempotentes y tolerantes a reintentos | T019,T035 | pendiente | Repetición/desorden no duplica cargos; fuera del piloto manual |
-| T037 | Implementar pagos manuales, facturas, recibos, balances, deuda PAYG y refunds manuales | T019,T033 | pendiente | Conciliación, deuda PAYG y permisos probados |
-| T038 | Vincular estado manual de pago/membresía y restricciones por deuda | T037 | pendiente | Acceso, deuda PAYG y recuperación probados sin proveedor externo |
+| ID   | Tarea atómica                                                                          | Depende de | Estado    | Evidencia de salida                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---- | -------------------------------------------------------------------------------------- | ---------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T032 | Implementar catálogo y reglas base de planes/membresías                                | T013       | revisión  | Tasks 1-6 verificadas; suite `572/572`, Rules `30/30`, lint/typecheck/build/formato/diff pasan; audit sin high/critical; dos moderadas transitivas DR-001                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| T033 | Implementar lifecycle de membresía: trial, active, paused, overdue, cancelled          | T032       | revisión  | Diseño aprobado 2026-08-19; Task 1 lifecycle focused `8/8` y domain regression `106/106`; Task 2 audit `12/12`, writer `7/7`, domain `110/110`; Task 3 store `9/9`, contracts/audit `20/20`; Task 4 callables `11/11`, regression `36/36`; Task 5 Emulator `6/6`, Rules `37/37`, unit `32/32`; gates completos sin high/critical. Correcciones: runtime mapping/draft status; audit getter snapshot/contracts expectation; store scope/internal IDs/uniqueness/read-before-write/audit retry; callable family-active/date payload/real invalid transition. DR-001 mantiene dos moderadas transitivas y persiste el residual transversal de rate limit; ninguno aprueba producción. Sin commits, migraciones, writes productivos, deployments, pagos, deuda ni cambios de configuración Git. |
+| T034 | Implementar adaptador provider-independent de pagos post-piloto                        | T010,T012  | pendiente | Contract tests del adaptador; fuera del piloto manual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| T035 | Implementar hosted checkout y suscripciones post-piloto sin datos crudos de tarjeta    | T034       | pendiente | Flujo sandbox aprobado; fuera del piloto manual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| T036 | Implementar webhooks post-piloto firmados, idempotentes y tolerantes a reintentos      | T019,T035  | pendiente | Repetición/desorden no duplica cargos; fuera del piloto manual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| T037 | Implementar pagos manuales, facturas, recibos, balances, deuda PAYG y refunds manuales | T019,T033  | revisión  | Spec aprobada `docs/superpowers/specs/2026-08-19-t037-manual-finance-design.md`; plan TDD `docs/superpowers/plans/2026-08-19-t037-manual-finance-plan.md`; domain `7/7`, store `9/9`, callables `6/6`, audit domain `13/13`, writer `8/8`, Emulator `4/4`, Rules `44/44`, suite completa `629/629`; lint/typecheck/build/formato/diff pasan; audit sin high/critical y dos moderadas DR-001; refunds/providers/UI/booking writes fuera de alcance                                                                                                                                                                                                                                                                                                                                           |
+| T038 | Vincular estado manual de pago/membresía y restricciones por deuda                     | T037       | pendiente | Acceso, deuda PAYG y recuperación probados sin proveedor externo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ## M5 - Progreso y reconocimiento
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T039 | Implementar evaluaciones 1-5, notas basadas en evidencia y visibilidad familiar | T009,T021,T025 | pendiente | Permisos y correcciones probados |
-| T040 | Implementar skill checklist y resumen de progreso | T039 | pendiente | Estados y cálculo probados |
-| T041 | Implementar rachas y generación explicable de candidatos de reconocimiento | T029,T039 | pendiente | Pesos, mínimos, rachas y ausencias médicas probados |
-| T042 | Implementar revisión/aprobación exclusiva del head coach | T015,T041 | pendiente | Ninguna promoción automática/pública |
+| ID   | Tarea atómica                                                                   | Depende de          | Estado    | Evidencia de salida                                                                                   |
+| ---- | ------------------------------------------------------------------------------- | ------------------- | --------- | ----------------------------------------------------------------------------------------------------- |
+| T039 | Implementar evaluaciones 1-5, notas basadas en evidencia y visibilidad familiar | T009,T021,T025,T083 | pendiente | Permisos, correcciones y relación con el catálogo completo de Levels probados                         |
+| T040 | Implementar skill checklist y resumen completo de progreso                      | T039                | pendiente | Técnicas, total de clases, horas, racha, belt/stripes y cálculo de progreso probados                  |
+| T041 | Implementar rachas y generación explicable de candidatos de reconocimiento      | T029,T039           | pendiente | Asistencia, mínimos, rachas, ausencias médicas y candidatos explicables probados                      |
+| T042 | Implementar revisión/aprobación exclusiva del head coach                        | T015,T041           | pendiente | Todas las promociones del catálogo MVP requieren aprobación humana y nunca son automáticas o públicas |
 
 ## M6 - Avisos y safeguarding; CRM post-piloto
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T043 | Implementar pipeline CRM, owner, next action y tareas post-piloto | T021,T025 | pendiente | Transiciones y filtros probados; no bloquea `T056` |
-| T044 | Implementar timeline CRM automático post-piloto | T019,T043 | pendiente | Eventos relevantes aparecen una vez; no bloquea `T056` |
-| T045 | Implementar announcements y mensajes in-app de academia/clase | T025,T026 | pendiente | Audiencia, lectura y entrega interna probadas |
-| T046 | Implementar email/SMS e historial externo de entrega post-piloto | T045 | pendiente | Contract tests del proveedor; no bloquea `T056` |
-| T047 | Aplicar safeguarding a avisos de menores visibles al tutor | T022,T045 | pendiente | Intentos privados bloqueados |
-| T048 | Implementar recordatorios in-app de pagos y seguimiento de asistencia | T029,T038,T045 | pendiente | Reglas, audiencia y resolución probadas |
+| ID   | Tarea atómica                                                         | Depende de     | Estado    | Evidencia de salida                                    |
+| ---- | --------------------------------------------------------------------- | -------------- | --------- | ------------------------------------------------------ |
+| T043 | Implementar pipeline CRM, owner, next action y tareas post-piloto     | T021,T025      | pendiente | Transiciones y filtros probados; no bloquea `T056`     |
+| T044 | Implementar timeline CRM automático post-piloto                       | T019,T043      | pendiente | Eventos relevantes aparecen una vez; no bloquea `T056` |
+| T045 | Implementar announcements y mensajes in-app de academia/clase         | T025,T026      | pendiente | Audiencia, lectura y entrega interna probadas          |
+| T046 | Implementar email/SMS e historial externo de entrega post-piloto      | T045           | pendiente | Contract tests del proveedor; no bloquea `T056`        |
+| T047 | Aplicar safeguarding a avisos de menores visibles al tutor            | T022,T045      | pendiente | Intentos privados bloqueados                           |
+| T048 | Implementar recordatorios in-app de pagos y seguimiento de asistencia | T029,T038,T045 | pendiente | Reglas, audiencia y resolución probadas                |
 
 ## M7 - Dashboard, reportes y cierre del MVP
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T049 | Implementar dashboard diario de clases, asistencia y child check-out | T031 | revisión | Panel visible con preview sintético; persistencia canónica real pendiente |
-| T050 | Implementar dashboard financiero, balances y renovaciones | T038 | revisión | Panel financiero visible en preview; persistencia real pendiente |
-| T051 | Implementar reportes de students, attendance, memberships y revenue manual | T029,T038 | revisión | Informes y exportes de miembros visibles/probados; conjunto del piloto pendiente |
-| T052 | Implementar reportes de progreso, reconocimiento y assessment coverage | T042 | pendiente | Filtros y privacidad probados |
-| T053 | Implementar exportación de datos autorizada y auditable | T019,T051,T052 | revisión | Exportación PDF de miembros con límites, rate limit y cleanup probada; exportación general pendiente |
-| T054 | Configurar backups, restauración y runbook de rollback | T013,T024 | pendiente | Restauración de staging demostrada |
-| T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T018,T019,T021-T033,T037-T042,T045,T047-T054,T083 | revisión | Unitarias, Rules, integración y E2E sintético documentadas; QA completo por rol y release pendientes |
-| T056 | Ejecutar piloto con datos controlados y corregir hallazgos | T055 | pendiente | Acta de piloto aprobada |
-| T057 | Preparar checklist post-piloto de producción, monitoreo, costos y rollback | T056 | pendiente | Gates de despliegue completos; no forma parte de la aceptación de `T056` |
-| T058 | Desplegar a producción con confirmación explícita del operador | T057 | pendiente | Deployment verificado y rollback disponible; fuera del piloto |
-| T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md` | T058 | pendiente | Lección registrada después de producción; fuera del piloto |
+| ID   | Tarea atómica                                                              | Depende de                                        | Estado    | Evidencia de salida                                                                                  |
+| ---- | -------------------------------------------------------------------------- | ------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
+| T049 | Implementar dashboard diario de clases, asistencia y child check-out       | T031                                              | revisión  | Panel visible con preview sintético; persistencia canónica real pendiente                            |
+| T050 | Implementar dashboard financiero, balances y renovaciones                  | T038                                              | revisión  | Panel financiero visible en preview; persistencia real pendiente                                     |
+| T051 | Implementar reportes de students, attendance, memberships y revenue manual | T029,T038                                         | revisión  | Informes y exportes de miembros visibles/probados; conjunto del piloto pendiente                     |
+| T052 | Implementar reportes de progreso, reconocimiento y assessment coverage     | T042                                              | pendiente | Filtros y privacidad probados                                                                        |
+| T053 | Implementar exportación de datos autorizada y auditable                    | T019,T051,T052                                    | revisión  | Exportación PDF de miembros con límites, rate limit y cleanup probada; exportación general pendiente |
+| T054 | Configurar backups, restauración y runbook de rollback                     | T013,T024                                         | pendiente | Restauración de staging demostrada                                                                   |
+| T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T018,T019,T021-T033,T037-T042,T045,T047-T054,T083 | revisión  | Unitarias, Rules, integración y E2E sintético documentadas; QA completo por rol y release pendientes |
+| T056 | Ejecutar piloto con datos controlados y corregir hallazgos                 | T055                                              | pendiente | Acta de piloto aprobada                                                                              |
+| T057 | Preparar checklist post-piloto de producción, monitoreo, costos y rollback | T056                                              | pendiente | Gates de despliegue completos; no forma parte de la aceptación de `T056`                             |
+| T058 | Desplegar a producción con confirmación explícita del operador             | T057                                              | pendiente | Deployment verificado y rollback disponible; fuera del piloto                                        |
+| T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md`        | T058                                              | pendiente | Lección registrada después de producción; fuera del piloto                                           |
 
 ## v2 - post-lanzamiento
 
@@ -118,8 +124,9 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 - T064 - Notificaciones externas y automatizadas completas; los avisos in-app básicos pertenecen a
   `T045` y `T048`.
 - T065 - Offline attendance con sincronización y resolución de conflictos.
-- T066 - Biblioteca técnica ampliada, lesson planning avanzado y automatizaciones de promoción; el
-  currículo básico y la aprobación humana pertenecen al piloto.
+- T066 - Biblioteca técnica adicional posterior a las 11 habilidades del catálogo MVP, lesson planning
+  avanzado y automatizaciones de promoción; el catálogo completo MVP y la aprobación humana pertenecen
+  al piloto y no se pueden diferir.
 
 ## v3 - crecimiento y escala
 
@@ -130,28 +137,221 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 - T070 - Referrals, privadas, competencias y retail; los seminarios operativos pertenecen a `T026`.
 - T071 - Analytics, IA asistida, multi-academia, white label y SaaS.
 
+### Evidencia de implementación T022 (2026-08-19)
+
+- Ledger: T022 pasó de `pendiente` a `en-progreso` antes de tocar código; se ejecuta inline según
+  `docs/superpowers/plans/2026-08-19-t022-family-relationships-plan.md` y la spec aprobada.
+- RED de Task 1: `corepack pnpm exec vitest run --project node packages/domain/src/families/family-contracts.test.ts packages/domain/src/profiles/profile-contracts.test.ts`
+  falló de forma esperada porque `family-contracts` no existía; los 7 tests de perfiles previos pasaron.
+- GREEN focused: el mismo conjunto ampliado con `packages/domain/src/contracts.test.ts` pasó `24/24`.
+  Cubre enums congelados, familia, relación guardian, borrador de menor, `familyId` opcional, allowlists
+  exactas, fechas, IDs, permisos duplicados, campos prohibidos, símbolos, propiedades no enumerables y
+  prototipos.
+- Implementación: se añadieron `packages/domain/src/families/family-contracts.ts`, sus exports
+  source/runtime y la extensión opcional `familyId` en `StudentProfile`; no se crean Auth accounts ni
+  claims y el borrador no acepta autoridad clínica, financiera, progreso ni `userId`.
+- Gates de Task 1: `corepack pnpm --filter @bpt-jersey/domain typecheck` pasó; `corepack pnpm --filter @bpt-jersey/domain build:runtime`
+  pasó; Prettier focused pasó; `git diff --check` focused pasó.
+- Autocrítica de seguridad: no hay endpoints, integraciones, secretos ni logs nuevos; las entradas se
+  validan como objetos planos con `Reflect.ownKeys`, allowlists exactas, IDs acotados y fechas ISO;
+  las salidas se clonan y congelan. Sin hallazgos críticos abiertos. UI/E2E, Rules, rendimiento y
+  auditoría de dependencias no aplican todavía a esta unidad; quedan para las tareas del plan.
+- Estado: T022 permanece `en-progreso`; Task 1 queda verificada internamente. Task 2 se ejecutó sin
+  migración ni I/O productivo y su siguiente acción es el cierre de callables en Task 3.
+- Task 2 RED: `corepack pnpm exec vitest run --project node apps/functions/src/families/family-service.test.ts`
+  falló de forma esperada porque `family-service` no existía.
+- Task 2 GREEN: el focused de store pasó `8/8`; cubre creación atómica multi-child, tutor/Auth existente,
+  tenant, colisiones, preservación del envelope, lookup staff/guardian, reasignación de tutor, bajas y
+  proyección guardian redacted.
+- Store: `apps/functions/src/families/family-service.ts` limita paths a `academies/{academyId}`, lee
+  documentos y queries antes de escribir, usa `transaction.create/set`, deriva `minor`, mantiene un único
+  tutor, genera relationship IDs deterministas y no elimina documentos.
+- Gates Task 2: `corepack pnpm --filter @bpt-jersey/functions typecheck`, Prettier focused y
+  `git diff --check` focused pasaron. No se ejecutó aún Emulator: corresponde a Task 4.
+- Autocrítica Task 2: errores fail-closed para Auth ausente, tenant distinto, documentos inválidos,
+  duplicados y relaciones guardian ambiguas; no hay logs ni datos sensibles añadidos. Rollback de esta
+  unidad es revertir código; no hubo migración, backup requerido, staging, producción ni deploy.
+- Task 2 deja como siguiente unidad escribir RED para `apps/functions/src/families/family-callables.test.ts`
+  y proteger las operaciones con claims/roles y payloads exactos; esa unidad quedó cubierta por Task 3.
+- Task 3 RED: `corepack pnpm exec vitest run --project node apps/functions/src/families/family-callables.test.ts`
+  falló de forma esperada porque los handlers no existían.
+- Task 3 GREEN y regresiones: focused `18/18` en callables, autorización de usuario y deploy runtime;
+  Functions typecheck pasó. La primera corrida detectó imports raíz no portables en el nuevo código;
+  se corrigieron usando `@bpt-jersey/domain/families` y `@bpt-jersey/domain/profiles`, y el runtime
+  portable final pasó sin imports workspace residuales. El harness imprime warnings de Node/sourcemaps
+  no bloqueantes de la prueba existente.
+- Callables: `createFamily`, `getFamily` y `updateFamily` derivan actor/tenant, aceptan solo owner/admin
+  para escritura, guardian solo puede leer con payload `null`, rechazan authority fields y mapean errores
+  internos a mensajes públicos genéricos; no hay logging de payloads.
+- Gates Task 3: `corepack pnpm --filter @bpt-jersey/functions typecheck`, Prettier focused y
+  `git diff --check` focused pasaron. No se desplegó ni se inicializó una operación productiva.
+- Task 3 dejó como siguiente acción añadir integración Firestore Emulator y la matriz explícita
+  deny-by-default de `families`/`relationships`; esa unidad quedó cubierta por Task 4.
+- Task 4: `corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only firestore,auth
+"node node_modules/vitest/vitest.mjs run --config qa/integration/vitest.config.ts
+qa/integration/family-adapters.test.ts qa/integration/firestore-adapters.test.ts"` pasó `9/9`.
+  Auth/Firestore Emulator verificó creación staff de dos menores, envelope, lectura guardian redacted,
+  guardian cruzado, reasignación, desactivación y duplicado de tutor.
+- Rules: `corepack pnpm test:rules` pasó `23/23` en 5 archivos; la matriz explícita de `families` y
+  `relationships` cubre get/list/create/update/delete para anónimo, owner, administrator, headCoach,
+  coach, guardian y adultStudent. Las Rules siguen deny-by-default; los warnings de permission_denied
+  son la salida esperada de las pruebas negativas.
+- Índice: `firestore.indexes.json` añade únicamente la consulta `relationships` por `adultUserId` y
+  `status`; no se aplicó a producción. Rollback definido como retirar esa entrada antes de cualquier
+  despliegue futuro.
+- Autocrítica Task 4: el Emulator descubrió y corrigió el uso de objetos simulados como queries; el
+  adapter ahora construye `collection().where().limit()` real y conserva dobles unitarios. Sin hallazgos
+  críticos, migración, secretos, datos productivos ni deploy.
+- Task 4 dejó como siguiente acción escribir RED para `family-client` y las páginas staff/guardian en
+  Task 5; esa unidad quedó cubierta por Task 5.
+- Task 5 RED: el focused web falló porque `family-client` y las páginas `/admin/families` y
+  `/account/family` no existían.
+- Task 5 GREEN: `corepack pnpm exec vitest run --project web apps/web/src/lib/family-client.test.ts
+apps/web/src/app/admin/families/page.test.tsx apps/web/src/app/account/family/page.test.tsx
+apps/web/src/app/account/page.test.tsx apps/web/src/lib/login-flow.test.ts` pasó `17/17`.
+- Web: el cliente callable sanitiza payloads, valida proyecciones staff/guardian con allowlists exactas
+  y mensajes seguros; la UI staff admite tutor y múltiples menores con validación/foco/estado de doble
+  envío; guardian es lectura sin IDs internos, relaciones, acciones de escritura ni campos restringidos.
+- Gates web: `corepack pnpm --filter @bpt-jersey/web typecheck` pasó; Prettier focused pasó. El build
+  estático con `NEXT_PUBLIC_ADMIN_E2E=true` generó `/admin/families` y `/account/family`.
+- Browser QA: `corepack pnpm --dir qa test:e2e --grep "@family"` con `NEXT_PUBLIC_ADMIN_E2E=true`
+  pasó `2/2` (desktop Chromium y mobile Chromium), staff multi-child mockeado, consola limpia y sin
+  overflow horizontal. Guardian queda cubierto por RTL y la integración Auth/Firestore; no se creó un
+  bypass de autenticación para E2E.
+- Autocrítica Task 5: no hay acceso Firestore directo en navegador, secretos, PII en logs ni respuesta
+  de autoridad visible; labels, foco, alertas, targets y reduced motion siguen el DNA existente.
+- Task 6: `docs/data/firestore-data-model.md` documenta `families`, `relationships`, `familyId` de
+  menores, ownership `owner`/`administrator`, proyección guardian redacted, límites de permisos, Rules
+  deny-by-default, índice `adultUserId ASC, status ASC` y rollback aditivo retirando la entrada antes
+  de cualquier despliegue.
+- Regresión global: la primera `corepack pnpm test` detectó dos aserciones históricas de navegación que
+  esperaban 9 enlaces después de añadir `Families`; se actualizaron a la ruta y total 10, y la suite
+  final pasó `74` archivos y `533/533` pruebas.
+- Gates finales: `corepack pnpm test` pasó `533/533`; `corepack pnpm test:rules` pasó `5` archivos y
+  `23/23` en Emulator; `corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm build`,
+  `corepack pnpm format:check` y `git -c safe.directory="F:/Proyectos/BPT Jersey/Dev" diff --check`
+  pasaron. El check de formato requirió formatear `qa/tests/family-relationships.spec.ts`.
+- Seguridad final: callables con Auth/tenant/rol, allowlists exactas y errores públicos seguros; no hay
+  secretos, endpoints sin autorización, acceso cliente directo, PII en logs ni migraciones/despliegues.
+  `corepack pnpm audit --audit-level high` reporta `0` high/critical y las dos moderadas transitivas
+  ya registradas en `docs/security/dependency-risk-register.md` (`uuid@9.0.1` y
+  `@opentelemetry/core@1.30.1`, DR-001).
+- Estado: T022 pasa a `revisión`; no se ejecutaron migraciones, despliegues ni commits. La aprobación
+  final queda separada de esta verificación técnica.
+
+### Evidencia de implementación T032 (2026-08-19)
+
+- El ledger conserva T032 en `en-progreso` hasta que los gates finales de Task 6
+  pasen; Task 5 actualiza la fila canónica de `plans` sin modificar runtime,
+  UI, pagos, membresías lifecycle, migraciones, despliegue ni Git.
+- Task 1: focused `11/11` y regresión de dominio `98/98`; se corrigió la
+  validación de getters hostiles.
+- Task 2: store `15/15`, runtime deploy `2/2` y typecheck; se corrigieron
+  seed/get/runtime, preservación del envelope y la superficie de activación.
+- Task 3: callables `13/13`, regresión aislada `31/31` y typecheck; se añadió el
+  comando explícito `activatePlan` sin hacer editable `active` en `savePlan`.
+- Task 4: integración Firestore/Auth Emulator `4/4`; cada caso individual
+  `1` pasado (`idempotently`, `lifecycle`, `isolates`, `documents`); Rules
+  `30/30`; typecheck y formato pasaron. Se corrigió el read-before-write de
+  Firestore y se aislaron las pruebas de integración/envelope.
+- La reconciliación documental conserva los diez `planId`/valores exactos de
+  `BPT-memberships.docx` y `BRIEF.md`, precios en peniques GBP, PAYG por sesión,
+  ownership tenant-scoped, proyección pública solo activa, activación explícita,
+  desactivación blanda, acceso directo deny-by-default, sin índice compuesto y
+  rollback de seed solo en Emulator/staging.
+- No hubo commits, migraciones, escrituras productivas, despliegues, llamadas a
+  pagos ni cambios de configuración de Git. El reporte de Task 5 queda en
+  `.superpowers/sdd/2026-08-19-t032-membership-catalog-plan/task-5-report.md`.
+- Task 6: `corepack pnpm test` pasó `77` archivos y `572/572` pruebas; `corepack
+pnpm test:rules` pasó `5` archivos y `30/30` pruebas. `corepack pnpm lint`,
+  `corepack pnpm typecheck`, `corepack pnpm build`, `corepack pnpm format:check`
+  y `git -c safe.directory="F:/Proyectos/BPT Jersey/Dev" diff --check` pasaron.
+- Seguridad final: callables con Auth/rol/tenant, allowlists exactas, proyecciones
+  redacted y Rules deny-by-default; no hay secretos, PII en logs, pagos,
+  migraciones, despliegues ni integraciones nuevas. `corepack pnpm audit
+--audit-level high` conserva solo `2` moderadas transitivas (`uuid` y
+  `@opentelemetry/core`) registradas en DR-001; no hay high/critical. La
+  protección de abuso/rate limit de catálogo queda como control transversal para
+  el gate de endpoints del proyecto, no como una falsa afirmación de que T032 lo
+  resolvió.
+- T032 pasa a `revisión`; queda pendiente aprobación formal. No se ejecutó commit.
+
+### Evidencia T033 Task 3 (2026-08-19)
+
+- RED: `corepack pnpm exec vitest run --project node apps/functions/src/memberships/membership-service.test.ts` falló de forma esperada porque `membership-service.js` no existía.
+- GREEN: el focused final inicial pasó `8/8`; cubre creación `trial`/`active`, referencias same-tenant y relación activa, plan inactivo, estudiante desconocido, familia cruzada, tenant isolation, unicidad current, todas las transiciones válidas, transición inválida/terminal, retry idempotente, `endsAt`, envelope, drafts de auditoría, ausencia de efectos financieros y mapeo seguro de errores del adapter.
+- Store: `apps/functions/src/memberships/membership-service.ts` usa transacciones read-before-write sobre `memberships`, `families`, `students`, `plans` y `relationships`; valida contratos T033/T032, limita el scope por tenant/familia/estudiante/membresía, preserva referencias/envelope, deja `cancelled` terminal y agrega `membership.created`/`membership.status.changed` con `appendAuditEventInTransaction`.
+- Gates de Task 3: `corepack pnpm --filter @bpt-jersey/functions typecheck` y Prettier focused pasaron. `git -c safe.directory="F:/Proyectos/BPT Jersey/Dev" diff --check` focused no reportó errores; solo warnings de conversión LF/CRLF de Git.
+- Autocrítica de seguridad: sin secretos, logs, datos financieros, proveedores, pagos, deuda, invoices, receipts, migraciones, despliegues o writes productivos; errores de transacción no exponen mensajes crudos. Sin hallazgos críticos abiertos.
+- Estado: T033 permanece `en-progreso`; Task 4 de callables, Task 5 de Emulator/Rules y Task 6 de documentación/gates completos quedan pendientes. No se hizo commit ni se modificó configuración de Git.
+
+### Fix report de revisión T033 Task 3 (2026-08-19)
+
+- `transitionMembership` ahora valida `familyIds`, `studentIds` y `membershipIds` después de leer y validar el registro, antes de devolverlo o escribirlo.
+- `storedFamily`, `storedStudent` y `storedPlan` comparan sus IDs internos con el ID esperado del documento; los checks de tenant permanecen activos.
+- La consulta de unicidad por `studentId` ya no usa límite; detecta una membresía vigente después de `101` documentos históricos cancelados sin duplicar estados.
+- El fake transaccional falla ante cualquier lectura posterior a la primera escritura; la creación prueba explícitamente que el flujo read-before-write no dispara esa guardia.
+- El retry same-state comprueba que no genera writes ni auditoría.
+- El focused corregido pasó `9/9`; T033 permanece `en-progreso` porque callables, Emulator/Rules y gates finales siguen fuera de esta Task 3.
+
+### Evidencia final T033 Task 6 (2026-08-19)
+
+- El contrato canónico documenta exactamente los campos `membershipId`, `academyId`, `familyId`,
+  `studentId`, `planId`, `status`, `startsAt`, `endsAt`, `nextBillingAt`, `schemaVersion`,
+  `createdAt`, `createdBy`, `updatedAt` y `updatedBy`; referencias same-tenant, la tabla completa
+  de estados, la unicidad de una sola membresía current y el historial terminal `cancelled`.
+- La documentación fija guardian/adultStudent en creación `trial` dentro de su alcance, owner/admin
+  para creación y transiciones, coach/headCoach denegados, Functions/Auth/tenant/scopes,
+  payloads server-owned, auditoría `membership.created`/`membership.status.changed` create-only con
+  campos generados por servidor y redacción sin PII, precios, pagos o deuda.
+- También fija Rules browser deny-by-default, que T033 no añade compound indexes, la separación
+  T037/T038 para deuda/finanzas manuales, T034-T036 para providers, y rollback solo en Emulator o
+  staging aislado mediante cleanup o estado `cancelled`.
+- Evidencia exacta acumulada: Task 1 lifecycle focused `8/8` y domain regression `106/106`; Task 2
+  audit `12/12`, writer `7/7`, domain `110/110`; Task 3 store `9/9`, contracts/audit `20/20`;
+  Task 4 callables `11/11`, regression `36/36`; Task 5 Emulator `6/6`, Rules `37/37`, unit `32/32`.
+- Correcciones reconciliadas: lifecycle runtime mapping/draft status; audit getter snapshot y
+  contracts expectation; store scope, internal IDs, uniqueness, read-before-write y audit retry;
+  callable family-active, date payload y transición inválida real.
+- Se conserva T033 en `revisión`, no `aprobada`: las pruebas y gates técnicos pasan, pero esta
+  verificación no equivale a aprobación de producción. No se hicieron commits, migraciones, writes
+  productivos, deployments, pagos, deuda ni cambios de configuración Git.
+- Preocupaciones residuales: `corepack pnpm audit --audit-level high` conserva las dos moderadas
+  transitivas de DR-001 (`uuid` y `@opentelemetry/core`), sin high/critical; el rate-limit/protección
+  contra abuso sigue siendo un control transversal pendiente y no queda resuelto por T033.
+
+### T037 - Inicio de implementación (2026-08-19)
+
+- Diseño aprobado por el operador: facturas como fuente canónica, pagos manuales append-only en
+  efecto, balance/deuda derivados y sin colecciones `balances`/`debts`.
+- Autorización aprobada: owner/administrator escriben; guardian/adultStudent solo leen su alcance;
+  headCoach/coach quedan denegados.
+- El alcance de esta tarea excluye refunds por falta de política aprobada, providers, checkout,
+  webhooks, UI, bloqueo de reservas, producción y migraciones.
+- T037 pasa a `en-progreso`; la evidencia de cada ciclo RED/GREEN y la autocrítica se agregará aquí
+  antes de moverla a `revisión`.
+
 ## Tareas complementarias integradas desde la evidencia del proyecto
 
 Estas tareas no reemplazan las tareas MVP numeradas. Registran trabajo posterior que existía en
 la evidencia, pero no tenía un ID propio en el backlog. `tasks.md` conserva el estado oficial y
 la evidencia; `Lista/Lista.js` debe reflejar esta sección sin crear tareas fuera de este archivo.
 
-| ID | Tarea atómica | Depende de | Estado | Evidencia de salida |
-|---|---|---|---|---|
-| T072 | Ejecutar descubrimiento estructural read-only de Regyfit | T007,T013 | revisión | Manifiesto sanitizado, contratos y Playwright offline 2/2; entidades fuente todavía insuficientes para aprobar el mapeo |
-| T073 | Implementar autorización, locks y provisioning administrativo de Regyfit | T015,T016 | revisión | Locks renovables, fencing, recuperación y compensación fail-closed; 32 pruebas focused y 83 de suite documentadas |
-| T074 | Construir shell y panel read-only administrativo de Regyfit | T020,T015 | revisión | Shell responsive, proyecciones owner/safe, filtros, foco, 24 E2E sintéticos; falta aprobación/live Auth completa |
-| T075 | Implementar importer Regyfit idempotente y aplicar lote aprobado | T073,T074 | revisión | Importer protegido, dry-run e importación de 10 registros verificada; lectura live owner/administrator y alertas de facturación pendientes |
-| T076 | Publicar callable protegido de registros Regyfit | T074,T075 | revisión | Callable v2 desplegado y smoke sin identidad devuelve 403; verificación Auth live queda pendiente |
-| T077 | Implementar gateway unificado de login, logout y acceso administrativo | T014,T015 | revisión | Email/Google, destinos allowlisted, logout, E2E sintético y verificación manual staging documentados; live Auth automatizado opt-in |
-| T078 | Entregar panel administrativo visible con preview sintético | T020,T021 | revisión | Overview, Members, Groups, Activities, Attendance, Reports, CRM y Finance con filtros y QA 374/374; persistencia real posterior |
-| T079 | Implementar operaciones de miembros, informes y exportación PDF protegida | T021,T024,T053 | revisión | Callables, límites, rate limit, export journal, PDF Unicode, integración Firestore y QA 427/427 documentados |
-| T080 | Validar lote real de PDFs de miembros y planificar importación | T079,T054 | revisión | 8 reportes, 243 canónicos, 0 conflictos tras resolución y dry-run aprobado; backup/restauración y apply staging pendientes |
-| T081 | Implementar navegación responsive administrativa y tablas ordenables | T020,T078 | revisión | Drawer móvil, foco, responsive, ordenación y E2E desktop/móvil documentados; aprobación formal pendiente |
-| T082 | Establecer sincronización permanente entre `tasks.md` y `Lista/` | T001 | aprobada | Regla persistente añadida a `AGENTS.md`, Copilot y `MASTER_PROMPT.md`; 83 entradas únicas sincronizadas y `Lista.js` verificado |
-| T083 | Relevar `Levels: JIU-JITSU - IBJJF` read-only en Regyfit y recrear la sección `Levels` en BPT Jersey | T072,T084 | pendiente | Discovery, inventario y diseño aprobados; ejecución programada en P5 después de identidad y tatami |
-| T084 | Impedir que el importador de PDFs trate producción como staging y limitar writes al emulador | T080,T085 | revisión | Runner/CLI emulator-only, fuente sintética temporal, symlinks rechazados y gates globales verdes |
-| T085 | Fijar `nanoid >=3.3.18` y excluir caches Graphify del formatter | T002 | revisión | `nanoid@3.3.18`, audit sin high/critical y formato global verde sin modificar caches generadas |
+| ID   | Tarea atómica                                                                                | Depende de     | Estado   | Evidencia de salida                                                                                                                        |
+| ---- | -------------------------------------------------------------------------------------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| T072 | Ejecutar descubrimiento estructural read-only de Regyfit                                     | T007,T013      | revisión | Manifiesto sanitizado, contratos y Playwright offline 2/2; entidades fuente todavía insuficientes para aprobar el mapeo                    |
+| T073 | Implementar autorización, locks y provisioning administrativo de Regyfit                     | T015,T016      | revisión | Locks renovables, fencing, recuperación y compensación fail-closed; 32 pruebas focused y 83 de suite documentadas                          |
+| T074 | Construir shell y panel read-only administrativo de Regyfit                                  | T020,T015      | revisión | Shell responsive, proyecciones owner/safe, filtros, foco, 24 E2E sintéticos; falta aprobación/live Auth completa                           |
+| T075 | Implementar importer Regyfit idempotente y aplicar lote aprobado                             | T073,T074      | revisión | Importer protegido, dry-run e importación de 10 registros verificada; lectura live owner/administrator y alertas de facturación pendientes |
+| T076 | Publicar callable protegido de registros Regyfit                                             | T074,T075      | revisión | Callable v2 desplegado y smoke sin identidad devuelve 403; verificación Auth live queda pendiente                                          |
+| T077 | Implementar gateway unificado de login, logout y acceso administrativo                       | T014,T015      | revisión | Email/Google, destinos allowlisted, logout, E2E sintético y verificación manual staging documentados; live Auth automatizado opt-in        |
+| T078 | Entregar panel administrativo visible con preview sintético                                  | T020,T021      | revisión | Overview, Members, Groups, Activities, Attendance, Reports, CRM y Finance con filtros y QA 374/374; persistencia real posterior            |
+| T079 | Implementar operaciones de miembros, informes y exportación PDF protegida                    | T021,T024,T053 | revisión | Callables, límites, rate limit, export journal, PDF Unicode, integración Firestore y QA 427/427 documentados                               |
+| T080 | Validar lote real de PDFs de miembros y planificar importación                               | T079,T054      | revisión | 8 reportes, 243 canónicos, 0 conflictos tras resolución y dry-run aprobado; backup/restauración y apply staging pendientes                 |
+| T081 | Implementar navegación responsive administrativa y tablas ordenables                         | T020,T078      | revisión | Drawer móvil, foco, responsive, ordenación y E2E desktop/móvil documentados; aprobación formal pendiente                                   |
+| T082 | Establecer sincronización permanente entre `tasks.md` y `Lista/`                             | T001           | aprobada | Regla persistente añadida a `AGENTS.md`, Copilot y `MASTER_PROMPT.md`; 83 entradas únicas sincronizadas y `Lista.js` verificado            |
+| T084 | Impedir que el importador de PDFs trate producción como staging y limitar writes al emulador | T080,T085      | revisión | Runner/CLI emulator-only, fuente sintética temporal, symlinks rechazados y gates globales verdes                                           |
+| T085 | Fijar `nanoid >=3.3.18` y excluir caches Graphify del formatter                              | T002           | revisión | `nanoid@3.3.18`, audit sin high/critical y formato global verde sin modificar caches generadas                                             |
 
 ## Plan de implementación del MVP aprobado
 
@@ -187,16 +387,36 @@ Vitest 4.1.10, Firebase Emulator Suite y Playwright 1.61.1.
 
 ### Orden de ejecución
 
-| Fase | Orden WIP=1 | Salida verificable |
-|---|---|---|
-| P0 | `T085 -> T084` | Toolchain sin high advisories; importaciones productivas imposibles y dry-run/confirm solo contra emulador loopback. |
-| P1 | `T014 -> T015 -> T016 -> T019 -> T018 -> T021 -> T022 -> T023 -> T024 -> T025` | Auth/Rules/auditoría revalidados; adultos, familias, menores, salud, waivers y staff persistentes. |
-| P2 | `T032 -> T033 -> T037 -> T038` | Catálogo Town/West, lifecycle, pagos manuales y deuda PAYG. |
-| P3 | `T008 -> T026 -> T027` | Configuración aprobada; grupos, currículo, clases/seminarios, booking, mínimo y cancelación. |
-| P4 | `T028 -> T029 -> T030 -> T031` | Check-in/out, puntualidad, asistencia y vista operativa canónica. |
-| P5 | `T083 -> T009 -> T039 -> T040 -> T041 -> T042` | Levels, criterios aprobados, skills, evaluaciones, rachas y promociones/reconocimientos revisados. |
-| P6 | `T020 -> T045 -> T047 -> T048 -> T049 -> T050 -> T051 -> T052 -> T053` | Portales por rol, avisos internos, dashboards, reportes y exports autorizados. |
-| P7 | `T054 -> T055 -> T056` | Restauración, `verify:mvp`, E2E por rol y acta del piloto. |
+| Fase | Orden WIP=1                                                                            | Salida verificable                                                                                                                |
+| ---- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| P0   | `T085 -> T084`                                                                         | Toolchain sin high advisories; importaciones productivas imposibles y dry-run/confirm solo contra emulador loopback.              |
+| P1   | `T014 -> T015 -> T016 -> T019 -> T021 -> T022 -> T023 -> T024 -> T018 -> T025 -> T083` | Auth/Rules/auditoría revalidados; registro DOCX, waiver, staff y catálogo completo de Levels persistentes.                        |
+| P2   | `T032 -> T033 -> T037 -> T038`                                                         | Catálogo Town/West, lifecycle, pagos manuales y deuda PAYG.                                                                       |
+| P3   | `T008 -> T026 -> T027`                                                                 | Configuración aprobada; grupos, currículo, clases/seminarios, booking, mínimo y cancelación.                                      |
+| P4   | `T028 -> T029 -> T030 -> T031`                                                         | Check-in/out, puntualidad, asistencia y vista operativa canónica.                                                                 |
+| P5   | `T009 -> T039 -> T040 -> T041 -> T042`                                                 | Criterios aprobados, skills, evaluaciones, rachas y promociones/reconocimientos revisados sobre el catálogo Levels ya disponible. |
+| P6   | `T020 -> T045 -> T047 -> T048 -> T049 -> T050 -> T051 -> T052 -> T053`                 | Portales por rol, avisos internos, dashboards, reportes y exports autorizados.                                                    |
+| P7   | `T054 -> T055 -> T056`                                                                 | Restauración, `verify:mvp`, E2E por rol y acta del piloto.                                                                        |
+
+### Trazabilidad obligatoria de los DOCX
+
+Los dos DOCX son fuentes funcionales vinculantes. Una fila solo se considera cubierta cuando su tarea
+responsable tiene implementación, pruebas y evidencia; `Lista/Lista.js` debe reflejar estos vínculos.
+
+| Requisito                                                       | Fuente                                             | Tareas responsables | Criterio de entrega MVP                                                                                              |
+| --------------------------------------------------------------- | -------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `FUN-REG-01` datos del participante, sede y preferencia horaria | `BPTJ FUNCTIONS APP.docx`                          | `T021`              | Registro de nombre, fecha de nacimiento, teléfono, email, sede y preferencia de mañana/tarde/noche.                  |
+| `FUN-REG-02` tutor legal, menor y contacto de emergencia        | `BPTJ FUNCTIONS APP.docx` + waiver                 | `T022`              | Tutor legal vinculado, relación, teléfono, alternativo y uso en nombre del menor.                                    |
+| `FUN-REG-03` condiciones, lesiones, alergias y medicación       | `BPTJ FUNCTIONS APP.docx` + waiver                 | `T023`              | Campo restringido de máximo 1000 caracteres, aviso administrativo y acceso negativo por rol.                         |
+| `FUN-WVR-01` waiver único, cláusulas y aceptación               | waiver compartido por el operador                  | `T018`              | Texto versionado, aceptación, revocación, renovación, foto/video, tratamiento médico, higiene y protección de datos. |
+| `FUN-WVR-02` PDF firmado como evidencia                         | waiver compartido por el operador                  | `T024`              | PDF firmado subido a R2 privado con hash, firmante, versión, timestamp de servidor y permisos.                       |
+| `FUN-CLASS-01` sedes, grupos, currículo, clases y seminarios    | `BPTJ FUNCTIONS APP.docx` + memberships            | `T008,T026`         | Town/West, recurrencia, capacidad, currículo y seminarios disponibles para el piloto.                                |
+| `FUN-BOOK-01` mínimo, cancelación y aviso de clase              | `BPTJ FUNCTIONS APP.docx`                          | `T027,T045`         | Mínimo de cuatro una hora antes, override superior del coach y aviso in-app de cancelación.                          |
+| `FUN-CHECK-01` QR, manual, distancia y asistencia               | `BPTJ FUNCTIONS APP.docx`                          | `T028,T029`         | QR/manual, señal de 50 metros, cash de coach, puntualidad, no-show y correcciones auditadas.                         |
+| `FUN-PROG-01` catálogo completo, habilidades y belts            | `BPTJ FUNCTIONS APP.docx` + inventario Regyfit     | `T083`              | Las 171 definiciones, 27 belts, 144 stripes y 11 habilidades están disponibles dentro del MVP.                       |
+| `FUN-PROG-02` horas, clases, rachas, conducta y promociones     | `BPTJ FUNCTIONS APP.docx`                          | `T039-T042`         | Progreso calculado, conducta menor de 16, candidatos explicables y aprobación exclusiva del head coach.              |
+| `MEM-01` catálogo, precios y accesos Town/West                  | `BPT-memberships.docx`                             | `T032,T033`         | Todos los planes y accesos del documento, sin omitir Kids, Teens, Adults ni Open Mats.                               |
+| `MEM-02` PAYG, cash, deuda y bloqueo de reserva                 | `BPTJ FUNCTIONS APP.docx` + `BPT-memberships.docx` | `T037,T038`         | Pago manual, factura/recibo, doble cobro de deuda pendiente y recuperación de acceso.                                |
 
 Cada fase recibe aquí su bloque de archivos/interfaces/pasos antes de tocar su código. Este corte
 just-in-time evita duplicar un plan especulativo para siete subsistemas y mantiene `tasks.md` como
@@ -260,9 +480,7 @@ expect(() =>
 expect(() => validateMemberPdfImportCliEnvironment("confirm", undefined)).toThrow(
   "Firestore emulator host is required",
 );
-expect(() =>
-  validateMemberPdfImportCliEnvironment("confirm", "127.0.0.1:8080"),
-).not.toThrow();
+expect(() => validateMemberPdfImportCliEnvironment("confirm", "127.0.0.1:8080")).not.toThrow();
 ```
 
 - [x] **Paso 2 - verificar RED**
@@ -613,6 +831,15 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
   Town/West y `STACK.md` las fases P0-P7; proveedor, CRM, email/SMS y producción quedan post-piloto.
 - Pendiente vigente: confirmar horarios/capacidades configurables y políticas de freeze,
   descuentos y refunds. Esto bloquea sus reglas específicas, no el catálogo base de `T032`.
+- Preparación autónoma 2026-08-19: se creó `docs/operations/academy-configuration-decision-packet.md`
+  con los valores aprobados, hechos públicos no reconciliados y el conjunto mínimo de decisiones
+  operativas. `T008` queda `bloqueada` hasta confirmación de la academia; no se modificaron fixtures,
+  contratos, Rules, índices ni valores productivos, y ningún placeholder `(f)` fue promovido.
+- Revisión DOCX 2026-08-19: `BPTJ FUNCTIONS APP.docx` sí fija el corte de una hora, la penalización
+  Town de GBP 15, el mínimo de cuatro reservas y la capacidad configurable al crear la clase;
+  `BPT-memberships.docx` sí fija el catálogo, precios, accesos y límites semanales. El paquete fue
+  corregido para no pedir confirmación de esas reglas ya vinculantes; quedan abiertas solo las
+  decisiones que los DOCX no fijan.
 
 ### T013 - 2026-08-07
 
@@ -764,7 +991,7 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
 - Seguimiento del login: el commit publicado aún convertía `auth/multi-factor-auth-required` en el mensaje genérico; el cambio local en `login-form.tsx` enruta ese error administrativo al desafío TOTP y conserva el resolver en memoria. Prueba enfocada -> `12/12`; suite completa -> `33 archivos, 205 pruebas`; typecheck web, lint, Prettier específico, build Next y E2E login sintético -> `8/8` desktop/móvil.
 - Dependencias: `corepack pnpm audit --audit-level high` -> dos vulnerabilidades moderadas transitivas ya registradas, sin high/critical. `corepack pnpm --filter @bpt-jersey/functions build` no pudo completar porque pnpm intentó purgar `node_modules` sin TTY; el equivalente directo `tsc` pasó y no se cambió la configuración para ocultar la limitación.
 - Operaciones y secretos: no se desplegó, migró, crearon usuarios, leyeron/escribieron secretos, modificó historial Git ni hizo commit. La verificación live real de Firebase/TOTP queda pendiente de una cuenta administrativa staging dedicada y código inyectado por el operador; el seguimiento local todavía no está publicado.
- - Rollback: restaurar las revisiones anteriores de web/Functions; si se usa staging, retirar únicamente el factor TOTP de la cuenta dedicada en Firebase Auth. No hay migración de Firestore/RTDB ni backup de datos requerido.
+- Rollback: restaurar las revisiones anteriores de web/Functions; si se usa staging, retirar únicamente el factor TOTP de la cuenta dedicada en Firebase Auth. No hay migración de Firestore/RTDB ni backup de datos requerido.
 
 ### Task 4 - Members and reports fixes - 2026-08-11
 
@@ -818,8 +1045,8 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
   El build normal fue restaurado después. El servidor estático QA ahora responde correctamente a
   los sidecars metadata-only de Next sin convertirlos en falsos errores de recursos.
 - Seguridad: no se añadieron endpoints públicos, secretos, PII real, pagos, importación PDF,
-   migraciones ni despliegues. `corepack pnpm audit --audit-level high` conserva únicamente las 2
-   vulnerabilidades moderadas transitivas registradas; no hay high/critical.
+  migraciones ni despliegues. `corepack pnpm audit --audit-level high` conserva únicamente las 2
+  vulnerabilidades moderadas transitivas registradas; no hay high/critical.
 - Revisión posterior: el claim técnico `owner` es el único autorizado para conceder o revocar
   accesos administrativos; la exportación de PII queda permitida sin restricción adicional; las
   búsquedas, reportes y contadores usan rate limiting durable por academia, administrador y
@@ -920,7 +1147,7 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
   `inactive=128`, `suspended=1`.
 - QA: focused backend `5 archivos, 99/99`; suite global controlada
   `corepack pnpm exec vitest run --project web --project node --maxWorkers=1` -> `57 archivos,
-  389/389`; typecheck Functions y build Functions pasan; ESLint específico pasa; audit mantiene
+389/389`; typecheck Functions y build Functions pasan; ESLint específico pasa; audit mantiene
   solo las dos vulnerabilidades moderadas transitivas registradas.
 - Hallazgo de entorno: la corrida paralela estándar tuvo timeout de workers y 11 errores no
   controlados; la repetición con un worker pasó completa. No se cambió configuración ni se
@@ -946,8 +1173,8 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
 - Rules: `corepack pnpm test:rules` -> `4` archivos, `9/9`; solo emuladores demo y denegaciones
   esperadas en stderr.
 - Integración: `corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only firestore
-  "node node_modules/vitest/vitest.mjs run --config qa/integration/vitest.config.ts
-  qa/integration/member-pdf-import.test.ts"` -> `1` archivo, `6/6`; `MetadataLookupWarning` no fatal.
+"node node_modules/vitest/vitest.mjs run --config qa/integration/vitest.config.ts
+qa/integration/member-pdf-import.test.ts"` -> `1` archivo, `6/6`; `MetadataLookupWarning` no fatal.
 - Gates técnicos: `corepack pnpm typecheck` -> exit 0; `corepack pnpm format:check` -> exit 0;
   `corepack pnpm build` -> Functions y Next exit 0. `corepack pnpm lint` -> exit 1 únicamente por
   warning preexistente en `.worktrees/admin-access-requests/.../admin-shell.tsx`, fuera de este cambio.
@@ -961,10 +1188,10 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
   `aa9340de9528c2a46f898667fe3e554beabbdba6b8c03ec02b8b757f0ab2fc4f`; coincidió con YAML. No se
   usó `--confirm`, `--yes-confirm-staging`, Admin, Firestore staging ni producción.
 - Verificación final: rollback planner focused -> `1/1`; `git -c safe.directory='F:/Proyectos/BPT Jersey/Dev'
-  diff --check` -> sin salida. No se modificó Git/configuración ni se hizo commit.
+diff --check` -> sin salida. No se modificó Git/configuración ni se hizo commit.
 - Formato documental: `corepack pnpm exec prettier --check tasks.md
-  docs/data/migrations/member-pdf-import-run-2026-08-12.yaml
-  .superpowers/sdd/2026-08-12-real-member-pdf-import/task-4-report.md` -> warning histórico en
+docs/data/migrations/member-pdf-import-run-2026-08-12.yaml
+.superpowers/sdd/2026-08-12-real-member-pdf-import/task-4-report.md` -> warning histórico en
   `tasks.md`; no se reformateó el ledger completo para evitar cambios fuera de alcance.
 - Gates residuales: backup staging verificado, restauración probada, confirmación explícita y
   cualquier staging apply/verification siguen pendientes; no ejecutar en esta tarea.
@@ -1107,8 +1334,8 @@ Esta regla aplica a cualquier sesión, fecha, plataforma o agente, aunque se pie
   causa y el comando corregido seleccionó exactamente 8 casos: gateway desktop/Pixel 7 -> `8/8`;
   repetición `--repeat-each=5` -> `40/40`, sin consola, page errors u overflow.
 - Seguridad: selector Administrator/Client sigue siendo solo contexto UX; `/admin` conserva claims
-  + `academyId`; no existe registro admin. Sin endpoint, secreto, storage de resolver/token, retries,
-  escritura, migración o deploy nuevos. Audit: 0 high/critical y 2 moderadas transitivas conocidas.
+  - `academyId`; no existe registro admin. Sin endpoint, secreto, storage de resolver/token, retries,
+    escritura, migración o deploy nuevos. Audit: 0 high/critical y 2 moderadas transitivas conocidas.
 - Pruebas avanzadas: contrato SDK + emulador y casos de entorno/error aplicaron y pasaron. Carga no
   aplica a esta corrección de boundary sin endpoint propio ni release; el flujo MFA histórico de
   `T017` permanece aislado y fuera de CI, no como evidencia del piloto.
@@ -1611,7 +1838,9 @@ Implementar primero las invariantes comunes en este orden: contexto numérico v�
 activo, propósito, rol y clasificación. Después resolver el scope con un `switch` exhaustivo:
 
 ```ts
-export function evaluateAccess(input: AccessEvaluationInput): Result<AccessGrant, AccessDenialReason> {
+export function evaluateAccess(
+  input: AccessEvaluationInput,
+): Result<AccessGrant, AccessDenialReason> {
   const { actor, requirement, resource, facts, nowMs } = input;
   if (!Number.isFinite(nowMs) || resource.resourceId.trim().length === 0) {
     return err("INVALID_CONTEXT");
@@ -1703,9 +1932,7 @@ El contrato positivo debe iterar:
 
 ```ts
 for (const role of userRoles) {
-  const actor = requireUserActor(
-    requestWithAuth(`${role}-1`, { academyId: "academy-1", role }),
-  );
+  const actor = requireUserActor(requestWithAuth(`${role}-1`, { academyId: "academy-1", role }));
   expect(actor).toEqual({
     kind: "user",
     userId: `${role}-1`,
@@ -1813,21 +2040,50 @@ Usar esta lista congelada, sin inferir nombres desde datos de prueba:
 
 ```ts
 const canonicalCollections = Object.freeze([
-  "users", "families", "students", "staff", "relationships",
-  "locations", "programs", "classes", "sessions", "plans",
-  "bookings", "attendance", "checkouts", "memberships", "invoices",
-  "payments", "paymentEvents", "assessments", "skillProgress", "recognitions",
-  "leads", "messages", "deliveryEvents", "healthProfiles", "safeguardingCases",
-  "consents", "documents", "auditEvents", "exports", "regyfitAccessRecords",
+  "users",
+  "families",
+  "students",
+  "staff",
+  "relationships",
+  "locations",
+  "programs",
+  "classes",
+  "sessions",
+  "plans",
+  "bookings",
+  "attendance",
+  "checkouts",
+  "memberships",
+  "invoices",
+  "payments",
+  "paymentEvents",
+  "assessments",
+  "skillProgress",
+  "recognitions",
+  "leads",
+  "messages",
+  "deliveryEvents",
+  "healthProfiles",
+  "safeguardingCases",
+  "consents",
+  "documents",
+  "auditEvents",
+  "exports",
+  "regyfitAccessRecords",
 ] as const);
 
 const academyBackendOnlyCollections = Object.freeze([
-  "members", "memberImportOperations", "adminRoleLocks",
+  "members",
+  "memberImportOperations",
+  "adminRoleLocks",
 ] as const);
 
 const rootBackendOnlyCollections = Object.freeze([
-  "memberReportExports", "memberReportRateLimits", "memberImportSessions",
-  "memberImportCleanupJournal", "memberImportPreviews",
+  "memberReportExports",
+  "memberReportRateLimits",
+  "memberImportSessions",
+  "memberImportCleanupJournal",
+  "memberImportPreviews",
 ] as const);
 
 const actorCases = Object.freeze([
@@ -1872,8 +2128,7 @@ corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only fire
 ```
 
 Expected: 1 archivo y 7 pruebas aprobadas contra las Rules actuales. Este paso es una caracterización,
-no se debilitan Rules artificialmente para fabricar un RED; los RED conductuales están en Tasks 1 y
-2.
+no se debilitan Rules artificialmente para fabricar un RED; los RED conductuales están en Tasks 1 y 2.
 
 - [x] **Step 5 - confirmar que producción Rules no necesita cambios**
 
@@ -2038,3 +2293,577 @@ coincidentes. No desplegar, migrar, crear usuarios, tocar secretos ni hacer comm
   de desactivación y los permisos positivos concretos permanecen en `T025` y sus módulos propietarios.
 - Gap de capacidad: ninguno; TDD, debugging sistemático, security baseline, pruebas contractuales y
   emuladores cubrieron los hallazgos. El siguiente único WIP de P1 es `T019`.
+
+### P1 / T019 - Diseño aprobado de audit log append-only
+
+**Estado del diseño:** aprobado por el operador el 2026-08-19.
+
+**Objetivo:** consolidar los eventos administrativos, de importación de miembros y de importación
+Regyfit detrás de un contrato estricto y un único adapter create-only. `auditEvents` registra cambios
+sensibles completados; no se convierte en telemetría de intentos, timeline de UI ni payload histórico.
+
+#### Decisiones aprobadas
+
+- T019 centraliza y migra los tres escritores actuales. No deja un contrato nuevo junto a writers
+  paralelos con esquemas distintos.
+- El audit log canónico persiste solo cambios sensibles completados y atómicos. Fallos y denegaciones
+  quedan fuera de Firestore y pertenecen a la telemetría de seguridad de `T055`.
+- Los metadatos forman una unión discriminada estricta por `action`; no existe un campo `metadata`
+  abierto ni JSON arbitrario.
+- No se implementan lectura, endpoint, exportación o UI de auditoría. El rol de auditor independiente
+  continúa fuera del MVP y cualquier lectura futura exige una tarea y autorización propias.
+- No se aplica migración ni se reescriben eventos existentes.
+
+#### Contrato de dominio
+
+El envelope común conserva el modelo plano ya persistido:
+
+```ts
+type AuditEventDraft = Readonly<{
+  academyId: AcademyId;
+  actorId: UserId | SystemActorId;
+  targetRef: string;
+  purpose: string;
+  correlationId: CorrelationId;
+}> &
+  (
+    | Readonly<{ action: "admin.role.granted" | "admin.role.revoked" }>
+    | Readonly<{
+        action: "member.import.confirmed";
+        imported: number;
+        updated: number;
+        conflicts: number;
+        sourceHash: string;
+        reportKeys: readonly MemberReportKey[];
+      }>
+    | Readonly<{
+        action: "regyfit.access.imported";
+        importRunId: string;
+        moduleKey: string;
+        sourceRoute: string;
+        recordCount: number;
+        contentSha256: string;
+      }>
+  );
+```
+
+- `targetRef` debe comenzar exactamente con `academies/{academyId}/`; una referencia cross-tenant se
+  rechaza aunque los demás IDs coincidan.
+- Acciones, campos y variantes son exactos. Conteos son enteros no negativos; hashes son SHA-256
+  lowercase; strings tienen límites explícitos y `reportKeys` reutiliza el contrato existente.
+- `moduleKey` usa un identificador acotado y `sourceRoute` es una ruta relativa acotada sin query,
+  fragmento, credenciales ni URL absoluta.
+- Admin role no añade email, display name, claims, rol previo/nuevo ni otro payload personal. `action`
+  y `targetRef` identifican la operación mínima.
+- El draft nunca contiene `auditEventId`, `occurredAt`, `result` ni `schemaVersion`; el adapter es su
+  único propietario.
+
+#### Adapter create-only y atomicidad
+
+- `apps/functions/src/audit/audit-writer.ts` valida el draft y materializa exactamente:
+  `auditEventId`, envelope/variante, `occurredAt: FieldValue.serverTimestamp()`,
+  `result: "completed"` y `schemaVersion: 1`.
+- La API transaccional solo permite `create`. No expone `set`, `update`, `delete` ni merge sobre
+  `auditEvents`.
+- Admin provisioning y member import reservan una referencia automática server-owned y crean el
+  evento en la misma transacción que el cambio sensible.
+- En admin provisioning, la atomicidad cubre documento canónico, audit event y lock en Firestore. La
+  custom claim de Firebase Auth permanece bajo la compensación fail-closed ya existente si esa
+  transacción falla; no se afirma atomicidad distribuida inexistente.
+- Regyfit conserva el ID determinista server-owned `regyfit-access-{runId}`. Primera ejecución crea;
+  replay idéntico es no-op; un evento distinto con el mismo ID falla sin sobrescribir.
+- Para comparar un replay Regyfit se usan solo los campos estables validados. Se tolera el documento
+  legacy equivalente sin `auditEventId`/`occurredAt`; cualquier otro campo ausente, extra o distinto
+  falla. Los eventos nuevos siempre reciben ambos campos.
+- Se elimina `writeImportAuditEvent`, writer genérico exportado pero sin consumidor productivo.
+
+#### Seguridad y errores
+
+- Un draft inválido falla antes de cualquier escritura. Un error en la operación sensible revierte
+  la transacción y no deja un evento huérfano.
+- Colisiones automáticas fallan; colisiones deterministas solo admiten replay exacto. Ninguna ruta
+  convierte una colisión en update.
+- No se registran nombres, emails, teléfonos, tokens, claims, IP, secretos, payloads completos ni
+  snapshots before/after. Conteos, hashes e IDs opacos son la evidencia máxima permitida.
+- Firestore Rules continúa negando toda lectura y escritura cliente de `auditEvents`; Functions/Admin
+  SDK es el único writer y debe pasar por este adapter.
+
+#### Estrategia de pruebas
+
+- Dominio: una variante válida por acción y negativos por acción desconocida, campos extra/de otra
+  variante, tenant cruzado, strings fuera de límites, conteos inválidos, hashes inválidos y
+  `reportKeys` desconocidos.
+- Adapter: prueba que materializa campos server-owned y usa `transaction.create`; el doble no ofrece
+  APIs de mutación de eventos.
+- Writers migrados: admin/member prueban evento atómico y mínimo; Regyfit prueba create inicial,
+  replay exacto, replay legacy compatible, colisión distinta y concurrencia/idempotencia.
+- Integración emulator: un evento por operación/replay, ausencia de PII y Rules negativas intactas.
+- Gates: focused RED/GREEN, integración, unitarias completas, Rules, lint, typecheck, build, audit
+  high, formato y `git diff --check`.
+
+#### Fuera de alcance y rollback
+
+- Sin auditoría de fallos/denegaciones, lectura owner, rol auditor, UI, exportación, retención,
+  archivado, firma criptográfica o hash chain. `T011`, `T053` y `T055` conservan esas decisiones.
+- Sin migración, backup o write productivo. El rollback es de código: restaurar writers previos; los
+  eventos nuevos conservan el envelope compatible y no requieren transformación.
+
+#### Criterio de aceptación
+
+- Todos los writers actuales consumen el contrato central y no queda escritura directa productiva a
+  `auditEvents` fuera del adapter.
+- Cada cambio sensible completado crea exactamente un evento dentro de su transacción; un replay
+  idempotente no duplica ni reescribe.
+- Eventos inválidos, cross-tenant, con PII/campos extra o colisión distinta fallan closed.
+- Rules, integración y gates globales pasan con evidencia real antes de mover `T019` a `revisión`.
+
+### P1 / T019 - Plan de implementación
+
+> **Para ejecución agentic:** usar `subagent-driven-development` o `executing-plans` tarea por tarea.
+> En esta sesión la ejecución es inline porque ya se alcanzó el máximo de subagentes. Cada paso usa
+> checkboxes y conserva `T019` como único WIP.
+
+**Goal:** reemplazar los tres esquemas/writers actuales por un contrato discriminado y un adapter
+create-only que mantenga atomicidad, mínimo payload e idempotencia Regyfit compatible.
+
+**Architecture:** `packages/domain` valida drafts sin campos server-owned. Un adapter pequeño de
+Functions materializa y crea eventos dentro de la transacción del módulo; admin y member usan IDs
+automáticos, Regyfit usa ID determinista y compara replays estables. No se añade reader, callable ni
+UI.
+
+**Tech Stack:** TypeScript, Vitest, Firebase Admin Firestore transactions, Firebase Emulator Suite y
+contratos `Result` existentes.
+
+#### Restricciones globales
+
+- Solo eventos `completed`; fallos/denegaciones pertenecen a `T055` y no escriben `auditEvents`.
+- Ningún draft contiene `auditEventId`, `occurredAt`, `result` o `schemaVersion`.
+- Ningún cliente envía acciones, propósito, actor, tenant, referencias o metadata de auditoría.
+- No nombres, emails, teléfonos, IP, tokens, claims, secretos, payloads completos ni snapshots.
+- `targetRef` y toda evidencia pertenecen al mismo `academyId`; cross-tenant falla closed.
+- Solo `transaction.create`; no update/delete/merge sobre eventos.
+- Sin lectura/UI/export, dependencias nuevas, migraciones, writes productivos o despliegues.
+- Fixtures exclusivamente sintéticos y emuladores `demo-bpt-jersey`.
+- No hacer commit/push de T019 sin pedido explícito posterior.
+
+---
+
+#### Task 1 - Contrato discriminado de audit drafts
+
+**Files:**
+
+- Create: `packages/domain/src/audit/audit-event.test.ts`
+- Create: `packages/domain/src/audit/audit-event.ts`
+- Modify: `packages/domain/src/contracts.test.ts`
+- Modify: `packages/domain/src/index.ts`
+- Modify: `packages/domain/package.json`
+- Modify: `packages/domain/tsconfig.runtime.json`
+
+**Interfaces:**
+
+- Consumes: IDs branded, `MemberReportKey`, `memberReportKeys`, `Result` y `ValidationIssue`.
+- Produces:
+
+```ts
+const auditActions = Object.freeze([
+  "admin.role.granted",
+  "admin.role.revoked",
+  "member.import.confirmed",
+  "regyfit.access.imported",
+] as const);
+
+type AuditAction = (typeof auditActions)[number];
+type AuditEventDraft = Readonly<{
+  academyId: AcademyId;
+  actorId: UserId | SystemActorId;
+  targetRef: string;
+  purpose: string;
+  correlationId: CorrelationId;
+}> &
+  (
+    | Readonly<{ action: "admin.role.granted" | "admin.role.revoked" }>
+    | Readonly<{
+        action: "member.import.confirmed";
+        imported: number;
+        updated: number;
+        conflicts: number;
+        sourceHash: string;
+        reportKeys: readonly MemberReportKey[];
+      }>
+    | Readonly<{
+        action: "regyfit.access.imported";
+        importRunId: string;
+        moduleKey: string;
+        sourceRoute: string;
+        recordCount: number;
+        contentSha256: string;
+      }>
+  );
+
+function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, ValidationIssue[]>;
+```
+
+- [x] **Step 1 - escribir el RED del contrato**
+
+Crear ocho casos con expectativas literales: ambos admin actions, member válido, Regyfit válido,
+common fields inválidos, tenant cruzado, mezcla/extra de variantes y metadata inválida. Ejemplo:
+
+```ts
+expect(
+  parseAuditEventDraft({
+    academyId: "academy-1",
+    actorId: "admin-1",
+    action: "member.import.confirmed",
+    targetRef: "academies/academy-1/members",
+    purpose: "confirmed member PDF import",
+    correlationId: "operation-1",
+    imported: 2,
+    updated: 1,
+    conflicts: 0,
+    sourceHash: "a".repeat(64),
+    reportKeys: ["total"],
+  }),
+).toEqual({
+  ok: true,
+  value: {
+    academyId: "academy-1",
+    actorId: "admin-1",
+    action: "member.import.confirmed",
+    targetRef: "academies/academy-1/members",
+    purpose: "confirmed member PDF import",
+    correlationId: "operation-1",
+    imported: 2,
+    updated: 1,
+    conflicts: 0,
+    sourceHash: "a".repeat(64),
+    reportKeys: ["total"],
+  },
+});
+```
+
+Los negativos incluyen: objeto con prototype custom, symbol/non-enumerable extra, `targetRef` de otra
+academia, action desconocida, email/rawRecord/ip extra, conteo negativo/fraccional, hash no lowercase,
+`reportKeys` desconocido/duplicado, `moduleKey` fuera de `^[A-Za-z0-9._-]+$` y `sourceRoute` absoluta
+o con `?`/`#`/segmento `..`.
+
+- [x] **Step 2 - ejecutar el RED**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/audit/audit-event.test.ts packages/domain/src/contracts.test.ts
+```
+
+Expected: FAIL porque `audit/audit-event` y sus exports no existen; contratos previos permanecen
+verdes.
+
+- [x] **Step 3 - implementar parser exacto e inmutable**
+
+Usar `Reflect.ownKeys`, objeto con `Object.prototype`, sets exactos por action y errores estructurados.
+Aplicar límites: IDs 128, `targetRef` 512, purpose/correlation/source route 256, import/module 128,
+SHA-256 `/^[a-f0-9]{64}$/`, conteos enteros no negativos y route
+`/^\/[A-Za-z0-9._/-]+$/` sin `//`, `/../` ni `/./`. Devolver una copia congelada y congelar
+`reportKeys`.
+
+- [x] **Step 4 - publicar el contrato para source y runtime**
+
+Exportar valores/tipos desde `src/index.ts`, añadir a `package.json`:
+
+```json
+"./audit": {
+  "types": "./src/audit/audit-event.ts",
+  "default": "./lib/audit/audit-event.js"
+}
+```
+
+Incluir `src/audit/audit-event.ts` en `tsconfig.runtime.json`. En `contracts.test.ts` comprobar que
+`auditActions` está congelado, contiene exactamente cuatro acciones y `parseAuditEventDraft` está
+disponible desde el entrypoint público.
+
+- [x] **Step 5 - verificar GREEN domain/runtime**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/audit/audit-event.test.ts packages/domain/src/contracts.test.ts
+corepack pnpm --filter @bpt-jersey/domain typecheck
+corepack pnpm --filter @bpt-jersey/domain build:runtime
+```
+
+Expected: 2 archivos/17 pruebas y ambos comandos TypeScript aprobados.
+
+---
+
+#### Task 2 - Adapter create-only y compatibilidad de replay
+
+**Files:**
+
+- Create: `apps/functions/src/audit/audit-writer.test.ts`
+- Create: `apps/functions/src/audit/audit-writer.ts`
+- Modify: `apps/functions/src/deploy-runtime.test.ts`
+- Modify: `apps/functions/src/deploy-runtime.ts`
+
+**Interfaces:**
+
+- Consumes: `AuditEventDraft`, `parseAuditEventDraft`, `FieldValue.serverTimestamp()`.
+- Produces:
+
+```ts
+type AuditDocumentReference = Readonly<{ id: string }>;
+type AuditCreateTransaction<Reference> = Readonly<{
+  create: (ref: Reference, data: Readonly<Record<string, unknown>>) => unknown;
+}>;
+
+function appendAuditEventInTransaction<Reference extends AuditDocumentReference>(
+  transaction: AuditCreateTransaction<Reference>,
+  ref: Reference,
+  draft: AuditEventDraft,
+): void;
+
+function matchesAuditEventReplay(
+  stored: unknown,
+  eventId: string,
+  draft: AuditEventDraft,
+  options?: Readonly<{ allowLegacyMissingGeneratedFields?: boolean }>,
+): boolean;
+```
+
+- [x] **Step 1 - escribir RED del writer**
+
+Añadir seis casos: materialización exacta/create único, draft inválido antes de create, evento moderno
+idéntico, legacy Regyfit sin `auditEventId/occurredAt`, mismatch/extra rechazado y ausencia de API de
+mutación. El doble solo implementa `create` y captura:
+
+```ts
+expect(created).toEqual({
+  ref: { id: "audit-1" },
+  data: expect.objectContaining({
+    auditEventId: "audit-1",
+    action: "admin.role.granted",
+    result: "completed",
+    schemaVersion: 1,
+    occurredAt: expect.anything(),
+  }),
+});
+```
+
+- [x] **Step 2 - ejecutar RED**
+
+```powershell
+corepack pnpm exec vitest run --project node apps/functions/src/audit/audit-writer.test.ts apps/functions/src/deploy-runtime.test.ts
+```
+
+Expected: FAIL porque writer y mapping runtime `@bpt-jersey/domain/audit` no existen.
+
+- [x] **Step 3 - implementar create y replay strict**
+
+`appendAuditEventInTransaction()` vuelve a parsear el draft, lanza `HttpsError("invalid-argument")`
+sin filtrar issues y llama exactamente una vez a `transaction.create`. `matchesAuditEventReplay()`:
+
+1. exige objeto plano y `result === "completed"`, `schemaVersion === 1`;
+2. si existen, exige `auditEventId === eventId` y `occurredAt` definido;
+3. permite ausencia de ambos solo con `allowLegacyMissingGeneratedFields === true`;
+4. extrae únicamente keys estables, las parsea y compara literalmente con el draft;
+5. rechaza cualquier key adicional.
+
+- [x] **Step 4 - integrar packaging deploy**
+
+Añadir mapping:
+
+```ts
+"@bpt-jersey/domain/audit": "../../domain/audit/audit-event.js"
+```
+
+Extender `deploy-runtime.test.ts` con import y expectativa del nuevo subpath.
+
+- [x] **Step 5 - verificar GREEN writer/packaging**
+
+```powershell
+corepack pnpm --filter @bpt-jersey/domain build:runtime
+corepack pnpm exec vitest run --project node apps/functions/src/audit/audit-writer.test.ts apps/functions/src/deploy-runtime.test.ts
+```
+
+Expected: writer y packaging completo aprobados; ningún import workspace queda en el layout copiado.
+
+---
+
+#### Task 3 - Migrar auditoría de provisioning administrativo
+
+**Files:**
+
+- Modify: `apps/functions/src/auth/admin-provisioning.test.ts`
+- Modify: `apps/functions/src/auth/admin-provisioning.ts`
+- Modify: `apps/functions/src/index.ts`
+
+**Interfaces:**
+
+- Consumes: `appendAuditEventInTransaction()` y `AuditEventDraft`.
+- Removes: `AuditEventMetadata`, `auditEventSchema`, `writeImportAuditEvent` y su export público.
+
+- [x] **Step 1 - escribir RED de admin create-only**
+
+Modificar el fake `SyntheticTransaction` para distinguir `create` de `set`. Probar grant/revoke con
+evento mínimo, `create` exactamente una vez y sin email/displayName/claims. Probar que una colisión de
+audit ref aborta documento de usuario/lock y activa la compensación Auth existente. Eliminar el test
+del writer genérico no usado; el nuevo contrato lo sustituye.
+
+- [x] **Step 2 - ejecutar RED admin**
+
+```powershell
+corepack pnpm exec vitest run --project node apps/functions/src/auth/admin-provisioning.test.ts
+```
+
+Expected: FAIL porque provisioning todavía usa `transaction.set` y exporta el writer legacy.
+
+- [x] **Step 3 - migrar la transacción**
+
+Añadir `create` a las interfaces/fakes transaccionales y reemplazar `auditDocument()` por:
+
+```ts
+appendAuditEventInTransaction(transaction, auditRef, {
+  academyId: actor.academyId as AcademyId,
+  actorId: actor.uid as UserId,
+  action: action === "grant" ? "admin.role.granted" : "admin.role.revoked",
+  targetRef: `academies/${actor.academyId}/users/${targetUid}`,
+  purpose: "administrative role management",
+  correlationId: `${actor.uid}:${targetUid}:${auditRef.id}` as CorrelationId,
+});
+```
+
+Mantener user doc/lock en la misma transacción y no cambiar compensación, fencing o provisioning.
+Eliminar type/schema/function legacy y sus exports de `src/index.ts`.
+
+- [x] **Step 4 - verificar GREEN y regresión de Auth**
+
+```powershell
+corepack pnpm exec vitest run --project node apps/functions/src/auth/admin-provisioning.test.ts apps/functions/src/auth/admin-authorization.test.ts apps/functions/src/auth/user-authorization.test.ts
+corepack pnpm --filter @bpt-jersey/functions typecheck
+```
+
+Expected: todos los casos pasan; roles no administrativos siguen sin mutación y grant/revoke conserva
+compensación fail-closed.
+
+---
+
+#### Task 4 - Migrar member import y Regyfit idempotente
+
+**Files:**
+
+- Modify: `apps/functions/src/members/member-service.ts`
+- Modify: `apps/functions/src/regyfit/access-import.test.ts`
+- Modify: `apps/functions/src/regyfit/access-import.ts`
+- Modify: `qa/integration/firestore-adapters.test.ts`
+- Create: `qa/integration/audit-writer.test.ts`
+
+**Interfaces:**
+
+- Consumes: `appendAuditEventInTransaction()` y `matchesAuditEventReplay()`.
+- Preserves: `MemberImportWriteResult`, `ImportReceipt` y todos los paths/idempotency keys actuales.
+
+- [x] **Step 1 - escribir RED member/Regyfit**
+
+En integración member exigir un evento con envelope server-owned, fields de variante, sin `fullName`,
+email o records. En Regyfit añadir:
+
+- evento nuevo con `auditEventId` y `occurredAt`;
+- replay exacto sin duplicado;
+- replay legacy tras eliminar solo esos dos campos;
+- colisión al cambiar purpose/hash/extra field;
+- ningún overwrite de la colisión.
+
+- [x] **Step 2 - ejecutar RED focused**
+
+```powershell
+corepack pnpm exec vitest run --project node apps/functions/src/regyfit/access-import.test.ts
+```
+
+Expected: FAIL porque Regyfit todavía materializa/usa `transaction.set` directamente.
+
+- [x] **Step 3 - migrar member import**
+
+Reemplazar `transaction.create(auditReference, {...})` por el adapter con draft
+`member.import.confirmed`; conservar operation record en la misma transacción y su referencia al
+`auditEventId`. No mover report keys, source hash o conteos fuera de la variante.
+
+- [x] **Step 4 - migrar Regyfit sin romper replay legacy**
+
+Construir un draft una vez. Si snapshot no existe, usar `appendAuditEventInTransaction`; si existe,
+usar `matchesAuditEventReplay(existing, ref.id, draft, { allowLegacyMissingGeneratedFields: true })`.
+Mismatch llama `fail("Import conflicts with existing audit data")`. Nunca usar `set` para audit.
+
+- [x] **Step 5 - probar concurrencia/idempotencia en Firestore Emulator**
+
+El nuevo `qa/integration/audit-writer.test.ts` abre dos transacciones concurrentes sobre
+`academies/demo-academy/auditEvents/regyfit-access-concurrent-1`; cada una lee snapshot y usa el
+adapter/matcher. Ambas promesas resuelven y queda un documento. Repetir con draft distinto y exigir
+rechazo sin mutación.
+
+```powershell
+corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only firestore "node node_modules/vitest/vitest.mjs run --config qa/integration/vitest.config.ts qa/integration/audit-writer.test.ts qa/integration/firestore-adapters.test.ts"
+```
+
+Expected: integración aprobada con fixtures sintéticos, un evento por correlación y cero PII.
+
+- [x] **Step 6 - verificar GREEN focused completo**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/audit/audit-event.test.ts apps/functions/src/audit/audit-writer.test.ts apps/functions/src/auth/admin-provisioning.test.ts apps/functions/src/regyfit/access-import.test.ts apps/functions/src/members/member-service.test.ts
+```
+
+Expected: todos los contratos y writers migrados pasan sin cambiar respuestas públicas.
+
+---
+
+#### Task 5 - Documentación, autocrítica, gates y cierre
+
+**Files:**
+
+- Modify: `docs/data/firestore-data-model.md`
+- Modify: `tasks.md`
+- Modify: `Lista/Lista.js`
+- Review: todos los archivos de Tasks 1-4
+
+**Interfaces:**
+
+- Consumes: implementación completa T019.
+- Produces: `T019` en `revisión` y `T018` como siguiente único WIP de P1.
+
+- [x] **Step 1 - documentar contrato final y compatibilidad**
+
+Actualizar la fila/sección `auditEvents`: cuatro actions actuales, campos server-owned, create-only,
+legacy Regyfit tolerado solo en replay, sin reader/UI y sin migración. No prometer hash chain,
+retención o auditor independiente.
+
+- [x] **Step 2 - ejecutar self-critique de seguridad**
+
+Invocar `self-critique-loop` y `security-baseline`. Usar `grep` para localizar `auditEvents` y verificar
+que toda creación productiva pasa por `appendAuditEventInTransaction`; no debe existir
+`transaction.set/update/delete` ni `.set()` directo sobre audit refs. Revisar que logs/tests no copian
+PII y que Rules sigue default-deny.
+
+- [x] **Step 3 - ejecutar focused e integración final**
+
+```powershell
+corepack pnpm exec vitest run --project node packages/domain/src/audit/audit-event.test.ts apps/functions/src/audit/audit-writer.test.ts apps/functions/src/auth/admin-provisioning.test.ts apps/functions/src/regyfit/access-import.test.ts apps/functions/src/members/member-service.test.ts apps/functions/src/deploy-runtime.test.ts
+corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only firestore "node node_modules/vitest/vitest.mjs run --config qa/integration/vitest.config.ts qa/integration/audit-writer.test.ts qa/integration/firestore-adapters.test.ts"
+```
+
+Evidence: focused unit tests `75/75`; integración Firestore Emulator `8/8`; domain/runtime y Functions typecheck aprobados; packaging portable aprobado. La ejecución directa sin emulador respondió `PERMISSION_DENIED` y se repitió correctamente mediante `firebase emulators:exec`.
+
+- [x] **Step 4 - ejecutar gates globales**
+
+```powershell
+corepack pnpm test:unit
+corepack pnpm test:rules
+corepack pnpm lint
+corepack pnpm typecheck
+corepack pnpm build
+corepack pnpm audit --audit-level high
+corepack pnpm format:check
+git -c safe.directory='F:/Proyectos/BPT Jersey/Dev' diff --check
+```
+
+Evidence: `test:unit` `63 archivos/481 pruebas`; Rules Emulator `5 archivos/16 pruebas`; lint, typecheck, build, audit, format y `git diff --check` aprobados. `pnpm audit --audit-level high` reporta únicamente `2 moderate` transitivas conocidas.
+
+- [x] **Step 5 - cerrar ledger sin operación productiva**
+
+Registrar RED/GREEN, integración, hallazgos y limitaciones; `T019` queda en `revisión`, `T018`
+queda como único `en-progreso`, y `Lista/Lista.js` conserva 86 IDs únicos sincronizados. Se
+conservaron `opencode.json` y artefactos excluidos sin stage. No se migró, desplegó, crearon
+usuarios, tocaron secretos ni hizo commit/push.
