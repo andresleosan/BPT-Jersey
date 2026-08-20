@@ -613,10 +613,10 @@ const membershipItems = [
   task(
     "T038",
     "Vincular estado manual de pago/membresía y restricciones por deuda",
-    "en-progreso",
+    "revisión",
     "Conectar el estado de facturación con el acceso y el seguimiento operativo.",
     "T037",
-    "Spec y plan aprobados; siguiente: RED de evaluateFinancialAccess. Guard de dominio y servicio read-only, sin bookings, UI, callable, esquema nuevo ni writes productivos.",
+    "Spec y plan aprobados; policy 8/8, service 13/13, Emulator 1/1, suite 650/650, Rules 35/35 y gates globales pasan. Deuda PAYG derivada 1750 -> 0 en dos invoices. Guard de dominio y servicio read-only, sin bookings, UI, callable, esquema nuevo ni writes productivos; DR-001 y rate limit transversal siguen abiertos.",
     [
       "tasks.md",
       "BRIEF.md",

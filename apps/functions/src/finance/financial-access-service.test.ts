@@ -178,6 +178,47 @@ describe("financial access service", () => {
     expect(testDoubles.financialScopes).toEqual([]);
   });
 
+  it("rejects accessor, extra, non-enumerable, inherited, and proxy-like inputs before reads", async () => {
+    const cases: readonly unknown[] = [
+      (() => {
+        const input = { academyId, membershipId } as Record<string, unknown>;
+        Object.defineProperty(input, "academyId", {
+          enumerable: true,
+          get: () => {
+            throw new Error("hostile academy getter");
+          },
+        });
+        return input;
+      })(),
+      { academyId, membershipId, extra: true },
+      (() => {
+        const input = { academyId, membershipId } as Record<string, unknown>;
+        Object.defineProperty(input, "hidden", { enumerable: false, value: true });
+        return input;
+      })(),
+      Object.assign(Object.create({ inherited: true }), { academyId, membershipId }),
+      new Proxy(
+        { academyId, membershipId },
+        {
+          ownKeys: () => {
+            throw new Error("hostile proxy keys");
+          },
+        },
+      ),
+    ];
+    const testDoubles = doubles();
+    const service = createFinancialAccessService(testDoubles.dependencies);
+
+    for (const input of cases) {
+      await expect(service.getAccessDecision(input as never)).rejects.toEqual(
+        new FinancialAccessServiceError("invalid", "Financial access request is invalid"),
+      );
+    }
+
+    expect(testDoubles.membershipScopes).toEqual([]);
+    expect(testDoubles.financialScopes).toEqual([]);
+  });
+
   it("uses a generic not-found error for a missing membership", async () => {
     const testDoubles = doubles(undefined);
     const service = createFinancialAccessService(testDoubles.dependencies);

@@ -49,12 +49,58 @@ const invalidRequestMessage = "Financial access request is invalid";
 const unavailableMessage = "Financial access is not available";
 const invalidDataMessage = "Financial access data is invalid";
 const transactionMessage = "Financial access could not be evaluated";
+const financialAccessInputFields = Object.freeze(["academyId", "membershipId"] as const);
 
 function pathSegment(value: unknown): string {
   if (typeof value !== "string" || !safePathSegmentPattern.test(value)) {
     throw new FinancialAccessServiceError("invalid", invalidRequestMessage);
   }
   return value;
+}
+
+function financialAccessInput(value: unknown): FinancialAccessServiceInput {
+  try {
+    if (!isPlainRecord(value)) {
+      throw new FinancialAccessServiceError("invalid", invalidRequestMessage);
+    }
+
+    const keys = Reflect.ownKeys(value);
+    if (keys.length !== financialAccessInputFields.length) {
+      throw new FinancialAccessServiceError("invalid", invalidRequestMessage);
+    }
+
+    const snapshot: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    for (const key of keys) {
+      const descriptor =
+        typeof key === "string" ? Object.getOwnPropertyDescriptor(value, key) : undefined;
+      if (
+        typeof key !== "string" ||
+        !financialAccessInputFields.includes(key as (typeof financialAccessInputFields)[number]) ||
+        descriptor?.enumerable !== true ||
+        descriptor === undefined ||
+        !Object.hasOwn(descriptor, "value") ||
+        Object.hasOwn(descriptor, "get") ||
+        Object.hasOwn(descriptor, "set")
+      ) {
+        throw new FinancialAccessServiceError("invalid", invalidRequestMessage);
+      }
+      snapshot[key] = descriptor.value;
+    }
+
+    for (const field of financialAccessInputFields) {
+      if (!Object.hasOwn(snapshot, field)) {
+        throw new FinancialAccessServiceError("invalid", invalidRequestMessage);
+      }
+    }
+
+    return Object.freeze({
+      academyId: pathSegment(snapshot.academyId),
+      membershipId: pathSegment(snapshot.membershipId),
+    });
+  } catch (error) {
+    if (knownServiceError(error) && error.code === "invalid") throw error;
+    throw new FinancialAccessServiceError("invalid", invalidRequestMessage);
+  }
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -135,8 +181,7 @@ export function createFinancialAccessService(
     input: FinancialAccessServiceInput,
   ): Promise<FinancialAccessView> {
     try {
-      const academyId = pathSegment(input?.academyId);
-      const membershipId = pathSegment(input?.membershipId);
+      const { academyId, membershipId } = financialAccessInput(input);
       const membership = await dependencies.getMembership(
         { academyId, membershipIds: [membershipId] },
         membershipId,

@@ -29,7 +29,6 @@ const familyId = `${runId}-family`;
 const studentId = `${runId}-student`;
 const membershipId = `${runId}-membership`;
 const relationshipId = `${familyId}--${studentId}`;
-const sourceSessionId = `${runId}-session`;
 const now = "2026-08-19T10:00:00.000Z";
 
 function requireFirestoreEmulatorHost(): void {
@@ -184,19 +183,33 @@ describe("financial access against the Firestore Emulator", () => {
       listFinancialAccount: financeStore.listFinancialAccount,
     });
 
-    const paygDebtMinor = 1000;
-    const invoice = await financeStore.issuePaygInvoice({
+    const firstInvoiceAmountMinor = 1000;
+    const secondInvoiceAmountMinor = 750;
+    const firstInvoice = await financeStore.issuePaygInvoice({
       academyId: academyA,
       actorId,
       familyId,
       membershipId,
-      totalMinor: paygDebtMinor,
+      totalMinor: firstInvoiceAmountMinor,
       dueAt: now,
       chargeKind: "payg_session",
-      sourceRef: `academies/${academyA}/families/${familyId}/sessions/${sourceSessionId}`,
-      invoiceReference: `${runId}-invoice`,
-      description: "Synthetic PAYG session",
+      sourceRef: `academies/${academyA}/families/${familyId}/sessions/${runId}-session-1`,
+      invoiceReference: `${runId}-invoice-1`,
+      description: "Synthetic PAYG session 1",
     });
+    const secondInvoice = await financeStore.issuePaygInvoice({
+      academyId: academyA,
+      actorId,
+      familyId,
+      membershipId,
+      totalMinor: secondInvoiceAmountMinor,
+      dueAt: now,
+      chargeKind: "payg_session",
+      sourceRef: `academies/${academyA}/families/${familyId}/sessions/${runId}-session-2`,
+      invoiceReference: `${runId}-invoice-2`,
+      description: "Synthetic PAYG session 2",
+    });
+    const paygDebtMinor = firstInvoiceAmountMinor + secondInvoiceAmountMinor;
 
     const restricted = await accessService.getAccessDecision({
       academyId: academyA,
@@ -225,10 +238,19 @@ describe("financial access against the Firestore Emulator", () => {
     await financeStore.recordManualPayment({
       academyId: academyA,
       actorId,
-      invoiceId: invoice.invoiceId,
-      amountMinor: paygDebtMinor,
+      invoiceId: firstInvoice.invoiceId,
+      amountMinor: firstInvoiceAmountMinor,
       method: "cash",
-      manualReference: `${runId}-payment`,
+      manualReference: `${runId}-payment-1`,
+      occurredAt: now,
+    });
+    await financeStore.recordManualPayment({
+      academyId: academyA,
+      actorId,
+      invoiceId: secondInvoice.invoiceId,
+      amountMinor: secondInvoiceAmountMinor,
+      method: "cash",
+      manualReference: `${runId}-payment-2`,
       occurredAt: now,
     });
     await expectNoForbiddenFinancialDocuments();
