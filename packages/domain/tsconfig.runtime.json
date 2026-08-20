@@ -23,6 +23,7 @@
     "src/families/family-contracts.ts",
     "src/memberships/plan-contracts.ts",
     "src/memberships/membership-contracts.ts",
-    "src/finance/finance-contracts.ts"
+    "src/finance/finance-contracts.ts",
+    "src/finance/financial-access.ts"
   ]
 }

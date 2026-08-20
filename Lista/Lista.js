@@ -613,10 +613,10 @@ const membershipItems = [
   task(
     "T038",
     "Vincular estado manual de pago/membresía y restricciones por deuda",
-    "pendiente",
+    "en-progreso",
     "Conectar el estado de facturación con el acceso y el seguimiento operativo.",
     "T037",
-    "El acceso, el bloqueo por deuda y la recuperación PAYG todavía están pendientes, sin proveedor externo.",
+    "Spec y plan aprobados; siguiente: RED de evaluateFinancialAccess. Guard de dominio y servicio read-only, sin bookings, UI, callable, esquema nuevo ni writes productivos.",
     [
       "tasks.md",
       "BRIEF.md",

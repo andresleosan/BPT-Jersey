@@ -44,6 +44,10 @@
     "./finance": {
       "types": "./src/finance/finance-contracts.ts",
       "default": "./lib/finance/finance-contracts.js"
+    },
+    "./finance/access": {
+      "types": "./src/finance/financial-access.ts",
+      "default": "./lib/finance/financial-access.js"
     }
   },
   "scripts": {

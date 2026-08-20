@@ -76,7 +76,7 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 | T035 | Implementar hosted checkout y suscripciones post-piloto sin datos crudos de tarjeta    | T034       | pendiente | Flujo sandbox aprobado; fuera del piloto manual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | T036 | Implementar webhooks post-piloto firmados, idempotentes y tolerantes a reintentos      | T019,T035  | pendiente | Repetición/desorden no duplica cargos; fuera del piloto manual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | T037 | Implementar pagos manuales, facturas, recibos, balances, deuda PAYG y refunds manuales | T019,T033  | revisión  | Spec aprobada `docs/superpowers/specs/2026-08-19-t037-manual-finance-design.md`; plan TDD `docs/superpowers/plans/2026-08-19-t037-manual-finance-plan.md`; domain `7/7`, store `9/9`, callables `6/6`, audit domain `13/13`, writer `8/8`, Emulator `4/4`, Rules `44/44`, suite completa `629/629`; lint/typecheck/build/formato/diff pasan; audit sin high/critical y dos moderadas DR-001; refunds/providers/UI/booking writes fuera de alcance                                                                                                                                                                                                                                                                                                                                           |
-| T038 | Vincular estado manual de pago/membresía y restricciones por deuda                     | T037       | pendiente | Acceso, deuda PAYG y recuperación probados sin proveedor externo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| T038 | Vincular estado manual de pago/membresía y restricciones por deuda                     | T037       | en-progreso | Spec aprobada `docs/superpowers/specs/2026-08-19-t038-financial-access-design.md`; plan `docs/superpowers/plans/2026-08-19-t038-financial-access-plan.md`; siguiente acción: RED de la política pura `evaluateFinancialAccess`; sin bookings, UI, callable, esquema nuevo ni writes productivos |
 
 ## M5 - Progreso y reconocimiento
 
@@ -330,6 +330,18 @@ pnpm test:rules` pasó `5` archivos y `30/30` pruebas. `corepack pnpm lint`,
   webhooks, UI, bloqueo de reservas, producción y migraciones.
 - T037 pasa a `en-progreso`; la evidencia de cada ciclo RED/GREEN y la autocrítica se agregará aquí
   antes de moverla a `revisión`.
+
+### T038 - Inicio de implementación (2026-08-19)
+
+- Diseño aprobado por el operador: `trial`/`active` permiten solo con deuda PAYG derivada en cero;
+  `paused`/`overdue`/`cancelled` deniegan siempre; pagar la deuda restaura el permiso sin cambiar
+  automáticamente el estado de membresía.
+- La implementación será un guard puro de dominio y un servicio backend read-only que compone
+  `MembershipStore` con `FinanceStore`; T027 consumirá el resultado cuando existan bookings.
+- El alcance excluye writes de booking, UI, callable, colecciones de restricciones, migraciones,
+  deploys, producción, proveedores y cambios automáticos de membresía.
+- T038 pasa a `en-progreso`; la siguiente evidencia requerida es la RED de
+  `packages/domain/src/finance/financial-access.test.ts`.
 
 ## Tareas complementarias integradas desde la evidencia del proyecto
 

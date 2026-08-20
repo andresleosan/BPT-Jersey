@@ -224,3 +224,9 @@ export type {
   ManualPaymentMethod,
   ManualPaymentRecord,
 } from "./finance/finance-contracts";
+export { evaluateFinancialAccess } from "./finance/financial-access";
+export type {
+  FinancialAccessDecision,
+  FinancialAccessDenialCode,
+  FinancialAccessInput,
+} from "./finance/financial-access";
