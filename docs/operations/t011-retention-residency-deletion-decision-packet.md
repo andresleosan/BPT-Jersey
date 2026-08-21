@@ -68,6 +68,24 @@ jurisdictions or regions, subprocessors, contractual or technical safeguards,
 and the owner responsible for reviewing provider changes. No production region
 or transfer allowance is selected by this packet.
 
+## Official References Consulted
+
+These public Jersey Office of the Information Commissioner pages are research
+inputs for the operator/adviser review. They do not replace legal advice or
+approve any project decision:
+
+- `https://jerseyoic.org/` identifies the JOIC as the independent regulator for
+  the Data Protection (Jersey) Law 2018.
+- `https://jerseyoic.org/organisations` directs Jersey organisations to consider
+  registration, breach reporting, and DPIA consultation for high-risk
+  processing.
+- `https://jerseyoic.org/guidance` links guidance on controller duties,
+  data-protection principles and lawful bases, design and DPIAs, individual
+  rights, and transfers outside Jersey.
+
+The reviewer must verify the current guidance and determine which items apply
+to BPT Jersey before recording any decision in this packet.
+
 ## Provisional Pilot Controls
 
 - Use only synthetic or sanitized data in emulators and any isolated staging.

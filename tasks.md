@@ -2909,7 +2909,9 @@ usuarios, tocaron secretos ni hizo commit/push.
 
 - Se creó `docs/operations/t011-retention-residency-deletion-decision-packet.md` con el inventario
   de categorías, responsables, decisiones de retención/residencia/borrado/restauración y controles
-  provisionales del piloto. No fija plazos, regiones, bases legales ni afirma cumplimiento.
+  provisionales del piloto. Se añadieron referencias públicas del JOIC para registro, DPIA,
+  principios, derechos y transferencias. No fija plazos, regiones, bases legales ni afirma
+  cumplimiento.
 - `T011` permanece `bloqueada`; `T023` permanece `bloqueada` y `T018` permanece `pendiente` hasta
   que el operador y la asesoría aplicable a Jersey registren una decisión aprobada. No hubo cambios
   de runtime, migraciones, borrado destructivo, escrituras productivas ni despliegues. Verificación:
