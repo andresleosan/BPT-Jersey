@@ -456,7 +456,7 @@ const peopleItems = [
     "revisión",
     "Gestionar el acceso del personal y las asignaciones operativas.",
     "T015,T020",
-    "Roles administrativos y provisioning probados; la gestión completa de coaches/staff sigue pendiente.",
+    "Roles administrativos y provisioning probados; spec/plan de lifecycle, disponibilidad y asignaciones preparados; la implementación completa de coaches/staff sigue pendiente.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),

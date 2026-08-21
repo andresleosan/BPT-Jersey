@@ -47,7 +47,7 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 | T022  | Implementar familias multi-child, contactos y relaciones autorizadas                                                                      | T021           | revisión  | Tasks 1-6 verificadas; suite `533/533`, Rules `23/23`, lint/typecheck/build/formato/diff pasan; E2E `2/2`; audit sin high/critical; dos moderadas transitivas DR-001                                      |
 | T023  | Implementar datos médicos/soporte con acceso restringido                                                                                  | T021,T011      | bloqueada | Spec reconciliada con `BPTJ FUNCTIONS APP.docx`: condición operacional max 1000 y etiqueta staff max 25; implementación bloqueada hasta resolver T011                                                     |
 | T024  | Implementar documentos y waivers privados en R2 con URLs firmadas                                                                         | T016,T021,T023 | pendiente | Subida y acceso privado del PDF firmado del waiver; evidencia, hash, permisos y expiración probados                                                                                                       |
-| T025  | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff                                                                | T015,T020      | revisión  | Roles administrativos y provisioning probados; gestión completa de coaches/staff sigue pendiente                                                                                                          |
+| T025  | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff                                                                | T015,T020      | revisión  | Roles administrativos y provisioning probados; spec/plan de lifecycle, disponibilidad y asignaciones preparados; implementación completa pendiente                                                                 |
 
 ## M2A - Levels IBJJF MVP
 
@@ -2917,3 +2917,11 @@ usuarios, tocaron secretos ni hizo commit/push.
   de runtime, migraciones, borrado destructivo, escrituras productivas ni despliegues. Verificación:
   `node --check Lista/Lista.js` y `git -c safe.directory='F:/Proyectos/BPT Jersey/Dev' diff --check`
   pasaron.
+
+### T025 - Diseño preparado - 2026-08-21
+
+- El operador aprobó `docs/superpowers/specs/2026-08-21-t025-staff-lifecycle-design.md` y su plan
+  `docs/superpowers/plans/2026-08-21-t025-staff-lifecycle-plan.md`. El diseño cubre contratos,
+  lifecycle, disponibilidad, asignaciones tenant-scoped y sincronización fail-closed de claims.
+- `T025` permanece en `revisión`; no se inició implementación, no se cambió el WIP de P1 y no se
+  agregaron colecciones, Rules, migraciones, claims reales ni datos productivos.
