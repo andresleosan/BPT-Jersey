@@ -222,7 +222,7 @@ const phase0Items = [
     "bloqueada",
     "Confirmar la política aplicable a los datos de la academia, menores e información restringida.",
     "-",
-    "Bloqueada a la espera de la aprobación de la política y del asesoramiento aplicable para Jersey.",
+    "Paquete de decisión preparado en docs/operations/t011-retention-residency-deletion-decision-packet.md; bloqueada a la espera de la aprobación de la política y del asesoramiento aplicable para Jersey.",
     ["tasks.md", "BRIEF.md", "STACK.md"],
     "decision",
   ),
