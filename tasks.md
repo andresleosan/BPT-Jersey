@@ -2892,6 +2892,15 @@ Evidence: `test:unit` `63 archivos/481 pruebas`; Rules Emulator `5 archivos/16 p
 - [x] **Step 5 - cerrar ledger sin operación productiva**
 
 Registrar RED/GREEN, integración, hallazgos y limitaciones; `T019` queda en `revisión`, `T018`
-queda como único `en-progreso`, y `Lista/Lista.js` conserva 86 IDs únicos sincronizados. Se
+queda como siguiente WIP de P1 y permanece `pendiente` hasta completar sus fundamentos, y
+`Lista/Lista.js` conserva 86 IDs únicos sincronizados. Se
 conservaron `opencode.json` y artefactos excluidos sin stage. No se migró, desplegó, crearon
 usuarios, tocaron secretos ni hizo commit/push.
+
+### Reconciliación documental - 2026-08-21
+
+- `tasks.md` se confirmó como fuente canónica y `Lista/Lista.js` se alineó con sus estados actuales:
+  `T019`, `T021` y `T022` quedan en `revisión`; `T018` permanece `pendiente` porque sus
+  fundamentos todavía no están completos.
+- Verificación: `node --check Lista/Lista.js` pasó sin errores. No se modificó runtime, no se
+  ejecutaron migraciones ni despliegues, y no se accedió a datos productivos.

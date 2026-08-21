@@ -365,7 +365,7 @@ const identityItems = [
   task(
     "T019",
     "Implementar registro de auditoría de solo anexado para cambios sensibles",
-    "en-progreso",
+    "revisión",
     "Conservar autor, hora e historial de correcciones sensibles.",
     "T012,T013,T016",
     "Diseño create-only y plan TDD aprobados; pendiente centralizar admin, member import y Regyfit sin lectura/UI.",
@@ -398,7 +398,7 @@ const peopleItems = [
   task(
     "T021",
     "Implementar perfiles de adultos, menores y tutores",
-    "en-progreso",
+    "revisión",
     "Proporcionar perfiles autorizados sin crear cuentas individuales para menores.",
     "T016,T020",
     "Primer WIP documental: campos de nombre, fecha de nacimiento, teléfono, email, sede y preferencias horarias.",
@@ -408,7 +408,7 @@ const peopleItems = [
   task(
     "T022",
     "Implementar familias con varios menores y relaciones autorizadas",
-    "en-progreso",
+    "revisión",
     "Modelar contactos familiares y relaciones de tutores permitidas.",
     "T021",
     "Inicio 2026-08-19; plan aprobado en ejecución inline, comenzando por contratos de dominio con TDD.",
