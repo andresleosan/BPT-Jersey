@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { parseLevelCatalogSource } from "@bpt-jersey/domain/levels";
-import { getLevelCatalog } from "./levels-client";
+import { getLevelCatalog, listStudentEvaluations, recordEvaluation } from "./levels-client";
 
 const parsed = parseLevelCatalogSource(observedJson, businessCriteriaJson);
 if (!parsed.ok) throw new Error("Catalog parsing failed");
@@ -58,4 +58,59 @@ describe("Levels Web Client", () => {
       "Unable to load level catalog. Please try again.",
     );
   });
+
+  it("records evaluation with validation and safe error handling", async () => {
+    mockCallableError = null;
+    mockCallableResult = {
+      data: {
+        evaluation: {
+          evaluationId: "eval_std-1_guard-pass_2026-09-01",
+          studentId: "std-1",
+          definitionKey: "white-1",
+          skillKey: "guard-pass",
+          score: 4,
+          evidenceNotes: "Great control shown.",
+        },
+      },
+    };
+
+    const evalRecord = await recordEvaluation({
+      studentId: "std-1",
+      definitionKey: "white-1",
+      skillKey: "guard-pass",
+      score: 4,
+      evidenceNotes: "Great control shown.",
+    });
+
+    expect(evalRecord.score).toBe(4);
+    expect(evalRecord.studentId).toBe("std-1");
+  });
+
+  it("lists student evaluations and technical skill summary", async () => {
+    mockCallableError = null;
+    mockCallableResult = {
+      data: {
+        evaluations: [
+          {
+            evaluationId: "eval_std-1_guard-pass_2026-09-01",
+            score: 5,
+            skillKey: "guard-pass",
+          },
+        ],
+        summary: {
+          "guard-pass": {
+            count: 1,
+            maxScore: 5,
+            latestScore: 5,
+            lastEvaluatedAt: "2026-09-01T00:00:00Z",
+          },
+        },
+      },
+    };
+
+    const res = await listStudentEvaluations("std-1");
+    expect(res.evaluations).toHaveLength(1);
+    expect(res.summary["guard-pass"]?.maxScore).toBe(5);
+  });
 });
+

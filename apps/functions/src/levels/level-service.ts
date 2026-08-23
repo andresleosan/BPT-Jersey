@@ -1,8 +1,11 @@
-import type {
-  LevelCatalogProjection,
-  LevelDefinitionRecord,
-  LevelRequirementRecord,
-  LevelSystemRecord,
+import {
+  buildEvaluationId,
+  type EvaluationRecord,
+  type LevelCatalogProjection,
+  type LevelDefinitionRecord,
+  type LevelRequirementRecord,
+  type LevelSystemRecord,
+  type RecordEvaluationInput,
 } from "@bpt-jersey/domain/levels";
 import type { NormalizedLevelCatalog } from "./level-source";
 
@@ -34,6 +37,15 @@ export type LevelRollbackResult = Readonly<{
   deletedSystems: number;
 }>;
 
+export type StudentSkillSummaryItem = Readonly<{
+  count: number;
+  maxScore: number;
+  latestScore: number;
+  lastEvaluatedAt: string;
+}>;
+
+export type StudentSkillSummary = Record<string, StudentSkillSummaryItem>;
+
 export type LevelCatalogStore = Readonly<{
   listPublished: (academyId: string) => Promise<LevelCatalogProjection>;
   seed: (input: {
@@ -41,6 +53,18 @@ export type LevelCatalogStore = Readonly<{
     normalized: NormalizedLevelCatalog;
   }) => Promise<LevelSeedResult>;
   rollback: (input: { academyId: string; systemId: string }) => Promise<LevelRollbackResult>;
+  recordEvaluation: (params: {
+    academyId: string;
+    input: RecordEvaluationInput;
+    evaluatorId: string;
+    evaluatorRole: "owner" | "administrator" | "headCoach" | "coach";
+    evaluatedAt?: string;
+  }) => Promise<EvaluationRecord>;
+  listStudentEvaluations: (
+    academyId: string,
+    studentId: string,
+  ) => Promise<readonly EvaluationRecord[]>;
+  getStudentSkillSummary: (academyId: string, studentId: string) => Promise<StudentSkillSummary>;
 }>;
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -244,6 +268,107 @@ export function createLevelCatalogStore({
         deletedSystems: 1,
       };
     },
+
+    async recordEvaluation(params: {
+      academyId: string;
+      input: RecordEvaluationInput;
+      evaluatorId: string;
+      evaluatorRole: "owner" | "administrator" | "headCoach" | "coach";
+      evaluatedAt?: string;
+    }): Promise<EvaluationRecord> {
+      assertValidAcademyId(params.academyId);
+      const { academyId, input, evaluatorId, evaluatorRole } = params;
+      const now = new Date().toISOString();
+      const evaluatedAt = params.evaluatedAt ?? now;
+      const evaluationId = buildEvaluationId(input.studentId, input.skillKey, evaluatedAt);
+
+      const record: EvaluationRecord = {
+        evaluationId,
+        academyId,
+        studentId: input.studentId,
+        definitionKey: input.definitionKey,
+        skillKey: input.skillKey,
+        score: input.score,
+        evidenceNotes: input.evidenceNotes,
+        evaluatorId,
+        evaluatorRole,
+        evaluatedAt,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: evaluatorId,
+        updatedAt: now,
+        updatedBy: evaluatorId,
+      };
+
+      await firestore
+        .doc(`academies/${academyId}/students/${input.studentId}/evaluations/${evaluationId}`)
+        .set(record as unknown as Record<string, unknown>);
+
+      // Write audit event
+      const auditRef = firestore.doc(
+        `academies/${academyId}/auditEvents/audit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      );
+      await auditRef.set({
+        action: "skill_evaluated",
+        actorId: evaluatorId,
+        actorRole: evaluatorRole,
+        targetId: evaluationId,
+        studentId: input.studentId,
+        skillKey: input.skillKey,
+        score: input.score,
+        timestamp: now,
+      });
+
+      return record;
+    },
+
+    async listStudentEvaluations(
+      academyId: string,
+      studentId: string,
+    ): Promise<readonly EvaluationRecord[]> {
+      assertValidAcademyId(academyId);
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/students/${studentId}/evaluations`)
+        .get();
+
+      return snapshot.docs
+        .map((d) => d.data() as unknown as EvaluationRecord)
+        .sort((a, b) => b.evaluatedAt.localeCompare(a.evaluatedAt));
+    },
+
+    async getStudentSkillSummary(
+      academyId: string,
+      studentId: string,
+    ): Promise<StudentSkillSummary> {
+      const evaluations = await this.listStudentEvaluations(academyId, studentId);
+      const summary: Record<
+        string,
+        { count: number; maxScore: number; latestScore: number; lastEvaluatedAt: string }
+      > = {};
+
+      for (const ev of evaluations) {
+        const existing = summary[ev.skillKey];
+        if (!existing) {
+          summary[ev.skillKey] = {
+            count: 1,
+            maxScore: ev.score,
+            latestScore: ev.score,
+            lastEvaluatedAt: ev.evaluatedAt,
+          };
+        } else {
+          existing.count += 1;
+          if (ev.score > existing.maxScore) {
+            existing.maxScore = ev.score;
+          }
+          if (ev.evaluatedAt > existing.lastEvaluatedAt) {
+            existing.lastEvaluatedAt = ev.evaluatedAt;
+            existing.latestScore = ev.score;
+          }
+        }
+      }
+
+      return summary;
+    },
   };
 }
 
@@ -251,6 +376,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
   const systems = new Map<string, Record<string, unknown>>();
   const definitions = new Map<string, Record<string, unknown>>();
   const requirements = new Map<string, Record<string, unknown>>();
+  const evaluations = new Map<string, EvaluationRecord>();
 
   return {
     async listPublished(academyId: string): Promise<LevelCatalogProjection> {
@@ -382,6 +508,86 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         deletedRequirements: deletedReqs,
         deletedSystems: 1,
       };
+    },
+
+    async recordEvaluation(params: {
+      academyId: string;
+      input: RecordEvaluationInput;
+      evaluatorId: string;
+      evaluatorRole: "owner" | "administrator" | "headCoach" | "coach";
+      evaluatedAt?: string;
+    }): Promise<EvaluationRecord> {
+      assertValidAcademyId(params.academyId);
+      const { academyId, input, evaluatorId, evaluatorRole } = params;
+      const now = new Date().toISOString();
+      const evaluatedAt = params.evaluatedAt ?? now;
+      const evaluationId = buildEvaluationId(input.studentId, input.skillKey, evaluatedAt);
+
+      const record: EvaluationRecord = {
+        evaluationId,
+        academyId,
+        studentId: input.studentId,
+        definitionKey: input.definitionKey,
+        skillKey: input.skillKey,
+        score: input.score,
+        evidenceNotes: input.evidenceNotes,
+        evaluatorId,
+        evaluatorRole,
+        evaluatedAt,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: evaluatorId,
+        updatedAt: now,
+        updatedBy: evaluatorId,
+      };
+
+      const key = `${academyId}__${input.studentId}__${evaluationId}`;
+      evaluations.set(key, record);
+      return record;
+    },
+
+    async listStudentEvaluations(
+      academyId: string,
+      studentId: string,
+    ): Promise<readonly EvaluationRecord[]> {
+      assertValidAcademyId(academyId);
+      return Array.from(evaluations.values())
+        .filter((e) => e.academyId === academyId && e.studentId === studentId)
+        .sort((a, b) => b.evaluatedAt.localeCompare(a.evaluatedAt));
+    },
+
+    async getStudentSkillSummary(
+      academyId: string,
+      studentId: string,
+    ): Promise<StudentSkillSummary> {
+      const studentEvals = await this.listStudentEvaluations(academyId, studentId);
+      const summary: Record<
+        string,
+        { count: number; maxScore: number; latestScore: number; lastEvaluatedAt: string }
+      > = {};
+
+      for (const ev of studentEvals) {
+        const existing = summary[ev.skillKey];
+        if (!existing) {
+          summary[ev.skillKey] = {
+            count: 1,
+            maxScore: ev.score,
+            latestScore: ev.score,
+            lastEvaluatedAt: ev.evaluatedAt,
+          };
+        } else {
+          existing.count += 1;
+          if (ev.score > existing.maxScore) {
+            existing.maxScore = ev.score;
+          }
+          if (ev.evaluatedAt > existing.lastEvaluatedAt) {
+            existing.lastEvaluatedAt = ev.evaluatedAt;
+            existing.latestScore = ev.score;
+          }
+        }
+      }
+
+      return summary;
     },
   };
 }

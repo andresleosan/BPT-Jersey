@@ -4,7 +4,11 @@ import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-cr
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { createInMemoryLevelStore } from "./level-service";
 import { normalizeLevelCatalogSource } from "./level-source";
-import { createListLevelCatalogHandler } from "./level-callables";
+import {
+  createListLevelCatalogHandler,
+  createListStudentEvaluationsHandler,
+  createRecordEvaluationHandler,
+} from "./level-callables";
 
 function fakeRequest(
   data: unknown,
@@ -73,5 +77,133 @@ describe("Level Callables", () => {
     const handler = createListLevelCatalogHandler({ store });
 
     await expect(handler(fakeRequest(null, "owner", "user-2", "other-academy"))).rejects.toThrow();
+  });
+
+  describe("Record Evaluation Callable (T039)", () => {
+    it("allows coach to record valid evaluation", async () => {
+      const store = createTestStore();
+      const recordHandler = createRecordEvaluationHandler({ store });
+
+      const result = await recordHandler(
+        fakeRequest(
+          {
+            studentId: "student-1",
+            definitionKey: "white-1",
+            skillKey: "guard-pass-knee-cut",
+            score: 4,
+            evidenceNotes: "Clean execution and posture maintenance during drills.",
+          },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      );
+
+      expect(result.evaluation.studentId).toBe("student-1");
+      expect(result.evaluation.score).toBe(4);
+      expect(result.evaluation.evaluatorId).toBe("coach-1");
+    });
+
+    it("rejects non-staff attempts to record evaluation", async () => {
+      const store = createTestStore();
+      const recordHandler = createRecordEvaluationHandler({ store });
+
+      await expect(
+        recordHandler(
+          fakeRequest(
+            {
+              studentId: "student-1",
+              definitionKey: "white-1",
+              skillKey: "guard-pass-knee-cut",
+              score: 4,
+              evidenceNotes: "Self evaluation not allowed.",
+            },
+            "adultStudent",
+            "student-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Staff role required to record evaluation/);
+    });
+
+    it("rejects invalid payload arguments", async () => {
+      const store = createTestStore();
+      const recordHandler = createRecordEvaluationHandler({ store });
+
+      await expect(
+        recordHandler(
+          fakeRequest(
+            {
+              studentId: "student-1",
+              definitionKey: "white-1",
+              skillKey: "guard-pass",
+              score: 99,
+              evidenceNotes: "Bad score",
+            },
+            "coach",
+            "coach-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("List Student Evaluations Callable & Family Visibility (T039)", () => {
+    it("allows staff to list evaluations of any student", async () => {
+      const store = createTestStore();
+      await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-1",
+          skillKey: "armbar-closed-guard",
+          score: 5,
+          evidenceNotes: "Perfect hip elevation and breaking mechanics.",
+        },
+        evaluatorId: "coach-1",
+        evaluatorRole: "coach",
+      });
+
+      const listHandler = createListStudentEvaluationsHandler({ store });
+      const result = await listHandler(
+        fakeRequest({ studentId: "student-1" }, "headCoach", "headcoach-1", "demo-academy"),
+      );
+
+      expect(result.evaluations).toHaveLength(1);
+      expect(result.evaluations[0]?.score).toBe(5);
+      expect(result.summary["armbar-closed-guard"]?.maxScore).toBe(5);
+    });
+
+    it("allows adult student to list only their own evaluations", async () => {
+      const store = createTestStore();
+      await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "adult-1",
+          definitionKey: "white-1",
+          skillKey: "armbar-closed-guard",
+          score: 3,
+          evidenceNotes: "Good attempt.",
+        },
+        evaluatorId: "coach-1",
+        evaluatorRole: "coach",
+      });
+
+      const listHandler = createListStudentEvaluationsHandler({ store });
+
+      // Can list own
+      const ownResult = await listHandler(
+        fakeRequest({ studentId: "adult-1" }, "adultStudent", "adult-1", "demo-academy"),
+      );
+      expect(ownResult.evaluations).toHaveLength(1);
+
+      // Cannot list another student
+      await expect(
+        listHandler(
+          fakeRequest({ studentId: "adult-2" }, "adultStudent", "adult-1", "demo-academy"),
+        ),
+      ).rejects.toThrow(/Access denied: student evaluation visibility restricted/);
+    });
   });
 });

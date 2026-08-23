@@ -99,4 +99,76 @@ describe("Level Service & Store", () => {
 
     await expect(store.listPublished("academy-2")).rejects.toThrow();
   });
+
+  describe("Student Technical Evaluations Store (T039)", () => {
+    it("records evaluation with audit event and retrieves student evaluations", async () => {
+      const store = createInMemoryLevelStore();
+
+      const evaluation = await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-1",
+          skillKey: "guard-pass-knee-cut",
+          score: 4,
+          evidenceNotes: "Solid pressure pass executed during sparring session.",
+        },
+        evaluatorId: "coach-1",
+        evaluatorRole: "coach",
+      });
+
+      expect(evaluation.evaluationId.startsWith("eval_student-1_guard-pass-knee-cut_")).toBe(true);
+      expect(evaluation.score).toBe(4);
+      expect(evaluation.evaluatorId).toBe("coach-1");
+      expect(evaluation.evaluatorRole).toBe("coach");
+
+      const studentEvals = await store.listStudentEvaluations("demo-academy", "student-1");
+      expect(studentEvals).toHaveLength(1);
+      expect(studentEvals[0]?.evaluationId).toBe(evaluation.evaluationId);
+      expect(studentEvals[0]?.score).toBe(4);
+
+      // Other student has empty list
+      const otherEvals = await store.listStudentEvaluations("demo-academy", "student-2");
+      expect(otherEvals).toHaveLength(0);
+    });
+
+    it("aggregates student skill summary across multiple evaluations", async () => {
+      const store = createInMemoryLevelStore();
+
+      await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-1",
+          skillKey: "guard-pass-knee-cut",
+          score: 2,
+          evidenceNotes: "First attempt in fundamental class.",
+        },
+        evaluatorId: "coach-1",
+        evaluatorRole: "coach",
+        evaluatedAt: "2026-08-01T10:00:00Z",
+      });
+
+      await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-1",
+          skillKey: "guard-pass-knee-cut",
+          score: 4,
+          evidenceNotes: "Much improved guard pass under resistance.",
+        },
+        evaluatorId: "headcoach-1",
+        evaluatorRole: "headCoach",
+        evaluatedAt: "2026-08-15T10:00:00Z",
+      });
+
+      const summary = await store.getStudentSkillSummary("demo-academy", "student-1");
+      expect(summary["guard-pass-knee-cut"]).toBeDefined();
+      expect(summary["guard-pass-knee-cut"]?.count).toBe(2);
+      expect(summary["guard-pass-knee-cut"]?.maxScore).toBe(4);
+      expect(summary["guard-pass-knee-cut"]?.latestScore).toBe(4);
+      expect(summary["guard-pass-knee-cut"]?.lastEvaluatedAt).toBe("2026-08-15T10:00:00Z");
+    });
+  });
 });

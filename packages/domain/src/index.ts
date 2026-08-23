@@ -249,13 +249,18 @@ export type {
 } from "./finance/financial-access";
 
 export {
+  buildEvaluationId,
+  evaluationScores,
   levelDefinitionKinds,
   levelRequirementInheritanceModes,
   parseLevelCatalogProjection,
   parseLevelCatalogSource,
+  parseRecordEvaluationInput,
 } from "./levels/level-contracts";
 export type {
   CanonicalLevelCatalog,
+  EvaluationRecord,
+  EvaluationScore,
   LevelCatalogProjection,
   LevelCriteria,
   LevelDefinitionKind,
@@ -264,6 +269,7 @@ export type {
   LevelRequirementRecord,
   LevelSystemRecord,
   LevelVisual,
+  RecordEvaluationInput,
   SkillDefinition,
 } from "./levels/level-contracts";
 

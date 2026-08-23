@@ -526,3 +526,97 @@ export function parseLevelCatalogProjection(
     }),
   );
 }
+
+export const evaluationScores = Object.freeze([1, 2, 3, 4, 5] as const);
+export type EvaluationScore = (typeof evaluationScores)[number];
+
+export type EvaluationRecord = Readonly<{
+  evaluationId: string;
+  academyId: string;
+  studentId: string;
+  definitionKey: string;
+  skillKey: string;
+  score: EvaluationScore;
+  evidenceNotes: string;
+  evaluatorId: string;
+  evaluatorRole: "owner" | "administrator" | "headCoach" | "coach";
+  evaluatedAt: string;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type RecordEvaluationInput = Readonly<{
+  studentId: string;
+  definitionKey: string;
+  skillKey: string;
+  score: EvaluationScore;
+  evidenceNotes: string;
+}>;
+
+export function buildEvaluationId(
+  studentId: string,
+  skillKey: string,
+  evaluatedAt?: string,
+): string {
+  const ts = evaluatedAt ? evaluatedAt : new Date().toISOString();
+  return `eval_${studentId}_${skillKey}_${ts}`;
+}
+
+const safeIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+
+export function parseRecordEvaluationInput(
+  input: unknown,
+): Result<RecordEvaluationInput, readonly ValidationIssue[]> {
+  const issues: ValidationIssue[] = [];
+
+  if (!isPlainRecord(input)) {
+    return err([issue(["input"], "invalid_evaluation_object")]);
+  }
+
+  const { studentId, definitionKey, skillKey, score, evidenceNotes } = input;
+
+  if (typeof studentId !== "string" || !safeIdPattern.test(studentId)) {
+    issues.push(issue(["input", "studentId"], "invalid_student_id"));
+  }
+
+  if (typeof definitionKey !== "string" || !safeIdPattern.test(definitionKey)) {
+    issues.push(issue(["input", "definitionKey"], "invalid_definition_key"));
+  }
+
+  if (typeof skillKey !== "string" || !safeIdPattern.test(skillKey)) {
+    issues.push(issue(["input", "skillKey"], "invalid_skill_key"));
+  }
+
+  if (
+    typeof score !== "number" ||
+    !Number.isInteger(score) ||
+    !evaluationScores.includes(score as EvaluationScore)
+  ) {
+    issues.push(issue(["input", "score"], "score_must_be_integer_between_1_and_5"));
+  }
+
+  if (
+    typeof evidenceNotes !== "string" ||
+    evidenceNotes.trim().length < 3 ||
+    evidenceNotes.trim().length > 1000
+  ) {
+    issues.push(issue(["input", "evidenceNotes"], "evidence_notes_length_3_to_1000"));
+  }
+
+  if (issues.length > 0) {
+    return err(Object.freeze(issues));
+  }
+
+  return ok(
+    Object.freeze({
+      studentId: (studentId as string).trim(),
+      definitionKey: (definitionKey as string).trim(),
+      skillKey: (skillKey as string).trim(),
+      score: score as EvaluationScore,
+      evidenceNotes: (evidenceNotes as string).trim(),
+    }),
+  );
+}

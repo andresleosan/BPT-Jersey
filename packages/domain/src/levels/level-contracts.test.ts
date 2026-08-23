@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import {
+  buildEvaluationId,
   parseLevelCatalogProjection,
   parseLevelCatalogSource,
+  parseRecordEvaluationInput,
   type CanonicalLevelCatalog,
+  type EvaluationScore,
   type LevelCatalogProjection,
+  type RecordEvaluationInput,
 } from "./level-contracts";
 
 describe("Level Contracts", () => {
@@ -143,5 +147,101 @@ describe("Level Contracts", () => {
 
     expect(Object.isFrozen(projectionResult.value)).toBe(true);
     expect(Object.isFrozen(projectionResult.value.definitions)).toBe(true);
+  });
+
+  describe("Technical Evaluations (T039)", () => {
+    it("builds valid deterministic/traceable evaluation ID", () => {
+      const id1 = buildEvaluationId("std-1", "guard-pass", "2026-09-01T10:00:00Z");
+      expect(id1).toBe("eval_std-1_guard-pass_2026-09-01T10:00:00Z");
+
+      const id2 = buildEvaluationId("std-2", "armbar");
+      expect(id2.startsWith("eval_std-2_armbar_")).toBe(true);
+    });
+
+    it("parses and validates valid evaluation input", () => {
+      const validInput: RecordEvaluationInput = {
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass-knee-cut",
+        score: 4,
+        evidenceNotes: "Excellent weight distribution and head control during sparring.",
+      };
+
+      const result = parseRecordEvaluationInput(validInput);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected ok result");
+      expect(result.value.score).toBe(4);
+      expect(result.value.studentId).toBe("student-1");
+      expect(Object.isFrozen(result.value)).toBe(true);
+    });
+
+    it("rejects score outside 1-5 range", () => {
+      const invalid0 = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 0 as unknown as EvaluationScore,
+        evidenceNotes: "Too low",
+      });
+      expect(invalid0.ok).toBe(false);
+
+      const invalid6 = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 6 as unknown as EvaluationScore,
+        evidenceNotes: "Too high",
+      });
+      expect(invalid6.ok).toBe(false);
+
+      const nonInt = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 3.5 as unknown as EvaluationScore,
+        evidenceNotes: "Non integer",
+      });
+      expect(nonInt.ok).toBe(false);
+    });
+
+    it("rejects missing or too short evidence notes", () => {
+      const shortNotes = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 3,
+        evidenceNotes: "ok",
+      });
+      expect(shortNotes.ok).toBe(false);
+
+      const emptyNotes = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 3,
+        evidenceNotes: "   ",
+      });
+      expect(emptyNotes.ok).toBe(false);
+    });
+
+    it("rejects invalid studentId or skillKey format", () => {
+      const badStudent = parseRecordEvaluationInput({
+        studentId: "bad/student id",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 3,
+        evidenceNotes: "Good technique shown.",
+      });
+      expect(badStudent.ok).toBe(false);
+
+      const badSkill = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "bad skill spaces",
+        score: 3,
+        evidenceNotes: "Good technique shown.",
+      });
+      expect(badSkill.ok).toBe(false);
+    });
   });
 });
