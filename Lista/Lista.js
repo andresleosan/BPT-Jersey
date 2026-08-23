@@ -671,10 +671,10 @@ const progressItems = [
   task(
     "T042",
     "Implementar revisión y aprobación exclusivas del entrenador principal",
-    "pendiente",
+    "aprobada",
     "Mantener todas las promociones del catálogo MVP bajo aprobación humana autorizada.",
     "T015,T041",
-    "La aprobación del reconocimiento todavía está pendiente.",
+    "Contratos y parsers de graduación/promoción 25/25, store con actualización de perfil y auditoría 10/10, callables RBAC headCoach/owner 18/18, client 9/9, suite completa 884/884 en 105 archivos; regla de oro de aprobación humana formal, registro inmutable y trazabilidad probados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),

@@ -2,9 +2,12 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
+  parseApprovePromotionInput,
   parseRecordEvaluationInput,
   parseRecordMedicalLeaveInput,
+  parseRejectPromotionInput,
   type EvaluationRecord,
+  type GraduationRecord,
   type LevelCatalogProjection,
   type MedicalLeaveRecord,
   type RecognitionCandidate,
@@ -19,6 +22,7 @@ import {
 } from "./level-service.js";
 
 const staffRoles = ["owner", "administrator", "headCoach", "coach"] as const;
+const headCoachRoles = ["owner", "headCoach"] as const;
 
 export function createListLevelCatalogHandler({ store }: { store: LevelCatalogStore }) {
   return async (request: CallableRequest): Promise<LevelCatalogProjection> => {
@@ -318,6 +322,116 @@ export function createListRecognitionCandidatesHandler({ store }: { store: Level
   };
 }
 
+export function createApprovePromotionHandler({ store }: { store: LevelCatalogStore }) {
+  return async (request: CallableRequest<unknown>): Promise<{ graduation: GraduationRecord }> => {
+    const actor = requireUserActor(request);
+    if (!headCoachRoles.includes(actor.role as (typeof headCoachRoles)[number])) {
+      throw new HttpsError(
+        "permission-denied",
+        "Head Coach or Owner role required to approve promotions and graduations",
+      );
+    }
+
+    const parsed = parseApprovePromotionInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Invalid promotion approval payload: ${parsed.error.map((e) => e.code).join(", ")}`,
+      );
+    }
+
+    const graduation = await store.approvePromotion({
+      academyId: actor.academyId,
+      input: parsed.value,
+      decidedBy: actor.userId,
+      decidedByRole: actor.role as "owner" | "headCoach",
+    });
+
+    return {
+      graduation,
+    };
+  };
+}
+
+export function createRejectPromotionHandler({ store }: { store: LevelCatalogStore }) {
+  return async (request: CallableRequest<unknown>): Promise<{ graduation: GraduationRecord }> => {
+    const actor = requireUserActor(request);
+    if (!headCoachRoles.includes(actor.role as (typeof headCoachRoles)[number])) {
+      throw new HttpsError(
+        "permission-denied",
+        "Head Coach or Owner role required to reject promotions",
+      );
+    }
+
+    const parsed = parseRejectPromotionInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Invalid promotion rejection payload: ${parsed.error.map((e) => e.code).join(", ")}`,
+      );
+    }
+
+    const graduation = await store.rejectPromotion({
+      academyId: actor.academyId,
+      input: parsed.value,
+      decidedBy: actor.userId,
+      decidedByRole: actor.role as "owner" | "headCoach",
+    });
+
+    return {
+      graduation,
+    };
+  };
+}
+
+export function createListGraduationsHandler({ store }: { store: LevelCatalogStore }) {
+  return async (
+    request: CallableRequest<unknown>,
+  ): Promise<{ graduations: readonly GraduationRecord[] }> => {
+    const actor = requireUserActor(request);
+    const data = (request.data as { studentId?: unknown }) ?? {};
+
+    let targetStudentId: string | undefined;
+
+    if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      if (typeof data.studentId === "string" && data.studentId.trim()) {
+        targetStudentId = data.studentId.trim();
+      }
+    } else if (actor.role === "adultStudent") {
+      if (
+        typeof data.studentId === "string" &&
+        data.studentId.trim() &&
+        data.studentId.trim() !== String(actor.userId)
+      ) {
+        throw new HttpsError(
+          "permission-denied",
+          "Access denied: graduation history visibility restricted to self or authorized guardians",
+        );
+      }
+      targetStudentId = String(actor.userId);
+    } else if (actor.role === "guardian") {
+      if (typeof data.studentId === "string" && data.studentId.trim()) {
+        targetStudentId = data.studentId.trim();
+      } else {
+        throw new HttpsError(
+          "invalid-argument",
+          "studentId is required for guardian graduation query",
+        );
+      }
+    } else {
+      throw new HttpsError(
+        "permission-denied",
+        "Access denied: graduation history visibility restricted",
+      );
+    }
+
+    const graduations = await store.listGraduations(actor.academyId, targetStudentId);
+    return {
+      graduations,
+    };
+  };
+}
+
 let defaultStore: LevelCatalogStore | undefined;
 
 function getStore(): LevelCatalogStore {
@@ -403,6 +517,39 @@ export const listRecognitionCandidates = onCall(
   },
   async (request) => {
     const handler = createListRecognitionCandidatesHandler({ store: getStore() });
+    return handler(request);
+  },
+);
+
+export const approvePromotion = onCall(
+  {
+    enforceAppCheck: false,
+    consumeAppCheckToken: false,
+  },
+  async (request) => {
+    const handler = createApprovePromotionHandler({ store: getStore() });
+    return handler(request);
+  },
+);
+
+export const rejectPromotion = onCall(
+  {
+    enforceAppCheck: false,
+    consumeAppCheckToken: false,
+  },
+  async (request) => {
+    const handler = createRejectPromotionHandler({ store: getStore() });
+    return handler(request);
+  },
+);
+
+export const listGraduations = onCall(
+  {
+    enforceAppCheck: false,
+    consumeAppCheckToken: false,
+  },
+  async (request) => {
+    const handler = createListGraduationsHandler({ store: getStore() });
     return handler(request);
   },
 );

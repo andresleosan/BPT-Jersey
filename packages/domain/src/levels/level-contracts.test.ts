@@ -4,13 +4,16 @@ import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-cr
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import {
   buildEvaluationId,
+  buildGraduationId,
   buildStudentProgressSummary,
   calculateAttendanceStreak,
   generateRecognitionCandidates,
+  parseApprovePromotionInput,
   parseLevelCatalogProjection,
   parseLevelCatalogSource,
   parseRecordEvaluationInput,
   parseRecordMedicalLeaveInput,
+  parseRejectPromotionInput,
   type CanonicalLevelCatalog,
   type EvaluationRecord,
   type EvaluationScore,
@@ -496,6 +499,53 @@ describe("Level Contracts", () => {
       expect(top.targetDefinitionKey).toBe(secondDef.definitionKey);
       expect(top.reasons.length).toBeGreaterThan(0);
       expect(top.readinessPercentage).toBeGreaterThanOrEqual(50);
+    });
+  });
+
+  describe("Head Coach Promotion & Graduation Contracts (T042)", () => {
+    it("builds deterministic and traceable graduation ID", () => {
+      const gradId = buildGraduationId("std-1", "white-1", "2026-08-23T12:00:00Z");
+      expect(gradId).toBe("grad_std-1_white-1_2026-08-23T12:00:00Z");
+    });
+
+    it("validates and parses valid approve promotion input", () => {
+      const result = parseApprovePromotionInput({
+        studentId: "std-1",
+        fromDefinitionKey: "white-0",
+        toDefinitionKey: "white-1",
+        decisionNotes:
+          "Demonstrated solid mastery of fundamentals and consistent sparring presence.",
+        ceremonyDate: "2026-09-01T18:00:00Z",
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected ok result");
+      expect(result.value.studentId).toBe("std-1");
+      expect(result.value.toDefinitionKey).toBe("white-1");
+      expect(result.value.ceremonyDate).toBe("2026-09-01T18:00:00Z");
+    });
+
+    it("rejects promotion approval with short or empty decision notes", () => {
+      const shortNotes = parseApprovePromotionInput({
+        studentId: "std-1",
+        fromDefinitionKey: "white-0",
+        toDefinitionKey: "white-1",
+        decisionNotes: "ok",
+      });
+      expect(shortNotes.ok).toBe(false);
+    });
+
+    it("validates and parses reject promotion input", () => {
+      const result = parseRejectPromotionInput({
+        studentId: "std-1",
+        targetDefinitionKey: "white-1",
+        decisionNotes: "Needs more sparring rounds against senior practitioners before stripe.",
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected ok result");
+      expect(result.value.studentId).toBe("std-1");
+      expect(result.value.decisionNotes).toContain("Needs more sparring");
     });
   });
 });

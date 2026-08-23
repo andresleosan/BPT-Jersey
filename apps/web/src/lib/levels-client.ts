@@ -1,15 +1,20 @@
 import { httpsCallable } from "firebase/functions";
 
 import {
+  parseApprovePromotionInput,
   parseLevelCatalogProjection,
   parseRecordEvaluationInput,
   parseRecordMedicalLeaveInput,
+  parseRejectPromotionInput,
+  type ApprovePromotionInput,
   type EvaluationRecord,
+  type GraduationRecord,
   type LevelCatalogProjection,
   type MedicalLeaveRecord,
   type RecognitionCandidate,
   type RecordEvaluationInput,
   type RecordMedicalLeaveInput,
+  type RejectPromotionInput,
   type StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
 import { getFirebaseFunctions } from "./firebase-client";
@@ -21,6 +26,9 @@ const safeProgressError = "Unable to load student progress. Please try again.";
 const safeRecordMedicalLeaveError = "Unable to record medical leave. Please try again.";
 const safeListMedicalLeavesError = "Unable to load medical leaves. Please try again.";
 const safeListCandidatesError = "Unable to load recognition candidates. Please try again.";
+const safeApprovePromotionError = "Unable to approve promotion. Please try again.";
+const safeRejectPromotionError = "Unable to reject promotion. Please try again.";
+const safeListGraduationsError = "Unable to load graduation history. Please try again.";
 
 export type StudentEvaluationsResponse = Readonly<{
   evaluations: readonly EvaluationRecord[];
@@ -176,6 +184,77 @@ export async function listRecognitionCandidates(): Promise<readonly RecognitionC
     throw new Error(safeListCandidatesError);
   }
 }
+
+export async function approvePromotion(
+  input: ApprovePromotionInput,
+): Promise<GraduationRecord> {
+  const parsed = parseApprovePromotionInput(input);
+  if (!parsed.ok) {
+    throw new Error(safeApprovePromotionError);
+  }
+
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    ApprovePromotionInput,
+    { graduation: GraduationRecord }
+  >(functions, "approvePromotion");
+
+  try {
+    const response = await callable(parsed.value);
+    return response.data.graduation;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeApprovePromotionError) {
+      throw error;
+    }
+    throw new Error(safeApprovePromotionError);
+  }
+}
+
+export async function rejectPromotion(
+  input: RejectPromotionInput,
+): Promise<GraduationRecord> {
+  const parsed = parseRejectPromotionInput(input);
+  if (!parsed.ok) {
+    throw new Error(safeRejectPromotionError);
+  }
+
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    RejectPromotionInput,
+    { graduation: GraduationRecord }
+  >(functions, "rejectPromotion");
+
+  try {
+    const response = await callable(parsed.value);
+    return response.data.graduation;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeRejectPromotionError) {
+      throw error;
+    }
+    throw new Error(safeRejectPromotionError);
+  }
+}
+
+export async function listGraduations(
+  studentId?: string,
+): Promise<readonly GraduationRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { studentId?: string },
+    { graduations: readonly GraduationRecord[] }
+  >(functions, "listGraduations");
+
+  try {
+    const response = await callable(studentId ? { studentId } : {});
+    return response.data.graduations;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeListGraduationsError) {
+      throw error;
+    }
+    throw new Error(safeListGraduationsError);
+  }
+}
+
 
 
 

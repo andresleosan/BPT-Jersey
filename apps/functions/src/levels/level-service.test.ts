@@ -227,5 +227,49 @@ describe("Level Service & Store", () => {
       const candidates = await store.listRecognitionCandidates("demo-academy");
       expect(candidates.length).toBeGreaterThanOrEqual(1);
     });
+
+    it("approves and rejects promotions and lists graduation history", async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId: "demo-academy", normalized });
+
+      const approved = await store.approvePromotion({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          fromDefinitionKey: "white-0",
+          toDefinitionKey: "white-1",
+          decisionNotes: "Strong technical consistency and leadership during sparring sessions.",
+          ceremonyDate: "2026-09-01T18:00:00Z",
+        },
+        decidedBy: "headcoach-1",
+        decidedByRole: "headCoach",
+      });
+
+      expect(approved.status).toBe("approved");
+      expect(approved.studentId).toBe("student-1");
+      expect(approved.toDefinitionKey).toBe("white-1");
+      expect(approved.decidedByRole).toBe("headCoach");
+
+      const rejected = await store.rejectPromotion({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-2",
+          targetDefinitionKey: "white-1",
+          decisionNotes: "Requires further refinement of guard recovery techniques.",
+        },
+        decidedBy: "headcoach-1",
+        decidedByRole: "headCoach",
+      });
+
+      expect(rejected.status).toBe("rejected");
+      expect(rejected.studentId).toBe("student-2");
+
+      const student1Grads = await store.listGraduations("demo-academy", "student-1");
+      expect(student1Grads).toHaveLength(1);
+      expect(student1Grads[0]?.status).toBe("approved");
+
+      const allGrads = await store.listGraduations("demo-academy");
+      expect(allGrads).toHaveLength(2);
+    });
   });
 });

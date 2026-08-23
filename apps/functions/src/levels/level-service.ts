@@ -1,8 +1,11 @@
 import {
   buildEvaluationId,
+  buildGraduationId,
   buildStudentProgressSummary,
   generateRecognitionCandidates,
+  type ApprovePromotionInput,
   type EvaluationRecord,
+  type GraduationRecord,
   type LevelCatalogProjection,
   type LevelDefinitionRecord,
   type LevelRequirementRecord,
@@ -11,6 +14,7 @@ import {
   type RecognitionCandidate,
   type RecordEvaluationInput,
   type RecordMedicalLeaveInput,
+  type RejectPromotionInput,
   type StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
 import type { NormalizedLevelCatalog } from "./level-source";
@@ -89,6 +93,21 @@ export type LevelCatalogStore = Readonly<{
     studentId: string,
   ) => Promise<readonly MedicalLeaveRecord[]>;
   listRecognitionCandidates: (academyId: string) => Promise<readonly RecognitionCandidate[]>;
+  approvePromotion: (params: {
+    academyId: string;
+    input: ApprovePromotionInput;
+    decidedBy: string;
+    decidedByRole: "owner" | "headCoach";
+    decidedAt?: string;
+  }) => Promise<GraduationRecord>;
+  rejectPromotion: (params: {
+    academyId: string;
+    input: RejectPromotionInput;
+    decidedBy: string;
+    decidedByRole: "owner" | "headCoach";
+    decidedAt?: string;
+  }) => Promise<GraduationRecord>;
+  listGraduations: (academyId: string, studentId?: string) => Promise<readonly GraduationRecord[]>;
 }>;
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -115,7 +134,7 @@ export type GenericFirestore = {
     }>;
   };
   batch: () => {
-    set: (ref: unknown, data: unknown) => void;
+    set: (ref: unknown, data: unknown, options?: unknown) => void;
     delete: (ref: unknown) => void;
     commit: () => Promise<unknown>;
   };
@@ -564,6 +583,165 @@ export function createLevelCatalogStore({
         medicalLeaves: allLeaves,
       });
     },
+
+    async approvePromotion(params: {
+      academyId: string;
+      input: ApprovePromotionInput;
+      decidedBy: string;
+      decidedByRole: "owner" | "headCoach";
+      decidedAt?: string;
+    }): Promise<GraduationRecord> {
+      const { academyId, input, decidedBy, decidedByRole, decidedAt } = params;
+      assertValidAcademyId(academyId);
+
+      const now = decidedAt ?? new Date().toISOString();
+      const graduationId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
+
+      const record: GraduationRecord = Object.freeze({
+        graduationId,
+        academyId,
+        studentId: input.studentId,
+        fromDefinitionKey: input.fromDefinitionKey,
+        toDefinitionKey: input.toDefinitionKey,
+        status: "approved",
+        decisionNotes: input.decisionNotes,
+        decidedBy,
+        decidedByRole,
+        decidedAt: now,
+        ceremonyDate: input.ceremonyDate ?? null,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: decidedBy,
+        updatedAt: now,
+        updatedBy: decidedBy,
+      });
+
+      const batch = firestore.batch();
+      batch.set(
+        firestore.doc(
+          `academies/${academyId}/students/${input.studentId}/graduations/${graduationId}`,
+        ),
+        record,
+      );
+
+      // Update student's current level
+      batch.set(
+        firestore.doc(`academies/${academyId}/members/${input.studentId}`),
+        {
+          currentLevel: input.toDefinitionKey,
+          currentLevelStartedAt: now,
+          updatedAt: now,
+          updatedBy: decidedBy,
+        },
+        { merge: true },
+      );
+
+      const auditEventId = `evt_grad_${graduationId}`;
+      batch.set(firestore.doc(`academies/${academyId}/auditEvents/${auditEventId}`), {
+        eventId: auditEventId,
+        academyId,
+        action: "promotion_approved",
+        actorId: decidedBy,
+        timestamp: now,
+        details: {
+          studentId: input.studentId,
+          fromDefinitionKey: input.fromDefinitionKey,
+          toDefinitionKey: input.toDefinitionKey,
+          graduationId,
+        },
+      });
+
+      await batch.commit();
+      return record;
+    },
+
+    async rejectPromotion(params: {
+      academyId: string;
+      input: RejectPromotionInput;
+      decidedBy: string;
+      decidedByRole: "owner" | "headCoach";
+      decidedAt?: string;
+    }): Promise<GraduationRecord> {
+      const { academyId, input, decidedBy, decidedByRole, decidedAt } = params;
+      assertValidAcademyId(academyId);
+
+      const now = decidedAt ?? new Date().toISOString();
+      const graduationId = buildGraduationId(input.studentId, input.targetDefinitionKey, now);
+
+      const record: GraduationRecord = Object.freeze({
+        graduationId,
+        academyId,
+        studentId: input.studentId,
+        fromDefinitionKey: "current",
+        toDefinitionKey: input.targetDefinitionKey,
+        status: "rejected",
+        decisionNotes: input.decisionNotes,
+        decidedBy,
+        decidedByRole,
+        decidedAt: now,
+        ceremonyDate: null,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: decidedBy,
+        updatedAt: now,
+        updatedBy: decidedBy,
+      });
+
+      const batch = firestore.batch();
+      batch.set(
+        firestore.doc(
+          `academies/${academyId}/students/${input.studentId}/graduations/${graduationId}`,
+        ),
+        record,
+      );
+
+      const auditEventId = `evt_grad_rej_${graduationId}`;
+      batch.set(firestore.doc(`academies/${academyId}/auditEvents/${auditEventId}`), {
+        eventId: auditEventId,
+        academyId,
+        action: "promotion_rejected",
+        actorId: decidedBy,
+        timestamp: now,
+        details: {
+          studentId: input.studentId,
+          targetDefinitionKey: input.targetDefinitionKey,
+          graduationId,
+        },
+      });
+
+      await batch.commit();
+      return record;
+    },
+
+    async listGraduations(
+      academyId: string,
+      studentId?: string,
+    ): Promise<readonly GraduationRecord[]> {
+      assertValidAcademyId(academyId);
+
+      if (studentId) {
+        const snap = await firestore
+          .collection(`academies/${academyId}/students/${studentId}/graduations`)
+          .get();
+
+        return snap.docs
+          .map((d) => d.data() as unknown as GraduationRecord)
+          .sort((a, b) => b.decidedAt.localeCompare(a.decidedAt));
+      }
+
+      // Fetch from all members
+      const membersSnap = await firestore.collection(`academies/${academyId}/members`).get();
+      const allGraduations: GraduationRecord[] = [];
+
+      for (const m of membersSnap.docs) {
+        const snap = await firestore
+          .collection(`academies/${academyId}/students/${m.id}/graduations`)
+          .get();
+        allGraduations.push(...snap.docs.map((d) => d.data() as unknown as GraduationRecord));
+      }
+
+      return allGraduations.sort((a, b) => b.decidedAt.localeCompare(a.decidedAt));
+    },
   };
 }
 
@@ -573,6 +751,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
   const requirements = new Map<string, Record<string, unknown>>();
   const evaluations = new Map<string, EvaluationRecord>();
   const medicalLeaves = new Map<string, MedicalLeaveRecord>();
+  const graduations = new Map<string, GraduationRecord>();
 
   return {
     async listPublished(academyId: string): Promise<LevelCatalogProjection> {
@@ -885,6 +1064,89 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         attendances: [],
         medicalLeaves: allLeaves,
       });
+    },
+
+    async approvePromotion(params: {
+      academyId: string;
+      input: ApprovePromotionInput;
+      decidedBy: string;
+      decidedByRole: "owner" | "headCoach";
+      decidedAt?: string;
+    }): Promise<GraduationRecord> {
+      const { academyId, input, decidedBy, decidedByRole, decidedAt } = params;
+      assertValidAcademyId(academyId);
+
+      const now = decidedAt ?? new Date().toISOString();
+      const graduationId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
+
+      const record: GraduationRecord = Object.freeze({
+        graduationId,
+        academyId,
+        studentId: input.studentId,
+        fromDefinitionKey: input.fromDefinitionKey,
+        toDefinitionKey: input.toDefinitionKey,
+        status: "approved",
+        decisionNotes: input.decisionNotes,
+        decidedBy,
+        decidedByRole,
+        decidedAt: now,
+        ceremonyDate: input.ceremonyDate ?? null,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: decidedBy,
+        updatedAt: now,
+        updatedBy: decidedBy,
+      });
+
+      graduations.set(`${academyId}_${input.studentId}_${graduationId}`, record);
+      return record;
+    },
+
+    async rejectPromotion(params: {
+      academyId: string;
+      input: RejectPromotionInput;
+      decidedBy: string;
+      decidedByRole: "owner" | "headCoach";
+      decidedAt?: string;
+    }): Promise<GraduationRecord> {
+      const { academyId, input, decidedBy, decidedByRole, decidedAt } = params;
+      assertValidAcademyId(academyId);
+
+      const now = decidedAt ?? new Date().toISOString();
+      const graduationId = buildGraduationId(input.studentId, input.targetDefinitionKey, now);
+
+      const record: GraduationRecord = Object.freeze({
+        graduationId,
+        academyId,
+        studentId: input.studentId,
+        fromDefinitionKey: "current",
+        toDefinitionKey: input.targetDefinitionKey,
+        status: "rejected",
+        decisionNotes: input.decisionNotes,
+        decidedBy,
+        decidedByRole,
+        decidedAt: now,
+        ceremonyDate: null,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: decidedBy,
+        updatedAt: now,
+        updatedBy: decidedBy,
+      });
+
+      graduations.set(`${academyId}_${input.studentId}_${graduationId}`, record);
+      return record;
+    },
+
+    async listGraduations(
+      academyId: string,
+      studentId?: string,
+    ): Promise<readonly GraduationRecord[]> {
+      assertValidAcademyId(academyId);
+
+      return Array.from(graduations.values())
+        .filter((g) => g.academyId === academyId && (!studentId || g.studentId === studentId))
+        .sort((a, b) => b.decidedAt.localeCompare(a.decidedAt));
     },
   };
 }

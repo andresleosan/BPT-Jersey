@@ -4,13 +4,16 @@ import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-cr
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { parseLevelCatalogSource } from "@bpt-jersey/domain/levels";
 import {
+  approvePromotion,
   getLevelCatalog,
   getStudentProgressSummary,
+  listGraduations,
   listMedicalLeaves,
   listRecognitionCandidates,
   listStudentEvaluations,
   recordEvaluation,
   recordMedicalLeave,
+  rejectPromotion,
 } from "./levels-client";
 
 const parsed = parseLevelCatalogSource(observedJson, businessCriteriaJson);
@@ -200,7 +203,74 @@ describe("Levels Web Client", () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.studentName).toBe("Carlos Gracie");
   });
+
+  it("approves promotion, rejects promotion and lists graduations", async () => {
+    mockCallableError = null;
+    mockCallableResult = {
+      data: {
+        graduation: {
+          graduationId: "grad-1",
+          studentId: "std-1",
+          fromDefinitionKey: "white-0",
+          toDefinitionKey: "white-1",
+          status: "approved",
+          decisionNotes: "Technical excellence.",
+          decidedBy: "coach-1",
+          decidedByRole: "headCoach",
+          decidedAt: "2026-08-23T12:00:00Z",
+          ceremonyDate: "2026-09-01T18:00:00Z",
+        },
+      },
+    };
+
+    const approved = await approvePromotion({
+      studentId: "std-1",
+      fromDefinitionKey: "white-0",
+      toDefinitionKey: "white-1",
+      decisionNotes: "Technical excellence.",
+      ceremonyDate: "2026-09-01T18:00:00Z",
+    });
+
+    expect(approved.status).toBe("approved");
+    expect(approved.studentId).toBe("std-1");
+
+    mockCallableResult = {
+      data: {
+        graduation: {
+          graduationId: "grad-2",
+          studentId: "std-2",
+          fromDefinitionKey: "current",
+          toDefinitionKey: "white-1",
+          status: "rejected",
+          decisionNotes: "More time in guard sparring needed.",
+          decidedBy: "coach-1",
+          decidedByRole: "headCoach",
+          decidedAt: "2026-08-23T12:00:00Z",
+          ceremonyDate: null,
+        },
+      },
+    };
+
+    const rejected = await rejectPromotion({
+      studentId: "std-2",
+      targetDefinitionKey: "white-1",
+      decisionNotes: "More time in guard sparring needed.",
+    });
+
+    expect(rejected.status).toBe("rejected");
+
+    mockCallableResult = {
+      data: {
+        graduations: [approved],
+      },
+    };
+
+    const history = await listGraduations("std-1");
+    expect(history).toHaveLength(1);
+    expect(history[0]?.status).toBe("approved");
+  });
 });
+
 
 
 

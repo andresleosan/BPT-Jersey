@@ -1127,3 +1127,149 @@ export function generateRecognitionCandidates(options: {
 
   return Object.freeze(candidates);
 }
+
+export type PromotionDecisionStatus = "approved" | "rejected" | "deferred";
+
+export type GraduationRecord = Readonly<{
+  graduationId: string;
+  academyId: string;
+  studentId: string;
+  fromDefinitionKey: string;
+  toDefinitionKey: string;
+  status: PromotionDecisionStatus;
+  decisionNotes: string;
+  decidedBy: string;
+  decidedByRole: "owner" | "headCoach";
+  decidedAt: string;
+  ceremonyDate: string | null;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export function buildGraduationId(
+  studentId: string,
+  toDefinitionKey: string,
+  decidedAt: string,
+): string {
+  return `grad_${studentId}_${toDefinitionKey}_${decidedAt}`;
+}
+
+export type ApprovePromotionInput = Readonly<{
+  studentId: string;
+  fromDefinitionKey: string;
+  toDefinitionKey: string;
+  decisionNotes: string;
+  ceremonyDate?: string | null;
+}>;
+
+export function parseApprovePromotionInput(
+  raw: unknown,
+): Result<ApprovePromotionInput, readonly ValidationIssue[]> {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return err(Object.freeze([issue(["input"], "expected_object")]));
+  }
+
+  const record = raw as Record<string, unknown>;
+  const issues: ValidationIssue[] = [];
+
+  const studentId = record["studentId"];
+  const fromDefinitionKey = record["fromDefinitionKey"];
+  const toDefinitionKey = record["toDefinitionKey"];
+  const decisionNotes = record["decisionNotes"];
+  const ceremonyDate = record["ceremonyDate"];
+
+  if (typeof studentId !== "string" || !safeIdPattern.test(studentId)) {
+    issues.push(issue(["input", "studentId"], "invalid_student_id"));
+  }
+
+  if (typeof fromDefinitionKey !== "string" || !safeIdPattern.test(fromDefinitionKey)) {
+    issues.push(issue(["input", "fromDefinitionKey"], "invalid_from_definition_key"));
+  }
+
+  if (typeof toDefinitionKey !== "string" || !safeIdPattern.test(toDefinitionKey)) {
+    issues.push(issue(["input", "toDefinitionKey"], "invalid_to_definition_key"));
+  }
+
+  if (
+    typeof decisionNotes !== "string" ||
+    decisionNotes.trim().length < 3 ||
+    decisionNotes.trim().length > 1000
+  ) {
+    issues.push(issue(["input", "decisionNotes"], "decision_notes_length_3_to_1000"));
+  }
+
+  let parsedCeremonyDate: string | null = null;
+  if (ceremonyDate !== undefined && ceremonyDate !== null) {
+    if (typeof ceremonyDate === "string" && !Number.isNaN(new Date(ceremonyDate).getTime())) {
+      parsedCeremonyDate = ceremonyDate.trim();
+    } else {
+      issues.push(issue(["input", "ceremonyDate"], "invalid_ceremony_date_iso"));
+    }
+  }
+
+  if (issues.length > 0) {
+    return err(Object.freeze(issues));
+  }
+
+  return ok(
+    Object.freeze({
+      studentId: (studentId as string).trim(),
+      fromDefinitionKey: (fromDefinitionKey as string).trim(),
+      toDefinitionKey: (toDefinitionKey as string).trim(),
+      decisionNotes: (decisionNotes as string).trim(),
+      ceremonyDate: parsedCeremonyDate,
+    }),
+  );
+}
+
+export type RejectPromotionInput = Readonly<{
+  studentId: string;
+  targetDefinitionKey: string;
+  decisionNotes: string;
+}>;
+
+export function parseRejectPromotionInput(
+  raw: unknown,
+): Result<RejectPromotionInput, readonly ValidationIssue[]> {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return err(Object.freeze([issue(["input"], "expected_object")]));
+  }
+
+  const record = raw as Record<string, unknown>;
+  const issues: ValidationIssue[] = [];
+
+  const studentId = record["studentId"];
+  const targetDefinitionKey = record["targetDefinitionKey"];
+  const decisionNotes = record["decisionNotes"];
+
+  if (typeof studentId !== "string" || !safeIdPattern.test(studentId)) {
+    issues.push(issue(["input", "studentId"], "invalid_student_id"));
+  }
+
+  if (typeof targetDefinitionKey !== "string" || !safeIdPattern.test(targetDefinitionKey)) {
+    issues.push(issue(["input", "targetDefinitionKey"], "invalid_target_definition_key"));
+  }
+
+  if (
+    typeof decisionNotes !== "string" ||
+    decisionNotes.trim().length < 3 ||
+    decisionNotes.trim().length > 1000
+  ) {
+    issues.push(issue(["input", "decisionNotes"], "decision_notes_length_3_to_1000"));
+  }
+
+  if (issues.length > 0) {
+    return err(Object.freeze(issues));
+  }
+
+  return ok(
+    Object.freeze({
+      studentId: (studentId as string).trim(),
+      targetDefinitionKey: (targetDefinitionKey as string).trim(),
+      decisionNotes: (decisionNotes as string).trim(),
+    }),
+  );
+}

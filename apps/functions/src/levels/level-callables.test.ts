@@ -5,13 +5,16 @@ import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.
 import { createInMemoryLevelStore } from "./level-service";
 import { normalizeLevelCatalogSource } from "./level-source";
 import {
+  createApprovePromotionHandler,
   createGetStudentProgressSummaryHandler,
+  createListGraduationsHandler,
   createListLevelCatalogHandler,
   createListMedicalLeavesHandler,
   createListRecognitionCandidatesHandler,
   createListStudentEvaluationsHandler,
   createRecordEvaluationHandler,
   createRecordMedicalLeaveHandler,
+  createRejectPromotionHandler,
 } from "./level-callables";
 
 function fakeRequest(
@@ -324,6 +327,91 @@ describe("Level Callables", () => {
       await expect(
         candidatesHandler(fakeRequest(null, "adultStudent", "adult-1", "demo-academy")),
       ).rejects.toThrow(/Staff role required to view recognition candidates/);
+    });
+  });
+
+  describe("Head Coach Promotion & Graduation Callables (T042)", () => {
+    it("allows headCoach to approve and reject promotions and lists graduations", async () => {
+      const store = createTestStore();
+      const approveHandler = createApprovePromotionHandler({ store });
+      const rejectHandler = createRejectPromotionHandler({ store });
+      const listHandler = createListGraduationsHandler({ store });
+
+      const appRes = await approveHandler(
+        fakeRequest(
+          {
+            studentId: "student-1",
+            fromDefinitionKey: "white-0",
+            toDefinitionKey: "white-1",
+            decisionNotes: "Exemplary commitment, technical guard precision and class leadership.",
+            ceremonyDate: "2026-09-01T18:00:00Z",
+          },
+          "headCoach",
+          "headcoach-1",
+          "demo-academy",
+        ),
+      );
+
+      expect(appRes.graduation.status).toBe("approved");
+      expect(appRes.graduation.studentId).toBe("student-1");
+      expect(appRes.graduation.toDefinitionKey).toBe("white-1");
+
+      const rejRes = await rejectHandler(
+        fakeRequest(
+          {
+            studentId: "student-2",
+            targetDefinitionKey: "white-1",
+            decisionNotes: "Requires additional sparring rounds and defensive posture drills.",
+          },
+          "owner",
+          "owner-1",
+          "demo-academy",
+        ),
+      );
+
+      expect(rejRes.graduation.status).toBe("rejected");
+
+      const listRes = await listHandler(
+        fakeRequest({ studentId: "student-1" }, "coach", "coach-1", "demo-academy"),
+      );
+      expect(listRes.graduations).toHaveLength(1);
+    });
+
+    it("rejects regular coach or student from approving or rejecting promotions", async () => {
+      const store = createTestStore();
+      const approveHandler = createApprovePromotionHandler({ store });
+      const rejectHandler = createRejectPromotionHandler({ store });
+
+      await expect(
+        approveHandler(
+          fakeRequest(
+            {
+              studentId: "student-1",
+              fromDefinitionKey: "white-0",
+              toDefinitionKey: "white-1",
+              decisionNotes: "Looks good to me.",
+            },
+            "coach",
+            "coach-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Head Coach or Owner role required to approve promotions/);
+
+      await expect(
+        rejectHandler(
+          fakeRequest(
+            {
+              studentId: "student-1",
+              targetDefinitionKey: "white-1",
+              decisionNotes: "Not yet ready.",
+            },
+            "administrator",
+            "admin-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Head Coach or Owner role required to reject promotions/);
     });
   });
 });
