@@ -704,10 +704,10 @@ const crmItems = [
   task(
     "T045",
     "Implementar anuncios y mensajes in-app de academia y clase",
-    "pendiente",
+    "aprobada",
     "Entregar avisos internos de academia y clase adecuados al rol.",
     "T025,T026",
-    "Los anuncios todavía están pendientes.",
+    "Contratos y parsers de anuncios 7/7, store en Firestore e in-memory con soporte readBy y auditoría 4/4, callables RBAC staff/client 3/3, client 4/4, suite completa 902/902 en 109 archivos; canales academy/class/group, estados draft/published/archived y lectura in-app probados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),

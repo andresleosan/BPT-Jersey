@@ -321,3 +321,22 @@ export type {
   SessionStatus,
   UpdateClassInput,
 } from "./schedule/schedule-contracts";
+
+export {
+  announcementAuthorRoles,
+  announcementChannels,
+  announcementPriorities,
+  announcementStatuses,
+  buildAnnouncementId,
+  parseCreateAnnouncementInput,
+  parseUpdateAnnouncementInput,
+} from "./announcements/announcement-contracts";
+export type {
+  AnnouncementAuthorRole,
+  AnnouncementChannel,
+  AnnouncementPriority,
+  AnnouncementRecord,
+  AnnouncementStatus,
+  CreateAnnouncementInput,
+  UpdateAnnouncementInput,
+} from "./announcements/announcement-contracts";

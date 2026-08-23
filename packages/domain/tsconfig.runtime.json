@@ -27,6 +27,7 @@
     "src/finance/financial-access.ts",
     "src/staff/staff-contracts.ts",
     "src/levels/level-contracts.ts",
-    "src/schedule/schedule-contracts.ts"
+    "src/schedule/schedule-contracts.ts",
+    "src/announcements/announcement-contracts.ts"
   ]
 }

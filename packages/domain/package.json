@@ -74,6 +74,11 @@
       "types": "./src/schedule/schedule-contracts.ts",
       "import": "./src/schedule/schedule-contracts.ts",
       "default": "./lib/schedule/schedule-contracts.js"
+    },
+    "./announcements": {
+      "types": "./src/announcements/announcement-contracts.ts",
+      "import": "./src/announcements/announcement-contracts.ts",
+      "default": "./lib/announcements/announcement-contracts.js"
     }
   },
   "scripts": {

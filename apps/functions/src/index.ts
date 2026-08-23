@@ -83,3 +83,11 @@ export {
   saveProgram,
   saveSession,
 } from "./schedule/schedule-callables.js";
+export {
+  archiveAnnouncement,
+  createAnnouncement,
+  listAnnouncements,
+  markAnnouncementAsRead,
+  publishAnnouncement,
+  updateAnnouncement,
+} from "./announcements/announcement-callables.js";
