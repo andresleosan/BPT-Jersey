@@ -161,6 +161,12 @@ describe("Schedule Service (In-Memory Store)", () => {
     expect(created.programId).toBeDefined();
     expect(created.name).toBe("Judo for BJJ");
     expect(created.active).toBe(true);
+
+    const programs = await store.listPrograms("academy-1");
+    expect(programs.some((p) => p.programId === created.programId)).toBe(true);
+
+    const updated = await store.updateProgram("academy-1", created.programId, {
+      name: "Judo for BJJ (Intermediate)",
       level: "advanced",
     });
 
@@ -175,6 +181,10 @@ describe("Schedule Service (In-Memory Store)", () => {
       "academy-1",
       {
         programId: "adult-fundamentals",
+        locationId: "town",
+        name: "Tuesday Night BJJ",
+        recurrenceRule: {
+          dayOfWeek: 2, // Tuesday
           startTime: "19:00",
           durationMinutes: 60,
         },
@@ -216,5 +226,185 @@ describe("Schedule Service (In-Memory Store)", () => {
       to: "2026-09-30T23:59:59Z",
     });
     expect(allSessions).toHaveLength(5);
+  });
+
+  describe("Bookings & Roster Management", () => {
+    it("requests booking and enforces deterministic ID and capacity limit", async () => {
+      const store = createInMemoryScheduleStore();
+
+      // Create session with capacity 2
+      const session = await store.createSession(
+        "academy-1",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Intimate Seminar",
+          startAt: "2099-09-01T18:00:00Z",
+          endAt: "2099-09-01T19:00:00Z",
+          capacity: 2,
+          minParticipants: 2,
+        },
+        "owner-1",
+      );
+
+      // First student books
+      const booking1 = await store.requestBooking(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-1",
+          membershipId: "mem-1",
+        },
+        "student-1",
+      );
+
+      expect(booking1.bookingId).toBe(`${session.sessionId}__student-1`);
+      expect(booking1.status).toBe("confirmed");
+
+      // Idempotent retry by student 1
+      const retry1 = await store.requestBooking(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-1",
+          membershipId: "mem-1",
+        },
+        "student-1",
+      );
+      expect(retry1.bookingId).toBe(booking1.bookingId);
+
+      // Second student books (capacity = 2/2)
+      const booking2 = await store.requestBooking(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-2",
+          membershipId: "mem-2",
+        },
+        "student-2",
+      );
+      expect(booking2.status).toBe("confirmed");
+
+      // Third student tries to book -> rejected due to capacity limit
+      await expect(
+        store.requestBooking(
+          "academy-1",
+          {
+            sessionId: session.sessionId,
+            studentId: "student-3",
+            membershipId: "mem-3",
+          },
+          "student-3",
+        ),
+      ).rejects.toThrow(/capacity reached/i);
+
+      // Check roster
+      const roster = await store.listSessionBookings("academy-1", session.sessionId);
+      expect(roster).toHaveLength(2);
+    });
+
+    it("cancels booking with 1-hour cutoff check for student and override for staff", async () => {
+      const store = createInMemoryScheduleStore();
+
+      // Session in 30 minutes (within 1-hour cutoff)
+      const in30Min = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      const in90Min = new Date(Date.now() + 90 * 60 * 1000).toISOString();
+
+      const urgentSession = await store.createSession(
+        "academy-1",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Starting Soon",
+          startAt: in30Min,
+          endAt: in90Min,
+          capacity: 10,
+        },
+        "owner-1",
+      );
+
+      // Book session
+      await store.requestBooking(
+        "academy-1",
+        {
+          sessionId: urgentSession.sessionId,
+          studentId: "student-1",
+          membershipId: "mem-1",
+        },
+        "student-1",
+      );
+
+      // Student tries to cancel within 1-hour cutoff -> rejected
+      await expect(
+        store.cancelBooking(
+          "academy-1",
+          {
+            sessionId: urgentSession.sessionId,
+            studentId: "student-1",
+            reason: "Can't make it",
+          },
+          "student-1",
+          false, // not staff override
+        ),
+      ).rejects.toThrow(/1 hour/i);
+
+      // Staff overrides cancellation -> allowed
+      const staffCancelled = await store.cancelBooking(
+        "academy-1",
+        {
+          sessionId: urgentSession.sessionId,
+          studentId: "student-1",
+          reason: "Emergency exception",
+        },
+        "coach-1",
+        true, // staff override
+      );
+
+      expect(staffCancelled.status).toBe("cancelled");
+      expect(staffCancelled.cancellationReason).toBe("Emergency exception");
+    });
+
+    it("evaluates session minimum quorum (4 participants default)", async () => {
+      const store = createInMemoryScheduleStore();
+
+      const session = await store.createSession(
+        "academy-1",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Morning Class",
+          startAt: "2099-09-01T10:00:00Z",
+          endAt: "2099-09-01T11:00:00Z",
+          capacity: 20,
+          minParticipants: 4,
+        },
+        "owner-1",
+      );
+
+      // 0 bookings -> quorum not met
+      const quorum0 = await store.evaluateSessionMinimum("academy-1", session.sessionId);
+      expect(quorum0.quorumMet).toBe(false);
+      expect(quorum0.confirmedCount).toBe(0);
+
+      // 4 bookings -> quorum met
+      for (let i = 1; i <= 4; i++) {
+        await store.requestBooking(
+          "academy-1",
+          {
+            sessionId: session.sessionId,
+            studentId: `student-${i}`,
+            membershipId: `mem-${i}`,
+          },
+          `student-${i}`,
+        );
+      }
+
+      const quorum4 = await store.evaluateSessionMinimum("academy-1", session.sessionId);
+      expect(quorum4.quorumMet).toBe(true);
+      expect(quorum4.confirmedCount).toBe(4);
+    });
   });
 });

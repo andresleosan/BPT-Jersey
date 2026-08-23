@@ -574,3 +574,187 @@ function pad(n: number): string {
 function endWithZ(d: Date): string {
   return d.toISOString().replace(/\.\d{3}Z$/u, "Z");
 }
+
+// ── Booking Contracts & Types ──
+
+export const bookingStatuses = Object.freeze(["requested", "confirmed", "cancelled"] as const);
+export type BookingStatus = (typeof bookingStatuses)[number];
+
+export type BookingRecord = Readonly<{
+  bookingId: string; // deterministic: `${sessionId}__${studentId}`
+  academyId: string;
+  sessionId: string;
+  studentId: string;
+  membershipId: string;
+  status: BookingStatus;
+  requestedAt: string;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type RequestBookingInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  membershipId: string;
+}>;
+
+export type CancelBookingInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  reason: string;
+}>;
+
+/**
+ * Builds the deterministic identifier for a booking: `${sessionId}__${studentId}`.
+ */
+export function buildBookingId(sessionId: string, studentId: string): string {
+  return `${sessionId.trim()}__${studentId.trim()}`;
+}
+
+/**
+ * Validates the 1-hour cutoff rule for bookings and student cancellations.
+ * Returns true if the session start is at least `cutoffMinutes` in the future.
+ */
+export function isWithinBookingCutoff(
+  sessionStartAtIso: string,
+  nowIso?: string,
+  cutoffMinutes = 60,
+): boolean {
+  const startMs = Date.parse(sessionStartAtIso);
+  const nowMs = nowIso ? Date.parse(nowIso) : Date.now();
+
+  if (Number.isNaN(startMs) || Number.isNaN(nowMs)) {
+    return false;
+  }
+
+  const diffMs = startMs - nowMs;
+  const cutoffMs = cutoffMinutes * 60 * 1000;
+
+  return diffMs >= cutoffMs;
+}
+
+export function parseRequestBookingInput(input: unknown): Result<RequestBookingInput, string> {
+  if (!isRecord(input)) {
+    return err("Booking request input must be an object");
+  }
+
+  const { sessionId, studentId, membershipId } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof membershipId !== "string" || membershipId.trim().length === 0) {
+    return err("membershipId is required");
+  }
+
+  return ok(
+    Object.freeze({
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+      membershipId: membershipId.trim(),
+    }),
+  );
+}
+
+export function parseCancelBookingInput(input: unknown): Result<CancelBookingInput, string> {
+  if (!isRecord(input)) {
+    return err("Cancel booking input must be an object");
+  }
+
+  const { sessionId, studentId, reason } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof reason !== "string" || reason.trim().length < 2 || reason.trim().length > 200) {
+    return err("reason must be between 2 and 200 characters");
+  }
+
+  return ok(
+    Object.freeze({
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+      reason: reason.trim(),
+    }),
+  );
+}
+
+// ── Multi-criteria Booking Eligibility Evaluation ──
+
+export type BookingEligibilityInput = Readonly<{
+  membershipStatus: "draft" | "trial" | "active" | "paused" | "overdue" | "cancelled";
+  planLocations: readonly LocationId[];
+  weeklyClassesLimit: number | null; // null = unlimited
+  currentWeekBookingsCount: number;
+  isPayg: boolean;
+  paygUnpaidSessionsCount: number;
+  sessionLocationId: LocationId;
+}>;
+
+export type BookingEligibilityResult = { eligible: true } | { eligible: false; reason: string };
+
+/**
+ * Pure function: Evaluates whether a student is eligible to book a session based on:
+ * 1. Membership status (must be active or trial)
+ * 2. Plan location coverage (must include the session's location)
+ * 3. Weekly class quota (if limited by plan, e.g. 1x/wk or 2x/wk)
+ * 4. PAYG debt policy (max 1 unpaid session allowed before booking is blocked)
+ */
+export function evaluateBookingEligibility(
+  input: BookingEligibilityInput,
+): BookingEligibilityResult {
+  const {
+    membershipStatus,
+    planLocations,
+    weeklyClassesLimit,
+    currentWeekBookingsCount,
+    isPayg,
+    paygUnpaidSessionsCount,
+    sessionLocationId,
+  } = input;
+
+  if (membershipStatus !== "active" && membershipStatus !== "trial") {
+    return {
+      eligible: false,
+      reason: `Membership is in '${membershipStatus}' status; active or trial required to book.`,
+    };
+  }
+
+  if (!planLocations.includes(sessionLocationId)) {
+    return {
+      eligible: false,
+      reason: `Location not covered: plan only grants access to [${planLocations.join(", ")}], but session is in '${sessionLocationId}'.`,
+    };
+  }
+
+  if (weeklyClassesLimit !== null && currentWeekBookingsCount >= weeklyClassesLimit) {
+    return {
+      eligible: false,
+      reason: `Weekly class limit reached: plan allows ${weeklyClassesLimit} classes per week (${currentWeekBookingsCount} already booked).`,
+    };
+  }
+
+  if (isPayg && paygUnpaidSessionsCount > 1) {
+    return {
+      eligible: false,
+      reason: `PAYG debt: student has ${paygUnpaidSessionsCount} unpaid sessions; maximum 1 allowed before new bookings are blocked.`,
+    };
+  }
+
+  return { eligible: true };
+}

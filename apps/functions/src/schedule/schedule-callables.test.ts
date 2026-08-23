@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createCancelBookingHandler,
   createCancelSessionHandler,
+  createEvaluateSessionMinimumHandler,
   createGenerateSessionsHandler,
   createListClassesHandler,
   createListScheduleCatalogHandler,
+  createListSessionBookingsHandler,
   createListSessionsHandler,
+  createListStudentBookingsHandler,
+  createRequestBookingHandler,
   createSaveClassHandler,
   createSaveProgramHandler,
   createSaveSessionHandler,
@@ -241,5 +246,134 @@ describe("Schedule Callables", () => {
         ),
       ),
     ).rejects.toThrow(/Manager access required/);
+  });
+
+  describe("Booking & Roster Callables", () => {
+    it("allows student to request and cancel their own booking", async () => {
+      const store = createInMemoryScheduleStore();
+      const requestHandler = createRequestBookingHandler({ store });
+      const cancelHandler = createCancelBookingHandler({ store });
+      const listHandler = createListStudentBookingsHandler({ store });
+
+      const session = await store.createSession(
+        "demo-academy",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Evening BJJ",
+          startAt: "2099-09-01T18:00:00Z",
+          endAt: "2099-09-01T19:00:00Z",
+          capacity: 20,
+        },
+        "owner-1",
+      );
+
+      // Student 1 requests booking
+      const booked = await requestHandler(
+        fakeRequest(
+          {
+            sessionId: session.sessionId,
+            studentId: "student-1",
+            membershipId: "mem-1",
+          },
+          "adultStudent",
+          "student-1",
+          "demo-academy",
+        ),
+      );
+
+      expect(booked.booking.status).toBe("confirmed");
+      expect(booked.booking.studentId).toBe("student-1");
+
+      // Student 1 queries their bookings
+      const myList = await listHandler(
+        fakeRequest({ studentId: "student-1" }, "adultStudent", "student-1", "demo-academy"),
+      );
+      expect(myList.bookings).toHaveLength(1);
+
+      // Student 1 cannot query other students' bookings
+      await expect(
+        listHandler(
+          fakeRequest({ studentId: "student-2" }, "adultStudent", "student-1", "demo-academy"),
+        ),
+      ).rejects.toThrow(/Access denied/);
+
+      // Student 1 cancels their booking
+      const cancelled = await cancelHandler(
+        fakeRequest(
+          {
+            sessionId: session.sessionId,
+            studentId: "student-1",
+            reason: "Personal conflict",
+          },
+          "adultStudent",
+          "student-1",
+          "demo-academy",
+        ),
+      );
+      expect(cancelled.booking.status).toBe("cancelled");
+    });
+
+    it("allows staff to view session roster and evaluate minimum quorum", async () => {
+      const store = createInMemoryScheduleStore();
+      const requestHandler = createRequestBookingHandler({ store });
+      const rosterHandler = createListSessionBookingsHandler({ store });
+      const quorumHandler = createEvaluateSessionMinimumHandler({ store });
+
+      const session = await store.createSession(
+        "demo-academy",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Morning Class",
+          startAt: "2099-09-01T10:00:00Z",
+          endAt: "2099-09-01T11:00:00Z",
+          capacity: 15,
+          minParticipants: 4,
+        },
+        "owner-1",
+      );
+
+      // Student books
+      await requestHandler(
+        fakeRequest(
+          {
+            sessionId: session.sessionId,
+            studentId: "student-1",
+            membershipId: "mem-1",
+          },
+          "adultStudent",
+          "student-1",
+          "demo-academy",
+        ),
+      );
+
+      // Coach checks roster
+      const roster = await rosterHandler(
+        fakeRequest({ sessionId: session.sessionId }, "coach", "coach-1", "demo-academy"),
+      );
+      expect(roster.bookings).toHaveLength(1);
+
+      // Student denied access to full session roster
+      await expect(
+        rosterHandler(
+          fakeRequest(
+            { sessionId: session.sessionId },
+            "adultStudent",
+            "student-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Staff access required/);
+
+      // Evaluate minimum
+      const quorum = await quorumHandler(
+        fakeRequest({ sessionId: session.sessionId }, "coach", "coach-1", "demo-academy"),
+      );
+      expect(quorum.result.quorumMet).toBe(false);
+      expect(quorum.result.confirmedCount).toBe(1);
+    });
   });
 });

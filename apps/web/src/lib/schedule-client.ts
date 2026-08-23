@@ -1,5 +1,7 @@
 import { httpsCallable } from "firebase/functions";
 import type {
+  BookingRecord,
+  CancelBookingInput,
   ClassRecord,
   CreateClassInput,
   CreateProgramInput,
@@ -7,6 +9,7 @@ import type {
   ListSessionsQuery,
   LocationRecord,
   ProgramRecord,
+  RequestBookingInput,
   SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
@@ -114,4 +117,66 @@ export async function cancelSession(
   const result = await callable({ sessionId, reason });
   return result.data.session;
 }
+
+export async function requestBooking(input: RequestBookingInput): Promise<BookingRecord> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<RequestBookingInput, { booking: BookingRecord }>(
+    functions,
+    "requestBooking",
+  );
+
+  const result = await callable(input);
+  return result.data.booking;
+}
+
+export async function cancelBooking(input: CancelBookingInput): Promise<BookingRecord> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<CancelBookingInput, { booking: BookingRecord }>(
+    functions,
+    "cancelBooking",
+  );
+
+  const result = await callable(input);
+  return result.data.booking;
+}
+
+export async function listSessionBookings(
+  sessionId: string,
+): Promise<readonly BookingRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<{ sessionId: string }, { bookings: BookingRecord[] }>(
+    functions,
+    "listSessionBookings",
+  );
+
+  const result = await callable({ sessionId });
+  return result.data.bookings;
+}
+
+export async function listStudentBookings(
+  studentId?: string,
+): Promise<readonly BookingRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<{ studentId?: string }, { bookings: BookingRecord[] }>(
+    functions,
+    "listStudentBookings",
+  );
+
+  const result = await callable(studentId ? { studentId } : {});
+  return result.data.bookings;
+}
+
+export async function evaluateSessionMinimum(
+  sessionId: string,
+): Promise<{ confirmedCount: number; minParticipants: number; quorumMet: boolean }> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { sessionId: string },
+    { result: { confirmedCount: number; minParticipants: number; quorumMet: boolean } }
+  >(functions, "evaluateSessionMinimum");
+
+  const result = await callable({ sessionId });
+  return result.data.result;
+}
+
 

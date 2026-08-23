@@ -1,5 +1,9 @@
 import {
+  buildBookingId,
   generateSessionsFromClass,
+  isWithinBookingCutoff,
+  type BookingRecord,
+  type CancelBookingInput,
   type ClassRecord,
   type CreateClassInput,
   type CreateProgramInput,
@@ -7,6 +11,7 @@ import {
   type ListSessionsQuery,
   type LocationRecord,
   type ProgramRecord,
+  type RequestBookingInput,
   type SessionRecord,
   type UpdateClassInput,
 } from "@bpt-jersey/domain/schedule";
@@ -147,6 +152,23 @@ export type ScheduleStore = Readonly<{
     reason: string,
     actorId: string,
   ) => Promise<SessionRecord>;
+  requestBooking: (
+    academyId: string,
+    input: RequestBookingInput,
+    actorId: string,
+  ) => Promise<BookingRecord>;
+  cancelBooking: (
+    academyId: string,
+    input: CancelBookingInput,
+    actorId: string,
+    isStaffOverride?: boolean,
+  ) => Promise<BookingRecord>;
+  listSessionBookings: (academyId: string, sessionId: string) => Promise<readonly BookingRecord[]>;
+  listStudentBookings: (academyId: string, studentId: string) => Promise<readonly BookingRecord[]>;
+  evaluateSessionMinimum: (
+    academyId: string,
+    sessionId: string,
+  ) => Promise<{ confirmedCount: number; minParticipants: number; quorumMet: boolean }>;
 }>;
 
 type GenericFirestore = {
@@ -462,6 +484,177 @@ export function createFirestoreScheduleStore(options: {
       await docRef.set(cancelled);
       return cancelled;
     },
+
+    async requestBooking(
+      academyId: string,
+      input: RequestBookingInput,
+      actorId: string,
+    ): Promise<BookingRecord> {
+      const bookingId = buildBookingId(input.sessionId, input.studentId);
+      const sessionRef = firestore
+        .collection(`academies/${academyId}/sessions`)
+        .doc(input.sessionId);
+      const sessionDoc = await sessionRef.get();
+
+      if (!sessionDoc.exists) {
+        throw new Error(`Session ${input.sessionId} does not exist`);
+      }
+
+      const session = sessionDoc.data() as SessionRecord;
+      if (session.status === "cancelled") {
+        throw new Error(`Cannot book cancelled session ${input.sessionId}`);
+      }
+
+      const bookingRef = firestore.collection(`academies/${academyId}/bookings`).doc(bookingId);
+      const existingBookingDoc = await bookingRef.get();
+
+      if (existingBookingDoc.exists) {
+        const existing = existingBookingDoc.data() as BookingRecord;
+        if (existing.status === "confirmed") {
+          return existing;
+        }
+      }
+
+      // Check capacity
+      const bookingsSnapshot = await firestore
+        .collection(`academies/${academyId}/bookings`)
+        .where("sessionId", "==", input.sessionId)
+        .get();
+
+      const confirmedCount = bookingsSnapshot.docs
+        .map((d) => d.data() as BookingRecord)
+        .filter((b) => b.status === "confirmed" && b.bookingId !== bookingId).length;
+
+      if (confirmedCount >= session.capacity) {
+        throw new Error(`Session capacity reached (${session.capacity})`);
+      }
+
+      const now = new Date().toISOString();
+      const record: BookingRecord = Object.freeze({
+        bookingId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        membershipId: input.membershipId,
+        status: "confirmed",
+        requestedAt: now,
+        cancelledAt: null,
+        cancellationReason: null,
+        schemaVersion: "1",
+        createdAt: existingBookingDoc.exists
+          ? (existingBookingDoc.data() as BookingRecord).createdAt
+          : now,
+        createdBy: existingBookingDoc.exists
+          ? (existingBookingDoc.data() as BookingRecord).createdBy
+          : actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      await bookingRef.set(record);
+      return record;
+    },
+
+    async cancelBooking(
+      academyId: string,
+      input: CancelBookingInput,
+      actorId: string,
+      isStaffOverride = false,
+    ): Promise<BookingRecord> {
+      const bookingId = buildBookingId(input.sessionId, input.studentId);
+      const bookingRef = firestore.collection(`academies/${academyId}/bookings`).doc(bookingId);
+      const existingDoc = await bookingRef.get();
+
+      if (!existingDoc.exists) {
+        throw new Error(`Booking ${bookingId} does not exist`);
+      }
+
+      const existing = existingDoc.data() as BookingRecord;
+
+      if (!isStaffOverride) {
+        const sessionRef = firestore
+          .collection(`academies/${academyId}/sessions`)
+          .doc(input.sessionId);
+        const sessionDoc = await sessionRef.get();
+        if (sessionDoc.exists) {
+          const session = sessionDoc.data() as SessionRecord;
+          if (!isWithinBookingCutoff(session.startAt)) {
+            throw new Error("Cannot cancel within 1 hour of session start without staff override");
+          }
+        }
+      }
+
+      const now = new Date().toISOString();
+      const updated: BookingRecord = Object.freeze({
+        ...existing,
+        status: "cancelled",
+        cancelledAt: now,
+        cancellationReason: input.reason,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      await bookingRef.set(updated);
+      return updated;
+    },
+
+    async listSessionBookings(
+      academyId: string,
+      sessionId: string,
+    ): Promise<readonly BookingRecord[]> {
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/bookings`)
+        .where("sessionId", "==", sessionId)
+        .get();
+
+      return snapshot.docs
+        .map((d) => d.data() as BookingRecord)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
+
+    async listStudentBookings(
+      academyId: string,
+      studentId: string,
+    ): Promise<readonly BookingRecord[]> {
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/bookings`)
+        .where("studentId", "==", studentId)
+        .get();
+
+      return snapshot.docs
+        .map((d) => d.data() as BookingRecord)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    },
+
+    async evaluateSessionMinimum(
+      academyId: string,
+      sessionId: string,
+    ): Promise<{ confirmedCount: number; minParticipants: number; quorumMet: boolean }> {
+      const sessionRef = firestore.collection(`academies/${academyId}/sessions`).doc(sessionId);
+      const sessionDoc = await sessionRef.get();
+
+      if (!sessionDoc.exists) {
+        throw new Error(`Session ${sessionId} does not exist`);
+      }
+
+      const session = sessionDoc.data() as SessionRecord;
+      const minParticipants = session.minParticipants ?? 4;
+
+      const bookingsSnapshot = await firestore
+        .collection(`academies/${academyId}/bookings`)
+        .where("sessionId", "==", sessionId)
+        .get();
+
+      const confirmedCount = bookingsSnapshot.docs
+        .map((d) => d.data() as BookingRecord)
+        .filter((b) => b.status === "confirmed").length;
+
+      return {
+        confirmedCount,
+        minParticipants,
+        quorumMet: confirmedCount >= minParticipants,
+      };
+    },
   };
 }
 
@@ -470,6 +663,7 @@ export function createInMemoryScheduleStore(): ScheduleStore {
   const programsMap = new Map<string, ProgramRecord[]>();
   const classesMap = new Map<string, Map<string, ClassRecord>>();
   const sessionsMap = new Map<string, Map<string, SessionRecord>>();
+  const bookingsMap = new Map<string, Map<string, BookingRecord>>();
 
   let classSeq = 1;
   let sessionSeq = 1;
@@ -743,6 +937,145 @@ export function createInMemoryScheduleStore(): ScheduleStore {
 
       map!.set(sessionId, cancelled);
       return cancelled;
+    },
+
+    async requestBooking(
+      academyId: string,
+      input: RequestBookingInput,
+      actorId: string,
+    ): Promise<BookingRecord> {
+      const sMap = sessionsMap.get(academyId);
+      const session = sMap?.get(input.sessionId);
+      if (!session) {
+        throw new Error(`Session ${input.sessionId} does not exist`);
+      }
+      if (session.status === "cancelled") {
+        throw new Error(`Cannot book cancelled session ${input.sessionId}`);
+      }
+
+      if (!bookingsMap.has(academyId)) {
+        bookingsMap.set(academyId, new Map());
+      }
+      const bMap = bookingsMap.get(academyId)!;
+      const bookingId = buildBookingId(input.sessionId, input.studentId);
+
+      const existing = bMap.get(bookingId);
+      if (existing && existing.status === "confirmed") {
+        return existing;
+      }
+
+      const confirmedCount = Array.from(bMap.values()).filter(
+        (b) =>
+          b.sessionId === input.sessionId && b.status === "confirmed" && b.bookingId !== bookingId,
+      ).length;
+
+      if (confirmedCount >= session.capacity) {
+        throw new Error(`Session capacity reached (${session.capacity})`);
+      }
+
+      const now = new Date().toISOString();
+      const record: BookingRecord = Object.freeze({
+        bookingId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        membershipId: input.membershipId,
+        status: "confirmed",
+        requestedAt: now,
+        cancelledAt: null,
+        cancellationReason: null,
+        schemaVersion: "1",
+        createdAt: existing ? existing.createdAt : now,
+        createdBy: existing ? existing.createdBy : actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      bMap.set(bookingId, record);
+      return record;
+    },
+
+    async cancelBooking(
+      academyId: string,
+      input: CancelBookingInput,
+      actorId: string,
+      isStaffOverride = false,
+    ): Promise<BookingRecord> {
+      const bMap = bookingsMap.get(academyId);
+      const bookingId = buildBookingId(input.sessionId, input.studentId);
+      const existing = bMap?.get(bookingId);
+
+      if (!existing) {
+        throw new Error(`Booking ${bookingId} does not exist`);
+      }
+
+      if (!isStaffOverride) {
+        const sMap = sessionsMap.get(academyId);
+        const session = sMap?.get(input.sessionId);
+        if (session && !isWithinBookingCutoff(session.startAt)) {
+          throw new Error("Cannot cancel within 1 hour of session start without staff override");
+        }
+      }
+
+      const now = new Date().toISOString();
+      const updated: BookingRecord = Object.freeze({
+        ...existing,
+        status: "cancelled",
+        cancelledAt: now,
+        cancellationReason: input.reason,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      bMap!.set(bookingId, updated);
+      return updated;
+    },
+
+    async listSessionBookings(
+      academyId: string,
+      sessionId: string,
+    ): Promise<readonly BookingRecord[]> {
+      const bMap = bookingsMap.get(academyId);
+      if (!bMap) return [];
+      return Array.from(bMap.values())
+        .filter((b) => b.sessionId === sessionId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
+
+    async listStudentBookings(
+      academyId: string,
+      studentId: string,
+    ): Promise<readonly BookingRecord[]> {
+      const bMap = bookingsMap.get(academyId);
+      if (!bMap) return [];
+      return Array.from(bMap.values())
+        .filter((b) => b.studentId === studentId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    },
+
+    async evaluateSessionMinimum(
+      academyId: string,
+      sessionId: string,
+    ): Promise<{ confirmedCount: number; minParticipants: number; quorumMet: boolean }> {
+      const sMap = sessionsMap.get(academyId);
+      const session = sMap?.get(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} does not exist`);
+      }
+
+      const minParticipants = session.minParticipants ?? 4;
+      const bMap = bookingsMap.get(academyId);
+      const confirmedCount = bMap
+        ? Array.from(bMap.values()).filter(
+            (b) => b.sessionId === sessionId && b.status === "confirmed",
+          ).length
+        : 0;
+
+      return {
+        confirmedCount,
+        minParticipants,
+        quorumMet: confirmedCount >= minParticipants,
+      };
     },
   };
 }

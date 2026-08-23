@@ -1,10 +1,12 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
+  parseCancelBookingInput,
   parseCreateClassInput,
   parseCreateProgramInput,
   parseCreateSessionInput,
   parseListSessionsQuery,
+  parseRequestBookingInput,
 } from "@bpt-jersey/domain/schedule";
 
 import { requireUserActor } from "../auth/user-authorization.js";
@@ -204,6 +206,122 @@ export function createCancelSessionHandler(options: { store: ScheduleStore }) {
   };
 }
 
+export function createRequestBookingHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const parsed = parseRequestBookingInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.error);
+    }
+
+    if (actor.role === "adultStudent" && actor.userId !== parsed.value.studentId) {
+      throw new HttpsError("permission-denied", "Access denied: cannot book for another student");
+    }
+
+    const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId);
+    return {
+      booking,
+    };
+  };
+}
+
+export function createCancelBookingHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const parsed = parseCancelBookingInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.error);
+    }
+
+    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
+
+    if (!isStaff && actor.role === "adultStudent" && actor.userId !== parsed.value.studentId) {
+      throw new HttpsError(
+        "permission-denied",
+        "Access denied: cannot cancel another student's booking",
+      );
+    }
+
+    const booking = await store.cancelBooking(actor.academyId, parsed.value, actor.userId, isStaff);
+
+    return {
+      booking,
+    };
+  };
+}
+
+export function createListSessionBookingsHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff access required to view session roster");
+    }
+
+    const data = request.data as { sessionId?: unknown };
+    if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    const bookings = await store.listSessionBookings(actor.academyId, data.sessionId.trim());
+    return {
+      bookings,
+    };
+  };
+}
+
+export function createListStudentBookingsHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const data = request.data as { studentId?: unknown };
+    const studentId =
+      typeof data?.studentId === "string" && data.studentId.trim()
+        ? data.studentId.trim()
+        : actor.userId;
+
+    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
+    if (!isStaff && actor.role === "adultStudent" && actor.userId !== studentId) {
+      throw new HttpsError(
+        "permission-denied",
+        "Access denied: cannot view another student's bookings",
+      );
+    }
+
+    const bookings = await store.listStudentBookings(actor.academyId, studentId);
+    return {
+      bookings,
+    };
+  };
+}
+
+export function createEvaluateSessionMinimumHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff access required");
+    }
+
+    const data = request.data as { sessionId?: unknown };
+    if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    const result = await store.evaluateSessionMinimum(actor.academyId, data.sessionId.trim());
+    return {
+      result,
+    };
+  };
+}
+
 let defaultStore: ScheduleStore | undefined;
 
 function getStore(): ScheduleStore {
@@ -256,4 +374,29 @@ export const saveSession = onCall(
 export const cancelSession = onCall(
   { enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createCancelSessionHandler({ store: getStore() })(request),
+);
+
+export const requestBooking = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createRequestBookingHandler({ store: getStore() })(request),
+);
+
+export const cancelBooking = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createCancelBookingHandler({ store: getStore() })(request),
+);
+
+export const listSessionBookings = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createListSessionBookingsHandler({ store: getStore() })(request),
+);
+
+export const listStudentBookings = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createListStudentBookingsHandler({ store: getStore() })(request),
+);
+
+export const evaluateSessionMinimum = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createEvaluateSessionMinimumHandler({ store: getStore() })(request),
 );

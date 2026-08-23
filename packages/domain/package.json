@@ -7,58 +7,72 @@
     ".": "./src/index.ts",
     "./audit": {
       "types": "./src/audit/audit-event.ts",
+      "import": "./src/audit/audit-event.ts",
       "default": "./lib/audit/audit-event.js"
     },
     "./migration/regyfit-access": {
       "types": "./src/migration/regyfit-access.ts",
+      "import": "./src/migration/regyfit-access.ts",
       "default": "./lib/migration/regyfit-access.js"
     },
     "./auth/admin-contracts": {
       "types": "./src/auth/admin-contracts.ts",
+      "import": "./src/auth/admin-contracts.ts",
       "default": "./lib/auth/admin-contracts.js"
     },
     "./authorization/access-policy": {
       "types": "./src/authorization/access-policy.ts",
+      "import": "./src/authorization/access-policy.ts",
       "default": "./lib/authorization/access-policy.js"
     },
     "./members": {
       "types": "./src/members/member-contracts.ts",
+      "import": "./src/members/member-contracts.ts",
       "default": "./lib/members/member-contracts.js"
     },
     "./profiles": {
       "types": "./src/profiles/profile-contracts.ts",
+      "import": "./src/profiles/profile-contracts.ts",
       "default": "./lib/profiles/profile-contracts.js"
     },
     "./staff": {
       "types": "./src/staff/staff-contracts.ts",
+      "import": "./src/staff/staff-contracts.ts",
       "default": "./lib/staff/staff-contracts.js"
     },
     "./families": {
       "types": "./src/families/family-contracts.ts",
+      "import": "./src/families/family-contracts.ts",
       "default": "./lib/families/family-contracts.js"
     },
     "./memberships": {
       "types": "./src/memberships/plan-contracts.ts",
+      "import": "./src/memberships/plan-contracts.ts",
       "default": "./lib/memberships/plan-contracts.js"
     },
     "./memberships/lifecycle": {
       "types": "./src/memberships/membership-contracts.ts",
+      "import": "./src/memberships/membership-contracts.ts",
       "default": "./lib/memberships/membership-contracts.js"
     },
     "./finance": {
       "types": "./src/finance/finance-contracts.ts",
+      "import": "./src/finance/finance-contracts.ts",
       "default": "./lib/finance/finance-contracts.js"
     },
     "./finance/access": {
       "types": "./src/finance/financial-access.ts",
+      "import": "./src/finance/financial-access.ts",
       "default": "./lib/finance/financial-access.js"
     },
     "./levels": {
       "types": "./src/levels/level-contracts.ts",
+      "import": "./src/levels/level-contracts.ts",
       "default": "./lib/levels/level-contracts.js"
     },
     "./schedule": {
       "types": "./src/schedule/schedule-contracts.ts",
+      "import": "./src/schedule/schedule-contracts.ts",
       "default": "./lib/schedule/schedule-contracts.js"
     }
   },

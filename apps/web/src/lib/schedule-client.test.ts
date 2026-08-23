@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  cancelBooking,
   cancelSession,
+  evaluateSessionMinimum,
   generateSessions,
   getScheduleCatalog,
   listClasses,
+  listSessionBookings,
   listSessions,
+  listStudentBookings,
+  requestBooking,
   saveClass,
   saveProgram,
   saveSession,
@@ -128,5 +133,53 @@ describe("Schedule Client", () => {
 
     expect(sessions).toHaveLength(2);
   });
+
+  it("manages bookings and evaluations", async () => {
+    // Request booking
+    mockCallable.mockResolvedValueOnce({
+      data: { booking: { bookingId: "s-1__std-1", status: "confirmed" } },
+    });
+    const booking = await requestBooking({
+      sessionId: "s-1",
+      studentId: "std-1",
+      membershipId: "m-1",
+    });
+    expect(booking.bookingId).toBe("s-1__std-1");
+    expect(booking.status).toBe("confirmed");
+
+    // Cancel booking
+    mockCallable.mockResolvedValueOnce({
+      data: { booking: { bookingId: "s-1__std-1", status: "cancelled" } },
+    });
+    const cancelled = await cancelBooking({
+      sessionId: "s-1",
+      studentId: "std-1",
+      reason: "Sick",
+    });
+    expect(cancelled.status).toBe("cancelled");
+
+    // List session bookings
+    mockCallable.mockResolvedValueOnce({
+      data: { bookings: [{ bookingId: "s-1__std-1" }] },
+    });
+    const roster = await listSessionBookings("s-1");
+    expect(roster).toHaveLength(1);
+
+    // List student bookings
+    mockCallable.mockResolvedValueOnce({
+      data: { bookings: [{ bookingId: "s-1__std-1" }] },
+    });
+    const studentBookings = await listStudentBookings("std-1");
+    expect(studentBookings).toHaveLength(1);
+
+    // Evaluate session minimum
+    mockCallable.mockResolvedValueOnce({
+      data: { result: { confirmedCount: 5, minParticipants: 4, quorumMet: true } },
+    });
+    const quorum = await evaluateSessionMinimum("s-1");
+    expect(quorum.quorumMet).toBe(true);
+    expect(quorum.confirmedCount).toBe(5);
+  });
 });
+
 

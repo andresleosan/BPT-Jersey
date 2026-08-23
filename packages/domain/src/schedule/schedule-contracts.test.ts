@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildBookingId,
+  evaluateBookingEligibility,
+  generateSessionsFromClass,
+  isWithinBookingCutoff,
+  parseCancelBookingInput,
   parseCreateClassInput,
   parseCreateProgramInput,
   parseCreateSessionInput,
   parseListSessionsQuery,
   parseRecurrenceRule,
-  generateSessionsFromClass,
+  parseRequestBookingInput,
   type ClassRecord,
 } from "./schedule-contracts";
 
@@ -377,6 +382,183 @@ describe("Schedule Domain Contracts", () => {
       expect(sessions[0]!.status).toBe("scheduled");
       expect(sessions[0]!.isSeminar).toBe(false);
       expect(sessions[0]!.classId).toBe("cls-001");
+    });
+  });
+
+  describe("buildBookingId", () => {
+    it("creates deterministic ID from sessionId and studentId", () => {
+      expect(buildBookingId("session-123", "student-456")).toBe("session-123__student-456");
+    });
+  });
+
+  describe("isWithinBookingCutoff (1-Hour Cutoff Rule)", () => {
+    it("returns true when current time is more than 60 minutes before session start", () => {
+      const sessionStart = "2026-09-01T18:00:00Z";
+      const now = "2026-09-01T16:00:00Z"; // 2 hours before
+      expect(isWithinBookingCutoff(sessionStart, now)).toBe(true);
+    });
+
+    it("returns true exactly 60 minutes before session start", () => {
+      const sessionStart = "2026-09-01T18:00:00Z";
+      const now = "2026-09-01T17:00:00Z"; // 60 minutes before
+      expect(isWithinBookingCutoff(sessionStart, now)).toBe(true);
+    });
+
+    it("returns false when less than 60 minutes before session start", () => {
+      const sessionStart = "2026-09-01T18:00:00Z";
+      const now = "2026-09-01T17:01:00Z"; // 59 minutes before
+      expect(isWithinBookingCutoff(sessionStart, now)).toBe(false);
+    });
+
+    it("returns false when session is in the past", () => {
+      const sessionStart = "2026-09-01T18:00:00Z";
+      const now = "2026-09-01T18:30:00Z"; // after start
+      expect(isWithinBookingCutoff(sessionStart, now)).toBe(false);
+    });
+  });
+
+  describe("parseRequestBookingInput & parseCancelBookingInput", () => {
+    it("accepts valid request booking input", () => {
+      const input = {
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        membershipId: "mem-1",
+      };
+      const result = parseRequestBookingInput(input);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.sessionId).toBe("sess-1");
+        expect(result.value.studentId).toBe("stud-1");
+        expect(result.value.membershipId).toBe("mem-1");
+      }
+    });
+
+    it("rejects missing fields in request booking input", () => {
+      expect(parseRequestBookingInput({ sessionId: "sess-1", studentId: "" }).ok).toBe(false);
+      expect(parseRequestBookingInput({ sessionId: "", studentId: "stud-1" }).ok).toBe(false);
+    });
+
+    it("accepts valid cancel booking input", () => {
+      const input = {
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        reason: "Schedule conflict",
+      };
+      const result = parseCancelBookingInput(input);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.reason).toBe("Schedule conflict");
+      }
+    });
+
+    it("rejects empty reason in cancel booking input", () => {
+      expect(
+        parseCancelBookingInput({
+          sessionId: "sess-1",
+          studentId: "stud-1",
+          reason: "   ",
+        }).ok,
+      ).toBe(false);
+    });
+  });
+
+  describe("evaluateBookingEligibility", () => {
+    const baseEvaluationInput = {
+      membershipStatus: "active" as const,
+      planLocations: ["town", "west"] as const,
+      weeklyClassesLimit: null as number | null,
+      currentWeekBookingsCount: 0,
+      isPayg: false,
+      paygUnpaidSessionsCount: 0,
+      sessionLocationId: "town" as const,
+    };
+
+    it("allows booking for active unlimited membership with matching location", () => {
+      const result = evaluateBookingEligibility(baseEvaluationInput);
+      expect(result.eligible).toBe(true);
+    });
+
+    it("denies booking if membership status is paused, overdue, or cancelled", () => {
+      expect(
+        evaluateBookingEligibility({ ...baseEvaluationInput, membershipStatus: "paused" }).eligible,
+      ).toBe(false);
+      expect(
+        evaluateBookingEligibility({ ...baseEvaluationInput, membershipStatus: "overdue" })
+          .eligible,
+      ).toBe(false);
+      expect(
+        evaluateBookingEligibility({ ...baseEvaluationInput, membershipStatus: "cancelled" })
+          .eligible,
+      ).toBe(false);
+    });
+
+    it("allows booking for trial membership", () => {
+      expect(
+        evaluateBookingEligibility({ ...baseEvaluationInput, membershipStatus: "trial" }).eligible,
+      ).toBe(true);
+    });
+
+    it("denies booking if session location is not included in plan locations", () => {
+      const result = evaluateBookingEligibility({
+        ...baseEvaluationInput,
+        planLocations: ["west"],
+        sessionLocationId: "town",
+      });
+      expect(result.eligible).toBe(false);
+      if (!result.eligible) {
+        expect(result.reason).toMatch(/Location not covered/);
+      }
+    });
+
+    it("denies booking if weekly class limit reached", () => {
+      const result = evaluateBookingEligibility({
+        ...baseEvaluationInput,
+        weeklyClassesLimit: 1,
+        currentWeekBookingsCount: 1,
+      });
+      expect(result.eligible).toBe(false);
+      if (!result.eligible) {
+        expect(result.reason).toMatch(/Weekly class limit reached/);
+      }
+    });
+
+    it("allows booking if under weekly class limit", () => {
+      const result = evaluateBookingEligibility({
+        ...baseEvaluationInput,
+        weeklyClassesLimit: 2,
+        currentWeekBookingsCount: 1,
+      });
+      expect(result.eligible).toBe(true);
+    });
+
+    it("denies PAYG student with more than 1 unpaid session", () => {
+      const result = evaluateBookingEligibility({
+        ...baseEvaluationInput,
+        isPayg: true,
+        paygUnpaidSessionsCount: 2,
+      });
+      expect(result.eligible).toBe(false);
+      if (!result.eligible) {
+        expect(result.reason).toMatch(/PAYG debt/);
+      }
+    });
+
+    it("allows PAYG student with 0 or 1 unpaid session", () => {
+      expect(
+        evaluateBookingEligibility({
+          ...baseEvaluationInput,
+          isPayg: true,
+          paygUnpaidSessionsCount: 0,
+        }).eligible,
+      ).toBe(true);
+
+      expect(
+        evaluateBookingEligibility({
+          ...baseEvaluationInput,
+          isPayg: true,
+          paygUnpaidSessionsCount: 1,
+        }).eligible,
+      ).toBe(true);
     });
   });
 });

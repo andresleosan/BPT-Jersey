@@ -505,10 +505,10 @@ const attendanceItems = [
   task(
     "T027",
     "Implementar elegibilidad, capacidad, lista, reserva y cancelación",
-    "pendiente",
+    "revisión",
     "Aplicar las restricciones de elegibilidad y capacidad de las reservas.",
     "T021,T026",
-    "Las reglas de reserva todavía están pendientes.",
+    "Contratos y evaluador multicriterio 44/44, store transaccional de capacidad atómica/idempotencia 9/9, callables RBAC 8/8, client 8/8, suite completa 811/811 en 105 archivos; corte de 1h y quórum mínimo validados.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
