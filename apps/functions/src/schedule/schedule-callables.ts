@@ -8,6 +8,7 @@ import {
   parseCreateProgramInput,
   parseCreateSessionInput,
   parseListSessionsQuery,
+  parseRecordCheckoutInput,
   parseRequestBookingInput,
 } from "@bpt-jersey/domain/schedule";
 
@@ -488,6 +489,79 @@ export function createListAttendanceHistoryHandler(options: { store: ScheduleSto
   };
 }
 
+export function createRecordCheckoutHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const parsed = parseRecordCheckoutInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.error);
+    }
+
+    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
+
+    if (parsed.value.method === "staffOverride" && !isStaff) {
+      throw new HttpsError("permission-denied", "Staff access required for staffOverride checkout");
+    }
+
+    const checkout = await store.recordCheckout(actor.academyId, parsed.value, actor.userId);
+
+    return {
+      checkout,
+    };
+  };
+}
+
+export function createListSessionCheckoutsHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff access required to list session checkouts");
+    }
+
+    const data = request.data as { sessionId?: unknown };
+    if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    const checkouts = await store.listSessionCheckouts(actor.academyId, data.sessionId.trim());
+    return {
+      checkouts,
+    };
+  };
+}
+
+export function createGetStudentCheckoutHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const data = request.data as { sessionId?: unknown; studentId?: unknown };
+
+    if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    const studentId =
+      typeof data.studentId === "string" && data.studentId.trim()
+        ? data.studentId.trim()
+        : actor.userId;
+
+    const checkout = await store.getStudentCheckout(
+      actor.academyId,
+      data.sessionId.trim(),
+      studentId,
+    );
+
+    return {
+      checkout,
+    };
+  };
+}
+
 let defaultStore: ScheduleStore | undefined;
 
 function getStore(): ScheduleStore {
@@ -595,4 +669,19 @@ export const reconcileSessionNoShows = onCall(
 export const listAttendanceHistory = onCall(
   { enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createListAttendanceHistoryHandler({ store: getStore() })(request),
+);
+
+export const recordCheckout = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createRecordCheckoutHandler({ store: getStore() })(request),
+);
+
+export const listSessionCheckouts = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createListSessionCheckoutsHandler({ store: getStore() })(request),
+);
+
+export const getStudentCheckout = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createGetStudentCheckoutHandler({ store: getStore() })(request),
 );

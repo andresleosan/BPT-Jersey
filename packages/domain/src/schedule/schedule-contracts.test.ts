@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAttendanceId,
   buildBookingId,
+  buildCheckoutId,
   buildCorrectionAttendanceId,
   determinePunctuality,
   evaluateBookingEligibility,
@@ -15,6 +16,7 @@ import {
   parseCreateProgramInput,
   parseCreateSessionInput,
   parseListSessionsQuery,
+  parseRecordCheckoutInput,
   parseRecurrenceRule,
   parseRequestBookingInput,
   type ClassRecord,
@@ -719,6 +721,84 @@ describe("Schedule Domain Contracts", () => {
           studentId: "stud-1",
           newState: "attended",
           reason: "",
+        }).ok,
+      ).toBe(false);
+    });
+  });
+
+  describe("buildCheckoutId", () => {
+    it("creates deterministic checkout ID from sessionId and studentId", () => {
+      expect(buildCheckoutId("session-1", "student-2")).toBe("session-1__student-2");
+    });
+  });
+
+  describe("parseRecordCheckoutInput (3 Approved Methods)", () => {
+    it("accepts valid authorizedAdult checkout with adult ID and name", () => {
+      const result = parseRecordCheckoutInput({
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        method: "authorizedAdult",
+        authorizedAdultId: "adult-1",
+        authorizedAdultName: "Jane Doe (Mother)",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.method).toBe("authorizedAdult");
+        expect(result.value.authorizedAdultId).toBe("adult-1");
+        expect(result.value.authorizedAdultName).toBe("Jane Doe (Mother)");
+      }
+    });
+
+    it("accepts valid independentRelease checkout", () => {
+      const result = parseRecordCheckoutInput({
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        method: "independentRelease",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.method).toBe("independentRelease");
+      }
+    });
+
+    it("accepts valid staffOverride checkout with mandatory notes", () => {
+      const result = parseRecordCheckoutInput({
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        method: "staffOverride",
+        notes: "Picked up by grandmother approved via direct phone call",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.method).toBe("staffOverride");
+        expect(result.value.notes).toBe("Picked up by grandmother approved via direct phone call");
+      }
+    });
+
+    it("rejects staffOverride without notes", () => {
+      expect(
+        parseRecordCheckoutInput({
+          sessionId: "sess-1",
+          studentId: "stud-1",
+          method: "staffOverride",
+        }).ok,
+      ).toBe(false);
+    });
+
+    it("rejects invalid method or missing sessionId/studentId", () => {
+      expect(
+        parseRecordCheckoutInput({
+          sessionId: "sess-1",
+          studentId: "stud-1",
+          method: "friend",
+        }).ok,
+      ).toBe(false);
+
+      expect(
+        parseRecordCheckoutInput({
+          sessionId: "",
+          studentId: "stud-1",
+          method: "independentRelease",
         }).ok,
       ).toBe(false);
     });

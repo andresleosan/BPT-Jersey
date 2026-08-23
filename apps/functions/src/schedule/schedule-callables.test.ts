@@ -7,15 +7,18 @@ import {
   createCorrectAttendanceHandler,
   createEvaluateSessionMinimumHandler,
   createGenerateSessionsHandler,
+  createGetStudentCheckoutHandler,
   createListAttendanceHistoryHandler,
   createListClassesHandler,
   createListScheduleCatalogHandler,
   createListSessionAttendanceHandler,
   createListSessionBookingsHandler,
+  createListSessionCheckoutsHandler,
   createListSessionsHandler,
   createListStudentAttendanceHandler,
   createListStudentBookingsHandler,
   createReconcileSessionNoShowsHandler,
+  createRecordCheckoutHandler,
   createRequestBookingHandler,
   createSaveClassHandler,
   createSaveProgramHandler,
@@ -556,6 +559,92 @@ describe("Schedule Callables", () => {
         ),
       );
       expect(histRes.history).toHaveLength(2);
+    });
+  });
+
+  describe("Child Check-Out & Release Callables", () => {
+    it("handles child check-out authorization, staff overrides, and queries", async () => {
+      const store = createInMemoryScheduleStore();
+      const checkInHandler = createCheckInHandler({ store });
+      const recordCheckoutHandler = createRecordCheckoutHandler({ store });
+      const listCheckoutsHandler = createListSessionCheckoutsHandler({ store });
+      const getCheckoutHandler = createGetStudentCheckoutHandler({ store });
+
+      const session = await store.createSession(
+        "demo-academy",
+        {
+          programId: "kids-gi",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Kids Gi Class",
+          startAt: "2099-09-01T16:00:00Z",
+          endAt: "2099-09-01T17:00:00Z",
+          capacity: 20,
+        },
+        "owner-1",
+      );
+
+      // Minor checks in
+      await checkInHandler(
+        fakeRequest(
+          { sessionId: session.sessionId, studentId: "minor-1", method: "pin" },
+          "adultStudent",
+          "minor-1",
+          "demo-academy",
+        ),
+      );
+
+      // Non-staff cannot execute staffOverride
+      await expect(
+        recordCheckoutHandler(
+          fakeRequest(
+            {
+              sessionId: session.sessionId,
+              studentId: "minor-1",
+              method: "staffOverride",
+              notes: "Emergency",
+            },
+            "adultStudent",
+            "minor-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Staff access required for staffOverride checkout/);
+
+      // Guardian checks out minor
+      const coRes = await recordCheckoutHandler(
+        fakeRequest(
+          {
+            sessionId: session.sessionId,
+            studentId: "minor-1",
+            method: "authorizedAdult",
+            authorizedAdultId: "guardian-1",
+            authorizedAdultName: "Carlos Silva",
+          },
+          "guardian",
+          "guardian-1",
+          "demo-academy",
+        ),
+      );
+      expect(coRes.checkout.method).toBe("authorizedAdult");
+      expect(coRes.checkout.authorizedAdultName).toBe("Carlos Silva");
+
+      // Staff lists session checkouts
+      const sCheckouts = await listCheckoutsHandler(
+        fakeRequest({ sessionId: session.sessionId }, "coach", "coach-1", "demo-academy"),
+      );
+      expect(sCheckouts.checkouts).toHaveLength(1);
+
+      // Guardian gets student checkout
+      const single = await getCheckoutHandler(
+        fakeRequest(
+          { sessionId: session.sessionId, studentId: "minor-1" },
+          "guardian",
+          "guardian-1",
+          "demo-academy",
+        ),
+      );
+      expect(single.checkout?.checkoutId).toBe(`${session.sessionId}__minor-1`);
     });
   });
 });

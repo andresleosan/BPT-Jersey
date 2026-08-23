@@ -1,6 +1,7 @@
 import {
   buildAttendanceId,
   buildBookingId,
+  buildCheckoutId,
   buildCorrectionAttendanceId,
   determinePunctuality,
   generateSessionsFromClass,
@@ -9,6 +10,7 @@ import {
   type BookingRecord,
   type CancelBookingInput,
   type CheckInInput,
+  type CheckoutRecord,
   type ClassRecord,
   type CorrectAttendanceInput,
   type CreateClassInput,
@@ -17,6 +19,7 @@ import {
   type ListSessionsQuery,
   type LocationRecord,
   type ProgramRecord,
+  type RecordCheckoutInput,
   type RequestBookingInput,
   type SessionRecord,
   type UpdateClassInput,
@@ -206,6 +209,21 @@ export type ScheduleStore = Readonly<{
     sessionId: string,
     studentId: string,
   ) => Promise<readonly AttendanceRecord[]>;
+  recordCheckout: (
+    academyId: string,
+    input: RecordCheckoutInput,
+    actorId: string,
+    occurredAt?: string,
+  ) => Promise<CheckoutRecord>;
+  listSessionCheckouts: (
+    academyId: string,
+    sessionId: string,
+  ) => Promise<readonly CheckoutRecord[]>;
+  getStudentCheckout: (
+    academyId: string,
+    sessionId: string,
+    studentId: string,
+  ) => Promise<CheckoutRecord | null>;
 }>;
 
 type GenericQuery = {
@@ -923,6 +941,110 @@ export function createFirestoreScheduleStore(options: {
         .filter((a) => a.attendanceId === canonicalId || a.correctionOf === canonicalId)
         .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
     },
+
+    async recordCheckout(
+      academyId: string,
+      input: RecordCheckoutInput,
+      actorId: string,
+      occurredAt?: string,
+    ): Promise<CheckoutRecord> {
+      const checkoutId = buildCheckoutId(input.sessionId, input.studentId);
+      const checkoutRef = firestore.collection(`academies/${academyId}/checkouts`).doc(checkoutId);
+      const existingDoc = await checkoutRef.get();
+
+      if (existingDoc.exists) {
+        return existingDoc.data() as CheckoutRecord;
+      }
+
+      // Verify attendance
+      const attendanceId = buildAttendanceId(input.sessionId, input.studentId);
+      const attendanceDoc = await firestore
+        .collection(`academies/${academyId}/attendance`)
+        .doc(attendanceId)
+        .get();
+
+      if (!attendanceDoc.exists) {
+        throw new Error(
+          `Student ${input.studentId} did not attend this session ${input.sessionId}`,
+        );
+      }
+
+      const attendance = attendanceDoc.data() as AttendanceRecord;
+      if (attendance.state !== "attended" && attendance.state !== "late") {
+        throw new Error(
+          `Student ${input.studentId} did not attend this session (state: ${attendance.state})`,
+        );
+      }
+
+      const now = occurredAt ?? new Date().toISOString();
+      const record: CheckoutRecord = Object.freeze({
+        checkoutId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        method: input.method,
+        authorizedAdultId: input.authorizedAdultId ?? null,
+        authorizedAdultName: input.authorizedAdultName ?? null,
+        notes: input.notes ?? null,
+        checkedOutAt: now,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      await Promise.all([
+        checkoutRef.set(record),
+        firestore
+          .collection(`academies/${academyId}/auditEvents`)
+          .doc(`audit_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`)
+          .set({
+            action: "child_checkout",
+            academyId,
+            sessionId: input.sessionId,
+            studentId: input.studentId,
+            method: input.method,
+            authorizedAdultId: input.authorizedAdultId ?? null,
+            actorId,
+            occurredAt: now,
+          }),
+      ]);
+
+      return record;
+    },
+
+    async listSessionCheckouts(
+      academyId: string,
+      sessionId: string,
+    ): Promise<readonly CheckoutRecord[]> {
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/checkouts`)
+        .where("sessionId", "==", sessionId)
+        .get();
+
+      return snapshot.docs
+        .map((d) => d.data() as CheckoutRecord)
+        .sort((a, b) => a.checkedOutAt.localeCompare(b.checkedOutAt));
+    },
+
+    async getStudentCheckout(
+      academyId: string,
+      sessionId: string,
+      studentId: string,
+    ): Promise<CheckoutRecord | null> {
+      const checkoutId = buildCheckoutId(sessionId, studentId);
+      const doc = await firestore
+        .collection(`academies/${academyId}/checkouts`)
+        .doc(checkoutId)
+        .get();
+
+      if (!doc.exists) {
+        return null;
+      }
+
+      return doc.data() as CheckoutRecord;
+    },
   };
 }
 
@@ -933,6 +1055,7 @@ export function createInMemoryScheduleStore(): ScheduleStore {
   const sessionsMap = new Map<string, Map<string, SessionRecord>>();
   const bookingsMap = new Map<string, Map<string, BookingRecord>>();
   const attendanceMap = new Map<string, Map<string, AttendanceRecord>>();
+  const checkoutsMap = new Map<string, Map<string, CheckoutRecord>>();
 
   let classSeq = 1;
   let sessionSeq = 1;
@@ -1535,6 +1658,80 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       return Array.from(aMap.values())
         .filter((a) => a.attendanceId === canonicalId || a.correctionOf === canonicalId)
         .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    },
+
+    async recordCheckout(
+      academyId: string,
+      input: RecordCheckoutInput,
+      actorId: string,
+      occurredAt?: string,
+    ): Promise<CheckoutRecord> {
+      if (!checkoutsMap.has(academyId)) {
+        checkoutsMap.set(academyId, new Map());
+      }
+      const cMap = checkoutsMap.get(academyId)!;
+      const checkoutId = buildCheckoutId(input.sessionId, input.studentId);
+
+      const existing = cMap.get(checkoutId);
+      if (existing) {
+        return existing;
+      }
+
+      // Verify attendance
+      const aMap = attendanceMap.get(academyId);
+      const attendanceId = buildAttendanceId(input.sessionId, input.studentId);
+      const attendance = aMap?.get(attendanceId);
+
+      if (!attendance || (attendance.state !== "attended" && attendance.state !== "late")) {
+        throw new Error(
+          `Student ${input.studentId} did not attend this session ${input.sessionId}${
+            attendance ? ` (state: ${attendance.state})` : ""
+          }`,
+        );
+      }
+
+      const now = occurredAt ?? new Date().toISOString();
+      const record: CheckoutRecord = Object.freeze({
+        checkoutId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        method: input.method,
+        authorizedAdultId: input.authorizedAdultId ?? null,
+        authorizedAdultName: input.authorizedAdultName ?? null,
+        notes: input.notes ?? null,
+        checkedOutAt: now,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      cMap.set(checkoutId, record);
+      return record;
+    },
+
+    async listSessionCheckouts(
+      academyId: string,
+      sessionId: string,
+    ): Promise<readonly CheckoutRecord[]> {
+      const cMap = checkoutsMap.get(academyId);
+      if (!cMap) return [];
+      return Array.from(cMap.values())
+        .filter((c) => c.sessionId === sessionId)
+        .sort((a, b) => a.checkedOutAt.localeCompare(b.checkedOutAt));
+    },
+
+    async getStudentCheckout(
+      academyId: string,
+      sessionId: string,
+      studentId: string,
+    ): Promise<CheckoutRecord | null> {
+      const cMap = checkoutsMap.get(academyId);
+      if (!cMap) return null;
+      const checkoutId = buildCheckoutId(sessionId, studentId);
+      return cMap.get(checkoutId) ?? null;
     },
   };
 }

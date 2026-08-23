@@ -4,6 +4,7 @@ import type {
   BookingRecord,
   CancelBookingInput,
   CheckInInput,
+  CheckoutRecord,
   ClassRecord,
   CorrectAttendanceInput,
   CreateClassInput,
@@ -12,6 +13,7 @@ import type {
   ListSessionsQuery,
   LocationRecord,
   ProgramRecord,
+  RecordCheckoutInput,
   RequestBookingInput,
   SessionRecord,
 } from "@bpt-jersey/domain/schedule";
@@ -258,6 +260,47 @@ export async function listAttendanceHistory(
   const result = await callable(studentId ? { sessionId, studentId } : { sessionId });
   return result.data.history;
 }
+
+export async function recordCheckout(
+  input: RecordCheckoutInput,
+): Promise<CheckoutRecord> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<RecordCheckoutInput, { checkout: CheckoutRecord }>(
+    functions,
+    "recordCheckout",
+  );
+
+  const result = await callable(input);
+  return result.data.checkout;
+}
+
+export async function listSessionCheckouts(
+  sessionId: string,
+): Promise<readonly CheckoutRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<{ sessionId: string }, { checkouts: CheckoutRecord[] }>(
+    functions,
+    "listSessionCheckouts",
+  );
+
+  const result = await callable({ sessionId });
+  return result.data.checkouts;
+}
+
+export async function getStudentCheckout(
+  sessionId: string,
+  studentId?: string,
+): Promise<CheckoutRecord | null> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { sessionId: string; studentId?: string },
+    { checkout: CheckoutRecord | null }
+  >(functions, "getStudentCheckout");
+
+  const result = await callable(studentId ? { sessionId, studentId } : { sessionId });
+  return result.data.checkout;
+}
+
 
 
 

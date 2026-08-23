@@ -637,4 +637,108 @@ describe("Schedule Service (In-Memory Store)", () => {
       expect(rerun.noShowsMarked).toBe(0);
     });
   });
+
+  describe("Child Check-Out & Release Management", () => {
+    it("handles child check-out via authorizedAdult, independentRelease, and staffOverride with attendance validation", async () => {
+      const store = createInMemoryScheduleStore();
+
+      const session = await store.createSession(
+        "academy-1",
+        {
+          programId: "kids-gi",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Kids Gi Fundamentals",
+          startAt: "2026-09-01T16:00:00Z",
+          endAt: "2026-09-01T17:00:00Z",
+          capacity: 20,
+        },
+        "owner-1",
+      );
+
+      // Student 1 checks in
+      await store.recordCheckIn(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "minor-1", method: "pin" },
+        "minor-1",
+        "2026-09-01T15:55:00Z",
+      );
+
+      // Student 2 checks in
+      await store.recordCheckIn(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "minor-2", method: "qr" },
+        "minor-2",
+        "2026-09-01T16:05:00Z",
+      );
+
+      // Student 3 did NOT attend
+      await expect(
+        store.recordCheckout(
+          "academy-1",
+          {
+            sessionId: session.sessionId,
+            studentId: "minor-3",
+            method: "independentRelease",
+          },
+          "staff-1",
+        ),
+      ).rejects.toThrow(/did not attend this session/);
+
+      // Minor 1: Authorized Adult Check-out
+      const co1 = await store.recordCheckout(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "minor-1",
+          method: "authorizedAdult",
+          authorizedAdultId: "adult-mother-1",
+          authorizedAdultName: "Maria Silva",
+        },
+        "adult-mother-1",
+        "2026-09-01T17:05:00Z",
+      );
+      expect(co1.checkoutId).toBe(`${session.sessionId}__minor-1`);
+      expect(co1.method).toBe("authorizedAdult");
+      expect(co1.authorizedAdultName).toBe("Maria Silva");
+
+      // Idempotent retry returns existing checkout
+      const retryCo1 = await store.recordCheckout(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "minor-1",
+          method: "authorizedAdult",
+        },
+        "adult-mother-1",
+      );
+      expect(retryCo1.checkoutId).toBe(co1.checkoutId);
+
+      // Minor 2: Staff Override Check-out
+      const co2 = await store.recordCheckout(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "minor-2",
+          method: "staffOverride",
+          notes: "Collected by uncle John verified via parent SMS",
+        },
+        "coach-1",
+        "2026-09-01T17:10:00Z",
+      );
+      expect(co2.method).toBe("staffOverride");
+      expect(co2.notes).toBe("Collected by uncle John verified via parent SMS");
+
+      // List session checkouts
+      const checkouts = await store.listSessionCheckouts("academy-1", session.sessionId);
+      expect(checkouts).toHaveLength(2);
+
+      // Get single student checkout
+      const single = await store.getStudentCheckout("academy-1", session.sessionId, "minor-1");
+      expect(single?.checkoutId).toBe(`${session.sessionId}__minor-1`);
+
+      const missing = await store.getStudentCheckout("academy-1", session.sessionId, "minor-99");
+      expect(missing).toBeNull();
+    });
+  });
 });

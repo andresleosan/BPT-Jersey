@@ -7,15 +7,18 @@ import {
   evaluateSessionMinimum,
   generateSessions,
   getScheduleCatalog,
+  getStudentCheckout,
   listAttendanceHistory,
   listClasses,
   listSessionAttendance,
   listSessionBookings,
+  listSessionCheckouts,
   listSessions,
   listStudentAttendance,
   listStudentBookings,
   reconcileSessionNoShows,
   recordCheckIn,
+  recordCheckout,
   requestBooking,
   saveClass,
   saveProgram,
@@ -268,7 +271,48 @@ describe("Schedule Client", () => {
     const history = await listAttendanceHistory("s-1", "std-1");
     expect(history).toHaveLength(2);
   });
+
+  it("records child check-out and lists session checkouts", async () => {
+    // Record checkout
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        checkout: {
+          checkoutId: "s-1__minor-1",
+          method: "authorizedAdult",
+          authorizedAdultName: "Maria Silva",
+        },
+      },
+    });
+    const co = await recordCheckout({
+      sessionId: "s-1",
+      studentId: "minor-1",
+      method: "authorizedAdult",
+      authorizedAdultId: "adult-1",
+      authorizedAdultName: "Maria Silva",
+    });
+    expect(co.checkoutId).toBe("s-1__minor-1");
+    expect(co.method).toBe("authorizedAdult");
+
+    // List session checkouts
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        checkouts: [{ checkoutId: "s-1__minor-1" }, { checkoutId: "s-1__minor-2" }],
+      },
+    });
+    const checkouts = await listSessionCheckouts("s-1");
+    expect(checkouts).toHaveLength(2);
+
+    // Get student checkout
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        checkout: { checkoutId: "s-1__minor-1" },
+      },
+    });
+    const studentCo = await getStudentCheckout("s-1", "minor-1");
+    expect(studentCo?.checkoutId).toBe("s-1__minor-1");
+  });
 });
+
 
 
 

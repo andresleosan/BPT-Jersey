@@ -917,3 +917,98 @@ export function parseCorrectAttendanceInput(
     }),
   );
 }
+
+// ── Child Check-Out & Release Contracts ──
+
+export const checkoutMethods = Object.freeze([
+  "authorizedAdult",
+  "independentRelease",
+  "staffOverride",
+] as const);
+export type CheckoutMethod = (typeof checkoutMethods)[number];
+
+export type CheckoutRecord = Readonly<{
+  checkoutId: string; // deterministic: `${sessionId}__${studentId}`
+  academyId: string;
+  sessionId: string;
+  studentId: string;
+  method: CheckoutMethod;
+  authorizedAdultId: string | null;
+  authorizedAdultName: string | null;
+  notes: string | null;
+  checkedOutAt: string;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type RecordCheckoutInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  method: CheckoutMethod;
+  authorizedAdultId?: string;
+  authorizedAdultName?: string;
+  notes?: string;
+}>;
+
+/**
+ * Builds the deterministic canonical identifier for child check-out: `${sessionId}__${studentId}`.
+ */
+export function buildCheckoutId(sessionId: string, studentId: string): string {
+  return `${sessionId.trim()}__${studentId.trim()}`;
+}
+
+export function parseRecordCheckoutInput(input: unknown): Result<RecordCheckoutInput, string> {
+  if (!isRecord(input)) {
+    return err("Checkout input must be an object");
+  }
+
+  const { sessionId, studentId, method, authorizedAdultId, authorizedAdultName, notes } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof method !== "string" || !checkoutMethods.includes(method as CheckoutMethod)) {
+    return err(`Invalid checkout method. Expected one of: ${checkoutMethods.join(", ")}`);
+  }
+
+  if (method === "staffOverride") {
+    if (typeof notes !== "string" || notes.trim().length === 0) {
+      return err("notes are required for staffOverride checkout");
+    }
+  }
+
+  const result: {
+    sessionId: string;
+    studentId: string;
+    method: CheckoutMethod;
+    authorizedAdultId?: string;
+    authorizedAdultName?: string;
+    notes?: string;
+  } = {
+    sessionId: sessionId.trim(),
+    studentId: studentId.trim(),
+    method: method as CheckoutMethod,
+  };
+
+  if (typeof authorizedAdultId === "string" && authorizedAdultId.trim().length > 0) {
+    result.authorizedAdultId = authorizedAdultId.trim();
+  }
+
+  if (typeof authorizedAdultName === "string" && authorizedAdultName.trim().length > 0) {
+    result.authorizedAdultName = authorizedAdultName.trim();
+  }
+
+  if (typeof notes === "string" && notes.trim().length > 0) {
+    result.notes = notes.trim();
+  }
+
+  return ok(Object.freeze(result));
+}
