@@ -28,6 +28,9 @@ function AccountContent() {
       <a className="button button-secondary profile-account-link" href="/account/family">
         View your family
       </a>
+      <a className="button button-secondary profile-account-link" href="/account/progress">
+        View IBJJF Levels & Progress
+      </a>
       <dl className="client-identity">
         <div>
           <dt>Name</dt>

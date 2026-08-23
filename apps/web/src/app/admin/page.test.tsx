@@ -85,6 +85,23 @@ describe("administrative shell", () => {
     expect(menuButton).toHaveFocus();
   });
 
+  it("traps keyboard focus inside the mobile navigation dialog", async () => {
+    const user = userEvent.setup();
+    renderAuthenticatedPreview();
+
+    await user.click(screen.getByRole("button", { name: "Open admin navigation" }));
+    const drawer = screen.getByRole("dialog", { name: "Admin navigation" });
+    const closeButton = within(drawer).getByRole("button", { name: "Close admin navigation" });
+    const links = within(drawer).getAllByRole("link");
+
+    links.at(-1)?.focus();
+    await user.tab();
+    expect(closeButton).toHaveFocus();
+
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(links.at(-1)).toHaveFocus();
+  });
+
   it("supports keyboard focus through the skip link and admin navigation", async () => {
     const user = userEvent.setup();
     renderAuthenticatedPreview();
@@ -120,12 +137,14 @@ describe("administrative shell", () => {
       "CRM",
       "Finance",
       "Regyfit Access Records",
+      "Staff",
+      "Levels",
     ];
 
     labels.forEach((label) => {
       expect(within(navigation).getByRole("link", { name: label })).toBeVisible();
     });
-    expect(within(navigation).queryAllByRole("link")).toHaveLength(10);
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(12);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
       "/admin",
@@ -186,7 +205,7 @@ describe("administrative shell", () => {
 
     expect(main).toHaveClass("admin-main");
     expect(main).toHaveClass("admin-main-content");
-    expect(navigationLinks).toHaveLength(10);
+    expect(navigationLinks).toHaveLength(12);
     navigationLinks.forEach((link) => {
       expect(link.tagName).toBe("A");
       expect(link).toHaveAttribute("href");

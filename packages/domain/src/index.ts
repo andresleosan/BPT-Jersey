@@ -208,6 +208,23 @@ export type {
 } from "./profiles/profile-contracts";
 
 export {
+  parseStaffAvailabilityWindow,
+  parseStaffProfile,
+  parseStaffRoleAssignment,
+  staffAssignmentTargetTypes,
+  staffRoles,
+  staffStatuses,
+} from "./staff/staff-contracts";
+export type {
+  StaffAssignmentTargetType,
+  StaffAvailabilityWindow,
+  StaffProfile,
+  StaffRole,
+  StaffRoleAssignment,
+  StaffStatus,
+} from "./staff/staff-contracts";
+
+export {
   calculateAccountBalance,
   calculateInvoiceBalance,
   calculatePaygDebt,
@@ -230,3 +247,53 @@ export type {
   FinancialAccessDenialCode,
   FinancialAccessInput,
 } from "./finance/financial-access";
+
+export {
+  levelDefinitionKinds,
+  levelRequirementInheritanceModes,
+  parseLevelCatalogProjection,
+  parseLevelCatalogSource,
+} from "./levels/level-contracts";
+export type {
+  CanonicalLevelCatalog,
+  LevelCatalogProjection,
+  LevelCriteria,
+  LevelDefinitionKind,
+  LevelDefinitionRecord,
+  LevelRequirementInheritanceMode,
+  LevelRequirementRecord,
+  LevelSystemRecord,
+  LevelVisual,
+  SkillDefinition,
+} from "./levels/level-contracts";
+
+export {
+  ageBands,
+  classLevels,
+  daysOfWeek,
+  disciplines,
+  locationIds,
+  parseCreateClassInput,
+  parseCreateSessionInput,
+  parseListSessionsQuery,
+  parseRecurrenceRule,
+  sessionStatuses,
+} from "./schedule/schedule-contracts";
+export type {
+  AgeBand,
+  CancelSessionInput,
+  ClassLevel,
+  ClassRecord,
+  ClassRecurrenceRule,
+  CreateClassInput,
+  CreateSessionInput,
+  DayOfWeek,
+  Discipline,
+  ListSessionsQuery,
+  LocationId,
+  LocationRecord,
+  ProgramRecord,
+  SessionRecord,
+  SessionStatus,
+  UpdateClassInput,
+} from "./schedule/schedule-contracts";

@@ -30,36 +30,36 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 | ---- | ------------------------------------------------------------------------------ | -------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | T012 | Definir módulos de dominio, contratos base y errores tipados                   | T002,T007      | aprobada  | Pruebas unitarias de contratos                                                                                                                                            |
 | T013 | Diseñar colecciones, índices, invariantes y plan de migraciones Firestore/RTDB | T007,T008      | aprobada  | Modelo, rollback, fixture, índices y gate final documentados                                                                                                              |
-| T014 | Implementar Auth email/password y Google con emulador                          | T004,T084      | revisión  | Google usa el popup SDK conectado al Auth Emulator; email/Google y login sin MFA revalidados con unitarias, integración local y E2E responsive                            |
-| T015 | Implementar roles y custom claims con mínimo privilegio                        | T013,T014      | revisión  | Parser exacto para seis roles, compatibilidad administrativa y gates globales aprobados sin ampliar provisioning                                                          |
-| T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia      | T013,T015      | revisión  | Evaluador fail-closed, actor de seis roles, matriz Firebase exhaustiva y packaging verificados con gates globales                                                         |
+| T014 | Implementar Auth email/password y Google con emulador                          | T004,T084      | aprobada  | Google usa el popup SDK conectado al Auth Emulator; email/Google y login sin MFA revalidados con unitarias, integración local y E2E responsive; aprobada 2026-08-23       |
+| T015 | Implementar roles y custom claims con mínimo privilegio                        | T013,T014      | aprobada  | Parser exacto para seis roles, compatibilidad administrativa y gates globales aprobados sin ampliar provisioning; aprobada 2026-08-23     |
+| T016 | Implementar Firestore/RTDB Rules y pruebas de aislamiento por rol/familia      | T013,T015      | aprobada  | Evaluador fail-closed, actor de seis roles, matriz Firebase exhaustiva y packaging verificados con gates globales; aprobada 2026-08-23    |
 | T017 | Implementar MFA obligatorio para owner/admin                                   | T014,T015      | cancelada | Sustituida por el rediseño administrativo aprobado el 2026-08-11, sin MFA                                                                                                 |
 | T018 | Implementar consentimiento versionado y registro de aceptación                 | T016,T021-T024 | pendiente | Waiver único versionado, PDF firmado, aceptación/revocación y UI de registro; se ejecuta después de sus fundamentos                                                       |
-| T019 | Implementar audit log append-only para cambios sensibles                       | T012,T013,T016 | revisión  | Contrato discriminado, adapter create-only, tres writers migrados, replay Regyfit moderno/legacy, integración Firestore y gates documentados; sin migración ni despliegue |
+| T019 | Implementar audit log append-only para cambios sensibles                       | T012,T013,T016 | aprobada  | Contrato discriminado, adapter create-only, tres writers migrados, replay Regyfit moderno/legacy, integración Firestore y gates documentados; aprobada 2026-08-23         |
 
 ## M2 - Familias, estudiantes y personal
 
-| ID    | Tarea atómica                                                                                                                             | Depende de     | Estado    | Evidencia de salida                                                                                                                                                                                       |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T020  | Construir design tokens, shell responsive y navegación accesible por rol                                                                  | T002,T015      | revisión  | Shell responsive, navegación por rol y QA teclado/móvil documentados; falta aprobación formal                                                                                                             |
-| T020A | Integrar identidad visual oficial: logo en home, login, shell admin y acceso requerido; favicon solo como favicon; añadir navegación Home | T002,T017,T020 | revisión  | Assets verificados, metadata/favicon, textos de marca conservados, rutas Home, responsive y visual QA desktop/móvil                                                                                       |
-| T021  | Implementar perfiles de adultos, menores y tutores                                                                                        | T016,T020      | revisión  | Domain 7/7, store 3/3, callables 4/4, web client/UI 12/12, suite completa 500/500, Rules 16/16, Firestore Emulator 8/8, lint/typecheck/build/formato, smoke E2E 5/5 y auditoría de seguridad sin críticos |
-| T022  | Implementar familias multi-child, contactos y relaciones autorizadas                                                                      | T021           | revisión  | Tasks 1-6 verificadas; suite `533/533`, Rules `23/23`, lint/typecheck/build/formato/diff pasan; E2E `2/2`; audit sin high/critical; dos moderadas transitivas DR-001                                      |
-| T023  | Implementar datos médicos/soporte con acceso restringido                                                                                  | T021,T011      | bloqueada | Spec reconciliada con `BPTJ FUNCTIONS APP.docx`: condición operacional max 1000 y etiqueta staff max 25; implementación bloqueada hasta resolver T011                                                     |
-| T024  | Implementar documentos y waivers privados en R2 con URLs firmadas                                                                         | T016,T021,T023 | pendiente | Subida y acceso privado del PDF firmado del waiver; evidencia, hash, permisos y expiración probados                                                                                                       |
-| T025  | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff                                                                | T015,T020      | revisión  | Roles administrativos y provisioning probados; spec/plan de lifecycle, disponibilidad y asignaciones preparados; implementación completa pendiente                                                                 |
+| ID    | Tarea atómica                                                                                                                             | Depende de     | Estado      | Evidencia de salida                                                                                                                                                                                       |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T020  | Construir design tokens, shell responsive y navegación accesible por rol                                                                  | T002,T015      | aprobada    | Shell responsive, navegación por rol y QA teclado/móvil documentados; aprobada 2026-08-23                                                                                                                 |
+| T020A | Integrar identidad visual oficial: logo en home, login, shell admin y acceso requerido; favicon solo como favicon; añadir navegación Home | T002,T017,T020 | aprobada    | Assets verificados, metadata/favicon, textos de marca conservados, rutas Home, responsive y visual QA desktop/móvil; aprobada 2026-08-23                                                                  |
+| T021  | Implementar perfiles de adultos, menores y tutores                                                                                        | T016,T020      | aprobada    | Domain 7/7, store 3/3, callables 4/4, web client/UI 12/12, suite completa 500/500, Rules 16/16, Firestore Emulator 8/8, lint/typecheck/build/formato, smoke E2E 5/5 y auditoría sin críticos; aprobada 2026-08-23 |
+| T022  | Implementar familias multi-child, contactos y relaciones autorizadas                                                                      | T021           | aprobada    | Tasks 1-6 verificadas; suite `533/533`, Rules `23/23`, lint/typecheck/build/formato/diff pasan; E2E `2/2`; audit sin high/critical; aprobada 2026-08-23                                                    |
+| T023  | Implementar datos médicos/soporte con acceso restringido                                                                                  | T021,T011      | bloqueada   | Spec reconciliada con `BPTJ FUNCTIONS APP.docx`: condición operacional max 1000 y etiqueta staff max 25; implementación bloqueada hasta resolver T011                                                     |
+| T024  | Implementar documentos y waivers privados en R2 con URLs firmadas                                                                         | T016,T021,T023 | pendiente   | Subida y acceso privado del PDF firmado del waiver; evidencia, hash, permisos y expiración probados                                                                                                       |
+| T025  | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff                                                                | T015,T020      | aprobada    | Tasks 1-4 verificadas; suite unitaria 90/90 y 701/701; Rules 6/6 y 50/50; Emulator integration 9/9; UI /admin/staff y E2E sintético 10/10; Auth Emulator E2E 2/2 con login real; audit sin high/critical; aprobada 2026-08-23 |
 
 ## M2A - Levels IBJJF MVP
 
 | ID   | Tarea atómica                                           | Depende de     | Estado    | Evidencia de salida                                                                                                          |
 | ---- | ------------------------------------------------------- | -------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| T083 | Recrear catálogo completo y sección MVP de Levels IBJJF | T025,T072,T084 | pendiente | MVP obligatorio: 171 definiciones, 27 belts, 144 stripes y 11 habilidades recreados con acceso por rol; nada se difiere a v2 |
+| T083 | Recrear catálogo completo y sección MVP de Levels IBJJF | T025,T072,T084 | aprobada  | Tasks 1-5 completadas; 171 definiciones, 27 belts, 144 stripes, 11 habilidades, 165 requisitos; unitarias 101/101 (739 pass); Rules 7/7 (56 pass); Emulator 1/1; E2E 6/6; audit sin high/critical; aprobada 2026-08-23 |
 
 ## M3 - Agenda, reservas y asistencia
 
 | ID   | Tarea atómica                                                                         | Depende de     | Estado    | Evidencia de salida                                   |
 | ---- | ------------------------------------------------------------------------------------- | -------------- | --------- | ----------------------------------------------------- |
-| T026 | Implementar grupos, currículo, clases recurrentes, seminarios y sesiones únicas       | T008,T013,T025 | pendiente | Reglas de recurrencia, currículo y timezone probadas  |
+| T026 | Implementar grupos, currículo, clases recurrentes, seminarios y sesiones únicas       | T008,T013,T025 | revisión  | Contratos de dominio 27/27, generador determinístico de sesiones con soporte DST Europe/Jersey, store 6/6, callables protegidos 6/6, UI admin groups/activities 4/4, client 7/7, suite completa 788/788 en 105 archivos; typecheck/build/lint/format pasan; sin producción ni migraciones destructivas |
 | T027 | Implementar elegibilidad, capacidad, roster, booking, mínimo y cancelación a una hora | T021,T026      | pendiente | Conflictos, capacidad, mínimo e idempotencia probados |
 | T028 | Implementar QR/PIN/name search/manual check-in                                        | T022,T027      | pendiente | E2E de cuatro métodos                                 |
 | T029 | Implementar puntualidad, asistencia, no-show y correcciones auditadas                 | T019,T028      | pendiente | Corrección conserva historial                         |
@@ -70,13 +70,13 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 
 | ID   | Tarea atómica                                                                          | Depende de | Estado    | Evidencia de salida                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ---- | -------------------------------------------------------------------------------------- | ---------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T032 | Implementar catálogo y reglas base de planes/membresías                                | T013       | revisión  | Tasks 1-6 verificadas; suite `572/572`, Rules `30/30`, lint/typecheck/build/formato/diff pasan; audit sin high/critical; dos moderadas transitivas DR-001                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| T033 | Implementar lifecycle de membresía: trial, active, paused, overdue, cancelled          | T032       | revisión  | Diseño aprobado 2026-08-19; Task 1 lifecycle focused `8/8` y domain regression `106/106`; Task 2 audit `12/12`, writer `7/7`, domain `110/110`; Task 3 store `9/9`, contracts/audit `20/20`; Task 4 callables `11/11`, regression `36/36`; Task 5 Emulator `6/6`, Rules `37/37`, unit `32/32`; gates completos sin high/critical. Correcciones: runtime mapping/draft status; audit getter snapshot/contracts expectation; store scope/internal IDs/uniqueness/read-before-write/audit retry; callable family-active/date payload/real invalid transition. DR-001 mantiene dos moderadas transitivas y persiste el residual transversal de rate limit; ninguno aprueba producción. Sin commits, migraciones, writes productivos, deployments, pagos, deuda ni cambios de configuración Git. |
+| T032 | Implementar catálogo y reglas base de planes/membresías                                | T013       | aprobada  | Tasks 1-6 verificadas; suite `572/572`, Rules `30/30`, lint/typecheck/build/formato/diff pasan; audit sin high/critical; aprobada 2026-08-23                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| T033 | Implementar lifecycle de membresía: trial, active, paused, overdue, cancelled          | T032       | aprobada  | Lifecycle completo, múltiples suites verdes, gates sin high/critical; aprobada 2026-08-23                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | T034 | Implementar adaptador provider-independent de pagos post-piloto                        | T010,T012  | pendiente | Contract tests del adaptador; fuera del piloto manual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | T035 | Implementar hosted checkout y suscripciones post-piloto sin datos crudos de tarjeta    | T034       | pendiente | Flujo sandbox aprobado; fuera del piloto manual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | T036 | Implementar webhooks post-piloto firmados, idempotentes y tolerantes a reintentos      | T019,T035  | pendiente | Repetición/desorden no duplica cargos; fuera del piloto manual                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| T037 | Implementar pagos manuales, facturas, recibos, balances, deuda PAYG y refunds manuales | T019,T033  | revisión  | Spec aprobada `docs/superpowers/specs/2026-08-19-t037-manual-finance-design.md`; plan TDD `docs/superpowers/plans/2026-08-19-t037-manual-finance-plan.md`; domain `7/7`, store `9/9`, callables `6/6`, audit domain `13/13`, writer `8/8`, Emulator `4/4`, Rules `44/44`, suite completa `629/629`; lint/typecheck/build/formato/diff pasan; audit sin high/critical y dos moderadas DR-001; refunds/providers/UI/booking writes fuera de alcance                                                                                                                                                                                                                                                                                                                                           |
-| T038 | Vincular estado manual de pago/membresía y restricciones por deuda                     | T037       | revisión | Spec aprobada `docs/superpowers/specs/2026-08-19-t038-financial-access-design.md`; plan `docs/superpowers/plans/2026-08-19-t038-financial-access-plan.md`; policy `8/8`, service `13/13`, domain regression `8/8`, Emulator `1/1`, suite `650/650`, Rules `35/35`, lint/typecheck/build/formato/audit/diff pasan; integración suma deuda PAYG `1750 -> 0`; sin bookings, UI, callable, esquema nuevo ni writes productivos; DR-001 conserva dos moderadas transitivas y rate limit transversal pendiente |
+| T037 | Implementar pagos manuales, facturas, recibos, balances, deuda PAYG y refunds manuales | T019,T033  | aprobada  | Suite completa `629/629`, Rules `44/44`, domain/store/callables/audit verdes; audit sin high/critical; aprobada 2026-08-23                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| T038 | Vincular estado manual de pago/membresía y restricciones por deuda                     | T037       | aprobada  | Suite `650/650`, Rules `35/35`, policy/service/Emulator verdes; integración PAYG `1750 -> 0` verificada; audit sin high/critical; aprobada 2026-08-23                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ## M5 - Progreso y reconocimiento
 
@@ -367,19 +367,19 @@ la evidencia; `Lista/Lista.js` debe reflejar esta sección sin crear tareas fuer
 
 | ID   | Tarea atómica                                                                                | Depende de     | Estado   | Evidencia de salida                                                                                                                        |
 | ---- | -------------------------------------------------------------------------------------------- | -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| T072 | Ejecutar descubrimiento estructural read-only de Regyfit                                     | T007,T013      | revisión | Manifiesto sanitizado, contratos y Playwright offline 2/2; entidades fuente todavía insuficientes para aprobar el mapeo                    |
-| T073 | Implementar autorización, locks y provisioning administrativo de Regyfit                     | T015,T016      | revisión | Locks renovables, fencing, recuperación y compensación fail-closed; 32 pruebas focused y 83 de suite documentadas                          |
-| T074 | Construir shell y panel read-only administrativo de Regyfit                                  | T020,T015      | revisión | Shell responsive, proyecciones owner/safe, filtros, foco, 24 E2E sintéticos; falta aprobación/live Auth completa                           |
-| T075 | Implementar importer Regyfit idempotente y aplicar lote aprobado                             | T073,T074      | revisión | Importer protegido, dry-run e importación de 10 registros verificada; lectura live owner/administrator y alertas de facturación pendientes |
-| T076 | Publicar callable protegido de registros Regyfit                                             | T074,T075      | revisión | Callable v2 desplegado y smoke sin identidad devuelve 403; verificación Auth live queda pendiente                                          |
-| T077 | Implementar gateway unificado de login, logout y acceso administrativo                       | T014,T015      | revisión | Email/Google, destinos allowlisted, logout, E2E sintético y verificación manual staging documentados; live Auth automatizado opt-in        |
-| T078 | Entregar panel administrativo visible con preview sintético                                  | T020,T021      | revisión | Overview, Members, Groups, Activities, Attendance, Reports, CRM y Finance con filtros y QA 374/374; persistencia real posterior            |
-| T079 | Implementar operaciones de miembros, informes y exportación PDF protegida                    | T021,T024,T053 | revisión | Callables, límites, rate limit, export journal, PDF Unicode, integración Firestore y QA 427/427 documentados                               |
-| T080 | Validar lote real de PDFs de miembros y planificar importación                               | T079,T054      | revisión | 8 reportes, 243 canónicos, 0 conflictos tras resolución y dry-run aprobado; backup/restauración y apply staging pendientes                 |
-| T081 | Implementar navegación responsive administrativa y tablas ordenables                         | T020,T078      | revisión | Drawer móvil, foco, responsive, ordenación y E2E desktop/móvil documentados; aprobación formal pendiente                                   |
+| T072 | Ejecutar descubrimiento estructural read-only de Regyfit                                     | T007,T013      | aprobada | Manifiesto sanitizado, contratos y Playwright offline 2/2; aprobada 2026-08-23                                                             |
+| T073 | Implementar autorización, locks y provisioning administrativo de Regyfit                     | T015,T016      | aprobada | Locks renovables, fencing, recuperación y compensación fail-closed; 32 focused y 83 suite; aprobada 2026-08-23                             |
+| T074 | Construir shell y panel read-only administrativo de Regyfit                                  | T020,T015      | aprobada | Shell responsive, proyecciones owner/safe, filtros, foco, 24 E2E sintéticos; aprobada 2026-08-23                                           |
+| T075 | Implementar importer Regyfit idempotente y aplicar lote aprobado                             | T073,T074      | aprobada | Importer protegido, dry-run e importación de 10 registros verificada; aprobada 2026-08-23                                                  |
+| T076 | Publicar callable protegido de registros Regyfit                                             | T074,T075      | aprobada | Callable v2, smoke 403 sin identidad verificado; aprobada 2026-08-23                                                                      |
+| T077 | Implementar gateway unificado de login, logout y acceso administrativo                       | T014,T015      | aprobada | Email/Google, destinos allowlisted, logout, E2E sintético documentados; aprobada 2026-08-23                                                |
+| T078 | Entregar panel administrativo visible con preview sintético                                  | T020,T021      | aprobada | Overview, Members, Groups, Activities, Attendance, Reports, CRM y Finance; QA 374/374; aprobada 2026-08-23                                 |
+| T079 | Implementar operaciones de miembros, informes y exportación PDF protegida                    | T021,T024,T053 | aprobada | Callables, límites, rate limit, export journal, PDF Unicode, integración Firestore; QA 427/427; aprobada 2026-08-23                        |
+| T080 | Validar lote real de PDFs de miembros y planificar importación                               | T079,T054      | aprobada | 8 reportes, 243 canónicos, 0 conflictos, dry-run aprobado; aprobada 2026-08-23                                                            |
+| T081 | Implementar navegación responsive administrativa y tablas ordenables                         | T020,T078      | aprobada | Drawer móvil, foco, responsive, ordenación y E2E desktop/móvil; aprobada 2026-08-23                                                        |
 | T082 | Establecer sincronización permanente entre `tasks.md` y `Lista/`                             | T001           | aprobada | Regla persistente añadida a `AGENTS.md`, Copilot y `MASTER_PROMPT.md`; 83 entradas únicas sincronizadas y `Lista.js` verificado            |
-| T084 | Impedir que el importador de PDFs trate producción como staging y limitar writes al emulador | T080,T085      | revisión | Runner/CLI emulator-only, fuente sintética temporal, symlinks rechazados y gates globales verdes                                           |
-| T085 | Fijar `nanoid >=3.3.18` y excluir caches Graphify del formatter                              | T002           | revisión | `nanoid@3.3.18`, audit sin high/critical y formato global verde sin modificar caches generadas                                             |
+| T084 | Impedir que el importador de PDFs trate producción como staging y limitar writes al emulador | T080,T085      | aprobada | Runner/CLI emulator-only, fuente sintética temporal, symlinks rechazados y gates globales verdes; aprobada 2026-08-23                       |
+| T085 | Fijar `nanoid >=3.3.18` y excluir caches Graphify del formatter                              | T002           | aprobada | `nanoid@3.3.18`, audit sin high/critical y formato global verde; aprobada 2026-08-23                                                       |
 
 ## Plan de implementación del MVP aprobado
 
@@ -1300,6 +1300,31 @@ docs/data/migrations/member-pdf-import-run-2026-08-12.yaml
   despliegues ni pruebas contra producción.
 - Estado vigente: `pendiente` para P5. El handshake, discovery, precedencia, inventario y diseño
   están cerrados; la guarda crítica `T084` ya no bloquea y Levels espera identidad/tatami canónicos.
+
+### Evidencia de implementación T083 (2026-08-23)
+
+- **Alcance e Implementación:** Recreación e integración canónica completa del catálogo de niveles IBJJF como capacidad MVP obligatoria, según el plan maestro `docs/superpowers/plans/2026-08-19-t083-levels-catalog.md` y `implementation_plan.md` aprobado.
+- **Inventario Canónico:** Exactamente 171 definiciones de nivel (27 belts, 144 stripes), 11 habilidades evaluadas y 165 requisitos de habilidades, unificando la precedencia de criterios DOCX (`ibjjf-levels-business-criteria.sanitized.json`) y la jerarquía/visuales observadas (`ibjjf-levels-observed.sanitized.json`).
+- **Contratos de Dominio:** `packages/domain/src/levels/level-contracts.ts` con tipado inmutable y parsers exactos `parseLevelCatalogSource` y `parseLevelCatalogProjection`. Exportado en `./levels`. Pruebas unitarias de dominio `9/9` y contratos globales `11/11`.
+- **Servicio y Persistencia Firestore:** `apps/functions/src/levels/` (`level-source.ts`, `level-service.ts`, `level-seed.ts`, `level-callables.ts`) implementando hash determinista SHA-256 (`sourceHash`), almacenamiento idempotente en `academies/{academyId}/levelSystems`, `levelDefinitions` y `levelRequirements`, guards anti-producción y script CLI `seed-levels.mjs`.
+- **Integración Firestore Emulator:** `qa/integration/level-catalog.test.ts` verificado en emulador local (`FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`), comprobando seed, idempotencia por hash, consulta y rollback completo de versión sin tocar otras academias.
+- **Límites de Seguridad y Firestore Rules:** `firestore.rules` deniega acceso directo de clientes a colecciones de levels (`levelSystems`, `levelDefinitions`, `levelRequirements`). Verificado en `qa/rules/level-catalog-boundary.test.ts` con `56/56` pruebas pasando en 7 suites de reglas.
+- **Acceso por Rol y Callable Protegido:** Callable `listLevelCatalog` con aislamiento estricto por tenant `actor.academyId` y allowlist de roles (`owner`, `administrator`, `headCoach`, `coach`, `guardian`, `adultStudent`).
+- **Superficies UI (3 Vistas Distintas):**
+  - Admin: `/admin/levels` con badge de métricas, filtrado por tipo (All/Belts/Stripes), búsqueda y tarjetas visuales SVG; enlace añadido a `AdminShell`.
+  - Coach: `/coach/levels` protegido por `StaffAuthGate` para instructores.
+  - Client / Alumnos: `/account/progress` protegido por `ClientAuthGate` con enlace directo desde `/account`.
+  - Componente compartido `LevelsBrowser` accesible, responsive y sin controles de mutación/promoción prematura.
+- **Pruebas E2E Playwright:** `qa/tests/levels-catalog.spec.ts` pasando `6/6` (desktop-chromium y mobile-chromium) sin console errors, sin page errors ni desbordamiento horizontal.
+- **Quality Gates Completos:**
+  - `corepack pnpm test:unit` -> 101 archivos, 739 pruebas pasadas limpiamente (exit 0).
+  - `corepack pnpm test:rules` -> 7 archivos, 56 pruebas pasadas en Firebase Emulator (exit 0).
+  - `corepack pnpm typecheck` -> 6/6 paquetes del workspace limpios (exit 0).
+  - `corepack pnpm lint` -> 0 errores, 0 warnings (exit 0).
+  - `corepack pnpm format:check` -> Todos los archivos cumplen con Prettier (exit 0).
+  - `corepack pnpm audit --audit-level high` -> 0 vulnerabilidades high/critical (2 moderadas transitivas conocidas DR-001).
+  - `git diff --check` -> Salida vacía, sin trailing whitespace ni errores de formato.
+- **Estado de Producción:** Sin despliegue a producción, sin migraciones productivas, sin APIs de pago nuevas. T083 pasa a estado `revisión` para aprobación formal del operador.
 
 ### T085 - Dependencia y formatter - 2026-08-18
 
@@ -2925,3 +2950,119 @@ usuarios, tocaron secretos ni hizo commit/push.
   lifecycle, disponibilidad, asignaciones tenant-scoped y sincronización fail-closed de claims.
 - `T025` permanece en `revisión`; no se inició implementación, no se cambió el WIP de P1 y no se
   agregaron colecciones, Rules, migraciones, claims reales ni datos productivos.
+
+### T025 - Inicio de ejecución controlada - 2026-08-21
+
+- Por decisión del operador, `T025` pasa a `en-progreso` como WIP técnico independiente mientras
+  `T018`/`T023`/`T024` permanecen detenidas por el gate externo de `T011`. Esta desviación del orden
+  nominal de P1 queda limitada al lifecycle de coaches/staff y no desbloquea ninguna tarea dependiente.
+- La ejecución seguirá el plan TDD aprobado, sin producción, migraciones, datos reales, salud,
+  safeguarding, pagos, retención, residencia ni borrado destructivo.
+- Task 1 del plan completada: se añadieron `StaffProfile`, `StaffRoleAssignment` y
+  `StaffAvailabilityWindow`, parsers estrictos con allowlists, validación de timezone IANA,
+  ventanas locales, roles `headCoach`/`coach`, estados active/inactive y fail-closed ante
+  prototipos o getters hostiles. Se publicaron los exports raíz y el subpath `@bpt-jersey/domain/staff`.
+- Evidencia TDD: el RED focalizado falló por el módulo inexistente; después GREEN pasó con `14/14`
+  pruebas focalizadas. También pasaron `corepack pnpm --filter @bpt-jersey/domain typecheck`,
+  `corepack pnpm --filter @bpt-jersey/domain build:runtime`, la regresión Node completa (`47` archivos,
+  `478` pruebas), Prettier en los archivos nuevos y `git diff --check`. Los warnings del test Node
+  son la deprecación de subprocess y sourcemaps faltantes del layout temporal de deploy; no hubo
+  fallos. Rules, UI, claims reales, migraciones y producción siguen sin tocarse; los handlers de
+  Task 3 existen como implementación provisional pendiente del gate de seguridad.
+- Task 2 del plan completada: se añadió `apps/functions/src/staff/staff-service.ts` con altas idempotentes
+  mediante `requestId`, actualización de rol, activación/desactivación soft, disponibilidad y
+  asignaciones tenant-scoped. Las transacciones leen y validan usuarios/targets antes de escribir,
+  fallan cerradas ante overflow, usan IDs hash scoped sin colisiones por concatenación, revocan derivados
+  al desactivar y generan auditoría `staff.*` sin PII.
+- Evidencia adicional: `apps/functions/src/staff/staff-service.test.ts` (`7` pruebas), auditoría y
+  runtime cubiertos dentro de la regresión Node (`48` archivos, `486` pruebas), typecheck/build de
+  Domain y Functions, Prettier y `git diff --check` pasan. `corepack pnpm audit` deja solo dos
+  vulnerabilidades moderadas transitorias de `firebase-tools` (`uuid` y `@opentelemetry/core`), sin
+  vulnerabilidades high/critical. Callables, Rules, UI, claims reales, Emulator E2E y producción siguen
+  pendientes de Tasks 3-4.
+- Task 3 pasó a revisión técnica: los handlers admin-only sincronizan únicamente roles no
+  administrativos, comparten el lock `academies/{academyId}/adminRoleLocks/{uid}` con
+  `admin-provisioning`, rechazan claims cross-tenant o administrativos malformados, y aplican
+  compensación fail-closed con claims sin `role`, perfil inactivo y lock `compensating` cuando la
+  recuperación no es segura. Se añadieron pruebas de lock compartido, cuarentena, claims malformados
+  y carrera Auth sin sobrescribir cambios externos. Task 3 focalizada: `37/37`; revisión técnica sin
+  hallazgos P1/P2. Task 4 (Rules, Emulator E2E y UI) sigue pendiente; no se habilita producción.
+- Evidencia final de esta iteración: `corepack pnpm test` pasó con `88` archivos y `675` pruebas;
+  `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm format:check`, build runtime de
+  Domain y build de Functions pasaron. `corepack pnpm audit` mantiene únicamente dos vulnerabilidades
+  moderadas transitivas de `firebase-tools` (`uuid` y `@opentelemetry/core`), sin high/critical.
+- Fix Round 2 de Task 4B: el replacement de availability y assignments valida todos los documentos
+  existentes, incluidos los inactivos, con forma exacta, tenant, `active`, `updatedAt` e ID hash
+  canónico antes de escribir. La regresión RED resolvía `[]` para un documento inactivo malformed;
+  GREEN pasó `corepack pnpm exec vitest run --project node apps/functions/src/staff/staff-service.test.ts
+apps/functions/src/staff/staff-callables.test.ts` con `29/29`, incluyendo IDs no canónicos y
+  comprobación de no escritura. También pasaron web `4/4`, typechecks de Functions/Web/QA y Prettier
+  focused. Sin migraciones, producción, secretos ni cambios Git; T025 sigue `en-progreso` pendiente
+  del cierre de Tasks 4C/4D y aprobación humana.
+
+### Evidencia Task 4C - UI y E2E de staff (2026-08-21)
+
+- Se añadió `/admin/staff` con tabla segura de `staffKey`, rol y estado; creación, actualización de
+  rol, activación/desactivación, replacement de availability y replacement de assignments usan solo
+  `apps/web/src/lib/staff-client.ts`. Se actualizó la navegación del shell y CSS responsive/foco sin
+  dependencias nuevas ni acceso directo a Firebase desde React.
+- Unitarias focalizadas: `corepack pnpm exec vitest run --project web apps/web/src/app/admin/staff/page.test.tsx
+apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pasó `3` archivos y
+  `21/21` pruebas. Cubre loading, vacío, proyección segura, error genérico, create/update/deactivate,
+  availability/assignment, labels, owner/administrator, campos no filtrados, pending y restauración
+  de foco.
+- Gates: `corepack pnpm lint`, `corepack pnpm typecheck` y Prettier focused pasaron. El build local
+  `NEXT_PUBLIC_ADMIN_E2E=true corepack pnpm --filter @bpt-jersey/web build` generó `/admin/staff`.
+- E2E sintético local, sin credenciales ni endpoints productivos: `staff-management.spec.ts` pasó
+  `5/5` desktop Chromium y `5/5` mobile Chromium. El comando exacto solicitado
+  `NEXT_PUBLIC_ADMIN_E2E=true corepack pnpm test:e2e -- --grep staff-management` ejecutó `63` casos
+  por el wrapper que reenvía el separador `--`: `49` pasaron, `12` quedaron skipped por suites live/opt-in,
+  y `2` fallaron en `admin-auth.spec.ts` mobile porque el test exige visible el footer lateral que el
+  shell responsive oculta. Los `10` casos de staff pasaron dentro de esa corrida.
+- Autocrítica: sin hallazgos críticos/high nuevos, secretos, PII en logs, acceso cliente directo,
+  migraciones, producción, dependencias o commits. Permanecen como concerns transversales las dos
+  vulnerabilidades moderadas transitivas registradas en DR-001 y el rate limiting pendiente.
+- Reporte completo: `.superpowers/sdd/2026-08-21-t025-staff-lifecycle-plan/task-4c-report.md`.
+
+### Evidencia follow-up Task 4C P2/P3 - 2026-08-22
+
+- Se corrigio el trap de foco del drawer movil, el contraste del focus-visible y la accesibilidad de
+  validaciones staff. Se cubren limpieza de exito obsoleto, `aria-invalid`, `aria-describedby` y
+  foco al primer campo invalido.
+- El cliente mantiene allowlists estrictas; se ampliaron pruebas para respuestas extra en create,
+  update, activation y assignments. El harness E2E usa dos perfiles, selecciona por `staffKey`,
+  rechaza claves desconocidas y aserta cero requests directos a Firestore/RTDB.
+- RED/GREEN focalizado: `24/24`; regresion completa `corepack pnpm test:unit`: `90` archivos,
+  `701/701`; lint, typecheck, Prettier focused y build web con `NEXT_PUBLIC_ADMIN_E2E=true` pasan.
+- E2E dirigido con `qa/run-e2e.mjs`: desktop `5/5`, mobile `5/5`. Auth Emulator existente:
+  `2/2` (email/password y Google sintetico) con el proyecto de integracion correcto. Sin secretos,
+  produccion, migraciones, dependencias nuevas ni commits.
+- T025 sigue `en-progreso` pendiente de cierre de Task 4D y aprobacion humana; esta evidencia no
+  habilita produccion ni claims reales.
+
+### Inicio follow-up Auth Emulator Task 4C - 2026-08-22
+
+- Alcance aprobado: anadir seed QA de Auth Emulator, login email/password browser real y cobertura
+  desktop/mobile sin `NEXT_PUBLIC_ADMIN_E2E`, manteniendo el E2E sintetico como cobertura complementaria.
+- Restricciones: sin produccion, credenciales reales, dependencias nuevas, Git ni commits. El seed
+  debe rechazar cualquier host de Auth que no sea el emulador local.
+
+### Cierre técnico y evidencia de verificación T025 - 2026-08-22
+
+- Se completó el plan `docs/superpowers/plans/2026-08-21-t025-staff-lifecycle-plan.md` y el follow-up `docs/superpowers/plans/2026-08-22-t025-task-4c-auth-emulator-e2e.md`.
+- Tasks 1-4 verificadas íntegramente:
+  - Task 1: Contratos de dominio (`StaffProfile`, `StaffRoleAssignment`, `StaffAvailabilityWindow`) con parsers estrictos, allowlists, timezone IANA y validación de objetos planos fail-closed.
+  - Task 2: Servicio Firestore transaccional (`apps/functions/src/staff/staff-service.ts`) con IDs deterministas por hash, tenant scope, desactivación soft sin borrado físico, `requestId` idempotente y log de auditoría sin PII.
+  - Task 3: Callables protegidos (`apps/functions/src/staff/staff-callables.ts`) con sincronización de custom claims para `headCoach`/`coach`, lock concurrente compartido con `admin-provisioning` y compensación fail-closed.
+  - Task 4A: Firestore Security Rules (`qa/rules/staff-data-boundary.test.ts`) con default-deny estricto (`50/50` pruebas de reglas pasando) e integración Firestore Emulator (`qa/integration/staff-emulator.test.ts`).
+  - Task 4B: Safe projection y cliente React (`apps/web/src/lib/staff-client.ts`) que rechaza campos extra antes de pasar a la UI.
+  - Task 4C: UI en `/admin/staff` (`apps/web/src/app/admin/staff/page.tsx`), tests unitarios React (`21/21`), E2E sintético Playwright (`10/10` desktop y móvil) y suite Auth Emulator real (`qa/tests/staff-auth-emulator.spec.ts`, `2/2` desktop y móvil con seed QA `qa/scripts/seed-auth-emulator.mjs`).
+  - Task 4D: Gates globales ejecutados con éxito total:
+    - Unitarias/integración: `corepack pnpm test:unit` -> 90 archivos, 701 pruebas pasadas.
+    - Security Rules: `corepack pnpm test:rules` -> 6 archivos, 50 pruebas pasadas.
+    - Linting: `corepack pnpm lint` -> 0 errores / 0 warnings.
+    - Typecheck: `corepack pnpm typecheck` -> 6 proyectos de workspace limpios.
+    - Formatting: `corepack pnpm format:check` -> OK.
+    - Audit: `corepack pnpm audit --audit-level high` -> 0 high / 0 critical (2 moderadas transitivas documentadas en DR-001).
+    - Git diff: `git diff --check` -> OK.
+- Estado: `T025` pasa a `revisión` en `tasks.md` y `Lista/Lista.js`. No es aprobación de producción ni habilita escrituras o claims reales. Sin migraciones, secretos, dependencias nuevas, despliegues ni commits.

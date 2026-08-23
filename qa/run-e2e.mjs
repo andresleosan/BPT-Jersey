@@ -24,6 +24,10 @@ const testEnvironment = {
       : {}),
 };
 
+if (process.env.AUTH_EMULATOR_E2E === "true" && process.env.NEXT_PUBLIC_ADMIN_E2E) {
+  throw new Error("Auth Emulator E2E cannot run with NEXT_PUBLIC_ADMIN_E2E.");
+}
+
 for (const variable of [
   "UNIFIED_LOGIN_LIVE_AUTH",
   "UNIFIED_LOGIN_CLIENT_EMAIL",
@@ -36,6 +40,11 @@ for (const variable of [
   "T017_MFA_TOTP_CODE",
   "T017_MFA_CLIENT_EMAIL",
   "T017_MFA_CLIENT_PASSWORD",
+  "AUTH_EMULATOR_E2E",
+  "AUTH_EMULATOR_E2E_EMAIL",
+  "AUTH_EMULATOR_E2E_PASSWORD",
+  "NEXT_PUBLIC_USE_FIREBASE_EMULATORS",
+  "NEXT_PUBLIC_FIREBASE_ENV",
 ]) {
   if (process.env[variable]) {
     testEnvironment[variable] = process.env[variable];

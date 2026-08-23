@@ -4,15 +4,35 @@ import {
   accessDenialReasons,
   accessOperations,
   accessScopes,
+  ageBands,
   auditActions,
+  classLevels,
   dataClassifications,
+  daysOfWeek,
+  disciplines,
   domainErrorCodes,
   domainModules,
   err,
   evaluateAccess,
+  levelDefinitionKinds,
+  levelRequirementInheritanceModes,
+  locationIds,
   ok,
-  parseUserClaims,
   parseAuditEventDraft,
+  parseCreateClassInput,
+  parseCreateSessionInput,
+  parseLevelCatalogProjection,
+  parseLevelCatalogSource,
+  parseListSessionsQuery,
+  parseRecurrenceRule,
+  parseStaffAvailabilityWindow,
+  parseStaffProfile,
+  parseStaffRoleAssignment,
+  parseUserClaims,
+  sessionStatuses,
+  staffAssignmentTargetTypes,
+  staffRoles,
+  staffStatuses,
   userRoles,
 } from "./index";
 import type {
@@ -166,9 +186,54 @@ describe("domain contracts", () => {
       "invoice.voided",
       "payment.recorded",
       "invoice.status.changed",
+      "staff.created",
+      "staff.updated",
+      "staff.status.changed",
+      "staff.availability.replaced",
+      "staff.assignments.replaced",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");
+  });
+
+  it("exposes immutable staff contract values from the public entrypoint", () => {
+    expect(staffRoles).toEqual(["headCoach", "coach"]);
+    expect(staffStatuses).toEqual(["active", "inactive"]);
+    expect(staffAssignmentTargetTypes).toEqual(["location", "program", "class"]);
+    expect(Object.isFrozen(staffRoles)).toBe(true);
+    expect(Object.isFrozen(staffStatuses)).toBe(true);
+    expect(Object.isFrozen(staffAssignmentTargetTypes)).toBe(true);
+    expect(parseStaffProfile).toBeTypeOf("function");
+    expect(parseStaffRoleAssignment).toBeTypeOf("function");
+    expect(parseStaffAvailabilityWindow).toBeTypeOf("function");
+  });
+
+  it("exposes immutable levels contract values from the public entrypoint", () => {
+    expect(levelDefinitionKinds).toEqual(["belt", "stripe"]);
+    expect(levelRequirementInheritanceModes).toEqual(["inherit", "replace", "none"]);
+    expect(Object.isFrozen(levelDefinitionKinds)).toBe(true);
+    expect(Object.isFrozen(levelRequirementInheritanceModes)).toBe(true);
+    expect(parseLevelCatalogSource).toBeTypeOf("function");
+    expect(parseLevelCatalogProjection).toBeTypeOf("function");
+  });
+
+  it("exposes immutable schedule contract values from the public entrypoint", () => {
+    expect(locationIds).toEqual(["town", "west"]);
+    expect(ageBands).toEqual(["kids", "teens", "adult", "all"]);
+    expect(disciplines).toEqual(["bjj", "mma", "self-defence", "open-mat"]);
+    expect(classLevels).toEqual(["all-levels", "fundamentals", "advanced"]);
+    expect(sessionStatuses).toEqual(["scheduled", "active", "cancelled", "completed"]);
+    expect(daysOfWeek).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(Object.isFrozen(locationIds)).toBe(true);
+    expect(Object.isFrozen(ageBands)).toBe(true);
+    expect(Object.isFrozen(disciplines)).toBe(true);
+    expect(Object.isFrozen(classLevels)).toBe(true);
+    expect(Object.isFrozen(sessionStatuses)).toBe(true);
+    expect(Object.isFrozen(daysOfWeek)).toBe(true);
+    expect(parseCreateClassInput).toBeTypeOf("function");
+    expect(parseCreateSessionInput).toBeTypeOf("function");
+    expect(parseListSessionsQuery).toBeTypeOf("function");
+    expect(parseRecurrenceRule).toBeTypeOf("function");
   });
 });
 

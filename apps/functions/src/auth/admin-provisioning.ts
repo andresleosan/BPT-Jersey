@@ -222,7 +222,7 @@ function isOwnedFencedRoleLock(
 }
 
 async function acquireRoleLock(
-  services: AdminProvisioningServices,
+  services: Pick<AdminProvisioningServices, "firestore">,
   actor: AdminActor,
   uid: string,
 ): Promise<RoleLock> {
@@ -257,8 +257,72 @@ async function acquireRoleLock(
   return { ref, lockId };
 }
 
+export async function withSharedRoleLock<T>(
+  firestore: SyntheticFirestore,
+  academyId: string,
+  actorId: string,
+  uid: string,
+  operation: (control: Readonly<{ retain: () => void }>) => Promise<T>,
+): Promise<T> {
+  const actor = { uid: actorId, academyId, role: "owner" as const };
+  const lock = await acquireRoleLock({ firestore }, actor, uid);
+  const leaseRenewal = maintainRoleLockLease({ firestore }, lock);
+  let retain = false;
+  try {
+    leaseRenewal.assertHealthy();
+    const result = await operation({
+      retain: () => {
+        retain = true;
+      },
+    });
+    leaseRenewal.assertHealthy();
+    return result;
+  } finally {
+    if (retain) {
+      try {
+        await markSharedRoleLockCompensating({ firestore }, lock);
+      } catch {
+        // The lease still expires automatically; retain the fail-closed behavior.
+      }
+    }
+    await leaseRenewal.stop();
+    if (!retain) {
+      try {
+        await releaseRoleLock({ firestore }, lock);
+      } catch {
+        // The lease expires automatically; do not mask the operation result.
+      }
+    }
+  }
+}
+
+async function markSharedRoleLockCompensating(
+  services: Pick<AdminProvisioningServices, "firestore">,
+  lock: RoleLock,
+): Promise<void> {
+  await services.firestore.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(lock.ref);
+    const current = parseRoleLock(snapshot.data());
+    const now = Date.now();
+    if (
+      !snapshot.exists ||
+      !current ||
+      current.lockId !== lock.lockId ||
+      current.expiresAt <= now
+    ) {
+      throw new HttpsError("aborted", "The shared role lock is no longer owned");
+    }
+    transaction.set(lock.ref, {
+      ...snapshot.data(),
+      phase: "compensating",
+      expiresAt: Math.min(now + roleLockLeaseMs, current.leaseDeadline),
+      compensationStartedAt: now,
+    });
+  });
+}
+
 export async function renewRoleLock(
-  services: AdminProvisioningServices,
+  services: Pick<AdminProvisioningServices, "firestore">,
   lock: RoleLock,
 ): Promise<void> {
   await services.firestore.runTransaction(async (transaction) => {
@@ -289,7 +353,7 @@ type RoleLockLeaseRenewal = Readonly<{
 }>;
 
 function maintainRoleLockLease(
-  services: AdminProvisioningServices,
+  services: Pick<AdminProvisioningServices, "firestore">,
   lock: RoleLock,
 ): RoleLockLeaseRenewal {
   let failure: unknown;
@@ -324,7 +388,10 @@ function maintainRoleLockLease(
   };
 }
 
-async function releaseRoleLock(services: AdminProvisioningServices, lock: RoleLock): Promise<void> {
+async function releaseRoleLock(
+  services: Pick<AdminProvisioningServices, "firestore">,
+  lock: RoleLock,
+): Promise<void> {
   await services.firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(lock.ref);
     const current = parseRoleLock(snapshot.data());
@@ -667,6 +734,7 @@ export async function bootstrapEmulatorOwner(input: {
   try {
     const user = await services.auth.getUser(value.uid);
     requireGoogleUser(user, value.email);
+    requireTargetAdminClaims(user, actor);
     const previousClaims = { ...user.customClaims };
     const nextClaims = {
       ...previousClaims,

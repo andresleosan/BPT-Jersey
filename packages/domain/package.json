@@ -29,6 +29,10 @@
       "types": "./src/profiles/profile-contracts.ts",
       "default": "./lib/profiles/profile-contracts.js"
     },
+    "./staff": {
+      "types": "./src/staff/staff-contracts.ts",
+      "default": "./lib/staff/staff-contracts.js"
+    },
     "./families": {
       "types": "./src/families/family-contracts.ts",
       "default": "./lib/families/family-contracts.js"
@@ -48,10 +52,22 @@
     "./finance/access": {
       "types": "./src/finance/financial-access.ts",
       "default": "./lib/finance/financial-access.js"
+    },
+    "./levels": {
+      "types": "./src/levels/level-contracts.ts",
+      "default": "./lib/levels/level-contracts.js"
+    },
+    "./schedule": {
+      "types": "./src/schedule/schedule-contracts.ts",
+      "default": "./lib/schedule/schedule-contracts.js"
     }
   },
   "scripts": {
     "build:runtime": "tsc -p tsconfig.runtime.json && node scripts/prepare-runtime.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0"
   }
 }

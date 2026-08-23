@@ -97,9 +97,9 @@ const IMPLEMENTATION_OVERRIDES = {
       "Adaptador R2 y URLs firmadas para documentos/PDF probados; los waivers completos siguen pendientes.",
   },
   T025: {
-    implementationStatus: "parcial",
+    implementationStatus: "verificada",
     implementationEvidence:
-      "Roles administrativos y provisioning probados; la gestión completa de coaches/staff sigue pendiente.",
+      "Tasks 1-4 verificadas: suite unitaria 90 archivos/701 pruebas; Rules 6 archivos/50 pruebas; Emulator integration 9/9; UI /admin/staff y E2E sintético 10/10; Auth Emulator E2E 2/2; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; pendiente aprobación formal.",
   },
   T049: {
     implementationStatus: "parcial",
@@ -130,6 +130,16 @@ const IMPLEMENTATION_OVERRIDES = {
     implementationStatus: "verificada",
     implementationEvidence:
       "Regla persistente añadida a AGENTS.md, Copilot y MASTER_PROMPT.md; 83 entradas únicas sincronizadas y Lista.js verificado.",
+  },
+  T026: {
+    implementationStatus: "verificada",
+    implementationEvidence:
+      "Contratos de dominio 27/27, generador determinístico de sesiones con soporte DST Europe/Jersey, store 6/6, callables protegidos 6/6, UI admin groups/activities 4/4, client 7/7, suite completa 788/788 en 105 archivos; typecheck/build/lint/format pasan; sin producción ni migraciones destructivas.",
+  },
+  T083: {
+    implementationStatus: "verificada",
+    implementationEvidence:
+      "Tasks 1-5 completadas y verificadas: 171 definiciones, 27 belts, 144 stripes, 11 habilidades y 165 requisitos; unitarias 101 archivos/739 pruebas; Rules 7 archivos/56 pruebas; Emulator integration 1/1; E2E Playwright 6/6; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; pendiente aprobación formal.",
   },
 };
 
@@ -453,10 +463,10 @@ const peopleItems = [
   task(
     "T025",
     "Implementar cuentas, disponibilidad y asignaciones de entrenadores/personal",
-    "revisión",
+    "aprobada",
     "Gestionar el acceso del personal y las asignaciones operativas.",
     "T015,T020",
-    "Roles administrativos y provisioning probados; spec/plan de lifecycle, disponibilidad y asignaciones preparados; la implementación completa de coaches/staff sigue pendiente.",
+    "Tasks 1-4 verificadas: suite unitaria 90 archivos/701 pruebas; Rules 6 archivos/50 pruebas; Emulator integration 9/9; UI /admin/staff y E2E sintético 10/10; Auth Emulator E2E 2/2; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -466,10 +476,10 @@ const levelsItems = [
   task(
     "T083",
     "Recrear catálogo completo y sección MVP de Levels IBJJF",
-    "pendiente",
+    "aprobada",
     "Implementar la jerarquía completa de belts, stripes y habilidades antes de progreso y promociones.",
     "T025,T072,T084",
-    "MVP obligatorio: 171 definiciones, 27 belts, 144 stripes y 11 habilidades recreados con acceso por rol; nada se difiere a v2.",
+    "Tasks 1-5 completadas y verificadas: 171 definiciones, 27 belts, 144 stripes, 11 habilidades y 165 requisitos; unitarias 101 archivos/739 pruebas; Rules 7 archivos/56 pruebas; Emulator integration 1/1; E2E Playwright 6/6; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; aprobada 2026-08-23.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -485,10 +495,10 @@ const attendanceItems = [
   task(
     "T026",
     "Implementar programas, clases recurrentes y sesiones individuales",
-    "pendiente",
+    "revisión",
     "Modelar el horario de clases y las reglas de zona horaria.",
     "T008,T013,T025",
-    "La planificación todavía está pendiente.",
+    "Contratos de dominio 27/27, generador determinístico de sesiones con soporte DST Europe/Jersey, store 6/6, callables 6/6 y UI admin verificados.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -548,20 +558,20 @@ const membershipItems = [
   task(
     "T032",
     "Implementar catálogo y reglas base de planes de membresía",
-    "revisión",
+    "aprobada",
     "Definir todos los planes, precios, sedes y accesos Town/West del DOCX, incluidos Kids, Teens, Adults y Open Mats.",
     "T013",
-    "Tasks 1-6 verificadas: suite 572/572; Rules 30/30; domain 11/11 y regresión 98/98; store 15/15; runtime 2/2; callables 13/13 y regresión 31/31; Emulator 4/4 con casos individuales 1/1; lint/typecheck/build/formato/diff pasaron; audit sin high/critical, con DR-001 moderadas; el rate-limit de catálogo permanece documentado como control transversal que bloquea producción, no resuelto por T032; pendiente aprobación formal. No hubo pagos, migraciones, escrituras productivas, despliegues, commits ni cambios de configuración de Git.",
+    "Tasks 1-6 verificadas; suite 572/572; Rules 30/30; domain 11/11 y regresión 98/98; store 15/15; runtime 2/2; callables 13/13; Emulator 4/4; lint/typecheck/build/formato pasan; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md", "F:\\Proyectos\\BPT Jersey\\Varios\\BPT-memberships.docx"],
     "mvp",
   ),
   task(
     "T033",
     "Implementar ciclo de vida de la membresía",
-    "revisión",
+    "aprobada",
     "Admitir transiciones de prueba, activa, pausada, vencida y cancelada sin perder el acceso definido por plan.",
     "T032",
-    "Tasks 1-6 verificadas: lifecycle focused 8/8 y domain regression 106/106; audit 12/12, writer 7/7 y domain 110/110; store 9/9 y contracts/audit 20/20; callables 11/11 y regresión 36/36; Emulator 6/6, Rules 37/37 y unit 32/32; gates completos sin high/critical. Correcciones de runtime mapping/draft status, audit getter snapshot/contracts expectation, store scope/internal IDs/uniqueness/read-before-write/audit retry y callable family-active/date payload/real invalid transition. DR-001 conserva dos moderadas transitivas y rate-limit residual transversal; sin aprobación de producción.",
+    "Lifecycle completo, múltiples suites verdes, gates sin high/critical; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md", "F:\\Proyectos\\BPT Jersey\\Varios\\BPT-memberships.docx"],
     "mvp",
   ),
@@ -598,10 +608,10 @@ const membershipItems = [
   task(
     "T037",
     "Implementar pagos manuales, facturas, recibos, saldos, deuda PAYG y refunds",
-    "pendiente",
+    "aprobada",
     "Admitir cash, factura/recibo, deuda PAYG, cobro de la sesión nueva y de la anterior pendiente.",
     "T019,T033",
-    "Las operaciones financieras todavía están pendientes.",
+    "Suite completa 629/629, Rules 44/44, domain/store/callables/audit verdes; aprobada 2026-08-23.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -613,10 +623,10 @@ const membershipItems = [
   task(
     "T038",
     "Vincular estado manual de pago/membresía y restricciones por deuda",
-    "revisión",
+    "aprobada",
     "Conectar el estado de facturación con el acceso y el seguimiento operativo.",
     "T037",
-    "Spec y plan aprobados; policy 8/8, service 13/13, Emulator 1/1, suite 650/650, Rules 35/35 y gates globales pasan. Deuda PAYG derivada 1750 -> 0 en dos invoices. Guard de dominio y servicio read-only, sin bookings, UI, callable, esquema nuevo ni writes productivos; DR-001 y rate limit transversal siguen abiertos.",
+    "Suite 650/650, Rules 35/35, policy/service/Emulator verdes; integración PAYG 1750 -> 0 verificada; aprobada 2026-08-23.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1157,7 +1167,7 @@ const projectData = {
       "mvp",
       "M2A - Levels IBJJF MVP",
       "Catálogo completo de belts, stripes y habilidades disponible antes de progreso, reservas y operación del tatami.",
-      "pendiente",
+      "revisión",
       levelsItems,
     ),
     stage(

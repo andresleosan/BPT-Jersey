@@ -12,6 +12,9 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/migration/regyfit-access": "../../domain/migration/regyfit-access.js",
   "@bpt-jersey/domain/families": "../../domain/families/family-contracts.js",
   "@bpt-jersey/domain/finance": "../../domain/finance/finance-contracts.js",
+  "@bpt-jersey/domain/staff": "../../domain/staff/staff-contracts.js",
+  "@bpt-jersey/domain/levels": "../../domain/levels/level-contracts.js",
+  "@bpt-jersey/domain/schedule": "../../domain/schedule/schedule-contracts.js",
 });
 
 async function runtimeFiles(directory: string): Promise<readonly string[]> {

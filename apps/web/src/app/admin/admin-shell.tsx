@@ -22,6 +22,8 @@ const navigationItems = [
   { label: "CRM", href: "/admin/crm" },
   { label: "Finance", href: "/admin/finance" },
   { label: "Regyfit Access Records", href: "/admin/regyfit-access-records" },
+  { label: "Staff", href: "/admin/staff" },
+  { label: "Levels", href: "/admin/levels" },
 ] as const;
 
 export function AdminShell({
@@ -38,6 +40,7 @@ export function AdminShell({
   const [navigationOpen, setNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const navigationRef = useRef<HTMLDivElement>(null);
   const navigationInitializedRef = useRef(false);
 
   function isCurrentRoute(href: string): boolean {
@@ -72,6 +75,42 @@ export function AdminShell({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [navigationOpen]);
+
+  function handleNavigationKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== "Tab") return;
+
+    const focusableElements = Array.from(
+      navigationRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    );
+    if (focusableElements.length === 0) return;
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    if (!firstElement || !lastElement) return;
+    if (event.shiftKey && document.activeElement === firstElement) {
+      event.preventDefault();
+      lastElement.focus();
+    } else if (!event.shiftKey && document.activeElement === lastElement) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+  }
+
+  useEffect(() => {
+    if (!navigationOpen) return;
+
+    function keepFocusInsideNavigation(event: FocusEvent): void {
+      const target = event.target;
+      if (target instanceof Node && !navigationRef.current?.contains(target)) {
+        closeButtonRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("focusin", keepFocusInsideNavigation);
+    return () => document.removeEventListener("focusin", keepFocusInsideNavigation);
   }, [navigationOpen]);
 
   function renderNavigation(className: string) {
@@ -179,6 +218,8 @@ export function AdminShell({
                 aria-modal="true"
                 className="admin-mobile-navigation"
                 id="admin-mobile-navigation"
+                onKeyDown={handleNavigationKeyDown}
+                ref={navigationRef}
                 role="dialog"
               >
                 <div className="admin-mobile-navigation-header">

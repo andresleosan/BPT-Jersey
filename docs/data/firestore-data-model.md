@@ -522,6 +522,15 @@ widens the projection.
 - Export records preserve purpose, scope, classification, recipient, expiry,
   status, and audit correlation. An export is not a new canonical source.
 
+## Levels catalog (T083)
+
+`levelSystems`, `levelDefinitions`, and `levelRequirements` are `Internal` reference collections at:
+- `academies/{academyId}/levelSystems/{systemId}`: Published system summary, metadata, precedence, source hash, and embedded skill catalog (11 skills).
+- `academies/{academyId}/levelDefinitions/{definitionKey}`: 171 immutable definitions (27 belts, 144 stripes) with merged DOCX criteria, observed criteria, visuals, and anomaly flags.
+- `academies/{academyId}/levelRequirements/{requirementKey}`: 165 technique requirements linked to definition keys and skills.
+
+The non-production seed (`apps/functions/scripts/seed-levels.mjs`) is the only writer. Direct client reads and writes are denied by default. The callable `listLevelCatalog` provides authenticated read access. Rollback deletes all documents belonging to a selected `systemId` in non-production environments.
+
 ## Versioning, migration, and rollback boundary
 
 This task publishes a contract only. It does not create collections, add

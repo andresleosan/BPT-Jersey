@@ -1,0 +1,528 @@
+import type { ValidationIssue } from "../errors";
+import { err, ok, type Result } from "../result";
+
+export const levelDefinitionKinds = Object.freeze(["belt", "stripe"] as const);
+export type LevelDefinitionKind = (typeof levelDefinitionKinds)[number];
+
+export const levelRequirementInheritanceModes = Object.freeze([
+  "inherit",
+  "replace",
+  "none",
+] as const);
+export type LevelRequirementInheritanceMode = (typeof levelRequirementInheritanceModes)[number];
+
+export type LevelCriteria = Readonly<{
+  minAge: number | null;
+  maxAge: number | null;
+  minClasses: number | null;
+  minimumTime: Readonly<{
+    years: number;
+    months: number;
+    days: number;
+  }> | null;
+}>;
+
+export type LevelVisual = Readonly<{
+  colorMode: number;
+  colors: readonly string[];
+  stripeColor: string | null;
+  stripeCenter: number | null;
+  stripeWidth: number | null;
+  stripePosition: number | null;
+}>;
+
+export type SkillDefinition = Readonly<{
+  key: string;
+  displayLabel: string;
+  observedLabel: string | null;
+  minimumRating: number;
+  sequence: number;
+}>;
+
+export type LevelSystemRecord = Readonly<{
+  systemId: string;
+  displayName: string;
+  schemaVersion: 1;
+  precedence: Readonly<{
+    businessRules: string;
+    hierarchyVisualsAndObservedSkills: string;
+    conflicts: string;
+  }>;
+  counts: Readonly<{
+    definitions: number;
+    belts: number;
+    stripes: number;
+  }>;
+  skillCatalog: readonly SkillDefinition[];
+}>;
+
+export type LevelDefinitionRecord = Readonly<{
+  definitionKey: string;
+  systemId: string;
+  kind: LevelDefinitionKind;
+  parentDefinitionKey: string | null;
+  name: string;
+  sequence: number;
+  stripeNumber: number | null;
+  criteria: LevelCriteria;
+  observedCriteria: LevelCriteria;
+  visual: LevelVisual;
+  observedSkillRequirementSetKey: string | null;
+  observedSkillRequirementsState: string;
+  anomalyFlags: readonly string[];
+  schemaVersion: 1;
+}>;
+
+export type LevelRequirementRecord = Readonly<{
+  requirementKey: string;
+  systemId: string;
+  definitionKey: string;
+  skillKey: string;
+  minimumRating: number;
+  inheritance: LevelRequirementInheritanceMode;
+  schemaVersion: 1;
+}>;
+
+export type CanonicalLevelCatalog = Readonly<{
+  system: LevelSystemRecord;
+  definitions: readonly LevelDefinitionRecord[];
+  skills: readonly SkillDefinition[];
+  requirements: readonly LevelRequirementRecord[];
+}>;
+
+export type LevelCatalogProjection = Readonly<{
+  system: LevelSystemRecord;
+  definitions: readonly LevelDefinitionRecord[];
+  skills: readonly SkillDefinition[];
+  requirements: readonly LevelRequirementRecord[];
+  sourceHash: string;
+}>;
+
+const hexColorPattern = /^#[0-9a-fA-F]{6}$/u;
+const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+
+function issue(path: readonly (string | number)[], code: string): ValidationIssue {
+  return { path, code };
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function parseCriteria(
+  value: unknown,
+  path: readonly (string | number)[],
+  issues: ValidationIssue[],
+): LevelCriteria | null {
+  if (!isPlainRecord(value)) {
+    issues.push(issue(path, "invalid_criteria_object"));
+    return null;
+  }
+
+  const { minAge, maxAge, minClasses, minimumTime } = value;
+
+  if (minAge !== null && (typeof minAge !== "number" || minAge < 0 || !Number.isInteger(minAge))) {
+    issues.push(issue([...path, "minAge"], "invalid_min_age"));
+  }
+  if (maxAge !== null && (typeof maxAge !== "number" || maxAge < 0 || !Number.isInteger(maxAge))) {
+    issues.push(issue([...path, "maxAge"], "invalid_max_age"));
+  }
+  if (
+    minClasses !== null &&
+    (typeof minClasses !== "number" || minClasses < 0 || !Number.isInteger(minClasses))
+  ) {
+    issues.push(issue([...path, "minClasses"], "invalid_min_classes"));
+  }
+
+  let parsedTime: { years: number; months: number; days: number } | null = null;
+  if (minimumTime !== null && minimumTime !== undefined) {
+    if (!isPlainRecord(minimumTime)) {
+      issues.push(issue([...path, "minimumTime"], "invalid_minimum_time"));
+    } else {
+      const { years, months, days } = minimumTime;
+      if (
+        typeof years !== "number" ||
+        years < 0 ||
+        !Number.isInteger(years) ||
+        typeof months !== "number" ||
+        months < 0 ||
+        !Number.isInteger(months) ||
+        typeof days !== "number" ||
+        days < 0 ||
+        !Number.isInteger(days)
+      ) {
+        issues.push(issue([...path, "minimumTime"], "invalid_minimum_time_values"));
+      } else {
+        parsedTime = Object.freeze({ years, months, days });
+      }
+    }
+  }
+
+  return Object.freeze({
+    minAge: typeof minAge === "number" ? minAge : null,
+    maxAge: typeof maxAge === "number" ? maxAge : null,
+    minClasses: typeof minClasses === "number" ? minClasses : null,
+    minimumTime: parsedTime,
+  });
+}
+
+function parseVisual(
+  value: unknown,
+  path: readonly (string | number)[],
+  issues: ValidationIssue[],
+): LevelVisual | null {
+  if (!isPlainRecord(value)) {
+    issues.push(issue(path, "invalid_visual_object"));
+    return null;
+  }
+
+  const { colorMode, colors, stripeColor, stripeCenter, stripeWidth, stripePosition } = value;
+
+  if (typeof colorMode !== "number" || !Number.isInteger(colorMode)) {
+    issues.push(issue([...path, "colorMode"], "invalid_color_mode"));
+  }
+
+  if (!Array.isArray(colors) || colors.length === 0) {
+    issues.push(issue([...path, "colors"], "invalid_colors_array"));
+  } else {
+    for (let i = 0; i < colors.length; i++) {
+      const c = colors[i];
+      if (typeof c !== "string" || !hexColorPattern.test(c)) {
+        issues.push(issue([...path, "colors", i], "invalid_hex_color"));
+      }
+    }
+  }
+
+  if (
+    stripeColor !== null &&
+    stripeColor !== undefined &&
+    (typeof stripeColor !== "string" || !hexColorPattern.test(stripeColor))
+  ) {
+    issues.push(issue([...path, "stripeColor"], "invalid_stripe_color"));
+  }
+
+  return Object.freeze({
+    colorMode: typeof colorMode === "number" ? colorMode : 1,
+    colors: Object.freeze(Array.isArray(colors) ? [...colors] : []),
+    stripeColor: typeof stripeColor === "string" ? stripeColor : null,
+    stripeCenter: typeof stripeCenter === "number" ? stripeCenter : null,
+    stripeWidth: typeof stripeWidth === "number" ? stripeWidth : null,
+    stripePosition: typeof stripePosition === "number" ? stripePosition : null,
+  });
+}
+
+export function parseLevelCatalogSource(
+  observedInput: unknown,
+  businessInput: unknown,
+): Result<CanonicalLevelCatalog, readonly ValidationIssue[]> {
+  const issues: ValidationIssue[] = [];
+
+  if (!isPlainRecord(observedInput)) {
+    return err([issue(["observed"], "invalid_observed_source")]);
+  }
+  if (!isPlainRecord(businessInput)) {
+    return err([issue(["business"], "invalid_business_source")]);
+  }
+
+  if (observedInput.schemaVersion !== 1) {
+    issues.push(issue(["observed", "schemaVersion"], "unsupported_schema_version"));
+  }
+  if (businessInput.schemaVersion !== 1) {
+    issues.push(issue(["business", "schemaVersion"], "unsupported_schema_version"));
+  }
+
+  const businessLevels = isPlainRecord(businessInput.levels) ? businessInput.levels : null;
+  if (!businessLevels) {
+    issues.push(issue(["business", "levels"], "missing_business_levels"));
+    return err(issues);
+  }
+
+  const observedSkills = Array.isArray(observedInput.skillCatalog)
+    ? observedInput.skillCatalog
+    : [];
+  const parsedSkills: SkillDefinition[] = [];
+  const seenSkillKeys = new Set<string>();
+
+  for (let i = 0; i < observedSkills.length; i++) {
+    const s = observedSkills[i];
+    if (!isPlainRecord(s)) {
+      issues.push(issue(["observed", "skillCatalog", i], "invalid_skill_object"));
+      continue;
+    }
+    const { key, displayLabel, observedLabel, minimumRating, sequence } = s;
+    if (typeof key !== "string" || !identifierPattern.test(key) || seenSkillKeys.has(key)) {
+      issues.push(issue(["observed", "skillCatalog", i, "key"], "invalid_or_duplicate_skill_key"));
+    } else {
+      seenSkillKeys.add(key);
+    }
+    if (typeof displayLabel !== "string" || displayLabel.length === 0) {
+      issues.push(issue(["observed", "skillCatalog", i, "displayLabel"], "invalid_display_label"));
+    }
+    if (
+      typeof minimumRating !== "number" ||
+      !Number.isInteger(minimumRating) ||
+      minimumRating < 1 ||
+      minimumRating > 5
+    ) {
+      issues.push(issue(["observed", "skillCatalog", i, "minimumRating"], "invalid_skill_rating"));
+    }
+    if (typeof sequence !== "number" || !Number.isInteger(sequence) || sequence < 1) {
+      issues.push(issue(["observed", "skillCatalog", i, "sequence"], "invalid_sequence"));
+    }
+
+    parsedSkills.push(
+      Object.freeze({
+        key: typeof key === "string" ? key : "",
+        displayLabel: typeof displayLabel === "string" ? displayLabel : "",
+        observedLabel: typeof observedLabel === "string" ? observedLabel : null,
+        minimumRating: typeof minimumRating === "number" ? minimumRating : 3,
+        sequence: typeof sequence === "number" ? sequence : i + 1,
+      }),
+    );
+  }
+
+  if (parsedSkills.length !== 11) {
+    issues.push(issue(["observed", "skillCatalog"], "expected_11_skills"));
+  }
+
+  const systemId = "ibjjf-v1";
+  const observedLevels = Array.isArray(observedInput.levels) ? observedInput.levels : [];
+  const parsedDefinitions: LevelDefinitionRecord[] = [];
+  const levelKeys = new Set<string>();
+
+  for (let i = 0; i < observedLevels.length; i++) {
+    const l = observedLevels[i];
+    if (!isPlainRecord(l)) {
+      issues.push(issue(["observed", "levels", i], "invalid_level_object"));
+      continue;
+    }
+
+    const {
+      key,
+      parentKey,
+      kind,
+      name,
+      sequence,
+      stripeNumber,
+      observedCriteria,
+      visual,
+      observedSkillRequirementSetKey,
+      observedSkillRequirementsState,
+      anomalyFlags,
+    } = l;
+
+    if (typeof key !== "string" || !identifierPattern.test(key) || levelKeys.has(key)) {
+      issues.push(issue(["observed", "levels", i, "key"], "invalid_or_duplicate_level_key"));
+    } else {
+      levelKeys.add(key);
+    }
+
+    if (!levelDefinitionKinds.includes(kind as LevelDefinitionKind)) {
+      issues.push(issue(["observed", "levels", i, "kind"], "invalid_level_kind"));
+    }
+
+    if (typeof name !== "string" || name.length === 0) {
+      issues.push(issue(["observed", "levels", i, "name"], "invalid_level_name"));
+    }
+
+    if (typeof sequence !== "number" || sequence < 1 || !Number.isInteger(sequence)) {
+      issues.push(issue(["observed", "levels", i, "sequence"], "invalid_level_sequence"));
+    }
+
+    const parsedObservedCriteria = parseCriteria(
+      observedCriteria,
+      ["observed", "levels", i, "observedCriteria"],
+      issues,
+    );
+    const businessCriteriaRaw = typeof key === "string" ? businessLevels[key] : undefined;
+    if (!businessCriteriaRaw) {
+      issues.push(
+        issue(["business", "levels", key as string], "missing_business_criteria_for_level"),
+      );
+    }
+    const parsedBusinessCriteria = parseCriteria(
+      businessCriteriaRaw,
+      ["business", "levels", key as string],
+      issues,
+    );
+    const parsedVisual = parseVisual(visual, ["observed", "levels", i, "visual"], issues);
+
+    parsedDefinitions.push(
+      Object.freeze({
+        definitionKey: typeof key === "string" ? key : "",
+        systemId,
+        kind: kind as LevelDefinitionKind,
+        parentDefinitionKey: typeof parentKey === "string" ? parentKey : null,
+        name: typeof name === "string" ? name : "",
+        sequence: typeof sequence === "number" ? sequence : i + 1,
+        stripeNumber: typeof stripeNumber === "number" ? stripeNumber : null,
+        criteria: parsedBusinessCriteria ??
+          parsedObservedCriteria ?? {
+            minAge: null,
+            maxAge: null,
+            minClasses: null,
+            minimumTime: null,
+          },
+        observedCriteria: parsedObservedCriteria ?? {
+          minAge: null,
+          maxAge: null,
+          minClasses: null,
+          minimumTime: null,
+        },
+        visual: parsedVisual ?? {
+          colorMode: 1,
+          colors: ["#ffffff"],
+          stripeColor: null,
+          stripeCenter: null,
+          stripeWidth: null,
+          stripePosition: null,
+        },
+        observedSkillRequirementSetKey:
+          typeof observedSkillRequirementSetKey === "string"
+            ? observedSkillRequirementSetKey
+            : null,
+        observedSkillRequirementsState:
+          typeof observedSkillRequirementsState === "string"
+            ? observedSkillRequirementsState
+            : "none",
+        anomalyFlags: Object.freeze(
+          Array.isArray(anomalyFlags)
+            ? anomalyFlags.filter((f): f is string => typeof f === "string")
+            : [],
+        ),
+        schemaVersion: 1,
+      }),
+    );
+  }
+
+  // Validate parentKey references
+  for (let i = 0; i < parsedDefinitions.length; i++) {
+    const def = parsedDefinitions[i];
+    if (def && def.parentDefinitionKey !== null && !levelKeys.has(def.parentDefinitionKey)) {
+      issues.push(issue(["observed", "levels", i, "parentKey"], "orphan_parent_key"));
+    }
+  }
+
+  if (parsedDefinitions.length !== 171) {
+    issues.push(issue(["observed", "levels"], "expected_171_definitions"));
+  }
+
+  const belts = parsedDefinitions.filter((d) => d.kind === "belt");
+  const stripes = parsedDefinitions.filter((d) => d.kind === "stripe");
+  if (belts.length !== 27) issues.push(issue(["observed", "levels"], "expected_27_belts"));
+  if (stripes.length !== 144) issues.push(issue(["observed", "levels"], "expected_144_stripes"));
+
+  // Build requirements from skillRequirementSets
+  const skillRequirementSets = Array.isArray(observedInput.skillRequirementSets)
+    ? observedInput.skillRequirementSets
+    : [];
+  const reqSetsMap = new Map<string, readonly { skillKey: string; minimumRating: number }[]>();
+  for (const set of skillRequirementSets) {
+    if (isPlainRecord(set) && typeof set.key === "string" && Array.isArray(set.requirements)) {
+      const validReqs = set.requirements.filter(isPlainRecord).map((r) => ({
+        skillKey: String(r.skillKey),
+        minimumRating: Number(r.minimumRating),
+      }));
+      reqSetsMap.set(set.key, validReqs);
+    }
+  }
+
+  const parsedRequirements: LevelRequirementRecord[] = [];
+  for (const def of parsedDefinitions) {
+    if (def.observedSkillRequirementSetKey && reqSetsMap.has(def.observedSkillRequirementSetKey)) {
+      const reqs = reqSetsMap.get(def.observedSkillRequirementSetKey);
+      if (reqs) {
+        for (const r of reqs) {
+          parsedRequirements.push(
+            Object.freeze({
+              requirementKey: `${def.definitionKey}__${r.skillKey}`,
+              systemId,
+              definitionKey: def.definitionKey,
+              skillKey: r.skillKey,
+              minimumRating: r.minimumRating,
+              inheritance: "inherit",
+              schemaVersion: 1,
+            }),
+          );
+        }
+      }
+    }
+  }
+
+  if (issues.length > 0) {
+    return err(Object.freeze(issues));
+  }
+
+  const systemRecord: LevelSystemRecord = Object.freeze({
+    systemId,
+    displayName: "JIU-JITSU - IBJJF",
+    schemaVersion: 1,
+    precedence: Object.freeze({
+      businessRules: "BPTJ FUNCTIONS APP.docx and BPT-memberships.docx",
+      hierarchyVisualsAndObservedSkills: "Regyfit",
+      conflicts: "DOCX wins; unresolved Regyfit anomalies remain flagged",
+    }),
+    counts: Object.freeze({
+      definitions: parsedDefinitions.length,
+      belts: belts.length,
+      stripes: stripes.length,
+    }),
+    skillCatalog: Object.freeze(parsedSkills),
+  });
+
+  return ok(
+    Object.freeze({
+      system: systemRecord,
+      definitions: Object.freeze(parsedDefinitions),
+      skills: Object.freeze(parsedSkills),
+      requirements: Object.freeze(parsedRequirements),
+    }),
+  );
+}
+
+export function parseLevelCatalogProjection(
+  input: unknown,
+): Result<LevelCatalogProjection, readonly ValidationIssue[]> {
+  const issues: ValidationIssue[] = [];
+
+  if (!isPlainRecord(input)) {
+    return err([issue(["projection"], "invalid_projection_object")]);
+  }
+
+  const { system, definitions, skills, requirements, sourceHash } = input;
+
+  if (!isPlainRecord(system)) {
+    issues.push(issue(["projection", "system"], "invalid_system"));
+  }
+  if (!Array.isArray(definitions) || definitions.length !== 171) {
+    issues.push(issue(["projection", "definitions"], "expected_171_definitions"));
+  }
+  if (!Array.isArray(skills) || skills.length !== 11) {
+    issues.push(issue(["projection", "skills"], "expected_11_skills"));
+  }
+  if (!Array.isArray(requirements) || requirements.length !== 165) {
+    issues.push(issue(["projection", "requirements"], "expected_165_requirements"));
+  }
+  if (typeof sourceHash !== "string" || sourceHash.length === 0) {
+    issues.push(issue(["projection", "sourceHash"], "invalid_source_hash"));
+  }
+
+  if (issues.length > 0) {
+    return err(Object.freeze(issues));
+  }
+
+  return ok(
+    Object.freeze({
+      system: Object.freeze(system as LevelSystemRecord),
+      definitions: Object.freeze([...(definitions as readonly LevelDefinitionRecord[])]),
+      skills: Object.freeze([...(skills as readonly SkillDefinition[])]),
+      requirements: Object.freeze([...(requirements as readonly LevelRequirementRecord[])]),
+      sourceHash: sourceHash as string,
+    }),
+  );
+}

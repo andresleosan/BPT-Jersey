@@ -1433,7 +1433,7 @@
 
   .admin-mobile-menu-button:focus-visible,
   .admin-mobile-close-button:focus-visible {
-    outline: 3px solid var(--bpt-purple);
+    outline: 3px solid var(--gi-white);
     outline-offset: 3px;
   }
 
@@ -1881,6 +1881,201 @@
   flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 1rem;
+}
+
+.staff-admin-page {
+  max-width: 70rem;
+}
+
+.staff-message {
+  background: var(--gi-white);
+  border-left: 0.3rem solid var(--bpt-purple);
+  margin: 0;
+  padding: 0.8rem 1rem;
+}
+
+.staff-message-error {
+  background: #fff3f3;
+  border-left-color: #9c1c1c;
+  color: #6f1111;
+}
+
+.staff-message-success {
+  border-left-color: var(--bpt-lime);
+}
+
+.staff-card {
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  min-width: 0;
+  padding: clamp(1.15rem, 3vw, 2rem);
+}
+
+.staff-card h3,
+.staff-card h4,
+.staff-selected-panel > h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  line-height: 0.9;
+  margin: 0.55rem 0 1.25rem;
+  text-transform: uppercase;
+}
+
+.staff-card h3,
+.staff-selected-panel > h3 {
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+}
+
+.staff-card h4 {
+  font-size: 1.7rem;
+}
+
+.staff-create-form,
+.staff-selected-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.staff-create-form {
+  margin-top: 1.5rem;
+}
+
+.staff-selected-panel {
+  margin-top: 1.5rem;
+}
+
+.staff-selected-panel > h3 {
+  margin-top: 0;
+}
+
+.staff-form-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.staff-operation-card {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.staff-operation-card h4,
+.staff-operation-card .staff-form-grid {
+  flex-basis: 100%;
+}
+
+.staff-field {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.4rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.staff-field input,
+.staff-field select {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  letter-spacing: normal;
+  min-height: 2.9rem;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  text-transform: none;
+  width: 100%;
+}
+
+.staff-field input:focus-visible,
+.staff-field select:focus-visible,
+.staff-row-action:focus-visible,
+.staff-primary-button:focus-visible,
+.staff-secondary-button:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.staff-row-action {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--bpt-purple-dark);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 0.35rem 0.45rem;
+  text-align: left;
+}
+
+.staff-row-action:hover,
+.staff-row-action[aria-pressed="true"] {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.staff-primary-button,
+.staff-secondary-button {
+  border: 1px solid var(--bpt-purple);
+  border-radius: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.staff-primary-button {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+  justify-self: start;
+}
+
+.staff-secondary-button {
+  background: transparent;
+  color: var(--bpt-purple-dark);
+}
+
+.staff-primary-button:hover,
+.staff-secondary-button:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.staff-primary-button:disabled,
+.staff-secondary-button:disabled,
+.staff-row-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 42rem) {
+  .staff-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-operation-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .staff-operation-card .staff-secondary-button {
+    align-self: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-admin-page *,
+  .staff-admin-page *::before,
+  .staff-admin-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @media (max-width: 42rem) {

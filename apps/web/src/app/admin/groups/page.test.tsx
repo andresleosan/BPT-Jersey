@@ -1,6 +1,22 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
 import { GroupsPage } from "./page";
+
+vi.mock("../../../lib/schedule-client", () => ({
+  listClasses: vi.fn().mockResolvedValue([]),
+  saveClass: vi.fn().mockResolvedValue({
+    classId: "class-new",
+    name: "New Group",
+    programId: "adult-fundamentals",
+    locationId: "town",
+    recurrenceRule: { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+    instructorIds: ["coach-1"],
+    capacity: 25,
+    minParticipants: 4,
+    active: true,
+  }),
+}));
 
 describe("groups page", () => {
   it("renders groups with program, coach, capacity, and filters", () => {
@@ -9,5 +25,14 @@ describe("groups page", () => {
     expect(screen.getByLabelText("Program")).toBeVisible();
     expect(screen.getByLabelText("Coach")).toBeVisible();
     expect(screen.getByRole("table", { name: "Groups and teams" })).toBeVisible();
+  });
+
+  it("opens create group modal on button click", () => {
+    render(<GroupsPage />);
+    const buttons = screen.getAllByRole("button", { name: "Create group" });
+    fireEvent.click(buttons[0]!);
+    expect(screen.getByRole("heading", { name: "Create New Training Group" })).toBeVisible();
+    expect(screen.getByLabelText("Group Name")).toBeVisible();
+    expect(screen.getByLabelText("Capacity")).toBeVisible();
   });
 });

@@ -25,6 +25,14 @@ export {
 export { getClientProfile, saveClientProfile } from "./profiles/profile-callables.js";
 export { createFamily, getFamily, updateFamily } from "./families/family-callables.js";
 export {
+  createStaffProfile,
+  listStaffProfiles,
+  replaceStaffAssignments,
+  replaceStaffAvailability,
+  setStaffActive,
+  updateStaffProfile,
+} from "./staff/staff-callables.js";
+export {
   activatePlan,
   deactivatePlan,
   getPlan,
@@ -45,3 +53,14 @@ export {
   recordManualPayment,
   voidManualInvoice,
 } from "./finance/finance-callables.js";
+export { listLevelCatalog } from "./levels/level-callables.js";
+export {
+  cancelSession,
+  generateSessions,
+  listClasses,
+  listScheduleCatalog,
+  listSessions,
+  saveClass,
+  saveProgram,
+  saveSession,
+} from "./schedule/schedule-callables.js";

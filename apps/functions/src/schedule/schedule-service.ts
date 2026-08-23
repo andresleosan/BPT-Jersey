@@ -1,0 +1,748 @@
+import {
+  generateSessionsFromClass,
+  type ClassRecord,
+  type CreateClassInput,
+  type CreateProgramInput,
+  type CreateSessionInput,
+  type ListSessionsQuery,
+  type LocationRecord,
+  type ProgramRecord,
+  type SessionRecord,
+  type UpdateClassInput,
+} from "@bpt-jersey/domain/schedule";
+
+export const defaultLocations: readonly LocationRecord[] = Object.freeze([
+  {
+    locationId: "town",
+    academyId: "default",
+    name: "BPT Town",
+    address: "St Helier, Jersey",
+    timezone: "Europe/Jersey",
+    active: true,
+    schemaVersion: "1",
+  },
+  {
+    locationId: "west",
+    academyId: "default",
+    name: "BPT West",
+    address: "St Peter, Jersey",
+    timezone: "Europe/Jersey",
+    active: true,
+    schemaVersion: "1",
+  },
+]);
+
+export const defaultPrograms: readonly ProgramRecord[] = Object.freeze([
+  {
+    programId: "kids-bjj-4-7",
+    academyId: "default",
+    name: "Kids BJJ (4-7 yrs)",
+    ageBand: "kids",
+    discipline: "bjj",
+    level: "all-levels",
+    active: true,
+    schemaVersion: "1",
+  },
+  {
+    programId: "kids-bjj-8-11",
+    academyId: "default",
+    name: "Kids BJJ (8-11 yrs)",
+    ageBand: "kids",
+    discipline: "bjj",
+    level: "all-levels",
+    active: true,
+    schemaVersion: "1",
+  },
+  {
+    programId: "teens-bjj",
+    academyId: "default",
+    name: "Teens BJJ (12-15 yrs)",
+    ageBand: "teens",
+    discipline: "bjj",
+    level: "all-levels",
+    active: true,
+    schemaVersion: "1",
+  },
+  {
+    programId: "adult-fundamentals",
+    academyId: "default",
+    name: "Adult BJJ Fundamentals",
+    ageBand: "adult",
+    discipline: "bjj",
+    level: "fundamentals",
+    active: true,
+    schemaVersion: "1",
+  },
+  {
+    programId: "adult-advanced",
+    academyId: "default",
+    name: "Adult BJJ Advanced",
+    ageBand: "adult",
+    discipline: "bjj",
+    level: "advanced",
+    active: true,
+    schemaVersion: "1",
+  },
+  {
+    programId: "open-mat",
+    academyId: "default",
+    name: "Open Mat",
+    ageBand: "all",
+    discipline: "open-mat",
+    level: "all-levels",
+    active: true,
+    schemaVersion: "1",
+  },
+  {
+    programId: "seminar",
+    academyId: "default",
+    name: "Special Seminar / Workshop",
+    ageBand: "all",
+    discipline: "bjj",
+    level: "all-levels",
+    active: true,
+    schemaVersion: "1",
+  },
+]);
+
+export type ScheduleStore = Readonly<{
+  listLocations: (academyId: string) => Promise<readonly LocationRecord[]>;
+  listPrograms: (academyId: string) => Promise<readonly ProgramRecord[]>;
+  createProgram: (academyId: string, input: CreateProgramInput) => Promise<ProgramRecord>;
+  updateProgram: (
+    academyId: string,
+    programId: string,
+    input: Partial<CreateProgramInput & { active: boolean }>,
+  ) => Promise<ProgramRecord>;
+  listClasses: (academyId: string) => Promise<readonly ClassRecord[]>;
+  getClass: (academyId: string, classId: string) => Promise<ClassRecord | null>;
+  createClass: (
+    academyId: string,
+    input: CreateClassInput,
+    actorId: string,
+  ) => Promise<ClassRecord>;
+  updateClass: (
+    academyId: string,
+    input: UpdateClassInput,
+    actorId: string,
+  ) => Promise<ClassRecord>;
+  generateSessions: (
+    academyId: string,
+    classId: string,
+    fromDate: string,
+    toDate: string,
+    timezone: string,
+    actorId: string,
+  ) => Promise<readonly SessionRecord[]>;
+  listSessions: (academyId: string, query: ListSessionsQuery) => Promise<readonly SessionRecord[]>;
+  getSession: (academyId: string, sessionId: string) => Promise<SessionRecord | null>;
+  createSession: (
+    academyId: string,
+    input: CreateSessionInput,
+    actorId: string,
+  ) => Promise<SessionRecord>;
+  cancelSession: (
+    academyId: string,
+    sessionId: string,
+    reason: string,
+    actorId: string,
+  ) => Promise<SessionRecord>;
+}>;
+
+type GenericFirestore = {
+  collection: (path: string) => {
+    doc: (id?: string) => {
+      id: string;
+      get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>;
+      set: (data: unknown) => Promise<unknown>;
+      update: (data: unknown) => Promise<unknown>;
+    };
+    get: () => Promise<{
+      docs: Array<{
+        id: string;
+        data: () => Record<string, unknown>;
+      }>;
+    }>;
+    where: (
+      field: string,
+      op: string,
+      val: unknown,
+    ) => {
+      get: () => Promise<{
+        docs: Array<{
+          id: string;
+          data: () => Record<string, unknown>;
+        }>;
+      }>;
+    };
+  };
+};
+
+export function createFirestoreScheduleStore(options: {
+  firestore: GenericFirestore;
+}): ScheduleStore {
+  const { firestore } = options;
+
+  return {
+    async listLocations(academyId: string): Promise<readonly LocationRecord[]> {
+      const snapshot = await firestore.collection(`academies/${academyId}/locations`).get();
+
+      if (snapshot.docs.length === 0) {
+        return defaultLocations.map((loc) => ({ ...loc, academyId }));
+      }
+
+      return snapshot.docs.map((doc) => doc.data() as LocationRecord);
+    },
+
+    async listPrograms(academyId: string): Promise<readonly ProgramRecord[]> {
+      const snapshot = await firestore.collection(`academies/${academyId}/programs`).get();
+
+      if (snapshot.docs.length === 0) {
+        return defaultPrograms.map((prog) => ({ ...prog, academyId }));
+      }
+
+      return snapshot.docs.map((doc) => doc.data() as ProgramRecord);
+    },
+
+    async createProgram(academyId: string, input: CreateProgramInput): Promise<ProgramRecord> {
+      const docRef = firestore.collection(`academies/${academyId}/programs`).doc();
+      const programId = docRef.id;
+
+      const record: ProgramRecord = Object.freeze({
+        programId,
+        academyId,
+        name: input.name,
+        ageBand: input.ageBand,
+        discipline: input.discipline,
+        level: input.level,
+        active: true,
+        schemaVersion: "1",
+      });
+
+      await docRef.set(record);
+      return record;
+    },
+
+    async updateProgram(
+      academyId: string,
+      programId: string,
+      input: Partial<CreateProgramInput & { active: boolean }>,
+    ): Promise<ProgramRecord> {
+      const docRef = firestore.collection(`academies/${academyId}/programs`).doc(programId);
+      const existing = await docRef.get();
+
+      if (!existing.exists) {
+        throw new Error(`Program ${programId} does not exist`);
+      }
+
+      const current = existing.data() as ProgramRecord;
+      const updated: ProgramRecord = Object.freeze({
+        ...current,
+        name: input.name ?? current.name,
+        ageBand: input.ageBand ?? current.ageBand,
+        discipline: input.discipline ?? current.discipline,
+        level: input.level ?? current.level,
+        active: input.active ?? current.active,
+      });
+
+      await docRef.set(updated);
+      return updated;
+    },
+
+    async listClasses(academyId: string): Promise<readonly ClassRecord[]> {
+      const snapshot = await firestore.collection(`academies/${academyId}/classes`).get();
+
+      return snapshot.docs.map((doc) => doc.data() as ClassRecord);
+    },
+
+    async getClass(academyId: string, classId: string): Promise<ClassRecord | null> {
+      const doc = await firestore.collection(`academies/${academyId}/classes`).doc(classId).get();
+
+      if (!doc.exists) return null;
+      return (doc.data() as ClassRecord) ?? null;
+    },
+
+    async createClass(
+      academyId: string,
+      input: CreateClassInput,
+      actorId: string,
+    ): Promise<ClassRecord> {
+      const now = new Date().toISOString();
+      const docRef = firestore.collection(`academies/${academyId}/classes`).doc();
+      const classId = docRef.id;
+
+      const record: ClassRecord = Object.freeze({
+        classId,
+        academyId,
+        programId: input.programId,
+        locationId: input.locationId,
+        name: input.name,
+        recurrenceRule: input.recurrenceRule,
+        instructorIds: input.instructorIds,
+        capacity: input.capacity,
+        minParticipants: input.minParticipants ?? 4,
+        active: true,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      await docRef.set(record);
+      return record;
+    },
+
+    async updateClass(
+      academyId: string,
+      input: UpdateClassInput,
+      actorId: string,
+    ): Promise<ClassRecord> {
+      const docRef = firestore.collection(`academies/${academyId}/classes`).doc(input.classId);
+      const existing = await docRef.get();
+
+      if (!existing.exists) {
+        throw new Error(`Class ${input.classId} does not exist`);
+      }
+
+      const current = existing.data() as ClassRecord;
+      const now = new Date().toISOString();
+
+      const updated: ClassRecord = Object.freeze({
+        ...current,
+        name: input.name ?? current.name,
+        instructorIds: input.instructorIds ?? current.instructorIds,
+        capacity: input.capacity ?? current.capacity,
+        minParticipants: input.minParticipants ?? current.minParticipants,
+        active: input.active ?? current.active,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      await docRef.set(updated);
+      return updated;
+    },
+
+    async generateSessions(
+      academyId: string,
+      classId: string,
+      fromDate: string,
+      toDate: string,
+      timezone: string,
+      actorId: string,
+    ): Promise<readonly SessionRecord[]> {
+      const docRef = firestore.collection(`academies/${academyId}/classes`).doc(classId);
+      const existing = await docRef.get();
+
+      if (!existing.exists) {
+        throw new Error(`Class ${classId} does not exist`);
+      }
+
+      const cls = existing.data() as ClassRecord;
+      const drafts = generateSessionsFromClass(cls, fromDate, toDate, timezone);
+      const now = new Date().toISOString();
+      const created: SessionRecord[] = [];
+
+      for (const draft of drafts) {
+        const sessionRef = firestore
+          .collection(`academies/${academyId}/sessions`)
+          .doc(draft.sessionId);
+        const existingSession = await sessionRef.get();
+
+        if (existingSession.exists) {
+          created.push(existingSession.data() as SessionRecord);
+        } else {
+          const sessionRecord: SessionRecord = Object.freeze({
+            ...draft,
+            createdAt: now,
+            createdBy: actorId,
+            updatedAt: now,
+            updatedBy: actorId,
+          });
+          await sessionRef.set(sessionRecord);
+          created.push(sessionRecord);
+        }
+      }
+
+      return created;
+    },
+
+    async listSessions(
+      academyId: string,
+      query: ListSessionsQuery,
+    ): Promise<readonly SessionRecord[]> {
+      const snapshot = await firestore.collection(`academies/${academyId}/sessions`).get();
+
+      return snapshot.docs
+        .map((doc) => doc.data() as SessionRecord)
+        .filter((session) => {
+          if (session.startAt < query.from || session.startAt > query.to) {
+            return false;
+          }
+          if (query.locationId && session.locationId !== query.locationId) {
+            return false;
+          }
+          if (query.programId && session.programId !== query.programId) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => a.startAt.localeCompare(b.startAt));
+    },
+
+    async getSession(academyId: string, sessionId: string): Promise<SessionRecord | null> {
+      const doc = await firestore
+        .collection(`academies/${academyId}/sessions`)
+        .doc(sessionId)
+        .get();
+
+      if (!doc.exists) return null;
+      return (doc.data() as SessionRecord) ?? null;
+    },
+
+    async createSession(
+      academyId: string,
+      input: CreateSessionInput,
+      actorId: string,
+    ): Promise<SessionRecord> {
+      const now = new Date().toISOString();
+      const docRef = firestore.collection(`academies/${academyId}/sessions`).doc();
+      const sessionId = docRef.id;
+
+      const record: SessionRecord = Object.freeze({
+        sessionId,
+        academyId,
+        classId: input.classId ?? null,
+        programId: input.programId,
+        locationId: input.locationId,
+        instructorId: input.instructorId,
+        title: input.title,
+        startAt: input.startAt,
+        endAt: input.endAt,
+        capacity: input.capacity,
+        minParticipants: input.minParticipants ?? 4,
+        status: "scheduled",
+        isSeminar: input.isSeminar ?? false,
+        cancellationReason: null,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      await docRef.set(record);
+      return record;
+    },
+
+    async cancelSession(
+      academyId: string,
+      sessionId: string,
+      reason: string,
+      actorId: string,
+    ): Promise<SessionRecord> {
+      const docRef = firestore.collection(`academies/${academyId}/sessions`).doc(sessionId);
+      const existing = await docRef.get();
+
+      if (!existing.exists) {
+        throw new Error(`Session ${sessionId} does not exist`);
+      }
+
+      const current = existing.data() as SessionRecord;
+      const now = new Date().toISOString();
+
+      const cancelled: SessionRecord = Object.freeze({
+        ...current,
+        status: "cancelled",
+        cancellationReason: reason,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      await docRef.set(cancelled);
+      return cancelled;
+    },
+  };
+}
+
+export function createInMemoryScheduleStore(): ScheduleStore {
+  const locationsMap = new Map<string, LocationRecord[]>();
+  const programsMap = new Map<string, ProgramRecord[]>();
+  const classesMap = new Map<string, Map<string, ClassRecord>>();
+  const sessionsMap = new Map<string, Map<string, SessionRecord>>();
+
+  let classSeq = 1;
+  let sessionSeq = 1;
+
+  return {
+    async listLocations(academyId: string): Promise<readonly LocationRecord[]> {
+      const custom = locationsMap.get(academyId);
+      if (!custom || custom.length === 0) {
+        return defaultLocations.map((loc) => ({ ...loc, academyId }));
+      }
+      return custom;
+    },
+
+    async listPrograms(academyId: string): Promise<readonly ProgramRecord[]> {
+      const custom = programsMap.get(academyId);
+      if (!custom || custom.length === 0) {
+        return defaultPrograms.map((prog) => ({ ...prog, academyId }));
+      }
+      return custom;
+    },
+
+    async createProgram(academyId: string, input: CreateProgramInput): Promise<ProgramRecord> {
+      let list = programsMap.get(academyId);
+      if (!list) {
+        list = defaultPrograms.map((prog) => ({ ...prog, academyId }));
+        programsMap.set(academyId, list);
+      }
+
+      const programId = `prog-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const record: ProgramRecord = Object.freeze({
+        programId,
+        academyId,
+        name: input.name,
+        ageBand: input.ageBand,
+        discipline: input.discipline,
+        level: input.level,
+        active: true,
+        schemaVersion: "1",
+      });
+
+      list.push(record);
+      return record;
+    },
+
+    async updateProgram(
+      academyId: string,
+      programId: string,
+      input: Partial<CreateProgramInput & { active: boolean }>,
+    ): Promise<ProgramRecord> {
+      let list = programsMap.get(academyId);
+      if (!list) {
+        list = defaultPrograms.map((prog) => ({ ...prog, academyId }));
+        programsMap.set(academyId, list);
+      }
+
+      const index = list.findIndex((p) => p.programId === programId);
+      if (index === -1) {
+        throw new Error(`Program ${programId} does not exist`);
+      }
+
+      const current = list[index]!;
+      const updated: ProgramRecord = Object.freeze({
+        ...current,
+        name: input.name ?? current.name,
+        ageBand: input.ageBand ?? current.ageBand,
+        discipline: input.discipline ?? current.discipline,
+        level: input.level ?? current.level,
+        active: input.active ?? current.active,
+      });
+
+      list[index] = updated;
+      return updated;
+    },
+
+    async listClasses(academyId: string): Promise<readonly ClassRecord[]> {
+      const map = classesMap.get(academyId);
+      if (!map) return [];
+      return Array.from(map.values());
+    },
+
+    async getClass(academyId: string, classId: string): Promise<ClassRecord | null> {
+      const map = classesMap.get(academyId);
+      return map?.get(classId) ?? null;
+    },
+
+    async createClass(
+      academyId: string,
+      input: CreateClassInput,
+      actorId: string,
+    ): Promise<ClassRecord> {
+      const now = new Date().toISOString();
+      const classId = `class-${classSeq++}`;
+      const record: ClassRecord = Object.freeze({
+        classId,
+        academyId,
+        programId: input.programId,
+        locationId: input.locationId,
+        name: input.name,
+        recurrenceRule: input.recurrenceRule,
+        instructorIds: input.instructorIds,
+        capacity: input.capacity,
+        minParticipants: input.minParticipants ?? 4,
+        active: true,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      if (!classesMap.has(academyId)) {
+        classesMap.set(academyId, new Map());
+      }
+      classesMap.get(academyId)!.set(classId, record);
+      return record;
+    },
+
+    async updateClass(
+      academyId: string,
+      input: UpdateClassInput,
+      actorId: string,
+    ): Promise<ClassRecord> {
+      const map = classesMap.get(academyId);
+      const current = map?.get(input.classId);
+      if (!current) {
+        throw new Error(`Class ${input.classId} does not exist`);
+      }
+
+      const now = new Date().toISOString();
+      const updated: ClassRecord = Object.freeze({
+        ...current,
+        name: input.name ?? current.name,
+        instructorIds: input.instructorIds ?? current.instructorIds,
+        capacity: input.capacity ?? current.capacity,
+        minParticipants: input.minParticipants ?? current.minParticipants,
+        active: input.active ?? current.active,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      map!.set(input.classId, updated);
+      return updated;
+    },
+
+    async generateSessions(
+      academyId: string,
+      classId: string,
+      fromDate: string,
+      toDate: string,
+      timezone: string,
+      actorId: string,
+    ): Promise<readonly SessionRecord[]> {
+      const map = classesMap.get(academyId);
+      const cls = map?.get(classId);
+      if (!cls) {
+        throw new Error(`Class ${classId} does not exist`);
+      }
+
+      const drafts = generateSessionsFromClass(cls, fromDate, toDate, timezone);
+      const now = new Date().toISOString();
+      const created: SessionRecord[] = [];
+
+      if (!sessionsMap.has(academyId)) {
+        sessionsMap.set(academyId, new Map());
+      }
+      const aSessions = sessionsMap.get(academyId)!;
+
+      for (const draft of drafts) {
+        if (aSessions.has(draft.sessionId)) {
+          created.push(aSessions.get(draft.sessionId)!);
+        } else {
+          const sessionRecord: SessionRecord = Object.freeze({
+            ...draft,
+            createdAt: now,
+            createdBy: actorId,
+            updatedAt: now,
+            updatedBy: actorId,
+          });
+          aSessions.set(draft.sessionId, sessionRecord);
+          created.push(sessionRecord);
+        }
+      }
+
+      return created;
+    },
+
+    async listSessions(
+      academyId: string,
+      query: ListSessionsQuery,
+    ): Promise<readonly SessionRecord[]> {
+      const map = sessionsMap.get(academyId);
+      if (!map) return [];
+
+      return Array.from(map.values())
+        .filter((session) => {
+          if (session.startAt < query.from || session.startAt > query.to) {
+            return false;
+          }
+          if (query.locationId && session.locationId !== query.locationId) {
+            return false;
+          }
+          if (query.programId && session.programId !== query.programId) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => a.startAt.localeCompare(b.startAt));
+    },
+
+    async getSession(academyId: string, sessionId: string): Promise<SessionRecord | null> {
+      const map = sessionsMap.get(academyId);
+      return map?.get(sessionId) ?? null;
+    },
+
+    async createSession(
+      academyId: string,
+      input: CreateSessionInput,
+      actorId: string,
+    ): Promise<SessionRecord> {
+      const now = new Date().toISOString();
+      const sessionId = `session-${sessionSeq++}`;
+      const record: SessionRecord = Object.freeze({
+        sessionId,
+        academyId,
+        classId: input.classId ?? null,
+        programId: input.programId,
+        locationId: input.locationId,
+        instructorId: input.instructorId,
+        title: input.title,
+        startAt: input.startAt,
+        endAt: input.endAt,
+        capacity: input.capacity,
+        minParticipants: input.minParticipants ?? 4,
+        status: "scheduled",
+        isSeminar: input.isSeminar ?? false,
+        cancellationReason: null,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      if (!sessionsMap.has(academyId)) {
+        sessionsMap.set(academyId, new Map());
+      }
+      sessionsMap.get(academyId)!.set(sessionId, record);
+      return record;
+    },
+
+    async cancelSession(
+      academyId: string,
+      sessionId: string,
+      reason: string,
+      actorId: string,
+    ): Promise<SessionRecord> {
+      const map = sessionsMap.get(academyId);
+      const current = map?.get(sessionId);
+      if (!current) {
+        throw new Error(`Session ${sessionId} does not exist`);
+      }
+
+      const now = new Date().toISOString();
+      const cancelled: SessionRecord = Object.freeze({
+        ...current,
+        status: "cancelled",
+        cancellationReason: reason,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      map!.set(sessionId, cancelled);
+      return cancelled;
+    },
+  };
+}

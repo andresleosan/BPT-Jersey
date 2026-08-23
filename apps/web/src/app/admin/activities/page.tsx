@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
+import type { CreateSessionInput, SessionRecord } from "@bpt-jersey/domain/schedule";
 
-import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
+import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { previewData, type PreviewActivity } from "../preview-data";
-
+import { listSessions, saveSession } from "../../../lib/schedule-client";
 import "../admin.css";
 
 const columns = [
@@ -32,24 +33,119 @@ const columns = [
 ] as const;
 
 export function ActivitiesPage() {
+  const formTitleId = useId();
+  const formProgramId = useId();
+  const formLocationId = useId();
+  const formDateId = useId();
+  const formStartTimeId = useId();
+  const formEndTimeId = useId();
+  const formCapacityId = useId();
+  const formIsSeminarId = useId();
+
   const [program, setProgram] = useState("All programs");
   const [status, setStatus] = useState("Scheduled");
   const [notice, setNotice] = useState("");
-  const activities = previewData.activities.filter(
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Form state
+  const [newTitle, setNewTitle] = useState("");
+  const [newProgram, setNewProgram] = useState("adult-fundamentals");
+  const [newLocation, setNewLocation] = useState<"town" | "west">("town");
+  const [newDate, setNewDate] = useState("2026-09-01");
+  const [newStartTime, setNewStartTime] = useState("18:00");
+  const [newEndTime, setNewEndTime] = useState("19:00");
+  const [newCapacity, setNewCapacity] = useState(25);
+  const [isSeminar, setIsSeminar] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [connectedSessions, setConnectedSessions] = useState<readonly SessionRecord[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    void listSessions({
+      from: "2026-08-01T00:00:00Z",
+      to: "2026-12-31T23:59:59Z",
+    })
+      .then((sessions) => {
+        if (!mounted) return;
+        setConnectedSessions(sessions);
+      })
+      .catch(() => {
+        // Fallback to preview data if offline
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const combinedActivities: readonly PreviewActivity[] =
+    connectedSessions.length > 0
+      ? connectedSessions.map((s) => ({
+          name: s.title,
+          program: s.programId.includes("adult")
+            ? "Brazilian Jiu-Jitsu"
+            : s.isSeminar
+              ? "Seminar"
+              : "BJJ",
+          date: s.startAt.slice(0, 10),
+          time: `${s.startAt.slice(11, 16)} - ${s.endAt.slice(11, 16)}`,
+          coach: "Coach Alex",
+          location: s.locationId === "town" ? "BPT Town" : "BPT West",
+          booked: 0,
+          capacity: s.capacity,
+          status:
+            s.status === "active"
+              ? ("scheduled" as const)
+              : (s.status as "scheduled" | "completed" | "cancelled"),
+        }))
+      : previewData.activities;
+
+  const activities = combinedActivities.filter(
     (activity) =>
       (program === "All programs" || activity.program === program) &&
       activity.status === status.toLowerCase(),
   );
 
+  async function handleCreateActivity(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const startAt = `${newDate}T${newStartTime}:00Z`;
+      const endAt = `${newDate}T${newEndTime}:00Z`;
+
+      const input: CreateSessionInput = {
+        programId: newProgram,
+        locationId: newLocation,
+        instructorId: "coach-1",
+        title: newTitle.trim(),
+        startAt,
+        endAt,
+        capacity: Number(newCapacity),
+        minParticipants: 4,
+        isSeminar,
+      };
+
+      const created = await saveSession(input);
+      setConnectedSessions((prev) => [...prev, created]);
+      setNotice(`Activity "${created.title}" scheduled successfully.`);
+      setIsModalOpen(false);
+      setNewTitle("");
+    } catch {
+      setNotice("Activity creation is ready for the connected data source.");
+      setIsModalOpen(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <section className="admin-module-page" aria-labelledby="activities-title">
       <AdminSectionHeader
         actions={
-          <button
-            className="admin-auth-button"
-            onClick={() => setNotice("Activity creation is ready for the connected data source.")}
-            type="button"
-          >
+          <button className="admin-auth-button" onClick={() => setIsModalOpen(true)} type="button">
             Create activity
           </button>
         }
@@ -57,6 +153,134 @@ export function ActivitiesPage() {
         eyebrow="Activities / Synthetic preview"
         title="Activities"
       />
+
+      {isModalOpen && (
+        <div
+          className="admin-modal-overlay"
+          role="dialog"
+          aria-labelledby="activity-modal-title"
+          aria-modal="true"
+        >
+          <div className="admin-modal-content">
+            <h3 id="activity-modal-title">Schedule New Activity / Session</h3>
+            <form onSubmit={handleCreateActivity}>
+              <div className="admin-form-group">
+                <label htmlFor={formTitleId}>Activity Title</label>
+                <input
+                  id={formTitleId}
+                  type="text"
+                  required
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="e.g. Master Seminar or Evening BJJ"
+                />
+              </div>
+
+              <div className="admin-form-group">
+                <label htmlFor={formProgramId}>Program</label>
+                <select
+                  id={formProgramId}
+                  value={newProgram}
+                  onChange={(e) => setNewProgram(e.target.value)}
+                >
+                  <option value="adult-fundamentals">Adult BJJ Fundamentals</option>
+                  <option value="adult-advanced">Adult BJJ Advanced</option>
+                  <option value="seminar">Special Seminar / Workshop</option>
+                  <option value="open-mat">Open Mat</option>
+                </select>
+              </div>
+
+              <div className="admin-form-group">
+                <label htmlFor={formLocationId}>Location</label>
+                <select
+                  id={formLocationId}
+                  value={newLocation}
+                  onChange={(e) => setNewLocation(e.target.value as "town" | "west")}
+                >
+                  <option value="town">BPT Town</option>
+                  <option value="west">BPT West</option>
+                </select>
+              </div>
+
+              <div className="admin-form-group">
+                <label htmlFor={formDateId}>Date</label>
+                <input
+                  id={formDateId}
+                  type="date"
+                  required
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                />
+              </div>
+
+              <div className="admin-form-group">
+                <label htmlFor={formStartTimeId}>Start Time</label>
+                <input
+                  id={formStartTimeId}
+                  type="text"
+                  required
+                  pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                  value={newStartTime}
+                  onChange={(e) => setNewStartTime(e.target.value)}
+                  placeholder="18:00"
+                />
+              </div>
+
+              <div className="admin-form-group">
+                <label htmlFor={formEndTimeId}>End Time</label>
+                <input
+                  id={formEndTimeId}
+                  type="text"
+                  required
+                  pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                  value={newEndTime}
+                  onChange={(e) => setNewEndTime(e.target.value)}
+                  placeholder="19:00"
+                />
+              </div>
+
+              <div className="admin-form-group">
+                <label htmlFor={formCapacityId}>Capacity</label>
+                <input
+                  id={formCapacityId}
+                  type="number"
+                  required
+                  min={1}
+                  max={300}
+                  value={newCapacity}
+                  onChange={(e) => setNewCapacity(Number(e.target.value))}
+                />
+              </div>
+
+              <div className="admin-form-group admin-checkbox-group">
+                <label htmlFor={formIsSeminarId}>
+                  <input
+                    id={formIsSeminarId}
+                    type="checkbox"
+                    checked={isSeminar}
+                    onChange={(e) => setIsSeminar(e.target.checked)}
+                  />
+                  Is Special Seminar / Workshop
+                </label>
+              </div>
+
+              <div className="admin-modal-actions">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setIsModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="admin-auth-button" disabled={isSubmitting}>
+                  {isSubmitting ? "Scheduling..." : "Schedule Activity"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <AdminFilterBar>
         <label className="admin-filter-control">
           View
@@ -74,6 +298,7 @@ export function ActivitiesPage() {
           >
             <option>All programs</option>
             <option>Brazilian Jiu-Jitsu</option>
+            <option>Seminar</option>
           </select>
         </label>
         <label className="admin-filter-control">

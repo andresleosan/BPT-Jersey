@@ -10,6 +10,50 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/staff/{staffId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/staffAvailability/{windowId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/staffAssignments/{assignmentId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/adminRoleLocks/{uid} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/levelSystems/{systemId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/levelDefinitions/{definitionKey} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/levelRequirements/{requirementKey} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/locations/{locationId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/programs/{programId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/classes/{classId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/sessions/{sessionId} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

@@ -36,6 +36,7 @@ describe("deploy runtime import preparation", () => {
         'import "@bpt-jersey/domain/migration/regyfit-access";',
         'import "@bpt-jersey/domain/families";',
         'import "@bpt-jersey/domain/finance";',
+        'import "@bpt-jersey/domain/staff";',
       ].join("\n"),
     );
 
@@ -51,6 +52,7 @@ describe("deploy runtime import preparation", () => {
     expect(prepared).toContain("../../domain/migration/regyfit-access.js");
     expect(prepared).toContain("../../domain/families/family-contracts.js");
     expect(prepared).toContain("../../domain/finance/finance-contracts.js");
+    expect(prepared).toContain("../../domain/staff/staff-contracts.js");
     expect(prepared).not.toMatch(/@bpt-jersey\/domain/u);
   });
 

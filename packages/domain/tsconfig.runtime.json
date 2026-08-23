@@ -24,6 +24,9 @@
     "src/memberships/plan-contracts.ts",
     "src/memberships/membership-contracts.ts",
     "src/finance/finance-contracts.ts",
-    "src/finance/financial-access.ts"
+    "src/finance/financial-access.ts",
+    "src/staff/staff-contracts.ts",
+    "src/levels/level-contracts.ts",
+    "src/schedule/schedule-contracts.ts"
   ]
 }

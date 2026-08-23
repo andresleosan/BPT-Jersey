@@ -5,6 +5,7 @@ import {
   bootstrapEmulatorOwner,
   provisionAdminRoleWithServices,
   renewRoleLock,
+  withSharedRoleLock,
 } from "./admin-provisioning.js";
 import type { FirestoreDocumentData } from "./admin-provisioning.js";
 
@@ -198,6 +199,28 @@ const googleUser = (): SyntheticUser => ({
 });
 
 describe("administrative role provisioning", () => {
+  it("shares the administrative lock and retains a compensating phase on failure", async () => {
+    const services = createSyntheticServices([]);
+
+    await expect(
+      withSharedRoleLock(
+        services.firestore,
+        "academy-1",
+        "owner-1",
+        "target-1",
+        async (control) => {
+          control.retain();
+          throw new Error("claims unavailable");
+        },
+      ),
+    ).rejects.toThrow("claims unavailable");
+    expect(
+      services.firestore.records.get("academies/academy-1/adminRoleLocks/target-1"),
+    ).toMatchObject({
+      phase: "compensating",
+    });
+  });
+
   it("allows an owner to grant a Google-authenticated target in the same academy", async () => {
     const target = googleUser();
     target.customClaims = { mfaEnrolled: true, locale: "en-GB" };

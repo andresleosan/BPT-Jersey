@@ -300,3 +300,18 @@ describe("audit event draft contract", () => {
     expect(result.ok ? result.value : undefined).not.toBe(input);
   });
 });
+
+it("accepts staff lifecycle actions without payload or PII", () => {
+  for (const action of [
+    "staff.created",
+    "staff.updated",
+    "staff.status.changed",
+    "staff.availability.replaced",
+    "staff.assignments.replaced",
+  ] as const) {
+    expect(parseAuditEventDraft({ ...common, action }).ok).toBe(true);
+    expect(parseAuditEventDraft({ ...common, action, email: "person@example.test" }).ok).toBe(
+      false,
+    );
+  }
+});
