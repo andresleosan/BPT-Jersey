@@ -758,3 +758,105 @@ export function evaluateBookingEligibility(
 
   return { eligible: true };
 }
+
+// ── Attendance & Check-In Contracts ──
+
+export const checkInMethods = Object.freeze(["qr", "pin", "nameSearch", "manual"] as const);
+export type CheckInMethod = (typeof checkInMethods)[number];
+
+export const attendanceStates = Object.freeze(["attended", "late", "absent", "excused"] as const);
+export type AttendanceState = (typeof attendanceStates)[number];
+
+export type AttendanceRecord = Readonly<{
+  attendanceId: string; // deterministic: `${sessionId}__${studentId}`
+  academyId: string;
+  sessionId: string;
+  studentId: string;
+  method: CheckInMethod;
+  state: AttendanceState;
+  occurredAt: string;
+  notes: string | null;
+  correctionOf: string | null;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type CheckInInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  method: CheckInMethod;
+  pin?: string;
+  notes?: string;
+}>;
+
+/**
+ * Builds the deterministic canonical identifier for attendance: `${sessionId}__${studentId}`.
+ */
+export function buildAttendanceId(sessionId: string, studentId: string): string {
+  return `${sessionId.trim()}__${studentId.trim()}`;
+}
+
+/**
+ * Determines punctuality state based on check-in timestamp relative to session start.
+ * If check-in occurs within `lateThresholdMinutes` (default 15m) of startAt, returns 'attended', else 'late'.
+ */
+export function determinePunctuality(
+  sessionStartAtIso: string,
+  checkInAtIso?: string,
+  lateThresholdMinutes = 15,
+): AttendanceState {
+  const startMs = Date.parse(sessionStartAtIso);
+  const checkInMs = checkInAtIso ? Date.parse(checkInAtIso) : Date.now();
+
+  if (Number.isNaN(startMs) || Number.isNaN(checkInMs)) {
+    return "attended";
+  }
+
+  const lateCutoffMs = startMs + lateThresholdMinutes * 60 * 1000;
+  return checkInMs > lateCutoffMs ? "late" : "attended";
+}
+
+export function parseCheckInInput(input: unknown): Result<CheckInInput, string> {
+  if (!isRecord(input)) {
+    return err("Check-in input must be an object");
+  }
+
+  const { sessionId, studentId, method, pin, notes } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof method !== "string" || !checkInMethods.includes(method as CheckInMethod)) {
+    return err(`Invalid check-in method. Expected one of: ${checkInMethods.join(", ")}`);
+  }
+
+  const result: {
+    sessionId: string;
+    studentId: string;
+    method: CheckInMethod;
+    pin?: string;
+    notes?: string;
+  } = {
+    sessionId: sessionId.trim(),
+    studentId: studentId.trim(),
+    method: method as CheckInMethod,
+  };
+
+  if (typeof pin === "string" && pin.trim().length > 0) {
+    result.pin = pin.trim();
+  }
+
+  if (typeof notes === "string" && notes.trim().length > 0) {
+    result.notes = notes.trim();
+  }
+
+  return ok(Object.freeze(result));
+}

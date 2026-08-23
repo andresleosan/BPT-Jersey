@@ -2,6 +2,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
   parseCancelBookingInput,
+  parseCheckInInput,
   parseCreateClassInput,
   parseCreateProgramInput,
   parseCreateSessionInput,
@@ -322,6 +323,87 @@ export function createEvaluateSessionMinimumHandler(options: { store: ScheduleSt
   };
 }
 
+export function createCheckInHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const parsed = parseCheckInInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.error);
+    }
+
+    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
+
+    if ((parsed.value.method === "manual" || parsed.value.method === "nameSearch") && !isStaff) {
+      throw new HttpsError(
+        "permission-denied",
+        "Staff access required for manual or nameSearch check-in",
+      );
+    }
+
+    if (!isStaff && actor.role === "adultStudent" && actor.userId !== parsed.value.studentId) {
+      throw new HttpsError(
+        "permission-denied",
+        "Access denied: cannot check in for another student",
+      );
+    }
+
+    const attendance = await store.recordCheckIn(actor.academyId, parsed.value, actor.userId);
+
+    return {
+      attendance,
+    };
+  };
+}
+
+export function createListSessionAttendanceHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff access required to view session attendance");
+    }
+
+    const data = request.data as { sessionId?: unknown };
+    if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    const attendance = await store.listSessionAttendance(actor.academyId, data.sessionId.trim());
+    return {
+      attendance,
+    };
+  };
+}
+
+export function createListStudentAttendanceHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const data = request.data as { studentId?: unknown };
+    const studentId =
+      typeof data?.studentId === "string" && data.studentId.trim()
+        ? data.studentId.trim()
+        : actor.userId;
+
+    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
+    if (!isStaff && actor.role === "adultStudent" && actor.userId !== studentId) {
+      throw new HttpsError(
+        "permission-denied",
+        "Access denied: cannot view another student's attendance",
+      );
+    }
+
+    const attendance = await store.listStudentAttendance(actor.academyId, studentId);
+    return {
+      attendance,
+    };
+  };
+}
+
 let defaultStore: ScheduleStore | undefined;
 
 function getStore(): ScheduleStore {
@@ -399,4 +481,19 @@ export const listStudentBookings = onCall(
 export const evaluateSessionMinimum = onCall(
   { enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createEvaluateSessionMinimumHandler({ store: getStore() })(request),
+);
+
+export const checkIn = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createCheckInHandler({ store: getStore() })(request),
+);
+
+export const listSessionAttendance = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createListSessionAttendanceHandler({ store: getStore() })(request),
+);
+
+export const listStudentAttendance = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createListStudentAttendanceHandler({ store: getStore() })(request),
 );

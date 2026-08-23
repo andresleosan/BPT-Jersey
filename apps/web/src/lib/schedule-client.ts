@@ -1,7 +1,9 @@
 import { httpsCallable } from "firebase/functions";
 import type {
+  AttendanceRecord,
   BookingRecord,
   CancelBookingInput,
+  CheckInInput,
   ClassRecord,
   CreateClassInput,
   CreateProgramInput,
@@ -178,5 +180,43 @@ export async function evaluateSessionMinimum(
   const result = await callable({ sessionId });
   return result.data.result;
 }
+
+export async function recordCheckIn(input: CheckInInput): Promise<AttendanceRecord> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<CheckInInput, { attendance: AttendanceRecord }>(
+    functions,
+    "checkIn",
+  );
+
+  const result = await callable(input);
+  return result.data.attendance;
+}
+
+export async function listSessionAttendance(
+  sessionId: string,
+): Promise<readonly AttendanceRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<{ sessionId: string }, { attendance: AttendanceRecord[] }>(
+    functions,
+    "listSessionAttendance",
+  );
+
+  const result = await callable({ sessionId });
+  return result.data.attendance;
+}
+
+export async function listStudentAttendance(
+  studentId?: string,
+): Promise<readonly AttendanceRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<{ studentId?: string }, { attendance: AttendanceRecord[] }>(
+    functions,
+    "listStudentAttendance",
+  );
+
+  const result = await callable(studentId ? { studentId } : {});
+  return result.data.attendance;
+}
+
 
 

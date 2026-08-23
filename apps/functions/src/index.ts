@@ -55,11 +55,19 @@ export {
 } from "./finance/finance-callables.js";
 export { listLevelCatalog } from "./levels/level-callables.js";
 export {
+  cancelBooking,
   cancelSession,
+  checkIn,
+  evaluateSessionMinimum,
   generateSessions,
   listClasses,
   listScheduleCatalog,
+  listSessionAttendance,
+  listSessionBookings,
   listSessions,
+  listStudentAttendance,
+  listStudentBookings,
+  requestBooking,
   saveClass,
   saveProgram,
   saveSession,

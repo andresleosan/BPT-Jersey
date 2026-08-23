@@ -7,9 +7,12 @@ import {
   generateSessions,
   getScheduleCatalog,
   listClasses,
+  listSessionAttendance,
   listSessionBookings,
   listSessions,
+  listStudentAttendance,
   listStudentBookings,
+  recordCheckIn,
   requestBooking,
   saveClass,
   saveProgram,
@@ -180,6 +183,48 @@ describe("Schedule Client", () => {
     expect(quorum.quorumMet).toBe(true);
     expect(quorum.confirmedCount).toBe(5);
   });
+
+  it("records check-in and lists attendance", async () => {
+    // Record check-in
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        attendance: {
+          attendanceId: "s-1__std-1",
+          method: "qr",
+          state: "attended",
+        },
+      },
+    });
+    const att = await recordCheckIn({
+      sessionId: "s-1",
+      studentId: "std-1",
+      method: "qr",
+    });
+    expect(att.attendanceId).toBe("s-1__std-1");
+    expect(att.state).toBe("attended");
+
+    // List session attendance
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        attendance: [
+          { attendanceId: "s-1__std-1", state: "attended" },
+          { attendanceId: "s-1__std-2", state: "late" },
+        ],
+      },
+    });
+    const sAtt = await listSessionAttendance("s-1");
+    expect(sAtt).toHaveLength(2);
+
+    // List student attendance
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        attendance: [{ attendanceId: "s-1__std-1", state: "attended" }],
+      },
+    });
+    const myAtt = await listStudentAttendance("std-1");
+    expect(myAtt).toHaveLength(1);
+  });
 });
+
 
 

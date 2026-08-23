@@ -3,12 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   createCancelBookingHandler,
   createCancelSessionHandler,
+  createCheckInHandler,
   createEvaluateSessionMinimumHandler,
   createGenerateSessionsHandler,
   createListClassesHandler,
   createListScheduleCatalogHandler,
+  createListSessionAttendanceHandler,
   createListSessionBookingsHandler,
   createListSessionsHandler,
+  createListStudentAttendanceHandler,
   createListStudentBookingsHandler,
   createRequestBookingHandler,
   createSaveClassHandler,
@@ -374,6 +377,90 @@ describe("Schedule Callables", () => {
       );
       expect(quorum.result.quorumMet).toBe(false);
       expect(quorum.result.confirmedCount).toBe(1);
+    });
+  });
+
+  describe("Check-In Callables", () => {
+    it("handles QR check-in for student and manual check-in for staff", async () => {
+      const store = createInMemoryScheduleStore();
+      const checkInHandler = createCheckInHandler({ store });
+      const sessionAttendanceHandler = createListSessionAttendanceHandler({ store });
+      const studentAttendanceHandler = createListStudentAttendanceHandler({ store });
+
+      const session = await store.createSession(
+        "demo-academy",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Evening Class",
+          startAt: "2099-09-01T18:00:00Z",
+          endAt: "2099-09-01T19:00:00Z",
+          capacity: 25,
+        },
+        "owner-1",
+      );
+
+      // Student checks in via QR
+      const qrRes = await checkInHandler(
+        fakeRequest(
+          {
+            sessionId: session.sessionId,
+            studentId: "student-1",
+            method: "qr",
+          },
+          "adultStudent",
+          "student-1",
+          "demo-academy",
+        ),
+      );
+      expect(qrRes.attendance.method).toBe("qr");
+      expect(qrRes.attendance.studentId).toBe("student-1");
+
+      // Student cannot do manual check-in
+      await expect(
+        checkInHandler(
+          fakeRequest(
+            {
+              sessionId: session.sessionId,
+              studentId: "student-2",
+              method: "manual",
+            },
+            "adultStudent",
+            "student-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Staff access required for manual or nameSearch check-in/);
+
+      // Coach performs manual check-in for student 2
+      const manualRes = await checkInHandler(
+        fakeRequest(
+          {
+            sessionId: session.sessionId,
+            studentId: "student-2",
+            method: "manual",
+            notes: "Approved by Head Coach",
+          },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      );
+      expect(manualRes.attendance.method).toBe("manual");
+      expect(manualRes.attendance.notes).toBe("Approved by Head Coach");
+
+      // Coach lists session attendance
+      const sList = await sessionAttendanceHandler(
+        fakeRequest({ sessionId: session.sessionId }, "coach", "coach-1", "demo-academy"),
+      );
+      expect(sList.attendance).toHaveLength(2);
+
+      // Student lists own attendance
+      const myAtt = await studentAttendanceHandler(
+        fakeRequest({ studentId: "student-1" }, "adultStudent", "student-1", "demo-academy"),
+      );
+      expect(myAtt.attendance).toHaveLength(1);
     });
   });
 });

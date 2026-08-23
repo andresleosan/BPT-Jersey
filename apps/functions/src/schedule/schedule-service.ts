@@ -1,9 +1,13 @@
 import {
+  buildAttendanceId,
   buildBookingId,
+  determinePunctuality,
   generateSessionsFromClass,
   isWithinBookingCutoff,
+  type AttendanceRecord,
   type BookingRecord,
   type CancelBookingInput,
+  type CheckInInput,
   type ClassRecord,
   type CreateClassInput,
   type CreateProgramInput,
@@ -169,6 +173,20 @@ export type ScheduleStore = Readonly<{
     academyId: string,
     sessionId: string,
   ) => Promise<{ confirmedCount: number; minParticipants: number; quorumMet: boolean }>;
+  recordCheckIn: (
+    academyId: string,
+    input: CheckInInput,
+    actorId: string,
+    occurredAt?: string,
+  ) => Promise<AttendanceRecord>;
+  listSessionAttendance: (
+    academyId: string,
+    sessionId: string,
+  ) => Promise<readonly AttendanceRecord[]>;
+  listStudentAttendance: (
+    academyId: string,
+    studentId: string,
+  ) => Promise<readonly AttendanceRecord[]>;
 }>;
 
 type GenericFirestore = {
@@ -655,6 +673,88 @@ export function createFirestoreScheduleStore(options: {
         quorumMet: confirmedCount >= minParticipants,
       };
     },
+
+    async recordCheckIn(
+      academyId: string,
+      input: CheckInInput,
+      actorId: string,
+      occurredAt?: string,
+    ): Promise<AttendanceRecord> {
+      const attendanceId = buildAttendanceId(input.sessionId, input.studentId);
+      const sessionRef = firestore
+        .collection(`academies/${academyId}/sessions`)
+        .doc(input.sessionId);
+      const sessionDoc = await sessionRef.get();
+
+      if (!sessionDoc.exists) {
+        throw new Error(`Session ${input.sessionId} does not exist`);
+      }
+
+      const session = sessionDoc.data() as SessionRecord;
+      if (session.status === "cancelled") {
+        throw new Error(`Cannot check in to cancelled session ${input.sessionId}`);
+      }
+
+      const attendanceRef = firestore
+        .collection(`academies/${academyId}/attendance`)
+        .doc(attendanceId);
+      const existingDoc = await attendanceRef.get();
+
+      if (existingDoc.exists) {
+        return existingDoc.data() as AttendanceRecord;
+      }
+
+      const checkInTime = occurredAt ?? new Date().toISOString();
+      const state = determinePunctuality(session.startAt, checkInTime);
+
+      const record: AttendanceRecord = Object.freeze({
+        attendanceId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        method: input.method,
+        state,
+        occurredAt: checkInTime,
+        notes: input.notes ?? null,
+        correctionOf: null,
+        schemaVersion: "1",
+        createdAt: checkInTime,
+        createdBy: actorId,
+        updatedAt: checkInTime,
+        updatedBy: actorId,
+      });
+
+      await attendanceRef.set(record);
+      return record;
+    },
+
+    async listSessionAttendance(
+      academyId: string,
+      sessionId: string,
+    ): Promise<readonly AttendanceRecord[]> {
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/attendance`)
+        .where("sessionId", "==", sessionId)
+        .get();
+
+      return snapshot.docs
+        .map((d) => d.data() as AttendanceRecord)
+        .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    },
+
+    async listStudentAttendance(
+      academyId: string,
+      studentId: string,
+    ): Promise<readonly AttendanceRecord[]> {
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/attendance`)
+        .where("studentId", "==", studentId)
+        .get();
+
+      return snapshot.docs
+        .map((d) => d.data() as AttendanceRecord)
+        .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+    },
   };
 }
 
@@ -664,6 +764,7 @@ export function createInMemoryScheduleStore(): ScheduleStore {
   const classesMap = new Map<string, Map<string, ClassRecord>>();
   const sessionsMap = new Map<string, Map<string, SessionRecord>>();
   const bookingsMap = new Map<string, Map<string, BookingRecord>>();
+  const attendanceMap = new Map<string, Map<string, AttendanceRecord>>();
 
   let classSeq = 1;
   let sessionSeq = 1;
@@ -1076,6 +1177,78 @@ export function createInMemoryScheduleStore(): ScheduleStore {
         minParticipants,
         quorumMet: confirmedCount >= minParticipants,
       };
+    },
+
+    async recordCheckIn(
+      academyId: string,
+      input: CheckInInput,
+      actorId: string,
+      occurredAt?: string,
+    ): Promise<AttendanceRecord> {
+      const sMap = sessionsMap.get(academyId);
+      const session = sMap?.get(input.sessionId);
+      if (!session) {
+        throw new Error(`Session ${input.sessionId} does not exist`);
+      }
+      if (session.status === "cancelled") {
+        throw new Error(`Cannot check in to cancelled session ${input.sessionId}`);
+      }
+
+      if (!attendanceMap.has(academyId)) {
+        attendanceMap.set(academyId, new Map());
+      }
+      const aMap = attendanceMap.get(academyId)!;
+      const attendanceId = buildAttendanceId(input.sessionId, input.studentId);
+
+      const existing = aMap.get(attendanceId);
+      if (existing) {
+        return existing;
+      }
+
+      const checkInTime = occurredAt ?? new Date().toISOString();
+      const state = determinePunctuality(session.startAt, checkInTime);
+
+      const record: AttendanceRecord = Object.freeze({
+        attendanceId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        method: input.method,
+        state,
+        occurredAt: checkInTime,
+        notes: input.notes ?? null,
+        correctionOf: null,
+        schemaVersion: "1",
+        createdAt: checkInTime,
+        createdBy: actorId,
+        updatedAt: checkInTime,
+        updatedBy: actorId,
+      });
+
+      aMap.set(attendanceId, record);
+      return record;
+    },
+
+    async listSessionAttendance(
+      academyId: string,
+      sessionId: string,
+    ): Promise<readonly AttendanceRecord[]> {
+      const aMap = attendanceMap.get(academyId);
+      if (!aMap) return [];
+      return Array.from(aMap.values())
+        .filter((a) => a.sessionId === sessionId)
+        .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    },
+
+    async listStudentAttendance(
+      academyId: string,
+      studentId: string,
+    ): Promise<readonly AttendanceRecord[]> {
+      const aMap = attendanceMap.get(academyId);
+      if (!aMap) return [];
+      return Array.from(aMap.values())
+        .filter((a) => a.studentId === studentId)
+        .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
     },
   };
 }

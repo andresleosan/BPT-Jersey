@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAttendanceId,
   buildBookingId,
+  determinePunctuality,
   evaluateBookingEligibility,
   generateSessionsFromClass,
   isWithinBookingCutoff,
   parseCancelBookingInput,
+  parseCheckInInput,
   parseCreateClassInput,
   parseCreateProgramInput,
   parseCreateSessionInput,
@@ -559,6 +562,100 @@ describe("Schedule Domain Contracts", () => {
           paygUnpaidSessionsCount: 1,
         }).eligible,
       ).toBe(true);
+    });
+  });
+
+  describe("buildAttendanceId", () => {
+    it("creates deterministic canonical ID from sessionId and studentId", () => {
+      expect(buildAttendanceId("session-123", "student-456")).toBe("session-123__student-456");
+    });
+  });
+
+  describe("determinePunctuality", () => {
+    const sessionStart = "2026-09-01T18:00:00Z";
+
+    it("returns 'attended' when checking in before session start", () => {
+      const checkIn = "2026-09-01T17:50:00Z";
+      expect(determinePunctuality(sessionStart, checkIn)).toBe("attended");
+    });
+
+    it("returns 'attended' when checking in within 15 minutes after session start", () => {
+      const checkIn = "2026-09-01T18:14:59Z";
+      expect(determinePunctuality(sessionStart, checkIn)).toBe("attended");
+    });
+
+    it("returns 'late' when checking in more than 15 minutes after session start", () => {
+      const checkIn = "2026-09-01T18:16:00Z";
+      expect(determinePunctuality(sessionStart, checkIn)).toBe("late");
+    });
+  });
+
+  describe("parseCheckInInput (4 Approved Methods)", () => {
+    it("accepts valid QR check-in", () => {
+      const result = parseCheckInInput({
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        method: "qr",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.method).toBe("qr");
+      }
+    });
+
+    it("accepts valid PIN check-in with pin string", () => {
+      const result = parseCheckInInput({
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        method: "pin",
+        pin: "1234",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.method).toBe("pin");
+        expect(result.value.pin).toBe("1234");
+      }
+    });
+
+    it("accepts valid nameSearch check-in", () => {
+      const result = parseCheckInInput({
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        method: "nameSearch",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.method).toBe("nameSearch");
+      }
+    });
+
+    it("accepts valid manual check-in by coach/staff", () => {
+      const result = parseCheckInInput({
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        method: "manual",
+        notes: "Verified on mat",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.method).toBe("manual");
+        expect(result.value.notes).toBe("Verified on mat");
+      }
+    });
+
+    it("rejects invalid method", () => {
+      expect(
+        parseCheckInInput({
+          sessionId: "sess-1",
+          studentId: "stud-1",
+          method: "bluetooth",
+        }).ok,
+      ).toBe(false);
+    });
+
+    it("rejects missing sessionId or studentId", () => {
+      expect(parseCheckInInput({ sessionId: "", studentId: "s-1", method: "qr" }).ok).toBe(false);
+      expect(parseCheckInInput({ sessionId: "s-1", studentId: "", method: "qr" }).ok).toBe(false);
     });
   });
 });

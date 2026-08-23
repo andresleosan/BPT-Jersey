@@ -407,4 +407,107 @@ describe("Schedule Service (In-Memory Store)", () => {
       expect(quorum4.confirmedCount).toBe(4);
     });
   });
+
+  describe("Attendance & Check-In Management", () => {
+    it("records check-in via 4 methods with automatic punctuality and idempotency", async () => {
+      const store = createInMemoryScheduleStore();
+
+      const session = await store.createSession(
+        "academy-1",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Evening Class",
+          startAt: "2026-09-01T18:00:00Z",
+          endAt: "2026-09-01T19:00:00Z",
+          capacity: 30,
+        },
+        "owner-1",
+      );
+
+      // Student 1: on-time QR check-in (17:55)
+      const checkIn1 = await store.recordCheckIn(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-1",
+          method: "qr",
+        },
+        "student-1",
+        "2026-09-01T17:55:00Z",
+      );
+
+      expect(checkIn1.attendanceId).toBe(`${session.sessionId}__student-1`);
+      expect(checkIn1.state).toBe("attended");
+      expect(checkIn1.method).toBe("qr");
+
+      // Idempotent check-in retry returns existing record
+      const retry1 = await store.recordCheckIn(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-1",
+          method: "qr",
+        },
+        "student-1",
+        "2026-09-01T17:56:00Z",
+      );
+      expect(retry1.attendanceId).toBe(checkIn1.attendanceId);
+      expect(retry1.occurredAt).toBe("2026-09-01T17:55:00Z");
+
+      // Student 2: late PIN check-in (18:20 -> 20 min after start)
+      const checkIn2 = await store.recordCheckIn(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-2",
+          method: "pin",
+          pin: "4321",
+        },
+        "student-2",
+        "2026-09-01T18:20:00Z",
+      );
+      expect(checkIn2.state).toBe("late");
+      expect(checkIn2.method).toBe("pin");
+
+      // Student 3: Name Search check-in by front desk (18:05 -> on-time)
+      const checkIn3 = await store.recordCheckIn(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-3",
+          method: "nameSearch",
+        },
+        "staff-1",
+        "2026-09-01T18:05:00Z",
+      );
+      expect(checkIn3.state).toBe("attended");
+      expect(checkIn3.method).toBe("nameSearch");
+
+      // Student 4: Manual check-in by coach (18:10 -> on-time with notes)
+      const checkIn4 = await store.recordCheckIn(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-4",
+          method: "manual",
+          notes: "Walk-in approved",
+        },
+        "coach-1",
+        "2026-09-01T18:10:00Z",
+      );
+      expect(checkIn4.state).toBe("attended");
+      expect(checkIn4.method).toBe("manual");
+      expect(checkIn4.notes).toBe("Walk-in approved");
+
+      // Verify listSessionAttendance
+      const sessionAttendance = await store.listSessionAttendance("academy-1", session.sessionId);
+      expect(sessionAttendance).toHaveLength(4);
+
+      // Verify listStudentAttendance
+      const studentHistory = await store.listStudentAttendance("academy-1", "student-1");
+      expect(studentHistory).toHaveLength(1);
+    });
+  });
 });
