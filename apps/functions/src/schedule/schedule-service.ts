@@ -1,6 +1,7 @@
 import {
   buildAttendanceId,
   buildBookingId,
+  buildCorrectionAttendanceId,
   determinePunctuality,
   generateSessionsFromClass,
   isWithinBookingCutoff,
@@ -9,6 +10,7 @@ import {
   type CancelBookingInput,
   type CheckInInput,
   type ClassRecord,
+  type CorrectAttendanceInput,
   type CreateClassInput,
   type CreateProgramInput,
   type CreateSessionInput,
@@ -187,7 +189,34 @@ export type ScheduleStore = Readonly<{
     academyId: string,
     studentId: string,
   ) => Promise<readonly AttendanceRecord[]>;
+  correctAttendance: (
+    academyId: string,
+    input: CorrectAttendanceInput,
+    actorId: string,
+    occurredAt?: string,
+  ) => Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }>;
+  reconcileSessionNoShows: (
+    academyId: string,
+    sessionId: string,
+    actorId: string,
+    occurredAt?: string,
+  ) => Promise<{ noShowsMarked: number; records: readonly AttendanceRecord[] }>;
+  listAttendanceHistory: (
+    academyId: string,
+    sessionId: string,
+    studentId: string,
+  ) => Promise<readonly AttendanceRecord[]>;
 }>;
+
+type GenericQuery = {
+  get: () => Promise<{
+    docs: Array<{
+      id: string;
+      data: () => Record<string, unknown>;
+    }>;
+  }>;
+  where: (field: string, op: string, val: unknown) => GenericQuery;
+};
 
 type GenericFirestore = {
   collection: (path: string) => {
@@ -203,18 +232,7 @@ type GenericFirestore = {
         data: () => Record<string, unknown>;
       }>;
     }>;
-    where: (
-      field: string,
-      op: string,
-      val: unknown,
-    ) => {
-      get: () => Promise<{
-        docs: Array<{
-          id: string;
-          data: () => Record<string, unknown>;
-        }>;
-      }>;
-    };
+    where: (field: string, op: string, val: unknown) => GenericQuery;
   };
 };
 
@@ -755,6 +773,156 @@ export function createFirestoreScheduleStore(options: {
         .map((d) => d.data() as AttendanceRecord)
         .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
     },
+
+    async correctAttendance(
+      academyId: string,
+      input: CorrectAttendanceInput,
+      actorId: string,
+      occurredAt?: string,
+    ): Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }> {
+      const canonicalId = buildAttendanceId(input.sessionId, input.studentId);
+      const canonicalRef = firestore
+        .collection(`academies/${academyId}/attendance`)
+        .doc(canonicalId);
+      const canonicalDoc = await canonicalRef.get();
+
+      if (!canonicalDoc.exists) {
+        throw new Error(`Canonical attendance record ${canonicalId} does not exist`);
+      }
+
+      const existingCanonical = canonicalDoc.data() as AttendanceRecord;
+      const now = occurredAt ?? new Date().toISOString();
+      const correctionId = buildCorrectionAttendanceId();
+
+      const correction: AttendanceRecord = Object.freeze({
+        attendanceId: correctionId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        method: existingCanonical.method,
+        state: input.newState,
+        occurredAt: now,
+        notes: input.reason,
+        correctionOf: canonicalId,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      const updatedCanonical: AttendanceRecord = Object.freeze({
+        ...existingCanonical,
+        state: input.newState,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      await Promise.all([
+        firestore.collection(`academies/${academyId}/attendance`).doc(correctionId).set(correction),
+        canonicalRef.update(updatedCanonical),
+        firestore
+          .collection(`academies/${academyId}/auditEvents`)
+          .doc(`audit_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`)
+          .set({
+            action: "attendance_correction",
+            academyId,
+            sessionId: input.sessionId,
+            studentId: input.studentId,
+            previousState: existingCanonical.state,
+            newState: input.newState,
+            reason: input.reason,
+            actorId,
+            occurredAt: now,
+          }),
+      ]);
+
+      return { correction, canonical: updatedCanonical };
+    },
+
+    async reconcileSessionNoShows(
+      academyId: string,
+      sessionId: string,
+      actorId: string,
+      occurredAt?: string,
+    ): Promise<{ noShowsMarked: number; records: readonly AttendanceRecord[] }> {
+      const sessionRef = firestore.collection(`academies/${academyId}/sessions`).doc(sessionId);
+      const sessionDoc = await sessionRef.get();
+
+      if (!sessionDoc.exists) {
+        throw new Error(`Session ${sessionId} does not exist`);
+      }
+
+      const bookingsSnapshot = await firestore
+        .collection(`academies/${academyId}/bookings`)
+        .where("sessionId", "==", sessionId)
+        .get();
+
+      const confirmedBookings = bookingsSnapshot.docs
+        .map((d) => d.data() as BookingRecord)
+        .filter((b) => b.status === "confirmed");
+
+      const attendanceSnapshot = await firestore
+        .collection(`academies/${academyId}/attendance`)
+        .where("sessionId", "==", sessionId)
+        .get();
+
+      const attendedStudentIds = new Set(
+        attendanceSnapshot.docs.map((d) => (d.data() as AttendanceRecord).studentId),
+      );
+
+      const now = occurredAt ?? new Date().toISOString();
+      const records: AttendanceRecord[] = [];
+
+      for (const booking of confirmedBookings) {
+        if (!attendedStudentIds.has(booking.studentId)) {
+          const attendanceId = buildAttendanceId(sessionId, booking.studentId);
+          const noShowRecord: AttendanceRecord = Object.freeze({
+            attendanceId,
+            academyId,
+            sessionId,
+            studentId: booking.studentId,
+            method: "manual",
+            state: "no_show",
+            occurredAt: now,
+            notes: "Automated no-show reconciliation",
+            correctionOf: null,
+            schemaVersion: "1",
+            createdAt: now,
+            createdBy: actorId,
+            updatedAt: now,
+            updatedBy: actorId,
+          });
+
+          await firestore
+            .collection(`academies/${academyId}/attendance`)
+            .doc(attendanceId)
+            .set(noShowRecord);
+          records.push(noShowRecord);
+          attendedStudentIds.add(booking.studentId);
+        }
+      }
+
+      return { noShowsMarked: records.length, records };
+    },
+
+    async listAttendanceHistory(
+      academyId: string,
+      sessionId: string,
+      studentId: string,
+    ): Promise<readonly AttendanceRecord[]> {
+      const canonicalId = buildAttendanceId(sessionId, studentId);
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/attendance`)
+        .where("sessionId", "==", sessionId)
+        .where("studentId", "==", studentId)
+        .get();
+
+      return snapshot.docs
+        .map((d) => d.data() as AttendanceRecord)
+        .filter((a) => a.attendanceId === canonicalId || a.correctionOf === canonicalId)
+        .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+    },
   };
 }
 
@@ -1247,8 +1415,126 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       const aMap = attendanceMap.get(academyId);
       if (!aMap) return [];
       return Array.from(aMap.values())
-        .filter((a) => a.studentId === studentId)
+        .filter((a) => a.studentId === studentId && a.correctionOf === null)
         .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+    },
+
+    async correctAttendance(
+      academyId: string,
+      input: CorrectAttendanceInput,
+      actorId: string,
+      occurredAt?: string,
+    ): Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }> {
+      if (!attendanceMap.has(academyId)) {
+        attendanceMap.set(academyId, new Map());
+      }
+      const aMap = attendanceMap.get(academyId)!;
+      const canonicalId = buildAttendanceId(input.sessionId, input.studentId);
+      const existingCanonical = aMap.get(canonicalId);
+
+      if (!existingCanonical) {
+        throw new Error(`Canonical attendance record ${canonicalId} does not exist`);
+      }
+
+      const now = occurredAt ?? new Date().toISOString();
+      const correctionId = buildCorrectionAttendanceId();
+
+      const correction: AttendanceRecord = Object.freeze({
+        attendanceId: correctionId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        method: existingCanonical.method,
+        state: input.newState,
+        occurredAt: now,
+        notes: input.reason,
+        correctionOf: canonicalId,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actorId,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      const updatedCanonical: AttendanceRecord = Object.freeze({
+        ...existingCanonical,
+        state: input.newState,
+        updatedAt: now,
+        updatedBy: actorId,
+      });
+
+      aMap.set(correctionId, correction);
+      aMap.set(canonicalId, updatedCanonical);
+
+      return { correction, canonical: updatedCanonical };
+    },
+
+    async reconcileSessionNoShows(
+      academyId: string,
+      sessionId: string,
+      actorId: string,
+      occurredAt?: string,
+    ): Promise<{ noShowsMarked: number; records: readonly AttendanceRecord[] }> {
+      const sMap = sessionsMap.get(academyId);
+      const session = sMap?.get(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} does not exist`);
+      }
+
+      const bMap = bookingsMap.get(academyId);
+      const confirmedBookings = bMap
+        ? Array.from(bMap.values()).filter(
+            (b) => b.sessionId === sessionId && b.status === "confirmed",
+          )
+        : [];
+
+      if (!attendanceMap.has(academyId)) {
+        attendanceMap.set(academyId, new Map());
+      }
+      const aMap = attendanceMap.get(academyId)!;
+
+      const now = occurredAt ?? new Date().toISOString();
+      const records: AttendanceRecord[] = [];
+
+      for (const booking of confirmedBookings) {
+        const canonicalId = buildAttendanceId(sessionId, booking.studentId);
+        if (!aMap.has(canonicalId)) {
+          const noShowRecord: AttendanceRecord = Object.freeze({
+            attendanceId: canonicalId,
+            academyId,
+            sessionId,
+            studentId: booking.studentId,
+            method: "manual",
+            state: "no_show",
+            occurredAt: now,
+            notes: "Automated no-show reconciliation",
+            correctionOf: null,
+            schemaVersion: "1",
+            createdAt: now,
+            createdBy: actorId,
+            updatedAt: now,
+            updatedBy: actorId,
+          });
+
+          aMap.set(canonicalId, noShowRecord);
+          records.push(noShowRecord);
+        }
+      }
+
+      return { noShowsMarked: records.length, records };
+    },
+
+    async listAttendanceHistory(
+      academyId: string,
+      sessionId: string,
+      studentId: string,
+    ): Promise<readonly AttendanceRecord[]> {
+      const aMap = attendanceMap.get(academyId);
+      if (!aMap) return [];
+      const canonicalId = buildAttendanceId(sessionId, studentId);
+      return Array.from(aMap.values())
+        .filter((a) => a.attendanceId === canonicalId || a.correctionOf === canonicalId)
+        .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
     },
   };
 }

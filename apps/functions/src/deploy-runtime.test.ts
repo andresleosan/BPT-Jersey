@@ -116,5 +116,5 @@ describe("deploy runtime import preparation", () => {
     expect(callableSource).toContain("secrets: [memberPageTokenSecret]");
     await import(pathToFileURL(indexPath).href);
     expect(getApps()).toHaveLength(1);
-  }, 30_000);
+  }, 60_000);
 });

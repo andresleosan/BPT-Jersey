@@ -3,15 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 import {
   cancelBooking,
   cancelSession,
+  correctAttendance,
   evaluateSessionMinimum,
   generateSessions,
   getScheduleCatalog,
+  listAttendanceHistory,
   listClasses,
   listSessionAttendance,
   listSessionBookings,
   listSessions,
   listStudentAttendance,
   listStudentBookings,
+  reconcileSessionNoShows,
   recordCheckIn,
   requestBooking,
   saveClass,
@@ -223,8 +226,50 @@ describe("Schedule Client", () => {
     });
     const myAtt = await listStudentAttendance("std-1");
     expect(myAtt).toHaveLength(1);
+
+    // Correct attendance
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        correction: { attendanceId: "corr_123", state: "attended" },
+        canonical: { attendanceId: "s-1__std-1", state: "attended" },
+      },
+    });
+    const corrected = await correctAttendance({
+      sessionId: "s-1",
+      studentId: "std-1",
+      newState: "attended",
+      reason: "Corrected by coach",
+    });
+    expect(corrected.canonical.state).toBe("attended");
+    expect(corrected.correction.attendanceId).toBe("corr_123");
+
+    // Reconcile no-shows
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        noShowsMarked: 2,
+        records: [
+          { attendanceId: "s-1__std-2", state: "no_show" },
+          { attendanceId: "s-1__std-3", state: "no_show" },
+        ],
+      },
+    });
+    const noShows = await reconcileSessionNoShows("s-1");
+    expect(noShows.noShowsMarked).toBe(2);
+
+    // List attendance history
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        history: [
+          { attendanceId: "s-1__std-1", state: "late" },
+          { attendanceId: "corr_123", state: "attended" },
+        ],
+      },
+    });
+    const history = await listAttendanceHistory("s-1", "std-1");
+    expect(history).toHaveLength(2);
   });
 });
+
 
 
 

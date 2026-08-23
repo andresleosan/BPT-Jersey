@@ -3,6 +3,7 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import {
   parseCancelBookingInput,
   parseCheckInInput,
+  parseCorrectAttendanceInput,
   parseCreateClassInput,
   parseCreateProgramInput,
   parseCreateSessionInput,
@@ -404,6 +405,89 @@ export function createListStudentAttendanceHandler(options: { store: ScheduleSto
   };
 }
 
+export function createCorrectAttendanceHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff access required to correct attendance");
+    }
+
+    const parsed = parseCorrectAttendanceInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.error);
+    }
+
+    const result = await store.correctAttendance(actor.academyId, parsed.value, actor.userId);
+
+    return result;
+  };
+}
+
+export function createReconcileSessionNoShowsHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError(
+        "permission-denied",
+        "Staff access required to reconcile session no-shows",
+      );
+    }
+
+    const data = request.data as { sessionId?: unknown };
+    if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    const result = await store.reconcileSessionNoShows(
+      actor.academyId,
+      data.sessionId.trim(),
+      actor.userId,
+    );
+
+    return result;
+  };
+}
+
+export function createListAttendanceHistoryHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const data = request.data as { sessionId?: unknown; studentId?: unknown };
+
+    if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    const studentId =
+      typeof data.studentId === "string" && data.studentId.trim()
+        ? data.studentId.trim()
+        : actor.userId;
+
+    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
+    if (!isStaff && actor.role === "adultStudent" && actor.userId !== studentId) {
+      throw new HttpsError(
+        "permission-denied",
+        "Access denied: cannot view another student's attendance history",
+      );
+    }
+
+    const history = await store.listAttendanceHistory(
+      actor.academyId,
+      data.sessionId.trim(),
+      studentId,
+    );
+
+    return {
+      history,
+    };
+  };
+}
+
 let defaultStore: ScheduleStore | undefined;
 
 function getStore(): ScheduleStore {
@@ -496,4 +580,19 @@ export const listSessionAttendance = onCall(
 export const listStudentAttendance = onCall(
   { enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createListStudentAttendanceHandler({ store: getStore() })(request),
+);
+
+export const correctAttendance = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createCorrectAttendanceHandler({ store: getStore() })(request),
+);
+
+export const reconcileSessionNoShows = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createReconcileSessionNoShowsHandler({ store: getStore() })(request),
+);
+
+export const listAttendanceHistory = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createListAttendanceHistoryHandler({ store: getStore() })(request),
 );

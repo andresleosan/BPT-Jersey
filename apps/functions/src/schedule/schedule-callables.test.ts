@@ -4,8 +4,10 @@ import {
   createCancelBookingHandler,
   createCancelSessionHandler,
   createCheckInHandler,
+  createCorrectAttendanceHandler,
   createEvaluateSessionMinimumHandler,
   createGenerateSessionsHandler,
+  createListAttendanceHistoryHandler,
   createListClassesHandler,
   createListScheduleCatalogHandler,
   createListSessionAttendanceHandler,
@@ -13,6 +15,7 @@ import {
   createListSessionsHandler,
   createListStudentAttendanceHandler,
   createListStudentBookingsHandler,
+  createReconcileSessionNoShowsHandler,
   createRequestBookingHandler,
   createSaveClassHandler,
   createSaveProgramHandler,
@@ -461,6 +464,98 @@ describe("Schedule Callables", () => {
         fakeRequest({ studentId: "student-1" }, "adultStudent", "student-1", "demo-academy"),
       );
       expect(myAtt.attendance).toHaveLength(1);
+    });
+  });
+
+  describe("Attendance Corrections & No-Shows Callables", () => {
+    it("allows staff to correct attendance, reconcile no-shows, and view history", async () => {
+      const store = createInMemoryScheduleStore();
+      const checkInHandler = createCheckInHandler({ store });
+      const correctHandler = createCorrectAttendanceHandler({ store });
+      const reconcileHandler = createReconcileSessionNoShowsHandler({ store });
+      const historyHandler = createListAttendanceHistoryHandler({ store });
+
+      const session = await store.createSession(
+        "demo-academy",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Evening Class",
+          startAt: "2099-09-01T18:00:00Z",
+          endAt: "2099-09-01T19:00:00Z",
+          capacity: 25,
+        },
+        "owner-1",
+      );
+
+      // Student 1 checks in
+      await checkInHandler(
+        fakeRequest(
+          { sessionId: session.sessionId, studentId: "student-1", method: "qr" },
+          "adultStudent",
+          "student-1",
+          "demo-academy",
+        ),
+      );
+
+      // Student cannot correct attendance
+      await expect(
+        correctHandler(
+          fakeRequest(
+            {
+              sessionId: session.sessionId,
+              studentId: "student-1",
+              newState: "attended",
+              reason: "I was actually on time",
+            },
+            "adultStudent",
+            "student-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Staff access required to correct attendance/);
+
+      // Coach corrects attendance
+      const corrRes = await correctHandler(
+        fakeRequest(
+          {
+            sessionId: session.sessionId,
+            studentId: "student-1",
+            newState: "attended",
+            reason: "Coach verified presence at mat before start",
+          },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      );
+      expect(corrRes.canonical.state).toBe("attended");
+      expect(corrRes.correction.correctionOf).toBe(`${session.sessionId}__student-1`);
+
+      // Student 2 booked but no check-in
+      await store.requestBooking(
+        "demo-academy",
+        { sessionId: session.sessionId, studentId: "student-2", membershipId: "mem-2" },
+        "student-2",
+      );
+
+      // Coach reconciles no-shows
+      const noShowRes = await reconcileHandler(
+        fakeRequest({ sessionId: session.sessionId }, "coach", "coach-1", "demo-academy"),
+      );
+      expect(noShowRes.noShowsMarked).toBe(1);
+
+      // History query
+      const histRes = await historyHandler(
+        fakeRequest(
+          { sessionId: session.sessionId, studentId: "student-1" },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      );
+      expect(histRes.history).toHaveLength(2);
     });
   });
 });

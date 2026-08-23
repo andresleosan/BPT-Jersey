@@ -509,5 +509,132 @@ describe("Schedule Service (In-Memory Store)", () => {
       const studentHistory = await store.listStudentAttendance("academy-1", "student-1");
       expect(studentHistory).toHaveLength(1);
     });
+
+    it("applies audited attendance correction preserving original canonical record and history", async () => {
+      const store = createInMemoryScheduleStore();
+
+      const session = await store.createSession(
+        "academy-1",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Evening Class",
+          startAt: "2026-09-01T18:00:00Z",
+          endAt: "2026-09-01T19:00:00Z",
+          capacity: 30,
+        },
+        "owner-1",
+      );
+
+      // Initial check-in (marked late)
+      const initial = await store.recordCheckIn(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-1",
+          method: "pin",
+        },
+        "student-1",
+        "2026-09-01T18:25:00Z",
+      );
+      expect(initial.state).toBe("late");
+
+      // Coach submits correction to 'attended'
+      const { correction, canonical } = await store.correctAttendance(
+        "academy-1",
+        {
+          sessionId: session.sessionId,
+          studentId: "student-1",
+          newState: "attended",
+          reason: "Kiosk queue delay at front entrance",
+        },
+        "coach-1",
+        "2026-09-01T18:30:00Z",
+      );
+
+      expect(correction.attendanceId).toMatch(/^corr_/);
+      expect(correction.correctionOf).toBe(`${session.sessionId}__student-1`);
+      expect(correction.state).toBe("attended");
+      expect(correction.notes).toBe("Kiosk queue delay at front entrance");
+
+      // Canonical state updated to attended
+      expect(canonical.state).toBe("attended");
+      expect(canonical.attendanceId).toBe(`${session.sessionId}__student-1`);
+
+      // Verify history contains both canonical and correction
+      const history = await store.listAttendanceHistory(
+        "academy-1",
+        session.sessionId,
+        "student-1",
+      );
+      expect(history).toHaveLength(2);
+      expect(history[0]!.attendanceId).toBe(`${session.sessionId}__student-1`);
+      expect(history[1]!.correctionOf).toBe(`${session.sessionId}__student-1`);
+    });
+
+    it("reconciles no-shows for confirmed bookings without check-in after session ends", async () => {
+      const store = createInMemoryScheduleStore();
+
+      const session = await store.createSession(
+        "academy-1",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Morning Class",
+          startAt: "2026-09-01T08:00:00Z",
+          endAt: "2026-09-01T09:00:00Z",
+          capacity: 20,
+        },
+        "owner-1",
+      );
+
+      // Student 1 books and checks in
+      await store.requestBooking(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "student-1", membershipId: "mem-1" },
+        "student-1",
+      );
+      await store.recordCheckIn(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "student-1", method: "qr" },
+        "student-1",
+        "2026-09-01T07:55:00Z",
+      );
+
+      // Student 2 books but never checks in
+      await store.requestBooking(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "student-2", membershipId: "mem-2" },
+        "student-2",
+      );
+
+      // Student 3 books and cancels
+      await store.requestBooking(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "student-3", membershipId: "mem-3" },
+        "student-3",
+      );
+      await store.cancelBooking(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "student-3", reason: "Injury" },
+        "student-3",
+        true,
+      );
+
+      // Reconcile no-shows
+      const result = await store.reconcileSessionNoShows("academy-1", session.sessionId, "admin-1");
+
+      expect(result.noShowsMarked).toBe(1);
+      expect(result.records).toHaveLength(1);
+      expect(result.records[0]!.studentId).toBe("student-2");
+      expect(result.records[0]!.state).toBe("no_show");
+      expect(result.records[0]!.attendanceId).toBe(`${session.sessionId}__student-2`);
+
+      // Idempotent re-run marks 0 additional no-shows
+      const rerun = await store.reconcileSessionNoShows("academy-1", session.sessionId, "admin-1");
+      expect(rerun.noShowsMarked).toBe(0);
+    });
   });
 });

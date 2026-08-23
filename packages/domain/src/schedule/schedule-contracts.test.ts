@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildAttendanceId,
   buildBookingId,
+  buildCorrectionAttendanceId,
   determinePunctuality,
   evaluateBookingEligibility,
   generateSessionsFromClass,
   isWithinBookingCutoff,
   parseCancelBookingInput,
   parseCheckInInput,
+  parseCorrectAttendanceInput,
   parseCreateClassInput,
   parseCreateProgramInput,
   parseCreateSessionInput,
@@ -656,6 +658,69 @@ describe("Schedule Domain Contracts", () => {
     it("rejects missing sessionId or studentId", () => {
       expect(parseCheckInInput({ sessionId: "", studentId: "s-1", method: "qr" }).ok).toBe(false);
       expect(parseCheckInInput({ sessionId: "s-1", studentId: "", method: "qr" }).ok).toBe(false);
+    });
+  });
+
+  describe("buildCorrectionAttendanceId", () => {
+    it("generates opaque correction ID prefixed with corr_", () => {
+      const id = buildCorrectionAttendanceId();
+      expect(id).toMatch(/^corr_[0-9a-z_-]+$/i);
+    });
+  });
+
+  describe("parseCorrectAttendanceInput", () => {
+    it("accepts valid correction input to attended", () => {
+      const result = parseCorrectAttendanceInput({
+        sessionId: "sess-1",
+        studentId: "stud-1",
+        newState: "attended",
+        reason: "Scanner malfunction at front desk",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.newState).toBe("attended");
+        expect(result.value.reason).toBe("Scanner malfunction at front desk");
+      }
+    });
+
+    it("accepts valid correction input to no_show or absent", () => {
+      expect(
+        parseCorrectAttendanceInput({
+          sessionId: "sess-1",
+          studentId: "stud-1",
+          newState: "no_show",
+          reason: "Did not attend",
+        }).ok,
+      ).toBe(true);
+
+      expect(
+        parseCorrectAttendanceInput({
+          sessionId: "sess-1",
+          studentId: "stud-1",
+          newState: "absent",
+          reason: "Called in sick",
+        }).ok,
+      ).toBe(true);
+    });
+
+    it("rejects invalid state or empty reason", () => {
+      expect(
+        parseCorrectAttendanceInput({
+          sessionId: "sess-1",
+          studentId: "stud-1",
+          newState: "unknown_state",
+          reason: "Some reason",
+        }).ok,
+      ).toBe(false);
+
+      expect(
+        parseCorrectAttendanceInput({
+          sessionId: "sess-1",
+          studentId: "stud-1",
+          newState: "attended",
+          reason: "",
+        }).ok,
+      ).toBe(false);
     });
   });
 });

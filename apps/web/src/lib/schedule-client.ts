@@ -5,6 +5,7 @@ import type {
   CancelBookingInput,
   CheckInInput,
   ClassRecord,
+  CorrectAttendanceInput,
   CreateClassInput,
   CreateProgramInput,
   CreateSessionInput,
@@ -217,6 +218,47 @@ export async function listStudentAttendance(
   const result = await callable(studentId ? { studentId } : {});
   return result.data.attendance;
 }
+
+export async function correctAttendance(
+  input: CorrectAttendanceInput,
+): Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    CorrectAttendanceInput,
+    { correction: AttendanceRecord; canonical: AttendanceRecord }
+  >(functions, "correctAttendance");
+
+  const result = await callable(input);
+  return result.data;
+}
+
+export async function reconcileSessionNoShows(
+  sessionId: string,
+): Promise<{ noShowsMarked: number; records: readonly AttendanceRecord[] }> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { sessionId: string },
+    { noShowsMarked: number; records: AttendanceRecord[] }
+  >(functions, "reconcileSessionNoShows");
+
+  const result = await callable({ sessionId });
+  return result.data;
+}
+
+export async function listAttendanceHistory(
+  sessionId: string,
+  studentId?: string,
+): Promise<readonly AttendanceRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { sessionId: string; studentId?: string },
+    { history: AttendanceRecord[] }
+  >(functions, "listAttendanceHistory");
+
+  const result = await callable(studentId ? { sessionId, studentId } : { sessionId });
+  return result.data.history;
+}
+
 
 
 

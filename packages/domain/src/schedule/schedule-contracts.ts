@@ -764,11 +764,17 @@ export function evaluateBookingEligibility(
 export const checkInMethods = Object.freeze(["qr", "pin", "nameSearch", "manual"] as const);
 export type CheckInMethod = (typeof checkInMethods)[number];
 
-export const attendanceStates = Object.freeze(["attended", "late", "absent", "excused"] as const);
+export const attendanceStates = Object.freeze([
+  "attended",
+  "late",
+  "absent",
+  "no_show",
+  "excused",
+] as const);
 export type AttendanceState = (typeof attendanceStates)[number];
 
 export type AttendanceRecord = Readonly<{
-  attendanceId: string; // deterministic: `${sessionId}__${studentId}`
+  attendanceId: string; // deterministic: `${sessionId}__${studentId}` or correction `corr_...`
   academyId: string;
   sessionId: string;
   studentId: string;
@@ -792,11 +798,27 @@ export type CheckInInput = Readonly<{
   notes?: string;
 }>;
 
+export type CorrectAttendanceInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  newState: AttendanceState;
+  reason: string;
+}>;
+
 /**
  * Builds the deterministic canonical identifier for attendance: `${sessionId}__${studentId}`.
  */
 export function buildAttendanceId(sessionId: string, studentId: string): string {
   return `${sessionId.trim()}__${studentId.trim()}`;
+}
+
+/**
+ * Generates an opaque backend ID for an attendance correction: `corr_${timestamp}_${rand}`.
+ */
+export function buildCorrectionAttendanceId(suffix?: string): string {
+  const ts = Date.now().toString(36);
+  const rand = suffix ?? Math.random().toString(36).slice(2, 8);
+  return `corr_${ts}_${rand}`;
 }
 
 /**
@@ -859,4 +881,39 @@ export function parseCheckInInput(input: unknown): Result<CheckInInput, string> 
   }
 
   return ok(Object.freeze(result));
+}
+
+export function parseCorrectAttendanceInput(
+  input: unknown,
+): Result<CorrectAttendanceInput, string> {
+  if (!isRecord(input)) {
+    return err("Correct attendance input must be an object");
+  }
+
+  const { sessionId, studentId, newState, reason } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof newState !== "string" || !attendanceStates.includes(newState as AttendanceState)) {
+    return err(`Invalid attendance state. Expected one of: ${attendanceStates.join(", ")}`);
+  }
+
+  if (typeof reason !== "string" || reason.trim().length === 0) {
+    return err("reason is required for attendance correction");
+  }
+
+  return ok(
+    Object.freeze({
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+      newState: newState as AttendanceState,
+      reason: reason.trim(),
+    }),
+  );
 }
