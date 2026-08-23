@@ -651,10 +651,10 @@ const progressItems = [
   task(
     "T040",
     "Implementar checklist de habilidades y resumen de progreso",
-    "pendiente",
+    "aprobada",
     "Resumir técnicas, total de clases, horas, racha y belt/stripes sin promoción automática.",
     "T039",
-    "El resumen completo de progreso del catálogo MVP todavía está pendiente.",
+    "Contratos y pure builder buildStudentProgressSummary 16/16, store aggregations 8/8, callables RBAC con visibilidad familiar 12/12, client 6/6, suite completa 864/864 en 105 archivos; checklist técnico, clases, horas y elegibilidad no automática probados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),

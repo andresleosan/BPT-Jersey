@@ -4,13 +4,16 @@ import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-cr
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import {
   buildEvaluationId,
+  buildStudentProgressSummary,
   parseLevelCatalogProjection,
   parseLevelCatalogSource,
   parseRecordEvaluationInput,
   type CanonicalLevelCatalog,
+  type EvaluationRecord,
   type EvaluationScore,
   type LevelCatalogProjection,
   type RecordEvaluationInput,
+  type StudentProgressSummary,
 } from "./level-contracts";
 
 describe("Level Contracts", () => {
@@ -242,6 +245,88 @@ describe("Level Contracts", () => {
         evidenceNotes: "Good technique shown.",
       });
       expect(badSkill.ok).toBe(false);
+    });
+  });
+
+  describe("Student Progress Summary & Skill Checklist (T040)", () => {
+    const catalogResult = parseLevelCatalogSource(observedJson, businessCriteriaJson);
+    if (!catalogResult.ok) throw new Error("Catalog source parsing failed");
+    const catalog = catalogResult.value;
+
+    it("calculates progress toward next belt/stripe and builds skill checklist", () => {
+      // Suppose student is currently white belt 0 (or first level: white-0 / sequence 1)
+      const firstDef = catalog.definitions[0]!;
+      const secondDef = catalog.definitions[1]!;
+      const req =
+        catalog.requirements.find((r) => r.definitionKey === secondDef.definitionKey) ??
+        catalog.requirements[0]!;
+
+      // Mock student evaluations: 1 skill evaluated at score 4
+      const evaluations: EvaluationRecord[] = [
+        {
+          evaluationId: "eval-1",
+          academyId: "acad-1",
+          studentId: "std-1",
+          definitionKey: firstDef.definitionKey,
+          skillKey: req.skillKey,
+          score: 4,
+          evidenceNotes: "Solid execution during sparring.",
+          evaluatorId: "coach-1",
+          evaluatorRole: "coach",
+          evaluatedAt: "2026-08-10T10:00:00Z",
+          schemaVersion: "1",
+          createdAt: "2026-08-10T10:00:00Z",
+          createdBy: "coach-1",
+          updatedAt: "2026-08-10T10:00:00Z",
+          updatedBy: "coach-1",
+        },
+      ];
+
+      const summary: StudentProgressSummary = buildStudentProgressSummary({
+        catalog,
+        studentId: "std-1",
+        currentDefinitionKey: firstDef.definitionKey,
+        evaluations,
+        attendedClassesCount: 15,
+        totalHours: 22.5,
+        currentLevelStartedAt: "2026-06-01T00:00:00Z",
+        now: "2026-09-01T00:00:00Z",
+      });
+
+      expect(summary.studentId).toBe("std-1");
+      expect(summary.currentDefinition.definitionKey).toBe(firstDef.definitionKey);
+      expect(summary.targetDefinition?.definitionKey).toBe(secondDef.definitionKey);
+      expect(summary.totalAttendedClasses).toBe(15);
+      expect(summary.totalHours).toBe(22.5);
+
+      // Check skill checklist
+      expect(summary.skillChecklist.length).toBeGreaterThan(0);
+      const item = summary.skillChecklist.find((i) => i.skillKey === req.skillKey);
+      expect(item).toBeDefined();
+      expect(item?.currentScore).toBe(4);
+      expect(item?.isCompleted).toBe(true);
+
+      // Check criteria
+      expect(summary.criteria.classes.completed).toBe(15);
+      expect(summary.criteria.time.elapsedDays).toBe(92); // ~92 days between June 1 and Sept 1
+    });
+
+    it("handles max rank student where targetDefinition is null", () => {
+      const lastDef = catalog.definitions[catalog.definitions.length - 1]!;
+
+      const summary = buildStudentProgressSummary({
+        catalog,
+        studentId: "master-1",
+        currentDefinitionKey: lastDef.definitionKey,
+        evaluations: [],
+        attendedClassesCount: 500,
+        totalHours: 750,
+      });
+
+      expect(summary.currentDefinition.definitionKey).toBe(lastDef.definitionKey);
+      expect(summary.targetDefinition).toBeNull();
+      expect(summary.criteria.overallEligible).toBe(true);
+      expect(summary.skillChecklist).toHaveLength(0);
     });
   });
 });

@@ -54,7 +54,13 @@ export {
   voidManualInvoice,
 } from "./finance/finance-callables.js";
 export {
+  getStudentProgressSummary,
   listLevelCatalog,
+  listStudentEvaluations,
+  recordEvaluation,
+} from "./levels/level-callables.js";
+export {
+  cancelBooking,
   cancelSession,
   checkIn,
   evaluateSessionMinimum,

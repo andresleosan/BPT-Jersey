@@ -1,11 +1,13 @@
 import {
   buildEvaluationId,
+  buildStudentProgressSummary,
   type EvaluationRecord,
   type LevelCatalogProjection,
   type LevelDefinitionRecord,
   type LevelRequirementRecord,
   type LevelSystemRecord,
   type RecordEvaluationInput,
+  type StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
 import type { NormalizedLevelCatalog } from "./level-source";
 
@@ -65,6 +67,14 @@ export type LevelCatalogStore = Readonly<{
     studentId: string,
   ) => Promise<readonly EvaluationRecord[]>;
   getStudentSkillSummary: (academyId: string, studentId: string) => Promise<StudentSkillSummary>;
+  getStudentProgressSummary: (
+    academyId: string,
+    studentId: string,
+    currentDefinitionKey?: string,
+    currentLevelStartedAt?: string | null,
+    attendedClassesCount?: number,
+    totalHours?: number,
+  ) => Promise<StudentProgressSummary>;
 }>;
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -369,6 +379,50 @@ export function createLevelCatalogStore({
 
       return summary;
     },
+
+    async getStudentProgressSummary(
+      academyId: string,
+      studentId: string,
+      currentDefinitionKey?: string,
+      currentLevelStartedAt?: string | null,
+      attendedClassesCount?: number,
+      totalHours?: number,
+    ): Promise<StudentProgressSummary> {
+      assertValidAcademyId(academyId);
+
+      const [catalog, evaluations] = await Promise.all([
+        this.listPublished(academyId),
+        this.listStudentEvaluations(academyId, studentId),
+      ]);
+
+      // If attendedClassesCount not provided, count attendance records for this student
+      let classesCount = attendedClassesCount;
+      if (classesCount === undefined) {
+        const attendanceSnap = await firestore
+          .collection(`academies/${academyId}/attendance`)
+          .get();
+
+        classesCount = attendanceSnap.docs.filter((d) => {
+          const data = d.data();
+          const status = data["status"];
+          return data["studentId"] === studentId && (status === "attended" || status === "late");
+        }).length;
+      }
+
+      const effectiveHours = totalHours ?? (classesCount ?? 0) * 1.5;
+      const effectiveDefKey =
+        currentDefinitionKey ?? catalog.definitions[0]?.definitionKey ?? "white-0";
+
+      return buildStudentProgressSummary({
+        catalog,
+        studentId,
+        currentDefinitionKey: effectiveDefKey,
+        evaluations,
+        attendedClassesCount: classesCount ?? 0,
+        totalHours: effectiveHours,
+        currentLevelStartedAt: currentLevelStartedAt ?? null,
+      });
+    },
   };
 }
 
@@ -588,6 +642,37 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       }
 
       return summary;
+    },
+
+    async getStudentProgressSummary(
+      academyId: string,
+      studentId: string,
+      currentDefinitionKey?: string,
+      currentLevelStartedAt?: string | null,
+      attendedClassesCount?: number,
+      totalHours?: number,
+    ): Promise<StudentProgressSummary> {
+      assertValidAcademyId(academyId);
+
+      const [catalog, evaluations] = await Promise.all([
+        this.listPublished(academyId),
+        this.listStudentEvaluations(academyId, studentId),
+      ]);
+
+      const classesCount = attendedClassesCount ?? 0;
+      const effectiveHours = totalHours ?? classesCount * 1.5;
+      const effectiveDefKey =
+        currentDefinitionKey ?? catalog.definitions[0]?.definitionKey ?? "white-0";
+
+      return buildStudentProgressSummary({
+        catalog,
+        studentId,
+        currentDefinitionKey: effectiveDefKey,
+        evaluations,
+        attendedClassesCount: classesCount,
+        totalHours: effectiveHours,
+        currentLevelStartedAt: currentLevelStartedAt ?? null,
+      });
     },
   };
 }

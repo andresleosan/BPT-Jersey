@@ -6,12 +6,14 @@ import {
   type EvaluationRecord,
   type LevelCatalogProjection,
   type RecordEvaluationInput,
+  type StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
 import { getFirebaseFunctions } from "./firebase-client";
 
 const safeCatalogError = "Unable to load level catalog. Please try again.";
 const safeRecordEvalError = "Unable to record evaluation. Please try again.";
 const safeListEvalError = "Unable to load student evaluations. Please try again.";
+const safeProgressError = "Unable to load student progress. Please try again.";
 
 export type StudentEvaluationsResponse = Readonly<{
   evaluations: readonly EvaluationRecord[];
@@ -84,4 +86,25 @@ export async function listStudentEvaluations(
     throw new Error(safeListEvalError);
   }
 }
+
+export async function getStudentProgressSummary(
+  studentId?: string,
+): Promise<StudentProgressSummary> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { studentId?: string },
+    { progress: StudentProgressSummary }
+  >(functions, "getStudentProgressSummary");
+
+  try {
+    const response = await callable(studentId ? { studentId } : {});
+    return response.data.progress;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeProgressError) {
+      throw error;
+    }
+    throw new Error(safeProgressError);
+  }
+}
+
 

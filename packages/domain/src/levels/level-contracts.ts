@@ -620,3 +620,180 @@ export function parseRecordEvaluationInput(
     }),
   );
 }
+
+export type SkillChecklistItem = Readonly<{
+  skillKey: string;
+  displayLabel: string;
+  requiredScore: number;
+  currentScore: number;
+  latestScore: number;
+  isCompleted: boolean;
+  lastEvaluatedAt: string | null;
+  evaluationCount: number;
+}>;
+
+export type ProgressCriteriaSummary = Readonly<{
+  classes: Readonly<{
+    required: number | null;
+    completed: number;
+    met: boolean;
+  }>;
+  time: Readonly<{
+    requiredDays: number | null;
+    elapsedDays: number;
+    met: boolean;
+  }>;
+  skills: Readonly<{
+    total: number;
+    completed: number;
+    met: boolean;
+    percentage: number;
+  }>;
+  overallEligible: boolean;
+}>;
+
+export type StudentProgressSummary = Readonly<{
+  studentId: string;
+  currentDefinition: LevelDefinitionRecord;
+  targetDefinition: LevelDefinitionRecord | null;
+  skillChecklist: readonly SkillChecklistItem[];
+  criteria: ProgressCriteriaSummary;
+  totalAttendedClasses: number;
+  totalHours: number;
+  currentLevelStartedAt: string | null;
+  calculatedAt: string;
+}>;
+
+export function buildStudentProgressSummary(options: {
+  catalog: CanonicalLevelCatalog | LevelCatalogProjection;
+  studentId: string;
+  currentDefinitionKey: string;
+  evaluations: readonly EvaluationRecord[];
+  attendedClassesCount?: number;
+  totalHours?: number;
+  currentLevelStartedAt?: string | null;
+  now?: string;
+}): StudentProgressSummary {
+  const {
+    catalog,
+    studentId,
+    currentDefinitionKey,
+    evaluations,
+    attendedClassesCount = 0,
+    totalHours = 0,
+    currentLevelStartedAt = null,
+    now = new Date().toISOString(),
+  } = options;
+
+  const currentDefinition =
+    catalog.definitions.find((d) => d.definitionKey === currentDefinitionKey) ??
+    catalog.definitions[0]!;
+
+  const targetDefinition =
+    catalog.definitions.find((d) => d.sequence === currentDefinition.sequence + 1) ?? null;
+
+  // Build skill checklist based on target definition requirements
+  const targetReqs = targetDefinition
+    ? catalog.requirements.filter((r) => r.definitionKey === targetDefinition.definitionKey)
+    : [];
+
+  const skillsMap = new Map(catalog.skills.map((s) => [s.key, s]));
+
+  const skillChecklist: SkillChecklistItem[] = targetReqs.map((req) => {
+    const skillDef = skillsMap.get(req.skillKey);
+    const label = skillDef ? skillDef.displayLabel : req.skillKey;
+
+    const studentSkillEvals = evaluations
+      .filter((e) => e.studentId === studentId && e.skillKey === req.skillKey)
+      .sort((a, b) => b.evaluatedAt.localeCompare(a.evaluatedAt));
+
+    const count = studentSkillEvals.length;
+    let maxScore = 0;
+    let latestScore = 0;
+    let lastEvaluatedAt: string | null = null;
+
+    if (count > 0) {
+      latestScore = studentSkillEvals[0]!.score;
+      lastEvaluatedAt = studentSkillEvals[0]!.evaluatedAt;
+      for (const ev of studentSkillEvals) {
+        if (ev.score > maxScore) maxScore = ev.score;
+      }
+    }
+
+    const isCompleted = maxScore >= req.minimumRating;
+
+    return Object.freeze({
+      skillKey: req.skillKey,
+      displayLabel: label,
+      requiredScore: req.minimumRating,
+      currentScore: maxScore,
+      latestScore,
+      isCompleted,
+      lastEvaluatedAt,
+      evaluationCount: count,
+    });
+  });
+
+  // Calculate classes criteria
+  const requiredClasses = targetDefinition?.criteria.minClasses ?? null;
+  const classesMet = requiredClasses === null || attendedClassesCount >= requiredClasses;
+
+  // Calculate time criteria
+  let requiredDays: number | null = null;
+  if (targetDefinition?.criteria.minimumTime) {
+    const mt = targetDefinition.criteria.minimumTime;
+    requiredDays = mt.years * 365 + mt.months * 30 + mt.days;
+  }
+
+  let elapsedDays = 0;
+  if (currentLevelStartedAt) {
+    const startMs = new Date(currentLevelStartedAt).getTime();
+    const nowMs = new Date(now).getTime();
+    if (!Number.isNaN(startMs) && !Number.isNaN(nowMs) && nowMs >= startMs) {
+      elapsedDays = Math.floor((nowMs - startMs) / (1000 * 86400));
+    }
+  }
+
+  const timeMet = requiredDays === null || elapsedDays >= requiredDays;
+
+  // Calculate skills criteria
+  const totalSkills = skillChecklist.length;
+  const completedSkills = skillChecklist.filter((s) => s.isCompleted).length;
+  const skillsMet = totalSkills === 0 || completedSkills === totalSkills;
+  const skillsPercentage =
+    totalSkills === 0 ? 100 : Math.round((completedSkills / totalSkills) * 100);
+
+  const overallEligible = targetDefinition === null ? true : classesMet && timeMet && skillsMet;
+
+  const criteria: ProgressCriteriaSummary = Object.freeze({
+    classes: Object.freeze({
+      required: requiredClasses,
+      completed: attendedClassesCount,
+      met: classesMet,
+    }),
+    time: Object.freeze({
+      requiredDays,
+      elapsedDays,
+      met: timeMet,
+    }),
+    skills: Object.freeze({
+      total: totalSkills,
+      completed: completedSkills,
+      met: skillsMet,
+      percentage: skillsPercentage,
+    }),
+    overallEligible,
+  });
+
+  return Object.freeze({
+    studentId,
+    currentDefinition,
+    targetDefinition,
+    skillChecklist: Object.freeze(skillChecklist),
+    criteria,
+    totalAttendedClasses: attendedClassesCount,
+    totalHours,
+    currentLevelStartedAt,
+    calculatedAt: now,
+  });
+}

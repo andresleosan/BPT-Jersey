@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { parseLevelCatalogSource } from "@bpt-jersey/domain/levels";
-import { getLevelCatalog, listStudentEvaluations, recordEvaluation } from "./levels-client";
+import {
+  getLevelCatalog,
+  getStudentProgressSummary,
+  listStudentEvaluations,
+  recordEvaluation,
+} from "./levels-client";
 
 const parsed = parseLevelCatalogSource(observedJson, businessCriteriaJson);
 if (!parsed.ok) throw new Error("Catalog parsing failed");
@@ -112,5 +117,31 @@ describe("Levels Web Client", () => {
     expect(res.evaluations).toHaveLength(1);
     expect(res.summary["guard-pass"]?.maxScore).toBe(5);
   });
+
+  it("fetches student progress summary", async () => {
+    mockCallableError = null;
+    mockCallableResult = {
+      data: {
+        progress: {
+          studentId: "std-1",
+          totalAttendedClasses: 25,
+          totalHours: 37.5,
+          criteria: {
+            classes: { required: 20, completed: 25, met: true },
+            time: { requiredDays: 30, elapsedDays: 60, met: true },
+            skills: { total: 4, completed: 4, met: true, percentage: 100 },
+            overallEligible: true,
+          },
+          skillChecklist: [],
+        },
+      },
+    };
+
+    const progress = await getStudentProgressSummary("std-1");
+    expect(progress.studentId).toBe("std-1");
+    expect(progress.criteria.overallEligible).toBe(true);
+    expect(progress.totalAttendedClasses).toBe(25);
+  });
 });
+
 

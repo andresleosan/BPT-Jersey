@@ -5,6 +5,7 @@ import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.
 import { createInMemoryLevelStore } from "./level-service";
 import { normalizeLevelCatalogSource } from "./level-source";
 import {
+  createGetStudentProgressSummaryHandler,
   createListLevelCatalogHandler,
   createListStudentEvaluationsHandler,
   createRecordEvaluationHandler,
@@ -204,6 +205,49 @@ describe("Level Callables", () => {
           fakeRequest({ studentId: "adult-2" }, "adultStudent", "adult-1", "demo-academy"),
         ),
       ).rejects.toThrow(/Access denied: student evaluation visibility restricted/);
+    });
+  });
+
+  describe("Get Student Progress Summary Callable (T040)", () => {
+    it("allows staff to retrieve student progress summary", async () => {
+      const store = createTestStore();
+      const progressHandler = createGetStudentProgressSummaryHandler({ store });
+
+      const res = await progressHandler(
+        fakeRequest(
+          {
+            studentId: "student-1",
+            currentDefinitionKey: "white-0",
+            attendedClassesCount: 20,
+            totalHours: 30,
+          },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      );
+
+      expect(res.progress.studentId).toBe("student-1");
+      expect(res.progress.totalAttendedClasses).toBe(20);
+      expect(res.progress.totalHours).toBe(30);
+    });
+
+    it("enforces family visibility on progress summary", async () => {
+      const store = createTestStore();
+      const progressHandler = createGetStudentProgressSummaryHandler({ store });
+
+      // Student can view own progress
+      const ownRes = await progressHandler(
+        fakeRequest({ studentId: "adult-1" }, "adultStudent", "adult-1", "demo-academy"),
+      );
+      expect(ownRes.progress.studentId).toBe("adult-1");
+
+      // Student cannot view other student progress
+      await expect(
+        progressHandler(
+          fakeRequest({ studentId: "other-student" }, "adultStudent", "adult-1", "demo-academy"),
+        ),
+      ).rejects.toThrow(/Access denied: student progress visibility restricted/);
     });
   });
 });

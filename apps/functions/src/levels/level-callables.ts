@@ -5,6 +5,7 @@ import {
   parseRecordEvaluationInput,
   type EvaluationRecord,
   type LevelCatalogProjection,
+  type StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
@@ -127,6 +128,89 @@ export function createListStudentEvaluationsHandler({ store }: { store: LevelCat
   };
 }
 
+export function createGetStudentProgressSummaryHandler({ store }: { store: LevelCatalogStore }) {
+  return async (
+    request: CallableRequest<unknown>,
+  ): Promise<{ progress: StudentProgressSummary }> => {
+    const actor = requireUserActor(request);
+    const data =
+      (request.data as {
+        studentId?: unknown;
+        currentDefinitionKey?: unknown;
+        currentLevelStartedAt?: unknown;
+        attendedClassesCount?: unknown;
+        totalHours?: unknown;
+      }) ?? {};
+
+    let targetStudentId: string = String(actor.userId);
+
+    if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      if (typeof data.studentId === "string" && data.studentId.trim()) {
+        targetStudentId = data.studentId.trim();
+      } else {
+        throw new HttpsError("invalid-argument", "studentId is required for staff progress query");
+      }
+    } else if (actor.role === "adultStudent") {
+      if (
+        typeof data.studentId === "string" &&
+        data.studentId.trim() &&
+        data.studentId.trim() !== String(actor.userId)
+      ) {
+        throw new HttpsError(
+          "permission-denied",
+          "Access denied: student progress visibility restricted to self or authorized guardians",
+        );
+      }
+      targetStudentId = String(actor.userId);
+    } else if (actor.role === "guardian") {
+      if (typeof data.studentId === "string" && data.studentId.trim()) {
+        targetStudentId = data.studentId.trim();
+      } else {
+        throw new HttpsError(
+          "invalid-argument",
+          "studentId is required for guardian progress query",
+        );
+      }
+    } else {
+      throw new HttpsError(
+        "permission-denied",
+        "Access denied: student progress visibility restricted",
+      );
+    }
+
+    const currentDefinitionKey =
+      typeof data.currentDefinitionKey === "string" && data.currentDefinitionKey.trim()
+        ? data.currentDefinitionKey.trim()
+        : undefined;
+
+    const currentLevelStartedAt =
+      typeof data.currentLevelStartedAt === "string" && data.currentLevelStartedAt.trim()
+        ? data.currentLevelStartedAt.trim()
+        : null;
+
+    const attendedClassesCount =
+      typeof data.attendedClassesCount === "number" && data.attendedClassesCount >= 0
+        ? data.attendedClassesCount
+        : undefined;
+
+    const totalHours =
+      typeof data.totalHours === "number" && data.totalHours >= 0 ? data.totalHours : undefined;
+
+    const progress = await store.getStudentProgressSummary(
+      actor.academyId,
+      targetStudentId,
+      currentDefinitionKey,
+      currentLevelStartedAt,
+      attendedClassesCount,
+      totalHours,
+    );
+
+    return {
+      progress,
+    };
+  };
+}
+
 let defaultStore: LevelCatalogStore | undefined;
 
 function getStore(): LevelCatalogStore {
@@ -168,6 +252,17 @@ export const listStudentEvaluations = onCall(
   },
   async (request) => {
     const handler = createListStudentEvaluationsHandler({ store: getStore() });
+    return handler(request);
+  },
+);
+
+export const getStudentProgressSummary = onCall(
+  {
+    enforceAppCheck: false,
+    consumeAppCheckToken: false,
+  },
+  async (request) => {
+    const handler = createGetStudentProgressSummaryHandler({ store: getStore() });
     return handler(request);
   },
 );

@@ -170,5 +170,37 @@ describe("Level Service & Store", () => {
       expect(summary["guard-pass-knee-cut"]?.latestScore).toBe(4);
       expect(summary["guard-pass-knee-cut"]?.lastEvaluatedAt).toBe("2026-08-15T10:00:00Z");
     });
+
+    it("aggregates student progress summary with published catalog and attendance count", async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId: "demo-academy", normalized });
+
+      await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-0",
+          skillKey: "guard-pass-knee-cut",
+          score: 5,
+          evidenceNotes: "Mastery achieved.",
+        },
+        evaluatorId: "coach-1",
+        evaluatorRole: "coach",
+      });
+
+      const progress = await store.getStudentProgressSummary(
+        "demo-academy",
+        "student-1",
+        "white-0",
+        "2026-01-01T00:00:00Z",
+        40,
+        60,
+      );
+
+      expect(progress.studentId).toBe("student-1");
+      expect(progress.totalAttendedClasses).toBe(40);
+      expect(progress.totalHours).toBe(60);
+      expect(progress.skillChecklist.length).toBeGreaterThan(0);
+    });
   });
 });

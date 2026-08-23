@@ -250,6 +250,7 @@ export type {
 
 export {
   buildEvaluationId,
+  buildStudentProgressSummary,
   evaluationScores,
   levelDefinitionKinds,
   levelRequirementInheritanceModes,
@@ -269,8 +270,11 @@ export type {
   LevelRequirementRecord,
   LevelSystemRecord,
   LevelVisual,
+  ProgressCriteriaSummary,
   RecordEvaluationInput,
+  SkillChecklistItem,
   SkillDefinition,
+  StudentProgressSummary,
 } from "./levels/level-contracts";
 
 export {
