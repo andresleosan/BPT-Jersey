@@ -1,12 +1,16 @@
 import {
   buildEvaluationId,
   buildStudentProgressSummary,
+  generateRecognitionCandidates,
   type EvaluationRecord,
   type LevelCatalogProjection,
   type LevelDefinitionRecord,
   type LevelRequirementRecord,
   type LevelSystemRecord,
+  type MedicalLeaveRecord,
+  type RecognitionCandidate,
   type RecordEvaluationInput,
+  type RecordMedicalLeaveInput,
   type StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
 import type { NormalizedLevelCatalog } from "./level-source";
@@ -75,6 +79,16 @@ export type LevelCatalogStore = Readonly<{
     attendedClassesCount?: number,
     totalHours?: number,
   ) => Promise<StudentProgressSummary>;
+  recordMedicalLeave: (params: {
+    academyId: string;
+    input: RecordMedicalLeaveInput;
+    recordedBy: string;
+  }) => Promise<MedicalLeaveRecord>;
+  listMedicalLeaves: (
+    academyId: string,
+    studentId: string,
+  ) => Promise<readonly MedicalLeaveRecord[]>;
+  listRecognitionCandidates: (academyId: string) => Promise<readonly RecognitionCandidate[]>;
 }>;
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -423,6 +437,133 @@ export function createLevelCatalogStore({
         currentLevelStartedAt: currentLevelStartedAt ?? null,
       });
     },
+
+    async recordMedicalLeave(params: {
+      academyId: string;
+      input: RecordMedicalLeaveInput;
+      recordedBy: string;
+    }): Promise<MedicalLeaveRecord> {
+      const { academyId, input, recordedBy } = params;
+      assertValidAcademyId(academyId);
+
+      const leaveId = `leave_${input.studentId}_${Date.now()}`;
+      const now = new Date().toISOString();
+
+      const record: MedicalLeaveRecord = Object.freeze({
+        leaveId,
+        academyId,
+        studentId: input.studentId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        reason: input.reason,
+        recordedBy,
+        recordedAt: now,
+      });
+
+      const batch = firestore.batch();
+      batch.set(
+        firestore.doc(
+          `academies/${academyId}/students/${input.studentId}/medicalLeaves/${leaveId}`,
+        ),
+        record,
+      );
+
+      const auditEventId = `evt_medleave_${leaveId}`;
+      batch.set(firestore.doc(`academies/${academyId}/auditEvents/${auditEventId}`), {
+        eventId: auditEventId,
+        academyId,
+        action: "medical_leave_recorded",
+        actorId: recordedBy,
+        timestamp: now,
+        details: {
+          leaveId,
+          studentId: input.studentId,
+          startDate: input.startDate,
+          endDate: input.endDate,
+        },
+      });
+
+      await batch.commit();
+      return record;
+    },
+
+    async listMedicalLeaves(
+      academyId: string,
+      studentId: string,
+    ): Promise<readonly MedicalLeaveRecord[]> {
+      assertValidAcademyId(academyId);
+
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/students/${studentId}/medicalLeaves`)
+        .get();
+
+      return snapshot.docs
+        .map((doc) => doc.data() as unknown as MedicalLeaveRecord)
+        .sort((a, b) => b.startDate.localeCompare(a.startDate));
+    },
+
+    async listRecognitionCandidates(academyId: string): Promise<readonly RecognitionCandidate[]> {
+      assertValidAcademyId(academyId);
+
+      const catalog = await this.listPublished(academyId);
+
+      // Fetch students from members collection
+      const membersSnap = await firestore.collection(`academies/${academyId}/members`).get();
+      const students = membersSnap.docs.map((doc) => {
+        const data = doc.data();
+        const firstName = typeof data["firstName"] === "string" ? data["firstName"] : "";
+        const lastName = typeof data["lastName"] === "string" ? data["lastName"] : "";
+        const fullName = `${firstName} ${lastName}`.trim() || doc.id;
+        return {
+          studentId: doc.id,
+          studentName: fullName,
+          currentDefinitionKey:
+            typeof data["currentLevel"] === "string" ? data["currentLevel"] : undefined,
+          currentLevelStartedAt:
+            typeof data["currentLevelStartedAt"] === "string"
+              ? data["currentLevelStartedAt"]
+              : null,
+        };
+      });
+
+      // Fetch attendance
+      const attendanceSnap = await firestore.collection(`academies/${academyId}/attendance`).get();
+      const attendances = attendanceSnap.docs
+        .filter((d) => {
+          const status = d.data()["status"];
+          return status === "attended" || status === "late";
+        })
+        .map((d) => {
+          const data = d.data();
+          return {
+            studentId: String(data["studentId"]),
+            attendedAt: String(
+              data["attendedAt"] ?? data["sessionDate"] ?? new Date().toISOString(),
+            ),
+          };
+        });
+
+      // Fetch all evaluations across students
+      const allEvaluations: EvaluationRecord[] = [];
+      const allLeaves: MedicalLeaveRecord[] = [];
+
+      for (const st of students) {
+        const [evals, leaves] = await Promise.all([
+          this.listStudentEvaluations(academyId, st.studentId),
+          this.listMedicalLeaves(academyId, st.studentId),
+        ]);
+        allEvaluations.push(...evals);
+        allLeaves.push(...leaves);
+      }
+
+      return generateRecognitionCandidates({
+        catalog,
+        students,
+        evaluations: allEvaluations,
+        attendances,
+        medicalLeaves: allLeaves,
+      });
+    },
   };
 }
 
@@ -431,6 +572,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
   const definitions = new Map<string, Record<string, unknown>>();
   const requirements = new Map<string, Record<string, unknown>>();
   const evaluations = new Map<string, EvaluationRecord>();
+  const medicalLeaves = new Map<string, MedicalLeaveRecord>();
 
   return {
     async listPublished(academyId: string): Promise<LevelCatalogProjection> {
@@ -672,6 +814,76 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         attendedClassesCount: classesCount,
         totalHours: effectiveHours,
         currentLevelStartedAt: currentLevelStartedAt ?? null,
+      });
+    },
+
+    async recordMedicalLeave(params: {
+      academyId: string;
+      input: RecordMedicalLeaveInput;
+      recordedBy: string;
+    }): Promise<MedicalLeaveRecord> {
+      const { academyId, input, recordedBy } = params;
+      assertValidAcademyId(academyId);
+
+      const leaveId = `leave_${input.studentId}_${Date.now()}`;
+      const record: MedicalLeaveRecord = Object.freeze({
+        leaveId,
+        academyId,
+        studentId: input.studentId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        reason: input.reason,
+        recordedBy,
+        recordedAt: new Date().toISOString(),
+      });
+
+      medicalLeaves.set(`${academyId}_${input.studentId}_${leaveId}`, record);
+      return record;
+    },
+
+    async listMedicalLeaves(
+      academyId: string,
+      studentId: string,
+    ): Promise<readonly MedicalLeaveRecord[]> {
+      assertValidAcademyId(academyId);
+
+      return Array.from(medicalLeaves.values())
+        .filter((l) => l.academyId === academyId && l.studentId === studentId)
+        .sort((a, b) => b.startDate.localeCompare(a.startDate));
+    },
+
+    async listRecognitionCandidates(academyId: string): Promise<readonly RecognitionCandidate[]> {
+      assertValidAcademyId(academyId);
+
+      const catalog = await this.listPublished(academyId);
+
+      // In-memory: unique students from evaluations and leaves
+      const studentIds = new Set<string>();
+      for (const ev of evaluations.values()) {
+        if (ev.academyId === academyId) studentIds.add(ev.studentId);
+      }
+      for (const ml of medicalLeaves.values()) {
+        if (ml.academyId === academyId) studentIds.add(ml.studentId);
+      }
+
+      const students = Array.from(studentIds).map((id) => ({
+        studentId: id,
+        studentName: id,
+        currentDefinitionKey: catalog.definitions[0]?.definitionKey,
+        currentLevelStartedAt: null,
+      }));
+
+      const allEvaluations = Array.from(evaluations.values()).filter(
+        (e) => e.academyId === academyId,
+      );
+      const allLeaves = Array.from(medicalLeaves.values()).filter((l) => l.academyId === academyId);
+
+      return generateRecognitionCandidates({
+        catalog,
+        students,
+        evaluations: allEvaluations,
+        attendances: [],
+        medicalLeaves: allLeaves,
       });
     },
   };

@@ -797,3 +797,333 @@ export function buildStudentProgressSummary(options: {
     calculatedAt: now,
   });
 }
+
+export type MedicalLeaveRecord = Readonly<{
+  leaveId: string;
+  academyId: string;
+  studentId: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  recordedBy: string;
+  recordedAt: string;
+}>;
+
+export type RecordMedicalLeaveInput = Readonly<{
+  studentId: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
+}>;
+
+export function parseRecordMedicalLeaveInput(
+  raw: unknown,
+): Result<RecordMedicalLeaveInput, readonly ValidationIssue[]> {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return err(Object.freeze([issue(["input"], "expected_object")]));
+  }
+
+  const record = raw as Record<string, unknown>;
+  const issues: ValidationIssue[] = [];
+
+  const studentId = record["studentId"];
+  const startDate = record["startDate"];
+  const endDate = record["endDate"];
+  const reason = record["reason"];
+
+  if (typeof studentId !== "string" || !safeIdPattern.test(studentId)) {
+    issues.push(issue(["input", "studentId"], "invalid_student_id"));
+  }
+
+  const startMs = typeof startDate === "string" ? new Date(startDate).getTime() : NaN;
+  const endMs = typeof endDate === "string" ? new Date(endDate).getTime() : NaN;
+
+  if (typeof startDate !== "string" || Number.isNaN(startMs)) {
+    issues.push(issue(["input", "startDate"], "invalid_start_date_iso"));
+  }
+
+  if (typeof endDate !== "string" || Number.isNaN(endMs)) {
+    issues.push(issue(["input", "endDate"], "invalid_end_date_iso"));
+  }
+
+  if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs < startMs) {
+    issues.push(issue(["input", "endDate"], "end_date_must_be_after_start_date"));
+  }
+
+  if (typeof reason !== "string" || reason.trim().length < 3 || reason.trim().length > 500) {
+    issues.push(issue(["input", "reason"], "reason_length_3_to_500"));
+  }
+
+  if (issues.length > 0) {
+    return err(Object.freeze(issues));
+  }
+
+  return ok(
+    Object.freeze({
+      studentId: (studentId as string).trim(),
+      startDate: (startDate as string).trim(),
+      endDate: (endDate as string).trim(),
+      reason: (reason as string).trim(),
+    }),
+  );
+}
+
+export type AttendanceStreak = Readonly<{
+  currentStreakWeeks: number;
+  longestStreakWeeks: number;
+  activeMedicalLeave: boolean;
+}>;
+
+function getWeekNumber(dateStr: string): number {
+  const ts = new Date(dateStr).getTime();
+  if (Number.isNaN(ts)) return 0;
+  return Math.floor(ts / (7 * 86400 * 1000));
+}
+
+export function calculateAttendanceStreak(options: {
+  attendanceDates: readonly string[];
+  medicalLeaves?: readonly MedicalLeaveRecord[];
+  now?: string;
+}): AttendanceStreak {
+  const { attendanceDates, medicalLeaves = [], now = new Date().toISOString() } = options;
+
+  const nowMs = new Date(now).getTime();
+  const activeMedicalLeave = medicalLeaves.some((l) => {
+    const s = new Date(l.startDate).getTime();
+    const e = new Date(l.endDate).getTime();
+    return !Number.isNaN(s) && !Number.isNaN(e) && s <= nowMs && nowMs <= e;
+  });
+
+  if (attendanceDates.length === 0) {
+    return Object.freeze({
+      currentStreakWeeks: 0,
+      longestStreakWeeks: 0,
+      activeMedicalLeave,
+    });
+  }
+
+  const attendedWeeks = new Set<number>();
+  for (const date of attendanceDates) {
+    const w = getWeekNumber(date);
+    if (w > 0) attendedWeeks.add(w);
+  }
+
+  const leaveWeeks = new Set<number>();
+  for (const leave of medicalLeaves) {
+    const sw = getWeekNumber(leave.startDate);
+    const ew = getWeekNumber(leave.endDate);
+    if (sw > 0 && ew >= sw) {
+      for (let w = sw; w <= ew; w++) {
+        leaveWeeks.add(w);
+      }
+    }
+  }
+
+  const sortedAttendedWeeks = Array.from(attendedWeeks).sort((a, b) => a - b);
+  const nowWeek = getWeekNumber(now);
+
+  // Compute current streak: scan backward from nowWeek (or latest attended/leave week)
+  let currentStreak = 0;
+  let cursor = nowWeek;
+
+  // If nowWeek hasn't attended yet, check if nowWeek - 1 was attended/leave
+  if (!attendedWeeks.has(cursor) && !leaveWeeks.has(cursor)) {
+    cursor = nowWeek - 1;
+  }
+
+  while (cursor >= 0) {
+    if (attendedWeeks.has(cursor)) {
+      currentStreak++;
+      cursor--;
+    } else if (leaveWeeks.has(cursor)) {
+      // Leave week preserves the streak without adding or breaking
+      cursor--;
+    } else {
+      break;
+    }
+  }
+
+  // Compute longest streak across history
+  let longestStreak = 0;
+  let running = 0;
+
+  if (sortedAttendedWeeks.length > 0) {
+    const minWeek = sortedAttendedWeeks[0]!;
+    const maxWeek = sortedAttendedWeeks[sortedAttendedWeeks.length - 1]!;
+
+    for (let w = minWeek; w <= maxWeek; w++) {
+      if (attendedWeeks.has(w)) {
+        running++;
+        if (running > longestStreak) longestStreak = running;
+      } else if (leaveWeeks.has(w)) {
+        // preserve running
+      } else {
+        running = 0;
+      }
+    }
+  }
+
+  if (currentStreak > longestStreak) {
+    longestStreak = currentStreak;
+  }
+
+  return Object.freeze({
+    currentStreakWeeks: currentStreak,
+    longestStreakWeeks: longestStreak,
+    activeMedicalLeave,
+  });
+}
+
+export type RecognitionCandidate = Readonly<{
+  studentId: string;
+  studentName: string;
+  currentDefinitionKey: string;
+  currentDefinitionName: string;
+  targetDefinitionKey: string;
+  targetDefinitionName: string;
+  classesAttended: number;
+  classesRequired: number | null;
+  timeInLevelDays: number;
+  timeRequiredDays: number | null;
+  skillsCompletedCount: number;
+  skillsRequiredCount: number;
+  currentStreakWeeks: number;
+  readinessPercentage: number;
+  isEligibleForPromotion: boolean;
+  reasons: readonly string[];
+  calculatedAt: string;
+}>;
+
+export function generateRecognitionCandidates(options: {
+  catalog: CanonicalLevelCatalog | LevelCatalogProjection;
+  students: readonly {
+    studentId: string;
+    studentName: string;
+    currentDefinitionKey?: string | undefined;
+    currentLevelStartedAt?: string | null | undefined;
+  }[];
+  evaluations: readonly EvaluationRecord[];
+  attendances: readonly { studentId: string; attendedAt: string }[];
+  medicalLeaves?: readonly MedicalLeaveRecord[];
+  now?: string;
+}): readonly RecognitionCandidate[] {
+  const {
+    catalog,
+    students,
+    evaluations,
+    attendances,
+    medicalLeaves = [],
+    now = new Date().toISOString(),
+  } = options;
+
+  const candidates: RecognitionCandidate[] = [];
+
+  for (const student of students) {
+    const defKey =
+      student.currentDefinitionKey ?? catalog.definitions[0]?.definitionKey ?? "white-0";
+    const studentEvals = evaluations.filter((e) => e.studentId === student.studentId);
+    const studentAtts = attendances.filter((a) => a.studentId === student.studentId);
+    const studentLeaves = medicalLeaves.filter((l) => l.studentId === student.studentId);
+
+    const streak = calculateAttendanceStreak({
+      attendanceDates: studentAtts.map((a) => a.attendedAt),
+      medicalLeaves: studentLeaves,
+      now,
+    });
+
+    const progress = buildStudentProgressSummary({
+      catalog,
+      studentId: student.studentId,
+      currentDefinitionKey: defKey,
+      evaluations: studentEvals,
+      attendedClassesCount: studentAtts.length,
+      totalHours: studentAtts.length * 1.5,
+      currentLevelStartedAt: student.currentLevelStartedAt ?? null,
+      now,
+    });
+
+    if (!progress.targetDefinition) {
+      continue; // Student is already at highest rank
+    }
+
+    const { classes, time, skills, overallEligible } = progress.criteria;
+
+    const classRatio = classes.required ? Math.min(1, classes.completed / classes.required) : 1;
+    const timeRatio = time.requiredDays ? Math.min(1, time.elapsedDays / time.requiredDays) : 1;
+    const skillRatio = skills.total > 0 ? skills.completed / skills.total : 1;
+
+    const readinessPercentage = Math.round(((classRatio + timeRatio + skillRatio) / 3) * 100);
+
+    const reasons: string[] = [];
+    if (overallEligible) {
+      reasons.push(
+        "All requirements met: classes attended, minimum time in rank, and required skills validated.",
+      );
+    } else {
+      if (classes.met) {
+        reasons.push(`Classes: ${classes.completed}/${classes.required ?? 0} (Met)`);
+      } else {
+        reasons.push(
+          `Classes: ${classes.completed}/${classes.required} (Needs ${(classes.required ?? 0) - classes.completed} more)`,
+        );
+      }
+
+      if (time.met) {
+        reasons.push(`Time in rank: ${time.elapsedDays}/${time.requiredDays ?? 0} days (Met)`);
+      } else {
+        reasons.push(
+          `Time in rank: ${time.elapsedDays}/${time.requiredDays} days (Needs ${(time.requiredDays ?? 0) - time.elapsedDays} more days)`,
+        );
+      }
+
+      if (skills.met) {
+        reasons.push(`Skills: ${skills.completed}/${skills.total} completed (Met)`);
+      } else {
+        const pending = progress.skillChecklist
+          .filter((s) => !s.isCompleted)
+          .map((s) => s.displayLabel);
+        reasons.push(
+          `Skills: ${skills.completed}/${skills.total} completed (Pending: ${pending.join(", ")})`,
+        );
+      }
+    }
+
+    candidates.push(
+      Object.freeze({
+        studentId: student.studentId,
+        studentName: student.studentName,
+        currentDefinitionKey: progress.currentDefinition.definitionKey,
+        currentDefinitionName: progress.currentDefinition.name,
+        targetDefinitionKey: progress.targetDefinition.definitionKey,
+        targetDefinitionName: progress.targetDefinition.name,
+        classesAttended: classes.completed,
+        classesRequired: classes.required,
+        timeInLevelDays: time.elapsedDays,
+        timeRequiredDays: time.requiredDays,
+        skillsCompletedCount: skills.completed,
+        skillsRequiredCount: skills.total,
+        currentStreakWeeks: streak.currentStreakWeeks,
+        readinessPercentage,
+        isEligibleForPromotion: overallEligible,
+        reasons: Object.freeze(reasons),
+        calculatedAt: now,
+      }),
+    );
+  }
+
+  // Sort: eligible first, then readinessPercentage desc, then currentStreakWeeks desc
+  candidates.sort((a, b) => {
+    if (a.isEligibleForPromotion !== b.isEligibleForPromotion) {
+      return a.isEligibleForPromotion ? -1 : 1;
+    }
+    if (b.readinessPercentage !== a.readinessPercentage) {
+      return b.readinessPercentage - a.readinessPercentage;
+    }
+    if (b.currentStreakWeeks !== a.currentStreakWeeks) {
+      return b.currentStreakWeeks - a.currentStreakWeeks;
+    }
+    return a.studentName.localeCompare(b.studentName);
+  });
+
+  return Object.freeze(candidates);
+}

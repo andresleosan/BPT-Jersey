@@ -202,5 +202,30 @@ describe("Level Service & Store", () => {
       expect(progress.totalHours).toBe(60);
       expect(progress.skillChecklist.length).toBeGreaterThan(0);
     });
+
+    it("records and lists medical leaves and generates candidates in store", async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId: "demo-academy", normalized });
+
+      const leave = await store.recordMedicalLeave({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          startDate: "2026-07-01T00:00:00Z",
+          endDate: "2026-07-20T00:00:00Z",
+          reason: "Ankle recovery",
+        },
+        recordedBy: "admin-1",
+      });
+
+      expect(leave.studentId).toBe("student-1");
+      expect(leave.reason).toBe("Ankle recovery");
+
+      const leaves = await store.listMedicalLeaves("demo-academy", "student-1");
+      expect(leaves).toHaveLength(1);
+
+      const candidates = await store.listRecognitionCandidates("demo-academy");
+      expect(candidates.length).toBeGreaterThanOrEqual(1);
+    });
   });
 });

@@ -5,13 +5,17 @@ import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.
 import {
   buildEvaluationId,
   buildStudentProgressSummary,
+  calculateAttendanceStreak,
+  generateRecognitionCandidates,
   parseLevelCatalogProjection,
   parseLevelCatalogSource,
   parseRecordEvaluationInput,
+  parseRecordMedicalLeaveInput,
   type CanonicalLevelCatalog,
   type EvaluationRecord,
   type EvaluationScore,
   type LevelCatalogProjection,
+  type MedicalLeaveRecord,
   type RecordEvaluationInput,
   type StudentProgressSummary,
 } from "./level-contracts";
@@ -327,6 +331,171 @@ describe("Level Contracts", () => {
       expect(summary.targetDefinition).toBeNull();
       expect(summary.criteria.overallEligible).toBe(true);
       expect(summary.skillChecklist).toHaveLength(0);
+    });
+  });
+
+  describe("Attendance Streaks & Medical Leaves (T041)", () => {
+    it("calculates weekly attendance streak correctly", () => {
+      // 4 consecutive weeks of attendance (Aug 2026)
+      const dates = [
+        "2026-08-03T10:00:00Z", // week 1
+        "2026-08-10T10:00:00Z", // week 2
+        "2026-08-17T10:00:00Z", // week 3
+        "2026-08-24T10:00:00Z", // week 4
+      ];
+
+      const streak = calculateAttendanceStreak({
+        attendanceDates: dates,
+        now: "2026-08-25T00:00:00Z",
+      });
+
+      expect(streak.currentStreakWeeks).toBe(4);
+      expect(streak.longestStreakWeeks).toBe(4);
+      expect(streak.activeMedicalLeave).toBe(false);
+    });
+
+    it("preserves attendance streak across justified medical leave", () => {
+      // Attended weeks 1 & 2, medical leave weeks 3 & 4, attended week 5
+      const dates = [
+        "2026-07-01T10:00:00Z",
+        "2026-07-08T10:00:00Z",
+        // absence July 15 - July 30 (covered by medical leave)
+        "2026-08-01T10:00:00Z",
+        "2026-08-08T10:00:00Z",
+      ];
+
+      const medicalLeaves: MedicalLeaveRecord[] = [
+        {
+          leaveId: "leave-1",
+          academyId: "acad-1",
+          studentId: "std-1",
+          startDate: "2026-07-12T00:00:00Z",
+          endDate: "2026-07-31T23:59:59Z",
+          reason: "Ankle sprain during tournament.",
+          recordedBy: "coach-1",
+          recordedAt: "2026-07-12T00:00:00Z",
+        },
+      ];
+
+      const streak = calculateAttendanceStreak({
+        attendanceDates: dates,
+        medicalLeaves,
+        now: "2026-08-09T00:00:00Z",
+      });
+
+      expect(streak.currentStreakWeeks).toBe(4); // 2 weeks before leave + 2 weeks after leave
+      expect(streak.longestStreakWeeks).toBe(4);
+      expect(streak.activeMedicalLeave).toBe(false);
+    });
+
+    it("resets streak on unjustified gap", () => {
+      const dates = [
+        "2026-06-01T10:00:00Z", // week 1
+        "2026-06-08T10:00:00Z", // week 2
+        // gap with NO medical leave for 3 weeks
+        "2026-08-01T10:00:00Z", // new streak week 1
+      ];
+
+      const streak = calculateAttendanceStreak({
+        attendanceDates: dates,
+        now: "2026-08-02T00:00:00Z",
+      });
+
+      expect(streak.currentStreakWeeks).toBe(1);
+      expect(streak.longestStreakWeeks).toBe(2);
+    });
+
+    it("validates and parses medical leave input", () => {
+      const valid = parseRecordMedicalLeaveInput({
+        studentId: "std-1",
+        startDate: "2026-08-01T00:00:00Z",
+        endDate: "2026-08-15T00:00:00Z",
+        reason: "Knee rehabilitation",
+      });
+
+      expect(valid.ok).toBe(true);
+      if (!valid.ok) throw new Error("Expected ok result");
+      expect(valid.value.reason).toBe("Knee rehabilitation");
+
+      const invalidDateOrder = parseRecordMedicalLeaveInput({
+        studentId: "std-1",
+        startDate: "2026-08-15T00:00:00Z",
+        endDate: "2026-08-01T00:00:00Z",
+        reason: "Bad dates",
+      });
+      expect(invalidDateOrder.ok).toBe(false);
+    });
+  });
+
+  describe("Explainable Recognition Candidates Generation (T041)", () => {
+    const catalogResult = parseLevelCatalogSource(observedJson, businessCriteriaJson);
+    if (!catalogResult.ok) throw new Error("Catalog parsing failed");
+    const catalog = catalogResult.value;
+
+    it("generates and ranks recognition candidates with explanations", () => {
+      const firstDef = catalog.definitions[0]!;
+      const secondDef = catalog.definitions[1]!;
+      const req =
+        catalog.requirements.find((r) => r.definitionKey === secondDef.definitionKey) ??
+        catalog.requirements[0]!;
+
+      const candidates = generateRecognitionCandidates({
+        catalog,
+        students: [
+          {
+            studentId: "std-ready",
+            studentName: "Carlos Gracie",
+            currentDefinitionKey: firstDef.definitionKey,
+            currentLevelStartedAt: "2026-01-01T00:00:00Z",
+          },
+          {
+            studentId: "std-not-ready",
+            studentName: "Junior Silva",
+            currentDefinitionKey: firstDef.definitionKey,
+            currentLevelStartedAt: "2026-08-01T00:00:00Z",
+          },
+        ],
+        evaluations: [
+          {
+            evaluationId: "ev-1",
+            academyId: "acad-1",
+            studentId: "std-ready",
+            definitionKey: firstDef.definitionKey,
+            skillKey: req.skillKey,
+            score: 4,
+            evidenceNotes: "Excellent guard passing technique.",
+            evaluatorId: "coach-1",
+            evaluatorRole: "coach",
+            evaluatedAt: "2026-08-15T00:00:00Z",
+            schemaVersion: "1",
+            createdAt: "2026-08-15T00:00:00Z",
+            createdBy: "coach-1",
+            updatedAt: "2026-08-15T00:00:00Z",
+            updatedBy: "coach-1",
+          },
+        ],
+        attendances: [
+          { studentId: "std-ready", attendedAt: "2026-07-01T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-07-08T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-07-15T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-07-22T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-08-01T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-08-08T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-08-15T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-08-22T10:00:00Z" },
+        ],
+        medicalLeaves: [],
+        now: "2026-08-23T00:00:00Z",
+      });
+
+      expect(candidates.length).toBeGreaterThan(0);
+      const top = candidates[0]!;
+      expect(top.studentId).toBe("std-ready");
+      expect(top.studentName).toBe("Carlos Gracie");
+      expect(top.currentDefinitionKey).toBe(firstDef.definitionKey);
+      expect(top.targetDefinitionKey).toBe(secondDef.definitionKey);
+      expect(top.reasons.length).toBeGreaterThan(0);
+      expect(top.readinessPercentage).toBeGreaterThanOrEqual(50);
     });
   });
 });

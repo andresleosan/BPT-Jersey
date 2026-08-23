@@ -661,10 +661,10 @@ const progressItems = [
   task(
     "T041",
     "Implementar rachas y candidatos de reconocimiento explicables",
-    "pendiente",
+    "aprobada",
     "Calcular asistencia, rachas y candidatos con pesos explícitos y ausencias médicas.",
     "T029,T039",
-    "La generación de candidatos de reconocimiento todavía está pendiente.",
+    "Contratos y pure functions calculateAttendanceStreak/generateRecognitionCandidates 21/21, store methods 9/9, callables RBAC 16/16, client 8/8, suite completa 876/876 en 105 archivos; rachas, pausas médicas justificadas y cola explicable de candidatos para el Head Coach probados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),

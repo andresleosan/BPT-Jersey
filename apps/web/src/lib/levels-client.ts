@@ -3,9 +3,13 @@ import { httpsCallable } from "firebase/functions";
 import {
   parseLevelCatalogProjection,
   parseRecordEvaluationInput,
+  parseRecordMedicalLeaveInput,
   type EvaluationRecord,
   type LevelCatalogProjection,
+  type MedicalLeaveRecord,
+  type RecognitionCandidate,
   type RecordEvaluationInput,
+  type RecordMedicalLeaveInput,
   type StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
 import { getFirebaseFunctions } from "./firebase-client";
@@ -14,6 +18,9 @@ const safeCatalogError = "Unable to load level catalog. Please try again.";
 const safeRecordEvalError = "Unable to record evaluation. Please try again.";
 const safeListEvalError = "Unable to load student evaluations. Please try again.";
 const safeProgressError = "Unable to load student progress. Please try again.";
+const safeRecordMedicalLeaveError = "Unable to record medical leave. Please try again.";
+const safeListMedicalLeavesError = "Unable to load medical leaves. Please try again.";
+const safeListCandidatesError = "Unable to load recognition candidates. Please try again.";
 
 export type StudentEvaluationsResponse = Readonly<{
   evaluations: readonly EvaluationRecord[];
@@ -106,5 +113,69 @@ export async function getStudentProgressSummary(
     throw new Error(safeProgressError);
   }
 }
+
+export async function recordMedicalLeave(
+  input: RecordMedicalLeaveInput,
+): Promise<MedicalLeaveRecord> {
+  const parsed = parseRecordMedicalLeaveInput(input);
+  if (!parsed.ok) {
+    throw new Error(safeRecordMedicalLeaveError);
+  }
+
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    RecordMedicalLeaveInput,
+    { medicalLeave: MedicalLeaveRecord }
+  >(functions, "recordMedicalLeave");
+
+  try {
+    const response = await callable(parsed.value);
+    return response.data.medicalLeave;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeRecordMedicalLeaveError) {
+      throw error;
+    }
+    throw new Error(safeRecordMedicalLeaveError);
+  }
+}
+
+export async function listMedicalLeaves(
+  studentId?: string,
+): Promise<readonly MedicalLeaveRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { studentId?: string },
+    { medicalLeaves: readonly MedicalLeaveRecord[] }
+  >(functions, "listMedicalLeaves");
+
+  try {
+    const response = await callable(studentId ? { studentId } : {});
+    return response.data.medicalLeaves;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeListMedicalLeavesError) {
+      throw error;
+    }
+    throw new Error(safeListMedicalLeavesError);
+  }
+}
+
+export async function listRecognitionCandidates(): Promise<readonly RecognitionCandidate[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    Record<string, never>,
+    { candidates: readonly RecognitionCandidate[] }
+  >(functions, "listRecognitionCandidates");
+
+  try {
+    const response = await callable({});
+    return response.data.candidates;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeListCandidatesError) {
+      throw error;
+    }
+    throw new Error(safeListCandidatesError);
+  }
+}
+
 
 

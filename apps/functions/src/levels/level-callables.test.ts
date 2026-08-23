@@ -7,8 +7,11 @@ import { normalizeLevelCatalogSource } from "./level-source";
 import {
   createGetStudentProgressSummaryHandler,
   createListLevelCatalogHandler,
+  createListMedicalLeavesHandler,
+  createListRecognitionCandidatesHandler,
   createListStudentEvaluationsHandler,
   createRecordEvaluationHandler,
+  createRecordMedicalLeaveHandler,
 } from "./level-callables";
 
 function fakeRequest(
@@ -248,6 +251,79 @@ describe("Level Callables", () => {
           fakeRequest({ studentId: "other-student" }, "adultStudent", "adult-1", "demo-academy"),
         ),
       ).rejects.toThrow(/Access denied: student progress visibility restricted/);
+    });
+  });
+
+  describe("Medical Leave Callables (T041)", () => {
+    it("allows staff to record and list medical leave", async () => {
+      const store = createTestStore();
+      const recordHandler = createRecordMedicalLeaveHandler({ store });
+      const listHandler = createListMedicalLeavesHandler({ store });
+
+      const recordRes = await recordHandler(
+        fakeRequest(
+          {
+            studentId: "student-1",
+            startDate: "2026-08-01T00:00:00Z",
+            endDate: "2026-08-15T00:00:00Z",
+            reason: "Ankle recovery from sprain",
+          },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      );
+
+      expect(recordRes.medicalLeave.studentId).toBe("student-1");
+      expect(recordRes.medicalLeave.reason).toBe("Ankle recovery from sprain");
+
+      const listRes = await listHandler(
+        fakeRequest({ studentId: "student-1" }, "coach", "coach-1", "demo-academy"),
+      );
+      expect(listRes.medicalLeaves).toHaveLength(1);
+    });
+
+    it("rejects non-staff recording medical leave", async () => {
+      const store = createTestStore();
+      const recordHandler = createRecordMedicalLeaveHandler({ store });
+
+      await expect(
+        recordHandler(
+          fakeRequest(
+            {
+              studentId: "student-1",
+              startDate: "2026-08-01T00:00:00Z",
+              endDate: "2026-08-15T00:00:00Z",
+              reason: "Ankle recovery",
+            },
+            "adultStudent",
+            "adult-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Staff role required to record medical leave/);
+    });
+  });
+
+  describe("Recognition Candidates Callable (T041)", () => {
+    it("allows staff to list recognition candidates", async () => {
+      const store = createTestStore();
+      const candidatesHandler = createListRecognitionCandidatesHandler({ store });
+
+      const res = await candidatesHandler(
+        fakeRequest(null, "headCoach", "headcoach-1", "demo-academy"),
+      );
+
+      expect(Array.isArray(res.candidates)).toBe(true);
+    });
+
+    it("rejects non-staff listing recognition candidates", async () => {
+      const store = createTestStore();
+      const candidatesHandler = createListRecognitionCandidatesHandler({ store });
+
+      await expect(
+        candidatesHandler(fakeRequest(null, "adultStudent", "adult-1", "demo-academy")),
+      ).rejects.toThrow(/Staff role required to view recognition candidates/);
     });
   });
 });

@@ -6,8 +6,11 @@ import { parseLevelCatalogSource } from "@bpt-jersey/domain/levels";
 import {
   getLevelCatalog,
   getStudentProgressSummary,
+  listMedicalLeaves,
+  listRecognitionCandidates,
   listStudentEvaluations,
   recordEvaluation,
+  recordMedicalLeave,
 } from "./levels-client";
 
 const parsed = parseLevelCatalogSource(observedJson, businessCriteriaJson);
@@ -21,8 +24,8 @@ const mockProjection = {
   sourceHash: "test-hash-123456",
 };
 
-let mockCallableResult: any = { data: mockProjection };
-let mockCallableError: any = null;
+let mockCallableResult: unknown = { data: mockProjection };
+let mockCallableError: Error | null = null;
 
 vi.mock("firebase/functions", () => ({
   httpsCallable: () => async () => {
@@ -142,6 +145,62 @@ describe("Levels Web Client", () => {
     expect(progress.criteria.overallEligible).toBe(true);
     expect(progress.totalAttendedClasses).toBe(25);
   });
+
+  it("records medical leave and lists student medical leaves", async () => {
+    mockCallableError = null;
+    mockCallableResult = {
+      data: {
+        medicalLeave: {
+          leaveId: "leave-1",
+          studentId: "std-1",
+          startDate: "2026-08-01T00:00:00Z",
+          endDate: "2026-08-15T00:00:00Z",
+          reason: "Ankle recovery",
+        },
+      },
+    };
+
+    const record = await recordMedicalLeave({
+      studentId: "std-1",
+      startDate: "2026-08-01T00:00:00Z",
+      endDate: "2026-08-15T00:00:00Z",
+      reason: "Ankle recovery",
+    });
+
+    expect(record.studentId).toBe("std-1");
+    expect(record.reason).toBe("Ankle recovery");
+
+    mockCallableResult = {
+      data: {
+        medicalLeaves: [record],
+      },
+    };
+
+    const leaves = await listMedicalLeaves("std-1");
+    expect(leaves).toHaveLength(1);
+    expect(leaves[0]?.leaveId).toBe("leave-1");
+  });
+
+  it("lists recognition candidates for staff", async () => {
+    mockCallableError = null;
+    mockCallableResult = {
+      data: {
+        candidates: [
+          {
+            studentId: "std-ready",
+            studentName: "Carlos Gracie",
+            isEligibleForPromotion: true,
+            readinessPercentage: 100,
+          },
+        ],
+      },
+    };
+
+    const candidates = await listRecognitionCandidates();
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.studentName).toBe("Carlos Gracie");
+  });
 });
+
 
 
