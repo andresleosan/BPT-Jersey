@@ -7,6 +7,7 @@ import {
   evaluateSessionMinimum,
   generateSessions,
   getScheduleCatalog,
+  getSessionOperationalView,
   getStudentCheckout,
   listAttendanceHistory,
   listClasses,
@@ -311,7 +312,27 @@ describe("Schedule Client", () => {
     const studentCo = await getStudentCheckout("s-1", "minor-1");
     expect(studentCo?.checkoutId).toBe("s-1__minor-1");
   });
+
+  it("fetches unified live session operational view", async () => {
+    mockCallable.mockResolvedValueOnce({
+      data: {
+        view: {
+          session: { sessionId: "s-1" },
+          summary: { totalBookings: 5, totalCheckedIn: 4, quorumMet: true },
+          roster: [{ studentId: "std-1", computedStatus: "attended" }],
+          unbookedCheckIns: [],
+          refreshedAt: "2026-09-01T17:00:00Z",
+        },
+      },
+    });
+
+    const view = await getSessionOperationalView("s-1");
+    expect(view.session.sessionId).toBe("s-1");
+    expect(view.summary.quorumMet).toBe(true);
+    expect(view.roster[0]?.computedStatus).toBe("attended");
+  });
 });
+
 
 
 

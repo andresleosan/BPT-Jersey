@@ -741,4 +741,84 @@ describe("Schedule Service (In-Memory Store)", () => {
       expect(missing).toBeNull();
     });
   });
+
+  describe("Live Session Operational View Projection", () => {
+    it("retrieves unified live session operational view without duplicating canonical data", async () => {
+      const store = createInMemoryScheduleStore();
+
+      const session = await store.createSession(
+        "academy-1",
+        {
+          programId: "adult-bjj",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Adult Advanced BJJ",
+          startAt: "2026-09-01T19:00:00Z",
+          endAt: "2026-09-01T20:30:00Z",
+          capacity: 15,
+          minParticipants: 4,
+        },
+        "owner-1",
+      );
+
+      // Student 1 books and checks in early
+      await store.requestBooking(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "std-1", membershipId: "m-1" },
+        "std-1",
+      );
+      await store.recordCheckIn(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "std-1", method: "qr" },
+        "std-1",
+        "2026-09-01T18:50:00Z",
+      );
+
+      // Student 2 books, checks in late, and checks out
+      await store.requestBooking(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "std-2", membershipId: "m-2" },
+        "std-2",
+      );
+      await store.recordCheckIn(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "std-2", method: "nameSearch" },
+        "std-2",
+        "2026-09-01T19:20:00Z",
+      );
+      await store.recordCheckout(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "std-2", method: "independentRelease" },
+        "std-2",
+        "2026-09-01T20:35:00Z",
+      );
+
+      // Student 3 books and remains pending
+      await store.requestBooking(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "std-3", membershipId: "m-3" },
+        "std-3",
+      );
+
+      // Fetch live operational view
+      const view = await store.getSessionOperationalView("academy-1", session.sessionId);
+
+      expect(view.session.sessionId).toBe(session.sessionId);
+      expect(view.summary.totalBookings).toBe(3);
+      expect(view.summary.totalCheckedIn).toBe(2);
+      expect(view.summary.totalCheckedOut).toBe(1);
+      expect(view.summary.totalPendingArrival).toBe(1);
+      expect(view.summary.quorumMet).toBe(false); // 3 confirmed < 4 minParticipants
+
+      expect(view.roster).toHaveLength(3);
+      const student1 = view.roster.find((r) => r.studentId === "std-1");
+      expect(student1?.computedStatus).toBe("attended");
+
+      const student2 = view.roster.find((r) => r.studentId === "std-2");
+      expect(student2?.computedStatus).toBe("checked_out");
+
+      const student3 = view.roster.find((r) => r.studentId === "std-3");
+      expect(student3?.computedStatus).toBe("booked_not_arrived");
+    });
+  });
 });

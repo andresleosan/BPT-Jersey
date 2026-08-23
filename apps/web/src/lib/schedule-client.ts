@@ -15,6 +15,7 @@ import type {
   ProgramRecord,
   RecordCheckoutInput,
   RequestBookingInput,
+  SessionOperationalView,
   SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
@@ -300,6 +301,20 @@ export async function getStudentCheckout(
   const result = await callable(studentId ? { sessionId, studentId } : { sessionId });
   return result.data.checkout;
 }
+
+export async function getSessionOperationalView(
+  sessionId: string,
+): Promise<SessionOperationalView> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<{ sessionId: string }, { view: SessionOperationalView }>(
+    functions,
+    "getSessionOperationalView",
+  );
+
+  const result = await callable({ sessionId });
+  return result.data.view;
+}
+
 
 
 

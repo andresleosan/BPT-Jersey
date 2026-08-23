@@ -61,6 +61,7 @@ export {
   correctAttendance,
   evaluateSessionMinimum,
   generateSessions,
+  getSessionOperationalView,
   getStudentCheckout,
   listAttendanceHistory,
   listClasses,

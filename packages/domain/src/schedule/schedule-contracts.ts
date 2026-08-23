@@ -1012,3 +1012,161 @@ export function parseRecordCheckoutInput(input: unknown): Result<RecordCheckoutI
 
   return ok(Object.freeze(result));
 }
+
+// ── Live Session Operational View Contracts & Pure Aggregator ──
+
+export const sessionOperationalStatuses = Object.freeze([
+  "booked_not_arrived",
+  "attended",
+  "late",
+  "absent",
+  "no_show",
+  "checked_out",
+] as const);
+export type SessionOperationalStatus = (typeof sessionOperationalStatuses)[number];
+
+export type SessionOperationalStudent = Readonly<{
+  studentId: string;
+  booking: BookingRecord;
+  attendance: AttendanceRecord | null;
+  checkout: CheckoutRecord | null;
+  computedStatus: SessionOperationalStatus;
+}>;
+
+export type SessionOperationalSummary = Readonly<{
+  capacity: number;
+  minParticipants: number;
+  quorumMet: boolean;
+  totalBookings: number;
+  totalCheckedIn: number;
+  totalCheckedOut: number;
+  totalNoShows: number;
+  totalPendingArrival: number;
+}>;
+
+export type SessionOperationalView = Readonly<{
+  session: SessionRecord;
+  summary: SessionOperationalSummary;
+  roster: readonly SessionOperationalStudent[];
+  unbookedCheckIns: readonly AttendanceRecord[];
+  refreshedAt: string;
+}>;
+
+/**
+ * Pure projection function that aggregates canonical session, bookings, attendance,
+ * and checkouts into a unified real-time operational roster without duplicating data.
+ */
+export function buildSessionOperationalView(input: {
+  session: SessionRecord;
+  bookings: readonly BookingRecord[];
+  attendance: readonly AttendanceRecord[];
+  checkouts: readonly CheckoutRecord[];
+  now?: string;
+}): SessionOperationalView {
+  const { session, bookings, attendance, checkouts, now } = input;
+  const refreshedAt = now ?? new Date().toISOString();
+
+  // Index active (confirmed) bookings
+  const confirmedBookings = bookings.filter((b) => b.status === "confirmed");
+  const bookedStudentIds = new Set(confirmedBookings.map((b) => b.studentId));
+
+  // Index canonical attendance by studentId (ignoring corrections which are linked to canonical)
+  const canonicalAttendanceMap = new Map<string, AttendanceRecord>();
+  for (const att of attendance) {
+    if (att.correctionOf === null) {
+      canonicalAttendanceMap.set(att.studentId, att);
+    }
+  }
+
+  // Index checkouts by studentId
+  const checkoutMap = new Map<string, CheckoutRecord>();
+  for (const co of checkouts) {
+    checkoutMap.set(co.studentId, co);
+  }
+
+  // Build roster for booked students
+  const roster: SessionOperationalStudent[] = confirmedBookings.map((booking) => {
+    const studentAttendance = canonicalAttendanceMap.get(booking.studentId) ?? null;
+    const studentCheckout = checkoutMap.get(booking.studentId) ?? null;
+
+    let computedStatus: SessionOperationalStatus = "booked_not_arrived";
+    if (studentCheckout) {
+      computedStatus = "checked_out";
+    } else if (studentAttendance) {
+      switch (studentAttendance.state) {
+        case "attended":
+          computedStatus = "attended";
+          break;
+        case "late":
+          computedStatus = "late";
+          break;
+        case "absent":
+          computedStatus = "absent";
+          break;
+        case "no_show":
+          computedStatus = "no_show";
+          break;
+        case "excused":
+          computedStatus = "absent";
+          break;
+      }
+    }
+
+    return Object.freeze({
+      studentId: booking.studentId,
+      booking,
+      attendance: studentAttendance,
+      checkout: studentCheckout,
+      computedStatus,
+    });
+  });
+
+  // Identify unbooked walk-ins (students who checked in but were not in confirmed bookings roster)
+  const unbookedCheckIns: AttendanceRecord[] = [];
+  for (const [studentId, att] of canonicalAttendanceMap.entries()) {
+    if (!bookedStudentIds.has(studentId) && (att.state === "attended" || att.state === "late")) {
+      unbookedCheckIns.push(att);
+    }
+  }
+
+  // Calculate live operational metrics
+  const totalBookings = confirmedBookings.length;
+  let totalCheckedIn = 0;
+  let totalCheckedOut = 0;
+  let totalNoShows = 0;
+  let totalPendingArrival = 0;
+
+  for (const item of roster) {
+    if (item.computedStatus === "checked_out") {
+      totalCheckedIn += 1;
+      totalCheckedOut += 1;
+    } else if (item.computedStatus === "attended" || item.computedStatus === "late") {
+      totalCheckedIn += 1;
+    } else if (item.computedStatus === "no_show") {
+      totalNoShows += 1;
+    } else if (item.computedStatus === "booked_not_arrived") {
+      totalPendingArrival += 1;
+    }
+  }
+
+  const quorumMet = totalBookings >= session.minParticipants;
+
+  const summary: SessionOperationalSummary = Object.freeze({
+    capacity: session.capacity,
+    minParticipants: session.minParticipants,
+    quorumMet,
+    totalBookings,
+    totalCheckedIn,
+    totalCheckedOut,
+    totalNoShows,
+    totalPendingArrival,
+  });
+
+  return Object.freeze({
+    session,
+    summary,
+    roster: Object.freeze(roster),
+    unbookedCheckIns: Object.freeze(unbookedCheckIns),
+    refreshedAt,
+  });
+}

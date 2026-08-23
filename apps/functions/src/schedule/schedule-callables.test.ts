@@ -7,6 +7,7 @@ import {
   createCorrectAttendanceHandler,
   createEvaluateSessionMinimumHandler,
   createGenerateSessionsHandler,
+  createGetSessionOperationalViewHandler,
   createGetStudentCheckoutHandler,
   createListAttendanceHistoryHandler,
   createListClassesHandler,
@@ -645,6 +646,48 @@ describe("Schedule Callables", () => {
         ),
       );
       expect(single.checkout?.checkoutId).toBe(`${session.sessionId}__minor-1`);
+    });
+  });
+
+  describe("Live Session Operational View Callable", () => {
+    it("enforces staff access and returns unified operational view", async () => {
+      const store = createInMemoryScheduleStore();
+      const operationalViewHandler = createGetSessionOperationalViewHandler({ store });
+
+      const session = await store.createSession(
+        "demo-academy",
+        {
+          programId: "kids-gi",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Kids Gi Class",
+          startAt: "2099-09-01T16:00:00Z",
+          endAt: "2099-09-01T17:00:00Z",
+          capacity: 20,
+        },
+        "owner-1",
+      );
+
+      // Non-staff is denied
+      await expect(
+        operationalViewHandler(
+          fakeRequest(
+            { sessionId: session.sessionId },
+            "adultStudent",
+            "student-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Staff access required to view live operational roster/);
+
+      // Staff receives full operational view
+      const result = await operationalViewHandler(
+        fakeRequest({ sessionId: session.sessionId }, "coach", "coach-1", "demo-academy"),
+      );
+
+      expect(result.view.session.sessionId).toBe(session.sessionId);
+      expect(result.view.summary.capacity).toBe(20);
+      expect(result.view.roster).toHaveLength(0);
     });
   });
 });

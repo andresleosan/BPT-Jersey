@@ -3,6 +3,7 @@ import {
   buildBookingId,
   buildCheckoutId,
   buildCorrectionAttendanceId,
+  buildSessionOperationalView,
   determinePunctuality,
   generateSessionsFromClass,
   isWithinBookingCutoff,
@@ -21,6 +22,7 @@ import {
   type ProgramRecord,
   type RecordCheckoutInput,
   type RequestBookingInput,
+  type SessionOperationalView,
   type SessionRecord,
   type UpdateClassInput,
 } from "@bpt-jersey/domain/schedule";
@@ -224,6 +226,10 @@ export type ScheduleStore = Readonly<{
     sessionId: string,
     studentId: string,
   ) => Promise<CheckoutRecord | null>;
+  getSessionOperationalView: (
+    academyId: string,
+    sessionId: string,
+  ) => Promise<SessionOperationalView>;
 }>;
 
 type GenericQuery = {
@@ -1045,6 +1051,48 @@ export function createFirestoreScheduleStore(options: {
 
       return doc.data() as CheckoutRecord;
     },
+
+    async getSessionOperationalView(
+      academyId: string,
+      sessionId: string,
+    ): Promise<SessionOperationalView> {
+      const sessionDoc = await firestore
+        .collection(`academies/${academyId}/sessions`)
+        .doc(sessionId)
+        .get();
+
+      if (!sessionDoc.exists) {
+        throw new Error(`Session ${sessionId} not found in academy ${academyId}`);
+      }
+
+      const session = sessionDoc.data() as SessionRecord;
+
+      const [bookingsSnap, attendanceSnap, checkoutsSnap] = await Promise.all([
+        firestore
+          .collection(`academies/${academyId}/bookings`)
+          .where("sessionId", "==", sessionId)
+          .get(),
+        firestore
+          .collection(`academies/${academyId}/attendance`)
+          .where("sessionId", "==", sessionId)
+          .get(),
+        firestore
+          .collection(`academies/${academyId}/checkouts`)
+          .where("sessionId", "==", sessionId)
+          .get(),
+      ]);
+
+      const bookings = bookingsSnap.docs.map((d) => d.data() as BookingRecord);
+      const attendance = attendanceSnap.docs.map((d) => d.data() as AttendanceRecord);
+      const checkouts = checkoutsSnap.docs.map((d) => d.data() as CheckoutRecord);
+
+      return buildSessionOperationalView({
+        session,
+        bookings,
+        attendance,
+        checkouts,
+      });
+    },
   };
 }
 
@@ -1732,6 +1780,39 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       if (!cMap) return null;
       const checkoutId = buildCheckoutId(sessionId, studentId);
       return cMap.get(checkoutId) ?? null;
+    },
+
+    async getSessionOperationalView(
+      academyId: string,
+      sessionId: string,
+    ): Promise<SessionOperationalView> {
+      const sMap = sessionsMap.get(academyId);
+      const session = sMap?.get(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found in academy ${academyId}`);
+      }
+
+      const bMap = bookingsMap.get(academyId);
+      const bookings = bMap
+        ? Array.from(bMap.values()).filter((b) => b.sessionId === sessionId)
+        : [];
+
+      const aMap = attendanceMap.get(academyId);
+      const attendance = aMap
+        ? Array.from(aMap.values()).filter((a) => a.sessionId === sessionId)
+        : [];
+
+      const cMap = checkoutsMap.get(academyId);
+      const checkouts = cMap
+        ? Array.from(cMap.values()).filter((c) => c.sessionId === sessionId)
+        : [];
+
+      return buildSessionOperationalView({
+        session,
+        bookings,
+        attendance,
+        checkouts,
+      });
     },
   };
 }

@@ -5,6 +5,7 @@ import {
   buildBookingId,
   buildCheckoutId,
   buildCorrectionAttendanceId,
+  buildSessionOperationalView,
   determinePunctuality,
   evaluateBookingEligibility,
   generateSessionsFromClass,
@@ -801,6 +802,207 @@ describe("Schedule Domain Contracts", () => {
           method: "independentRelease",
         }).ok,
       ).toBe(false);
+    });
+  });
+
+  describe("buildSessionOperationalView (Live Roster & Attendance Projection)", () => {
+    it("aggregates session, bookings, attendance, and checkouts into a unified operational view", () => {
+      const mockSession = {
+        sessionId: "sess-1",
+        academyId: "acad-1",
+        classId: "class-1",
+        programId: "kids-bjj",
+        locationId: "town" as const,
+        instructorId: "coach-1",
+        title: "Kids BJJ",
+        startAt: "2026-09-01T16:00:00Z",
+        endAt: "2026-09-01T17:00:00Z",
+        capacity: 10,
+        minParticipants: 3,
+        status: "scheduled" as const,
+        cancellationReason: null,
+        isSeminar: false,
+        schemaVersion: "1" as const,
+        createdAt: "2026-08-01T00:00:00Z",
+        createdBy: "admin-1",
+        updatedAt: "2026-08-01T00:00:00Z",
+        updatedBy: "admin-1",
+      };
+
+      const bookings = [
+        {
+          bookingId: "sess-1__std-1",
+          academyId: "acad-1",
+          sessionId: "sess-1",
+          studentId: "std-1",
+          membershipId: "m-1",
+          status: "confirmed" as const,
+          requestedAt: "2026-08-10T00:00:00Z",
+          cancelledAt: null,
+          cancellationReason: null,
+          schemaVersion: "1" as const,
+          createdAt: "2026-08-10T00:00:00Z",
+          createdBy: "std-1",
+          updatedAt: "2026-08-10T00:00:00Z",
+          updatedBy: "std-1",
+        },
+        {
+          bookingId: "sess-1__std-2",
+          academyId: "acad-1",
+          sessionId: "sess-1",
+          studentId: "std-2",
+          membershipId: "m-2",
+          status: "confirmed" as const,
+          requestedAt: "2026-08-10T00:00:00Z",
+          cancelledAt: null,
+          cancellationReason: null,
+          schemaVersion: "1" as const,
+          createdAt: "2026-08-10T00:00:00Z",
+          createdBy: "std-2",
+          updatedAt: "2026-08-10T00:00:00Z",
+          updatedBy: "std-2",
+        },
+        {
+          bookingId: "sess-1__std-3",
+          academyId: "acad-1",
+          sessionId: "sess-1",
+          studentId: "std-3",
+          membershipId: "m-3",
+          status: "confirmed" as const,
+          requestedAt: "2026-08-10T00:00:00Z",
+          cancelledAt: null,
+          cancellationReason: null,
+          schemaVersion: "1" as const,
+          createdAt: "2026-08-10T00:00:00Z",
+          createdBy: "std-3",
+          updatedAt: "2026-08-10T00:00:00Z",
+          updatedBy: "std-3",
+        },
+        {
+          bookingId: "sess-1__std-4",
+          academyId: "acad-1",
+          sessionId: "sess-1",
+          studentId: "std-4",
+          membershipId: "m-4",
+          status: "cancelled" as const,
+          requestedAt: "2026-08-10T00:00:00Z",
+          cancelledAt: "2026-08-15T00:00:00Z",
+          cancellationReason: "Schedule conflict",
+          schemaVersion: "1" as const,
+          createdAt: "2026-08-10T00:00:00Z",
+          createdBy: "std-4",
+          updatedAt: "2026-08-10T00:00:00Z",
+          updatedBy: "std-4",
+        },
+      ];
+
+      const attendanceRecords = [
+        // std-1 checked in and attended
+        {
+          attendanceId: "sess-1__std-1",
+          academyId: "acad-1",
+          sessionId: "sess-1",
+          studentId: "std-1",
+          method: "qr" as const,
+          state: "attended" as const,
+          occurredAt: "2026-09-01T15:55:00Z",
+          notes: null,
+          correctionOf: null,
+          schemaVersion: "1" as const,
+          createdAt: "2026-09-01T15:55:00Z",
+          createdBy: "std-1",
+          updatedAt: "2026-09-01T15:55:00Z",
+          updatedBy: "std-1",
+        },
+        // std-2 checked in late
+        {
+          attendanceId: "sess-1__std-2",
+          academyId: "acad-1",
+          sessionId: "sess-1",
+          studentId: "std-2",
+          method: "pin" as const,
+          state: "late" as const,
+          occurredAt: "2026-09-01T16:20:00Z",
+          notes: null,
+          correctionOf: null,
+          schemaVersion: "1" as const,
+          createdAt: "2026-09-01T16:20:00Z",
+          createdBy: "std-2",
+          updatedAt: "2026-09-01T16:20:00Z",
+          updatedBy: "std-2",
+        },
+        // Walk-in std-99 attended without prior booking
+        {
+          attendanceId: "sess-1__std-99",
+          academyId: "acad-1",
+          sessionId: "sess-1",
+          studentId: "std-99",
+          method: "manual" as const,
+          state: "attended" as const,
+          occurredAt: "2026-09-01T16:00:00Z",
+          notes: "Walk-in trial",
+          correctionOf: null,
+          schemaVersion: "1" as const,
+          createdAt: "2026-09-01T16:00:00Z",
+          createdBy: "coach-1",
+          updatedAt: "2026-09-01T16:00:00Z",
+          updatedBy: "coach-1",
+        },
+      ];
+
+      const checkoutRecords = [
+        // std-1 checked out
+        {
+          checkoutId: "sess-1__std-1",
+          academyId: "acad-1",
+          sessionId: "sess-1",
+          studentId: "std-1",
+          method: "authorizedAdult" as const,
+          authorizedAdultId: "guardian-1",
+          authorizedAdultName: "Maria Silva",
+          notes: null,
+          checkedOutAt: "2026-09-01T17:05:00Z",
+          schemaVersion: "1" as const,
+          createdAt: "2026-09-01T17:05:00Z",
+          createdBy: "guardian-1",
+          updatedAt: "2026-09-01T17:05:00Z",
+          updatedBy: "guardian-1",
+        },
+      ];
+
+      const view = buildSessionOperationalView({
+        session: mockSession,
+        bookings,
+        attendance: attendanceRecords,
+        checkouts: checkoutRecords,
+        now: "2026-09-01T17:15:00Z",
+      });
+
+      // Session & Quorum
+      expect(view.session.sessionId).toBe("sess-1");
+      expect(view.summary.totalBookings).toBe(3); // excludes cancelled std-4
+      expect(view.summary.quorumMet).toBe(true); // 3 confirmed >= minParticipants 3
+      expect(view.summary.totalCheckedIn).toBe(2); // std-1 (attended) + std-2 (late)
+      expect(view.summary.totalCheckedOut).toBe(1); // std-1
+      expect(view.summary.totalPendingArrival).toBe(1); // std-3 (booked, not arrived)
+
+      // Roster items
+      expect(view.roster).toHaveLength(3);
+      const student1 = view.roster.find((r) => r.studentId === "std-1");
+      expect(student1?.computedStatus).toBe("checked_out");
+      expect(student1?.checkout?.method).toBe("authorizedAdult");
+
+      const student2 = view.roster.find((r) => r.studentId === "std-2");
+      expect(student2?.computedStatus).toBe("late");
+      expect(student2?.checkout).toBeNull();
+
+      const student3 = view.roster.find((r) => r.studentId === "std-3");
+      expect(student3?.computedStatus).toBe("booked_not_arrived");
+      expect(student3?.attendance).toBeNull();
+
+      // Walk-ins
+      expect(view.unbookedCheckIns).toHaveLength(1);
+      expect(view.unbookedCheckIns[0]?.studentId).toBe("std-99");
     });
   });
 });

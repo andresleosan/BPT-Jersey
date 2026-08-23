@@ -562,6 +562,30 @@ export function createGetStudentCheckoutHandler(options: { store: ScheduleStore 
   };
 }
 
+export function createGetSessionOperationalViewHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError(
+        "permission-denied",
+        "Staff access required to view live operational roster",
+      );
+    }
+
+    const data = request.data as { sessionId?: unknown };
+    if (!data || typeof data.sessionId !== "string" || !data.sessionId.trim()) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    const view = await store.getSessionOperationalView(actor.academyId, data.sessionId.trim());
+    return {
+      view,
+    };
+  };
+}
+
 let defaultStore: ScheduleStore | undefined;
 
 function getStore(): ScheduleStore {
@@ -684,4 +708,9 @@ export const listSessionCheckouts = onCall(
 export const getStudentCheckout = onCall(
   { enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createGetStudentCheckoutHandler({ store: getStore() })(request),
+);
+
+export const getSessionOperationalView = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createGetSessionOperationalViewHandler({ store: getStore() })(request),
 );
