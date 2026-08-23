@@ -340,3 +340,18 @@ export type {
   CreateAnnouncementInput,
   UpdateAnnouncementInput,
 } from "./announcements/announcement-contracts";
+
+export {
+  buildNoticeId,
+  filterGuardianAnnouncements,
+  noticeCategories,
+  parseSendMinorNoticeInput,
+  resolveSafeguardedRecipient,
+} from "./announcements/safeguarding-contracts";
+export type {
+  NoticeCategory,
+  RecipientResolution,
+  SafeguardingNoticeRecord,
+  SendMinorNoticeInput,
+} from "./announcements/safeguarding-contracts";
+

@@ -5,8 +5,11 @@ import {
   createArchiveAnnouncementHandler,
   createCreateAnnouncementHandler,
   createListAnnouncementsHandler,
+  createListGuardianNoticesHandler,
   createMarkAnnouncementAsReadHandler,
+  createMarkNoticeAsReadHandler,
   createPublishAnnouncementHandler,
+  createSendMinorNoticeHandler,
   createUpdateAnnouncementHandler,
 } from "./announcement-callables";
 
@@ -135,4 +138,72 @@ describe("Announcement Callables (T045)", () => {
 
     expect(markRes.announcement.readBy).toContain("student-1");
   });
+
+  describe("Safeguarding Callables (T047)", () => {
+    it("safeguards notice delivery by resolving to registered guardian", async () => {
+      const store = createInMemoryAnnouncementStore();
+      const sendHandler = createSendMinorNoticeHandler({
+        store,
+        resolveGuardians: async () => ["guardian-bob"],
+      });
+      const listHandler = createListGuardianNoticesHandler({ store });
+      const markNoticeHandler = createMarkNoticeAsReadHandler({ store });
+
+      const sendRes = await sendHandler(
+        fakeRequest(
+          {
+            minorStudentId: "minor-timmy",
+            title: "Belt promotion ceremony",
+            content: "Timmy is eligible for his grey-white belt.",
+            category: "progress",
+          },
+          "headCoach",
+          "coach-1",
+        ),
+      );
+
+      expect(sendRes.notice.minorStudentId).toBe("minor-timmy");
+      expect(sendRes.notice.guardianId).toBe("guardian-bob");
+
+      // Guardian views their notices
+      const listRes = await listHandler(
+        fakeRequest({}, "guardian", "guardian-bob"),
+      );
+      expect(listRes.notices).toHaveLength(1);
+      expect(listRes.notices[0]?.title).toBe("Belt promotion ceremony");
+
+      // Guardian marks notice as read
+      const markRes = await markNoticeHandler(
+        fakeRequest(
+          { noticeId: sendRes.notice.noticeId },
+          "guardian",
+          "guardian-bob",
+        ),
+      );
+      expect(markRes.notice.readAt).toBeDefined();
+    });
+
+    it("blocks notice to minor when guardian cannot be resolved", async () => {
+      const store = createInMemoryAnnouncementStore();
+      const sendHandler = createSendMinorNoticeHandler({
+        store,
+        resolveGuardians: async () => [],
+      });
+
+      await expect(
+        sendHandler(
+          fakeRequest(
+            {
+              minorStudentId: "orphan-minor",
+              title: "Notice",
+              content: "Content test.",
+            },
+            "coach",
+            "coach-1",
+          ),
+        ),
+      ).rejects.toThrow(/Safeguarding violation/);
+    });
+  });
 });
+

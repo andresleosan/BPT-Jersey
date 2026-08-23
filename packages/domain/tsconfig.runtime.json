@@ -28,6 +28,7 @@
     "src/staff/staff-contracts.ts",
     "src/levels/level-contracts.ts",
     "src/schedule/schedule-contracts.ts",
-    "src/announcements/announcement-contracts.ts"
+    "src/announcements/announcement-contracts.ts",
+    "src/announcements/safeguarding-contracts.ts"
   ]
 }

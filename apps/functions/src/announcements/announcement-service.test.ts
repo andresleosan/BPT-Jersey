@@ -177,4 +177,41 @@ describe("Announcement Service Store (T045)", () => {
     expect(classOnly).toHaveLength(1);
     expect(classOnly[0]?.targetId).toBe("class-1");
   });
+
+  it("safeguards minor notices by delivering to guardian with read tracking", async () => {
+    const store = createInMemoryAnnouncementStore();
+
+    const notice = await store.sendMinorNotice({
+      academyId: "demo-academy",
+      input: {
+        minorStudentId: "minor-1",
+        title: "Uniform check",
+        content: "Please ensure official Gi for grading.",
+        category: "progress",
+      },
+      authorId: "coach-1",
+      authorRole: "coach",
+      guardianId: "guardian-1",
+    });
+
+    expect(notice.minorStudentId).toBe("minor-1");
+    expect(notice.guardianId).toBe("guardian-1");
+    expect(notice.readAt).toBeNull();
+
+    const list = await store.listNoticesForGuardian({
+      academyId: "demo-academy",
+      guardianId: "guardian-1",
+    });
+    expect(list).toHaveLength(1);
+    expect(list[0]?.noticeId).toBe(notice.noticeId);
+
+    const read = await store.markNoticeAsRead({
+      academyId: "demo-academy",
+      noticeId: notice.noticeId,
+      guardianId: "guardian-1",
+      now: "2026-08-23T12:00:00Z",
+    });
+    expect(read.readAt).toBe("2026-08-23T12:00:00Z");
+  });
 });
+

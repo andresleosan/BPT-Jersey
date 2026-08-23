@@ -209,3 +209,6 @@ export function parseUpdateAnnouncementInput(
     }),
   );
 }
+
+export * from "./safeguarding-contracts";
+

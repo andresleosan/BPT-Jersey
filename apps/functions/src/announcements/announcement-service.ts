@@ -1,10 +1,13 @@
 import {
   buildAnnouncementId,
+  buildNoticeId,
   type AnnouncementAuthorRole,
   type AnnouncementChannel,
   type AnnouncementRecord,
   type AnnouncementStatus,
   type CreateAnnouncementInput,
+  type SafeguardingNoticeRecord,
+  type SendMinorNoticeInput,
   type UpdateAnnouncementInput,
 } from "@bpt-jersey/domain/announcements";
 
@@ -63,6 +66,24 @@ export type AnnouncementStore = Readonly<{
     academyId: string,
     filter?: ListAnnouncementsFilter,
   ) => Promise<readonly AnnouncementRecord[]>;
+  sendMinorNotice: (params: {
+    academyId: string;
+    input: SendMinorNoticeInput;
+    authorId: string;
+    authorRole: string;
+    guardianId: string;
+    now?: string;
+  }) => Promise<SafeguardingNoticeRecord>;
+  listNoticesForGuardian: (params: {
+    academyId: string;
+    guardianId: string;
+  }) => Promise<readonly SafeguardingNoticeRecord[]>;
+  markNoticeAsRead: (params: {
+    academyId: string;
+    noticeId: string;
+    guardianId: string;
+    now?: string;
+  }) => Promise<SafeguardingNoticeRecord>;
 }>;
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -131,7 +152,10 @@ export function createFirestoreAnnouncementStore({
       });
 
       const batch = firestore.batch();
-      batch.set(firestore.doc(`academies/${academyId}/announcements/${announcementId}`), record);
+      batch.set(
+        firestore.doc(`academies/${academyId}/announcements/${announcementId}`),
+        record,
+      );
 
       const auditEventId = `evt_ann_${announcementId}`;
       batch.set(firestore.doc(`academies/${academyId}/auditEvents/${auditEventId}`), {
@@ -153,10 +177,7 @@ export function createFirestoreAnnouncementStore({
 
       const existing = await this.getAnnouncement(academyId, input.announcementId);
       if (!existing) {
-        throw new AnnouncementStoreError(
-          "not-found",
-          `Announcement not found: ${input.announcementId}`,
-        );
+        throw new AnnouncementStoreError("not-found", `Announcement not found: ${input.announcementId}`);
       }
 
       const updatedRecord: AnnouncementRecord = Object.freeze({
@@ -169,9 +190,7 @@ export function createFirestoreAnnouncementStore({
         updatedBy,
       });
 
-      await firestore
-        .doc(`academies/${academyId}/announcements/${input.announcementId}`)
-        .set(updatedRecord);
+      await firestore.doc(`academies/${academyId}/announcements/${input.announcementId}`).set(updatedRecord);
       return updatedRecord;
     },
 
@@ -267,18 +286,14 @@ export function createFirestoreAnnouncementStore({
         readBy: updatedReadBy,
       });
 
-      await firestore
-        .doc(`academies/${academyId}/announcements/${announcementId}`)
-        .set(updatedRecord);
+      await firestore.doc(`academies/${academyId}/announcements/${announcementId}`).set(updatedRecord);
       return updatedRecord;
     },
 
     async getAnnouncement(academyId, announcementId) {
       assertValidAcademyId(academyId);
 
-      const snap = await firestore
-        .doc(`academies/${academyId}/announcements/${announcementId}`)
-        .get();
+      const snap = await firestore.doc(`academies/${academyId}/announcements/${announcementId}`).get();
       if (!snap.exists) return null;
       return snap.data() as unknown as AnnouncementRecord;
     },
@@ -305,11 +320,101 @@ export function createFirestoreAnnouncementStore({
         return dateB.localeCompare(dateA);
       });
     },
+
+    async sendMinorNotice(params) {
+      const { academyId, input, authorId, authorRole, guardianId, now = new Date().toISOString() } = params;
+      assertValidAcademyId(academyId);
+
+      const suffix = Math.random().toString(36).substring(2, 7);
+      const noticeId = buildNoticeId(academyId, now, suffix);
+
+      const record: SafeguardingNoticeRecord = Object.freeze({
+        noticeId,
+        academyId,
+        minorStudentId: input.minorStudentId,
+        guardianId,
+        title: input.title,
+        content: input.content,
+        category: input.category ?? "general",
+        authorId,
+        authorRole,
+        readAt: null,
+        createdAt: now,
+        createdBy: authorId,
+      });
+
+      const batch = firestore.batch();
+      batch.set(
+        firestore.doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`),
+        record,
+      );
+
+      const auditEventId = `evt_not_${noticeId}`;
+      batch.set(firestore.doc(`academies/${academyId}/auditEvents/${auditEventId}`), {
+        eventId: auditEventId,
+        academyId,
+        action: "minor_notice_safeguarded",
+        actorId: authorId,
+        timestamp: now,
+        details: {
+          noticeId,
+          minorStudentId: input.minorStudentId,
+          guardianId,
+          category: input.category,
+        },
+      });
+
+      await batch.commit();
+      return record;
+    },
+
+    async listNoticesForGuardian(params) {
+      const { academyId, guardianId } = params;
+      assertValidAcademyId(academyId);
+
+      const snap = await firestore
+        .collection(`academies/${academyId}/guardians/${guardianId}/notices`)
+        .get();
+
+      return snap.docs
+        .map((d) => d.data() as unknown as SafeguardingNoticeRecord)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    },
+
+    async markNoticeAsRead(params) {
+      const { academyId, noticeId, guardianId, now = new Date().toISOString() } = params;
+      assertValidAcademyId(academyId);
+
+      const snap = await firestore
+        .doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`)
+        .get();
+
+      if (!snap.exists) {
+        throw new AnnouncementStoreError("not-found", `Notice not found: ${noticeId}`);
+      }
+
+      const existing = snap.data() as unknown as SafeguardingNoticeRecord;
+      if (existing.readAt) {
+        return existing;
+      }
+
+      const updatedRecord: SafeguardingNoticeRecord = Object.freeze({
+        ...existing,
+        readAt: now,
+      });
+
+      await firestore
+        .doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`)
+        .set(updatedRecord);
+
+      return updatedRecord;
+    },
   };
 }
 
 export function createInMemoryAnnouncementStore(): AnnouncementStore {
   const announcements = new Map<string, AnnouncementRecord>();
+  const notices = new Map<string, SafeguardingNoticeRecord>();
 
   return {
     async createAnnouncement(params) {
@@ -351,10 +456,7 @@ export function createInMemoryAnnouncementStore(): AnnouncementStore {
 
       const existing = await this.getAnnouncement(academyId, input.announcementId);
       if (!existing) {
-        throw new AnnouncementStoreError(
-          "not-found",
-          `Announcement not found: ${input.announcementId}`,
-        );
+        throw new AnnouncementStoreError("not-found", `Announcement not found: ${input.announcementId}`);
       }
 
       const updatedRecord: AnnouncementRecord = Object.freeze({
@@ -460,6 +562,64 @@ export function createInMemoryAnnouncementStore(): AnnouncementStore {
         const dateB = b.publishedAt ?? b.createdAt;
         return dateB.localeCompare(dateA);
       });
+    },
+
+    async sendMinorNotice(params) {
+      const { academyId, input, authorId, authorRole, guardianId, now = new Date().toISOString() } = params;
+      assertValidAcademyId(academyId);
+
+      const suffix = Math.random().toString(36).substring(2, 7);
+      const noticeId = buildNoticeId(academyId, now, suffix);
+
+      const record: SafeguardingNoticeRecord = Object.freeze({
+        noticeId,
+        academyId,
+        minorStudentId: input.minorStudentId,
+        guardianId,
+        title: input.title,
+        content: input.content,
+        category: input.category ?? "general",
+        authorId,
+        authorRole,
+        readAt: null,
+        createdAt: now,
+        createdBy: authorId,
+      });
+
+      notices.set(`${academyId}_${guardianId}_${noticeId}`, record);
+      return record;
+    },
+
+    async listNoticesForGuardian(params) {
+      const { academyId, guardianId } = params;
+      assertValidAcademyId(academyId);
+
+      return Array.from(notices.values())
+        .filter((n) => n.academyId === academyId && n.guardianId === guardianId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    },
+
+    async markNoticeAsRead(params) {
+      const { academyId, noticeId, guardianId, now = new Date().toISOString() } = params;
+      assertValidAcademyId(academyId);
+
+      const key = `${academyId}_${guardianId}_${noticeId}`;
+      const existing = notices.get(key);
+      if (!existing) {
+        throw new AnnouncementStoreError("not-found", `Notice not found: ${noticeId}`);
+      }
+
+      if (existing.readAt) {
+        return existing;
+      }
+
+      const updatedRecord: SafeguardingNoticeRecord = Object.freeze({
+        ...existing,
+        readAt: now,
+      });
+
+      notices.set(key, updatedRecord);
+      return updatedRecord;
     },
   };
 }

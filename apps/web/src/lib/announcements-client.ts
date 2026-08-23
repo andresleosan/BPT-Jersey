@@ -2,11 +2,14 @@ import { httpsCallable } from "firebase/functions";
 
 import {
   parseCreateAnnouncementInput,
+  parseSendMinorNoticeInput,
   parseUpdateAnnouncementInput,
   type AnnouncementChannel,
   type AnnouncementRecord,
   type AnnouncementStatus,
   type CreateAnnouncementInput,
+  type SafeguardingNoticeRecord,
+  type SendMinorNoticeInput,
   type UpdateAnnouncementInput,
 } from "@bpt-jersey/domain/announcements";
 import { getFirebaseFunctions } from "./firebase-client";
@@ -17,6 +20,10 @@ const safePublishError = "Unable to publish announcement. Please try again.";
 const safeArchiveError = "Unable to archive announcement. Please try again.";
 const safeMarkReadError = "Unable to mark announcement as read. Please try again.";
 const safeListError = "Unable to load announcements. Please try again.";
+const safeSendNoticeError = "Unable to send notice to minor. Please try again.";
+const safeListNoticesError = "Unable to load guardian notices. Please try again.";
+const safeMarkNoticeReadError = "Unable to mark notice as read. Please try again.";
+
 
 export async function createAnnouncement(
   input: CreateAnnouncementInput,
@@ -149,3 +156,69 @@ export async function listAnnouncements(params?: {
     throw new Error(safeListError);
   }
 }
+
+export async function sendMinorNotice(
+  input: SendMinorNoticeInput,
+): Promise<SafeguardingNoticeRecord> {
+  const parsed = parseSendMinorNoticeInput(input);
+  if (!parsed.ok) {
+    throw new Error(safeSendNoticeError);
+  }
+
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    SendMinorNoticeInput,
+    { notice: SafeguardingNoticeRecord }
+  >(functions, "sendMinorNotice");
+
+  try {
+    const response = await callable(parsed.value);
+    return response.data.notice;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeSendNoticeError) {
+      throw error;
+    }
+    throw new Error(safeSendNoticeError);
+  }
+}
+
+export async function listGuardianNotices(
+  guardianId?: string,
+): Promise<readonly SafeguardingNoticeRecord[]> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { guardianId?: string },
+    { notices: readonly SafeguardingNoticeRecord[] }
+  >(functions, "listGuardianNotices");
+
+  try {
+    const response = await callable(guardianId ? { guardianId } : {});
+    return response.data.notices;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeListNoticesError) {
+      throw error;
+    }
+    throw new Error(safeListNoticesError);
+  }
+}
+
+export async function markNoticeAsRead(
+  noticeId: string,
+): Promise<SafeguardingNoticeRecord> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<
+    { noticeId: string },
+    { notice: SafeguardingNoticeRecord }
+  >(functions, "markNoticeAsRead");
+
+  try {
+    const response = await callable({ noticeId });
+    return response.data.notice;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeMarkNoticeReadError) {
+      throw error;
+    }
+    throw new Error(safeMarkNoticeReadError);
+  }
+}
+

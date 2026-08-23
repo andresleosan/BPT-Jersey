@@ -15,7 +15,6 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/staff": "../../domain/staff/staff-contracts.js",
   "@bpt-jersey/domain/levels": "../../domain/levels/level-contracts.js",
   "@bpt-jersey/domain/schedule": "../../domain/schedule/schedule-contracts.js",
-  "@bpt-jersey/domain/announcements": "../../domain/announcements/announcement-contracts.js",
 });
 
 async function runtimeFiles(directory: string): Promise<readonly string[]> {

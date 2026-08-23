@@ -87,7 +87,11 @@ export {
   archiveAnnouncement,
   createAnnouncement,
   listAnnouncements,
+  listGuardianNotices,
   markAnnouncementAsRead,
+  markNoticeAsRead,
   publishAnnouncement,
+  sendMinorNotice,
   updateAnnouncement,
 } from "./announcements/announcement-callables.js";
+
