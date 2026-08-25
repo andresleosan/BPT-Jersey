@@ -65,6 +65,11 @@
       "import": "./src/finance/financial-access.ts",
       "default": "./lib/finance/financial-access.js"
     },
+    "./finance/dashboard": {
+      "types": "./src/finance/financial-dashboard.ts",
+      "import": "./src/finance/financial-dashboard.ts",
+      "default": "./lib/finance/financial-dashboard.js"
+    },
     "./levels": {
       "types": "./src/levels/level-contracts.ts",
       "import": "./src/levels/level-contracts.ts",
@@ -79,6 +84,36 @@
       "types": "./src/announcements/announcement-contracts.ts",
       "import": "./src/announcements/announcement-contracts.ts",
       "default": "./lib/announcements/announcement-contracts.js"
+    },
+    "./reminders": {
+      "types": "./src/reminders/reminder-contracts.ts",
+      "import": "./src/reminders/reminder-contracts.ts",
+      "default": "./lib/reminders/reminder-contracts.js"
+    },
+    "./delivery": {
+      "types": "./src/delivery/delivery-contracts.ts",
+      "import": "./src/delivery/delivery-contracts.ts",
+      "default": "./lib/delivery/delivery-contracts.js"
+    },
+    "./documents": {
+      "types": "./src/documents/document-contracts.ts",
+      "import": "./src/documents/document-contracts.ts",
+      "default": "./lib/documents/document-contracts.js"
+    },
+    "./reports": {
+      "types": "./src/reports/operational-report.ts",
+      "import": "./src/reports/operational-report.ts",
+      "default": "./lib/reports/operational-report.js"
+    },
+    "./health": {
+      "types": "./src/health/health-contracts.ts",
+      "import": "./src/health/health-contracts.ts",
+      "default": "./lib/health/health-contracts.js"
+    },
+    "./exports": {
+      "types": "./src/exports/aggregate-report-export.ts",
+      "import": "./src/exports/aggregate-report-export.ts",
+      "default": "./lib/exports/aggregate-report-export.js"
     }
   },
   "scripts": {

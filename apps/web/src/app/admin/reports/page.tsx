@@ -3,9 +3,19 @@
 import { useState } from "react";
 
 import { AdminSectionHeader } from "../admin-ui";
-import { previewData } from "../preview-data";
+import { AggregateReportExportCard } from "./aggregate-report-export-card";
+import { OperationalReportCard } from "./operational-report-card";
+import { ProgressReportCard } from "./progress-report-card";
 
 import "../admin.css";
+
+const previewReports = [
+  {
+    title: "CRM follow-up",
+    description: "Review enquiries, trials, and next actions after the pilot.",
+    updated: "Post-pilot preview",
+  },
+] as const;
 
 export function ReportsPage() {
   const [preparedReport, setPreparedReport] = useState<string>();
@@ -13,32 +23,17 @@ export function ReportsPage() {
   return (
     <section className="admin-module-page" aria-labelledby="reports-title">
       <AdminSectionHeader
-        description="Prepare operational summaries for members, attendance, memberships, finance, CRM, and progress."
-        eyebrow="Reports / Synthetic preview"
+        description="Review connected operational aggregates for students, attendance, memberships, manual finance, and progress."
+        eyebrow="Reports / Connected and preview"
         title="Reports"
       />
       <div className="admin-report-grid">
-        {[
-          ...previewData.reports,
-          {
-            title: "CRM follow-up",
-            description: "Review enquiries, trials, and next actions.",
-            updated: "Ready for preview",
-          },
-          {
-            title: "Progress coverage",
-            description: "Review assessment coverage and coach updates.",
-            updated: "Ready for preview",
-          },
-          {
-            title: "Membership status",
-            description: "Review active, paused, overdue, and cancelled plans.",
-            updated: "Ready for preview",
-          },
-        ].map((report) => (
+        <OperationalReportCard />
+
+        {previewReports.map((report) => (
           <article
             className="admin-panel-card"
-            aria-label={`${report.title} report`}
+            aria-label={report.title + " report"}
             key={report.title}
           >
             <p className="admin-eyebrow">Report / Preview</p>
@@ -58,6 +53,9 @@ export function ReportsPage() {
             </div>
           </article>
         ))}
+
+        <ProgressReportCard />
+        <AggregateReportExportCard />
       </div>
     </section>
   );

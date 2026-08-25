@@ -99,6 +99,31 @@ to BPT Jersey before recording any decision in this packet.
   mechanism.
 - Keep `T023` blocked and `T018` pending until the external decision is recorded.
 
+## Safe Advancement Route For The Pilot
+
+This route separates implementation and automated verification from production
+authorization. It is an operational proposal, not a retention policy or legal
+approval.
+
+1. The pilot may implement and test T023/T024 contracts, adapters, and UI only
+   against emulators or isolated staging with synthetic/sanitized fixtures.
+2. Any production path for health/support, waivers, or private documents must be
+   fail-closed while T011 is unresolved: no write, import, upload, or read of
+   real data.
+3. T023 remains limited to the approved minimum-data design: coded support
+   needs, condition summary capped at 1000 characters, staff label capped at 25
+   characters, no diagnosis/medication/medical-history fields, and no files.
+4. T024 may validate private-object authorization, signed-URL expiry, hashes,
+   and rollback with fixtures only. It must not establish a final retention,
+   deletion, residency, or backup policy.
+5. Before any real data or production deployment, the operator must identify
+   the academy decision owner and applicable Jersey reviewer, complete the
+   matrix above, and record approver, date, source, scope, and conditions.
+
+The operator should explicitly confirm whether this pilot route is accepted as
+the next implementation scope. Without that confirmation, the ledger remains
+unchanged and T023/T018/T024 retain their current dependency states.
+
 ## Approval Gate
 
 `T011` may move from `bloqueada` only after the operator and applicable reviewer

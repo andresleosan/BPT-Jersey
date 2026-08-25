@@ -192,7 +192,7 @@ export function AdminShell({
             <div className="admin-header-actions">
               <p className="admin-header-status">
                 <span className="admin-status-dot" aria-hidden="true" />
-                Authenticated shell
+                Authenticated shell - {roleLabel}
               </p>
               <Link className="admin-home-link" href="/">
                 Home

@@ -94,6 +94,12 @@ function assertValidAcademyId(academyId: string): void {
   }
 }
 
+function assertValidIdentifier(value: string, field: string): void {
+  if (!safeIdentifierPattern.test(value)) {
+    throw new AnnouncementStoreError("invalid", `Invalid ${field}`);
+  }
+}
+
 export type GenericFirestore = {
   doc: (path: string) => {
     get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>;
@@ -152,10 +158,7 @@ export function createFirestoreAnnouncementStore({
       });
 
       const batch = firestore.batch();
-      batch.set(
-        firestore.doc(`academies/${academyId}/announcements/${announcementId}`),
-        record,
-      );
+      batch.set(firestore.doc(`academies/${academyId}/announcements/${announcementId}`), record);
 
       const auditEventId = `evt_ann_${announcementId}`;
       batch.set(firestore.doc(`academies/${academyId}/auditEvents/${auditEventId}`), {
@@ -177,7 +180,10 @@ export function createFirestoreAnnouncementStore({
 
       const existing = await this.getAnnouncement(academyId, input.announcementId);
       if (!existing) {
-        throw new AnnouncementStoreError("not-found", `Announcement not found: ${input.announcementId}`);
+        throw new AnnouncementStoreError(
+          "not-found",
+          `Announcement not found: ${input.announcementId}`,
+        );
       }
 
       const updatedRecord: AnnouncementRecord = Object.freeze({
@@ -190,7 +196,9 @@ export function createFirestoreAnnouncementStore({
         updatedBy,
       });
 
-      await firestore.doc(`academies/${academyId}/announcements/${input.announcementId}`).set(updatedRecord);
+      await firestore
+        .doc(`academies/${academyId}/announcements/${input.announcementId}`)
+        .set(updatedRecord);
       return updatedRecord;
     },
 
@@ -286,14 +294,18 @@ export function createFirestoreAnnouncementStore({
         readBy: updatedReadBy,
       });
 
-      await firestore.doc(`academies/${academyId}/announcements/${announcementId}`).set(updatedRecord);
+      await firestore
+        .doc(`academies/${academyId}/announcements/${announcementId}`)
+        .set(updatedRecord);
       return updatedRecord;
     },
 
     async getAnnouncement(academyId, announcementId) {
       assertValidAcademyId(academyId);
 
-      const snap = await firestore.doc(`academies/${academyId}/announcements/${announcementId}`).get();
+      const snap = await firestore
+        .doc(`academies/${academyId}/announcements/${announcementId}`)
+        .get();
       if (!snap.exists) return null;
       return snap.data() as unknown as AnnouncementRecord;
     },
@@ -322,8 +334,18 @@ export function createFirestoreAnnouncementStore({
     },
 
     async sendMinorNotice(params) {
-      const { academyId, input, authorId, authorRole, guardianId, now = new Date().toISOString() } = params;
+      const {
+        academyId,
+        input,
+        authorId,
+        authorRole,
+        guardianId,
+        now = new Date().toISOString(),
+      } = params;
       assertValidAcademyId(academyId);
+      assertValidIdentifier(input.minorStudentId, "minorStudentId");
+      assertValidIdentifier(authorId, "authorId");
+      assertValidIdentifier(guardianId, "guardianId");
 
       const suffix = Math.random().toString(36).substring(2, 7);
       const noticeId = buildNoticeId(academyId, now, suffix);
@@ -371,6 +393,7 @@ export function createFirestoreAnnouncementStore({
     async listNoticesForGuardian(params) {
       const { academyId, guardianId } = params;
       assertValidAcademyId(academyId);
+      assertValidIdentifier(guardianId, "guardianId");
 
       const snap = await firestore
         .collection(`academies/${academyId}/guardians/${guardianId}/notices`)
@@ -384,6 +407,8 @@ export function createFirestoreAnnouncementStore({
     async markNoticeAsRead(params) {
       const { academyId, noticeId, guardianId, now = new Date().toISOString() } = params;
       assertValidAcademyId(academyId);
+      assertValidIdentifier(noticeId, "noticeId");
+      assertValidIdentifier(guardianId, "guardianId");
 
       const snap = await firestore
         .doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`)
@@ -456,7 +481,10 @@ export function createInMemoryAnnouncementStore(): AnnouncementStore {
 
       const existing = await this.getAnnouncement(academyId, input.announcementId);
       if (!existing) {
-        throw new AnnouncementStoreError("not-found", `Announcement not found: ${input.announcementId}`);
+        throw new AnnouncementStoreError(
+          "not-found",
+          `Announcement not found: ${input.announcementId}`,
+        );
       }
 
       const updatedRecord: AnnouncementRecord = Object.freeze({
@@ -565,8 +593,18 @@ export function createInMemoryAnnouncementStore(): AnnouncementStore {
     },
 
     async sendMinorNotice(params) {
-      const { academyId, input, authorId, authorRole, guardianId, now = new Date().toISOString() } = params;
+      const {
+        academyId,
+        input,
+        authorId,
+        authorRole,
+        guardianId,
+        now = new Date().toISOString(),
+      } = params;
       assertValidAcademyId(academyId);
+      assertValidIdentifier(input.minorStudentId, "minorStudentId");
+      assertValidIdentifier(authorId, "authorId");
+      assertValidIdentifier(guardianId, "guardianId");
 
       const suffix = Math.random().toString(36).substring(2, 7);
       const noticeId = buildNoticeId(academyId, now, suffix);
@@ -593,6 +631,7 @@ export function createInMemoryAnnouncementStore(): AnnouncementStore {
     async listNoticesForGuardian(params) {
       const { academyId, guardianId } = params;
       assertValidAcademyId(academyId);
+      assertValidIdentifier(guardianId, "guardianId");
 
       return Array.from(notices.values())
         .filter((n) => n.academyId === academyId && n.guardianId === guardianId)
@@ -602,6 +641,8 @@ export function createInMemoryAnnouncementStore(): AnnouncementStore {
     async markNoticeAsRead(params) {
       const { academyId, noticeId, guardianId, now = new Date().toISOString() } = params;
       assertValidAcademyId(academyId);
+      assertValidIdentifier(noticeId, "noticeId");
+      assertValidIdentifier(guardianId, "guardianId");
 
       const key = `${academyId}_${guardianId}_${noticeId}`;
       const existing = notices.get(key);

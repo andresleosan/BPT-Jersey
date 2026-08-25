@@ -32,6 +32,26 @@ async function expectNoBrowserHealthProblems(page: Page, errors: string[]): Prom
 async function installStaticAdminRoute(page: Page, pathname: string): Promise<void> {
   await page.route("**/*", async (route) => {
     const requestUrl = new URL(route.request().url());
+    if (requestUrl.pathname.endsWith("/getDailyOperationsDashboard")) {
+      const body = route.request().postDataJSON() as {
+        data: Readonly<{ from: string; to: string }>;
+      };
+      await route.fulfill({
+        body: JSON.stringify({
+          data: {
+            dashboard: {
+              query: body.data,
+              sessions: [],
+              refreshedAt: "2026-08-24T20:00:00.000Z",
+            },
+          },
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+
     if (requestUrl.pathname === pathname) {
       requestUrl.pathname = `${pathname}.html`;
       await route.continue({ url: requestUrl.toString() });
@@ -78,7 +98,10 @@ test.describe("admin authentication boundary", () => {
         await page.goto(roleUrl(pathname, role));
         expect(new URL(page.url()).searchParams.get("adminTestRole")).toBe(role);
         await expect(page.getByTestId("admin-shell")).toBeVisible();
-        await expect(page.getByText(new RegExp(`${role} access`, "i"))).toBeVisible();
+        const roleLabel = role === "owner" ? "Owner access" : "Administrator access";
+        await expect(
+          page.getByText(`Authenticated shell - ${roleLabel}`, { exact: true }),
+        ).toBeVisible();
         if (pathname === "/admin/regyfit-access-records") {
           await expect(page.getByTestId("regyfit-access-records-panel")).toBeVisible();
         }

@@ -1,4 +1,5 @@
 import {
+  buildDailyOperationsDashboard,
   buildAttendanceId,
   buildBookingId,
   buildCheckoutId,
@@ -8,6 +9,7 @@ import {
   generateSessionsFromClass,
   isWithinBookingCutoff,
   type AttendanceRecord,
+  type DailyOperationsDashboard,
   type BookingRecord,
   type CancelBookingInput,
   type CheckInInput,
@@ -230,6 +232,10 @@ export type ScheduleStore = Readonly<{
     academyId: string,
     sessionId: string,
   ) => Promise<SessionOperationalView>;
+  getDailyOperationsDashboard: (
+    academyId: string,
+    query: ListSessionsQuery,
+  ) => Promise<DailyOperationsDashboard>;
 }>;
 
 type GenericQuery = {
@@ -1093,6 +1099,17 @@ export function createFirestoreScheduleStore(options: {
         checkouts,
       });
     },
+
+    async getDailyOperationsDashboard(
+      academyId: string,
+      query: ListSessionsQuery,
+    ): Promise<DailyOperationsDashboard> {
+      const sessions = await this.listSessions(academyId, query);
+      const views = await Promise.all(
+        sessions.map((session) => this.getSessionOperationalView(academyId, session.sessionId)),
+      );
+      return buildDailyOperationsDashboard({ query, views });
+    },
   };
 }
 
@@ -1813,6 +1830,17 @@ export function createInMemoryScheduleStore(): ScheduleStore {
         attendance,
         checkouts,
       });
+    },
+
+    async getDailyOperationsDashboard(
+      academyId: string,
+      query: ListSessionsQuery,
+    ): Promise<DailyOperationsDashboard> {
+      const sessions = await this.listSessions(academyId, query);
+      const views = await Promise.all(
+        sessions.map((session) => this.getSessionOperationalView(academyId, session.sessionId)),
+      );
+      return buildDailyOperationsDashboard({ query, views });
     },
   };
 }

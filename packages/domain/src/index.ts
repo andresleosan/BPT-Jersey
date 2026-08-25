@@ -348,6 +348,7 @@ export {
   parseSendMinorNoticeInput,
   resolveSafeguardedRecipient,
 } from "./announcements/safeguarding-contracts";
+
 export type {
   NoticeCategory,
   RecipientResolution,
@@ -355,3 +356,69 @@ export type {
   SendMinorNoticeInput,
 } from "./announcements/safeguarding-contracts";
 
+export { buildInAppReminders, reminderKinds } from "./reminders/reminder-contracts";
+export type {
+  BuildInAppRemindersInput,
+  FinancialAccountSummary,
+  InAppReminderRecord,
+  ReminderAttendanceEntry,
+  ReminderKind,
+} from "./reminders/reminder-contracts";
+
+export {
+  buildDeliveryEventId,
+  buildDeliveryHistoryRecord,
+  deliveryChannels,
+  deliveryStatuses,
+  parseDeliveryHistoryRecord,
+  parseExternalDeliveryRequest,
+} from "./delivery/delivery-contracts";
+export type {
+  DeliveryChannel,
+  DeliveryHistoryRecord,
+  DeliveryProviderResult,
+  DeliveryStatus,
+  ExternalDeliveryRequest,
+} from "./delivery/delivery-contracts";
+export {
+  minimumOperationalSupportCodes,
+  healthReviewStates,
+  healthProfileStatuses,
+  healthChangeRequestStatuses,
+  parseHealthProfile,
+  parseHealthProfileSaveInput,
+  parseHealthProfileChangeRequestInput,
+  parseHealthProfileChangeRequest,
+  toHealthProfileProjection,
+} from "./health/health-contracts";
+export type {
+  HealthProfile,
+  HealthProfileChangeRequest,
+  HealthProfileSaveInput,
+  HealthProfileChangeRequestInput,
+  HealthProfileRedactedProjection,
+  HealthProfileStaffProjection,
+  HealthProfileAdminProjection,
+  HealthReviewState,
+  HealthProfileStatus,
+  HealthChangeRequestStatus,
+  MinimumOperationalSupportCode,
+} from "./health/health-contracts";
+
+export {
+  privateDocumentKinds,
+  privateDocumentStatuses,
+  MAX_PRIVATE_DOCUMENT_BYTES,
+  buildPrivateDocumentId,
+  buildPrivateDocumentObjectKey,
+  parsePrivateDocumentUploadInput,
+  parsePrivateDocumentRecord,
+  toPrivateDocumentProjection,
+} from "./documents/document-contracts";
+export type {
+  PrivateDocumentKind,
+  PrivateDocumentStatus,
+  PrivateDocumentRecord,
+  PrivateDocumentUploadInput,
+  PrivateDocumentProjection,
+} from "./documents/document-contracts";

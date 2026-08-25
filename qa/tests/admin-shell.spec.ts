@@ -1,4 +1,37 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function installAdminFixture(page: Page): Promise<void> {
+  await page.route("**/*", async (route) => {
+    const requestUrl = new URL(route.request().url());
+    if (requestUrl.pathname.endsWith("/getDailyOperationsDashboard")) {
+      const body = route.request().postDataJSON() as {
+        data: Readonly<{ from: string; to: string }>;
+      };
+      await route.fulfill({
+        body: JSON.stringify({
+          data: {
+            dashboard: {
+              query: body.data,
+              sessions: [],
+              refreshedAt: "2026-08-24T20:00:00.000Z",
+            },
+          },
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+
+    if (requestUrl.pathname.startsWith("/admin")) {
+      if (requestUrl.pathname === "/admin") requestUrl.pathname = "/admin.html";
+      requestUrl.searchParams.set("adminTestRole", "owner");
+      await route.continue({ url: requestUrl.toString() });
+      return;
+    }
+    await route.continue();
+  });
+}
 
 test.describe("admin shell @smoke", () => {
   test("renders the data-free shell without overflow across viewports", async ({
@@ -14,18 +47,7 @@ test.describe("admin shell @smoke", () => {
     page.on("pageerror", (error) => browserErrors.push(error.message));
 
     // The static export writes this route as admin.html; keep the test URL semantic as /admin.
-    await page.route("**/*", async (route) => {
-      const requestUrl = new URL(route.request().url());
-      if (requestUrl.pathname.startsWith("/admin")) {
-        if (requestUrl.pathname === "/admin") {
-          requestUrl.pathname = "/admin.html";
-        }
-        requestUrl.searchParams.set("adminTestRole", "owner");
-        await route.continue({ url: requestUrl.toString() });
-        return;
-      }
-      await route.continue();
-    });
+    await installAdminFixture(page);
 
     const response = await page.goto("/admin?adminTestRole=owner");
 
@@ -92,18 +114,7 @@ test.describe("admin shell @smoke", () => {
   }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile-chromium");
 
-    await page.route("**/*", async (route) => {
-      const requestUrl = new URL(route.request().url());
-      if (requestUrl.pathname.startsWith("/admin")) {
-        if (requestUrl.pathname === "/admin") {
-          requestUrl.pathname = "/admin.html";
-        }
-        requestUrl.searchParams.set("adminTestRole", "owner");
-        await route.continue({ url: requestUrl.toString() });
-        return;
-      }
-      await route.continue();
-    });
+    await installAdminFixture(page);
 
     await page.goto("/admin?adminTestRole=owner");
     await page.getByRole("button", { name: "Open admin navigation" }).click();

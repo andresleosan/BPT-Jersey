@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAttendanceId,
+  buildDailyOperationsDashboard,
   buildBookingId,
   buildCheckoutId,
   buildCorrectionAttendanceId,
@@ -21,6 +22,7 @@ import {
   parseRecurrenceRule,
   parseRequestBookingInput,
   type ClassRecord,
+  type SessionOperationalView,
 } from "./schedule-contracts";
 
 describe("Schedule Domain Contracts", () => {
@@ -1003,6 +1005,71 @@ describe("Schedule Domain Contracts", () => {
       // Walk-ins
       expect(view.unbookedCheckIns).toHaveLength(1);
       expect(view.unbookedCheckIns[0]?.studentId).toBe("std-99");
+    });
+  });
+  describe("buildDailyOperationsDashboard", () => {
+    it("returns staff-safe sorted session snapshots without roster data", () => {
+      const makeView = (sessionId: string, startAt: string): SessionOperationalView => ({
+        session: {
+          sessionId,
+          academyId: "acad-1",
+          classId: "class-1",
+          programId: "kids-bjj",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: sessionId,
+          startAt,
+          endAt: startAt.replace("T18:00", "T19:00"),
+          capacity: 20,
+          minParticipants: 4,
+          status: "scheduled",
+          cancellationReason: null,
+          isSeminar: false,
+          schemaVersion: "1",
+          createdAt: "2026-08-01T00:00:00Z",
+          createdBy: "admin-1",
+          updatedAt: "2026-08-01T00:00:00Z",
+          updatedBy: "admin-1",
+        },
+        summary: {
+          capacity: 20,
+          minParticipants: 4,
+          quorumMet: true,
+          totalBookings: 3,
+          totalCheckedIn: 2,
+          totalCheckedOut: 1,
+          totalNoShows: 0,
+          totalPendingArrival: 1,
+        },
+        roster: [
+          {
+            studentId: "private-student-id",
+            booking: {} as never,
+            attendance: null,
+            checkout: null,
+            computedStatus: "booked_not_arrived",
+          },
+        ],
+        unbookedCheckIns: [],
+        refreshedAt: "2026-09-01T20:00:00Z",
+      });
+
+      const dashboard = buildDailyOperationsDashboard({
+        query: { from: "2026-09-01T00:00:00Z", to: "2026-09-01T23:59:59Z" },
+        views: [
+          makeView("later", "2026-09-01T19:00:00Z"),
+          makeView("earlier", "2026-09-01T18:00:00Z"),
+        ],
+        now: "2026-09-01T20:01:00Z",
+      });
+
+      expect(dashboard.sessions.map((snapshot) => snapshot.session.sessionId)).toEqual([
+        "earlier",
+        "later",
+      ]);
+      expect(dashboard.sessions[0]).not.toHaveProperty("roster");
+      expect(dashboard.query.from).toBe("2026-09-01T00:00:00Z");
+      expect(dashboard.refreshedAt).toBe("2026-09-01T20:01:00Z");
     });
   });
 });

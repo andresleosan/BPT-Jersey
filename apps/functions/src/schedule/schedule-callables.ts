@@ -90,6 +90,36 @@ export function createListSessionsHandler(options: { store: ScheduleStore }) {
   };
 }
 
+export function createGetDailyOperationsDashboardHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError(
+        "permission-denied",
+        "Staff access required to view the daily operations dashboard",
+      );
+    }
+
+    const parsedQuery = parseListSessionsQuery(request.data);
+    if (!parsedQuery.ok) {
+      throw new HttpsError("invalid-argument", parsedQuery.error);
+    }
+
+    const requestedRangeMs = Date.parse(parsedQuery.value.to) - Date.parse(parsedQuery.value.from);
+    if (requestedRangeMs > 24 * 60 * 60 * 1000) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Daily operations dashboard range cannot exceed 24 hours",
+      );
+    }
+
+    const dashboard = await store.getDailyOperationsDashboard(actor.academyId, parsedQuery.value);
+    return { dashboard };
+  };
+}
+
 export function createSaveClassHandler(options: { store: ScheduleStore }) {
   const { store } = options;
 
@@ -618,6 +648,11 @@ export const listClasses = onCall(
 export const listSessions = onCall(
   { enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createListSessionsHandler({ store: getStore() })(request),
+);
+
+export const getDailyOperationsDashboard = onCall(
+  { enforceAppCheck: false, consumeAppCheckToken: false },
+  async (request) => createGetDailyOperationsDashboardHandler({ store: getStore() })(request),
 );
 
 export const saveClass = onCall(

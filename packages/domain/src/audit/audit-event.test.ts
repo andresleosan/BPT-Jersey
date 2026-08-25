@@ -35,6 +35,20 @@ const regyfitImport = {
   contentSha256: "b".repeat(64),
 } as const;
 
+const reportExport = {
+  ...common,
+  action: "report.export.prepared",
+  targetRef: "academies/academy-1/exports/report-export-1",
+  purpose: "pilot_operations_review",
+  correlationId: "report-export:report-export-1",
+  scope: "operational_and_progress_aggregates",
+  classification: "Confidential",
+  recipient: "actor:owner-1",
+  expiresAt: "2026-08-31T23:10:00.000Z",
+  contentSha256: "c".repeat(64),
+  byteLength: 2048,
+} as const;
+
 const membershipCreated = {
   ...common,
   action: "membership.created",
@@ -105,6 +119,24 @@ describe("audit event draft contract", () => {
 
   it("accepts exact metadata-only Regyfit import evidence", () => {
     expect(parseAuditEventDraft(regyfitImport)).toEqual({ ok: true, value: regyfitImport });
+  });
+
+  it("accepts exact aggregate export evidence and rejects unsafe variants", () => {
+    expect(parseAuditEventDraft(reportExport)).toEqual({ ok: true, value: reportExport });
+
+    for (const candidate of [
+      { ...reportExport, scope: "all_members" },
+      { ...reportExport, classification: "Public" },
+      { ...reportExport, recipient: "external@example.test" },
+      { ...reportExport, recipient: "actor:" },
+      { ...reportExport, recipient: "actor:owner/other" },
+      { ...reportExport, expiresAt: "tomorrow" },
+      { ...reportExport, contentSha256: "C".repeat(64) },
+      { ...reportExport, byteLength: 64 * 1024 + 1 },
+      { ...reportExport, email: "person@example.test" },
+    ]) {
+      expect(parseAuditEventDraft(candidate).ok).toBe(false);
+    }
   });
 
   it("accepts both membership actions with only common fields", () => {

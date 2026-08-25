@@ -8,6 +8,12 @@ const authState = vi.hoisted(() => ({
   signOut: vi.fn(),
 }));
 
+vi.mock("./guardian-notices", () => ({
+  GuardianNoticesPanel: () => <section aria-label="Family notices" />,
+}));
+vi.mock("./client-reminders", () => ({
+  ClientRemindersPanel: () => <section aria-label="Account reminders" />,
+}));
 vi.mock("../../lib/client-auth", async () => {
   const { requireClientSession } =
     await vi.importActual<typeof import("../../lib/login-flow")>("../../lib/login-flow");

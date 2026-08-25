@@ -36,7 +36,10 @@ describe("deploy runtime import preparation", () => {
         'import "@bpt-jersey/domain/migration/regyfit-access";',
         'import "@bpt-jersey/domain/families";',
         'import "@bpt-jersey/domain/finance";',
+        'import "@bpt-jersey/domain/finance/dashboard";',
         'import "@bpt-jersey/domain/staff";',
+        'import "@bpt-jersey/domain/reports";',
+        'import "@bpt-jersey/domain/exports";',
       ].join("\n"),
     );
 
@@ -52,7 +55,10 @@ describe("deploy runtime import preparation", () => {
     expect(prepared).toContain("../../domain/migration/regyfit-access.js");
     expect(prepared).toContain("../../domain/families/family-contracts.js");
     expect(prepared).toContain("../../domain/finance/finance-contracts.js");
+    expect(prepared).toContain("../../domain/finance/financial-dashboard.js");
     expect(prepared).toContain("../../domain/staff/staff-contracts.js");
+    expect(prepared).toContain("../../domain/reports/operational-report.js");
+    expect(prepared).toContain("../../domain/exports/aggregate-report-export.js");
     expect(prepared).not.toMatch(/@bpt-jersey\/domain/u);
   });
 
@@ -114,7 +120,12 @@ describe("deploy runtime import preparation", () => {
     );
     expect(callableSource).toContain('defineSecret("MEMBER_PAGE_TOKEN_SECRET")');
     expect(callableSource).toContain("secrets: [memberPageTokenSecret]");
-    await import(pathToFileURL(indexPath).href);
+    const deployedFunctions = await import(pathToFileURL(indexPath).href);
+    expect(deployedFunctions["getDailyOperationsDashboard"]).toBeTypeOf("function");
+    expect(deployedFunctions["getFinancialDashboard"]).toBeTypeOf("function");
+    expect(deployedFunctions["getOperationalReport"]).toBeTypeOf("function");
+    expect(deployedFunctions["prepareAggregateReportExport"]).toBeTypeOf("function");
+    expect(deployedFunctions["recordCheckout"]).toBeTypeOf("function");
     expect(getApps()).toHaveLength(1);
   }, 60_000);
 });

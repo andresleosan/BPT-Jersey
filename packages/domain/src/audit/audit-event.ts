@@ -8,6 +8,7 @@ export const auditActions = Object.freeze([
   "admin.role.revoked",
   "member.import.confirmed",
   "regyfit.access.imported",
+  "report.export.prepared",
   "membership.created",
   "membership.status.changed",
   "invoice.created",
@@ -72,6 +73,15 @@ export type AuditEventDraft = CommonAuditEventDraft &
         recordCount: number;
         contentSha256: string;
       }>
+    | Readonly<{
+        action: "report.export.prepared";
+        scope: "operational_and_progress_aggregates";
+        classification: "Confidential";
+        recipient: string;
+        expiresAt: string;
+        contentSha256: string;
+        byteLength: number;
+      }>
   );
 
 const commonFields = Object.freeze([
@@ -112,12 +122,23 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
     "recordCount",
     "contentSha256",
   ]),
+  "report.export.prepared": Object.freeze([
+    ...commonFields,
+    "scope",
+    "classification",
+    "recipient",
+    "expiresAt",
+    "contentSha256",
+    "byteLength",
+  ]),
 });
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const moduleKeyPattern = /^[A-Za-z0-9._-]+$/u;
 const importRunIdPattern = /^[A-Za-z0-9._-]+$/u;
 const sourceRoutePattern = /^\/[A-Za-z0-9._/-]+$/u;
 const controlCharacterPattern = /[\u0000-\u001f\u007f]/u;
+const dateTimePattern =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
 
 function issue(path: readonly (string | number)[], code: string): ValidationIssue {
   return { path, code };
@@ -291,6 +312,37 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       }
     }
 
+    if (parsedAction === "report.export.prepared") {
+      if (snapshot.scope !== "operational_and_progress_aggregates") {
+        issues.push(issue(["scope"], "AUDIT_EXPORT_SCOPE_INVALID"));
+      }
+      if (snapshot.classification !== "Confidential") {
+        issues.push(issue(["classification"], "AUDIT_EXPORT_CLASSIFICATION_INVALID"));
+      }
+      if (
+        !isBoundedString(snapshot.recipient, 134) ||
+        !/^actor:[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(snapshot.recipient)
+      ) {
+        issues.push(issue(["recipient"], "AUDIT_EXPORT_RECIPIENT_INVALID"));
+      }
+      if (
+        typeof snapshot.expiresAt !== "string" ||
+        !dateTimePattern.test(snapshot.expiresAt) ||
+        Number.isNaN(Date.parse(snapshot.expiresAt))
+      ) {
+        issues.push(issue(["expiresAt"], "AUDIT_EXPORT_EXPIRY_INVALID"));
+      }
+      if (
+        typeof snapshot.contentSha256 !== "string" ||
+        !sha256Pattern.test(snapshot.contentSha256)
+      ) {
+        issues.push(issue(["contentSha256"], "AUDIT_HASH_INVALID"));
+      }
+      if (!isPositiveInteger(snapshot.byteLength) || (snapshot.byteLength as number) > 64 * 1024) {
+        issues.push(issue(["byteLength"], "AUDIT_EXPORT_SIZE_INVALID"));
+      }
+    }
+
     if (
       parsedAction === "invoice.created" ||
       parsedAction === "invoice.voided" ||
@@ -370,6 +422,20 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           sourceRoute: snapshot.sourceRoute as string,
           recordCount: snapshot.recordCount as number,
           contentSha256: snapshot.contentSha256 as string,
+        }),
+      );
+    }
+    if (parsedAction === "report.export.prepared") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          scope: "operational_and_progress_aggregates" as const,
+          classification: "Confidential" as const,
+          recipient: snapshot.recipient as string,
+          expiresAt: snapshot.expiresAt as string,
+          contentSha256: snapshot.contentSha256 as string,
+          byteLength: snapshot.byteLength as number,
         }),
       );
     }

@@ -7,7 +7,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { ref, set } from "firebase/database";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { afterAll, afterEach, beforeAll, describe, it } from "vitest";
 
 const projectId = "demo-bpt-jersey";
@@ -53,6 +53,29 @@ describe("default-deny Firebase rules", () => {
     const firestore = testEnvironment.authenticatedContext("staff-1").firestore();
 
     await assertFails(setDoc(doc(firestore, "students/student-1"), { name: "Test Student" }));
+  });
+
+  it("rejects direct reads and writes to restricted health collections for authenticated users", async () => {
+    const firestore = testEnvironment.authenticatedContext("owner-1").firestore();
+
+    await assertFails(getDoc(doc(firestore, "academies/academy-1/healthProfiles/student-1")));
+    await assertFails(
+      getDoc(doc(firestore, "academies/academy-1/healthProfileChangeRequests/request-1")),
+    );
+    await assertFails(
+      setDoc(doc(firestore, "academies/academy-1/healthProfiles/student-1"), {
+        status: "active",
+      }),
+    );
+    await assertFails(getDoc(doc(firestore, "academies/academy-1/documents/document-1")));
+    await assertFails(getDoc(doc(firestore, "academies/academy-1/exports/export-1")));
+    await assertFails(getDoc(doc(firestore, "academies/academy-1/auditEvents/audit-1")));
+    await assertFails(getDoc(doc(firestore, "academies/academy-1/exportRateLimits/actor-hash")));
+    await assertFails(
+      setDoc(doc(firestore, "academies/academy-1/exports/export-1"), {
+        status: "delivered_inline",
+      }),
+    );
   });
 
   it("rejects unauthenticated Realtime Database writes", async () => {

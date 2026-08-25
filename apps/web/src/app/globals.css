@@ -1303,6 +1303,83 @@ button:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.account-notices {
+  margin-top: 2.5rem;
+  max-width: 46rem;
+}
+
+.account-notices-heading {
+  border-top: 0.35rem solid var(--bpt-purple);
+  margin-bottom: 1rem;
+  padding-top: 1rem;
+}
+
+.account-notices-heading h2 {
+  color: var(--mat-ink);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  letter-spacing: -0.03em;
+  line-height: 0.9;
+  margin: 0.4rem 0 0;
+  text-transform: uppercase;
+}
+
+.account-notices-heading p:last-child {
+  color: var(--muted);
+  margin: 0.75rem 0 0;
+  max-width: 38rem;
+}
+
+.account-notices-list {
+  display: grid;
+  gap: 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.account-notice {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--line);
+  padding: 1.15rem 1.25rem;
+}
+
+.account-notice-unread {
+  border-left-color: var(--bpt-purple);
+}
+
+.account-notice-meta {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.account-notice h3 {
+  color: var(--mat-ink);
+  font-size: 1.35rem;
+  margin: 0.55rem 0 0;
+}
+
+.account-notice > p {
+  margin: 0.7rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.account-notice-action {
+  margin-top: 1rem;
+}
+
+.account-notices-empty {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--bpt-lime);
+  margin: 0;
+  padding: 1rem 1.25rem;
+}
 .client-signout {
   background: var(--mat-ink);
   color: var(--gi-white);
@@ -1863,5 +1940,293 @@ button:focus-visible {
 @media (max-width: 42rem) {
   .family-child-card {
     grid-template-columns: 1fr;
+  }
+}
+
+.account-reminders {
+  display: grid;
+  gap: 0.85rem;
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--gi-white) 92%, var(--bpt-lime));
+}
+
+.account-reminders-heading {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.account-reminders h2,
+.account-reminders h3 {
+  margin: 0;
+}
+
+.account-reminders h2 {
+  color: var(--mat-ink);
+  font-size: 1.15rem;
+}
+
+.account-reminders h3 {
+  font-size: 1rem;
+}
+
+.account-reminders-intro,
+.account-reminder p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.account-reminders-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-reminder {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-left: 4px solid var(--bpt-purple);
+  border-radius: 0.75rem;
+  background: var(--gi-white);
+}
+
+.account-reminder-kind {
+  flex: 0 0 auto;
+  color: var(--bpt-purple);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.account-reminders-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.health-support-panel {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.9rem;
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  padding-top: 1.1rem;
+}
+
+.health-support-heading {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.health-support-heading h4 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+  line-height: 0.95;
+  margin: 0.45rem 0 0;
+  text-transform: uppercase;
+}
+
+.health-support-status {
+  background: var(--canvas);
+  color: var(--mat-ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 0.45rem 0.6rem;
+  text-transform: uppercase;
+}
+
+.health-support-status-needs-review {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.health-support-status-expired {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+}
+
+.health-support-muted,
+.health-support-review,
+.health-support-summary {
+  color: var(--muted);
+  margin: 0;
+}
+
+.health-support-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.health-support-list li {
+  background: var(--canvas);
+  border-left: 0.2rem solid var(--bpt-purple);
+  font-size: 0.88rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.health-support-summary {
+  border-left: 0.2rem solid var(--line);
+  padding-left: 0.75rem;
+}
+
+.health-support-message {
+  border-left: 0.25rem solid var(--bpt-purple);
+  margin: 0;
+  padding-left: 0.75rem;
+}
+
+.health-support-message-error {
+  color: var(--bpt-purple-dark);
+  font-weight: 700;
+}
+
+.health-support-message-success {
+  color: var(--mat-ink);
+  font-weight: 700;
+}
+
+.health-support-primary,
+.health-support-secondary {
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
+}
+
+.health-support-primary {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.health-support-primary:hover {
+  background: var(--bpt-purple-dark);
+}
+
+.health-support-secondary {
+  background: transparent;
+  color: var(--bpt-purple-dark);
+  padding-inline: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.health-support-primary:disabled,
+.health-support-secondary:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.health-support-form {
+  border-left: 0.25rem solid var(--bpt-purple);
+  display: grid;
+  gap: 1rem;
+  padding-left: 1rem;
+}
+
+.health-support-form fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.health-support-form legend,
+.health-support-field span {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.health-support-options {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+}
+
+.health-support-option {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  min-height: 2.2rem;
+}
+
+.health-support-option input {
+  accent-color: var(--bpt-purple);
+  block-size: 1.1rem;
+  inline-size: 1.1rem;
+}
+
+.health-support-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.health-support-field textarea {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 6rem;
+  padding: 0.7rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.health-support-field textarea:focus-visible,
+.health-support-option input:focus-visible,
+.health-support-primary:focus-visible,
+.health-support-secondary:focus-visible {
+  outline: 0.2rem solid var(--bpt-purple);
+  outline-offset: 0.15rem;
+}
+
+.health-support-actions,
+.health-support-pending {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.health-support-pending {
+  border-left: 0.25rem solid var(--bpt-purple);
+  justify-content: space-between;
+  padding-left: 0.75rem;
+}
+
+.health-support-pending p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .health-support-primary,
+  .health-support-secondary {
+    transition: none;
+  }
+}
+
+@media (max-width: 42rem) {
+  .health-support-heading {
+    display: grid;
+  }
+
+  .health-support-pending {
+    align-items: start;
+    display: grid;
   }
 }

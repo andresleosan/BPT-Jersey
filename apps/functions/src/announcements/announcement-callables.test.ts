@@ -11,6 +11,7 @@ import {
   createPublishAnnouncementHandler,
   createSendMinorNoticeHandler,
   createUpdateAnnouncementHandler,
+  selectActiveGuardianIds,
 } from "./announcement-callables";
 
 function fakeRequest(
@@ -139,6 +140,100 @@ describe("Announcement Callables (T045)", () => {
     expect(markRes.announcement.readBy).toContain("student-1");
   });
 
+  it("selects only active same-academy guardian relationships for a minor", () => {
+    const guardianIds = selectActiveGuardianIds({
+      academyId: "academy-1",
+      minorStudentId: "minor-1",
+      student: {
+        academyId: "academy-1",
+        familyId: "family-1",
+        participantType: "minor",
+        active: true,
+        status: "active",
+      },
+      relationships: [
+        {
+          academyId: "academy-1",
+          familyId: "family-1",
+          studentId: "minor-1",
+          adultUserId: "guardian-1",
+          relationshipType: "guardian",
+          active: true,
+          status: "active",
+        },
+        {
+          academyId: "academy-1",
+          familyId: "family-1",
+          studentId: "minor-1",
+          adultUserId: "inactive-guardian",
+          relationshipType: "guardian",
+          active: false,
+          status: "inactive",
+        },
+        {
+          academyId: "other-academy",
+          familyId: "family-1",
+          studentId: "minor-1",
+          adultUserId: "cross-tenant",
+          relationshipType: "guardian",
+          active: true,
+          status: "active",
+        },
+        {
+          academyId: "academy-1",
+          familyId: "family-1",
+          studentId: "minor-1",
+          adultUserId: "coach-1",
+          relationshipType: "coach",
+          active: true,
+          status: "active",
+        },
+      ],
+    });
+
+    expect(guardianIds).toEqual(["guardian-1"]);
+    expect(
+      selectActiveGuardianIds({
+        academyId: "academy-1",
+        minorStudentId: "adult-1",
+        student: {
+          academyId: "academy-1",
+          familyId: "family-1",
+          participantType: "adult",
+          active: true,
+          status: "active",
+        },
+        relationships: [],
+      }),
+    ).toEqual([]);
+  });
+
+  it("prevents a guardian from reading another guardian's notices", async () => {
+    const store = createInMemoryAnnouncementStore();
+    const listHandler = createListGuardianNoticesHandler({ store });
+
+    await expect(
+      listHandler(fakeRequest({ guardianId: "guardian-other" }, "guardian", "guardian-one")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  it("returns no guardian notices to an adult student", async () => {
+    const store = createInMemoryAnnouncementStore();
+    const listHandler = createListGuardianNoticesHandler({ store });
+
+    await expect(listHandler(fakeRequest({}, "adultStudent", "adult-1"))).resolves.toEqual({
+      notices: [],
+    });
+  });
+
+  it("prevents staff from marking a guardian notice as read", async () => {
+    const store = createInMemoryAnnouncementStore();
+    const markNoticeHandler = createMarkNoticeAsReadHandler({ store });
+
+    await expect(
+      markNoticeHandler(fakeRequest({ noticeId: "notice-1" }, "coach", "coach-1")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+  });
   describe("Safeguarding Callables (T047)", () => {
     it("safeguards notice delivery by resolving to registered guardian", async () => {
       const store = createInMemoryAnnouncementStore();
@@ -166,19 +261,13 @@ describe("Announcement Callables (T045)", () => {
       expect(sendRes.notice.guardianId).toBe("guardian-bob");
 
       // Guardian views their notices
-      const listRes = await listHandler(
-        fakeRequest({}, "guardian", "guardian-bob"),
-      );
+      const listRes = await listHandler(fakeRequest({}, "guardian", "guardian-bob"));
       expect(listRes.notices).toHaveLength(1);
       expect(listRes.notices[0]?.title).toBe("Belt promotion ceremony");
 
       // Guardian marks notice as read
       const markRes = await markNoticeHandler(
-        fakeRequest(
-          { noticeId: sendRes.notice.noticeId },
-          "guardian",
-          "guardian-bob",
-        ),
+        fakeRequest({ noticeId: sendRes.notice.noticeId }, "guardian", "guardian-bob"),
       );
       expect(markRes.notice.readAt).toBeDefined();
     });
@@ -206,4 +295,3 @@ describe("Announcement Callables (T045)", () => {
     });
   });
 });
-

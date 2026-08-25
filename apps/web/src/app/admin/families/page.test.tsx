@@ -127,8 +127,8 @@ describe("admin family page", () => {
       ],
     });
     expect(screen.getByRole("status")).toHaveTextContent("Family created.");
-    expect(screen.getByText("Synthetic Minor One")).toBeVisible();
-    expect(screen.getByText("Synthetic Minor Two")).toBeVisible();
+    expect(screen.getAllByText("Synthetic Minor One")).toHaveLength(2);
+    expect(screen.getAllByText("Synthetic Minor Two")).toHaveLength(2);
     expect(screen.queryByText(/academy-1|family-1|student-1|createdBy/i)).not.toBeInTheDocument();
   });
 

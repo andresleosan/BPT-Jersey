@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
 import { getFamily, type GuardianFamilyProjection } from "../../../lib/family-client";
+import { HealthSupportPanel } from "./health-support-panel";
 
 function FamilyContent() {
   const [family, setFamily] = useState<GuardianFamilyProjection | undefined>();
@@ -75,7 +76,7 @@ function FamilyContent() {
           <p className="account-eyebrow">Linked children</p>
           <h2 id="family-children-title">Training together</h2>
         </div>
-        {family.students.map((student) => (
+        {family.students.map((student, index) => (
           <article className="family-child-card" key={student.studentId}>
             <div>
               <h3>{student.fullName}</h3>
@@ -91,6 +92,11 @@ function FamilyContent() {
                 <dd>{student.trainingTimePreferences.join(", ")}</dd>
               </div>
             </dl>
+            <HealthSupportPanel
+              instanceId={"health-support-" + (index + 1)}
+              studentId={student.studentId}
+              studentName={student.fullName}
+            />
           </article>
         ))}
       </section>

@@ -123,8 +123,13 @@ test.describe("family relationships", () => {
     await page.getByRole("button", { name: "Create family" }).click();
 
     await expect(page.getByRole("status")).toHaveText("Family created.");
-    await expect(page.getByText("Synthetic Minor One")).toBeVisible();
-    await expect(page.getByText("Synthetic Minor Two")).toBeVisible();
+    const connectedChildren = page.getByRole("region", { name: "Connected children" });
+    await expect(
+      connectedChildren.locator("li").filter({ hasText: "Synthetic Minor One" }),
+    ).toBeVisible();
+    await expect(
+      connectedChildren.locator("li").filter({ hasText: "Synthetic Minor Two" }),
+    ).toBeVisible();
     await expect(page.locator("body")).not.toContainText(
       /academy-synthetic|family-synthetic|student-synthetic|createdBy/i,
     );

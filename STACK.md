@@ -146,7 +146,7 @@ CI con build normal, sin `NEXT_PUBLIC_ADMIN_E2E` como sustituto de Auth real de 
 - Pagos del piloto: registros manuales/cash auditables, invoices y receipts internos. El proveedor
   para Jersey, hosted checkout y webhooks firmados quedan para una fase productiva posterior.
 - Cloudflare R2: almacenamiento privado compatible con S3.
-- Email/SMS transaccional: proveedor por confirmar; comunicación a menores debe permanecer visible al tutor.
+- Email/SMS transaccional: proveedor por confirmar; comunicación a menores debe permanecer visible al tutor. T046 deja una frontera provider-independent y un historial tenant-scoped; no se realizan llamadas externas mientras no exista proveedor y credencial aprobados.
 - Canales de marca: sitio, Instagram y Facebook oficiales como fuentes de contenido, no como dependencias operativas del MVP.
 
 ## Costo
@@ -157,7 +157,7 @@ CI con build normal, sin `NEXT_PUBLIC_ADMIN_E2E` como sustituto de Auth real de 
 - Realtime Database: 1 GB almacenado y aproximadamente 10 GB/mes descargado sin costo; Spark limita a 100 conexiones simultáneas, Blaze admite hasta 200,000 por base.
 - Cloud Functions: hasta 2 millones de invocaciones mensuales sin costo dentro de Blaze, además de cuotas de cómputo y red.
 - Authentication: 50,000 MAU sin costo aplica a Blaze con Identity Platform; Phone Auth se factura por SMS y no se presupuestará como “10,000 verificaciones gratuitas”.
-- Pagos y mensajería: costo pendiente hasta elegir proveedores y volumen.
+- Pagos y mensajería: costo pendiente hasta elegir proveedores y volumen. T046 tiene costo externo comprometido **USD 0/mes** mientras permanece en modo unconfigured; al seleccionar proveedor se debe documentar rango mensual, límite/alerta de facturación y aprobación del operador antes de activarlo.
 - Alertas configuradas: **no**. El repositorio de Artifact Registry de staging tiene cleanup policy de 7 días; aún deben crearse presupuestos/alertas de Google Cloud y notificaciones de Cloudflare. Firebase/Google Cloud no se tratará como un hard cap automático.
 - Fuentes verificadas el 2026-08-06: https://firebase.google.com/pricing, https://firebase.google.com/docs/auth/limits y https://developers.cloudflare.com/r2/pricing/.
 

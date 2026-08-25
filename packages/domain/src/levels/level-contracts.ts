@@ -664,6 +664,158 @@ export type StudentProgressSummary = Readonly<{
   calculatedAt: string;
 }>;
 
+export type ProgressReportLevelBreakdown = Readonly<{
+  definitionKey: string;
+  definitionName: string;
+  studentCount: number;
+  assessedStudentCount: number;
+  eligibleForPromotionCount: number;
+}>;
+
+export type ProgressReportSkillCoverage = Readonly<{
+  skillKey: string;
+  displayLabel: string;
+  assessedStudentCount: number;
+  coveragePercentage: number;
+}>;
+
+export type ProgressReport = Readonly<{
+  activeStudentCount: number;
+  assessedStudentCount: number;
+  unassessedStudentCount: number;
+  totalEvaluationCount: number;
+  assessmentCoveragePercentage: number;
+  recognitionCandidateCount: number;
+  eligibleForPromotionCount: number;
+  levelBreakdown: readonly ProgressReportLevelBreakdown[];
+  skillCoverage: readonly ProgressReportSkillCoverage[];
+  calculatedAt: string;
+}>;
+
+export type ProgressReportStudent = Readonly<{
+  studentId: string;
+  currentDefinitionKey?: string | undefined;
+  currentLevelStartedAt?: string | null | undefined;
+}>;
+
+export function buildProgressReport(options: {
+  catalog: CanonicalLevelCatalog | LevelCatalogProjection;
+  students: readonly ProgressReportStudent[];
+  evaluations: readonly EvaluationRecord[];
+  attendances: readonly { studentId: string; attendedAt: string }[];
+  now?: string;
+}): ProgressReport {
+  const { catalog, evaluations, attendances, now = new Date().toISOString() } = options;
+  const students = Array.from(
+    new Map(
+      options.students
+        .filter((student) => student.studentId.trim().length > 0)
+        .map((student) => [student.studentId, student]),
+    ).values(),
+  );
+  const studentIds = new Set(students.map((student) => student.studentId));
+  const evaluationsByStudent = new Map<string, EvaluationRecord[]>();
+  for (const evaluation of evaluations) {
+    if (!studentIds.has(evaluation.studentId)) continue;
+    const bucket = evaluationsByStudent.get(evaluation.studentId) ?? [];
+    bucket.push(evaluation);
+    evaluationsByStudent.set(evaluation.studentId, bucket);
+  }
+  const attendedCountByStudent = new Map<string, number>();
+  for (const attendance of attendances) {
+    if (!studentIds.has(attendance.studentId)) continue;
+    attendedCountByStudent.set(
+      attendance.studentId,
+      (attendedCountByStudent.get(attendance.studentId) ?? 0) + 1,
+    );
+  }
+
+  const levelMetrics = new Map<
+    string,
+    { definitionName: string; studentCount: number; assessedStudentCount: number; eligible: number }
+  >();
+  const assessedStudentIds = new Set<string>();
+  let recognitionCandidateCount = 0;
+  let eligibleForPromotionCount = 0;
+
+  for (const student of students) {
+    const studentEvaluations = evaluationsByStudent.get(student.studentId) ?? [];
+    if (studentEvaluations.length > 0) assessedStudentIds.add(student.studentId);
+    const progress = buildStudentProgressSummary({
+      catalog,
+      studentId: student.studentId,
+      currentDefinitionKey:
+        student.currentDefinitionKey ?? catalog.definitions[0]?.definitionKey ?? "white-0",
+      evaluations: studentEvaluations,
+      attendedClassesCount: attendedCountByStudent.get(student.studentId) ?? 0,
+      totalHours: (attendedCountByStudent.get(student.studentId) ?? 0) * 1.5,
+      currentLevelStartedAt: student.currentLevelStartedAt ?? null,
+      now,
+    });
+
+    const current = levelMetrics.get(progress.currentDefinition.definitionKey) ?? {
+      definitionName: progress.currentDefinition.name,
+      studentCount: 0,
+      assessedStudentCount: 0,
+      eligible: 0,
+    };
+    current.studentCount += 1;
+    if (studentEvaluations.length > 0) current.assessedStudentCount += 1;
+    if (progress.targetDefinition) {
+      recognitionCandidateCount += 1;
+      if (progress.criteria.overallEligible) {
+        current.eligible += 1;
+        eligibleForPromotionCount += 1;
+      }
+    }
+    levelMetrics.set(progress.currentDefinition.definitionKey, current);
+  }
+
+  const skillCoverage = catalog.skills.map((skill) => {
+    const assessedStudentCount = students.filter((student) =>
+      (evaluationsByStudent.get(student.studentId) ?? []).some(
+        (evaluation) => evaluation.skillKey === skill.key,
+      ),
+    ).length;
+    return Object.freeze({
+      skillKey: skill.key,
+      displayLabel: skill.displayLabel,
+      assessedStudentCount,
+      coveragePercentage:
+        students.length === 0 ? 0 : Math.round((assessedStudentCount / students.length) * 100),
+    });
+  });
+
+  const assessedStudentCount = assessedStudentIds.size;
+  return Object.freeze({
+    activeStudentCount: students.length,
+    assessedStudentCount,
+    unassessedStudentCount: Math.max(0, students.length - assessedStudentCount),
+    totalEvaluationCount: Array.from(evaluationsByStudent.values()).reduce(
+      (total, bucket) => total + bucket.length,
+      0,
+    ),
+    assessmentCoveragePercentage:
+      students.length === 0 ? 0 : Math.round((assessedStudentCount / students.length) * 100),
+    recognitionCandidateCount,
+    eligibleForPromotionCount,
+    levelBreakdown: Object.freeze(
+      Array.from(levelMetrics.entries())
+        .map(([definitionKey, metrics]) =>
+          Object.freeze({
+            definitionKey,
+            definitionName: metrics.definitionName,
+            studentCount: metrics.studentCount,
+            assessedStudentCount: metrics.assessedStudentCount,
+            eligibleForPromotionCount: metrics.eligible,
+          }),
+        )
+        .sort((left, right) => left.definitionName.localeCompare(right.definitionName)),
+    ),
+    skillCoverage: Object.freeze(skillCoverage),
+    calculatedAt: now,
+  });
+}
 export function buildStudentProgressSummary(options: {
   catalog: CanonicalLevelCatalog | LevelCatalogProjection;
   studentId: string;

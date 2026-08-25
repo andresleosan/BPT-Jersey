@@ -11,6 +11,7 @@ import {
   type GraduationRecord,
   type LevelCatalogProjection,
   type MedicalLeaveRecord,
+  type ProgressReport,
   type RecognitionCandidate,
   type RecordEvaluationInput,
   type RecordMedicalLeaveInput,
@@ -29,6 +30,7 @@ const safeListCandidatesError = "Unable to load recognition candidates. Please t
 const safeApprovePromotionError = "Unable to approve promotion. Please try again.";
 const safeRejectPromotionError = "Unable to reject promotion. Please try again.";
 const safeListGraduationsError = "Unable to load graduation history. Please try again.";
+const safeProgressReportError = "Unable to load progress report. Please try again.";
 
 export type StudentEvaluationsResponse = Readonly<{
   evaluations: readonly EvaluationRecord[];
@@ -38,6 +40,81 @@ export type StudentEvaluationsResponse = Readonly<{
   >;
 }>;
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isSafeProgressReport(value: unknown): value is ProgressReport {
+  if (!isPlainRecord(value)) return false;
+  const fields = [
+    "activeStudentCount",
+    "assessedStudentCount",
+    "unassessedStudentCount",
+    "totalEvaluationCount",
+    "assessmentCoveragePercentage",
+    "recognitionCandidateCount",
+    "eligibleForPromotionCount",
+    "levelBreakdown",
+    "skillCoverage",
+    "calculatedAt",
+  ];
+  if (Object.keys(value).some((field) => !fields.includes(field))) return false;
+  const counts = [
+    "activeStudentCount",
+    "assessedStudentCount",
+    "unassessedStudentCount",
+    "totalEvaluationCount",
+    "recognitionCandidateCount",
+    "eligibleForPromotionCount",
+  ];
+  if (
+    counts.some((field) => !Number.isSafeInteger(value[field]) || (value[field] as number) < 0) ||
+    !Number.isSafeInteger(value.assessmentCoveragePercentage) ||
+    (value.assessmentCoveragePercentage as number) < 0 ||
+    (value.assessmentCoveragePercentage as number) > 100 ||
+    typeof value.calculatedAt !== "string"
+  ) {
+    return false;
+  }
+  if (!Array.isArray(value.levelBreakdown) || !Array.isArray(value.skillCoverage)) return false;
+  return (
+    value.levelBreakdown.every(
+      (entry) =>
+        isPlainRecord(entry) &&
+        typeof entry.definitionKey === "string" &&
+        typeof entry.definitionName === "string" &&
+        Number.isSafeInteger(entry.studentCount) &&
+        (entry.studentCount as number) >= 0 &&
+        Number.isSafeInteger(entry.assessedStudentCount) &&
+        (entry.assessedStudentCount as number) >= 0 &&
+        Number.isSafeInteger(entry.eligibleForPromotionCount) &&
+        (entry.eligibleForPromotionCount as number) >= 0 &&
+        Object.keys(entry).every((field) =>
+          [
+            "definitionKey",
+            "definitionName",
+            "studentCount",
+            "assessedStudentCount",
+            "eligibleForPromotionCount",
+          ].includes(field),
+        ),
+    ) &&
+    value.skillCoverage.every(
+      (entry) =>
+        isPlainRecord(entry) &&
+        typeof entry.skillKey === "string" &&
+        typeof entry.displayLabel === "string" &&
+        Number.isSafeInteger(entry.assessedStudentCount) &&
+        (entry.assessedStudentCount as number) >= 0 &&
+        Number.isSafeInteger(entry.coveragePercentage) &&
+        (entry.coveragePercentage as number) >= 0 &&
+        (entry.coveragePercentage as number) <= 100 &&
+        Object.keys(entry).every((field) =>
+          ["skillKey", "displayLabel", "assessedStudentCount", "coveragePercentage"].includes(field),
+        ),
+    )
+  );
+}
 export async function getLevelCatalog(): Promise<LevelCatalogProjection> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<null, unknown>(functions, "listLevelCatalog");
@@ -122,6 +199,21 @@ export async function getStudentProgressSummary(
   }
 }
 
+export async function getProgressReport(): Promise<ProgressReport> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<null, { report: unknown }>(functions, "getProgressReport");
+
+  try {
+    const response = await callable(null);
+    if (!isSafeProgressReport(response.data.report)) throw new Error(safeProgressReportError);
+    return response.data.report;
+  } catch (error) {
+    if (error instanceof Error && error.message === safeProgressReportError) {
+      throw error;
+    }
+    throw new Error(safeProgressReportError);
+  }
+}
 export async function recordMedicalLeave(
   input: RecordMedicalLeaveInput,
 ): Promise<MedicalLeaveRecord> {

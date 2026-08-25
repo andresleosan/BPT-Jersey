@@ -3,7 +3,7 @@
 ## Path and identity conventions
 
 - Firestore root: `academies/{academyId}`.
-- Direct subcollections: `users`, `families`, `students`, `staff`, `relationships`, `locations`, `programs`, `classes`, `sessions`, `plans`, `bookings`, `attendance`, `checkouts`, `memberships`, `invoices`, `payments`, `paymentEvents`, `assessments`, `skillProgress`, `recognitions`, `leads`, `messages`, `deliveryEvents`, `healthProfiles`, `safeguardingCases`, `consents`, `documents`, `auditEvents`, `exports`, and `regyfitAccessRecords`.
+- Direct subcollections: `users`, `families`, `students`, `staff`, `relationships`, `locations`, `programs`, `classes`, `sessions`, `plans`, `bookings`, `attendance`, `checkouts`, `memberships`, `invoices`, `payments`, `paymentEvents`, `assessments`, `skillProgress`, `recognitions`, `leads`, `messages`, `deliveryEvents`, `healthProfiles`, `safeguardingCases`, `consents`, `documents`, `auditEvents`, `exports`, `exportRateLimits`, and `regyfitAccessRecords`.
 - RTDB presence: `academies/{academyId}/presence/{sessionId}/{studentId}`.
 - Booking document ID: `{sessionId}__{studentId}`.
 - Attendance document ID: `{sessionId}__{studentId}`.
@@ -385,8 +385,33 @@ backend decisions.
 | `safeguardingCases` | `caseId`, `academyId`, `studentId`, `intakeReference`, `participants`, `actions`, `resolution`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`                             | `studentId` -> `students`; `participants` and `intakeReference` use controlled references, not unrestricted narrative payloads.               | `Restricted`                                                             | Safeguarding backend; intake and case reading have separate authorization scopes.                                                            | Preserve intake, actions, resolution, actor, and audit history. No normal hard delete, and no full safeguarding narrative in a general profile or log.                                                                                                 |
 | `consents`          | `consentId`, `academyId`, `subjectType`, `subjectId`, `version`, `signedBy`, `signedAt`, `revokedAt`, `evidenceDocumentId`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy` | `subjectId` references the subject; `signedBy` references an adult `users` identity; `evidenceDocumentId` -> `documents`.                     | `Restricted`                                                             | Consent backend and authorized subject/guardian workflow; signing evidence is server-validated.                                              | Versioned and non-destructive. Revocation creates state/history; evidence is never replaced by silently overwriting the prior version.                                                                                                                 |
 | `documents`         | `documentId`, `academyId`, `subjectType`, `subjectId`, `objectKey`, `classification`, `permissions`, `expiresAt`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`           | `subjectId` references the subject; `objectKey` references a private R2 object, never a public URL.                                           | `Restricted`                                                             | Document/R2 backend; access is issued only after current authorization and object validation.                                                | Metadata status, expiry, and retention are auditable. The private blob remains in R2; deletion or retention follows `T011`, not a casual Firestore delete.                                                                                             |
-| `auditEvents`       | `auditEventId`, `academyId`, `actorId`, `action`, `targetRef`, `purpose`, `correlationId`, `occurredAt`, `result`, `schemaVersion`; variant metadata for the four approved actions                        | `actorId` references a user/system actor; `targetRef` identifies the affected academy record without copying the full payload.                | `Restricted`                                                             | Backend/system writer only; all current writers use transaction create-only; no interactive client or owner UI can mutate an existing event. | Append-only. Events are never updated or deleted by an interactive action; retention and archival await `T011`. Regyfit replay may accept one equivalent legacy event missing only `auditEventId`/`occurredAt`; no migration rewrites existing events. |
+| `auditEvents`       | `auditEventId`, `academyId`, `actorId`, `action`, `targetRef`, `purpose`, `correlationId`, `occurredAt`, `result`, `schemaVersion`; exact variant metadata for each approved action                       | `actorId` references a user/system actor; `targetRef` identifies the affected academy record without copying the full payload.                | `Restricted`                                                             | Backend/system writer only; all current writers use transaction create-only; no interactive client or owner UI can mutate an existing event. | Append-only. Events are never updated or deleted by an interactive action; retention and archival await `T011`. Regyfit replay may accept one equivalent legacy event missing only `auditEventId`/`occurredAt`; no migration rewrites existing events. |
 | `exports`           | `exportId`, `academyId`, `requestedBy`, `purpose`, `scope`, `classification`, `recipient`, `expiresAt`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`                     | `requestedBy` references an authorized actor; `scope` identifies approved source records and `recipient` is validated by the export workflow. | `Restricted` and inherits the highest classification of its source data. | Export/reporting backend after separate authorization, purpose, scope, recipient, expiry, and audit checks.                                  | Export status and audit history are preserved. Downloadable content is not a canonical collection and expires; retention/deletion follows `T011`.                                                                                                      |
+| `exportRateLimits`  | `academyId`, `actorKey`, `startedAt`, `count`, `updatedAt`, `schemaVersion`                                                                                                                               | `actorKey` is a SHA-256 technical key derived from the tenant and requesting actor; it is not an authorization grant.                         | `Restricted` technical control state.                                    | Export backend only; direct client access remains denied.                                                                                    | One bounded record per tenant/actor is overwritten when its five-minute window advances. It contains no report content or person profile data.                                                                                                         |
+
+### T053 aggregate export profile
+
+The controlled pilot exposes only `operational_and_progress_aggregates`, the
+already-authorized aggregate projections from T051 and T052. It requires an
+authenticated `owner` or `administrator`, derives academy and recipient from the
+actor, accepts one of three closed purposes, limits the operational range to 31
+days, and caps UTF-8 CSV output at 64 KiB. Names, emails, member rows, document
+metadata, source record IDs, health, safeguarding, consent, and payment evidence
+are outside this profile. Spreadsheet-leading formula characters are neutralized.
+
+The backend returns the CSV inline only after one transaction creates the
+`exports` journal and matching `report.export.prepared` audit event. The journal
+uses `status: delivered_inline`, `classification: Confidential`, recipient
+`actor:{requestedBy}`, a SHA-256 checksum in the audit event, and a ten-minute
+authorization expiry. CSV bytes are never written to Firestore or R2.
+`exportRateLimits` permits at most five preparation attempts per actor and academy
+in five minutes and fails closed if its durable counter is malformed.
+
+This is an additive schema change with no migration or production write. Rollback
+is to remove/disable `prepareAggregateReportExport`; existing `exports`,
+`auditEvents`, and technical rate-limit documents remain inert evidence/state and
+require no rewrite. Applying cleanup or retention in production still requires
+T011, a verified backup where applicable, and explicit operator approval.
 
 Health and safeguarding records contain only the minimum operational data. Full
 medical records and full safeguarding narratives do not belong in these
@@ -395,8 +420,9 @@ private R2; Firestore stores metadata and permissions only. `auditEvents` and
 `paymentEvents` are append-only, consent evidence is versioned, and none of
 these collections is exposed through a general student/family listing.
 
-`auditEvents` currently permits only `admin.role.granted`, `admin.role.revoked`,
-`member.import.confirmed`, and `regyfit.access.imported`. `auditEventId`,
+`auditEvents` uses the exact discriminated action allowlist in
+`packages/domain/src/audit/audit-event.ts`, including the metadata-only
+`report.export.prepared` variant. `auditEventId`,
 `occurredAt`, `result: "completed"`, and `schemaVersion: 1` are server-owned.
 The backend validates the discriminated metadata variant and appends with
 `transaction.create`; there is no audit reader or UI in the pilot. Audit drafts
@@ -525,11 +551,18 @@ widens the projection.
 ## Levels catalog (T083)
 
 `levelSystems`, `levelDefinitions`, and `levelRequirements` are `Internal` reference collections at:
+
 - `academies/{academyId}/levelSystems/{systemId}`: Published system summary, metadata, precedence, source hash, and embedded skill catalog (11 skills).
 - `academies/{academyId}/levelDefinitions/{definitionKey}`: 171 immutable definitions (27 belts, 144 stripes) with merged DOCX criteria, observed criteria, visuals, and anomaly flags.
 - `academies/{academyId}/levelRequirements/{requirementKey}`: 165 technique requirements linked to definition keys and skills.
 
 The non-production seed (`apps/functions/scripts/seed-levels.mjs`) is the only writer. Direct client reads and writes are denied by default. The callable `listLevelCatalog` provides authenticated read access. Rollback deletes all documents belonging to a selected `systemId` in non-production environments.
+
+## Backup and restoration boundary (T054)
+
+Tenant backups are operation artifacts, not a new canonical collection. The allowlist, manifest schema, checksum, retention placeholder, excluded secrets, and operator confirmation gate live in `apps/functions/src/data/backup-contracts.ts` and `apps/functions/src/data/restore-runbook.md`. A backup is tenant-scoped under `academies/{academyId}` and must preserve the path/field `academyId` invariant.
+
+The backup scope excludes Firebase Auth, RTDB `presence`, service credentials, tokens, card data, and raw private object contents. Backup and restore callables are owner/administrator-only, require App Check, reject arbitrary collection paths, and remain fail-closed until an approved private artifact store and production retention policy exist. The emulator rehearsal captures the current state, applies a verified artifact in an isolated namespace, and rolls back the previous state after a synthetic failure. No production backup, restore, migration, or deployment is implied by this contract.
 
 ## Versioning, migration, and rollback boundary
 

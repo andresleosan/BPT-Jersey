@@ -1052,6 +1052,41 @@ export type SessionOperationalView = Readonly<{
   refreshedAt: string;
 }>;
 
+export type DailyOperationsSnapshot = Readonly<{
+  session: SessionRecord;
+  summary: SessionOperationalSummary;
+  refreshedAt: string;
+}>;
+
+export type DailyOperationsDashboard = Readonly<{
+  query: ListSessionsQuery;
+  sessions: readonly DailyOperationsSnapshot[];
+  refreshedAt: string;
+}>;
+
+export function buildDailyOperationsDashboard(input: {
+  query: ListSessionsQuery;
+  views: readonly SessionOperationalView[];
+  now?: string;
+}): DailyOperationsDashboard {
+  const refreshedAt = input.now ?? new Date().toISOString();
+  const sessions = input.views
+    .map((view) =>
+      Object.freeze({
+        session: view.session,
+        summary: view.summary,
+        refreshedAt: view.refreshedAt,
+      }),
+    )
+    .sort((left, right) => left.session.startAt.localeCompare(right.session.startAt));
+
+  return Object.freeze({
+    query: input.query,
+    sessions: Object.freeze(sessions),
+    refreshedAt,
+  });
+}
+
 /**
  * Pure projection function that aggregates canonical session, bookings, attendance,
  * and checkouts into a unified real-time operational roster without duplicating data.

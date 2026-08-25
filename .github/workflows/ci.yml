@@ -71,6 +71,12 @@ jobs:
       - name: Build the public web app
         env:
           NEXT_PUBLIC_ADMIN_E2E: "true"
+          NEXT_PUBLIC_FIREBASE_API_KEY: "e2e-api-key"
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "demo-bpt-jersey.firebaseapp.com"
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: "demo-bpt-jersey"
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "demo-bpt-jersey.appspot.com"
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+          NEXT_PUBLIC_FIREBASE_APP_ID: "1:000000000000:web:e2e"
         run: pnpm --filter @bpt-jersey/web build
 
       - name: Install Playwright Chromium

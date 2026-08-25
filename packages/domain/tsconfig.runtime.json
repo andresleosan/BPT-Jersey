@@ -25,10 +25,17 @@
     "src/memberships/membership-contracts.ts",
     "src/finance/finance-contracts.ts",
     "src/finance/financial-access.ts",
+    "src/finance/financial-dashboard.ts",
     "src/staff/staff-contracts.ts",
     "src/levels/level-contracts.ts",
     "src/schedule/schedule-contracts.ts",
     "src/announcements/announcement-contracts.ts",
-    "src/announcements/safeguarding-contracts.ts"
+    "src/announcements/safeguarding-contracts.ts",
+    "src/reminders/reminder-contracts.ts",
+    "src/delivery/delivery-contracts.ts",
+    "src/health/health-contracts.ts",
+    "src/documents/document-contracts.ts",
+    "src/reports/operational-report.ts",
+    "src/exports/aggregate-report-export.ts"
   ]
 }

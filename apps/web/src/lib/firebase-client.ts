@@ -2,11 +2,16 @@
 
 import { getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
 import {
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  browserSessionPersistence,
   connectAuthEmulator,
   getIdTokenResult,
   getMultiFactorResolver,
   getAuth,
   GoogleAuthProvider,
+  indexedDBLocalPersistence,
+  initializeAuth,
   multiFactor,
   onIdTokenChanged,
   signInWithPopup,
@@ -41,6 +46,7 @@ export type MfaEnrollment = Readonly<{
 let authEmulatorConnected = false;
 let firestoreEmulatorConnected = false;
 let functionsEmulatorConnected = false;
+let firebaseAuth: Auth | undefined;
 const enrollmentUsers = new WeakMap<object, User>();
 
 function shouldUseFirebaseEmulators(): boolean {
@@ -85,7 +91,32 @@ export function getFirebaseClient(): FirebaseApp {
 }
 
 export function getFirebaseAuth(): Auth {
-  const auth = getAuth(getFirebaseClient());
+  if (!firebaseAuth) {
+    const app = getFirebaseClient();
+
+    try {
+      firebaseAuth = initializeAuth(app, {
+        persistence: [
+          indexedDBLocalPersistence,
+          browserLocalPersistence,
+          browserSessionPersistence,
+        ],
+      });
+    } catch (error) {
+      if (
+        typeof error !== "object" ||
+        error === null ||
+        !("code" in error) ||
+        error.code !== "auth/already-initialized"
+      ) {
+        throw error;
+      }
+
+      firebaseAuth = getAuth(app);
+    }
+  }
+
+  const auth = firebaseAuth;
 
   if (shouldUseFirebaseEmulators() && !authEmulatorConnected) {
     connectAuthEmulator(auth, authEmulatorUrl, { disableWarnings: true });
@@ -122,7 +153,11 @@ export function subscribeToIdTokenChanges(listener: (user: User | null) => void)
 }
 
 export function signInWithGoogle(): Promise<UserCredential> {
-  return signInWithPopup(getFirebaseAuth(), new GoogleAuthProvider());
+  return signInWithPopup(
+    getFirebaseAuth(),
+    new GoogleAuthProvider(),
+    browserPopupRedirectResolver,
+  );
 }
 
 export function signOutFromFirebase(): Promise<void> {

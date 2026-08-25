@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 
 import { createFamily, type CreateFamilyClientInput } from "../../../lib/family-client";
+import { HealthSupportAdminPanel } from "./health-support-admin-panel";
 
 import "../admin.css";
 
@@ -256,6 +257,16 @@ export function FamilyAdminPage() {
               <li key={student.studentId}>{student.fullName}</li>
             ))}
           </ul>
+          <div className="health-admin-review-list">
+            {createdFamily.students.map((student, index) => (
+              <HealthSupportAdminPanel
+                key={student.studentId}
+                instanceId={"health-admin-" + (index + 1)}
+                studentId={student.studentId}
+                studentName={student.fullName}
+              />
+            ))}
+          </div>
           <div className="family-operation-actions">
             <button className="family-text-button" disabled type="button">
               Replace tutor

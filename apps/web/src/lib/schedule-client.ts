@@ -1,6 +1,7 @@
 import { httpsCallable } from "firebase/functions";
 import type {
   AttendanceRecord,
+  DailyOperationsDashboard,
   BookingRecord,
   CancelBookingInput,
   CheckInInput,
@@ -25,6 +26,19 @@ export type ScheduleCatalogResponse = Readonly<{
   locations: readonly LocationRecord[];
   programs: readonly ProgramRecord[];
 }>;
+
+export async function getDailyOperationsDashboard(
+  query: ListSessionsQuery,
+): Promise<DailyOperationsDashboard> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<ListSessionsQuery, { dashboard: DailyOperationsDashboard }>(
+    functions,
+    "getDailyOperationsDashboard",
+  );
+
+  const result = await callable(query);
+  return result.data.dashboard;
+}
 
 export async function getScheduleCatalog(): Promise<ScheduleCatalogResponse> {
   const functions = getFirebaseFunctions();

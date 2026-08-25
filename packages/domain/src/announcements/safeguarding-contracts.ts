@@ -1,12 +1,7 @@
 import { err, ok, type Result } from "../result";
 import { type AnnouncementRecord } from "./announcement-contracts";
 
-export const noticeCategories = [
-  "attendance",
-  "payment",
-  "progress",
-  "general",
-] as const;
+export const noticeCategories = ["attendance", "payment", "progress", "general"] as const;
 export type NoticeCategory = (typeof noticeCategories)[number];
 
 export type SafeguardingNoticeRecord = Readonly<{

@@ -4,8 +4,15 @@ const firebaseApp = { name: "firebase-app" };
 const firebaseAuth = { name: "firebase-auth" };
 const firebaseSdk = vi.hoisted(() => {
   const googleProvider = { providerId: "google.com" };
+  const browserLocalPersistence = { type: "LOCAL" };
+  const browserPopupRedirectResolver = { type: "POPUP" };
+  const browserSessionPersistence = { type: "SESSION" };
+  const indexedDBLocalPersistence = { type: "INDEXED_DB" };
 
   return {
+    browserLocalPersistence,
+    browserPopupRedirectResolver,
+    browserSessionPersistence,
     connectAuthEmulator: vi.fn(),
     getAuth: vi.fn(() => firebaseAuth),
     getIdTokenResult: vi.fn(),
@@ -14,6 +21,8 @@ const firebaseSdk = vi.hoisted(() => {
     GoogleAuthProvider: vi.fn(function GoogleAuthProvider() {
       return googleProvider;
     }),
+    indexedDBLocalPersistence,
+    initializeAuth: vi.fn(() => firebaseAuth),
     multiFactor: vi.fn(),
     onIdTokenChanged: vi.fn(),
     signInWithPopup: vi.fn(),
@@ -32,9 +41,14 @@ vi.mock("firebase/app", () => ({
 }));
 
 vi.mock("firebase/auth", () => ({
+  browserLocalPersistence: firebaseSdk.browserLocalPersistence,
+  browserPopupRedirectResolver: firebaseSdk.browserPopupRedirectResolver,
+  browserSessionPersistence: firebaseSdk.browserSessionPersistence,
   connectAuthEmulator: firebaseSdk.connectAuthEmulator,
   getAuth: firebaseSdk.getAuth,
   GoogleAuthProvider: firebaseSdk.GoogleAuthProvider,
+  indexedDBLocalPersistence: firebaseSdk.indexedDBLocalPersistence,
+  initializeAuth: firebaseSdk.initializeAuth,
   getIdTokenResult: firebaseSdk.getIdTokenResult,
   getMultiFactorResolver: firebaseSdk.getMultiFactorResolver,
   multiFactor: firebaseSdk.multiFactor,
@@ -78,6 +92,17 @@ describe("firebase-client", () => {
     vi.clearAllMocks();
   });
 
+  it("initializes session auth without loading the Google popup resolver", () => {
+    expect(getFirebaseAuth()).toBe(firebaseAuth);
+    expect(firebaseSdk.initializeAuth).toHaveBeenCalledWith(firebaseApp, {
+      persistence: [
+        firebaseSdk.indexedDBLocalPersistence,
+        firebaseSdk.browserLocalPersistence,
+        firebaseSdk.browserSessionPersistence,
+      ],
+    });
+  });
+
   it("rejects emulator use outside the local environment", () => {
     process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS = "true";
     process.env.NEXT_PUBLIC_FIREBASE_ENV = "staging";
@@ -99,6 +124,7 @@ describe("firebase-client", () => {
     expect(firebaseSdk.signInWithPopup).toHaveBeenCalledWith(
       firebaseAuth,
       firebaseSdk.googleProvider,
+      firebaseSdk.browserPopupRedirectResolver,
     );
   });
 

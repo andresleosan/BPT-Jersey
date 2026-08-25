@@ -6,6 +6,7 @@ import { parseLevelCatalogSource } from "@bpt-jersey/domain/levels";
 import {
   approvePromotion,
   getLevelCatalog,
+  getProgressReport,
   getStudentProgressSummary,
   listGraduations,
   listMedicalLeaves,
@@ -149,6 +150,53 @@ describe("Levels Web Client", () => {
     expect(progress.totalAttendedClasses).toBe(25);
   });
 
+  it("fetches and validates the aggregate progress report", async () => {
+    mockCallableError = null;
+    mockCallableResult = {
+      data: {
+        report: {
+          activeStudentCount: 2,
+          assessedStudentCount: 1,
+          unassessedStudentCount: 1,
+          totalEvaluationCount: 1,
+          assessmentCoveragePercentage: 50,
+          recognitionCandidateCount: 2,
+          eligibleForPromotionCount: 1,
+          levelBreakdown: [
+            {
+              definitionKey: "white-0",
+              definitionName: "White Belt",
+              studentCount: 2,
+              assessedStudentCount: 1,
+              eligibleForPromotionCount: 1,
+            },
+          ],
+          skillCoverage: [
+            {
+              skillKey: "guard",
+              displayLabel: "Guard",
+              assessedStudentCount: 1,
+              coveragePercentage: 50,
+            },
+          ],
+          calculatedAt: "2026-08-23T12:00:00.000Z",
+        },
+      },
+    };
+
+    const report = await getProgressReport();
+    expect(report.assessmentCoveragePercentage).toBe(50);
+    expect(report.levelBreakdown[0]?.studentCount).toBe(2);
+  });
+
+  it("rejects malformed aggregate progress reports with a safe error", async () => {
+    mockCallableError = null;
+    mockCallableResult = { data: { report: { activeStudentCount: 2 } } };
+
+    await expect(getProgressReport()).rejects.toThrow(
+      "Unable to load progress report. Please try again.",
+    );
+  });
   it("records medical leave and lists student medical leaves", async () => {
     mockCallableError = null;
     mockCallableResult = {

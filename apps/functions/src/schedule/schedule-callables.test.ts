@@ -7,6 +7,7 @@ import {
   createCorrectAttendanceHandler,
   createEvaluateSessionMinimumHandler,
   createGenerateSessionsHandler,
+  createGetDailyOperationsDashboardHandler,
   createGetSessionOperationalViewHandler,
   createGetStudentCheckoutHandler,
   createListAttendanceHistoryHandler,
@@ -688,6 +689,85 @@ describe("Schedule Callables", () => {
       expect(result.view.session.sessionId).toBe(session.sessionId);
       expect(result.view.summary.capacity).toBe(20);
       expect(result.view.roster).toHaveLength(0);
+    });
+  });
+  describe("Daily Operations Dashboard Callable", () => {
+    it("returns sorted session snapshots for staff and denies non-staff", async () => {
+      const store = createInMemoryScheduleStore();
+      const handler = createGetDailyOperationsDashboardHandler({ store });
+      const later = await store.createSession(
+        "demo-academy",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Later Class",
+          startAt: "2026-09-01T19:00:00Z",
+          endAt: "2026-09-01T20:00:00Z",
+          capacity: 20,
+        },
+        "owner-1",
+      );
+      const earlier = await store.createSession(
+        "demo-academy",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Earlier Class",
+          startAt: "2026-09-01T18:00:00Z",
+          endAt: "2026-09-01T19:00:00Z",
+          capacity: 20,
+        },
+        "owner-1",
+      );
+      await store.requestBooking(
+        "demo-academy",
+        { sessionId: earlier.sessionId, studentId: "student-1", membershipId: "membership-1" },
+        "student-1",
+      );
+      await store.recordCheckIn(
+        "demo-academy",
+        { sessionId: earlier.sessionId, studentId: "student-1", method: "qr" },
+        "student-1",
+        "2026-09-01T18:05:00Z",
+      );
+
+      const response = await handler(
+        fakeRequest(
+          { from: "2026-09-01T00:00:00Z", to: "2026-09-01T23:59:59Z" },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      );
+
+      expect(response.dashboard.sessions.map((item) => item.session.sessionId)).toEqual([
+        earlier.sessionId,
+        later.sessionId,
+      ]);
+      expect(response.dashboard.sessions[0]?.summary.totalBookings).toBe(1);
+      expect(response.dashboard.sessions[0]?.summary.totalCheckedIn).toBe(1);
+      expect(response.dashboard.sessions[0]).not.toHaveProperty("roster");
+
+      await expect(
+        handler(
+          fakeRequest(
+            { from: "2026-09-01T00:00:00Z", to: "2026-09-01T23:59:59Z" },
+            "guardian",
+            "guardian-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Staff access required/);
+
+      await expect(
+        handler(fakeRequest({ from: "not-a-date", to: "2026-09-01T23:59:59Z" }, "coach")),
+      ).rejects.toThrow(/valid ISO 8601/);
+
+      await expect(
+        handler(fakeRequest({ from: "2026-09-01T00:00:00Z", to: "2026-09-03T00:00:00Z" }, "coach")),
+      ).rejects.toThrow(/cannot exceed 24 hours/);
     });
   });
 });

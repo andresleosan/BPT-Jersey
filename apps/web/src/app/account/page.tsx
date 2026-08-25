@@ -1,6 +1,8 @@
 "use client";
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../lib/client-auth";
+import { ClientRemindersPanel } from "./client-reminders";
+import { GuardianNoticesPanel } from "./guardian-notices";
 import { requireClientSession } from "../../lib/login-flow";
 
 function AccountContent() {
@@ -22,6 +24,8 @@ function AccountContent() {
       <p className="client-destination-intro">
         Your authenticated client area is ready for account and progress features as they are added.
       </p>
+      <ClientRemindersPanel />
+      <GuardianNoticesPanel />
       <a className="button button-primary profile-account-link" href="/account/profile">
         Complete your profile
       </a>

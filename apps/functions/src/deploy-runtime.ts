@@ -12,9 +12,17 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/migration/regyfit-access": "../../domain/migration/regyfit-access.js",
   "@bpt-jersey/domain/families": "../../domain/families/family-contracts.js",
   "@bpt-jersey/domain/finance": "../../domain/finance/finance-contracts.js",
+  "@bpt-jersey/domain/finance/dashboard": "../../domain/finance/financial-dashboard.js",
   "@bpt-jersey/domain/staff": "../../domain/staff/staff-contracts.js",
   "@bpt-jersey/domain/levels": "../../domain/levels/level-contracts.js",
   "@bpt-jersey/domain/schedule": "../../domain/schedule/schedule-contracts.js",
+  "@bpt-jersey/domain/announcements": "../../domain/announcements/announcement-contracts.js",
+  "@bpt-jersey/domain/reminders": "../../domain/reminders/reminder-contracts.js",
+  "@bpt-jersey/domain/delivery": "../../domain/delivery/delivery-contracts.js",
+  "@bpt-jersey/domain/health": "../../domain/health/health-contracts.js",
+  "@bpt-jersey/domain/documents": "../../domain/documents/document-contracts.js",
+  "@bpt-jersey/domain/reports": "../../domain/reports/operational-report.js",
+  "@bpt-jersey/domain/exports": "../../domain/exports/aggregate-report-export.js",
 });
 
 async function runtimeFiles(directory: string): Promise<readonly string[]> {

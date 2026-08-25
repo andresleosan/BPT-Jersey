@@ -2090,3 +2090,570 @@
     transition: none;
   }
 }
+
+.admin-progress-report-card {
+  grid-column: span 2;
+}
+
+.admin-progress-report-card h3 {
+  margin-bottom: 0.35rem;
+}
+
+.admin-report-state,
+.admin-report-muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.admin-progress-report-metrics {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 1.35rem 0;
+}
+
+.admin-progress-report-metric {
+  border-left: 3px solid var(--bpt-purple);
+  padding: 0.25rem 0.65rem;
+}
+
+.admin-progress-report-metric dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-progress-report-metric dd {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.9rem;
+  line-height: 1;
+  margin: 0.35rem 0 0;
+}
+
+.admin-progress-report-detail-grid {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 1rem;
+}
+
+.admin-progress-report-detail-grid h4 {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.55rem;
+  text-transform: uppercase;
+}
+
+.admin-progress-report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-progress-report-list li {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.45rem 0;
+}
+
+.admin-progress-report-list strong {
+  font-size: 0.9rem;
+}
+
+.admin-progress-report-list small {
+  color: var(--muted);
+  grid-column: 1 / -1;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 700px) {
+  .admin-progress-report-card {
+    grid-column: auto;
+  }
+
+  .admin-progress-report-metrics,
+  .admin-progress-report-detail-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.health-admin-review-list {
+  display: grid;
+  gap: 1rem;
+  grid-column: 1 / -1;
+  margin-top: 1.5rem;
+}
+
+.health-admin-panel {
+  background: var(--canvas);
+  border-left: 0.3rem solid var(--mat-ink);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.health-admin-heading {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.health-admin-heading h4 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
+  line-height: 0.95;
+  margin: 0.35rem 0 0;
+  text-transform: uppercase;
+}
+
+.health-admin-muted,
+.health-admin-note {
+  color: var(--muted);
+  margin: 0;
+}
+
+.health-admin-summary {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.health-admin-summary div {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.25rem;
+  padding-top: 0.5rem;
+}
+
+.health-admin-summary span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.health-admin-summary strong {
+  overflow-wrap: anywhere;
+}
+
+.health-admin-pending {
+  border-left: 0.25rem solid var(--bpt-purple);
+  display: grid;
+  gap: 0.65rem;
+  padding-left: 0.8rem;
+}
+
+.health-admin-pending ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.health-admin-pending li {
+  background: var(--gi-white);
+  padding: 0.4rem 0.55rem;
+}
+
+.health-admin-pending p {
+  margin: 0;
+}
+
+.health-admin-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.health-admin-form fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.health-admin-form legend {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.health-admin-options {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.health-admin-options label {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  min-height: 2.2rem;
+}
+
+.health-admin-options input {
+  accent-color: var(--bpt-purple);
+  block-size: 1.1rem;
+  inline-size: 1.1rem;
+}
+
+.health-admin-form textarea {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 5.5rem;
+  padding: 0.7rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.health-admin-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.health-admin-form input:focus-visible,
+.health-admin-form textarea:focus-visible,
+.health-admin-options input:focus-visible,
+.health-admin-actions button:focus-visible,
+.health-admin-heading button:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+@media (max-width: 42rem) {
+  .health-admin-heading,
+  .health-admin-summary {
+    display: grid;
+  }
+}
+
+.admin-operational-report-card {
+  grid-column: 1 / -1;
+}
+
+.admin-operational-report-card h3 {
+  margin-bottom: 0.35rem;
+}
+
+.admin-operational-report-filter {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(10rem, 1fr)) auto;
+  margin: 1.25rem 0;
+  padding: 1rem 0;
+}
+
+.admin-operational-report-filter label {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.35rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-operational-report-filter input {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+  width: 100%;
+}
+
+.admin-operational-report-filter input:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.admin-operational-report-metrics {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 1.3rem 0;
+}
+
+.admin-operational-report-metric {
+  border-left: 3px solid var(--bpt-purple);
+  padding: 0.3rem 0.7rem;
+}
+
+.admin-operational-report-metric dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-operational-report-metric dd {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.65rem, 3vw, 2.15rem);
+  line-height: 1;
+  margin: 0.35rem 0 0;
+}
+
+.admin-operational-report-sections {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-operational-report-sections section {
+  border-top: 0.25rem solid var(--mat-ink);
+  min-width: 0;
+  padding-top: 0.8rem;
+}
+
+.admin-operational-report-sections section:nth-child(2),
+.admin-operational-report-sections section:nth-child(4) {
+  border-top-color: var(--bpt-purple);
+}
+
+.admin-operational-report-sections h4 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.35rem;
+  line-height: 0.95;
+  margin: 0 0 0.7rem;
+  text-transform: uppercase;
+}
+
+.admin-operational-report-sections dl {
+  margin: 0;
+}
+
+.admin-operational-report-sections dl > div {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 0.65rem;
+  justify-content: space-between;
+  padding: 0.42rem 0;
+}
+
+.admin-operational-report-sections dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.admin-operational-report-sections dd {
+  font-weight: 700;
+  margin: 0;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .admin-operational-report-sections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 42rem) {
+  .admin-operational-report-filter,
+  .admin-operational-report-metrics,
+  .admin-operational-report-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-operational-report-filter .admin-home-link {
+    justify-self: start;
+  }
+}
+
+.admin-aggregate-export-card {
+  grid-column: 1 / -1;
+}
+
+.admin-aggregate-export-card h3 {
+  margin-bottom: 0.35rem;
+}
+
+.admin-aggregate-export-form {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(14rem, 1.4fr) repeat(2, minmax(10rem, 1fr)) auto;
+  margin: 1.25rem 0;
+  padding: 1rem 0;
+}
+
+.admin-aggregate-export-form label {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.35rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-aggregate-export-form input,
+.admin-aggregate-export-form select {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 2.75rem;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  width: 100%;
+}
+
+.admin-aggregate-export-form input:focus-visible,
+.admin-aggregate-export-form select:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .admin-aggregate-export-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 42rem) {
+  .admin-aggregate-export-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-aggregate-export-form .admin-home-link {
+    justify-self: start;
+  }
+}
+
+.admin-status-due-later,
+.admin-status-trial,
+.admin-status-recorded {
+  color: #5d468f;
+}
+
+.finance-dashboard-page .admin-section-header .admin-home-link:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.finance-dashboard-state {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--bpt-purple);
+  padding: clamp(1.25rem, 4vw, 2.25rem);
+}
+
+.finance-dashboard-state h3,
+.finance-horizon-heading h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.9rem, 4vw, 3.2rem);
+  line-height: 0.9;
+  margin: 0.45rem 0 0;
+  text-transform: uppercase;
+}
+
+.finance-dashboard-state > p:not(.admin-eyebrow),
+.finance-dashboard-footnote,
+.finance-horizon-heading > p {
+  color: var(--muted);
+}
+
+.finance-dashboard-error {
+  border-left-color: #a02c35;
+}
+
+.finance-dashboard-error .admin-home-link {
+  display: inline-flex;
+  margin-top: 0.75rem;
+}
+
+.finance-horizon {
+  border-left: 0.4rem solid var(--bpt-purple);
+  display: grid;
+  gap: 1rem;
+  padding-left: clamp(0.8rem, 2vw, 1.5rem);
+}
+
+.finance-horizon-heading {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.finance-horizon-heading > p {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.finance-horizon-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.finance-horizon-grid .admin-panel-card {
+  border-top-color: var(--bpt-purple);
+}
+
+.finance-horizon-grid .admin-panel-card h3 {
+  font-size: clamp(1.55rem, 2.4vw, 2.15rem);
+}
+
+.finance-horizon-grid .admin-data-table {
+  min-width: 34rem;
+}
+
+.finance-dashboard-footnote {
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+  margin: 0;
+  padding-top: 0.8rem;
+}
+
+@media (max-width: 900px) {
+  .finance-horizon-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .finance-horizon-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .finance-horizon-grid .admin-data-table {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finance-dashboard-page *,
+  .finance-dashboard-page *::before,
+  .finance-dashboard-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -214,4 +214,3 @@ describe("Announcement Service Store (T045)", () => {
     expect(read.readAt).toBe("2026-08-23T12:00:00Z");
   });
 });
-

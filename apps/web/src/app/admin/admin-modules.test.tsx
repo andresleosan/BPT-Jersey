@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ActivitiesPage } from "./activities/page";
 import { AttendancePage } from "./attendance/page";
 import { CrmPage } from "./crm/page";
-import { FinancePage } from "./finance/page";
 import { GroupsPage } from "./groups/page";
 import { ReportsPage } from "./reports/page";
 
@@ -73,28 +72,6 @@ describe("administrative preview modules", () => {
     expect(screen.getByText("No attendance records match these filters.")).toBeVisible();
   });
 
-  it("filters payments by status", async () => {
-    const user = userEvent.setup();
-    render(<FinancePage />);
-
-    await user.selectOptions(screen.getByRole("combobox", { name: "Payment status" }), "Overdue");
-
-    expect(screen.getByRole("row", { name: /Taylor Morgan/ })).toBeVisible();
-    expect(screen.queryByRole("row", { name: /Jordan Blake/ })).not.toBeInTheDocument();
-  });
-
-  it("applies the finance period filter", async () => {
-    const user = userEvent.setup();
-    render(<FinancePage />);
-
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Finance period" }),
-      "Last month",
-    );
-
-    expect(screen.getByText("No payments match these filters.")).toBeVisible();
-  });
-
   it("filters CRM leads by stage and owner", async () => {
     const user = userEvent.setup();
     render(<CrmPage />);
@@ -106,14 +83,12 @@ describe("administrative preview modules", () => {
     expect(screen.queryByRole("article", { name: /Morgan family/ })).not.toBeInTheDocument();
   });
 
-  it("prepares a report and exposes the resulting state", async () => {
+  it("prepares a remaining preview report and exposes the resulting state", async () => {
     const user = userEvent.setup();
     render(<ReportsPage />);
-    const report = screen.getByRole("article", { name: "Member directory report" });
+    const report = screen.getByRole("article", { name: "CRM follow-up report" });
 
-    await user.click(
-      within(report).getByRole("button", { name: /Prepare member directory report/i }),
-    );
+    await user.click(within(report).getByRole("button", { name: /Prepare crm follow-up report/i }));
 
     expect(within(report).getByRole("status")).toHaveTextContent("Report ready for preview");
   });

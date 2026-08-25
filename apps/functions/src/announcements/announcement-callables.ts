@@ -25,6 +25,43 @@ export type GuardianResolver = (params: {
   minorStudentId: string;
 }) => Promise<readonly string[]>;
 
+const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+
+export function selectActiveGuardianIds(params: {
+  academyId: string;
+  minorStudentId: string;
+  student: Record<string, unknown> | undefined;
+  relationships: readonly Record<string, unknown>[];
+}): readonly string[] {
+  const { academyId, minorStudentId, student, relationships } = params;
+  if (
+    !student ||
+    student.academyId !== academyId ||
+    student.participantType !== "minor" ||
+    student.active !== true ||
+    student.status !== "active" ||
+    typeof student.familyId !== "string" ||
+    !safeIdentifierPattern.test(student.familyId)
+  ) {
+    return [];
+  }
+
+  const guardianIds = relationships
+    .filter(
+      (relationship) =>
+        relationship.academyId === academyId &&
+        relationship.familyId === student.familyId &&
+        relationship.studentId === minorStudentId &&
+        relationship.relationshipType === "guardian" &&
+        relationship.active === true &&
+        relationship.status === "active" &&
+        typeof relationship.adultUserId === "string" &&
+        safeIdentifierPattern.test(relationship.adultUserId),
+    )
+    .map((relationship) => relationship.adultUserId as string);
+
+  return Object.freeze([...new Set(guardianIds)]);
+}
 export function createCreateAnnouncementHandler({ store }: { store: AnnouncementStore }) {
   return async (
     request: CallableRequest<unknown>,
@@ -64,10 +101,7 @@ export function createUpdateAnnouncementHandler({ store }: { store: Announcement
   ): Promise<{ announcement: AnnouncementRecord }> => {
     const actor = requireUserActor(request);
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      throw new HttpsError(
-        "permission-denied",
-        "Staff role required to update announcements",
-      );
+      throw new HttpsError("permission-denied", "Staff role required to update announcements");
     }
 
     const parsed = parseUpdateAnnouncementInput(request.data);
@@ -96,10 +130,7 @@ export function createPublishAnnouncementHandler({ store }: { store: Announcemen
   ): Promise<{ announcement: AnnouncementRecord }> => {
     const actor = requireUserActor(request);
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      throw new HttpsError(
-        "permission-denied",
-        "Staff role required to publish announcements",
-      );
+      throw new HttpsError("permission-denied", "Staff role required to publish announcements");
     }
 
     const data = (request.data as { announcementId?: unknown }) ?? {};
@@ -125,10 +156,7 @@ export function createArchiveAnnouncementHandler({ store }: { store: Announcemen
   ): Promise<{ announcement: AnnouncementRecord }> => {
     const actor = requireUserActor(request);
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      throw new HttpsError(
-        "permission-denied",
-        "Staff role required to archive announcements",
-      );
+      throw new HttpsError("permission-denied", "Staff role required to archive announcements");
     }
 
     const data = (request.data as { announcementId?: unknown }) ?? {};
@@ -176,7 +204,8 @@ export function createListAnnouncementsHandler({ store }: { store: AnnouncementS
     request: CallableRequest<unknown>,
   ): Promise<{ announcements: readonly AnnouncementRecord[] }> => {
     const actor = requireUserActor(request);
-    const data = (request.data as { channel?: unknown; targetId?: unknown; status?: unknown }) ?? {};
+    const data =
+      (request.data as { channel?: unknown; targetId?: unknown; status?: unknown }) ?? {};
 
     const filter: {
       channel?: AnnouncementChannel;
@@ -234,21 +263,25 @@ export function createSendMinorNoticeHandler({
       );
     }
 
-    // Resolve guardian list for the minor student
+    // Resolve only the canonical active guardian relationship for a real minor.
     const defaultResolver: GuardianResolver = async ({ academyId, minorStudentId }) => {
       const firestore = getFirestore();
-      const snap = await firestore
-        .collection(`academies/${academyId}/families`)
-        .where("minorStudentIds", "array-contains", minorStudentId)
+      const studentSnapshot = await firestore
+        .doc(`academies/${academyId}/students/${minorStudentId}`)
+        .get();
+      if (!studentSnapshot.exists) return [];
+
+      const relationshipSnapshot = await firestore
+        .collection(`academies/${academyId}/relationships`)
+        .where("studentId", "==", minorStudentId)
         .get();
 
-      const guardianIds: string[] = [];
-      for (const doc of snap.docs) {
-        const data = doc.data() as { primaryGuardianId?: string; guardianIds?: string[] };
-        if (data.primaryGuardianId) guardianIds.push(data.primaryGuardianId);
-        if (Array.isArray(data.guardianIds)) guardianIds.push(...data.guardianIds);
-      }
-      return Array.from(new Set(guardianIds));
+      return selectActiveGuardianIds({
+        academyId,
+        minorStudentId,
+        student: studentSnapshot.data(),
+        relationships: relationshipSnapshot.docs.map((doc) => doc.data()),
+      });
     };
 
     const resolver = resolveGuardians ?? defaultResolver;
@@ -291,12 +324,32 @@ export function createListGuardianNoticesHandler({ store }: { store: Announcemen
     const actor = requireUserActor(request);
 
     const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
-    const data = (request.data as { guardianId?: unknown }) ?? {};
+
+    if (actor.role === "adultStudent") {
+      return { notices: [] };
+    }
+
+    const rawData = request.data === null || request.data === undefined ? {} : request.data;
+    if (typeof rawData !== "object" || Array.isArray(rawData)) {
+      throw new HttpsError("invalid-argument", "Guardian notice filters must be an object");
+    }
+    const requestedGuardianId = (rawData as { guardianId?: unknown }).guardianId;
+    if (
+      requestedGuardianId !== undefined &&
+      (typeof requestedGuardianId !== "string" ||
+        !safeIdentifierPattern.test(requestedGuardianId.trim()))
+    ) {
+      throw new HttpsError("invalid-argument", "guardianId is invalid");
+    }
 
     let targetGuardianId = actor.userId;
-    if (isStaff && typeof data.guardianId === "string" && data.guardianId.trim()) {
-      targetGuardianId = data.guardianId.trim();
-    } else if (actor.role !== "guardian" && !isStaff) {
+    if (isStaff && typeof requestedGuardianId === "string") {
+      targetGuardianId = requestedGuardianId.trim() as typeof actor.userId;
+    } else if (actor.role === "guardian") {
+      if (typeof requestedGuardianId === "string" && requestedGuardianId.trim() !== actor.userId) {
+        throw new HttpsError("permission-denied", "A guardian can only view their own notices");
+      }
+    } else {
       throw new HttpsError("permission-denied", "Guardian or staff role required to view notices");
     }
 
@@ -317,14 +370,25 @@ export function createMarkNoticeAsReadHandler({ store }: { store: AnnouncementSt
   ): Promise<{ notice: SafeguardingNoticeRecord }> => {
     const actor = requireUserActor(request);
 
-    const data = (request.data as { noticeId?: unknown }) ?? {};
-    if (typeof data.noticeId !== "string" || !data.noticeId.trim()) {
-      throw new HttpsError("invalid-argument", "noticeId is required to mark as read");
+    if (actor.role !== "guardian") {
+      throw new HttpsError(
+        "permission-denied",
+        "Only the guardian recipient can mark a notice as read",
+      );
+    }
+
+    const rawData = request.data === null || request.data === undefined ? {} : request.data;
+    if (typeof rawData !== "object" || Array.isArray(rawData)) {
+      throw new HttpsError("invalid-argument", "Notice data must be an object");
+    }
+    const noticeId = (rawData as { noticeId?: unknown }).noticeId;
+    if (typeof noticeId !== "string" || !safeIdentifierPattern.test(noticeId.trim())) {
+      throw new HttpsError("invalid-argument", "noticeId is invalid");
     }
 
     const notice = await store.markNoticeAsRead({
       academyId: actor.academyId,
-      noticeId: data.noticeId.trim(),
+      noticeId: noticeId.trim(),
       guardianId: actor.userId,
     });
 
@@ -340,7 +404,9 @@ function getStore(): AnnouncementStore {
   if (!defaultStore) {
     const firestore = getFirestore();
     defaultStore = createFirestoreAnnouncementStore({
-      firestore: firestore as unknown as Parameters<typeof createFirestoreAnnouncementStore>[0]["firestore"],
+      firestore: firestore as unknown as Parameters<
+        typeof createFirestoreAnnouncementStore
+      >[0]["firestore"],
     });
   }
   return defaultStore;

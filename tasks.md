@@ -45,8 +45,8 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 | T020A | Integrar identidad visual oficial: logo en home, login, shell admin y acceso requerido; favicon solo como favicon; añadir navegación Home | T002,T017,T020 | aprobada  | Assets verificados, metadata/favicon, textos de marca conservados, rutas Home, responsive y visual QA desktop/móvil; aprobada 2026-08-23                                                                                      |
 | T021  | Implementar perfiles de adultos, menores y tutores                                                                                        | T016,T020      | aprobada  | Domain 7/7, store 3/3, callables 4/4, web client/UI 12/12, suite completa 500/500, Rules 16/16, Firestore Emulator 8/8, lint/typecheck/build/formato, smoke E2E 5/5 y auditoría sin críticos; aprobada 2026-08-23             |
 | T022  | Implementar familias multi-child, contactos y relaciones autorizadas                                                                      | T021           | aprobada  | Tasks 1-6 verificadas; suite `533/533`, Rules `23/23`, lint/typecheck/build/formato/diff pasan; E2E `2/2`; audit sin high/critical; aprobada 2026-08-23                                                                       |
-| T023  | Implementar datos médicos/soporte con acceso restringido                                                                                  | T021,T011      | bloqueada | Spec reconciliada con `BPTJ FUNCTIONS APP.docx`: condición operacional max 1000 y etiqueta staff max 25; implementación bloqueada hasta resolver T011                                                                         |
-| T024  | Implementar documentos y waivers privados en R2 con URLs firmadas                                                                         | T016,T021,T023 | pendiente | Subida y acceso privado del PDF firmado del waiver; evidencia, hash, permisos y expiración probados                                                                                                                           |
+| T023  | Implementar datos médicos/soporte con acceso restringido                                                                                  | T021,T011      | revisión | Implementación técnica completada y verificada para el piloto sintético; queda en revisión del operador. Producción sigue bloqueada por T011/T018 y BPT_SYNTHETIC_PILOT |
+| T024  | Implementar documentos y waivers privados en R2 con URLs firmadas                                                                         | T016,T021,T023 | revisión | Adaptador piloto verificado con hash, tamaño, URLs firmadas, expiración, revocación, tenant/objectKey exacto y relaciones guardian vigentes. Cierre productivo depende de T011/T018 y residencia/retención aprobadas |
 | T025  | Implementar cuentas, roles, disponibilidad y asignaciones de coaches/staff                                                                | T015,T020      | aprobada  | Tasks 1-4 verificadas; suite unitaria 90/90 y 701/701; Rules 6/6 y 50/50; Emulator integration 9/9; UI /admin/staff y E2E sintético 10/10; Auth Emulator E2E 2/2 con login real; audit sin high/critical; aprobada 2026-08-23 |
 
 ## M2A - Levels IBJJF MVP
@@ -94,22 +94,22 @@ históricos se conservan para no perder trazabilidad; las filas marcadas post-pi
 | T043 | Implementar pipeline CRM, owner, next action y tareas post-piloto     | T021,T025      | pendiente | Transiciones y filtros probados; no bloquea `T056`                                                                                                                                                                                                                                                                                                               |
 | T044 | Implementar timeline CRM automático post-piloto                       | T019,T043      | pendiente | Eventos relevantes aparecen una vez; no bloquea `T056`                                                                                                                                                                                                                                                                                                           |
 | T045 | Implementar announcements y mensajes in-app de academia/clase         | T025,T026      | aprobada  | Contratos y parsers de anuncios 7/7, store en Firestore e in-memory con soporte readBy y auditoría 4/4, callables RBAC staff/client 3/3, client 4/4, deploy runtime 2/2, suite completa 902/902 en 109 archivos; canales academy/class/group, estados draft/published/archived y lectura in-app probados; typecheck/build/lint/format pasan; aprobada 2026-08-23 |
-| T046 | Implementar email/SMS e historial externo de entrega post-piloto      | T045           | pendiente | Contract tests del proveedor; no bloquea `T056`                                                                                                                                                                                                                                                                                                                  |
-| T047 | Aplicar safeguarding a avisos de menores visibles al tutor            | T022,T045      | en-progreso | Iniciada 2026-08-23; diseño y contratos de safeguarding para avisos de menores, visibilidad exclusiva para el tutor familiar y bloqueo de canales privados en curso |
-| T048 | Implementar recordatorios in-app de pagos y seguimiento de asistencia | T029,T038,T045 | pendiente | Reglas, audiencia y resolución probadas                                                                                                                                                                                                                                                                                                                          |
+| T046 | Implementar email/SMS e historial externo de entrega post-piloto      | T045           | revisión   | Frontera provider-independent, historial tenant-scoped, fallback seguro y contract tests registrados abajo                                                                                                                                                                                                                                                        |
+| T047 | Aplicar safeguarding a avisos de menores visibles al tutor            | T022,T045      | aprobada   | Resolver canónico por `students`/`relationships` con tenant y estados activos; avisos server-only entregados al tutor guardian; portal `/account` sin `minorStudentId`; pruebas y gates registrados abajo |
+| T048 | Implementar recordatorios in-app de pagos y seguimiento de asistencia | T029,T038,T045 | aprobada   | Proyección on-demand de pagos/asistencia con audiencia tenant-scoped; pruebas y gates registrados abajo                                                                                                                                                                                                                                                          |
 
 ## M7 - Dashboard, reportes y cierre del MVP
 
 | ID   | Tarea atómica                                                              | Depende de                                        | Estado    | Evidencia de salida                                                                                  |
 | ---- | -------------------------------------------------------------------------- | ------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
-| T049 | Implementar dashboard diario de clases, asistencia y child check-out       | T031                                              | revisión  | Panel visible con preview sintético; persistencia canónica real pendiente                            |
-| T050 | Implementar dashboard financiero, balances y renovaciones                  | T038                                              | revisión  | Panel financiero visible en preview; persistencia real pendiente                                     |
-| T051 | Implementar reportes de students, attendance, memberships y revenue manual | T029,T038                                         | revisión  | Informes y exportes de miembros visibles/probados; conjunto del piloto pendiente                     |
-| T052 | Implementar reportes de progreso, reconocimiento y assessment coverage     | T042                                              | pendiente | Filtros y privacidad probados                                                                        |
-| T053 | Implementar exportación de datos autorizada y auditable                    | T019,T051,T052                                    | revisión  | Exportación PDF de miembros con límites, rate limit y cleanup probada; exportación general pendiente |
-| T054 | Configurar backups, restauración y runbook de rollback                     | T013,T024                                         | pendiente | Restauración de staging demostrada                                                                   |
-| T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T018,T019,T021-T033,T037-T042,T045,T047-T054,T083 | revisión  | Unitarias, Rules, integración y E2E sintético documentadas; QA completo por rol y release pendientes |
-| T056 | Ejecutar piloto con datos controlados y corregir hallazgos                 | T055                                              | pendiente | Acta de piloto aprobada                                                                              |
+| T049 | Implementar dashboard diario de clases, asistencia y child check-out       | T031                                              | aprobada  | Dashboard diario conectado a sesiones, asistencia y check-out canónicos; callable staff-only, límite de 24 h y vista agregada sin roster; gates registrados abajo |
+| T050 | Implementar dashboard financiero, balances y renovaciones                  | T038                                              | aprobada  | Proyección read-only conectada a membresías, facturas y pagos canónicos; contrato sin PII/IDs sensibles y gates completos; aprobada 2026-08-24 |
+| T051 | Implementar reportes de students, attendance, memberships y revenue manual | T029,T038                                         | aprobada  | Reporte agregado owner/admin conectado a fuentes canónicas; tenant-scoped, rango máximo de 31 días y sin PII/IDs; gates registrados abajo |
+| T052 | Implementar reportes de progreso, reconocimiento y assessment coverage | T042 | aprobada | Aggregate staff-only tenant-scoped, coverage/recognition/readiness y privacidad sin IDs |
+| T053 | Implementar exportación de datos autorizada y auditable                    | T019,T051,T052                                    | aprobada  | CSV agregado T051/T052 owner/admin, piloto sintético fail-closed, journal y auditoría atómicos, rate limit persistente y sin PII/IDs ni archivo server-side; gates registrados abajo |
+| T054 | Configurar backups, restauración y runbook de rollback | T013,T024 | revisión | Contrato fail-closed, checksum/conteos, rehearsal Emulator apply→rollback y runbook verificados; revalidado 2026-08-24 con unitarias 6/6, Firestore Emulator 1/1 y E2E 2/2 |
+| T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T018,T019,T021-T033,T037-T042,T045,T047-T054,T083,T086 | revisión  | Gates revalidados: unitarias 147/1036, Rules 8/64, typecheck, lint, formato, baseline sintético y E2E 67/67 (14 escenarios live/staging omitidos); faltan carga live/staging y decisiones bloqueadas del MVP |
+| T056 | Ejecutar piloto con datos controlados y corregir hallazgos                 | T055                                              | pendiente | Paquete de preparación docs/operations/t056-pilot-readiness-packet.md; E2E completo 67 pasados, 14 omitidos y 0 fallos; falta aprobar el acta y resolver los gates restantes |
 | T057 | Preparar checklist post-piloto de producción, monitoreo, costos y rollback | T056                                              | pendiente | Gates de despliegue completos; no forma parte de la aceptación de `T056`                             |
 | T058 | Desplegar a producción con confirmación explícita del operador             | T057                                              | pendiente | Deployment verificado y rollback disponible; fuera del piloto                                        |
 | T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md`        | T058                                              | pendiente | Lección registrada después de producción; fuera del piloto                                           |
@@ -380,6 +380,7 @@ la evidencia; `Lista/Lista.js` debe reflejar esta sección sin crear tareas fuer
 | T082 | Establecer sincronización permanente entre `tasks.md` y `Lista/`                             | T001           | aprobada | Regla persistente añadida a `AGENTS.md`, Copilot y `MASTER_PROMPT.md`; 83 entradas únicas sincronizadas y `Lista.js` verificado |
 | T084 | Impedir que el importador de PDFs trate producción como staging y limitar writes al emulador | T080,T085      | aprobada | Runner/CLI emulator-only, fuente sintética temporal, symlinks rechazados y gates globales verdes; aprobada 2026-08-23           |
 | T085 | Fijar `nanoid >=3.3.18` y excluir caches Graphify del formatter                              | T002           | aprobada | `nanoid@3.3.18`, audit sin high/critical y formato global verde; aprobada 2026-08-23                                            |
+| T086 | Aislar E2E sintético de red externa y diferir el resolver del popup de Google                | T014,T049,T050 | aprobada | Resolver Google diferido hasta el sign-in y fixture operativa explícita; unitarias 1036/1036 y E2E 67/67; aprobada 2026-08-24   |
 
 ## Plan de implementación del MVP aprobado
 
@@ -3066,3 +3067,192 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
     - Audit: `corepack pnpm audit --audit-level high` -> 0 high / 0 critical (2 moderadas transitivas documentadas en DR-001).
     - Git diff: `git diff --check` -> OK.
 - Estado: `T025` pasa a `revisión` en `tasks.md` y `Lista/Lista.js`. No es aprobación de producción ni habilita escrituras o claims reales. Sin migraciones, secretos, dependencias nuevas, despliegues ni commits.
+
+### Evidencia T047 - Safeguarding de avisos de menores (2026-08-23)
+
+- Backend: `apps/functions/src/announcements/announcement-callables.ts` resuelve únicamente el estudiante canónico activo del tenant y sus relaciones guardian activas; rechaza guardian cruzado, estudiante adulto y payloads/IDs inválidos. Solo el guardian puede marcar su aviso como leído; el alumno adulto recibe una lista vacía.
+- Persistencia: `apps/functions/src/announcements/announcement-service.ts` valida IDs antes de construir paths Firestore/in-memory. Se añadió el mapping de deploy para `@bpt-jersey/domain/announcements` en `apps/functions/src/deploy-runtime.ts`; no hubo migración ni escritura en producción.
+- Portal: `apps/web/src/app/account/guardian-notices.tsx` consume el callable, no renderiza `minorStudentId`, ofrece estado de carga/error/vacío y marcado de lectura; se cubrieron pruebas de regresión y estilos accesibles.
+- Verificación: `corepack pnpm test:unit` -> 111 archivos, 919/919; `corepack pnpm test:rules` -> 8 archivos, 63/63; `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm build` y `git diff --check` pasan. Prettier focused de todos los archivos modificados pasa.
+- Browser: gateway cliente `tests/login-gateway.spec.ts` -> 8/8 desktop/móvil. El smoke global quedó 3 fallos conocidos del shell admin protegido sin `NEXT_PUBLIC_ADMIN_E2E`; homepage 2/2, y no afecta `/account` ni T047.
+- Seguridad: `corepack pnpm audit --audit-level high` -> 0 high/critical; permanecen 2 vulnerabilidades moderate transitivas del baseline. El `format:check` global sigue señalando cinco archivos preexistentes no modificados fuera de T047; el alcance modificado está formateado.
+- Estado: `T047` pasa a `aprobada` para el alcance técnico del piloto; no habilita producción ni datos reales.
+
+### Evidencia T048 - Recordatorios in-app de pagos y asistencia (2026-08-23)
+
+- Contrato: \`packages/domain/src/reminders/reminder-contracts.ts\` genera recordatorios derivados y fail-closed para saldo/deuda de pagos y ausencias recientes; no crea persistencia, migración ni duplicación del estado canónico.
+- Audiencia y seguridad: \`apps/functions/src/reminders/reminder-callables.ts\` permite únicamente \`guardian\` y \`adultStudent\`, resuelve el tenant/familia/estudiante desde las fuentes canónicas y rechaza payloads no nulos, roles no autorizados y audiencias no resolubles. La respuesta no expone IDs internos.
+- Portal: \`/account\` incorpora \`apps/web/src/app/account/client-reminders.tsx\`, con estados de carga, error y vacío; \`apps/web/src/lib/reminders-client.ts\` valida la allowlist antes de renderizar.
+- Verificación: pruebas focalizadas \`13/13\`; \`corepack pnpm test:unit\` -> 115 archivos, 930 pruebas pasadas; \`corepack pnpm test:rules\` termina con código 0; \`corepack pnpm typecheck\`, \`corepack pnpm lint\`, \`corepack pnpm build\` y \`git diff --check\` pasan; Prettier focalizado pasa.
+- Browser y dependencias: gateway cliente \`tests/login-gateway.spec.ts\` -> 8/8 desktop/móvil. \`corepack pnpm audit --audit-level high\` -> 0 high/critical; permanecen 2 vulnerabilidades moderate transitivas del baseline.
+- Limitación explícita: esta primera versión es on-demand y todavía no incluye marcado persistente de leído; no se aplicó despliegue ni migración.
+- Estado: `T048` pasa a `aprobada` para el alcance técnico del piloto; no habilita producción ni datos reales.
+
+### Evidencia T046 - Email/SMS e historial externo (2026-08-23)
+
+- Contrato: packages/domain/src/delivery/delivery-contracts.ts valida canal, destinatario, plantilla, variables, tenant y fechas; email exige formato de correo y SMS E.164. El historial excluye destinatario, variables, cuerpo, tokens y credenciales.
+- Backend: apps/functions/src/delivery/delivery-service.ts ofrece ExternalDeliveryProvider, historial Firestore/in-memory tenant-scoped, idempotencia por deliveryId, máximo de 3 intentos y backoff acotado solo para fallos retryable. El proveedor unconfigured registra skipped/provider_unconfigured sin red ni gasto.
+- Empaquetado y documentación: se añadió el mapping @bpt-jersey/domain/delivery en apps/functions/src/deploy-runtime.ts; el alcance, secretos, degradación y costo quedan documentados en docs/email-sms-delivery.md y STACK.md. No se seleccionó proveedor real ni se activaron credenciales.
+- Seguridad: firestore.rules conserva default-deny para deliveryEvents; no hay endpoint público, logs de destinatarios/variables ni secretos hardcodeados. La comunicación a menores sigue requiriendo la política de tutor antes de una activación real.
+- Verificación: contract/service tests focalizados 7/7; corepack pnpm test:unit -> 117 archivos, 937 pruebas pasadas; deploy-runtime 2/2; corepack pnpm typecheck, corepack pnpm lint, corepack pnpm build, Prettier focused y git diff --check pasan; corepack pnpm audit --audit-level high -> 0 high/critical y 2 moderate transitivas del baseline.
+- Limitación explícita: la integración con un proveedor real, sus credenciales, alertas de gasto, opt-in/preferencias y orquestación de destinatarios quedan pendientes de decisión post-piloto; no se hizo llamada externa, despliegue ni migración.
+- Estado: T046 pasa a revisión; no es aprobación de producción ni habilita envío real.
+
+### Evidencia T052 - Reportes de progreso, reconocimiento y assessment coverage (2026-08-23)
+
+- Contrato y cálculo: `packages/domain/src/levels/level-contracts.ts` agrega un reporte agregado sin identificadores de estudiantes con alumnos activos, cobertura de evaluaciones, candidatos de reconocimiento, elegibilidad de promoción, desglose por nivel y cobertura por skill; el cálculo es zero-safe y no duplica estudiantes.
+- Backend: `apps/functions/src/levels/progress-report-callables.ts` expone `getProgressReport` solo a `owner`, `administrator`, `headCoach` y `coach`, acepta únicamente payload nulo y toma el tenant del actor. `progress-report-service.ts` filtra membresías activas y rechaza registros cruzados antes de combinar asistencia y evaluaciones.
+- Portal: `/admin/reports` incorpora un panel live responsive. `apps/web/src/lib/levels-client.ts` valida una allowlist estricta de la respuesta antes de renderizar; la UI solo muestra agregados y no nombres, correos ni IDs.
+- Verificación: pruebas focalizadas T052 19/19; `corepack pnpm test:unit` -> 121 archivos, 946 pruebas pasadas; typecheck, lint, build, Prettier focalizado de código y `Lista/Lista.js`, y `git diff --check` pasan; el Markdown completo conserva diferencias históricas de formato fuera del alcance.
+- QA y límites: se cubrieron rol no autorizado, autenticación, payload inválido, aislamiento tenant, respuesta malformada, estado de error/reintento, catálogo vacío y ausencia de identificadores. Es una proyección on-demand; no agrega persistencia, migración, despliegue ni acceso cliente directo a Firestore.
+- Estado: `T052` pasa a `aprobada` para el alcance técnico del piloto; no habilita producción ni datos reales.
+
+### Evidencia T054 - Backup y restauración (2026-08-23)
+
+- Contrato y seguridad: `apps/functions/src/data/backup-contracts.ts` define allowlist tenant-scoped, manifest versionado, conteos, checksum SHA-256, retención provisional y rutas internas; `backup-service.ts` rechaza cruces de `academyId`, IDs inválidos, duplicados y campos de secretos. Auth/RTDB presence/credenciales/tokens/card data quedan fuera.
+- Frontera operativa: `backup-callables.ts` limita creación/verificación/preparación a `owner`/`administrator`, exige App Check y rechaza payloads/rutas arbitrarias. El adaptador productivo queda fail-closed hasta aprobar almacenamiento privado, cifrado, ACL, residencia y retención.
+- Reversión: `restore-runbook.md` documenta backup verificado, token exacto `RESTORE:{operationId}`, captura rollback previa, apply aislado y parada ante fallo. `runTenantRestoreRehearsal` prueba apply → error sintético → rollback.
+- Verificación: unitarias focalizadas 6/6; suite completa `corepack pnpm test:unit` -> 123 archivos, 952 pruebas pasadas; Firestore Emulator rehearsal 1/1; E2E safety desktop/mobile 2/2; Rules código 0; typecheck, lint, build, Prettier focalizado y `git diff --check` pasan.
+- Seguridad y costos: `corepack pnpm audit --audit-level high` -> 0 high/critical; permanecen 2 vulnerabilidades moderate transitivas del baseline. No hubo backup/restore real, migración, despliegue ni gasto externo.
+- Estado: `T054` pasa a `revisión`; no es aprobación de producción.
+
+### Revalidación técnica T054 - Backup y restauración (2026-08-24)
+
+- Pruebas: vitest focalizado de backup-service y backup-callables pasó 2 archivos / 6 pruebas; rehearsal aislado con Firestore Emulator pasó 1 archivo / 1 prueba (apply -> error sintético -> rollback); E2E backup-restore pasó 2/2 en desktop y móvil.
+- Gates estáticos: typecheck de @bpt-jersey/functions, ESLint focalizado, Prettier focalizado y git diff --check pasan.
+- Seguridad: la revisión focalizada no encontró logs, evaluación dinámica, HTML peligroso ni secretos; las coincidencias de accessToken están confinadas al validador y a la prueba negativa. El servicio productivo continúa unavailable/fail-closed.
+- Entorno y límites: el rehearsal usó proyecto demo y puerto aislado del Emulator; no hubo backup/restore real, datos reales, migración, despliegue ni gasto externo. Retención, cifrado, ACL, residencia y eliminación productivas siguen pendientes de T011/T018.
+
+
+### Evidencia T055 - QA release candidate y correccion responsive (2026-08-23)
+
+- Correccion: `apps/web/src/app/admin/admin-shell.tsx` muestra el rol autorizado tambien en el encabezado visible en movil; `qa/tests/admin-auth.spec.ts` verifica el texto exacto para `owner` y `administrator`.
+- Gates: `corepack pnpm test:unit` -> 123 archivos, 952 pruebas pasadas; `corepack pnpm test:rules` -> 8 archivos, 63 pruebas pasadas; `corepack pnpm typecheck`, `corepack pnpm lint`, `corepack pnpm build`, auditoria sin high/critical y `git diff --check` pasan. Prettier focalizado del alcance modificado pasa.
+- Browser: `NEXT_PUBLIC_ADMIN_E2E=true node qa/run-e2e.mjs` -> 77 tests, 63 pasados y 14 omitidos por depender de Auth/staging o ser opt-in; desktop y movil pasan, incluyendo owner, administrator, coach, guardian y adultStudent. La prueba enfocada de autenticacion queda 14/14.
+- Rendimiento local: build web medido en 6,26 s; `apps/web/out` en 185 archivos y 2,59 MB. No equivale a una prueba de carga ni a una medicion de staging.
+- Limites: el smoke normal sin `NEXT_PUBLIC_ADMIN_E2E` mantiene los 3 fallos conocidos del shell administrativo protegido; el `format:check` global conserva tres archivos preexistentes fuera de este alcance; no hay Auth/staging real, prueba de carga completa ni despliegue.
+- Estado: `T055` permanece en `revision`; `T056` permanece `pendiente`. No se habilita produccion.
+
+
+### Evidencia T055 - Revalidacion de gates (2026-08-24)
+
+- Formato y diff: corepack pnpm format:check y git diff --check pasan después de formatear tres archivos del alcance de announcements/safeguarding.
+- Gates locales: corepack pnpm test:unit -> 123 archivos, 952 pruebas pasadas; corepack pnpm test:rules -> 8 archivos, 63 pruebas pasadas usando configuración temporal local; corepack pnpm typecheck y corepack pnpm lint pasan.
+- Build: NEXT_PUBLIC_ADMIN_E2E=true corepack pnpm --filter @bpt-jersey/web build pasa con acceso temporal de red para descargar las fuentes requeridas por Next.js.
+- Browser: NEXT_PUBLIC_ADMIN_E2E=true node qa/run-e2e.mjs pasa 63 casos y omite 14 escenarios live/staging u opt-in; el bloqueo local ERR_NETWORK_ACCESS_DENIED de apis.google.com desaparece al ejecutar la misma suite con red aprobada. No se usaron credenciales de producción.
+- Auditoria: corepack pnpm audit --audit-level high no pudo consultar el endpoint de advisories por restricción de red; la última evidencia disponible conserva 0 high/critical y 2 vulnerabilidades moderate transitivas documentadas en DR-001.
+- Limitaciones: no se ejecutó prueba de carga completa ni validación live/staging; T018, T023 y T024 siguen pendientes o bloqueadas por T011. T055 permanece en revision, T056 en pendiente, sin despliegue ni migración.
+
+### T011 - Ruta segura de piloto documentada - 2026-08-24
+
+- Se añadió a `docs/operations/t011-retention-residency-deletion-decision-packet.md` una ruta de avance separada de la autorización de producción.
+- Alcance propuesto: contratos, adapters, UI y pruebas de T023/T024 únicamente con emuladores/staging aislado y datos sintéticos o sanitizados.
+- Los caminos de producción para salud/soporte, waivers y documentos privados quedan fail-closed mientras T011 siga bloqueada: sin escrituras, importaciones, subidas ni lecturas de datos reales.
+- T023 conserva los límites de mínimo dato ya especificados; T024 puede validar autorización de objetos privados, URLs firmadas, expiración, hashes y rollback con fixtures.
+- No se cambió el estado de T011, T018, T023 ni T024. Antes de datos reales o despliegue se requiere confirmación explícita del operador y la revisión aplicable en Jersey, con matriz fechada de retención, residencia, transferencias, borrado, backups y restauración.
+
+### Evidencia T023/T024 - Implementación técnica de piloto - 2026-08-24
+
+- T023: se añadieron contratos de dominio con vocabulario cerrado (none, mobility, sensory, communication, supervision), conditionSummary máximo 1000, staffReferenceLabel máximo 25, fechas y allowlists exactas.
+- T023: health-service.ts implementa tenant scoping, relación guardian vigente, asignación coach fail-closed, solicitudes únicas pending, aprobación atómica, desactivación sin hard delete y proyecciones sin referencia staff para guardian.
+- T023: los callables de lectura/escritura y revisión requieren autenticación/rol y están bloqueados salvo BPT_SYNTHETIC_PILOT=true.
+- T024: se añadieron contrato y adaptador de documentos privados para waiver PDF: object key tenant-scoped, URL de subida/descarga de 600 s, hash SHA-256, tamaño declarado, finalización, autorización guardian/admin y revocación no destructiva.
+- T024: los callables de upload/finalize/download/revoke están bloqueados fuera del piloto sintético; R2 usa el cliente existente y no se crearon buckets ni se leyeron credenciales de producción.
+- Runtime: los nuevos subpaths se registraron en packages/domain/tsconfig.runtime.json y apps/functions/src/deploy-runtime.ts; la prueba de empaquetado runtime pasa.
+- Verificación real: corepack pnpm test:unit -> 129 archivos, 966/966; corepack pnpm typecheck -> pasa en los 6 proyectos; corepack pnpm lint -> pasa; corepack pnpm format:check -> pasa; git diff --check -> pasa; pruebas focalizadas T023/T024 -> 6 archivos, 14/14; deploy-runtime.test.ts -> 2/2.
+- Autocrítica: no hay acceso directo por Firestore Rules, no se exponen actores/IDs de solicitudes a guardian, la autorización precede la lectura restringida, y las URLs R2 se emiten fuera de transacciones. No hay migración, despliegue, datos reales ni gasto externo.
+- Estado: T023 y T024 pasan a revisión únicamente para el alcance técnico de piloto. No son aprobación de producción; T011 y T018 permanecen abiertos para datos reales, retención, residencia, borrado, consentimiento y waiver final.
+
+
+
+### Evidencia T023 - UI de familia del piloto - 2026-08-24
+
+- Se añadió apps/web/src/lib/health-client.ts como frontera callable tipada: valida proyecciones redacted, allowlist de códigos, IDs de entrada y normaliza errores sin filtrar detalles del backend.
+- Se añadió apps/web/src/app/account/family/health-support-panel.tsx dentro de la vista familiar: muestra únicamente soporte mínimo operacional, estado de revisión y contexto permitido; permite solicitar y cancelar cambios mediante callables, sin acceso directo a Firestore.
+- La UI no renderiza studentId, requestId, academyId ni staffReferenceLabel en el DOM; los identificadores permanecen en la frontera de datos/acciones.
+- UX: estados loading/empty/error, mensajes seguros, controles de teclado, foco visible, diseño responsive, y respeto de prefers-reduced-motion, siguiendo la identidad visual existente en STACK.md.
+- Verificación real posterior a la UI: corepack pnpm typecheck pasa en los 6 proyectos; corepack pnpm lint pasa; corepack pnpm format:check pasa; git diff --check pasa; suite unitaria completa: 131 archivos y 971/971 pruebas; pruebas focalizadas UI/cliente: 3 archivos y 8/8.
+- Estado: T023 continúa en revisión únicamente para el alcance técnico del piloto sintético. No se habilitó producción ni se modificaron Rules, migraciones, datos reales o secretos.
+
+
+### Evidencia T023 - revisión administrativa del piloto - 2026-08-24
+
+- Se amplió apps/web/src/lib/health-client.ts con la proyección administrativa estricta, alta/edición de perfiles, lectura bajo demanda y reviewHealthProfileChangeRequest para aprobar o rechazar cambios.
+- Se añadió apps/web/src/app/admin/families/health-support-admin-panel.tsx e integración en la familia guardada de /admin/families. El panel permite abrir revisión, crear/editar soporte mínimo, conservar staffReferenceLabel solo en el contexto administrativo y decidir solicitudes guardian.
+- La UI evita renderizar studentId, requestId, academyId y campos de auditoría; las acciones sensibles permanecen detrás de los callables protegidos por rol y por BPT_SYNTHETIC_PILOT.
+- Verificación real: suite enfocada del flujo familiar/administrativo 5 archivos, 14/14; suite completa 133 archivos, 976/976; typecheck en los 6 proyectos, lint y format:check pasan; no hubo migraciones, despliegues, secretos ni datos reales.
+- Estado: T023 continúa en revisión únicamente para el alcance técnico del piloto sintético. La activación productiva sigue bloqueada por T011/T018.
+
+### Evidencia T023 - cierre técnico del piloto sintético - 2026-08-24
+
+- T023 queda **técnicamente resuelta y permanece en revisión del operador únicamente para el alcance del piloto sintético**. No autoriza producción, datos reales, migraciones, despliegue ni gasto externo.
+- Corrección aplicada en apps/functions/src/health/health-service.ts: todas las lecturas de la transacción de guardado ocurren antes de la escritura, evitando transacciones inválidas en Firestore.
+- Verificación real: corepack pnpm test:unit -> 133 archivos, 976/976; Rules focalizadas en Firestore Emulator -> 1 archivo, 4/4; integración Firestore Emulator -> 1 archivo, 1/1; corepack pnpm typecheck, lint y format:check pasan.
+- Cobertura del piloto: autorización por tenant/rol, relación guardian vigente, proyección guardian redacted, aprobación administrativa atómica, rechazo de accesos no relacionados y bloqueo de lecturas/escrituras directas por Rules.
+- T023 permanece en revisión técnica del piloto; T011 permanece bloqueada y T018 pendiente. La activación productiva de salud/soporte continúa cerrada hasta resolver ambos gates.
+
+### Evidencia T024 - endurecimiento y validación del piloto privado - 2026-08-24
+
+- Se endureció apps/functions/src/documents/private-document-service.ts: solo menores activos pueden iniciar/finalizar un waiver y una descarga guardian exige relación activa, vigente en tiempo y dentro del tenant.
+- Se endureció packages/domain/src/documents/document-contracts.ts: objectKey debe coincidir exactamente con academy, student y documentId; se mantienen PDF-only, límite de 10 MiB, hash SHA-256 y timestamps estrictos.
+- Verificación real: corepack pnpm test:unit -> 133 archivos, 979/979; pruebas focalizadas T024 -> 4 archivos, 20/20; integración Firestore Emulator con R2 sintético -> 1 archivo, 1/1; Rules directas de salud/documentos -> 4/4; corepack pnpm typecheck, lint y format:check pasan.
+- La integración cubre URL de subida sintética, finalización con hash/tamaño, descarga guardian autorizada, rechazo de guardian no relacionado y revocación no destructiva. No se usó bucket R2 real, credenciales, datos reales, migración ni despliegue.
+- T024 permanece en revisión técnica del piloto. El cierre productivo sigue bloqueado por T011/T018 y por las decisiones de residencia, retención y borrado.
+
+### Evidencia T055 - reconciliación del QA tras T023/T024 - 2026-08-24
+
+- La nueva cobertura del piloto privado y de salud se incorpora al control de calidad: la suite unitaria completa queda en 133 archivos y 979/979 pruebas; las Rules focalizadas de salud/documentos pasan 4/4; la integración Firestore/R2 sintética de T024 pasa 1/1.
+- Typecheck, lint, format:check, git diff --check y el chequeo sintáctico de Lista/Lista.js pasan en el alcance revalidado.
+- La suite completa test:rules pasó en Firebase Emulator: 8 archivos y 64 pruebas; los PERMISSION_DENIED observados corresponden a aserciones negativas esperadas.
+- Esto actualiza la evidencia técnica del release candidate, pero no completa T055: siguen pendientes la carga completa, las validaciones live/staging, la revisión del operador y los escenarios dependientes de T018. T055 permanece en revisión y no habilita producción.
+
+### Evidencia T055 - baseline de rendimiento sintético - 2026-08-24
+
+- Se midió buildSessionOperationalView con 1.000 reservas, 500 asistencias y 250 check-outs sintéticos durante 25 iteraciones: mediana 0,579 ms, p95 1,533 ms y máximo 2,088 ms.
+- El reporte reproducible queda en docs/operations/t055-performance-baseline.md. No se aplicó optimización especulativa: la medición no muestra cuello de botella en la proyección pura.
+- Revalidación de Rules: corepack pnpm test:rules → 8 archivos, 64/64 pruebas, código de salida 0. La prueba se ejecutó con Firebase Emulator y sin datos reales.
+- El resultado no sustituye carga de Firebase, red, navegador o staging; T055 continúa en revisión con esas validaciones pendientes y sin habilitar producción.
+
+### Aprobación técnica T047/T048/T052 - 2026-08-24
+
+- T047: safeguarding tenant-scoped para avisos de menores, proyección sin identificador interno del menor, Rules y E2E verificados.
+- T048: recordatorios derivados on-demand con audiencia tenant-scoped, allowlist y gates verdes; sin persistencia adicional.
+- T052: reporte agregado staff-only con aislamiento tenant, allowlist, ausencia de identificadores y pruebas focalizadas 19/19.
+- Estas aprobaciones son técnicas y de alcance piloto; no habilitan producción, canales externos, datos reales, migraciones ni sustituyen T011/T018.
+
+### Aprobación técnica T049 - dashboard operativo diario - 2026-08-24
+
+- Implementación: buildDailyOperationsDashboard ordena snapshots y elimina roster; el store Firestore/in-memory compone sesiones, reservas, asistencia y check-out desde las fuentes canónicas.
+- Seguridad: callable getDailyOperationsDashboard exige actor autenticado con rol owner/administrator/headCoach/coach, conserva academyId del actor, valida el rango ISO y rechaza consultas mayores a 24 horas. La UI solo renderiza métricas operativas; no expone identificadores de estudiantes ni roster.
+- QA: pruebas focalizadas dominio 66/66, callable 13/13 y UI 2/2; suite unitaria completa 134 archivos/983 pruebas; typecheck, build de Functions, lint, formato y git diff --check pasan. E2E sintético completo: 63 pasaron, 14 omitidos por live/staging u opt-in, 0 fallos con red permitida.
+- Alcance: aprobada técnicamente para el piloto con datos sintéticos/emulador; no habilita producción, datos reales, migraciones, staging ni resuelve T011/T018. T050/T051/T053 siguen en revisión.
+
+### Aprobación técnica T051 - reportes operativos agregados - 2026-08-24
+
+- Implementación: `packages/domain/src/reports/operational-report.ts`, `apps/functions/src/reports/` y `apps/web/src/app/admin/reports/operational-report-card.tsx` conectan estudiantes, asistencia, membresías y finanzas manuales GBP desde las colecciones canónicas existentes, sin crear esquema ni persistencia adicional.
+- Contrato y seguridad: `getOperationalReport` exige `owner` o `administrator`, deriva `academyId` del actor, rechaza payloads extra y rangos mayores a 31 días, falla cerrado ante registros cruzados y devuelve únicamente agregados sin nombres, correos ni IDs. El cliente valida allowlist, coherencia de subtotales y coincidencia exacta del rango solicitado.
+- Pruebas avanzadas: contratos entre dominio/backend/web, roles negativos, payload malicioso, tenant mismatch, respuesta inconsistente, ausencia de identificadores y E2E sintético de filtro/desktop/móvil. La carga real y el punto de quiebre de Firestore permanecen en T055.
+- Verificación: `corepack pnpm test:unit` -> 139 archivos y 998/998 pruebas; `corepack pnpm test:rules` -> 8 archivos y 64/64; E2E completo -> 65/65 ejecutadas y 14 omitidas por live/staging u opt-in; build web sintético, build de Functions, typecheck, lint, format:check y `git diff --check` pasan. `pnpm audit --audit-level high` reporta 0 high/critical y conserva 2 moderate transitivas del baseline.
+- Regresión corregida: el runtime desplegable vuelve a exportar los callables operativos de T049 y ahora prueba `getDailyOperationsDashboard`, `recordCheckout` y `getOperationalReport`; los fixtures E2E de shell/familias quedaron sincronizados con las superficies conectadas actuales.
+- Alcance: `T051` queda aprobada técnicamente para el piloto sintético. Esto desbloquea técnicamente `T053`, pero no habilita producción, datos reales, migraciones, despliegue ni resuelve T011/T018; staging y carga completa siguen pendientes.
+
+### Aprobación técnica T053 - exportación agregada autorizada y auditable - 2026-08-24
+
+- Alcance: `prepareAggregateReportExport` entrega únicamente `operational_and_progress_aggregates`, compuesto por las proyecciones agregadas ya autorizadas de T051/T052. Exige `owner` o `administrator`, deriva tenant y destinatario del actor, acepta tres propósitos cerrados, reutiliza el rango máximo de 31 días y falla cerrado fuera de `BPT_SYNTHETIC_PILOT=true`. Perfiles, nombres, correos, documentos, salud, safeguarding, consentimientos, evidencias de pago e IDs fuente quedan excluidos.
+- Implementación: el dominio genera CSV determinista con neutralización de fórmulas y límite UTF-8 de 64 KiB. El servicio calcula SHA-256 y, antes de devolver bytes, crea en una misma transacción el journal `exports` y el evento append-only `report.export.prepared`; el archivo se entrega inline y nunca se persiste en Firestore o R2. La UI de Reports permite propósito/rango y descarga mediante Blob con nombre allowlisted.
+- Seguridad y datos: claims/path/tenant/actor se validan antes del rate limit; referencias desviadas cross-tenant, payloads extra, destinatario arbitrario, salida sobredimensionada, reloj/contador malformado y respuestas inconsistentes fallan cerrado. `exportRateLimits` conserva un contador Restricted por tenant/actor, máximo 5 solicitudes/5 minutos; Rules niegan acceso directo a `exports`, `auditEvents` y `exportRateLimits`. El cambio de esquema es aditivo, sin migración ni write productivo; rollback documentado en `docs/data/firestore-data-model.md`.
+- QA: pruebas focalizadas de contrato, auditoría, servicio, callable/rate limit, cliente y UI -> 40/40; suite unitaria completa -> 143 archivos y 1019/1019 pruebas; Rules completas -> 8 archivos y 64/64 en emuladores con puertos aislados para no interferir con otro workspace; E2E completo -> 65 pasadas y 14 live/staging/opt-in omitidas, incluyendo descarga CSV desktop/móvil y ausencia de IDs/PII. Build web sintético, build de dominio/Functions, runtime desplegable, typecheck, lint, format:check y `git diff --check` pasan. `pnpm audit --audit-level high` conserva 2 moderate transitivas y 0 high/critical.
+- Alcance operativo: T053 queda aprobada técnicamente solo para el piloto sintético/emulador. No habilita datos reales, producción, migraciones, despliegue ni almacenamiento de exports; T011/T018, carga live/staging de T055 y la confirmación explícita del operador siguen bloqueando producción.
+
+### Aprobación técnica T050 - dashboard financiero conectado - 2026-08-24
+
+- Implementación: proyección read-only sobre las colecciones canónicas de T033/T037/T038 (`memberships`, `invoices` y `payments`), sin colección, migración, write ni estado duplicado. La UI entrega métricas GBP, saldos, pagos recientes y una ventana fija de renovaciones de 30 días con loading, error, retry, refresh y filtros responsive.
+- Seguridad: `getFinancialDashboard` exige identidad verificada y rol activo `owner` o `administrator`, deriva `academyId` del actor y limita cada fuente a 5.000 documentos. Relaciones cross-tenant, huérfanas, duplicadas, estados financieros incoherentes, sobreasignación, overflow, payloads extra y respuestas con campos no allowlisted fallan cerrado. La respuesta excluye nombres, correos, family/student/membership IDs, método de pago, referencias del proveedor, datos de tarjeta y auditoría.
+- QA: contratos y vertical focalizada 28/28; suite unitaria completa 147 archivos y 1036/1036; Rules completas 8 archivos y 64/64; E2E T050 2/2 y E2E completo 67/67, con 14 escenarios live/staging/opt-in omitidos. Typecheck, lint, format:check, builds de dominio/Functions/web sintética y normal, y `git diff --check` pasan. Audit: 0 high/critical y 2 moderate transitivas del baseline.
+- Hallazgos corregidos: coherencia entre métricas y filas visibles, plan IDs cerrados, claves de filas estables y ciclo de loading compatible con React 19. Alcance únicamente sintético/emulador; no habilita cobros automáticos, datos reales, staging, despliegue ni producción. T011/T018 mantienen el bloqueo productivo.
+
+### Aprobación técnica T086 - aislamiento de red E2E y Google Auth diferido - 2026-08-24
+
+- Diagnóstico reproducido: las pruebas genéricas de autorización cargaban el callable real `getDailyOperationsDashboard`, y `getAuth` inicializaba de forma anticipada `apis.google.com/js/api.js` aun para sesiones desconectadas.
+- Corrección: Firebase Auth conserva el mismo orden de persistencia pero se inicializa sin resolver OAuth; `browserPopupRedirectResolver` se entrega explícitamente solo al ejecutar Google sign-in. La fixture de autorización responde al dashboard diario con un contrato sintético exacto, sin ocultar otras peticiones inesperadas.
+- Verificación: prueba Auth 5/5, gates focalizados desktop/móvil 28/28, suite unitaria 147/1036 y E2E completa 67/67 con 14 omisiones live/staging. No se cambiaron credenciales, roles, claims, emuladores ni destinos de producción.

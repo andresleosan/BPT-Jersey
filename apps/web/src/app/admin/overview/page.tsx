@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
 import { previewData, type PreviewClass } from "../preview-data";
+import { LiveOperationsPanel } from "./live-operations-panel";
 
 import "../admin.css";
 
@@ -120,6 +121,8 @@ export function OverviewPage() {
           </Link>
         </section>
       </div>
+
+      <LiveOperationsPanel />
     </section>
   );
 }

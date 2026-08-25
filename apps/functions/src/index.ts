@@ -53,6 +53,7 @@ export {
   recordManualPayment,
   voidManualInvoice,
 } from "./finance/finance-callables.js";
+export { getFinancialDashboard } from "./finance/financial-dashboard-callables.js";
 export {
   approvePromotion,
   getStudentProgressSummary,
@@ -65,19 +66,30 @@ export {
   recordMedicalLeave,
   rejectPromotion,
 } from "./levels/level-callables.js";
+export { getProgressReport } from "./levels/progress-report-callables.js";
+export { getOperationalReport } from "./reports/operational-report-callables.js";
+export { prepareAggregateReportExport } from "./exports/aggregate-report-export-callables.js";
 export {
   cancelBooking,
   cancelSession,
   checkIn,
+  correctAttendance,
   evaluateSessionMinimum,
   generateSessions,
+  getDailyOperationsDashboard,
+  getSessionOperationalView,
+  getStudentCheckout,
+  listAttendanceHistory,
   listClasses,
   listScheduleCatalog,
   listSessionAttendance,
   listSessionBookings,
+  listSessionCheckouts,
   listSessions,
   listStudentAttendance,
   listStudentBookings,
+  reconcileSessionNoShows,
+  recordCheckout,
   requestBooking,
   saveClass,
   saveProgram,
@@ -94,4 +106,24 @@ export {
   sendMinorNotice,
   updateAnnouncement,
 } from "./announcements/announcement-callables.js";
+export { listClientReminders } from "./reminders/reminder-callables.js";
+export {
+  createTenantBackup,
+  prepareTenantRestore,
+  verifyTenantBackup,
+} from "./data/backup-callables.js";
 
+export {
+  getHealthProfile,
+  saveHealthProfile,
+  deactivateHealthProfile,
+  createHealthProfileChangeRequest,
+  cancelHealthProfileChangeRequest,
+  reviewHealthProfileChangeRequest,
+} from "./health/health-callables.js";
+export {
+  createPrivateWaiverUpload,
+  finalizePrivateWaiverUpload,
+  getPrivateWaiverDownload,
+  revokePrivateWaiver,
+} from "./documents/private-document-callables.js";
