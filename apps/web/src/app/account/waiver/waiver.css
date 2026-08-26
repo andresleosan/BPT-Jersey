@@ -1,0 +1,336 @@
+.waiver-page {
+  min-height: 100vh;
+  padding: clamp(1.5rem, 4vw, 4rem);
+  background: linear-gradient(
+    135deg,
+    rgba(47, 36, 131, 0.96),
+    rgba(20, 18, 48, 0.98) 44%,
+    #f3efe8 44%
+  );
+  color: #17152a;
+}
+
+.waiver-hero {
+  max-width: 46rem;
+  margin-bottom: 2.5rem;
+  color: #fff;
+}
+
+.waiver-hero h1,
+.waiver-admin h2,
+.waiver-admin h3,
+.waiver-document h2,
+.waiver-document h3,
+.waiver-subject-card h2,
+.waiver-empty h2 {
+  font-family: var(--font-display), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.waiver-hero h1 {
+  max-width: 12ch;
+  margin: 0.35rem 0 0.75rem;
+  font-size: clamp(3rem, 8vw, 6.5rem);
+  line-height: 0.84;
+}
+
+.waiver-back-link {
+  color: #fff;
+  font-weight: 700;
+  text-underline-offset: 0.25rem;
+}
+
+.waiver-layout {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.36fr) minmax(0, 1fr);
+  gap: clamp(1rem, 3vw, 2.5rem);
+  max-width: 82rem;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.waiver-subject-card,
+.waiver-document,
+.waiver-empty,
+.waiver-current-card,
+.waiver-publish-form,
+.waiver-legal-warning {
+  border: 1px solid rgba(47, 36, 131, 0.16);
+  border-radius: 0.35rem;
+  background: #fff;
+  box-shadow: 0 1rem 3rem rgba(18, 15, 48, 0.12);
+}
+
+.waiver-subject-card {
+  position: sticky;
+  top: 1.25rem;
+  padding: 1.5rem;
+  border-top: 0.35rem solid #efc232;
+}
+
+.waiver-subject-card label,
+.waiver-subject-card select {
+  display: block;
+  width: 100%;
+}
+
+.waiver-subject-card select,
+.waiver-signature-field input,
+.waiver-admin input,
+.waiver-admin textarea {
+  min-height: 2.8rem;
+  margin-top: 0.35rem;
+  border: 1px solid #77738f;
+  border-radius: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  background: #fff;
+  color: #17152a;
+  font: inherit;
+}
+
+.waiver-subject-card dl div {
+  padding: 0.75rem 0;
+  border-top: 1px solid #e5e1ee;
+}
+
+.waiver-subject-card dt,
+.waiver-status-label,
+.waiver-version {
+  color: #5a5377;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.waiver-subject-card dd {
+  margin: 0.2rem 0 0;
+  font-weight: 700;
+}
+
+.waiver-document {
+  overflow: hidden;
+}
+
+.waiver-document-heading,
+.waiver-form,
+.waiver-status-card {
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.waiver-document-heading {
+  border-bottom: 1px solid #dfdbe8;
+  background: linear-gradient(115deg, #fff, #f5f2fb);
+}
+
+.waiver-document-heading h2 {
+  margin: 0.3rem 0 0.7rem;
+  color: #2f2483;
+  font-size: clamp(2rem, 5vw, 3.6rem);
+  line-height: 0.95;
+}
+
+.waiver-form {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.waiver-clause,
+.waiver-admin-clauses fieldset {
+  margin: 0;
+  border: 1px solid #d8d3e5;
+  border-left: 0.3rem solid #2f2483;
+  border-radius: 0.25rem;
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.waiver-clause legend,
+.waiver-admin-clauses legend {
+  padding: 0 0.4rem;
+  color: #2f2483;
+  font-family: var(--font-display), sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.waiver-clause legend span {
+  margin-left: 0.55rem;
+  color: #6e6788;
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.waiver-decision-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.waiver-decision-group label {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid #cbc5db;
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  font-weight: 700;
+}
+
+.waiver-signature-field label,
+.waiver-admin label {
+  display: grid;
+  font-weight: 700;
+}
+
+.waiver-signature-field p {
+  margin: 0.2rem 0 0;
+  color: #5a5377;
+}
+
+.waiver-signature-field input {
+  width: min(100%, 32rem);
+}
+
+.waiver-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.waiver-status-active {
+  border-left: 0.35rem solid #168456;
+}
+.waiver-status-revoked {
+  border-left: 0.35rem solid #bb3c3c;
+}
+.waiver-evidence-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-weight: 800;
+}
+
+.waiver-message,
+.waiver-empty {
+  max-width: 82rem;
+  margin: 1rem auto;
+  padding: 1rem 1.25rem;
+}
+.waiver-message-error {
+  border-left: 0.3rem solid #b62f3c;
+  background: #fff0f1;
+  color: #6e1720;
+}
+.waiver-message-success {
+  border-left: 0.3rem solid #168456;
+  background: #ecfaf3;
+  color: #0c5838;
+}
+
+.waiver-admin {
+  display: grid;
+  gap: 1.5rem;
+}
+.waiver-admin-header {
+  max-width: 48rem;
+}
+.waiver-admin-header h2 {
+  margin: 0.2rem 0;
+  font-size: clamp(2.4rem, 5vw, 4.5rem);
+  color: #2f2483;
+}
+.waiver-legal-warning {
+  padding: 1.2rem 1.4rem;
+  border-left: 0.35rem solid #efc232;
+}
+.waiver-legal-warning p {
+  margin-bottom: 0;
+}
+.waiver-admin-grid {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.34fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.waiver-current-card {
+  position: sticky;
+  top: 1rem;
+  padding: 1.4rem;
+}
+.waiver-publish-form {
+  display: grid;
+  gap: 1.3rem;
+  padding: clamp(1.2rem, 3vw, 2rem);
+}
+.waiver-form-heading h3 {
+  margin: 0;
+  font-size: 2rem;
+  color: #2f2483;
+}
+.waiver-admin-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.waiver-admin-wide {
+  grid-column: 1 / -1;
+}
+.waiver-admin textarea {
+  resize: vertical;
+  min-height: 7rem;
+}
+.waiver-admin-clauses {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.waiver-required-toggle,
+.waiver-review-confirmation {
+  display: flex !important;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.waiver-required-toggle input,
+.waiver-review-confirmation input {
+  min-height: auto;
+  margin: 0;
+}
+
+.waiver-page :focus-visible,
+.waiver-admin :focus-visible {
+  outline: 0.2rem solid #efc232;
+  outline-offset: 0.18rem;
+}
+
+@media (max-width: 800px) {
+  .waiver-page {
+    background: linear-gradient(165deg, #2f2483 0 24rem, #f3efe8 24rem);
+  }
+  .waiver-layout,
+  .waiver-admin-grid {
+    grid-template-columns: 1fr;
+  }
+  .waiver-subject-card,
+  .waiver-current-card {
+    position: static;
+  }
+  .waiver-admin-clauses,
+  .waiver-admin-fields {
+    grid-template-columns: 1fr;
+  }
+  .waiver-admin-wide {
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waiver-page *,
+  .waiver-admin * {
+    scroll-behavior: auto !important;
+  }
+}

@@ -50,6 +50,7 @@ const canonicalCollections = Object.freeze([
   "deliveryEvents",
   "healthProfiles",
   "safeguardingCases",
+  "waiverVersions",
   "consents",
   "documents",
   "auditEvents",

@@ -32,6 +32,9 @@ function AccountContent() {
       <a className="button button-secondary profile-account-link" href="/account/family">
         View your family
       </a>
+      <a className="button button-secondary profile-account-link" href="/account/waiver">
+        Review your waiver
+      </a>
       <a className="button button-secondary profile-account-link" href="/account/progress">
         View IBJJF Levels & Progress
       </a>

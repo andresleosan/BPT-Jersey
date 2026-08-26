@@ -35,6 +35,9 @@
     "src/delivery/delivery-contracts.ts",
     "src/health/health-contracts.ts",
     "src/documents/document-contracts.ts",
+    "src/consents/consent-contracts.ts",
+    "src/crm/crm-contracts.ts",
+    "src/payments/payment-contracts.ts",
     "src/reports/operational-report.ts",
     "src/exports/aggregate-report-export.ts"
   ]

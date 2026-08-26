@@ -72,6 +72,10 @@ describe("account destination", () => {
     expect(screen.getByRole("heading", { name: "Your account" })).toBeVisible();
     expect(screen.getByText("Client Name")).toBeVisible();
     expect(screen.getByText("client@example.test")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Review your waiver" })).toHaveAttribute(
+      "href",
+      "/account/waiver",
+    );
     expect(screen.queryByText(/safe-uid|academy|claim|ip address/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));

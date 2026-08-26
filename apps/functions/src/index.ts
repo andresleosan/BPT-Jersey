@@ -127,3 +127,19 @@ export {
   getPrivateWaiverDownload,
   revokePrivateWaiver,
 } from "./documents/private-document-callables.js";
+export {
+  acceptWaiver,
+  getCurrentWaiverAdmin,
+  getWaiverEvidenceDownload,
+  getWaiverRegistration,
+  publishWaiverVersion,
+  revokeWaiverConsent,
+  withdrawCurrentWaiver,
+} from "./consents/consent-callables.js";
+export {
+  createCrmLead,
+  listCrmLeads,
+  updateCrmLead,
+  transitionCrmLead,
+  listCrmLeadTimeline,
+} from "./crm/crm-callables.js";

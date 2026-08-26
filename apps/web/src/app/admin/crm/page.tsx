@@ -1,46 +1,118 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import type { LeadRecord } from "@bpt-jersey/domain/crm";
 import { AdminFilterBar, AdminSectionHeader } from "../admin-ui";
+import { listCrmLeads } from "../../../lib/crm-client";
 
 import "../admin.css";
 
-const leads = [
+const syntheticLeads: readonly LeadRecord[] = [
   {
-    name: "Morgan family",
-    stage: "Trial booked",
-    nextAction: "Confirm Thursday class",
-    owner: "Reception",
+    academyId: "demo-academy",
+    leadId: "lead-morgan-f",
+    schemaVersion: "1",
+    createdBy: "synthetic-seed",
+    updatedBy: "synthetic-seed",
+    contactReference: "Morgan family",
+    source: "website-f",
+    ownerId: "reception-f",
+    status: "trial_booked",
+    nextActionAt: "2026-08-27T10:00:00Z",
+    consentState: "unknown",
+    createdAt: "2026-08-25T10:00:00Z",
+    updatedAt: "2026-08-25T10:00:00Z",
   },
   {
-    name: "Jamie Carter",
-    stage: "New enquiry",
-    nextAction: "Call back today",
-    owner: "Admin team",
+    academyId: "demo-academy",
+    leadId: "lead-jamie-f",
+    schemaVersion: "1",
+    createdBy: "synthetic-seed",
+    updatedBy: "synthetic-seed",
+    contactReference: "Jamie Carter",
+    source: "referral-f",
+    ownerId: "admin-team-f",
+    status: "new_enquiry",
+    nextActionAt: "2026-08-26T10:00:00Z",
+    consentState: "unknown",
+    createdAt: "2026-08-25T10:00:00Z",
+    updatedAt: "2026-08-25T10:00:00Z",
   },
   {
-    name: "Riley Stone",
-    stage: "Follow-up",
-    nextAction: "Send membership options",
-    owner: "Reception",
+    academyId: "demo-academy",
+    leadId: "lead-riley-f",
+    schemaVersion: "1",
+    createdBy: "synthetic-seed",
+    updatedBy: "synthetic-seed",
+    contactReference: "Riley Stone",
+    source: "walk_in-f",
+    ownerId: "reception-f",
+    status: "follow_up",
+    nextActionAt: "2026-08-28T10:00:00Z",
+    consentState: "unknown",
+    createdAt: "2026-08-25T10:00:00Z",
+    updatedAt: "2026-08-25T10:00:00Z",
   },
-] as const;
+];
+
+const stageLabels: Record<LeadRecord["status"], string> = {
+  new_enquiry: "New enquiry",
+  trial_booked: "Trial booked",
+  trial_attended: "Trial attended",
+  follow_up: "Follow-up",
+  won: "Won",
+  lost: "Lost",
+};
+
+const ownerLabels: Record<string, string> = {
+  "reception-f": "Reception",
+  "admin-team-f": "Admin team",
+};
+
+const backendEnabled = process.env.NEXT_PUBLIC_CRM_BACKEND === "true";
 
 export function CrmPage() {
   const [stage, setStage] = useState("All stages");
   const [owner, setOwner] = useState("All owners");
-  const filteredLeads = leads.filter(
-    (lead) =>
-      (stage === "All stages" || lead.stage === stage) &&
-      (owner === "All owners" || lead.owner === owner),
+  const [leads, setLeads] = useState<readonly LeadRecord[]>(syntheticLeads);
+  const [loadState, setLoadState] = useState<"synthetic" | "loading" | "ready" | "error">(
+    backendEnabled ? "loading" : "synthetic",
+  );
+
+  useEffect(() => {
+    if (!backendEnabled) return;
+    let active = true;
+    void listCrmLeads()
+      .then((result) => {
+        if (!active) return;
+        setLeads(result);
+        setLoadState("ready");
+      })
+      .catch(() => {
+        if (!active) return;
+        setLoadState("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredLeads = useMemo(
+    () =>
+      leads.filter(
+        (lead) =>
+          (stage === "All stages" || stageLabels[lead.status] === stage) &&
+          (owner === "All owners" || (ownerLabels[lead.ownerId] ?? lead.ownerId) === owner),
+      ),
+    [leads, owner, stage],
   );
 
   return (
     <section className="admin-module-page" aria-labelledby="crm-title">
       <AdminSectionHeader
         description="Keep enquiries, trials, follow-ups, and retention actions visible to the academy team."
-        eyebrow="CRM / Synthetic preview"
+        eyebrow={loadState === "synthetic" ? "CRM / Synthetic preview" : "CRM / Callable backend"}
         title="CRM"
       />
       <AdminFilterBar>
@@ -72,15 +144,25 @@ export function CrmPage() {
       </AdminFilterBar>
       <div className="admin-lead-list">
         {filteredLeads.map((lead) => (
-          <article aria-label={lead.name} className="admin-panel-card" key={lead.name}>
-            <p className="admin-eyebrow">{lead.stage}</p>
-            <h3>{lead.name}</h3>
-            <p>{lead.nextAction}</p>
-            <span className="admin-status-badge admin-status-active">Owner: {lead.owner}</span>
+          <article
+            aria-label={lead.contactReference}
+            className="admin-panel-card"
+            key={lead.leadId}
+          >
+            <p className="admin-eyebrow">{stageLabels[lead.status]}</p>
+            <h3>{lead.contactReference}</h3>
+            <p>{lead.nextActionAt ? `Next action: ${lead.nextActionAt}` : "No next action set"}</p>
+            <span className="admin-status-badge admin-status-active">
+              Owner: {ownerLabels[lead.ownerId] ?? lead.ownerId}
+            </span>
           </article>
         ))}
         {filteredLeads.length === 0 ? (
-          <p className="admin-empty-state">No leads match these filters.</p>
+          <p className="admin-empty-state">
+            {loadState === "error"
+              ? "CRM backend unavailable; showing no live leads."
+              : "No leads match these filters."}
+          </p>
         ) : null}
       </div>
     </section>

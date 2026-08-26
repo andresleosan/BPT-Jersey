@@ -26,6 +26,7 @@ export const TENANT_BACKUP_COLLECTIONS = [
   "deliveryEvents",
   "healthProfiles",
   "safeguardingCases",
+  "waiverVersions",
   "consents",
   "documents",
   "auditEvents",

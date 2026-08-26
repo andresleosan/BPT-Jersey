@@ -35,6 +35,7 @@ describe("deploy runtime import preparation", () => {
         'import "@bpt-jersey/domain/authorization/access-policy";',
         'import "@bpt-jersey/domain/migration/regyfit-access";',
         'import "@bpt-jersey/domain/families";',
+        'import "@bpt-jersey/domain/consents";',
         'import "@bpt-jersey/domain/finance";',
         'import "@bpt-jersey/domain/finance/dashboard";',
         'import "@bpt-jersey/domain/staff";',
@@ -54,6 +55,7 @@ describe("deploy runtime import preparation", () => {
     expect(prepared).toContain("../../domain/authorization/access-policy.js");
     expect(prepared).toContain("../../domain/migration/regyfit-access.js");
     expect(prepared).toContain("../../domain/families/family-contracts.js");
+    expect(prepared).toContain("../../domain/consents/consent-contracts.js");
     expect(prepared).toContain("../../domain/finance/finance-contracts.js");
     expect(prepared).toContain("../../domain/finance/financial-dashboard.js");
     expect(prepared).toContain("../../domain/staff/staff-contracts.js");

@@ -130,6 +130,7 @@ describe("administrative shell", () => {
       "Overview",
       "Members",
       "Families",
+      "Waivers",
       "Groups / Teams",
       "Activities",
       "Attendance",
@@ -144,7 +145,7 @@ describe("administrative shell", () => {
     labels.forEach((label) => {
       expect(within(navigation).getByRole("link", { name: label })).toBeVisible();
     });
-    expect(within(navigation).queryAllByRole("link")).toHaveLength(12);
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(13);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
       "/admin",
@@ -205,7 +206,7 @@ describe("administrative shell", () => {
 
     expect(main).toHaveClass("admin-main");
     expect(main).toHaveClass("admin-main-content");
-    expect(navigationLinks).toHaveLength(12);
+    expect(navigationLinks).toHaveLength(13);
     navigationLinks.forEach((link) => {
       expect(link.tagName).toBe("A");
       expect(link).toHaveAttribute("href");

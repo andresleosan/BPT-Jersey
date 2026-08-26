@@ -20,6 +20,11 @@ export const auditActions = Object.freeze([
   "staff.status.changed",
   "staff.availability.replaced",
   "staff.assignments.replaced",
+  "waiver.version.published",
+  "waiver.version.withdrawn",
+  "consent.accepted",
+  "consent.revoked",
+  "consent.evidence.downloaded",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -44,7 +49,12 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "staff.updated"
           | "staff.status.changed"
           | "staff.availability.replaced"
-          | "staff.assignments.replaced";
+          | "staff.assignments.replaced"
+          | "waiver.version.published"
+          | "waiver.version.withdrawn"
+          | "consent.accepted"
+          | "consent.revoked"
+          | "consent.evidence.downloaded";
       }>
     | Readonly<{
         action: "invoice.created" | "invoice.voided" | "invoice.status.changed";
@@ -106,6 +116,11 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "staff.status.changed": commonFields,
   "staff.availability.replaced": commonFields,
   "staff.assignments.replaced": commonFields,
+  "waiver.version.published": commonFields,
+  "waiver.version.withdrawn": commonFields,
+  "consent.accepted": commonFields,
+  "consent.revoked": commonFields,
+  "consent.evidence.downloaded": commonFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
     "imported",

@@ -347,3 +347,18 @@ it("accepts staff lifecycle actions without payload or PII", () => {
     );
   }
 });
+
+it("accepts waiver and consent lifecycle actions without payload or PII", () => {
+  for (const action of [
+    "waiver.version.published",
+    "waiver.version.withdrawn",
+    "consent.accepted",
+    "consent.revoked",
+    "consent.evidence.downloaded",
+  ] as const) {
+    expect(parseAuditEventDraft({ ...common, action }).ok).toBe(true);
+    expect(parseAuditEventDraft({ ...common, action, typedName: "Synthetic Signer" }).ok).toBe(
+      false,
+    );
+  }
+});

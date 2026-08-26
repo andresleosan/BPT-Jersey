@@ -192,6 +192,11 @@ describe("domain contracts", () => {
       "staff.status.changed",
       "staff.availability.replaced",
       "staff.assignments.replaced",
+      "waiver.version.published",
+      "waiver.version.withdrawn",
+      "consent.accepted",
+      "consent.revoked",
+      "consent.evidence.downloaded",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

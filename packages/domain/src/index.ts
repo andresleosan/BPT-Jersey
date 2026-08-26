@@ -422,3 +422,39 @@ export type {
   PrivateDocumentUploadInput,
   PrivateDocumentProjection,
 } from "./documents/document-contracts";
+
+export {
+  appendLeadTimelineEvent,
+  canTransitionLead,
+  leadConsentStates,
+  leadEventKinds,
+  leadSources,
+  leadStatuses,
+  leadTransitionTargets,
+  parseLeadDraft,
+  parseLeadRecord,
+  parseLeadTimelineEvent,
+} from "./crm/crm-contracts";
+export type {
+  LeadConsentState,
+  LeadDraft,
+  LeadEventKind,
+  LeadRecord,
+  LeadSource,
+  LeadStatus,
+  LeadTimelineEvent,
+} from "./crm/crm-contracts";
+
+export {
+  buildPaymentCheckoutRecord,
+  parsePaymentCheckoutRecord,
+  parsePaymentCheckoutRequest,
+  parsePaymentProviderResult,
+  paymentCheckoutStatuses,
+} from "./payments/payment-contracts";
+export type {
+  PaymentCheckoutRecord,
+  PaymentCheckoutRequest,
+  PaymentCheckoutStatus,
+  PaymentProviderResult,
+} from "./payments/payment-contracts";

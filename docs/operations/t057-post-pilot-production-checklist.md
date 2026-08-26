@@ -1,0 +1,41 @@
+# T057 Post-Pilot Production Checklist
+
+Estado: revision tecnica; no autoriza despliegue, migracion ni uso de datos reales.
+
+## Objetivo
+
+Preparar los controles posteriores al piloto antes de cualquier decision de produccion. T056 debe
+contar con un acta fechada y T011 debe resolverse antes de aprobar este checklist.
+
+## Gates
+
+| Control                           | Evidencia actual                                                                                                                                    | Estado                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| T056 acta del piloto              | Borrador en `docs/operations/t056-pilot-operator-acta-draft.md`; piloto sintetico con 71 pasaron, 14 omitidos por live/staging u opt-in y 0 fallos  | Firma del operador pendiente |
+| T055 QA tecnico                   | `verify:mvp` local: 157 archivos/1076 pruebas, Rules 64/64, carga sintetica 240 solicitudes, p95 82 ms, E2E smoke 5 pasan/1 omitida                 | Revision tecnica             |
+| Runtime desplegable               | Test de preparacion de runtime 2/2; dominio CRM incluido en `tsconfig.runtime` y mapping de imports verificado                                      | Verificado localmente        |
+| Seguridad                         | Secret scan sin coincidencias; audit 0 high/critical y 2 moderate transitivas preexistentes; endpoints CRM server-only y Rules cliente default-deny | Verificado para piloto       |
+| T011 retencion/residencia/borrado | Falta matriz aprobada por operador y asesoria aplicable a Jersey                                                                                    | Bloqueado                    |
+| Backup y rollback                 | Rehearsal Emulator apply -> fallo sintetico -> rollback y runbook documentados                                                                      | Verificado solo en piloto    |
+| Staging real                      | No existe `BASE_URL` ni entorno/credenciales dedicados en el workspace                                                                              | Pendiente                    |
+| Costos y alertas                  | No hay proveedor online, presupuesto ni alertas productivas aprobadas                                                                               | Pendiente                    |
+| CI/CD y entornos                  | Falta confirmar environment protegido, aprobacion manual y artefacto de release                                                                     | Pendiente                    |
+| Browser QA                        | E2E sintetico pasa; escenarios live/staging permanecen omitidos                                                                                     | Revision                     |
+
+## Criterio de salida
+
+T057 solo podra pasar a aprobada cuando T056 tenga acta firmada, T011 este aprobada, exista staging
+especifico verificado, el backup/rollback sea aplicable al release, costos/alertas esten definidos y
+el operador confirme explicitamente el despliegue. Ningun control se satisface con datos inventados.
+
+## Rollback minimo
+
+- Release web: volver a la revision anterior de Pages.
+- Functions: restaurar la revision anterior del artefacto desplegable.
+- Datos: no aplicar migraciones sin backup verificado, recibo de alcance y rollback probado.
+- Ante fallo de un gate: detener el release y conservar la evidencia; no corregir manualmente en produccion.
+
+## Proximo paso
+
+Completar el acta de T056 y la matriz de T011; despues repetir el gate en staging dedicado antes de
+considerar T058.

@@ -68,6 +68,13 @@ describe("default-deny Firebase rules", () => {
       }),
     );
     await assertFails(getDoc(doc(firestore, "academies/academy-1/documents/document-1")));
+    await assertFails(getDoc(doc(firestore, "academies/academy-1/waiverVersions/waiver-1")));
+    await assertFails(getDoc(doc(firestore, "academies/academy-1/consents/consent-1")));
+    await assertFails(
+      setDoc(doc(firestore, "academies/academy-1/consents/consent-1"), {
+        status: "accepted",
+      }),
+    );
     await assertFails(getDoc(doc(firestore, "academies/academy-1/exports/export-1")));
     await assertFails(getDoc(doc(firestore, "academies/academy-1/auditEvents/audit-1")));
     await assertFails(getDoc(doc(firestore, "academies/academy-1/exportRateLimits/actor-hash")));

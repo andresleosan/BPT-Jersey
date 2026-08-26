@@ -22,7 +22,9 @@
     "test:e2e": "corepack pnpm --dir qa test:e2e",
     "test:e2e:smoke": "corepack pnpm --dir qa test:e2e:smoke",
     "test:e2e:repeat": "corepack pnpm --dir qa test:e2e:repeat",
-    "typecheck": "corepack pnpm -r --if-present typecheck"
+    "test:load:synthetic": "node scripts/load-smoke.mjs",
+    "typecheck": "corepack pnpm -r --if-present typecheck",
+    "verify:mvp": "node scripts/verify-mvp.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.1",

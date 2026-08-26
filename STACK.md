@@ -134,8 +134,7 @@ despliegues productivos, cobros online ni mensajería externa.
    carga, restauración y rollback.
 
 Cada fase trabaja con WIP=1 desde `tasks.md`, reemplaza previews por persistencia real y exige
-evidencia fresca antes de pasar a revisión. El gate final incorporará un comando raíz `verify:mvp` y
-CI con build normal, sin `NEXT_PUBLIC_ADMIN_E2E` como sustituto de Auth real de staging.
+evidencia fresca antes de pasar a revision. El gate local usa verify:mvp con build normal y build:e2e-synthetic; CI conserva build normal, sin NEXT_PUBLIC_ADMIN_E2E como sustituto de Auth real de staging.
 
 ## Integraciones externas
 
@@ -157,7 +156,8 @@ CI con build normal, sin `NEXT_PUBLIC_ADMIN_E2E` como sustituto de Auth real de 
 - Realtime Database: 1 GB almacenado y aproximadamente 10 GB/mes descargado sin costo; Spark limita a 100 conexiones simultáneas, Blaze admite hasta 200,000 por base.
 - Cloud Functions: hasta 2 millones de invocaciones mensuales sin costo dentro de Blaze, además de cuotas de cómputo y red.
 - Authentication: 50,000 MAU sin costo aplica a Blaze con Identity Platform; Phone Auth se factura por SMS y no se presupuestará como “10,000 verificaciones gratuitas”.
-- Pagos y mensajería: costo pendiente hasta elegir proveedores y volumen. T046 tiene costo externo comprometido **USD 0/mes** mientras permanece en modo unconfigured; al seleccionar proveedor se debe documentar rango mensual, límite/alerta de facturación y aprobación del operador antes de activarlo.
+- Pagos y mensajería: costo pendiente hasta elegir proveedores y volumen. T034 adapter unconfigured: USD 0/mes comprometidos; T035/T036 siguen sin activación. T046 tiene costo externo comprometido **USD 0/mes** mientras permanece en modo unconfigured; al seleccionar proveedor se debe documentar rango mensual, límite/alerta de facturación y aprobación del operador antes de activarlo.
+- T010 placeholder sint�tico no vinculante: Provider Northstar/HarbourPay/IslandGate (f), GBP 0-70/mes y alertas no configuradas. Sustituir por cotizaci�n y t�rminos actuales antes de crear una cuenta; no hay gasto ni proveedor activo.
 - Alertas configuradas: **no**. El repositorio de Artifact Registry de staging tiene cleanup policy de 7 días; aún deben crearse presupuestos/alertas de Google Cloud y notificaciones de Cloudflare. Firebase/Google Cloud no se tratará como un hard cap automático.
 - Fuentes verificadas el 2026-08-06: https://firebase.google.com/pricing, https://firebase.google.com/docs/auth/limits y https://developers.cloudflare.com/r2/pricing/.
 
