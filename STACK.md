@@ -157,7 +157,8 @@ evidencia fresca antes de pasar a revision. El gate local usa verify:mvp con bui
 - Cloud Functions: hasta 2 millones de invocaciones mensuales sin costo dentro de Blaze, además de cuotas de cómputo y red.
 - Authentication: 50,000 MAU sin costo aplica a Blaze con Identity Platform; Phone Auth se factura por SMS y no se presupuestará como “10,000 verificaciones gratuitas”.
 - Pagos y mensajería: costo pendiente hasta elegir proveedores y volumen. T034 adapter unconfigured: USD 0/mes comprometidos; T035/T036 siguen sin activación. T046 tiene costo externo comprometido **USD 0/mes** mientras permanece en modo unconfigured; al seleccionar proveedor se debe documentar rango mensual, límite/alerta de facturación y aprobación del operador antes de activarlo.
-- T010 placeholder sint�tico no vinculante: Provider Northstar/HarbourPay/IslandGate (f), GBP 0-70/mes y alertas no configuradas. Sustituir por cotizaci�n y t�rminos actuales antes de crear una cuenta; no hay gasto ni proveedor activo.
+- T010 investigacion oficial 2026-08-27: PayPal (primera opcion a validar), Adyen (alternativa de escala) y Revolut Business (condicionada); Stripe descartado para entidad de Jersey. Fuentes y limites en docs/operations/payment-provider-decision-packet.md.
+- T010 permanece bloqueada: no hay proveedor seleccionado, cuenta, credenciales, cobro ni gasto. Antes de activar se requieren seleccion explicita, cotizacion/terminos, onboarding, alertas y pruebas sandbox.
 - Alertas configuradas: **no**. El repositorio de Artifact Registry de staging tiene cleanup policy de 7 días; aún deben crearse presupuestos/alertas de Google Cloud y notificaciones de Cloudflare. Firebase/Google Cloud no se tratará como un hard cap automático.
 - Fuentes verificadas el 2026-08-06: https://firebase.google.com/pricing, https://firebase.google.com/docs/auth/limits y https://developers.cloudflare.com/r2/pricing/.
 

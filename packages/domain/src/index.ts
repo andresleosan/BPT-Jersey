@@ -291,6 +291,92 @@ export type {
   StudentProgressSummary,
 } from "./levels/level-contracts";
 
+export { achievementMetrics, buildFamilyAchievementSummary } from "./levels/achievement-contracts";
+export type {
+  AchievementMetric,
+  AdultComparisonEntry,
+  BuildFamilyAchievementSummaryInput,
+  FamilyAchievementCandidate,
+  FamilyAchievementDefinition,
+  FamilyAchievementSummary,
+  FamilyGoalDefinition,
+  FamilyGoalProgress,
+  FamilyMemberAchievementSummary,
+  FamilyMemberProgressInput,
+} from "./levels/achievement-contracts";
+
+export {
+  approveLessonPlan,
+  lessonActivityKinds,
+  lessonPlanStatuses,
+  parseLessonPlanRecord,
+  parseTechniqueLibraryVersion,
+} from "./levels/lesson-planning-contracts";
+export type {
+  ApproveLessonPlanInput,
+  LessonActivityKind,
+  LessonPlanActivity,
+  LessonPlanRecord,
+  LessonPlanStatus,
+  TechniqueDefinition,
+  TechniqueLibraryVersion,
+} from "./levels/lesson-planning-contracts";
+
+export {
+  offlineAttendanceKinds,
+  parseOfflineAttendanceEvent,
+  reconcileOfflineAttendance,
+} from "./attendance/offline-contracts";
+export type {
+  OfflineAttendanceConflict,
+  OfflineAttendanceEvent,
+  OfflineAttendanceKind,
+  OfflineReconciliation,
+  OfflineReconciliationInput,
+} from "./attendance/offline-contracts";
+
+export {
+  buildNotificationDispatchPlan,
+  notificationChannels,
+  notificationConsentStates,
+  notificationPurposes,
+  parseNotificationIntent,
+  parseNotificationPreference,
+} from "./delivery/notification-policy";
+export type {
+  NotificationChannel,
+  NotificationConsentState,
+  NotificationDispatchCandidate,
+  NotificationDispatchPlan,
+  NotificationDispatchSkip,
+  NotificationIntent,
+  NotificationPreference,
+  NotificationPurpose,
+} from "./delivery/notification-policy";
+
+export {
+  applyCreditUsage,
+  bookingCreditReasons,
+  bookingCreditStatuses,
+  buildWaitlistId,
+  parseBookingCreditRecord,
+  parseGrantBookingCreditInput,
+  parseJoinWaitlistInput,
+  parseWaitlistEntryRecord,
+  reverseCreditUsage,
+  waitlistStatuses,
+} from "./schedule/advanced-booking-contracts";
+export type {
+  BookingCreditBalance,
+  BookingCreditReason,
+  BookingCreditRecord,
+  BookingCreditStatus,
+  GrantBookingCreditInput,
+  JoinWaitlistInput,
+  WaitlistEntryRecord,
+  WaitlistStatus,
+} from "./schedule/advanced-booking-contracts";
+
 export {
   ageBands,
   classLevels,
@@ -458,3 +544,14 @@ export type {
   PaymentCheckoutStatus,
   PaymentProviderResult,
 } from "./payments/payment-contracts";
+
+export { buildRetentionAlerts, retentionAlertKinds } from "./retention-contracts";
+export type {
+  BuildRetentionAlertsInput,
+  RetentionAlert,
+  RetentionAlertEvidence,
+  RetentionAlertKind,
+  RetentionAttendanceEntry,
+  RetentionPolicy,
+  RetentionStudentSnapshot,
+} from "./retention-contracts";

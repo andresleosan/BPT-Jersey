@@ -12,12 +12,107 @@ import {
   parseRequestBookingInput,
 } from "@bpt-jersey/domain/schedule";
 
+import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
+import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
+
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-service.js";
 
 const staffRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
 const managerRoles = Object.freeze(["owner", "administrator", "headCoach"] as const);
 const adminRoles = Object.freeze(["owner", "administrator"] as const);
+type GuardianStudentScopeInput = Readonly<{
+  academyId: string;
+  guardianUserId: string;
+  studentId: string;
+}>;
+
+type StudentScopeOptions = Readonly<{
+  store: ScheduleStore;
+  isGuardianOfStudent?: (input: GuardianStudentScopeInput) => Promise<boolean>;
+}>;
+
+async function isGuardianOfStudent(input: GuardianStudentScopeInput): Promise<boolean> {
+  try {
+    const firestore = getFirestore();
+    const relationshipSnapshot = await firestore
+      .collection("academies/" + input.academyId + "/relationships")
+      .where("adultUserId", "==", input.guardianUserId)
+      .limit(101)
+      .get();
+
+    for (const relationshipDocument of relationshipSnapshot.docs) {
+      const relationshipResult = parseFamilyRelationship(relationshipDocument.data());
+      if (
+        !relationshipResult.ok ||
+        relationshipResult.value.academyId !== input.academyId ||
+        relationshipResult.value.adultUserId !== input.guardianUserId ||
+        relationshipResult.value.studentId !== input.studentId ||
+        !relationshipResult.value.active ||
+        relationshipResult.value.status !== "active"
+      ) {
+        continue;
+      }
+
+      const familyDocument = await firestore
+        .collection("academies/" + input.academyId + "/families")
+        .doc(relationshipResult.value.familyId)
+        .get();
+      const familyResult = parseFamilyRecord(familyDocument.data());
+      if (
+        !familyDocument.exists ||
+        !familyResult.ok ||
+        familyResult.value.academyId !== input.academyId ||
+        familyResult.value.primaryContactUserId !== input.guardianUserId ||
+        !familyResult.value.active ||
+        familyResult.value.status !== "active"
+      ) {
+        continue;
+      }
+
+      const studentDocument = await firestore
+        .collection("academies/" + input.academyId + "/students")
+        .doc(input.studentId)
+        .get();
+      const studentResult = parseStudentProfile(studentDocument.data());
+      if (
+        studentDocument.exists &&
+        studentResult.ok &&
+        studentResult.value.academyId === input.academyId &&
+        studentResult.value.familyId === relationshipResult.value.familyId &&
+        studentResult.value.participantType === "minor" &&
+        studentResult.value.active &&
+        studentResult.value.status === "active"
+      ) {
+        return true;
+      }
+    }
+  } catch {
+    // Access checks fail closed when the relationship cannot be resolved.
+  }
+  return false;
+}
+
+async function requireStudentScope(
+  request: CallableRequest<unknown>,
+  studentId: string,
+  options: StudentScopeOptions,
+): Promise<void> {
+  const actor = requireUserActor(request);
+  if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) return;
+  if (actor.role === "adultStudent" && actor.userId === studentId) return;
+  if (
+    actor.role === "guardian" &&
+    (await (options.isGuardianOfStudent ?? isGuardianOfStudent)({
+      academyId: actor.academyId,
+      guardianUserId: actor.userId,
+      studentId,
+    }))
+  ) {
+    return;
+  }
+  throw new HttpsError("permission-denied", "Access denied for this student");
+}
 
 export function createListScheduleCatalogHandler(options: { store: ScheduleStore }) {
   const { store } = options;
@@ -239,7 +334,7 @@ export function createCancelSessionHandler(options: { store: ScheduleStore }) {
   };
 }
 
-export function createRequestBookingHandler(options: { store: ScheduleStore }) {
+export function createRequestBookingHandler(options: StudentScopeOptions) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
@@ -249,9 +344,7 @@ export function createRequestBookingHandler(options: { store: ScheduleStore }) {
       throw new HttpsError("invalid-argument", parsed.error);
     }
 
-    if (actor.role === "adultStudent" && actor.userId !== parsed.value.studentId) {
-      throw new HttpsError("permission-denied", "Access denied: cannot book for another student");
-    }
+    await requireStudentScope(request, parsed.value.studentId, options);
 
     const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId);
     return {
@@ -260,7 +353,7 @@ export function createRequestBookingHandler(options: { store: ScheduleStore }) {
   };
 }
 
-export function createCancelBookingHandler(options: { store: ScheduleStore }) {
+export function createCancelBookingHandler(options: StudentScopeOptions) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
@@ -272,12 +365,7 @@ export function createCancelBookingHandler(options: { store: ScheduleStore }) {
 
     const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
 
-    if (!isStaff && actor.role === "adultStudent" && actor.userId !== parsed.value.studentId) {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: cannot cancel another student's booking",
-      );
-    }
+    await requireStudentScope(request, parsed.value.studentId, options);
 
     const booking = await store.cancelBooking(actor.academyId, parsed.value, actor.userId, isStaff);
 
@@ -308,7 +396,7 @@ export function createListSessionBookingsHandler(options: { store: ScheduleStore
   };
 }
 
-export function createListStudentBookingsHandler(options: { store: ScheduleStore }) {
+export function createListStudentBookingsHandler(options: StudentScopeOptions) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
@@ -319,13 +407,7 @@ export function createListStudentBookingsHandler(options: { store: ScheduleStore
         ? data.studentId.trim()
         : actor.userId;
 
-    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
-    if (!isStaff && actor.role === "adultStudent" && actor.userId !== studentId) {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: cannot view another student's bookings",
-      );
-    }
+    await requireStudentScope(request, studentId, options);
 
     const bookings = await store.listStudentBookings(actor.academyId, studentId);
     return {
@@ -374,11 +456,8 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
       );
     }
 
-    if (!isStaff && actor.role === "adultStudent" && actor.userId !== parsed.value.studentId) {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: cannot check in for another student",
-      );
+    if (!isStaff && (actor.role !== "adultStudent" || actor.userId !== parsed.value.studentId)) {
+      throw new HttpsError("permission-denied", "Access denied: student self check-in is required");
     }
 
     const attendance = await store.recordCheckIn(actor.academyId, parsed.value, actor.userId);
@@ -410,7 +489,7 @@ export function createListSessionAttendanceHandler(options: { store: ScheduleSto
   };
 }
 
-export function createListStudentAttendanceHandler(options: { store: ScheduleStore }) {
+export function createListStudentAttendanceHandler(options: StudentScopeOptions) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
@@ -421,13 +500,7 @@ export function createListStudentAttendanceHandler(options: { store: ScheduleSto
         ? data.studentId.trim()
         : actor.userId;
 
-    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
-    if (!isStaff && actor.role === "adultStudent" && actor.userId !== studentId) {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: cannot view another student's attendance",
-      );
-    }
+    await requireStudentScope(request, studentId, options);
 
     const attendance = await store.listStudentAttendance(actor.academyId, studentId);
     return {
@@ -483,7 +556,7 @@ export function createReconcileSessionNoShowsHandler(options: { store: ScheduleS
   };
 }
 
-export function createListAttendanceHistoryHandler(options: { store: ScheduleStore }) {
+export function createListAttendanceHistoryHandler(options: StudentScopeOptions) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
@@ -499,13 +572,7 @@ export function createListAttendanceHistoryHandler(options: { store: ScheduleSto
         ? data.studentId.trim()
         : actor.userId;
 
-    const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
-    if (!isStaff && actor.role === "adultStudent" && actor.userId !== studentId) {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: cannot view another student's attendance history",
-      );
-    }
+    await requireStudentScope(request, studentId, options);
 
     const history = await store.listAttendanceHistory(
       actor.academyId,
@@ -519,7 +586,7 @@ export function createListAttendanceHistoryHandler(options: { store: ScheduleSto
   };
 }
 
-export function createRecordCheckoutHandler(options: { store: ScheduleStore }) {
+export function createRecordCheckoutHandler(options: StudentScopeOptions) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
@@ -534,6 +601,7 @@ export function createRecordCheckoutHandler(options: { store: ScheduleStore }) {
     if (parsed.value.method === "staffOverride" && !isStaff) {
       throw new HttpsError("permission-denied", "Staff access required for staffOverride checkout");
     }
+    if (!isStaff) await requireStudentScope(request, parsed.value.studentId, options);
 
     const checkout = await store.recordCheckout(actor.academyId, parsed.value, actor.userId);
 
@@ -564,7 +632,7 @@ export function createListSessionCheckoutsHandler(options: { store: ScheduleStor
   };
 }
 
-export function createGetStudentCheckoutHandler(options: { store: ScheduleStore }) {
+export function createGetStudentCheckoutHandler(options: StudentScopeOptions) {
   const { store } = options;
 
   return async (request: CallableRequest<unknown>) => {
@@ -580,12 +648,13 @@ export function createGetStudentCheckoutHandler(options: { store: ScheduleStore 
         ? data.studentId.trim()
         : actor.userId;
 
+    await requireStudentScope(request, studentId, options);
+
     const checkout = await store.getStudentCheckout(
       actor.academyId,
       data.sessionId.trim(),
       studentId,
     );
-
     return {
       checkout,
     };

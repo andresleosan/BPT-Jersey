@@ -2,7 +2,7 @@
 
 ## Estado
 
-T046 deja preparada la frontera provider-independent y el historial tenant-scoped. No hay un
+T046 deja preparada la frontera provider-independent y el historial tenant-scoped. El alcance tecnico sintetico fue aprobado por el operador el 2026-08-27. No hay un
 proveedor real seleccionado ni credenciales activas; el adaptador por defecto registra
 `skipped/provider_unconfigured` y no hace llamadas de red.
 

@@ -1,7 +1,6 @@
-# T056 — Acta del piloto controlado (borrador)
+# T056 — Acta del piloto controlado (aprobada para piloto sintético)
 
-Estado: borrador preparado para firma del operador. Este documento no constituye una aprobación
-de producción, de entorno live/staging ni de la política legal T011.
+Estado: aprobada para el piloto sintético. Esta aprobación no constituye una aprobación de producción, de entorno live/staging ni de la política legal T011.
 
 ## Identificación
 
@@ -11,8 +10,8 @@ de producción, de entorno live/staging ni de la política legal T011.
 | Entorno | Workspace local; servidor estático en `127.0.0.1:3100` y Firebase Emulator para Rules |
 | Datos | Fixtures sintéticas; no se usaron datos de miembros, pagos ni proveedores reales |
 | Responsable técnico | Cronos (ejecución automatizada) |
-| Responsable operativo | Pendiente de completar por el operador |
-| Decisión | Pendiente de firma y aceptación explícita del operador |
+| Responsable operativo | Operador de esta sesión (identidad y rol no registrados en el workspace) |
+| Decisión | Aceptar con reservas únicamente para piloto sintético; no autorizar live, staging, producción, pagos ni datos reales |
 
 ## Evidencia ejecutada
 
@@ -37,37 +36,31 @@ de producción, de entorno live/staging ni de la política legal T011.
 
 ## Criterio de salida propuesto
 
-T056 puede pasar a `aprobada` únicamente cuando el operador complete los campos siguientes, revise la
-evidencia y confirme por escrito la decisión. La aprobación debe indicar expresamente si solo cubre el
-piloto sintético o si autoriza un ensayo en staging dedicado.
+T056 fue aprobada explícitamente por el operador únicamente para el piloto sintético, tras revisar la evidencia y las limitaciones registradas.
+La aprobación no autoriza un ensayo en staging dedicado ni modifica los gates de T011.
 
 | Campo de aceptación | Completar por operador |
 | --- | --- |
-| Nombre y rol del aprobador | ______________________________ |
-| Fecha y zona horaria | ______________________________ |
-| Entorno autorizado | ______________________________ |
-| Incidencias aceptadas y severidad | ______________________________ |
-| Hallazgos que deben corregirse antes del siguiente gate | ______________________________ |
-| Decisión (`aceptar`, `aceptar con reservas`, `rechazar`) | ______________________________ |
-| Firma o referencia verificable | ______________________________ |
+| Nombre y rol del aprobador | Operador de esta sesión (identidad y rol no registrados en el workspace) |
+| Fecha y zona horaria | 2026-08-27, America/Bogota |
+| Entorno autorizado | Workspace local + Firebase Emulator; sin live/staging ni producción |
+| Incidencias aceptadas y severidad | Ninguna en la ejecución sintética; 14 escenarios omitidos por requerir live/staging u opt-in |
+| Hallazgos que deben corregirse antes del siguiente gate | T011, staging dedicado, costos/alertas y CI/CD protegido |
+| Decisión (`aceptar`, `aceptar con reservas`, `rechazar`) | Aceptar con reservas únicamente para piloto sintético |
+| Firma o referencia verificable | Aprobación explícita recibida en la sesión Codex del 2026-08-27 |
 
 ## Próximos pasos bloqueados
 
-1. Completar y firmar esta acta sin inventar identidad, fecha de aprobación ni resultados live/staging.
+1. Aprobación registrada para el piloto sintético; no se autoriza producción, live/staging, pagos ni datos reales.
 2. Resolver T011 y confirmar el entorno staging dedicado antes de reintentar las pruebas omitidas.
-3. Reabrir T055/T056 si aparecen fallos o hallazgos durante staging; mantener T057 en borrador hasta
+3. Reabrir T055/T056 si aparecen fallos o hallazgos durante staging; mantener T057 en revisión hasta
    superar sus gates.
 
 
-## Ejemplo de llenado sintético (f) — no es una firma
+## Registro de aprobación explícita — 2026-08-27
 
-Estos valores solo muestran cómo podría completarse el formulario durante un
-ensayo controlado. No identifican a un operador real ni cambian el estado de
-T056: `revision`.
-
-- Responsable operativo (f): Alex Morgan, Academy Operations Lead.
-- Fecha y zona horaria (f): 2026-08-25, Europe/Jersey.
-- Entorno autorizado (f): Emulator local + staging aislado `synthetic-only`.
-- Decisión (f): aceptar con reservas para piloto sintético; no autorizar live,
-  producción, pagos ni datos reales.
-- Firma o referencia verificable: pendiente; debe completarla el operador real.
+- Aprobador: operador de esta sesión (identidad y rol no registrados en el workspace).
+- Fecha y zona horaria: 2026-08-27, America/Bogota.
+- Entorno autorizado: workspace local + Firebase Emulator; no live/staging ni producción.
+- Decisión: aceptar con reservas únicamente para piloto sintético.
+- Firma o referencia verificable: aprobación explícita recibida en la sesión Codex del 2026-08-27.

@@ -165,6 +165,14 @@ entre octubre y noviembre de 2026. No incluye despliegue productivo ni integraci
 - Referrals, privadas, competencias y retail. Los seminarios operativos ya pertenecen al MVP.
 - Analítica predictiva explicable, IA asistida, multi-academia y eventual SaaS.
 
+## Plan provisional de avance v2/v3
+
+El contador visual incluye doce capacidades futuras T060-T071. El plan de discovery prioriza T060
+(booking avanzado), T063 (autoservicio), T062 (retencion/CRM) y T067 (logros familiares). La
+puntuacion y las decisiones abiertas estan en
+docs/roadmap/v2-v3-advance-plan.md. Este plan no cambia el alcance del MVP ni aprueba implementacion,
+produccion, pagos, mensajeria externa o datos reales.
+
 ## Métricas de éxito del piloto
 
 - Porcentaje de operación diaria realizada sin hojas de cálculo externas.

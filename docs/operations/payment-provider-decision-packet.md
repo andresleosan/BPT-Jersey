@@ -1,67 +1,83 @@
-# T010 Payment Provider Decision Packet
+# Paquete de decision: proveedor de pagos
 
-Status: blocked; synthetic draft only, awaiting real Jersey availability, commercial terms, cost controls, and explicit operator approval.
+## Estado
 
-Prepared: 2026-08-25
+T010 permanece **bloqueada**: hay shortlist documentada, pero no existe seleccion del operador,
+alta de cuenta, credenciales, cotizacion contractual ni activacion de cobros.
 
-## Scope
+Investigacion actualizada: 2026-08-27 (America/Bogota).
 
-T010 covers a post-pilot payment provider for hosted checkout and signed, idempotent webhooks.
-The current pilot remains manual: cash, bank_transfer, or other records only. No provider account,
-credential, checkout, webhook, refund, tax automation, or production payment is authorized by this packet.
+## Alcance y restricciones
 
-## Non-negotiable boundaries
+- Jersey-incorporated business; moneda operativa prevista: GBP.
+- Prioridad: checkout web, pagos unicos y suscripciones futuras, con webhooks y conciliacion.
+- Esta investigacion no creo cuentas, no uso credenciales, no hizo llamadas de cobro y no genero gasto.
+- No se autoriza produccion, staging con dinero real ni datos reales hasta contar con seleccion explicita,
+  onboarding aprobado, contrato/tarifas confirmadas, secretos gestionados, alertas de coste y pruebas de
+  sandbox.
 
-- Keep payment details out of the BPT Jersey client and backend; use hosted checkout and a provider-independent adapter.
-- Require signed webhook verification, idempotency, replay protection, audit events, and fail-closed error handling.
-- Do not treat provider marketing claims as proof of Jersey availability, data residency, legal compliance, or child-data suitability.
-- T011 must remain unresolved for production data retention, residency, transfers, deletion, backups, and legal wording.
-- Any real selection requires an official quote, current terms, data-processing terms, operator approval, and a documented rollback.
+## Fronteras no negociables
 
-## Synthetic candidate matrix (fictitious; replace before acceptance)
+- Mantener los datos de pago fuera del cliente y backend de BPT Jersey; usar checkout alojado y un adaptador independiente del proveedor.
+- Exigir verificacion de firma de webhooks, idempotencia, proteccion contra replay, eventos de auditoria y errores fail-closed.
+- No tratar marketing como prueba de disponibilidad en Jersey, residencia de datos, cumplimiento legal o idoneidad para datos de menores.
+- T011 sigue sin resolver retencion, residencia, transferencias, borrado, backups y redaccion legal para datos reales.
+- Una seleccion real requiere cotizacion oficial, terminos actuales, terminos de tratamiento de datos, aprobacion del operador y rollback documentado.
 
-All names, fees, volumes, and capabilities in this table are invented placeholders. They are not provider
-recommendations and must not be used to open an account or process money.
+## Shortlist basada en fuentes oficiales
 
-| Candidate (f)           | Hosted checkout | Webhook signing      | Synthetic fee assumption | Synthetic monthly range | Billing alert  |
-| ----------------------- | --------------- | -------------------- | ------------------------ | ----------------------- | -------------- |
-| Provider Northstar (f)  | yes             | yes                  | 1.5% + GBP 0.20          | GBP 0-50                | not configured |
-| Provider HarbourPay (f) | yes             | yes                  | 1.8% + GBP 0.15          | GBP 0-60                | not configured |
-| Provider IslandGate (f) | yes             | pending verification | 2.0% + GBP 0.25          | GBP 0-70                | not configured |
+| Proveedor | Evidencia de Jersey | Encaje tecnico | Coste conocido | Riesgo/pendiente |
+|---|---|---|---|---|
+| PayPal | Su acuerdo de pagos con tarjeta aplica a residentes registrados en UK, Jersey, Guernsey e Isle of Man. | API de pagos con tarjeta; Website Payments Pro incluye API/Express Checkout y ofrece Recurring Payments Tool como funcionalidad opcional. | Tarifario UK actualizado 2026-07-15: 1.2% + GBP 0.30 para pago con tarjeta sin cuenta PayPal; otras transacciones comerciales: 2.9% + GBP 0.30; pueden aplicar recargos internacionales y chargebacks. | Confirmar elegibilidad final, producto exacto, limites, liquidacion bancaria y tarifa contractual para BPT. |
+| Adyen | La documentacion de Adyen for Platforms incluye United Kingdom, incluyendo Jersey e Isle of Man. | Integracion unificada online/in-person/in-app; plataformas, onboarding, pagos divididos, webhooks y conciliacion documentados. | Sin tarifa publica comparable en las fuentes revisadas; requiere contacto/cotizacion. | Posible sobrecarga de onboarding/operacion para el volumen inicial; confirmar si aplica al merchant directo y no solo Platforms, ademas de POS. |
+| Revolut Business | La pagina revisada documenta pagos online/in-person, pero no confirma expresamente elegibilidad de una sociedad incorporada en Jersey. | Payment Gateway, checkout, invoices y subscriptions; liquidacion en cuenta Merchant. | Pagina UK: online 1% + GBP 0.20 para Visa/Mastercard consumer UK; 2.8% + GBP 0.20 para tarjetas no UK/comerciales; fees/T&Cs aplican. | Verificar por onboarding/ventas que una entidad de Jersey puede abrir Merchant account y confirmar tarifas aplicables a BPT. |
 
-Example only: at 200 synthetic transactions/month and GBP 80 average ticket, the illustrative
-processing volume is GBP 16,000. Replace this arithmetic with the provider's current Jersey quote,
-fixed fees, chargeback/refund costs, currency treatment, and tax/accounting impact before any decision.
+### Descartado provisionalmente: Stripe
 
-## Cost-intelligence finding
+Stripe no es candidato para una empresa incorporada en Jersey segun su documentacion de disponibilidad
+para territorios dependientes; no se debe crear una cuenta con pais distinto para eludir esa limitacion.
 
-- Severity: medium cost finding. No provider account or billing alert exists today, so no spend is occurring.
-- Before activation, configure a provider spending alert or equivalent account control and a Google Cloud/Cloudflare budget notification where applicable.
-- A billing alert is not a hard cap. The operator must define a monthly ceiling and an escalation owner.
+## Recomendacion para la siguiente decision
 
-## Required real-world reply
+1. **Primera opcion a validar: PayPal**, por ser la evidencia mas directa de cobertura de residentes de
+   Jersey y por tener una ruta documentada para pagos unicos y recurrentes.
+2. **Alternativa de escala: Adyen**, si la cotizacion y el proceso de onboarding justifican su mayor
+   complejidad operativa.
+3. **Alternativa condicionada: Revolut Business**, solo despues de confirmar por escrito la elegibilidad
+   de la entidad de Jersey y la tarifa efectiva.
 
-Provider: <legal provider name and Jersey availability evidence>
-Official pricing/quote date: <date and source>
-Hosted checkout and webhook signing: <evidence>
-Data processing/region/transfer terms: <evidence; coordinate with T011>
-Monthly ceiling and alert owner: <amount and role>
-Rollback: <disable checkout, revoke webhook, preserve manual ledger>
-Approver/role: <name or operator role>
+Esto es una recomendacion de shortlist, no una aprobacion de proveedor.
 
-## Promotion gate
+## Decision requerida al operador
 
-Keep T010 blocked until every field above is completed from current provider documentation or an official
-quote. Then update the ADR, STACK.md cost section, adapter contract, tests, and tasks.md evidence.
-Do not mark T010 approved from this synthetic packet alone.
+Para desbloquear T010 se requiere confirmar uno de los proveedores y autorizar unicamente el siguiente
+paso: obtener onboarding/cotizacion y requisitos de integracion en sandbox. La activacion de cobros,
+la creacion de secretos, cualquier gasto y el despliegue siguen requiriendo autorizacion separada.
 
-## T034 synthetic adapter evidence (2026-08-26)
+## Gate de promocion
 
-The provider-independent adapter is implemented locally in `packages/domain/src/payments/` and
-`apps/functions/src/payments/`. It accepts only a strict GBP checkout contract, excludes card data,
-requires HTTPS checkout URLs, normalizes malformed provider output to a failed result, and deduplicates
-requests by tenant and idempotency key. The default `unconfigured` provider records no external call
-and has an estimated committed cost of USD 0/month.
+Mantener T010 bloqueada hasta completar disponibilidad, producto, cotizacion/terminos, tratamiento de datos,
+limites, techo y alerta desde documentacion actual o cotizacion oficial. Despues actualizar ADR, STACK.md,
+contrato del adaptador, pruebas y evidencia de tasks.md. Este paquete no aprueba por si solo una cuenta,
+credenciales, cobros, gasto, staging real ni produccion.
 
-This does not select or verify a real provider, create credentials, open checkout, process money, or
-satisfy T010. T035 hosted checkout and T036 signed webhooks remain pending until T010 is resolved.
+## Evidencia T034 sintetica (2026-08-26)
+
+El adaptador independiente del proveedor esta implementado localmente en
+packages/domain/src/payments/ y apps/functions/src/payments/. Acepta solo un contrato estricto de
+checkout GBP, excluye datos de tarjeta, requiere URLs HTTPS, normaliza salidas malformadas como resultado
+fallido y deduplica por tenant y clave de idempotencia. El proveedor por defecto unconfigured no hace
+llamadas externas y tiene costo comprometido estimado de USD 0/mes.
+
+Esto no selecciona ni verifica un proveedor real, no crea credenciales, no abre checkout, no procesa dinero
+ni satisface T010. T034 queda aprobada unicamente para el adaptador tecnico/sintetico; T035 y T036 siguen pendientes hasta resolver T010.
+
+## Fuentes oficiales consultadas
+
+- [PayPal Online Card Payment Services Agreement](https://www.paypal.com/uk/legalhub/paypal/pocpsa-full?locale.x=en_GB)
+- [PayPal Merchant Fees](https://securepayments.paypal.com/uk/business/paypal-business-fees)
+- [Adyen for Platforms - Classic integration](https://docs.adyen.com/classic-platforms/)
+- [Adyen - Accept payments](https://www.adyen.com/en_AE/accept-payments)
+- [Revolut Business - Accept payments](https://www.revolut.com/business/accept-payments/)
+- [Revolut - card payment fees](https://help.revolut.com/help/merchant-accounts/fees/how-much-does-it-cost-to-accept-card-payments/business/)
+- [Stripe - availability for outlying territories](https://support.stripe.com/questions/stripe-availability-for-outlying-territories-of-supported-countries?locale=en-GB)

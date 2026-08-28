@@ -326,6 +326,141 @@ describe("Schedule Callables", () => {
       expect(cancelled.booking.status).toBe("cancelled");
     });
 
+    it("isolates guardian self-service to active linked minors", async () => {
+      const store = createInMemoryScheduleStore();
+      const allowLinkedMinor = async ({ studentId }: { studentId: string }) =>
+        studentId === "minor-1";
+      const denyUnlinkedStudent = async () => false;
+      const requestHandler = createRequestBookingHandler({
+        store,
+        isGuardianOfStudent: allowLinkedMinor,
+      });
+      const deniedRequestHandler = createRequestBookingHandler({
+        store,
+        isGuardianOfStudent: denyUnlinkedStudent,
+      });
+      const deniedCancelHandler = createCancelBookingHandler({
+        store,
+        isGuardianOfStudent: denyUnlinkedStudent,
+      });
+      const deniedListHandler = createListStudentBookingsHandler({
+        store,
+        isGuardianOfStudent: denyUnlinkedStudent,
+      });
+      const deniedAttendanceHandler = createListStudentAttendanceHandler({
+        store,
+        isGuardianOfStudent: denyUnlinkedStudent,
+      });
+      const deniedHistoryHandler = createListAttendanceHistoryHandler({
+        store,
+        isGuardianOfStudent: denyUnlinkedStudent,
+      });
+      const deniedCheckoutHandler = createGetStudentCheckoutHandler({
+        store,
+        isGuardianOfStudent: denyUnlinkedStudent,
+      });
+      const deniedRecordCheckoutHandler = createRecordCheckoutHandler({
+        store,
+        isGuardianOfStudent: denyUnlinkedStudent,
+      });
+      const checkInHandler = createCheckInHandler({ store });
+
+      const session = await store.createSession(
+        "demo-academy",
+        {
+          programId: "kids-gi",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Kids Gi Class",
+          startAt: "2099-09-01T16:00:00Z",
+          endAt: "2099-09-01T17:00:00Z",
+          capacity: 20,
+        },
+        "owner-1",
+      );
+
+      await expect(
+        requestHandler(
+          fakeRequest(
+            { sessionId: session.sessionId, studentId: "minor-1", membershipId: "mem-1" },
+            "guardian",
+            "guardian-1",
+            "demo-academy",
+          ),
+        ),
+      ).resolves.toMatchObject({ booking: { studentId: "minor-1" } });
+
+      const guardianRequest = fakeRequest(
+        { sessionId: session.sessionId, studentId: "minor-2", membershipId: "mem-2" },
+        "guardian",
+        "guardian-1",
+        "demo-academy",
+      );
+      const guardianCancel = fakeRequest(
+        { sessionId: session.sessionId, studentId: "minor-2", reason: "Not attending" },
+        "guardian",
+        "guardian-1",
+        "demo-academy",
+      );
+      const guardianTarget = fakeRequest(
+        { studentId: "minor-2" },
+        "guardian",
+        "guardian-1",
+        "demo-academy",
+      );
+
+      await expect(deniedRequestHandler(guardianRequest)).rejects.toThrow(/Access denied/);
+      await expect(deniedCancelHandler(guardianCancel)).rejects.toThrow(/Access denied/);
+      await expect(deniedListHandler(guardianTarget)).rejects.toThrow(/Access denied/);
+      await expect(deniedAttendanceHandler(guardianTarget)).rejects.toThrow(/Access denied/);
+      await expect(
+        deniedHistoryHandler(
+          fakeRequest(
+            { sessionId: session.sessionId, studentId: "minor-2" },
+            "guardian",
+            "guardian-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Access denied/);
+      await expect(
+        deniedCheckoutHandler(
+          fakeRequest(
+            { sessionId: session.sessionId, studentId: "minor-2" },
+            "guardian",
+            "guardian-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Access denied/);
+      await expect(
+        deniedRecordCheckoutHandler(
+          fakeRequest(
+            {
+              sessionId: session.sessionId,
+              studentId: "minor-2",
+              method: "authorizedAdult",
+              authorizedAdultId: "guardian-1",
+              authorizedAdultName: "Carlos Silva",
+            },
+            "guardian",
+            "guardian-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Access denied/);
+      await expect(
+        checkInHandler(
+          fakeRequest(
+            { sessionId: session.sessionId, studentId: "minor-2", method: "pin" },
+            "guardian",
+            "guardian-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/student self check-in is required/);
+    });
+
     it("allows staff to view session roster and evaluate minimum quorum", async () => {
       const store = createInMemoryScheduleStore();
       const requestHandler = createRequestBookingHandler({ store });
@@ -568,9 +703,16 @@ describe("Schedule Callables", () => {
     it("handles child check-out authorization, staff overrides, and queries", async () => {
       const store = createInMemoryScheduleStore();
       const checkInHandler = createCheckInHandler({ store });
-      const recordCheckoutHandler = createRecordCheckoutHandler({ store });
+      const guardianScope = async ({ studentId }: { studentId: string }) => studentId === "minor-1";
+      const recordCheckoutHandler = createRecordCheckoutHandler({
+        store,
+        isGuardianOfStudent: guardianScope,
+      });
       const listCheckoutsHandler = createListSessionCheckoutsHandler({ store });
-      const getCheckoutHandler = createGetStudentCheckoutHandler({ store });
+      const getCheckoutHandler = createGetStudentCheckoutHandler({
+        store,
+        isGuardianOfStudent: guardianScope,
+      });
 
       const session = await store.createSession(
         "demo-academy",

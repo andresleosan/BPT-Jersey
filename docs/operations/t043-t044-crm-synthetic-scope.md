@@ -1,7 +1,7 @@
 # T043/T044 — Alcance CRM sintético (f)
 
 Estado: implementacion local sintetica verificada para Emulator/in-memory. No conecta proveedores,
-no importa leads reales y mantiene T043/T044 en revision.
+no importa leads reales y deja T043/T044 aprobadas para el alcance tecnico sintetico, sin produccion, migracion, live/staging real, comunicaciones externas ni datos reales.
 
 ## Objetivo
 
@@ -64,4 +64,4 @@ el mismo evento no crea una segunda entrada. La vista debe ordenar por
 1. Contratos/parsers, stores in-memory/Firestore y callables RBAC implementados.
 2. Pruebas focalizadas 10/10, suite 157/1076, typecheck, Rules 64/64, build y verify:mvp pasan.
 3. La UI usa fixtures sinteticos por defecto; `NEXT_PUBLIC_CRM_BACKEND=true` es opt-in.
-4. T043/T044 permanecen en `revision`; no se autoriza produccion, migracion, live/staging real, comunicaciones externas ni datos reales.
+4. T043/T044 quedan aprobadas solo para el alcance tecnico sintetico; no se autoriza produccion, migracion, live/staging real, comunicaciones externas ni datos reales.
