@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
@@ -30,9 +30,12 @@ const mockProjection = {
 
 let mockCallableResult: unknown = { data: mockProjection };
 let mockCallableError: Error | null = null;
+let mockCallableInvocations = 0;
+const originalLevelsBackend = process.env.NEXT_PUBLIC_LEVELS_BACKEND;
 
 vi.mock("firebase/functions", () => ({
   httpsCallable: () => async () => {
+    mockCallableInvocations += 1;
     if (mockCallableError) throw mockCallableError;
     return mockCallableResult;
   },
@@ -43,15 +46,42 @@ vi.mock("./firebase-client", () => ({
 }));
 
 describe("Levels Web Client", () => {
-  it("fetches and validates published level catalog", async () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_LEVELS_BACKEND = "true";
     mockCallableError = null;
     mockCallableResult = { data: mockProjection };
+    mockCallableInvocations = 0;
+  });
 
+  afterAll(() => {
+    if (originalLevelsBackend === undefined) {
+      delete process.env.NEXT_PUBLIC_LEVELS_BACKEND;
+    } else {
+      process.env.NEXT_PUBLIC_LEVELS_BACKEND = originalLevelsBackend;
+    }
+  });
+
+  it("loads the bundled canonical catalog when the connected backend is disabled", async () => {
+    delete process.env.NEXT_PUBLIC_LEVELS_BACKEND;
+
+    const catalog = await getLevelCatalog();
+
+    expect(catalog.system.systemId).toBe("ibjjf-v1");
+    expect(catalog.definitions).toHaveLength(171);
+    expect(catalog.system.counts).toEqual({ definitions: 171, belts: 27, stripes: 144 });
+    expect(catalog.skills).toHaveLength(11);
+    expect(catalog.requirements).toHaveLength(165);
+    expect(catalog.sourceHash).toMatch(/^bundled:/u);
+    expect(mockCallableInvocations).toBe(0);
+  });
+
+  it("fetches and validates published level catalog", async () => {
     const catalog = await getLevelCatalog();
     expect(catalog.system.systemId).toBe("ibjjf-v1");
     expect(catalog.definitions).toHaveLength(171);
     expect(catalog.skills).toHaveLength(11);
     expect(catalog.requirements).toHaveLength(165);
+    expect(mockCallableInvocations).toBe(1);
   });
 
   it("throws user-facing safe error on backend failure", async () => {
@@ -318,7 +348,5 @@ describe("Levels Web Client", () => {
     expect(history[0]?.status).toBe("approved");
   });
 });
-
-
 
 

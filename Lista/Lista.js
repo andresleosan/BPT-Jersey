@@ -1158,12 +1158,28 @@ const specialItems = [
     ["tasks.md", "Lista/Lista.js"],
     "special",
   ),
+  task(
+    "T088",
+    "Mostrar el catalogo canonico de Levels en el panel administrativo",
+    "revision",
+    "Cargar las 171 definiciones sanitizadas aprobadas en el preview y reservar Firestore para el modo backend explicito.",
+    "T083,T087",
+    "Preview canonico sin red y backend opt-in; 165/1122 unitarias, Rules 64/64, E2E completo 71/71 ejecutadas y focalizado desktop/mobile 2/2; build, typecheck, lint, formato del alcance, diff y audit sin high/critical pasan.",
+    [
+      "tasks.md",
+      "apps/web/src/lib/levels-client.ts",
+      "docs/data/ibjjf-levels-observed.sanitized.json",
+      "docs/data/ibjjf-levels-business-criteria.sanitized.json",
+      "qa/tests/levels-catalog.spec.ts",
+    ],
+    "special",
+  ),
 ];
 
 const projectData = {
-  cutoffDate: "2026-08-25",
+  cutoffDate: "2026-08-28",
   sourceLedger: "tasks.md",
-  ledgerCutoffDate: "2026-08-25",
+  ledgerCutoffDate: "2026-08-28",
   sourceFiles: [
     "tasks.md",
     "BRIEF.md",

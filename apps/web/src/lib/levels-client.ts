@@ -1,8 +1,11 @@
 import { httpsCallable } from "firebase/functions";
 
+import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
+import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import {
   parseApprovePromotionInput,
   parseLevelCatalogProjection,
+  parseLevelCatalogSource,
   parseRecordEvaluationInput,
   parseRecordMedicalLeaveInput,
   parseRejectPromotionInput,
@@ -31,6 +34,34 @@ const safeApprovePromotionError = "Unable to approve promotion. Please try again
 const safeRejectPromotionError = "Unable to reject promotion. Please try again.";
 const safeListGraduationsError = "Unable to load graduation history. Please try again.";
 const safeProgressReportError = "Unable to load progress report. Please try again.";
+
+let bundledLevelCatalog: LevelCatalogProjection | undefined;
+
+function getBundledLevelCatalog(): LevelCatalogProjection {
+  if (bundledLevelCatalog) return bundledLevelCatalog;
+
+  const source = parseLevelCatalogSource(observedJson, businessCriteriaJson);
+  const observedSourceHash =
+    typeof observedJson.contentHash === "string" ? observedJson.contentHash.trim() : "";
+  if (!source.ok || observedSourceHash.length === 0) {
+    throw new Error(safeCatalogError);
+  }
+
+  const projection = parseLevelCatalogProjection({
+    ...source.value,
+    sourceHash: `bundled:${observedSourceHash}:business-${businessCriteriaJson.schemaVersion}`,
+  });
+  if (!projection.ok) {
+    throw new Error(safeCatalogError);
+  }
+
+  bundledLevelCatalog = projection.value;
+  return bundledLevelCatalog;
+}
+
+function isConnectedLevelsBackendEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_LEVELS_BACKEND === "true";
+}
 
 export type StudentEvaluationsResponse = Readonly<{
   evaluations: readonly EvaluationRecord[];
@@ -116,6 +147,10 @@ function isSafeProgressReport(value: unknown): value is ProgressReport {
   );
 }
 export async function getLevelCatalog(): Promise<LevelCatalogProjection> {
+  if (!isConnectedLevelsBackendEnabled()) {
+    return getBundledLevelCatalog();
+  }
+
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<null, unknown>(functions, "listLevelCatalog");
 
@@ -346,7 +381,5 @@ export async function listGraduations(
     throw new Error(safeListGraduationsError);
   }
 }
-
-
 
 

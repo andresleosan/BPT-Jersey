@@ -1,34 +1,4 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-
-import { parseLevelCatalogSource } from "../../packages/domain/src/levels/level-contracts";
-
-const observedJson = JSON.parse(
-  readFileSync(
-    resolve(import.meta.dirname, "../../docs/data/ibjjf-levels-observed.sanitized.json"),
-    "utf8",
-  ),
-);
-const businessCriteriaJson = JSON.parse(
-  readFileSync(
-    resolve(import.meta.dirname, "../../docs/data/ibjjf-levels-business-criteria.sanitized.json"),
-    "utf8",
-  ),
-);
-
-const catalogResult = parseLevelCatalogSource(observedJson, businessCriteriaJson);
-if (!catalogResult.ok) {
-  throw new Error("Failed to parse canonical level catalog");
-}
-
-const mockProjection = {
-  system: catalogResult.value.system,
-  definitions: catalogResult.value.definitions,
-  skills: catalogResult.value.skills,
-  requirements: catalogResult.value.requirements,
-  sourceHash: "e2e-source-hash",
-};
 
 function trackBrowserHealth(page: Page, directDataRequests: string[]): string[] {
   const errors: string[] = [];
@@ -38,7 +8,7 @@ function trackBrowserHealth(page: Page, directDataRequests: string[]): string[] 
   page.on("pageerror", (error) => errors.push(`page: ${error.message}`));
   page.on("request", (request) => {
     if (
-      /firestore\.googleapis\.com|firebaseio\.com|firebasedatabase\.app|google\.firestore\.v1\.Firestore|:(?:8080|9000)\//iu.test(
+      /firestore\.googleapis\.com|firebaseio\.com|firebasedatabase\.app|cloudfunctions\.net|google\.firestore\.v1\.Firestore|:(?:5001|8080|9000)\//iu.test(
         request.url(),
       )
     ) {
@@ -78,40 +48,6 @@ async function expectNoBrowserHealthProblems(
   expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.bodyClientWidth);
 }
 
-async function installLevelsHarness(
-  page: Page,
-  options: { failCatalog?: boolean } = {},
-): Promise<void> {
-  await page.route("**/*", async (route) => {
-    const request = route.request();
-    if (request.method() !== "POST") {
-      await route.continue();
-      return;
-    }
-
-    if (request.url().includes("listLevelCatalog")) {
-      if (options.failCatalog) {
-        await route.fulfill({
-          body: JSON.stringify({
-            error: { status: "INTERNAL", message: "backend failure" },
-          }),
-          contentType: "application/json",
-          status: 200,
-        });
-        return;
-      }
-      await route.fulfill({
-        body: JSON.stringify({ data: mockProjection }),
-        contentType: "application/json",
-        status: 200,
-      });
-      return;
-    }
-
-    await route.continue();
-  });
-}
-
 test.describe("Levels and Belts IBJJF E2E (T083)", () => {
   test("admin browser renders all 171 definitions and filters by belt kind and search keyword", async ({
     page,
@@ -120,7 +56,6 @@ test.describe("Levels and Belts IBJJF E2E (T083)", () => {
     const errors = trackBrowserHealth(page, directDataRequests);
 
     await installStaticRoute(page, "/admin/levels");
-    await installLevelsHarness(page);
 
     await page.goto("/admin/levels?adminTestRole=owner");
 

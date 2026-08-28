@@ -438,6 +438,7 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T085 | Fijar `nanoid >=3.3.18` y excluir caches Graphify del formatter                              | T002           | aprobada | `nanoid@3.3.18`, audit sin high/critical y formato global verde; aprobada 2026-08-23                                                                                              |
 | T086 | Aislar E2E sintÃ©tico de red externa y diferir el resolver del popup de Google                | T014,T049,T050 | aprobada | Resolver Google diferido hasta el sign-in y fixture operativa explÃ­cita; unitarias 1036/1036 y E2E 67/67; aprobada 2026-08-24                                                     |
 | T087 | Reconciliar estados, dependencias y evidencia entre `tasks.md` y `Lista/`                    | T082           | aprobada | 87 IDs Ãºnicos sincronizados; 0 divergencias de estado y 0 tareas aprobadas con dependencias abiertas; sintaxis, Prettier y diff verificados 2026-08-25                            |
+| T088 | Mostrar el catalogo canonico de Levels en el panel administrativo                         | T083,T087      | revision | Preview canonico sanitizado por defecto y callable Firestore solo con `NEXT_PUBLIC_LEVELS_BACKEND=true`; 171 levels/27 belts/144 stripes/11 skills visibles. Unitarias 165/1122, Rules 64/64, E2E completo 71 pass/14 skip y focalizado desktop/mobile 2/2; build, typecheck, lint, formato del alcance, diff y audit sin high/critical pasan. |
 
 ## Plan de implementaciÃ³n del MVP aprobado
 
@@ -985,7 +986,7 @@ Esta regla aplica a cualquier sesiÃ³n, fecha, plataforma o agente, aunque se p
   final deja un solo Temporary Synthetic Placeholder; node --check, Prettier y git diff --check
   pasan. T009 permanece en revisiÃ³n hasta la confirmaciÃ³n real del head coach.
 
-- Reconciliaciï¿½n fresca 2026-08-25: parser canï¿½nico: ledger=87 lista=87 unique=87 divergences=0. El histï¿½rico 88/88 era obsoleto; no existe T088 y se mantiene el rango T001-T087 sin inventar una tarea adicional.
+- Reconciliacion 2026-08-28: la nota del corte 2026-08-25 quedo superada al registrar T088 para la correccion de Levels. El inventario actual contiene 89 IDs unicos tanto en `tasks.md` como en `Lista/Lista.js` (incluidos T020A y el roadmap T060-T071), con 0 faltantes y 0 extras.
 
 ### T013 - 2026-08-07
 
@@ -3450,3 +3451,13 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
 - Revalidacion: pruebas focalizadas 6/6; typecheck de @bpt-jersey/domain y @bpt-jersey/functions pasan; ESLint y Prettier del alcance pasan. La evidencia previa conserva verify:mvp 159/159 archivos, 1082/1082 tests, Rules 64/64, carga 240/240 (p95 82 ms) y E2E 5 passed/1 skipped.
 - Seguridad y costos: no se manejan tarjetas ni PII de pago, no hay llamadas externas ni secretos, y el costo comprometido es USD 0/mes mientras el proveedor permanece unconfigured.
 - Estado: T034 pasa a aprobada �nicamente para el alcance tecnico/sintetico. T010 sigue bloqueada; T035/T036, proveedor real, credenciales, cobro, migracion y produccion permanecen pendientes.
+
+### Evidencia T088 - Catalogo canonico de Levels visible en admin - 2026-08-28
+
+- Causa: `/admin/levels` invocaba siempre `listLevelCatalog`; el preview estatico no tiene por que tener la Function desplegada ni `academies/{academyId}/levelSystems` sembrado, por lo que ocultaba el catalogo sanitizado que ya formaba parte de T083.
+- Correccion: `getLevelCatalog` usa por defecto los JSON canonicos sanitizados, los valida con `parseLevelCatalogSource` y `parseLevelCatalogProjection`, y conserva el backend como opt-in exacto mediante `NEXT_PUBLIC_LEVELS_BACKEND=true`. El modo conectado no cae silenciosamente al bundle si Firebase falla.
+- RED/GREEN y contrato: la nueva prueba fallo primero porque el cliente seguia invocando Firebase; despues pasaron 17/17 pruebas focalizadas. La suite completa paso 165 archivos y 1122/1122 pruebas; Rules paso 8 archivos y 64/64 con JDK 21.
+- Navegador: E2E completo paso 71 escenarios y omitio 14 live/staging/opt-in; el gate final focalizado paso 2/2 en desktop y mobile, con 171 levels, 27 belts, 144 stripes, 11 skills, busqueda/filtros, cero solicitudes a Functions/Firestore/RTDB y sin overflow.
+- Seguridad: no se agregaron endpoints, writes, permisos, PII, credenciales ni datos productivos. El escaneo del diff no encontro prefijos de secretos; `pnpm audit --prod --audit-level high` reporto 0 high/critical y 1 moderate transitiva del baseline.
+- Gates: lint completo, typecheck de 6 proyectos, build completo y build E2E, Prettier del alcance y `git diff --check` pasan. `verify:mvp` global no pudo superar su primer gate porque `packages/domain/src/attendance/offline-contracts.test.ts`, sin cambios frente a HEAD y fuera de T088, ya incumple Prettier; los gates restantes se ejecutaron por separado. No se ejecuto carga nueva porque T088 no cambia servicios ni writes.
+- Estado: T088 queda en `revision` para el preview local/sanitizado. No hubo despliegue, migracion, seed de Firestore, datos reales ni gasto externo.
