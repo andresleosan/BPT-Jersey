@@ -26,6 +26,8 @@ const steps = [
   },
 ];
 const env = { ...process.env, BPT_VERIFY_MVP: "true" };
+// Firebase CLI can log the complete child environment when DEBUG is inherited.
+delete env.DEBUG;
 
 console.log(
   "verify:mvp: local synthetic-pilot gate; no deploy, migration, live load, or external payment.",

@@ -50,7 +50,14 @@ describe("offline attendance contracts", () => {
 
   it("does not silently choose between same-session conflicting events", () => {
     const result = reconcileOfflineAttendance({
-      localEvents: [{ ...event, eventId: "event-2", occurredAt: "2026-08-27T12:02:00Z", capturedAt: "2026-08-27T12:03:00Z" }],
+      localEvents: [
+        {
+          ...event,
+          eventId: "event-2",
+          occurredAt: "2026-08-27T12:02:00Z",
+          capturedAt: "2026-08-27T12:03:00Z",
+        },
+      ],
       canonicalEvents: [event],
     });
     expect(result.ok).toBe(true);

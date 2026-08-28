@@ -12,15 +12,15 @@ con un acta fechada y T011 debe resolverse antes de aprobar este checklist.
 | Control                           | Evidencia actual                                                                                                                                    | Estado                       |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | T056 acta del piloto              | Acta aprobada en `docs/operations/t056-pilot-operator-acta-draft.md`; piloto sintetico con 71 pasaron, 14 omitidos por live/staging u opt-in y 0 fallos  | Aprobada unicamente para piloto sintetico |
-| T055 QA tecnico                   | `verify:mvp` local: 159 archivos/1082 pruebas, Rules 64/64, carga sintetica 240 solicitudes, p95 82 ms, E2E smoke 5 pasan/1 omitida                 | Aprobada unicamente para piloto sintetico             |
+| T055 QA tecnico                   | verify:mvp local: 165 archivos/1122 pruebas, Rules 64/64, carga sintetica 240 solicitudes con 0 fallos y p95 27 ms, E2E smoke 5 pasan/1 omitida esperada | Aprobada unicamente para piloto sintetico |
 | Runtime desplegable               | Test de preparacion de runtime 2/2; dominio CRM incluido en `tsconfig.runtime` y mapping de imports verificado                                      | Verificado localmente        |
-| Seguridad                         | Secret scan sin coincidencias; audit 0 high/critical y 2 moderate transitivas preexistentes; endpoints CRM server-only y Rules cliente default-deny | Verificado para piloto       |
+| Seguridad                         | Secret scan sin coincidencias; audit 0 high/critical y 1 moderate del baseline; Firebase ya no hereda DEBUG ni vuelca el entorno en verify:mvp | Verificado para piloto |
 | T011 retencion/residencia/borrado | Falta matriz aprobada por operador y asesoria aplicable a Jersey                                                                                    | Bloqueado                    |
 | Backup y rollback                 | Rehearsal Emulator apply -> fallo sintetico -> rollback y runbook documentados                                                                      | Verificado solo en piloto    |
 | Staging real                      | No existe `BASE_URL` ni entorno/credenciales dedicados en el workspace                                                                              | Pendiente                    |
 | Costos y alertas                  | T010 mantiene shortlist documentada en docs/operations/payment-provider-decision-packet.md; no hay proveedor seleccionado, presupuesto ni alertas productivas aprobadas                                                                               | Pendiente                    |
-| CI/CD y entornos                  | Falta confirmar environment protegido, aprobacion manual y artefacto de release                                                                     | Pendiente                    |
-| Browser QA                        | E2E sintetico pasa; escenarios live/staging permanecen omitidos                                                                                     | Revision                     |
+| CI/CD y entornos                  | CI ejecuta calidad, Rules, build y smoke; no existe CD, GitHub Environment protegido, aprobacion manual automatizada ni artefacto de release/rollback reproducible | Pendiente |
+| Browser QA                        | Piloto sintetico completo: 71 pasan/14 omitidos live-staging-opt-in; revalidacion T088 desktop/mobile 2/2; no existe corrida autenticada contra staging real | Revision |
 
 ## Criterio de salida
 
@@ -39,3 +39,10 @@ el operador confirme explicitamente el despliegue. Ningun control se satisface c
 
 Resolver T011 y confirmar el entorno staging dedicado; despues repetir el gate antes de
 considerar T058.
+
+## Revalidacion 2026-08-28
+
+- Las cinco condiciones de deploy-checklist no estan satisfechas para produccion: T057 no tiene aprobacion final, no existe staging real validado, el rollback solo fue ensayado con Emulator, no hay CD protegido y no existe confirmacion explicita de T058.
+- T011 sigue bloqueada por decisiones de retencion, residencia, borrado y asesoria aplicable a Jersey.
+- T010 conserva shortlist de proveedor, pero no hay seleccion, onboarding, presupuesto ni alertas productivas.
+- Resultado: mantener T057 en revision y T058 pendiente. El proximo paso seguro es completar T011 y definir un staging sintetico dedicado; no desplegar.

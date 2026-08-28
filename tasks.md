@@ -110,7 +110,7 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 | T054 | Configurar backups, restauraciÃ³n y runbook de rollback                     | T013,T024                                                             | aprobada  | Aprobada explÃ­citamente por el operador el 2026-08-25 solo para el piloto sintÃ©tico: contrato fail-closed, checksum/conteos, rehearsal Emulator applyâ†’rollback, runbook, unitarias 6/6, integraciÃ³n 1/1 y E2E 2/2; no autoriza backup/restore productivo                                                         |
 | T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T008,T009,T011,T018,T019,T021-T033,T037-T042,T045,T047-T054,T083,T086 | aprobada | QA aprobado unicamente para el piloto sintetico: verify:mvp, unitarias 159/1082, Rules 64/64, carga sintetica 240 solicitudes/concurrencia 24 sin fallos (p95 82 ms) y E2E smoke 5 pasan/1 omitida. T011, carga live/staging y produccion siguen bloqueados; no autoriza datos reales ni despliegue. |
 | T056 | Ejecutar piloto con datos controlados y corregir hallazgos | T055 | aprobada | Piloto E2E sintetico ejecutado: 71 pasaron, 14 omitidos por live/staging u opt-in y 0 fallos; verify:mvp y carga sintetica pasan; acta aprobada explicitamente por el operador el 2026-08-27 unicamente para el piloto sintetico; no autoriza staging real, produccion, datos reales, pagos ni migraciones. |
-| T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056 | revision | Checklist actualizado con evidencia vigente: verify:mvp 159/1082, Rules 64/64, carga sintetica p95 82 ms, runtime 2/2, seguridad y rollback local; T056 aprobada unicamente para piloto sintetico. T011, staging real, costos/alertas y autorizacion productiva siguen pendientes. T010 ya tiene shortlist oficial documentada, sin proveedor seleccionado ni gasto. |
+| T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056 | revision | Revalidada 2026-08-28: verify:mvp 165/1122, Rules 64/64, carga 240/240 p95 27 ms, E2E sintetico y seguridad sin high/critical; hard stops abiertos en T011, staging real, CD protegido, costos/alertas y autorizacion T058. |
 | T058 | Desplegar a producciÃ³n con confirmaciÃ³n explÃ­cita del operador             | T057                                                                  | pendiente | Deployment verificado y rollback disponible; fuera del piloto                                                                                                                                                                                                                                                    |
 | T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md`        | T058                                                                  | pendiente | LecciÃ³n registrada despuÃ©s de producciÃ³n; fuera del piloto                                                                                                                                                                                                                                                       |
 
@@ -438,7 +438,7 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T085 | Fijar `nanoid >=3.3.18` y excluir caches Graphify del formatter                              | T002           | aprobada | `nanoid@3.3.18`, audit sin high/critical y formato global verde; aprobada 2026-08-23                                                                                              |
 | T086 | Aislar E2E sintÃ©tico de red externa y diferir el resolver del popup de Google                | T014,T049,T050 | aprobada | Resolver Google diferido hasta el sign-in y fixture operativa explÃ­cita; unitarias 1036/1036 y E2E 67/67; aprobada 2026-08-24                                                     |
 | T087 | Reconciliar estados, dependencias y evidencia entre `tasks.md` y `Lista/`                    | T082           | aprobada | 87 IDs Ãºnicos sincronizados; 0 divergencias de estado y 0 tareas aprobadas con dependencias abiertas; sintaxis, Prettier y diff verificados 2026-08-25                            |
-| T088 | Mostrar el catalogo canonico de Levels en el panel administrativo                         | T083,T087      | revision | Preview canonico sanitizado por defecto y callable Firestore solo con `NEXT_PUBLIC_LEVELS_BACKEND=true`; 171 levels/27 belts/144 stripes/11 skills visibles. Unitarias 165/1122, Rules 64/64, E2E completo 71 pass/14 skip y focalizado desktop/mobile 2/2; build, typecheck, lint, formato del alcance, diff y audit sin high/critical pasan. |
+| T088 | Mostrar el catalogo canonico de Levels en el panel administrativo | T083,T087 | aprobada | Aprobada 2026-08-28 para preview local/sanitizado: 171 definiciones visibles, backend solo opt-in, verify:mvp completo, Playwright focalizado 2/2 y cierre de seguridad; sin deploy, seed, migracion, datos reales ni gasto. |
 
 ## Plan de implementaciÃ³n del MVP aprobado
 
@@ -3461,3 +3461,23 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
 - Seguridad: no se agregaron endpoints, writes, permisos, PII, credenciales ni datos productivos. El escaneo del diff no encontro prefijos de secretos; `pnpm audit --prod --audit-level high` reporto 0 high/critical y 1 moderate transitiva del baseline.
 - Gates: lint completo, typecheck de 6 proyectos, build completo y build E2E, Prettier del alcance y `git diff --check` pasan. `verify:mvp` global no pudo superar su primer gate porque `packages/domain/src/attendance/offline-contracts.test.ts`, sin cambios frente a HEAD y fuera de T088, ya incumple Prettier; los gates restantes se ejecutaron por separado. No se ejecuto carga nueva porque T088 no cambia servicios ni writes.
 - Estado: T088 queda en `revision` para el preview local/sanitizado. No hubo despliegue, migracion, seed de Firestore, datos reales ni gasto externo.
+
+#### Reanudacion de cierre T088 - 2026-08-28
+
+- El operador solicito cerrar correctamente T088. La tarea vuelve a `en-progreso` como unico WIP.
+- Alcance de correccion: normalizar el archivo preexistente `packages/domain/src/attendance/offline-contracts.test.ts` que bloqueaba `verify:mvp`, repetir revision Next/React, seguridad y QA, y reconciliar `tasks.md` con `Lista/Lista.js` antes de aprobar.
+
+#### Cierre aprobado T088 - 2026-08-28
+
+- Correccion de calidad: se normalizo el test preexistente que bloqueaba Prettier; su suite focalizada paso 6/6.
+- Revision Next/React: los imports JSON estaticos son analizables por el bundler y el backend queda condicionado por una bandera publica explicita; no se detectaron defectos funcionales ni cambios de permisos, endpoints o writes.
+- Seguridad: verify:mvp deja de heredar DEBUG a Firebase para impedir volcados del entorno; 13 valores del log local generado fueron redactados y la repeticion no reprodujo el volcado. El secret scan del diff dio 0 coincidencias y pnpm audit --prod --audit-level high dio 0 high/critical y 1 moderate del baseline.
+- QA global: verify:mvp paso formato, lint, typecheck de 6 proyectos, build de 28 rutas, 165 archivos/1122 pruebas unitarias, Rules 8 archivos/64 pruebas con JDK 21, build E2E, carga sintetica 240/240 con 0 fallos (p95 27 ms) y smoke E2E 5 passed/1 skipped esperado.
+- QA focalizada: Playwright paso 2/2 en desktop y mobile para las 171 definiciones, filtros por belt/kind y busqueda.
+- Estado: T088 queda aprobada para el preview local/sanitizado. No hubo despliegue, migracion, seed de Firestore, datos reales, credenciales productivas ni gasto externo.
+
+### Revalidacion T057 - 2026-08-28
+
+- Se actualizo el checklist con la evidencia fresca del cierre T088 y verify:mvp: 165/1122 unitarias, Rules 64/64, carga 240/240 con p95 27 ms, smoke 5 passed/1 skipped esperado, Playwright T088 2/2 y audit 0 high/critical.
+- Deploy-checklist bloquea el avance productivo: T011 sigue sin decision legal/operativa, no existe staging real validado, el rollback solo esta ensayado con Emulator, falta CD con environment protegido y aprobacion manual, y no hay presupuesto/alertas ni autorizacion explicita para T058.
+- Estado: T057 permanece en revision y T058 pendiente. No hubo despliegue, migracion, datos reales, credenciales productivas ni gasto.

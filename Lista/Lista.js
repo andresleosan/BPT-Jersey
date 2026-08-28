@@ -850,7 +850,7 @@ const closeoutItems = [
     "revision",
     "Completar los controles operativos antes de produccion.",
     "T056",
-    "Checklist actualizado con evidencia vigente: verify:mvp 159/1082, Rules 64/64, carga sintetica p95 82 ms, runtime 2/2, seguridad y rollback local; T056 aprobada unicamente para piloto sintetico. T010 tiene shortlist oficial documentada, sin proveedor seleccionado ni gasto; T011, staging real, costos/alertas y autorizacion productiva siguen pendientes.",
+    "Revalidada 2026-08-28: verify:mvp 165/1122, Rules 64/64, carga 240/240 p95 27 ms y seguridad sin high/critical; T011, staging real, CD protegido, costos/alertas y autorizacion T058 siguen abiertos.",
     [
       "tasks.md",
       "STACK.md",
@@ -1161,16 +1161,17 @@ const specialItems = [
   task(
     "T088",
     "Mostrar el catalogo canonico de Levels en el panel administrativo",
-    "revision",
+    "aprobada",
     "Cargar las 171 definiciones sanitizadas aprobadas en el preview y reservar Firestore para el modo backend explicito.",
     "T083,T087",
-    "Preview canonico sin red y backend opt-in; 165/1122 unitarias, Rules 64/64, E2E completo 71/71 ejecutadas y focalizado desktop/mobile 2/2; build, typecheck, lint, formato del alcance, diff y audit sin high/critical pasan.",
+    "Aprobada 2026-08-28 para preview local/sanitizado: verify:mvp completo, Playwright focalizado 2/2 y cierre de seguridad; sin deploy, seed, migracion, datos reales ni gasto.",
     [
       "tasks.md",
       "apps/web/src/lib/levels-client.ts",
       "docs/data/ibjjf-levels-observed.sanitized.json",
       "docs/data/ibjjf-levels-business-criteria.sanitized.json",
       "qa/tests/levels-catalog.spec.ts",
+      "scripts/verify-mvp.mjs",
     ],
     "special",
   ),

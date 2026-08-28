@@ -12,20 +12,17 @@ despliegues productivos, cobros online ni mensajería externa.
 **3 - empresarial.** El sistema combina operación multi-módulo, permisos por rol, datos de menores y salud, pagos, auditoría, comunicaciones y obligaciones de continuidad.
 
 - Ciclo de autocrítica completo: **sí**, con seguridad, QA, rendimiento antes de releases grandes y evidencia verificable.
-- Workflow de Superpowers: **activo en la sesión OpenCode vigente** para diseño, planificación, TDD
-  y verificación. La ejecución previa bajo Codex aplicó la disciplina equivalente sin asumir
-  compatibilidad nativa.
+- Workflow de Superpowers: documentado para las sesiones OpenCode históricas. En la sesión Codex vigente se aplican las skills Cronos equivalentes sin asumir compatibilidad nativa con Superpowers.
 - Clasificación y stack: **aceptados por el operador en A2.1 el 2026-08-06**.
 
 ## Entorno
 
-- Plataforma activa al 2026-08-18: OpenCode. El proyecto conserva configuración para Codex y VS
-  Code, pero esas plataformas no describen la sesión actual.
+- Plataforma activa al 2026-08-28: Codex. El proyecto conserva configuración para OpenCode y VS Code, pero esas plataformas no describen la sesión actual.
 - OpenCode MCP: `@playwright/mcp@0.0.79 --extension` verificado contra la pestaña Regyfit en modo
   read-only. La conexión solo existe mientras el operador la autoriza en el navegador.
 - Runtime local detectado: Node.js v24.18.0.
 - Gestor de paquetes: pnpm 11.20.0 mediante Corepack, verificado en el entorno.
-- Superpowers instalado y utilizado: sí, en OpenCode.
+- Superpowers instalado y utilizado: sí, en las sesiones OpenCode históricas; la sesión Codex actual usa las skills Cronos disponibles.
 
 ## Frontend
 
@@ -205,8 +202,7 @@ Alternativas descartadas:
 
 ## Modelo recomendado
 
-- Modelo activo en esta sesión OpenCode: `gpt-5.6-sol`, informado por el runtime. El proyecto no
-  fija un modelo OpenCode propio en `opencode.json`.
+- Modelo activo en esta sesión Codex: runtime basado en GPT-5; el proyecto no fija un modelo Codex adicional fuera de su configuración de plataforma.
 - Configuración histórica Codex: `gpt-5.6-luna` con esfuerzo `xhigh`, confirmada por el operador el
   2026-08-06 y conservada en `.codex/config.toml` para esa plataforma.
 - Alterno ante caída del proveedor: no hay bloques `[model_providers.*]` configurados. Es una limitación conocida; antes de la auditoría de seguridad conviene conectar un proveedor/modelo distinto y fuerte para reducir el punto ciego de autoauditoría.
