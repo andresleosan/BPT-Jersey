@@ -4,7 +4,7 @@ Status: blocked; prepared for operator and applicable Jersey legal/advisory revi
 
 Prepared: 2026-08-21
 
-Updated: 2026-08-25 after operator approval of the T018/T054 synthetic-pilot scope; T011 remains blocked.
+Updated: 2026-08-28 after official-source revalidation and staging gate definition; T011 remains blocked.
 
 ## Purpose
 
@@ -29,10 +29,15 @@ deadline is proposed by this packet.
 
 ## Decision Owners
 
-The operator must identify the academy decision owner and the applicable Jersey
-legal/advisory reviewer. Each accepted decision must record the approver, date,
-source, scope, conditions, and affected tasks. Until then, the status remains
-`T011: bloqueada`.
+On 2026-08-28, the operator confirmed that neither the academy decision owner nor
+the applicable Jersey legal/advisory reviewer has been designated. The selection
+and engagement package is available at
+`docs/operations/t011-reviewer-engagement-brief.md`; it has not been sent and no
+fees or external access have been authorized.
+
+Each accepted decision must record the approver, date, source, scope, conditions,
+and affected tasks. Until both roles are designated and the required decisions
+are approved, the status remains `T011: bloqueada`.
 
 ## Decision Matrix
 
@@ -70,23 +75,45 @@ jurisdictions or regions, subprocessors, contractual or technical safeguards,
 and the owner responsible for reviewing provider changes. No production region
 or transfer allowance is selected by this packet.
 
+## Official Baseline Revalidated 2026-08-28
+
+This is a decision aid, not legal advice or a compliance certification.
+
+- The academy/controller identity and JOIC registration status must be recorded. JOIC states that controllers and processors established in Jersey that process personal data must register, subject to the applicable registration framework.
+- A lawful basis must be selected before each processing activity. Health data also needs a valid special-category condition; consent is not assumed as a universal fallback.
+- The DPJL storage-limitation principle does not provide one universal retention period. Each category needs a purpose, trigger, justified period, action at expiry, legal-hold treatment and owner. Live data, backups, logs and exported artifacts must be covered.
+- Controller/processor roles must be assessed per activity. Each processor needs a written contract covering instructions, confidentiality, security, sub-processors, rights/breach assistance and deletion/return at termination.
+- A DPIA screening is required for this project before real processing because it combines minors, health/support, finance, attendance and access control. If likely high risk remains unmitigated, JOIC must be consulted before processing begins.
+- Every service location, remote-access country, processor and onward transfer must be mapped. Adequacy, appropriate safeguards or a narrow exception must be documented; where appropriate safeguards are needed, JOIC guidance points small organisations to SCCs plus the Jersey Addendum and a Transfer Impact Assessment.
+- Staging may use only synthetic data until this matrix is approved. A synthetic-only staging run does not decide the lawful basis, retention, deletion, residency or transfer treatment for production.
+
+## Inputs Required From Operator And Reviewer
+
+| Decision                                    | Required evidence                                                                                         | Current state                                        |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Legal controller and academy decision owner | Legal/organisational identity, accountable person and contact                                             | Not designated; operator response 2026-08-28         |
+| JOIC registration                           | Registration status/number or documented applicability determination                                      | Missing                                              |
+| Applicable reviewer                         | Named Jersey legal/data-protection adviser or DPO reviewer                                                | Not designated; engagement brief prepared 2026-08-28 |
+| Processing inventory and lawful bases       | Purpose-by-purpose basis for identity, minors, health, finance, attendance, safeguarding, CRM and audit   | Missing                                              |
+| Special-category conditions                 | Separate condition and safeguards for health/support and any other special-category data                  | Missing                                              |
+| Retention schedule                          | Trigger, period/rule, expiry action, owner, legal hold and backup treatment for every matrix row          | Missing                                              |
+| Processor/sub-processor register            | Firebase/Google Cloud, Cloudflare and future providers with contracts, regions and deletion terms         | Missing                                              |
+| Transfer assessment                         | Receiver, country, adequacy/safeguard, TIA/SCC/Jersey Addendum where applicable, onward transfers         | Missing                                              |
+| DPIA                                        | Screening, risks, mitigations, residual risk and JOIC consultation decision                               | Missing                                              |
+| Rights and incident operations              | Access, correction, erasure/restriction, guardian authority, breach triage and 72-hour assessment process | Missing                                              |
+
+No row may be completed with an invented default. The operator and applicable reviewer must record approver, date, source, scope and conditions.
+
 ## Official References Consulted
 
-These public Jersey Office of the Information Commissioner pages are research
-inputs for the operator/adviser review. They do not replace legal advice or
-approve any project decision:
+- Current Data Protection (Jersey) Law 2018: https://www.jerseylaw.je/laws/current/l_3_2018
+- JOIC organisation duties, registration, breach and DPIA entry points: https://www.jerseyoic.org/organisations
+- JOIC data-protection principles, lawful bases, special categories and storage limitation: https://jerseyoic.org/guidance/data-protection/definitions-principles-and-lawful-bases/definitions-the-data-protection-principles-and-lawful-bases
+- JOIC controller/processor duties and contract requirements: https://jerseyoic.org/guidance/data-protection/data-controller-processor-duties/your-duties-and-responsibilities-as-a-data-controller
+- JOIC DPIA guidance/submission: https://portal.jerseyoic.org/dpia
+- JOIC international-transfer guidance, TIA and Jersey Addendum: https://jerseyoic.org/guidance/data-protection/international-transfers/transferring-personal-data-outside-jersey
 
-- `https://jerseyoic.org/` identifies the JOIC as the independent regulator for
-  the Data Protection (Jersey) Law 2018.
-- `https://jerseyoic.org/organisations` directs Jersey organisations to consider
-  registration, breach reporting, and DPIA consultation for high-risk
-  processing.
-- `https://jerseyoic.org/guidance` links guidance on controller duties,
-  data-protection principles and lawful bases, design and DPIAs, individual
-  rights, and transfers outside Jersey.
-
-The reviewer must verify the current guidance and determine which items apply
-to BPT Jersey before recording any decision in this packet.
+These official sources are research inputs for the operator/adviser review. They do not replace legal advice or approve any project decision.
 
 ## Provisional Pilot Controls
 
@@ -138,19 +165,19 @@ staging fixtures only. They are included to make the decision review concrete;
 they do not establish a legal basis, Jersey residency, a transfer mechanism, a
 retention obligation, or an approval to store real data.
 
-| Category (f) | Trigger (f) | Illustrative period (f) | Pilot handling (f) |
-| --- | --- | --- | --- |
-| Adult identity/Auth | Account closure | 30 days | Revoke access; retain synthetic references |
-| Minor/family relationship | Relationship ended | 90 days | Deactivate projection; preserve synthetic audit link |
-| Health/support | Support need closed | 30 days | Delete fixture payload after test run |
-| Safeguarding case | Case closed | 365 days | Restricted synthetic fixture; no export |
-| Consent/waiver/document | Consent superseded | 180 days | Keep versioned fixture; no production object |
-| Membership/payment | Account closure | 730 days | Append-only synthetic ledger; no hard delete |
-| Attendance/check-out | Session completed | 180 days | Keep aggregate fixture; omit PII |
-| Audit event | Event created | 730 days | Append-only emulator record |
-| Export/report | Download created | 7 days | Expire synthetic artifact automatically |
-| CRM/communications | Lead inactive | 90 days | In-app synthetic record; no external delivery |
-| Backup/restore artifact | Rehearsal completed | 14 days | Purge rehearsal fixture after checksum review |
+| Category (f)              | Trigger (f)         | Illustrative period (f) | Pilot handling (f)                                   |
+| ------------------------- | ------------------- | ----------------------- | ---------------------------------------------------- |
+| Adult identity/Auth       | Account closure     | 30 days                 | Revoke access; retain synthetic references           |
+| Minor/family relationship | Relationship ended  | 90 days                 | Deactivate projection; preserve synthetic audit link |
+| Health/support            | Support need closed | 30 days                 | Delete fixture payload after test run                |
+| Safeguarding case         | Case closed         | 365 days                | Restricted synthetic fixture; no export              |
+| Consent/waiver/document   | Consent superseded  | 180 days                | Keep versioned fixture; no production object         |
+| Membership/payment        | Account closure     | 730 days                | Append-only synthetic ledger; no hard delete         |
+| Attendance/check-out      | Session completed   | 180 days                | Keep aggregate fixture; omit PII                     |
+| Audit event               | Event created       | 730 days                | Append-only emulator record                          |
+| Export/report             | Download created    | 7 days                  | Expire synthetic artifact automatically              |
+| CRM/communications        | Lead inactive       | 90 days                 | In-app synthetic record; no external delivery        |
+| Backup/restore artifact   | Rehearsal completed | 14 days                 | Purge rehearsal fixture after checksum review        |
 
 Synthetic residency placeholder: keep fixtures in the local Emulator or a
 dedicated staging project labelled `synthetic-only`; do not infer that this is an

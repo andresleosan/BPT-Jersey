@@ -247,8 +247,14 @@ const phase0Items = [
     "bloqueada",
     "Confirmar la polÃ­tica aplicable a los datos de la academia, menores e informaciÃ³n restringida.",
     "-",
-    "Paquete de decisiÃ³n preparado en docs/operations/t011-retention-residency-deletion-decision-packet.md; bloqueada a la espera de la aprobaciÃ³n de la polÃ­tica y del asesoramiento aplicable para Jersey.",
-    ["tasks.md", "BRIEF.md", "STACK.md"],
+    "Decision owner y reviewer confirmados como no designados el 2026-08-28; brief de seleccion/consulta listo sin envio ni gasto. T011 sigue bloqueada hasta aprobar controller/registro JOIC y las 10 decisiones.",
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "STACK.md",
+      "docs/operations/t011-retention-residency-deletion-decision-packet.md",
+      "docs/operations/t011-reviewer-engagement-brief.md",
+    ],
     "decision",
   ),
 ];
@@ -850,11 +856,14 @@ const closeoutItems = [
     "revision",
     "Completar los controles operativos antes de produccion.",
     "T056",
-    "Revalidada 2026-08-28: verify:mvp 165/1122, Rules 64/64, carga 240/240 p95 27 ms y seguridad sin high/critical; T011, staging real, CD protegido, costos/alertas y autorizacion T058 siguen abiertos.",
+    "Roles T011 no designados registrados y brief de revision externa preparado; Gate A sigue bloqueado. Sin contacto, cloud, credenciales, datos reales ni gasto.",
     [
       "tasks.md",
       "STACK.md",
+      "docs/operations/t011-retention-residency-deletion-decision-packet.md",
+      "docs/operations/t011-reviewer-engagement-brief.md",
       "docs/operations/t057-post-pilot-production-checklist.md",
+      "docs/operations/t057-synthetic-staging-contract.md",
       "docs/operations/payment-provider-decision-packet.md",
     ],
     "roadmap",
@@ -889,7 +898,12 @@ const roadmapV2Items = [
     "Ampliar reservas despues del MVP; el corte basico de una hora pertenece a T027.",
     "-",
     "Slice T060 implementado: contratos estrictos de waitlist y creditos, estados waiting/offered/accepted/expired/cancelled, consumo parcial, agotamiento y reverso acotado; pruebas 9/9, typecheck de dominio, Prettier y diff pasan. Sin Firestore, UI, callable, migracion, cobro, credenciales ni datos reales; politicas de promocion, posiciones y creditos siguen pendientes.",
-    ["tasks.md", "BRIEF.md", "docs/roadmap/v2-v3-advance-plan.md", "packages/domain/src/schedule/advanced-booking-contracts.ts"],
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "docs/roadmap/v2-v3-advance-plan.md",
+      "packages/domain/src/schedule/advanced-booking-contracts.ts",
+    ],
     "roadmap",
   ),
   task(
@@ -909,7 +923,12 @@ const roadmapV2Items = [
     "Automatizar acciones seleccionadas de retenciÃ³n y CRM.",
     "-",
     "Slice T062 implementado: contrato read-only de alertas de retencion para inactividad, no-shows repetidos y membresias proximas a vencer; politica explicita, evidencia minima, deduplicacion determinista y salida sin datos de contacto/financieros. Pruebas 10/10, typecheck de dominio, ESLint, Prettier y diff pasan. Sin Firestore writes, callables, UI, CRM externo, mensajes, credenciales, cobros ni datos reales; bandeja, Rules/Emulator, E2E y permisos de staff siguen pendientes.",
-    ["tasks.md", "BRIEF.md", "docs/roadmap/t062-retention-alerts.md", "packages/domain/src/retention-contracts.ts"],
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "docs/roadmap/t062-retention-alerts.md",
+      "packages/domain/src/retention-contracts.ts",
+    ],
     "roadmap",
   ),
   task(
@@ -919,7 +938,12 @@ const roadmapV2Items = [
     "Ampliar el autoservicio sin debilitar los lÃ­mites de roles.",
     "-",
     "Slice T063 implementado: aislamiento fail-closed para guardian/adulto en booking, cancelacion, consultas de booking/asistencia/historial y checkout; guardian solo opera sobre menor vinculado con relacion/familia/estudiante activos, adulto solo sobre si mismo y check-in delegado denegado. Pruebas focalizadas 14/14 + access policy 9/9, typecheck Functions, ESLint, Prettier y diff pasan. Sin migraciones, UI, credenciales, cobros ni datos reales; Rules/Emulator, E2E y decisiones de tutor secundario/checkout adulto siguen pendientes.",
-    ["tasks.md", "BRIEF.md", "docs/roadmap/t063-self-service-rbac-matrix.md", "apps/functions/src/schedule/schedule-callables.ts"],
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "docs/roadmap/t063-self-service-rbac-matrix.md",
+      "apps/functions/src/schedule/schedule-callables.ts",
+    ],
     "roadmap",
   ),
   task(
@@ -929,7 +953,13 @@ const roadmapV2Items = [
     "Ampliar cobertura despuÃ©s de los avisos in-app bÃ¡sicos de T045 y T048.",
     "-",
     "Politica de notificaciones por consentimiento y canal; 6 pruebas focalizadas y 58 de regresion, typecheck, ESLint, Prettier y diff check pasan; sin proveedor, red, contactos ni gasto; quedan persistencia, runtime y E2E.",
-    ["tasks.md", "BRIEF.md", "STACK.md", "docs/roadmap/t064-notification-policy.md", "packages/domain/src/delivery/notification-policy.ts"],
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "STACK.md",
+      "docs/roadmap/t064-notification-policy.md",
+      "packages/domain/src/delivery/notification-policy.ts",
+    ],
     "roadmap",
   ),
   task(
@@ -939,7 +969,12 @@ const roadmapV2Items = [
     "Admitir operaciÃ³n controlada sin conexiÃ³n y conciliaciÃ³n.",
     "-",
     "Contrato de asistencia offline con idempotencia y conflictos fail-closed; 6 pruebas focalizadas y 48 de regresion, typecheck, ESLint, Prettier y diff check pasan; quedan adaptador, persistencia, Rules/Emulator y E2E.",
-    ["tasks.md", "BRIEF.md", "docs/roadmap/t065-offline-attendance.md", "packages/domain/src/attendance/offline-contracts.ts"],
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "docs/roadmap/t065-offline-attendance.md",
+      "packages/domain/src/attendance/offline-contracts.ts",
+    ],
     "roadmap",
   ),
   task(
@@ -949,7 +984,12 @@ const roadmapV2Items = [
     "AÃ±adir profundidad al currÃ­culo bÃ¡sico y la aprobaciÃ³n humana del piloto.",
     "-",
     "Contrato de biblioteca tecnica versionada y lesson planning; 5 pruebas focalizadas y 42 de regresion, typecheck, ESLint, Prettier y diff check pasan; aprobacion solo por head_coach; quedan persistencia, Rules/Emulator y E2E.",
-    ["tasks.md", "BRIEF.md", "docs/roadmap/t066-lesson-planning.md", "packages/domain/src/levels/lesson-planning-contracts.ts"],
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "docs/roadmap/t066-lesson-planning.md",
+      "packages/domain/src/levels/lesson-planning-contracts.ts",
+    ],
     "roadmap",
   ),
 ];
@@ -962,7 +1002,12 @@ const roadmapV3Items = [
     "AÃ±adir participaciÃ³n despuÃ©s de las rachas bÃ¡sicas de T041.",
     "-",
     "Contrato de dominio para objetivos/logros y resumen familiar; 6 pruebas focalizadas y 37 de regresión, typecheck, ESLint, Prettier y diff check pasan; sin Firestore/UI/leaderboard; quedan persistencia, Rules/Emulator, E2E, auditoría y checkpoint de producto.",
-    ["tasks.md", "BRIEF.md", "docs/roadmap/t067-family-achievements.md", "packages/domain/src/levels/achievement-contracts.ts"],
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "docs/roadmap/t067-family-achievements.md",
+      "packages/domain/src/levels/achievement-contracts.ts",
+    ],
     "roadmap",
   ),
   task(
