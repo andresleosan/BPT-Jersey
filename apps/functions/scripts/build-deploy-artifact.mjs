@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -7,6 +8,12 @@ const repositoryRoot = path.resolve(functionsDirectory, "../../..");
 const nodeExecutable = process.execPath;
 const tscExecutable = path.join(repositoryRoot, "node_modules", "typescript", "bin", "tsc");
 const corepackExecutable = process.platform === "win32" ? "corepack.cmd" : "corepack";
+const functionsBuildDirectory = path.resolve(repositoryRoot, "apps/functions/lib");
+const expectedFunctionsRoot = path.resolve(repositoryRoot, "apps/functions") + path.sep;
+
+if (!functionsBuildDirectory.startsWith(expectedFunctionsRoot)) {
+  throw new Error("Functions build directory escaped the module root.");
+}
 
 function run(executable, args, options = {}) {
   const result = spawnSync(executable, args, {
@@ -21,6 +28,7 @@ function run(executable, args, options = {}) {
 
 run(nodeExecutable, [tscExecutable, "-p", "packages/domain/tsconfig.runtime.json"]);
 run(nodeExecutable, ["packages/domain/scripts/prepare-runtime.mjs"]);
+rmSync(functionsBuildDirectory, { recursive: true, force: true });
 run(nodeExecutable, [
   tscExecutable,
   "-p",
@@ -30,7 +38,7 @@ run(nodeExecutable, [
   "--moduleResolution",
   "Bundler",
   "--rootDir",
-  ".",
+  "apps/functions",
 ]);
 run(nodeExecutable, ["apps/functions/scripts/clean-deploy-target.mjs"]);
 run(

@@ -1,34 +1,49 @@
-# T062 - contrato provisional de alertas de retencion
+# T062 - bandeja persistida de alertas de retención
 
-Estado: slice de dominio en revision; no activa CRM, mensajes externos ni produccion.
+Estado: slice implementado y en revisión; no activa CRM, mensajes externos ni producción.
 
-Fecha: 2026-08-27 (America/Bogota)
+Fecha: 2026-08-28 (America/Bogota)
 
-## Alcance
+## Alcance implementado
 
-El contrato recibe proyecciones canonicas de estudiantes activos, membresia vigente y asistencia. Produce alertas internas para staff, sin leer contactos, sin enviar mensajes y sin crear una segunda fuente de verdad.
+El contrato de dominio sigue evaluando proyecciones canónicas de estudiantes activos, membresía vigente y asistencia para producir tres señales internas y explicables: `attendance_gap`, `repeated_no_show` y `membership_expiring`.
 
-Triggers soportados:
+Este slice agrega una bandeja in-app persistida y tenant-scoped:
 
-- `attendance_gap`: no hubo asistencia `attended` o `late` dentro de la ventana de inactividad.
-- `repeated_no_show`: el estudiante alcanza el umbral configurado de `no_show` dentro del lookback.
-- `membership_expiring`: la membresia vigente termina dentro del horizonte configurado.
+- El backend de confianza valida lotes de hasta 200 alertas, usa un ID y una clave de deduplicación deterministas y persiste mediante transacciones idempotentes.
+- Un reintento idéntico queda `unchanged`; el mismo ID con contenido distinto falla cerrado y no sobrescribe evidencia.
+- La consulta se ordena por `createdAt` descendente y devuelve como máximo 200 alertas.
+- `listRetentionAlerts` acepta solo payload `null`, deriva el tenant del actor autenticado y permite lectura únicamente a `owner` y `administrator`.
+- La respuesta minimizada expone una referencia sintética de estudiante, señal, severidad, estado, evidencia mínima y fecha; omite `academyId`, `studentId`, `alertId`, contactos y claves de deduplicación.
+- Firestore Rules niega toda lectura y escritura directa de `retentionAlerts` a clientes, incluidos owner y administrator.
+- `/admin/retention` ofrece una bandeja read-only responsive con estados de carga, error y vacío, sin acciones de mutación.
 
-La politica se entrega explicitamente en cada evaluacion: `inactivityDays`, `lookbackDays`, `noShowThreshold` y `membershipExpiryDays`. Se rechazan rangos invalidos, datos cross-tenant, estudiantes duplicados, fechas futuras malformadas y snapshots inconsistentes.
+## Datos y seguridad
 
-## Invariantes
+`retentionAlerts` es una proyección derivada `Restricted`, no una nueva fuente de verdad. Cada documento conserva `alertId`, `academyId`, `studentId`, `kind`, `severity`, `status`, `reasonCode`, evidencia mínima, `deduplicationKey`, `createdAt` y `schemaVersion`. El origen canónico continúa en asistencia, estudiantes y membresías.
 
-- Solo se generan alertas para estudiantes activos con membresia activa.
-- Eventos futuros se ignoran; no pueden fabricar riesgo retrospectivo.
-- Cada alerta incluye `reasonCode`, evidencia minima y `deduplicationKey` determinista.
-- Repetir exactamente la misma entrada produce la misma salida y no muta los snapshots.
-- La salida no incluye email, telefono, nombre, membership ID, invoice ID, mensaje libre ni datos de contacto.
-- El resultado es una proyeccion read-only; la persistencia, asignacion a staff y cierre manual quedan fuera.
+Las entradas rechazan campos desconocidos, identificadores inválidos, fechas de calendario imposibles, lotes excesivos, datos cross-tenant, duplicados y alteraciones de un registro ya persistido. No se almacenan nombres, email, teléfono, texto libre, IDs financieros, credenciales ni secretos.
 
-## Pendientes
+## Evidencia
 
-- Persistir la bandeja tenant-scoped mediante una operacion idempotente y auditada.
-- Definir quien puede ver, asignar, snoozear y cerrar alertas.
-- Conectar fuentes canonicas de asistencia y membresia en Functions sin duplicar estado.
-- Cubrir Firestore Emulator, Rules y E2E responsive con fixtures sinteticos.
-- Diferir email/SMS y cualquier proveedor hasta resolver T046, consentimiento, costes y T011.
+- Servicio/callable focalizado: 15/15.
+- Cliente web: 8/8.
+- Firestore Emulator del store: 1/1.
+- Firestore Rules completa: 71/71, incluida la frontera T062 7/7.
+- E2E sintético responsive: 2/2 desktop/móvil.
+- E2E real Auth + Functions + Firestore Emulator: 2/2 desktop/móvil.
+- Runtime de despliegue: 2/2 y artefacto regenerado con `listRetentionAlerts` exportada.
+- Typecheck Functions/Web/QA, ESLint focalizado, build web, audit sin high/critical y `git diff --check`: aprobados.
+
+El gate global `corepack pnpm verify:mvp` pasa con 1139/1139 unitarias, 71/71 Rules, carga sintética 240/240 sin fallos (p95 32 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
+
+## Fuera de alcance y pendientes
+
+- No existe todavía un productor automático conectado a asistencia/membresías ni auditoría persistida de esa ejecución.
+- Asignar, snoozear, cerrar o eliminar alertas sigue fuera de alcance; la UI y callable son read-only.
+- No se implementaron email, SMS, CRM externo, proveedor, datos reales, credenciales, gasto, migración ni despliegue.
+- App Check, rate limiting persistente por actor y la política definitiva de retención/eliminación de T011 siguen siendo gates de producción.
+
+## Rollback
+
+El cambio es aditivo y no requiere migración. El rollback consiste en retirar la ruta y callable, deshabilitar el productor de confianza futuro y dejar los documentos derivados inertes. Cualquier limpieza productiva queda sujeta a T011 y a confirmación explícita; este slice no ejecuta borrados.

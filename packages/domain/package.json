@@ -90,6 +90,11 @@
       "import": "./src/reminders/reminder-contracts.ts",
       "default": "./lib/reminders/reminder-contracts.js"
     },
+    "./retention": {
+      "types": "./src/retention-contracts.ts",
+      "import": "./src/retention-contracts.ts",
+      "default": "./lib/retention-contracts.js"
+    },
     "./delivery": {
       "types": "./src/delivery/delivery-contracts.ts",
       "import": "./src/delivery/delivery-contracts.ts",

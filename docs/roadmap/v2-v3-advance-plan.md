@@ -74,13 +74,13 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - Gate global: `corepack pnpm verify:mvp` pasa con 1122/1122 unitarias, 64/64 Rules, carga sintetica 240/240 sin fallos (p95 28 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
 - No se agregaron colecciones, indices, migraciones, secretos, proveedores, cobros ni datos reales. T063 pasa a revision; las decisiones de tutor secundario y checkout adulto siguen pendientes y permanecen denegadas/fail-closed.
 
-## Estado del slice T062 (2026-08-27)
+## Estado del slice T062 (actualizado 2026-08-28)
 
-- Se implemento el contrato puro de alertas de retencion en packages/domain/src/retention-contracts.ts.
-- Cubre inactividad, no-shows repetidos y membresias proximas a vencer con politica explicita, evidencia minima y deduplicacion determinista por estudiante y dia.
-- La salida es read-only, tenant-scoped en la entrada, sin datos de contacto ni IDs financieros; estudiantes inactivos o sin membresia activa y eventos futuros se excluyen.
-- Evidencia: contrato focalizado y regresion de recordatorios 10/10, typecheck de @bpt-jersey/domain, ESLint, Prettier y git diff --check pasan.
-- No se agregaron Firestore writes, callables, UI, CRM externo, mensajes, credenciales, cobros ni datos reales. T062 pasa a revision; bandeja persistida, Rules/Emulator, E2E y permisos de staff quedan pendientes.
+- Se extendio el contrato puro con una bandeja Firestore tenant-scoped: persistencia transaccional idempotente, conflicto fail-closed ante reuso alterado, lotes y lecturas limitados a 200 y fechas de calendario estrictas.
+- `listRetentionAlerts` es read-only, acepta payload nulo, deriva tenant del actor y autoriza solo owner/administrator. La proyeccion omite IDs internos, tenant, contactos y deduplicacion; Rules niega todo acceso directo cliente.
+- `/admin/retention` entrega estados loading/error/empty y una bandeja responsive sin mutaciones. El E2E real usa Auth, Functions y Firestore Emulator; el artefacto de Functions se corrigio para compilar desde la raiz adecuada y exporta el callable nuevo.
+- Evidencia focalizada: servicio/callable 15/15, cliente 8/8, store Emulator 1/1, Rules 71/71, E2E sintetico 2/2, E2E real 2/2, runtime 2/2, typecheck/build/lint y audit sin high/critical. Gate global: 1139/1139 unitarias, 71/71 Rules, carga 240/240 sin fallos (p95 32 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
+- No se agregaron productor automatico, auditoria persistida, asignacion/cierre, App Check, rate limit persistente, CRM externo, mensajes, datos reales, credenciales, gasto, migracion ni despliegue. T062 pasa a revision y sigue bloqueada para produccion por T011/T057.
 
 ## Estado del slice T067 (2026-08-27)
 

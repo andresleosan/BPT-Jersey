@@ -136,6 +136,7 @@ describe("administrative shell", () => {
       "Attendance",
       "Reports",
       "CRM",
+      "Retention",
       "Finance",
       "Regyfit Access Records",
       "Staff",
@@ -145,7 +146,7 @@ describe("administrative shell", () => {
     labels.forEach((label) => {
       expect(within(navigation).getByRole("link", { name: label })).toBeVisible();
     });
-    expect(within(navigation).queryAllByRole("link")).toHaveLength(13);
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(14);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
       "/admin",
@@ -206,7 +207,7 @@ describe("administrative shell", () => {
 
     expect(main).toHaveClass("admin-main");
     expect(main).toHaveClass("admin-main-content");
-    expect(navigationLinks).toHaveLength(13);
+    expect(navigationLinks).toHaveLength(14);
     navigationLinks.forEach((link) => {
       expect(link.tagName).toBe("A");
       expect(link).toHaveAttribute("href");

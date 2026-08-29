@@ -141,7 +141,7 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 
 El contador de Lista incluye T060-T071 como roadmap futuro. El discovery se prioriza en T060, T063,
 T062 y T067; el detalle, RICE preliminar, dependencias y gates esta en
-docs/roadmap/v2-v3-advance-plan.md. T060, T062, T063, T064, T065, T066 y T067 quedan en revision por sus slices tecnicos; T061 y T068-T071 permanecen
+docs/roadmap/v2-v3-advance-plan.md. T060, T062, T063, T064, T065, T066 y T067 quedan en revision por sus slices tecnicos; no hay WIP activo; T061 y T068-T071 permanecen
 pendientes hasta contar con slice, contrato, criterios de aceptacion y evidencia de pruebas.
 
 ### Evidencia T060 - contratos de waitlist y creditos - 2026-08-27
@@ -173,6 +173,24 @@ pendientes hasta contar con slice, contrato, criterios de aceptacion y evidencia
 - Solo se consideran estudiantes activos con membresia activa; se ignoran eventos futuros y la salida no contiene contacto, nombre, membership ID, invoice ID ni mensaje libre.
 - Verificacion: `corepack pnpm exec vitest run --project node packages/domain/src/retention-contracts.test.ts packages/domain/src/reminders/reminder-contracts.test.ts` -> 10/10; typecheck de dominio, ESLint, Prettier y `git diff --check` pasan.
 - Alcance: sin Firestore writes, callables, UI, CRM externo, email/SMS, credenciales, cobros ni datos reales. T062 pasa a revision; quedan pendientes bandeja tenant-scoped, Rules/Emulator, E2E y permisos de staff.
+
+### Checkpoint T062 - bandeja interna persistida - 2026-08-28
+
+- Aprobacion explicita del operador para continuar con la recomendacion; T062 pasa a en-progreso como unico WIP.
+- Alcance: persistencia tenant-scoped e idempotente en `retentionAlerts`, escritura solo desde backend confiable, callable read-only para `owner` y `administrator`, bandeja admin responsive, Rules, Firestore Emulator y E2E sintetico.
+- Fuera de alcance: productor automatico, asignacion/cierre/snooze, acceso de otros roles, CRM externo, email/SMS, datos reales, credenciales, cobros, gasto, migracion o despliegue.
+- Reversion: retirar callable/ruta/UI y la coleccion aditiva; no se toca produccion y los fixtures sinteticos del Emulator son desechables.
+
+### Evidencia T062 - bandeja interna persistida - 2026-08-28
+
+- Store Firestore tenant-scoped con transacciones idempotentes, identidad determinista, conflicto fail-closed ante replay alterado, validacion estricta y limite de 200; el contrato puro conserva las tres senales explicables.
+- `listRetentionAlerts` acepta solo payload nulo, deriva tenant del actor, autoriza exclusivamente owner/administrator y devuelve una proyeccion minimizada. Rules niega todo acceso directo cliente a `retentionAlerts`.
+- `/admin/retention` es read-only y responsive. El E2E sintetico y el E2E real con Auth + Functions + Firestore Emulator cubren desktop/movil, RBAC y ausencia de acceso directo.
+- Se corrigio el empaquetado de Functions para limpiar solo `apps/functions/lib` y compilar con `--rootDir apps/functions`; el artefacto regenerado exporta `listRetentionAlerts` y las pruebas de runtime pasan 2/2.
+- Verificacion focalizada: servicio/callable 15/15, cliente 8/8, store Emulator 1/1, Rules 71/71, E2E sintetico 2/2, E2E real 2/2, typecheck Functions/Web/QA, lint/build, audit sin high/critical y `git diff --check` aprobados.
+- Autocritica: sin hallazgos high/critical ni secretos. La consulta y lotes quedan acotados; no hay productor automatico, auditoria persistida, App Check ni rate limit persistente por actor, por lo que produccion sigue bloqueada por T011/T057. Sin mensajes externos, CRM, datos reales, credenciales, gasto, migracion ni despliegue.
+- Gate global: `corepack pnpm verify:mvp` pasa con 1139/1139 unitarias, 71/71 Rules, carga sintetica 240/240 sin fallos (p95 32 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
+- Estado: T062 vuelve a revision; no queda WIP activo y no se solicita aprobacion funcional ni productiva.
 
 ### Evidencia T064 - politica de notificaciones externas - 2026-08-27
 

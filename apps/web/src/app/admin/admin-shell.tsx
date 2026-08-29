@@ -21,6 +21,7 @@ const navigationItems = [
   { label: "Attendance", href: "/admin/attendance" },
   { label: "Reports", href: "/admin/reports" },
   { label: "CRM", href: "/admin/crm" },
+  { label: "Retention", href: "/admin/retention" },
   { label: "Finance", href: "/admin/finance" },
   { label: "Regyfit Access Records", href: "/admin/regyfit-access-records" },
   { label: "Staff", href: "/admin/staff" },

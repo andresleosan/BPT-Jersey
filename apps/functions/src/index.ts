@@ -107,6 +107,7 @@ export {
   updateAnnouncement,
 } from "./announcements/announcement-callables.js";
 export { listClientReminders } from "./reminders/reminder-callables.js";
+export { listRetentionAlerts } from "./retention/retention-alert-callables.js";
 export {
   createTenantBackup,
   prepareTenantRestore,

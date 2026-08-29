@@ -32,6 +32,7 @@
     "src/announcements/announcement-contracts.ts",
     "src/announcements/safeguarding-contracts.ts",
     "src/reminders/reminder-contracts.ts",
+    "src/retention-contracts.ts",
     "src/delivery/delivery-contracts.ts",
     "src/health/health-contracts.ts",
     "src/documents/document-contracts.ts",
