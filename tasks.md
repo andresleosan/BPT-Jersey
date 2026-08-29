@@ -141,7 +141,7 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 
 El contador de Lista incluye T060-T071 como roadmap futuro. El discovery se prioriza en T060, T063,
 T062 y T067; el detalle, RICE preliminar, dependencias y gates esta en
-docs/roadmap/v2-v3-advance-plan.md. T060, T062, T063, T064, T065, T066 y T067 quedan en revision por sus slices tecnicos; no hay WIP activo; T061 y T068-T071 permanecen
+docs/roadmap/v2-v3-advance-plan.md. T060, T062, T063, T064, T065, T066 y T067 quedan en revision por sus slices tecnicos; no queda WIP activo y T061 y T068-T071 permanecen
 pendientes hasta contar con slice, contrato, criterios de aceptacion y evidencia de pruebas.
 
 ### Evidencia T060 - contratos de waitlist y creditos - 2026-08-27
@@ -150,6 +150,21 @@ pendientes hasta contar con slice, contrato, criterios de aceptacion y evidencia
 - La frontera cubre parser estricto de solicitud y registro de waitlist, estados de oferta/cancelacion, contrato de creditos, consumo parcial, agotamiento y reverso acotado sin mutacion.
 - Verificacion: pruebas focalizadas 9/9, corepack pnpm --filter @bpt-jersey/domain typecheck, Prettier focalizado y git diff --check pasan.
 - Alcance: no hay Firestore, migracion, callable, UI, cobro, credenciales ni datos reales. T060 pasa a revision; quedan pendientes la politica de promocion automatica, asignacion de posiciones y reglas operativas de creditos.
+
+### Checkpoint T060 - waitlist persistida - 2026-08-28
+
+- Aprobacion explicita del operador para seguir con el corte recomendado y publicar commit/push; T060 pasa a en-progreso como unico WIP.
+- Usuario prioritario: guardian/adulto que encuentra una sesion completa; sin este corte, la academia mantiene seguimiento manual y pierde intencion de reserva. Metrica futura: solicitudes recuperables en waitlist frente a intentos rechazados por capacidad.
+- Alcance: `waitlistEntries` tenant-scoped, join/list/cancel idempotentes, posicion asignada atomicamente, sesion scheduled y llena, membership exacta del estudiante con estado active/trial y vigencia temporal, student-scope/RBAC, Rules deny-direct, Emulator y E2E de callable.
+- Fuera de alcance: promocion u oferta automatica, aceptar cupo, reordenar posiciones, UI final, creditos, recurrencia, cobros, mensajes, proveedor, datos reales, credenciales, gasto, migracion o despliegue.
+- Reversion: retirar callables y codigo aditivo de waitlist; los fixtures sinteticos del Emulator son desechables y no se ejecuta limpieza productiva.
+### Evidencia T060 - waitlist persistida - 2026-08-28
+
+- Store Firestore tenant-scoped con join/cancel transaccionales e idempotentes, posicion atomica, consultas acotadas, identidad determinista y validacion fail-closed de sesion llena, membership vigente y booking confirmado duplicado.
+- Callables `joinWaitlist`, `cancelWaitlistEntry`, `listStudentWaitlist` y `listSessionWaitlist` derivan tenant/actor del token, aplican student-scope/RBAC y devuelven proyecciones minimizadas. Rules niega todo acceso directo a `waitlistEntries`.
+- Verificacion focal: dominio/store/callables 25/25; Firestore Emulator 2/2; Rules focales 7/7; E2E real Auth + Functions + Firestore Emulator 5/5 repeticiones sin retries; artefacto de Functions cargado correctamente.
+- Gate global: `corepack pnpm verify:mvp` pasa con formato, lint, typecheck y build; 1155/1155 unitarias, 78/78 Rules, carga sintetica 240/240 sin fallos (p95 32 ms) y smoke E2E 5 aprobadas/1 omitida esperada. `corepack pnpm audit --audit-level high`: 2 moderadas, 0 high/critical; `git diff --check` pasa.
+- Autocritica: sin hallazgos high/critical ni secretos. App Check, rate limit persistente, auditoria de mutaciones, promocion/ofertas, aceptacion, expiracion, reordenamiento, creditos, recurrencia, UI final, pagos y mensajes quedan fuera; produccion sigue bloqueada por T011/T057. Sin datos reales, credenciales, gasto, migracion ni despliegue. T060 vuelve a revision y no queda WIP activo.
 
 ### Evidencia T063 - aislamiento de autoservicio guardian/adulto - 2026-08-27
 

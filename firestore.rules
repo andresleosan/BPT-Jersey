@@ -58,6 +58,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/waitlistEntries/{waitlistId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/attendance/{attendanceId} {
       allow read, write: if false;
     }

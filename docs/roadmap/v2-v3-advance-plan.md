@@ -56,13 +56,15 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - T066: definir versionado de tecnicas, autoria del coach y workflow de aprobacion.
 - T065: definir cola local, idempotencia, reloj confiable y resolucion fail-closed.
 
-## Estado del slice T060 (2026-08-27)
+## Estado del slice T060 (actualizado 2026-08-28)
 
 - Se implementaron contratos de dominio para waitlist y creditos en packages/domain/src/schedule/advanced-booking-contracts.ts.
 - La validacion es estricta y fail-closed: entradas desconocidas, identificadores invalidos, timestamps incompatibles y saldos imposibles se rechazan.
 - Se cubren estados waiting/offered/accepted/expired/cancelled, consumo parcial, agotamiento y reverso acotado sin mutar el balance.
 - Evidencia: 9/9 pruebas focalizadas, typecheck de @bpt-jersey/domain, Prettier y git diff --check pasan.
-- No se agregaron callables, UI, Firestore, migraciones, cobros ni datos reales. T060 pasa a revision; la promocion automatica, el asignador de posiciones y las politicas de credito siguen pendientes de checkpoint.
+- El corte persistido aprobado agrega `waitlistEntries` tenant-scoped, posición transaccional, join/list/cancel idempotentes, validación de sesión llena y membresía vigente, student-scope/RBAC y cuatro callables con proyecciones minimizadas.
+- Firestore directo permanece denegado. Unitarias focales 25/25, store Emulator 2/2, Rules focales 7/7 y E2E real Auth + Functions + Firestore Emulator 5/5 sin retries pasan.
+- T060 vuelve a revisión. Promoción/ofertas, aceptación, expiración, reordenamiento, créditos operativos, recurrencia, UI final, pagos, mensajes, migración y producción siguen fuera del corte y requieren checkpoint propio.
 
 ## Estado del slice T063 (actualizado 2026-08-28)
 
@@ -120,6 +122,6 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 
 ## Checkpoint requerido
 
-Antes de implementar codigo de cualquiera de estas tareas, el operador debe confirmar la tarea,
-el slice exacto, las reglas de negocio y los criterios de aceptacion. El resultado de este documento
-es discovery priorizado; T060 queda en revision por este slice y T061-T071 permanecen pendientes en el ledger.
+Antes de implementar un nuevo slice de cualquiera de estas tareas, el operador debe confirmar la tarea,
+el alcance exacto, las reglas de negocio y los criterios de aceptacion. T060 y los slices tecnicos ya
+registrados en `tasks.md` quedan en revision; las capacidades restantes conservan su estado en el ledger.

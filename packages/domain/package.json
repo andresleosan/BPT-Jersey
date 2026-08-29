@@ -80,6 +80,11 @@
       "import": "./src/schedule/schedule-contracts.ts",
       "default": "./lib/schedule/schedule-contracts.js"
     },
+    "./schedule/advanced-booking": {
+      "types": "./src/schedule/advanced-booking-contracts.ts",
+      "import": "./src/schedule/advanced-booking-contracts.ts",
+      "default": "./lib/schedule/advanced-booking-contracts.js"
+    },
     "./announcements": {
       "types": "./src/announcements/announcement-contracts.ts",
       "import": "./src/announcements/announcement-contracts.ts",

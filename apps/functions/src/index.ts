@@ -96,6 +96,12 @@ export {
   saveSession,
 } from "./schedule/schedule-callables.js";
 export {
+  cancelWaitlistEntry,
+  joinWaitlist,
+  listSessionWaitlist,
+  listStudentWaitlist,
+} from "./schedule/advanced-booking-callables.js";
+export {
   archiveAnnouncement,
   createAnnouncement,
   listAnnouncements,

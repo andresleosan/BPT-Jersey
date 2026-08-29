@@ -106,8 +106,22 @@ function isTrimmedIdentifier(value: unknown): value is string {
 }
 
 function isDateTime(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !dateTimePattern.test(value) ||
+    Number.isNaN(Date.parse(value))
+  ) {
+    return false;
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})/u.exec(value);
+  if (match === null) return false;
+  const date = new Date(0);
+  date.setUTCFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  date.setUTCHours(0, 0, 0, 0);
   return (
-    typeof value === "string" && dateTimePattern.test(value) && !Number.isNaN(Date.parse(value))
+    date.getUTCFullYear() === Number(match[1]) &&
+    date.getUTCMonth() === Number(match[2]) - 1 &&
+    date.getUTCDate() === Number(match[3])
   );
 }
 
@@ -397,12 +411,13 @@ export function parseBookingCreditRecord(
     issues.push(issue(["remainingUnits"], "exceeds_units"));
   }
   if (!bookingCreditReasons.includes(value.reason as BookingCreditReason))
-    issue(["reason"], "unknown_enum");
+    issues.push(issue(["reason"], "unknown_enum"));
   if (!bookingCreditStatuses.includes(value.status as BookingCreditStatus))
     issues.push(issue(["status"], "unknown_enum"));
-  if (!isNullableDateTime(value.expiresAt)) issue(["expiresAt"], "invalid_iso_datetime");
+  if (!isNullableDateTime(value.expiresAt))
+    issues.push(issue(["expiresAt"], "invalid_iso_datetime"));
   if (!isNullableIdentifier(value.relatedSessionId))
-    issue(["relatedSessionId"], "invalid_identifier");
+    issues.push(issue(["relatedSessionId"], "invalid_identifier"));
   for (const field of ["issuedAt", "createdAt", "updatedAt"] as const) {
     if (!isDateTime(value[field])) issues.push(issue([field], "invalid_iso_datetime"));
   }

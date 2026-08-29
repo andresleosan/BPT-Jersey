@@ -203,3 +203,25 @@ describe("advanced booking contracts", () => {
     );
   });
 });
+
+describe("advanced booking strict validation regressions", () => {
+  it("rejects impossible calendar dates", () => {
+    expect(
+      parseWaitlistEntryRecord(
+        waitlistRecord({
+          requestedAt: "2026-02-30T10:00:00Z",
+          createdAt: "2026-02-30T10:00:00Z",
+          updatedAt: "2026-02-30T10:00:00Z",
+        }),
+      ).ok,
+    ).toBe(false);
+  });
+
+  it("rejects invalid credit reason, expiry, and related session identifiers", () => {
+    expect(parseBookingCreditRecord(creditRecord({ reason: "unknown" })).ok).toBe(false);
+    expect(parseBookingCreditRecord(creditRecord({ expiresAt: "2026-02-30T00:00:00Z" })).ok).toBe(
+      false,
+    );
+    expect(parseBookingCreditRecord(creditRecord({ relatedSessionId: "bad id" })).ok).toBe(false);
+  });
+});
