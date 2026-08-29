@@ -19,6 +19,10 @@ async function main() {
   assertSafeAuthEmulator();
   const email = required("AUTH_EMULATOR_E2E_EMAIL");
   const password = required("AUTH_EMULATOR_E2E_PASSWORD");
+  const role = process.env.AUTH_EMULATOR_E2E_ROLE?.trim() || "owner";
+  if (!["owner", "guardian", "adultStudent"].includes(role)) {
+    throw new Error("Auth seed role must be owner, guardian, or adultStudent.");
+  }
   if (!email.endsWith("@example.test") || password.length < 12) {
     throw new Error("Auth seed credentials must be synthetic emulator credentials.");
   }
@@ -37,9 +41,9 @@ async function main() {
 
     await auth.setCustomUserClaims(user.uid, {
       academyId: "synthetic-academy",
-      role: "owner",
+      role,
     });
-    console.log(JSON.stringify({ email, uid: user.uid, emulator: expectedAuthEmulatorHost }));
+    console.log(JSON.stringify({ email, uid: user.uid, role, emulator: expectedAuthEmulatorHost }));
   } finally {
     await deleteApp(app);
   }

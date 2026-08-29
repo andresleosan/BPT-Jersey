@@ -64,13 +64,15 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - Evidencia: 9/9 pruebas focalizadas, typecheck de @bpt-jersey/domain, Prettier y git diff --check pasan.
 - No se agregaron callables, UI, Firestore, migraciones, cobros ni datos reales. T060 pasa a revision; la promocion automatica, el asignador de posiciones y las politicas de credito siguen pendientes de checkpoint.
 
-## Estado del slice T063 (2026-08-27)
+## Estado del slice T063 (actualizado 2026-08-28)
 
 - Se corrigio una brecha de autorizacion en agenda: guardian ya no puede usar un `studentId` arbitrario.
-- El guard revalida tenant, relacion guardian activa, familia activa con contacto principal coincidente y estudiante menor activo; ante errores de resolucion falla cerrado.
+- El guard revalida tenant, relacion guardian activa y temporalmente vigente, familia activa con contacto principal coincidente y estudiante menor activo; ante errores de resolucion o reloj invalido falla cerrado.
 - Adultos siguen limitados a su propio estudiante. Staff conserva el flujo existente. Guardian puede gestionar booking, cancelacion, consultas de booking/asistencia/historial y checkout unicamente del menor vinculado; check-in delegado permanece denegado.
-- Evidencia: callables focalizados 14/14, regresion de politica de acceso 9/9, typecheck de Functions, ESLint focalizado, Prettier y `git diff --check` pasan.
-- No se agregaron colecciones, indices, migraciones, secretos, proveedores, cobros ni datos reales. T063 pasa a revision; Rules/Emulator, E2E responsive y decisiones de tutor secundario/checkout adulto quedan pendientes.
+- Rules niega acceso directo a todas las colecciones de agenda, incluido `checkouts`, para todos los roles cliente. El E2E usa login real de Auth Emulator y callables controlados para verificar proyeccion familiar redacted, ausencia de acceso directo a Firestore/RTDB, denegacion del admin shell y layout desktop/movil.
+- Evidencia: unitarias focalizadas 23/23, Firestore Emulator 2/2, Rules completa 64/64, build web, E2E responsive 2/2 y estabilidad 10/10; typecheck Functions, ESLint, Prettier, audit sin high/critical y `git diff --check` pasan.
+- Gate global: `corepack pnpm verify:mvp` pasa con 1122/1122 unitarias, 64/64 Rules, carga sintetica 240/240 sin fallos (p95 28 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
+- No se agregaron colecciones, indices, migraciones, secretos, proveedores, cobros ni datos reales. T063 pasa a revision; las decisiones de tutor secundario y checkout adulto siguen pendientes y permanecen denegadas/fail-closed.
 
 ## Estado del slice T062 (2026-08-27)
 

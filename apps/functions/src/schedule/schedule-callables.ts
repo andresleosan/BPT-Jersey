@@ -1,4 +1,4 @@
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
   parseCancelBookingInput,
@@ -21,78 +21,96 @@ import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-ser
 const staffRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
 const managerRoles = Object.freeze(["owner", "administrator", "headCoach"] as const);
 const adminRoles = Object.freeze(["owner", "administrator"] as const);
-type GuardianStudentScopeInput = Readonly<{
+export type GuardianStudentScopeInput = Readonly<{
   academyId: string;
   guardianUserId: string;
   studentId: string;
 }>;
 
+export type GuardianStudentScopeResolver = (input: GuardianStudentScopeInput) => Promise<boolean>;
+
 type StudentScopeOptions = Readonly<{
   store: ScheduleStore;
-  isGuardianOfStudent?: (input: GuardianStudentScopeInput) => Promise<boolean>;
+  isGuardianOfStudent?: GuardianStudentScopeResolver;
 }>;
 
-async function isGuardianOfStudent(input: GuardianStudentScopeInput): Promise<boolean> {
-  try {
-    const firestore = getFirestore();
-    const relationshipSnapshot = await firestore
-      .collection("academies/" + input.academyId + "/relationships")
-      .where("adultUserId", "==", input.guardianUserId)
-      .limit(101)
-      .get();
+export function createFirestoreGuardianStudentScopeResolver(
+  options: Readonly<{ firestore?: Firestore; now?: () => Date }> = {},
+): GuardianStudentScopeResolver {
+  return async (input: GuardianStudentScopeInput): Promise<boolean> => {
+    try {
+      const nowMs = (options.now?.() ?? new Date()).getTime();
+      if (!Number.isFinite(nowMs)) return false;
 
-    for (const relationshipDocument of relationshipSnapshot.docs) {
-      const relationshipResult = parseFamilyRelationship(relationshipDocument.data());
-      if (
-        !relationshipResult.ok ||
-        relationshipResult.value.academyId !== input.academyId ||
-        relationshipResult.value.adultUserId !== input.guardianUserId ||
-        relationshipResult.value.studentId !== input.studentId ||
-        !relationshipResult.value.active ||
-        relationshipResult.value.status !== "active"
-      ) {
-        continue;
-      }
-
-      const familyDocument = await firestore
-        .collection("academies/" + input.academyId + "/families")
-        .doc(relationshipResult.value.familyId)
+      const firestore = options.firestore ?? getFirestore();
+      const relationshipSnapshot = await firestore
+        .collection("academies/" + input.academyId + "/relationships")
+        .where("adultUserId", "==", input.guardianUserId)
+        .limit(101)
         .get();
-      const familyResult = parseFamilyRecord(familyDocument.data());
-      if (
-        !familyDocument.exists ||
-        !familyResult.ok ||
-        familyResult.value.academyId !== input.academyId ||
-        familyResult.value.primaryContactUserId !== input.guardianUserId ||
-        !familyResult.value.active ||
-        familyResult.value.status !== "active"
-      ) {
-        continue;
-      }
 
-      const studentDocument = await firestore
-        .collection("academies/" + input.academyId + "/students")
-        .doc(input.studentId)
-        .get();
-      const studentResult = parseStudentProfile(studentDocument.data());
-      if (
-        studentDocument.exists &&
-        studentResult.ok &&
-        studentResult.value.academyId === input.academyId &&
-        studentResult.value.familyId === relationshipResult.value.familyId &&
-        studentResult.value.participantType === "minor" &&
-        studentResult.value.active &&
-        studentResult.value.status === "active"
-      ) {
-        return true;
+      for (const relationshipDocument of relationshipSnapshot.docs) {
+        const relationshipResult = parseFamilyRelationship(relationshipDocument.data());
+        if (!relationshipResult.ok) continue;
+
+        const relationship = relationshipResult.value;
+        const validFromMs = Date.parse(relationship.validFrom);
+        const validToMs =
+          relationship.validTo === undefined ? undefined : Date.parse(relationship.validTo);
+        if (
+          relationship.academyId !== input.academyId ||
+          relationship.adultUserId !== input.guardianUserId ||
+          relationship.studentId !== input.studentId ||
+          !relationship.active ||
+          relationship.status !== "active" ||
+          !Number.isFinite(validFromMs) ||
+          validFromMs > nowMs ||
+          (validToMs !== undefined && (!Number.isFinite(validToMs) || nowMs >= validToMs))
+        ) {
+          continue;
+        }
+
+        const familyDocument = await firestore
+          .collection("academies/" + input.academyId + "/families")
+          .doc(relationship.familyId)
+          .get();
+        const familyResult = parseFamilyRecord(familyDocument.data());
+        if (
+          !familyDocument.exists ||
+          !familyResult.ok ||
+          familyResult.value.academyId !== input.academyId ||
+          familyResult.value.primaryContactUserId !== input.guardianUserId ||
+          !familyResult.value.active ||
+          familyResult.value.status !== "active"
+        ) {
+          continue;
+        }
+
+        const studentDocument = await firestore
+          .collection("academies/" + input.academyId + "/students")
+          .doc(input.studentId)
+          .get();
+        const studentResult = parseStudentProfile(studentDocument.data());
+        if (
+          studentDocument.exists &&
+          studentResult.ok &&
+          studentResult.value.academyId === input.academyId &&
+          studentResult.value.familyId === relationship.familyId &&
+          studentResult.value.participantType === "minor" &&
+          studentResult.value.active &&
+          studentResult.value.status === "active"
+        ) {
+          return true;
+        }
       }
+    } catch {
+      // Access checks fail closed when the relationship cannot be resolved.
     }
-  } catch {
-    // Access checks fail closed when the relationship cannot be resolved.
-  }
-  return false;
+    return false;
+  };
 }
 
+const isGuardianOfStudent = createFirestoreGuardianStudentScopeResolver();
 async function requireStudentScope(
   request: CallableRequest<unknown>,
   studentId: string,

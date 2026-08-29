@@ -158,6 +158,15 @@ pendientes hasta contar con slice, contrato, criterios de aceptacion y evidencia
 - Verificacion: `corepack pnpm exec vitest run --project node apps/functions/src/schedule/schedule-callables.test.ts packages/domain/src/authorization/access-policy.test.ts` -> 23/23; typecheck Functions, ESLint focalizado, Prettier y `git diff --check` pasan.
 - Alcance: sin Firestore writes, migraciones, Rules nuevas, UI, E2E, credenciales, proveedores, cobros ni datos reales. T063 pasa a revision; quedan pendientes Rules/Emulator, E2E responsive y checkpoint sobre tutor secundario y checkout adulto.
 
+### Evidencia T063 - Rules/Emulator y E2E restrictivo - 2026-08-28
+
+- El resolver Firestore valida tambien la vigencia `validFrom <= now < validTo`; reloj invalido, relacion futura/expirada/inactiva, tutor no relacionado y tutor secundario fallan cerrado. La regla actual de contacto principal no se amplio.
+- La matriz de Rules incluye `checkouts` y conserva denegadas todas las operaciones directas de cliente. El seed de Auth Emulator acepta solo `owner`, `guardian` o `adultStudent` y exige credenciales sinteticas `@example.test`.
+- E2E usa login real de Auth Emulator con rol guardian y callables controlados: solo muestra el menor vinculado en la proyeccion redacted, no hace acceso directo a Firestore/RTDB, deniega el admin shell y no presenta overflow en desktop/movil.
+- Verificacion: unitarias focalizadas 23/23; Firestore Emulator 2/2; Rules completa 64/64; build web; E2E responsive 2/2 y repeticion 10/10; typecheck Functions, ESLint, Prettier, `corepack pnpm audit --audit-level high` sin high/critical y `git diff --check` pasan.
+- Gate global: `corepack pnpm verify:mvp` pasa con 1122/1122 unitarias, 64/64 Rules, carga sintetica de 240 solicitudes sin fallos (p95 28 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
+- Autocritica: sin hallazgos high/critical ni secretos; contrato y casos limite temporales cubiertos. No se requirio una prueba de carga especifica del resolver; el baseline global sintetico paso. T063 vuelve a revision; tutor secundario y checkout adulto siguen pendientes de checkpoint y permanecen denegados/fail-closed. Sin despliegue, migracion, datos reales, proveedor, cobro ni gasto.
+
 ### Evidencia T062 - contrato de alertas de retencion - 2026-08-27
 
 - Se implemento packages/domain/src/retention-contracts.ts con triggers `attendance_gap`, `repeated_no_show` y `membership_expiring`; la politica es explicita y la alerta conserva razon, evidencia minima y clave de deduplicacion determinista.

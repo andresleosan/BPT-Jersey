@@ -17,6 +17,7 @@ const scheduleCollections = Object.freeze([
   "sessions",
   "bookings",
   "attendance",
+  "checkouts",
 ] as const);
 
 let testEnv: RulesTestEnvironment;
