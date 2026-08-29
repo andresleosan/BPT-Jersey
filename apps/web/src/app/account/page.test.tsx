@@ -76,6 +76,10 @@ describe("account destination", () => {
       "href",
       "/account/waiver",
     );
+    expect(screen.getByRole("link", { name: "Manage class waitlists" })).toHaveAttribute(
+      "href",
+      "/account/waitlist",
+    );
     expect(screen.queryByText(/safe-uid|academy|claim|ip address/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));

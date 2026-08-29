@@ -2230,3 +2230,332 @@ button:focus-visible {
     display: grid;
   }
 }
+
+.waitlist-page {
+  margin: 0 auto;
+  max-width: var(--content-width);
+  min-height: 100vh;
+  padding: clamp(2.5rem, 7vw, 6.5rem) clamp(1.25rem, 4vw, 4.5rem);
+}
+
+.waitlist-page-loading {
+  max-width: 58rem;
+}
+
+.waitlist-page-loading h1,
+.waitlist-hero h1 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(3.4rem, 8vw, 7.5rem);
+  letter-spacing: -0.045em;
+  line-height: 0.82;
+  margin: 1rem 0 0;
+  max-width: 10ch;
+  text-transform: uppercase;
+}
+
+.waitlist-hero {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: clamp(2rem, 5vw, 4rem);
+}
+
+.waitlist-hero > p:last-child {
+  color: var(--muted);
+  font-size: clamp(1.05rem, 1.8vw, 1.3rem);
+  margin: 1.75rem 0 0;
+  max-width: 42rem;
+}
+
+.waitlist-layout {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 3rem);
+  grid-template-columns: minmax(18rem, 0.75fr) minmax(28rem, 1.25fr);
+  padding-top: clamp(2rem, 5vw, 4rem);
+}
+
+.waitlist-join-card {
+  align-self: start;
+  background: var(--bpt-purple);
+  border-top: 0.5rem solid var(--mat-ink);
+  color: var(--gi-white);
+  display: grid;
+  gap: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  position: sticky;
+  top: 1.5rem;
+}
+
+.waitlist-join-card .account-eyebrow {
+  color: var(--bpt-lime);
+}
+
+.waitlist-join-card h2,
+.waitlist-queue h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  letter-spacing: -0.025em;
+  line-height: 0.95;
+  margin: 0.35rem 0 0;
+  text-transform: uppercase;
+}
+
+.waitlist-join-card > div > p:last-child {
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0.85rem 0 0;
+}
+
+.waitlist-form,
+.waitlist-field {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.waitlist-form {
+  gap: 1rem;
+}
+
+.waitlist-field label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.waitlist-field select {
+  appearance: none;
+  background: var(--gi-white);
+  border: 2px solid transparent;
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 3.2rem;
+  padding: 0.7rem 2.5rem 0.7rem 0.85rem;
+  width: 100%;
+}
+
+.waitlist-field select:focus-visible {
+  border-color: var(--bpt-lime);
+  outline: 3px solid var(--mat-ink);
+  outline-offset: 2px;
+}
+
+.waitlist-field select:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.waitlist-submit {
+  background: var(--bpt-lime);
+  color: var(--mat-ink);
+  margin-top: 0.4rem;
+  min-height: 3.2rem;
+}
+
+.waitlist-submit:hover:not(:disabled) {
+  background: var(--gi-white);
+}
+
+.waitlist-submit:disabled,
+.waitlist-action-secondary:disabled,
+.waitlist-action-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  transform: none;
+}
+
+.waitlist-queue {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.waitlist-queue-heading {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.waitlist-queue-heading > span {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  max-width: 16rem;
+  padding: 0.45rem 0.7rem;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.waitlist-list {
+  display: grid;
+  gap: 0.85rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.waitlist-item {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  min-height: 9rem;
+}
+
+.waitlist-item-cancelled,
+.waitlist-item-expired {
+  background: color-mix(in srgb, var(--gi-white) 82%, var(--canvas));
+}
+
+.waitlist-position {
+  align-items: center;
+  background: var(--mat-ink);
+  color: var(--bpt-lime);
+  display: flex;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 2.75rem;
+  justify-content: center;
+  letter-spacing: -0.03em;
+}
+
+.waitlist-item-body {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1.25rem;
+}
+
+.waitlist-item-title {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.waitlist-item-title h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.55rem;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.waitlist-item-title span {
+  border: 1px solid currentColor;
+  color: var(--bpt-purple);
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.45rem;
+  text-transform: uppercase;
+}
+
+.waitlist-item-body > p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.waitlist-confirm {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding-top: 0.9rem;
+}
+
+.waitlist-confirm > span {
+  flex: 1 1 100%;
+  font-weight: 700;
+}
+
+.waitlist-action-secondary,
+.waitlist-action-danger {
+  background: transparent;
+  border-color: var(--mat-ink);
+  color: var(--mat-ink);
+  justify-self: start;
+  padding: 0.55rem 0.8rem;
+}
+
+.waitlist-action-secondary:hover:not(:disabled) {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+}
+
+.waitlist-action-danger {
+  border-color: #8d1c2f;
+  color: #721626;
+}
+
+.waitlist-action-danger:hover:not(:disabled) {
+  background: #721626;
+  color: var(--gi-white);
+}
+
+.waitlist-message,
+.waitlist-empty {
+  margin: 0;
+  padding: 0.9rem 1rem;
+}
+
+.waitlist-empty {
+  border: 1px dashed var(--line);
+  color: var(--muted);
+}
+
+.waitlist-join-card .waitlist-empty {
+  border-color: rgba(255, 255, 255, 0.65);
+  color: var(--gi-white);
+}
+
+.waitlist-message-error {
+  background: #fff0f2;
+  border-left: 0.3rem solid #8d1c2f;
+  color: #5f1020;
+}
+
+.waitlist-message-success {
+  background: color-mix(in srgb, var(--bpt-lime) 28%, var(--gi-white));
+  border-left: 0.3rem solid var(--bpt-purple);
+  color: var(--mat-ink);
+}
+
+@media (max-width: 58rem) {
+  .waitlist-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .waitlist-join-card {
+    position: static;
+  }
+}
+
+@media (max-width: 38rem) {
+  .waitlist-page {
+    padding-inline: 1rem;
+  }
+
+  .waitlist-queue-heading,
+  .waitlist-item-title {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .waitlist-queue-heading > span {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .waitlist-item {
+    grid-template-columns: 3.7rem minmax(0, 1fr);
+  }
+
+  .waitlist-position {
+    font-size: 2rem;
+  }
+
+  .waitlist-confirm .button {
+    width: 100%;
+  }
+}

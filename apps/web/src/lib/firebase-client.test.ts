@@ -81,6 +81,7 @@ import {
   getFirebaseAuth,
   hasTotpEnrollment,
   refreshAuthToken,
+  resolveLocalEmulatorPort,
   resolveTotpChallenge,
   signInWithGoogle,
 } from "./firebase-client";
@@ -126,6 +127,15 @@ describe("firebase-client", () => {
       firebaseSdk.googleProvider,
       firebaseSdk.browserPopupRedirectResolver,
     );
+  });
+
+  it("accepts only explicit local emulator ports", () => {
+    expect(resolveLocalEmulatorPort(undefined, 9_099)).toBe(9_099);
+    expect(resolveLocalEmulatorPort("9199", 9_099)).toBe(9_199);
+    expect(() => resolveLocalEmulatorPort("0", 9_099)).toThrow(/decimal integers/i);
+    expect(() => resolveLocalEmulatorPort("443", 9_099)).toThrow(/between 1024 and 65535/i);
+    expect(() => resolveLocalEmulatorPort("65536", 9_099)).toThrow(/between 1024 and 65535/i);
+    expect(() => resolveLocalEmulatorPort("9199.example", 9_099)).toThrow(/decimal integers/i);
   });
 
   it("keeps TOTP enrollment and challenge operations inside the Auth boundary", async () => {

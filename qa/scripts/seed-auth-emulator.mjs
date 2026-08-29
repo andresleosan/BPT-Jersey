@@ -1,7 +1,7 @@
 import { deleteApp, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 
-const expectedAuthEmulatorHost = "127.0.0.1:9099";
+const expectedAuthEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST?.trim();
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -10,8 +10,12 @@ function required(name) {
 }
 
 function assertSafeAuthEmulator() {
-  if (process.env.FIREBASE_AUTH_EMULATOR_HOST?.trim() !== expectedAuthEmulatorHost) {
-    throw new Error("Auth seed requires FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099.");
+  const match = /^127\.0\.0\.1:([1-9]\d{3,4})$/u.exec(expectedAuthEmulatorHost ?? "");
+  const port = Number(match?.[1]);
+  if (!match || port < 1_024 || port > 65_535) {
+    throw new Error(
+      "Auth seed requires a loopback FIREBASE_AUTH_EMULATOR_HOST on a non-privileged port.",
+    );
   }
 }
 

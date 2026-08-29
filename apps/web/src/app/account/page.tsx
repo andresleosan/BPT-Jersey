@@ -38,6 +38,9 @@ function AccountContent() {
       <a className="button button-secondary profile-account-link" href="/account/progress">
         View IBJJF Levels & Progress
       </a>
+      <a className="button button-secondary profile-account-link" href="/account/waitlist">
+        Manage class waitlists
+      </a>
       <dl className="client-identity">
         <div>
           <dt>Name</dt>

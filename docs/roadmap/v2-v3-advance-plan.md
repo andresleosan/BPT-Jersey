@@ -64,7 +64,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - Evidencia: 9/9 pruebas focalizadas, typecheck de @bpt-jersey/domain, Prettier y git diff --check pasan.
 - El corte persistido aprobado agrega `waitlistEntries` tenant-scoped, posición transaccional, join/list/cancel idempotentes, validación de sesión llena y membresía vigente, student-scope/RBAC y cuatro callables con proyecciones minimizadas.
 - Firestore directo permanece denegado. Unitarias focales 25/25, store Emulator 2/2, Rules focales 7/7 y E2E real Auth + Functions + Firestore Emulator 5/5 sin retries pasan.
-- T060 vuelve a revisión. Promoción/ofertas, aceptación, expiración, reordenamiento, créditos operativos, recurrencia, UI final, pagos, mensajes, migración y producción siguen fuera del corte y requieren checkpoint propio.
+- T060 vuelve a revisión con autoservicio mínimo autenticado para adulto/tutor, adaptadores fail-closed y E2E real 5/5 sin retries. Promoción/ofertas, aceptación, expiración, reordenamiento, créditos operativos, recurrencia, UI de staff/final operativa, pagos, mensajes, migración y producción siguen fuera del corte y requieren checkpoint propio.
 
 ## Estado del slice T063 (actualizado 2026-08-28)
 

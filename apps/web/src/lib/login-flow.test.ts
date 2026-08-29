@@ -13,6 +13,7 @@ describe("login-flow", () => {
     expect(sanitizeReturnPath("/account")).toBe("/account");
     expect(sanitizeReturnPath("/account/family")).toBe("/account/family");
     expect(sanitizeReturnPath("/account/waiver")).toBe("/account/waiver");
+    expect(sanitizeReturnPath("/account/waitlist")).toBe("/account/waitlist");
     expect(sanitizeReturnPath("/shop")).toBe("/shop");
     expect(sanitizeReturnPath("/checkout")).toBe("/checkout");
     expect(sanitizeReturnPath("https://outside.example")).toBeUndefined();

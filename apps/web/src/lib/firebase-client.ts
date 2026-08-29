@@ -34,9 +34,38 @@ import {
 
 import { isValidTotpCode } from "./mfa-flow";
 
-const authEmulatorUrl = "http://127.0.0.1:9099";
 const firestoreEmulatorHost = "127.0.0.1";
-const firestoreEmulatorPort = 8080;
+
+export function resolveLocalEmulatorPort(
+  rawPort: string | undefined,
+  defaultPort: number,
+): number {
+  if (rawPort === undefined) return defaultPort;
+  if (!/^[1-9]\d{0,4}$/u.test(rawPort)) {
+    throw new Error("Firebase emulator ports must be decimal integers.");
+  }
+
+  const port = Number(rawPort);
+  if (!Number.isSafeInteger(port) || port < 1_024 || port > 65_535) {
+    throw new Error("Firebase emulator ports must be between 1024 and 65535.");
+  }
+
+  return port;
+}
+
+const authEmulatorPort = resolveLocalEmulatorPort(
+  process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT,
+  9_099,
+);
+const functionsEmulatorPort = resolveLocalEmulatorPort(
+  process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_EMULATOR_PORT,
+  5_001,
+);
+const firestoreEmulatorPort = resolveLocalEmulatorPort(
+  process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
+  8_080,
+);
+const authEmulatorUrl = `http://${firestoreEmulatorHost}:${authEmulatorPort}`;
 
 export type MfaEnrollment = Readonly<{
   qrCodeUrl: string;
@@ -141,7 +170,7 @@ export function getFirebaseFunctions(): Functions {
   const functions = getFunctions(getFirebaseClient());
 
   if (shouldUseFirebaseEmulators() && !functionsEmulatorConnected) {
-    connectFunctionsEmulator(functions, firestoreEmulatorHost, 5001);
+    connectFunctionsEmulator(functions, firestoreEmulatorHost, functionsEmulatorPort);
     functionsEmulatorConnected = true;
   }
 

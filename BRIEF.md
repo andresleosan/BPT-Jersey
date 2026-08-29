@@ -165,11 +165,13 @@ entre octubre y noviembre de 2026. No incluye despliegue productivo ni integraci
 - Referrals, privadas, competencias y retail. Los seminarios operativos ya pertenecen al MVP.
 - Analítica predictiva explicable, IA asistida, multi-academia y eventual SaaS.
 
-#### Corte implementado T060 - waitlist persistida
+#### Corte actual T060 - waitlist persistida y autoservicio minimo
 
 El primer usuario es el tutor o adulto que encuentra una sesión completa. Sin una waitlist, la intención se pierde o exige seguimiento manual del staff. El corte medible conserva solicitudes recuperables para una futura promoción, pero todavía no promete ni asigna cupos automáticamente.
 
-Entra ahora: join/list/cancel tenant-scoped, posición atómica, elegibilidad fail-closed por sesión completa y membresía `active`/`trial` vigente, RBAC y pruebas Emulator. Se difieren promoción, oferta/aceptación, reordenamiento, créditos, recurrencia, cobros, mensajes y UI final hasta contar con políticas aprobadas.
+Entra ahora: join/list/cancel tenant-scoped, posición atómica, elegibilidad fail-closed por sesión completa y membresía `active`/`trial` vigente, RBAC y pruebas Emulator. El corte implementado añade autoservicio mínimo para que el adulto o tutor seleccione por nombre un participante y una sesión futura, vea su posición y cancele su propia entrada sin manejar IDs internos.
+
+Se difieren promoción, oferta/aceptación, reordenamiento, créditos, recurrencia, booking automático, cobros, mensajes y UI de staff hasta contar con políticas aprobadas. La métrica futura sigue siendo solicitudes recuperables frente a intentos rechazados por capacidad; este corte no promete un cupo.
 
 ## Plan provisional de avance v2/v3
 

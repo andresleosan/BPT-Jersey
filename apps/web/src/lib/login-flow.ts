@@ -6,6 +6,7 @@ export type AuthDestination =
   | "/account/family"
   | "/account/waiver"
   | "/account/progress"
+  | "/account/waitlist"
   | "/shop"
   | "/checkout";
 
@@ -16,6 +17,7 @@ const allowlistedDestinations = new Set<AuthDestination>([
   "/account/family",
   "/account/waiver",
   "/account/progress",
+  "/account/waitlist",
   "/shop",
   "/checkout",
 ]);
@@ -42,7 +44,7 @@ export function defaultDestination(
 export type ClientSessionRequirement = Readonly<{
   status: "required";
   loginPath: string;
-  returnPath: "/account" | "/account/profile" | "/account/family" | "/account/waiver" | "/account/progress" | "/shop" | "/checkout";
+  returnPath: "/account" | "/account/profile" | "/account/family" | "/account/waiver" | "/account/progress" | "/account/waitlist" | "/shop" | "/checkout";
 }>;
 
 export function requireClientSession(returnTo: string | null = null): ClientSessionRequirement {
