@@ -171,9 +171,12 @@ evidencia fresca antes de pasar a revision. El gate local usa verify:mvp con bui
 
 ## Gates de seguridad abiertos
 
-- `bptjersey-f5a25` es producción, nunca staging. El runner de importación PDF que acepta ese
-  proyecto bajo `target: staging` es un hallazgo crítico y permanece bloqueado hasta separar
-  explícitamente los entornos y confirmaciones. No se ejecutará ninguna importación durante el MVP.
+- `bptjersey-f5a25` es producción, nunca staging. T084 dejó el importador PDF limitado a
+  `demo-bpt-jersey` + Emulator. T089 detectó el residual equivalente en el importador local Regyfit:
+  el ID real no coincidía con la heurística `prod/production`. La frontera local ahora lo deniega de
+  forma explícita por argumento, `GCLOUD_PROJECT` y `FIREBASE_CONFIG`, y todo `target=staging`
+  permanece fail-closed mientras no exista un proyecto separado en la allowlist positiva. No se
+  ejecutará ninguna importación ni reconciliación productiva como parte de esta corrección.
 - La decisión ADR-005 de operar sin MFA solo se acepta para el piloto con datos sintéticos o
   sanitizados. Producción continúa bloqueada hasta reconciliar el threat model, MFA o mitigaciones
   compensatorias con aceptación explícita del operador.

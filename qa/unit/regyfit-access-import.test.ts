@@ -126,6 +126,11 @@ describe("QA synthetic Regyfit importer boundary", () => {
       expect(() =>
         assertImportTargetIsSafe(config("C:\\synthetic"), "bpt-jersey-production"),
       ).toThrow("Import target is not safe");
+      process.env.REGYFIT_OPERATOR_CONFIRMATION = "real-data-private-staging-v1";
+      expect(() =>
+        assertImportTargetIsSafe(config("C:\\synthetic", { target: "staging" }), "bptjersey-f5a25"),
+      ).toThrow("Import target is not safe");
+      delete process.env.REGYFIT_OPERATOR_CONFIRMATION;
       expect(() =>
         assertImportTargetIsSafe(
           config("C:\\synthetic", { target: "staging" }),

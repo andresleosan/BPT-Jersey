@@ -41,3 +41,9 @@ The sanitized handoff is in [`cronos-handoff.md`](cronos-handoff.md). The operat
 approved the restricted snapshot mapping for staging only. The staging run imported
 10 documents into `bptjersey-f5a25` under `demo-academy`; the raw records remain
 outside this checkout and are read only from `REGYFIT_PRIVATE_STAGING_ROOT`.
+
+That sentence records a historical operation; it is not a current environment classification or
+approval. `bptjersey-f5a25` is the production project. T089 now rejects that exact ID from the local
+Regyfit importer and keeps every `target=staging` invocation fail-closed until a separate project is
+explicitly added to the positive allowlist. No historical document was read, changed, or deleted by
+that remediation.

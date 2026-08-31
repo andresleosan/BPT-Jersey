@@ -325,6 +325,49 @@ describe("Regyfit access importer", () => {
     }
   });
 
+  it("rejects the known production project even with staging confirmation", () => {
+    process.env.REGYFIT_OPERATOR_CONFIRMATION = "real-data-private-staging-v1";
+
+    expect(() =>
+      assertImportTargetIsSafe(config("C:\\synthetic", { target: "staging" }), "bptjersey-f5a25"),
+    ).toThrow("Import target is not safe");
+
+    process.env.GCLOUD_PROJECT = "bptjersey-f5a25";
+    expect(() => assertImportTargetIsSafe(config("C:\\synthetic"), "demo-bpt-jersey")).toThrow(
+      "Import target is not safe",
+    );
+
+    delete process.env.GCLOUD_PROJECT;
+    process.env.FIREBASE_CONFIG = JSON.stringify({ projectId: "bptjersey-f5a25" });
+    expect(() => assertImportTargetIsSafe(config("C:\\synthetic"), "demo-bpt-jersey")).toThrow(
+      "Import target is not safe",
+    );
+  });
+
+  it("keeps staging disabled until a separate project is explicitly allowlisted", () => {
+    process.env.REGYFIT_OPERATOR_CONFIRMATION = "real-data-private-staging-v1";
+
+    expect(() =>
+      assertImportTargetIsSafe(
+        config("C:\\synthetic", { target: "staging" }),
+        "bpt-jersey-staging",
+      ),
+    ).toThrow("Import target is not safe");
+  });
+
+  it("blocks the known production project before reading the root or Firestore", async () => {
+    const root = join(tmpdir(), "synthetic-known-production-guard-root");
+    const firestore = createFirestore();
+    process.env.GCLOUD_PROJECT = "bptjersey-f5a25";
+    process.env.REGYFIT_OPERATOR_CONFIRMATION = "real-data-private-staging-v1";
+
+    await expect(
+      importRegyfitAccessRecords(config(root, { target: "staging" }), firestore.db, timestamp),
+    ).rejects.toThrow("Import target is not safe");
+    expect(firestore.getReadCount()).toBe(0);
+    expect(firestore.getWriteCount()).toBe(0);
+  });
+
   it("blocks direct imports before touching the root or Firestore", async () => {
     const root = join(tmpdir(), "synthetic-direct-guard-root");
     const cases: readonly {

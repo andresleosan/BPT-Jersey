@@ -118,7 +118,9 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 
 - T060 - Booking avanzado, waitlists, crÃ©ditos y reservas recurrentes; el corte bÃ¡sico de una hora
   ya pertenece a `T027`.
-- T061 - Retries, grace periods, proration, promos y workflows de freeze/cancel.
+- T061 - Retries, grace periods, proration, promos y workflows de freeze/cancel. Depende de
+  T010/T034/T035; antes de habilitar un proveedor debe rechazar replays con la misma clave de
+  idempotencia y payload divergente.
 - T062 - Retention alerts y CRM automation.
 - T063 - Parent/adult self-service ampliado.
 - T064 - Notificaciones externas y automatizadas completas; los avisos in-app bÃ¡sicos pertenecen a
@@ -596,6 +598,8 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T086 | Aislar E2E sintÃ©tico de red externa y diferir el resolver del popup de Google                | T014,T049,T050 | aprobada | Resolver Google diferido hasta el sign-in y fixture operativa explÃ­cita; unitarias 1036/1036 y E2E 67/67; aprobada 2026-08-24                                                                                               |
 | T087 | Reconciliar estados, dependencias y evidencia entre `tasks.md` y `Lista/`                     | T082           | aprobada | 87 IDs Ãºnicos sincronizados; 0 divergencias de estado y 0 tareas aprobadas con dependencias abiertas; sintaxis, Prettier y diff verificados 2026-08-25                                                                      |
 | T088 | Mostrar el catalogo canonico de Levels en el panel administrativo                             | T083,T087      | aprobada | Aprobada 2026-08-28 para preview local/sanitizado: 171 definiciones visibles, backend solo opt-in, verify:mvp completo, Playwright focalizado 2/2 y cierre de seguridad; sin deploy, seed, migracion, datos reales ni gasto. |
+
+| T089 | Bloquear el proyecto Firebase productivo en el importador Regyfit | T075,T084 | revision | El ID productivo exacto queda denegado por argumento/entorno/Firebase config antes de I/O y staging permanece cerrado sin allowlist positiva. Focales 23/23 y verify:mvp 1220/1220 + Rules 78/78 + carga 240/240 + smoke 5/5; audit 0 high/critical. |
 
 ## Plan de implementaciÃ³n del MVP aprobado
 
@@ -3704,3 +3708,42 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
   no sustituye la autorizacion explicita de cada release exigida por T058.
 - Estado: T057 permanece `revision`, T058 `pendiente` y T011 `bloqueada`. El rollback restaura
   coherencia operativa, pero no satisface los gates faltantes de produccion.
+
+### Checkpoint T089 - guarda explicita del proyecto productivo Regyfit - 2026-08-31
+
+- Hallazgo: el importador PDF de T084 si esta limitado a `target=emulator`, proyecto
+  `demo-bpt-jersey` y host loopback exacto. Sin embargo, la ruta local de importacion Regyfit aun
+  acepta `target=staging` con confirmacion y su detector generico de nombres productivos no reconoce
+  el ID real `bptjersey-f5a25`.
+- Alcance: registrar el ID productivo conocido en una denylist explicita, rechazarlo antes de toda
+  lectura o escritura, agregar regresiones directas y de cero acceso al store, y reconciliar
+  `STACK.md`, `tasks.md` y `Lista/Lista.js`.
+- Fuera de alcance: ejecutar el importador, leer la fuente privada, usar credenciales, conectar red,
+  modificar datos, migrar, desplegar, cambiar Cloudflare/Firebase o reescribir la evidencia historica
+  de una importacion ya ejecutada.
+- Reversion: retirar la constante y las regresiones nuevas; no existe estado remoto ni dato que
+  revertir. T089 pasa a `en-progreso` como unico WIP y bloquea abrir otro slice funcional hasta que
+  la autocritica de seguridad y QA quede verde.
+
+### Evidencia T089 - guarda productiva Regyfit - 2026-08-31
+
+- RED reproducible: las pruebas nuevas fallaron 3 casos y pasaron 19 porque
+  `bptjersey-f5a25` podia atravesar la etiqueta `staging`; la integracion alcanzo una lectura del
+  root antes de fallar por otra condicion.
+- Correccion: denylist explicita del proyecto productivo por argumento, `GCLOUD_PROJECT` y
+  `FIREBASE_CONFIG`; allowlist positiva de staging vacia hasta disponer de un proyecto separado;
+  la guarda se ejecuta antes de leer la fuente o Firestore.
+- Regresion focal: 2 archivos y 23/23 pruebas pasan, incluidos cero lecturas/escrituras, las tres
+  fuentes de project ID y un nombre de staging plausible no aprobado.
+- Gate global con JDK 21 solo para el proceso: `verify:mvp` pasa formato, lint, typecheck, build,
+  174 archivos/1220 pruebas unitarias, Rules 78/78, carga sintetica 240/240 sin fallos (p95 30 ms)
+  y smoke E2E 5/5 con 1 omision esperada.
+- Seguridad: escaneo acotado de los 8 archivos modificados sin firmas de secretos ni asignaciones
+  aparentes de credenciales. Audit: 0 high, 0 critical y las 2 moderadas transitivas ya registradas
+  en DR-001 (`uuid` por Firebase/Google y `@opentelemetry/core` solo por Firebase CLI).
+- Autocritica: no se agregaron dependencias, endpoints, red, credenciales, gasto, acceso a datos,
+  migracion ni despliegue. No se leyeron ni modificaron los 10 documentos historicos. T089 queda en
+  `revision`; T057 sigue en `revision`, T058 `pendiente` y T011 `bloqueada`.
+- Hallazgo separado no expuesto hoy: el adaptador base de pagos no esta conectado al runtime, pero
+  T061 debe comparar el payload canonico al reutilizar una clave de idempotencia antes de seleccionar
+  o habilitar cualquier proveedor. T061 conserva dependencias T010/T034/T035 y estado `pendiente`.
