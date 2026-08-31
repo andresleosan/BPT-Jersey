@@ -856,7 +856,7 @@ const closeoutItems = [
     "revision",
     "Completar los controles operativos antes de produccion.",
     "T056",
-    "T057 en revision: PR #2 permanece como draft sobre 56d278f; CI #49 y el preview de Pages finalizaron exitosamente sin produccion. El merge a main sigue bloqueado porque el autodeploy de Pages no coordina Functions/Rules; T011, staging, costos/alertas, CD protegido y T058 siguen abiertos.",
+    "T057 en revision: PR #2 permanece como draft; la CI del PR y el preview de Pages finalizaron exitosamente sin produccion. El merge a main sigue bloqueado porque el autodeploy de Pages no coordina Functions/Rules; T011, staging, costos/alertas, CD protegido y T058 siguen abiertos.",
     [
       "tasks.md",
       "STACK.md",
