@@ -545,7 +545,12 @@ export type {
   PaymentProviderResult,
 } from "./payments/payment-contracts";
 
-export { buildRetentionAlerts, retentionAlertKinds } from "./retention-contracts";
+export {
+  buildRetentionAlertIdentity,
+  buildRetentionAlerts,
+  canonicalRetentionEffectiveAt,
+  retentionAlertKinds,
+} from "./retention-contracts";
 export type {
   BuildRetentionAlertsInput,
   RetentionAlert,

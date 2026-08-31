@@ -25,6 +25,7 @@ export type RetentionStudentSnapshot = Readonly<{
   studentId: string;
   active: boolean;
   hasActiveMembership: boolean;
+  membershipStartsAt: string | null;
   membershipEndsAt: string | null;
   attendance: readonly RetentionAttendanceEntry[];
 }>;
@@ -123,6 +124,8 @@ function validStudentSnapshot(value: RetentionStudentSnapshot, academyId: string
     isIdentifier(value.studentId) &&
     typeof value.active === "boolean" &&
     typeof value.hasActiveMembership === "boolean" &&
+    (value.membershipStartsAt === null || isDateTime(value.membershipStartsAt)) &&
+    (!value.hasActiveMembership || value.membershipStartsAt !== null) &&
     (value.membershipEndsAt === null || isDateTime(value.membershipEndsAt)) &&
     Array.isArray(value.attendance) &&
     value.attendance.every(validAttendanceEntry)
@@ -169,11 +172,17 @@ function addAlert(
   kind: RetentionAlertKind,
   evidence: RetentionAlertEvidence,
 ): void {
-  const dayKey = input.now.slice(0, 10);
-  const deduplicationKey = kind + ":" + student.studentId + ":" + dayKey;
+  const effectiveAt = canonicalRetentionEffectiveAt(input.now);
+  const dayKey = effectiveAt.slice(0, 10);
+  const identity = buildRetentionAlertIdentity({
+    academyId: input.academyId,
+    studentId: student.studentId,
+    kind,
+    runDate: dayKey,
+  });
   alerts.push(
     Object.freeze({
-      alertId: input.academyId + "__" + deduplicationKey.replaceAll(":", "__"),
+      alertId: identity.alertId,
       academyId: input.academyId,
       studentId: student.studentId,
       kind,
@@ -181,11 +190,48 @@ function addAlert(
       status: "open",
       reasonCode: kind,
       evidence: Object.freeze(evidence),
-      deduplicationKey,
-      createdAt: input.now,
+      deduplicationKey: identity.deduplicationKey,
+      createdAt: effectiveAt,
       schemaVersion: "1",
     }),
   );
+}
+
+export function canonicalRetentionEffectiveAt(now: string): string {
+  return new Date(Date.parse(now)).toISOString().slice(0, 10) + "T00:00:00.000Z";
+}
+
+export function buildRetentionAlertIdentity(input: {
+  academyId: string;
+  studentId: string;
+  kind: RetentionAlertKind;
+  runDate: string;
+}): Readonly<{ alertId: string; deduplicationKey: string }> {
+  const academySegment = input.academyId.length + "_" + input.academyId;
+  const kindSegment = input.kind.length + "_" + input.kind;
+  const studentSegment = input.studentId.length + "_" + input.studentId;
+  return Object.freeze({
+    alertId:
+      "retention-v2__" +
+      academySegment +
+      "__" +
+      kindSegment +
+      "__" +
+      studentSegment +
+      "__" +
+      input.runDate,
+    deduplicationKey:
+      "v2:" +
+      input.kind.length +
+      ":" +
+      input.kind +
+      ":" +
+      input.studentId.length +
+      ":" +
+      input.studentId +
+      ":" +
+      input.runDate,
+  });
 }
 
 export function buildRetentionAlerts(
@@ -194,7 +240,7 @@ export function buildRetentionAlerts(
   const parsed = parseInput(input);
   if (!parsed.ok) return parsed;
 
-  const nowMs = Date.parse(input.now);
+  const nowMs = Date.parse(canonicalRetentionEffectiveAt(input.now));
   const lookbackCutoff = dateAtDaysBefore(nowMs, input.policy.lookbackDays);
   const inactivityCutoff = dateAtDaysBefore(nowMs, input.policy.inactivityDays);
   const expiryCutoff = dateAtDaysAfter(nowMs, input.policy.membershipExpiryDays);
@@ -203,9 +249,11 @@ export function buildRetentionAlerts(
   for (const student of input.students) {
     if (!student.active || !student.hasActiveMembership) continue;
 
-    const validPastAttendance = student.attendance.filter(
-      (entry) => Date.parse(entry.occurredAt) <= nowMs,
-    );
+    const membershipStartsAtMs = Date.parse(student.membershipStartsAt as string);
+    const validPastAttendance = student.attendance.filter((entry) => {
+      const occurredAt = Date.parse(entry.occurredAt);
+      return occurredAt >= membershipStartsAtMs && occurredAt <= nowMs;
+    });
     const attended = validPastAttendance
       .filter((entry) => entry.state === "attended" || entry.state === "late")
       .sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt));
@@ -219,7 +267,12 @@ export function buildRetentionAlerts(
       membershipEndsAt: student.membershipEndsAt,
     };
 
-    if (lastAttendedAt === null || Date.parse(lastAttendedAt) < inactivityCutoff) {
+    const activityBaselineAt =
+      lastAttendedAt === null || membershipStartsAtMs > Date.parse(lastAttendedAt)
+        ? (student.membershipStartsAt as string)
+        : lastAttendedAt;
+
+    if (Date.parse(activityBaselineAt) < inactivityCutoff) {
       addAlert(alerts, input, student, "attendance_gap", baseEvidence);
     }
     if (recentNoShowCount >= input.policy.noShowThreshold) {

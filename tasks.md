@@ -144,10 +144,11 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 El contador de Lista incluye T060-T071 como roadmap futuro. El discovery se prioriza en T060, T063,
 T062 y T067; el detalle, RICE preliminar, dependencias y gates esta en
 docs/roadmap/v2-v3-advance-plan.md. T060 vuelve a revision tras cerrar el corte de oferta FIFO y
-booking transaccional confirmado el 2026-08-30; T062, T064, T065, T066 y T067 quedan en revision
-por sus slices tecnicos, T061 y T068-T071 permanecen pendientes hasta contar con slice, contrato,
-criterios de aceptacion y evidencia de pruebas. T063 vuelve a `revision` tras cerrar la divergencia
-fail-closed del checkout adulto detectada durante la reanudacion; no queda WIP activo.
+booking transaccional confirmado el 2026-08-30; T062 vuelve a `revision` tras cerrar el productor
+interno auditado autorizado el 2026-08-31. T064, T065, T066 y T067 quedan en revision por sus
+slices tecnicos; T061 y T068-T071 permanecen pendientes hasta contar con slice, contrato, criterios
+de aceptacion y evidencia de pruebas. T063 vuelve a `revision` tras cerrar la divergencia fail-closed
+del checkout adulto detectada durante la reanudacion; no queda WIP activo.
 
 ### Reanudacion T063 - checkout adulto fail-closed - 2026-08-30
 
@@ -3747,3 +3748,56 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
 - Hallazgo separado no expuesto hoy: el adaptador base de pagos no esta conectado al runtime, pero
   T061 debe comparar el payload canonico al reutilizar una clave de idempotencia antes de seleccionar
   o habilitar cualquier proveedor. T061 conserva dependencias T010/T034/T035 y estado `pendiente`.
+
+### Reanudacion T062 - productor interno auditado de alertas - 2026-08-31
+
+- Autorizacion explicita del operador para el corte exacto recomendado; T062 pasa a `en-progreso`
+  como unico WIP. Depende de T019/T029/T033, ya aprobadas. Es un servicio backend interno sin
+  callable publico ni scheduler productivo.
+- Fuentes: proyecciones minimas y acotadas de `students`, `memberships` y `attendance` dentro de una
+  sola academia. Se validan tenant, referencias, fechas y limites antes de escribir; no se leen ni
+  persisten nombres, contactos, notas, IDs financieros ni texto libre.
+- Reglas: solo estudiantes activos con membership `trial`/`active` vigente. La politica permanece
+  inyectada; los valores 14 dias de inactividad, 30 de lookback, 2 no-shows y 14 de expiracion son
+  fixtures sinteticos, no una decision productiva. Una alta reciente sin asistencia usa el inicio de
+  membership como baseline y no genera `attendance_gap` prematuro.
+- Idempotencia: una corrida se identifica por fecha UTC y hash de entrada minima. Replay identico
+  queda unchanged; replay divergente falla cerrado. Antes del GREEN se corrige la identidad de alerta
+  para que IDs con `:`/`__` no colisionen, el binding kind/student/day y la atomicidad del store in-memory.
+- Persistencia y auditoria: el lote maximo de 200 alertas y un unico evento create-only
+  `retention.alerts.generated` se validan por completo y se escriben en una sola transaccion. Las
+  correcciones de asistencia se ignoran y se usa solo el registro canonico ya actualizado.
+- Criterios de aceptacion: TDD RED/GREEN para limites + 1, tenant mismatch, referencias invalidas,
+  membership reciente/antigua, correcciones, colisiones, replay igual/divergente y cero writes ante
+  conflicto; unitarias, contrato de auditoria, Firestore Emulator, Rules/regresion y gate global.
+- Fuera de alcance: asignar, snoozear, cerrar o borrar alertas; App Check/rate limit nuevos; CRM
+  externo, email/SMS, proveedor, contactos, datos reales, credenciales, gasto, migracion, scheduler,
+  despliegue o produccion. La reversion retira productor/accion auditada; no limpia datos remotos.
+
+### Evidencia T062 - productor interno auditado de alertas - 2026-08-31
+
+- Implementacion: productor DI-only sin export runtime, endpoint, trigger ni scheduler; carga
+  proyecciones minimas tenant-scoped de memberships `trial`/`active`, estudiantes activos y
+  attendance, con limites 200/5000 y politica inyectada sin defaults productivos.
+- Integridad: dia UTC canonico, IDs v2 length-prefixed, hash SHA-256 estable, baseline por inicio de
+  membership y exclusion de asistencia anterior; attendance exige `sessionId`, `studentId`,
+  `schemaVersion: "1"` e identidad canonica, y las correcciones opacas apuntan al registro canonico.
+- Persistencia: maximo 200 alertas y un evento create-only `retention.alerts.generated` se validan
+  y escriben atomicamente. Replay exacto converge; replay divergente, documento alterado o auditoria
+  preexistente inconsistente fallan cerrado sin escrituras parciales.
+- TDD/autocritica: los RED reprodujeron colisiones/tiempo, atomicidad, modulo ausente, limite global,
+  asistencia previa a membership, identidad canonica, inclusion de trial, nombre de accion y contrato
+  publico. La reauditoria final reporta 0 critical, 0 high y 0 moderate remanentes.
+- Verificacion focal: T062 49/49 mas contrato publico 12/12 (61/61); Firestore Emulator 5/5;
+  Rules especifica 7/7; typecheck Domain/Functions/QA y `git diff --check` pasan.
+- Gate global final con JDK 21 solo para el proceso: `corepack pnpm verify:mvp` pasa formato, lint,
+  typecheck, build de 31 rutas, 175 archivos/1237 unitarias, Rules 78/78, carga sintetica 240/240
+  sin fallos (p95 31 ms) y smoke E2E 5/5 con 1 omision esperada. Un intento previo detecto la
+  expectativa publica obsoleta; otro tuvo 1 fallo transitorio de carga que paso aislado y en la
+  corrida final completa.
+- Seguridad: escaneo acotado de 17 archivos sin firmas de secretos; audit 0 high/critical y 2
+  moderadas transitivas preexistentes registradas en DR-001. No se agregaron dependencias, PII, red,
+  credenciales, gasto, migracion, datos reales, despliegue ni estado remoto.
+- Riesgos/gates: `studentReference` aun es el `studentId` interno opaco y debe pseudonimizarse antes
+  de datos reales; zona Europe/Jersey, cierre/cleanup, App Check, rate limit y politica T011/T057
+  permanecen abiertos. T062 vuelve a `revision`; no queda WIP activo ni autorizacion productiva.

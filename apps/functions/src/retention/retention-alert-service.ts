@@ -1,9 +1,12 @@
 import {
+  buildRetentionAlertIdentity,
   retentionAlertKinds,
   type RetentionAlert,
   type RetentionAlertEvidence,
   type RetentionAlertKind,
 } from "@bpt-jersey/domain/retention";
+import { parseAuditEventDraft, type AuditEventDraft } from "@bpt-jersey/domain/audit";
+import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 
 export class RetentionAlertStoreError extends Error {
   public readonly code: "conflict" | "invalid" | "tenant";
@@ -20,11 +23,25 @@ export type RetentionAlertUpsertResult = Readonly<{
   unchanged: number;
 }>;
 
+export type RetentionProductionAudit = Extract<
+  AuditEventDraft,
+  { action: "retention.alerts.generated" }
+>;
+
+export type RetentionProductionCommitResult = RetentionAlertUpsertResult &
+  Readonly<{ replayed: boolean }>;
+
 export type RetentionAlertStore = Readonly<{
   upsertAlerts: (input: {
     academyId: string;
     alerts: readonly RetentionAlert[];
   }) => Promise<RetentionAlertUpsertResult>;
+  commitProductionRun: (input: {
+    academyId: string;
+    alerts: readonly RetentionAlert[];
+    audit: RetentionProductionAudit;
+    auditEventId: string;
+  }) => Promise<RetentionProductionCommitResult>;
   listAlerts: (academyId: string) => Promise<readonly RetentionAlert[]>;
 }>;
 
@@ -164,8 +181,18 @@ function assertAlertScope(alert: RetentionAlert, academyId: string): void {
   if (alert.academyId !== academyId) {
     throw new RetentionAlertStoreError("tenant", "Retention alert tenant mismatch");
   }
-  const expectedAlertId = academyId + "__" + alert.deduplicationKey.replaceAll(":", "__");
-  if (alert.alertId !== expectedAlertId) {
+  const runDate = alert.createdAt.slice(0, 10);
+  const identity = buildRetentionAlertIdentity({
+    academyId,
+    studentId: alert.studentId,
+    kind: alert.kind,
+    runDate,
+  });
+  if (
+    alert.createdAt !== runDate + "T00:00:00.000Z" ||
+    alert.alertId !== identity.alertId ||
+    alert.deduplicationKey !== identity.deduplicationKey
+  ) {
     throw new RetentionAlertStoreError("conflict", "Retention alert identity mismatch");
   }
 }
@@ -219,26 +246,118 @@ function sortAlerts(alerts: readonly RetentionAlert[]): readonly RetentionAlert[
   );
 }
 
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const timestamp = Date.parse(value + "T00:00:00.000Z");
+  return !Number.isNaN(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value;
+}
+
+export function buildRetentionProductionAuditEventId(academyId: string, runDate: string): string {
+  assertAcademyId(academyId);
+  if (!isCalendarDate(runDate)) {
+    throw new RetentionAlertStoreError("invalid", "Retention production runDate is invalid");
+  }
+  return "retention-production-v1__" + academyId.length + "_" + academyId + "__" + runDate;
+}
+
+function validateProductionRun(input: {
+  academyId: string;
+  alerts: readonly RetentionAlert[];
+  audit: RetentionProductionAudit;
+  auditEventId: string;
+}): Readonly<{
+  alerts: readonly RetentionAlert[];
+  audit: RetentionProductionAudit;
+}> {
+  const alerts = validateAlerts(input.academyId, input.alerts);
+  const parsedAudit = parseAuditEventDraft(input.audit);
+  if (!parsedAudit.ok || parsedAudit.value.action !== "retention.alerts.generated") {
+    throw new RetentionAlertStoreError("invalid", "Retention production audit is invalid");
+  }
+  const audit = parsedAudit.value;
+  if (audit.academyId !== input.academyId) {
+    throw new RetentionAlertStoreError("tenant", "Retention production audit tenant mismatch");
+  }
+  if (
+    input.auditEventId !== buildRetentionProductionAuditEventId(input.academyId, audit.runDate) ||
+    audit.alertCount !== alerts.length ||
+    alerts.some((alert) => alert.createdAt !== audit.runDate + "T00:00:00.000Z")
+  ) {
+    throw new RetentionAlertStoreError("conflict", "Retention production run mismatch");
+  }
+  return Object.freeze({ alerts, audit });
+}
+
 export function createInMemoryRetentionAlertStore(): RetentionAlertStore {
   const state = new Map<string, RetentionAlert>();
+  const audits = new Map<string, Readonly<Record<string, unknown>>>();
   return {
     async upsertAlerts({ academyId, alerts }) {
       const parsed = validateAlerts(academyId, alerts);
-      let created = 0;
+      const missing: { key: string; alert: RetentionAlert }[] = [];
       let unchanged = 0;
       for (const alert of parsed) {
         const key = academyId + "/" + alert.alertId;
         const existing = state.get(key);
         if (existing === undefined) {
-          state.set(key, alert);
-          created += 1;
+          missing.push({ key, alert });
         } else if (sameAlert(existing, alert)) {
           unchanged += 1;
         } else {
           throw new RetentionAlertStoreError("conflict", "Retention alert already differs");
         }
       }
-      return Object.freeze({ created, unchanged });
+      for (const { key, alert } of missing) state.set(key, alert);
+      return Object.freeze({ created: missing.length, unchanged });
+    },
+    async commitProductionRun(input) {
+      const parsed = validateProductionRun(input);
+      const auditKey = input.academyId + "/" + input.auditEventId;
+      const existingAudit = audits.get(auditKey);
+      const entries = parsed.alerts.map((alert) => ({
+        alert,
+        key: input.academyId + "/" + alert.alertId,
+        existing: state.get(input.academyId + "/" + alert.alertId),
+      }));
+
+      if (existingAudit !== undefined) {
+        if (
+          !matchesAuditEventReplay(existingAudit, input.auditEventId, parsed.audit) ||
+          entries.some(
+            ({ alert, existing }) => existing === undefined || !sameAlert(existing, alert),
+          )
+        ) {
+          throw new RetentionAlertStoreError("conflict", "Retention production replay differs");
+        }
+        return Object.freeze({
+          created: 0,
+          unchanged: entries.length,
+          replayed: true,
+        });
+      }
+
+      for (const { alert, existing } of entries) {
+        if (existing !== undefined && !sameAlert(existing, alert)) {
+          throw new RetentionAlertStoreError("conflict", "Retention alert already differs");
+        }
+      }
+      const missing = entries.filter(({ existing }) => existing === undefined);
+      for (const { key, alert } of missing) state.set(key, alert);
+      audits.set(
+        auditKey,
+        Object.freeze({
+          ...parsed.audit,
+          auditEventId: input.auditEventId,
+          occurredAt: parsed.audit.runDate + "T00:00:00.000Z",
+          result: "completed",
+          schemaVersion: 1,
+        }),
+      );
+      return Object.freeze({
+        created: missing.length,
+        unchanged: entries.length - missing.length,
+        replayed: false,
+      });
     },
     async listAlerts(academyId) {
       assertAcademyId(academyId);
@@ -258,6 +377,7 @@ type GenericDocumentSnapshot = Readonly<{
 }>;
 
 type GenericDocumentReference = Readonly<{
+  id: string;
   get: () => Promise<GenericDocumentSnapshot>;
 }>;
 
@@ -276,6 +396,10 @@ export type GenericRetentionFirestore = Readonly<{
     update: (transaction: {
       get: (reference: GenericDocumentReference) => Promise<GenericDocumentSnapshot>;
       set: (reference: GenericDocumentReference, data: RetentionAlert) => void;
+      create: (
+        reference: GenericDocumentReference,
+        data: Readonly<Record<string, unknown>>,
+      ) => unknown;
     }) => Promise<T>,
   ) => Promise<T>;
 }>;
@@ -314,6 +438,73 @@ export function createFirestoreRetentionAlertStore({
           unchanged += 1;
         }
         return Object.freeze({ created, unchanged });
+      });
+    },
+    async commitProductionRun(input) {
+      const parsed = validateProductionRun(input);
+      return firestore.runTransaction(async (transaction) => {
+        const auditReference = firestore.doc(
+          "academies/" + input.academyId + "/auditEvents/" + input.auditEventId,
+        );
+        const alertEntries = parsed.alerts.map((alert) => ({
+          alert,
+          reference: firestore.doc(
+            "academies/" + input.academyId + "/retentionAlerts/" + alert.alertId,
+          ),
+        }));
+        const [auditSnapshot, ...alertSnapshots] = await Promise.all([
+          transaction.get(auditReference),
+          ...alertEntries.map(({ reference }) => transaction.get(reference)),
+        ]);
+
+        if (auditSnapshot.exists) {
+          if (!matchesAuditEventReplay(auditSnapshot.data(), input.auditEventId, parsed.audit)) {
+            throw new RetentionAlertStoreError("conflict", "Retention production replay differs");
+          }
+          alertEntries.forEach(({ alert }, index) => {
+            const snapshot = alertSnapshots[index];
+            if (snapshot === undefined || !snapshot.exists) {
+              throw new RetentionAlertStoreError(
+                "conflict",
+                "Retention production replay is incomplete",
+              );
+            }
+            const existing = parseStoredRetentionAlert(snapshot.data());
+            assertAlertScope(existing, input.academyId);
+            if (!sameAlert(existing, alert)) {
+              throw new RetentionAlertStoreError("conflict", "Retention production replay differs");
+            }
+          });
+          return Object.freeze({
+            created: 0,
+            unchanged: alertEntries.length,
+            replayed: true,
+          });
+        }
+
+        const missing: typeof alertEntries = [];
+        alertEntries.forEach((entry, index) => {
+          const snapshot = alertSnapshots[index];
+          if (snapshot === undefined || !snapshot.exists) {
+            missing.push(entry);
+            return;
+          }
+          const existing = parseStoredRetentionAlert(snapshot.data());
+          assertAlertScope(existing, input.academyId);
+          if (!sameAlert(existing, entry.alert)) {
+            throw new RetentionAlertStoreError("conflict", "Retention alert already differs");
+          }
+        });
+
+        for (const { alert, reference } of missing) {
+          transaction.create(reference, alert);
+        }
+        appendAuditEventInTransaction(transaction, auditReference, parsed.audit);
+        return Object.freeze({
+          created: missing.length,
+          unchanged: alertEntries.length - missing.length,
+          replayed: false,
+        });
       });
     },
     async listAlerts(academyId) {

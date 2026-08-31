@@ -180,6 +180,7 @@ describe("domain contracts", () => {
       "admin.role.revoked",
       "member.import.confirmed",
       "regyfit.access.imported",
+      "retention.alerts.generated",
       "report.export.prepared",
       "membership.created",
       "membership.status.changed",

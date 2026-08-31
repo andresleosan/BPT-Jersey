@@ -8,6 +8,7 @@ export const auditActions = Object.freeze([
   "admin.role.revoked",
   "member.import.confirmed",
   "regyfit.access.imported",
+  "retention.alerts.generated",
   "report.export.prepared",
   "membership.created",
   "membership.status.changed",
@@ -92,6 +93,18 @@ export type AuditEventDraft = CommonAuditEventDraft &
         contentSha256: string;
       }>
     | Readonly<{
+        action: "retention.alerts.generated";
+        runDate: string;
+        policyVersion: "1";
+        evaluatedStudents: number;
+        alertCount: number;
+        inactivityDays: number;
+        lookbackDays: number;
+        noShowThreshold: number;
+        membershipExpiryDays: number;
+        sourceHash: string;
+      }>
+    | Readonly<{
         action: "report.export.prepared";
         scope: "operational_and_progress_aggregates";
         classification: "Confidential";
@@ -148,6 +161,18 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
     "sourceRoute",
     "recordCount",
     "contentSha256",
+  ]),
+  "retention.alerts.generated": Object.freeze([
+    ...commonFields,
+    "runDate",
+    "policyVersion",
+    "evaluatedStudents",
+    "alertCount",
+    "inactivityDays",
+    "lookbackDays",
+    "noShowThreshold",
+    "membershipExpiryDays",
+    "sourceHash",
   ]),
   "report.export.prepared": Object.freeze([
     ...commonFields,
@@ -260,6 +285,12 @@ function validSourceRoute(value: unknown): value is string {
   return !value.includes("//") && !segments.includes(".") && !segments.includes("..");
 }
 
+function validCalendarDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+  const timestamp = Date.parse(value + "T00:00:00.000Z");
+  return !Number.isNaN(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value;
+}
+
 export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, ValidationIssue[]> {
   try {
     if (!isPlainRecord(value)) {
@@ -336,6 +367,50 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         !sha256Pattern.test(snapshot.contentSha256)
       ) {
         issues.push(issue(["contentSha256"], "AUDIT_HASH_INVALID"));
+      }
+    }
+
+    if (parsedAction === "retention.alerts.generated") {
+      if (
+        snapshot.actorId !== "system-retention-producer" ||
+        snapshot.purpose !== "daily retention alert production" ||
+        !validCalendarDate(snapshot.runDate) ||
+        snapshot.targetRef !== `academies/${snapshot.academyId as string}/retentionAlerts` ||
+        snapshot.correlationId !==
+          `retention-alerts:${snapshot.academyId as string}:${snapshot.runDate as string}`
+      ) {
+        issues.push(issue([], "AUDIT_RETENTION_SCOPE_INVALID"));
+      }
+      if (snapshot.policyVersion !== "1") {
+        issues.push(issue(["policyVersion"], "AUDIT_RETENTION_POLICY_VERSION_INVALID"));
+      }
+      if (
+        !isNonNegativeInteger(snapshot.evaluatedStudents) ||
+        (snapshot.evaluatedStudents as number) > 200 ||
+        !isNonNegativeInteger(snapshot.alertCount) ||
+        (snapshot.alertCount as number) > 200
+      ) {
+        issues.push(issue([], "AUDIT_COUNT_INVALID"));
+      }
+      if (
+        !Number.isSafeInteger(snapshot.inactivityDays) ||
+        (snapshot.inactivityDays as number) < 1 ||
+        (snapshot.inactivityDays as number) > 365 ||
+        !Number.isSafeInteger(snapshot.lookbackDays) ||
+        (snapshot.lookbackDays as number) < 1 ||
+        (snapshot.lookbackDays as number) > 365 ||
+        (snapshot.inactivityDays as number) > (snapshot.lookbackDays as number) ||
+        !Number.isSafeInteger(snapshot.noShowThreshold) ||
+        (snapshot.noShowThreshold as number) < 1 ||
+        (snapshot.noShowThreshold as number) > 20 ||
+        !Number.isSafeInteger(snapshot.membershipExpiryDays) ||
+        (snapshot.membershipExpiryDays as number) < 1 ||
+        (snapshot.membershipExpiryDays as number) > 90
+      ) {
+        issues.push(issue([], "AUDIT_RETENTION_POLICY_INVALID"));
+      }
+      if (typeof snapshot.sourceHash !== "string" || !sha256Pattern.test(snapshot.sourceHash)) {
+        issues.push(issue(["sourceHash"], "AUDIT_HASH_INVALID"));
       }
     }
 
@@ -449,6 +524,23 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           sourceRoute: snapshot.sourceRoute as string,
           recordCount: snapshot.recordCount as number,
           contentSha256: snapshot.contentSha256 as string,
+        }),
+      );
+    }
+    if (parsedAction === "retention.alerts.generated") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          runDate: snapshot.runDate as string,
+          policyVersion: "1" as const,
+          evaluatedStudents: snapshot.evaluatedStudents as number,
+          alertCount: snapshot.alertCount as number,
+          inactivityDays: snapshot.inactivityDays as number,
+          lookbackDays: snapshot.lookbackDays as number,
+          noShowThreshold: snapshot.noShowThreshold as number,
+          membershipExpiryDays: snapshot.membershipExpiryDays as number,
+          sourceHash: snapshot.sourceHash as string,
         }),
       );
     }
