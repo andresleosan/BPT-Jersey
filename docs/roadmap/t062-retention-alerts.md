@@ -66,7 +66,7 @@ Alertas y un evento append-only `retention.alerts.generated` se preflightan y cr
 - La lectura de fuentes ocurre antes de la transacción de commit; un cambio concurrente cambia el hash y será detectable en otro run, pero no ofrece snapshot isolation entre colecciones.
 - Una condición persistente crea otra alerta abierta en un nuevo `runDate`; cierre, archivo, episodios y cleanup dependen de una tarea posterior y de T011.
 - La frontera diaria está fijada en UTC; una futura operación automática deberá decidir explícitamente la zona `Europe/Jersey`.
-- La bandeja devuelve `studentReference`, que actualmente contiene el ID interno opaco del estudiante. No expone contacto ni PII directa, pero esa decisión debe documentarse o pseudonimizarse antes de producción.
+- La bandeja devuelve `studentReference`, que actualmente contiene el ID interno opaco del estudiante. No expone contacto ni PII directa, pero este identificador debe pseudonimizarse antes de habilitar datos reales o producción; documentarlo no sustituye ese gate.
 - App Check, rate limiting del callable, política productiva y habilitación operativa siguen bloqueados por T011/T057.
 
 ## Rollback

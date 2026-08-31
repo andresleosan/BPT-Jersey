@@ -437,9 +437,10 @@ in production against real student data. The projection omits contact data,
 financial and membership IDs, tenant fields, alert IDs, and deduplication keys.
 
 T062 introduces no external delivery, migration, production enablement, or
-cleanup. Rollback leaves the DI-only producer uncomposed and removes/disables
-the callable/UI; any derived documents remain inert. Production retention or
-deletion requires T011 and explicit operator approval.
+cleanup. Rollback preserves the pre-existing callable/UI and removes only the
+DI-only producer, the `commitProductionRun` transaction operation, and the
+`retention.alerts.generated` audit variant; any derived documents remain inert.
+Production retention or deletion requires T011 and explicit operator approval.
 
 ### T053 aggregate export profile
 

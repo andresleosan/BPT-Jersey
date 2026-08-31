@@ -856,7 +856,7 @@ const closeoutItems = [
     "revision",
     "Completar los controles operativos antes de produccion.",
     "T056",
-    "T057 en revision: rollback productivo verificado a 620d6c7/34b8ba2c. El operador decidio conservar production_branch=main y production_deployments_enabled=true; cada push remoto a main despliega Pages, sin constituir autorizacion general de T058. T011, staging, costos/alertas y CD protegido siguen abiertos.",
+    "T057 en revision: PR #2 permanece como draft sobre 56d278f; CI #49 y el preview de Pages finalizaron exitosamente sin produccion. El merge a main sigue bloqueado porque el autodeploy de Pages no coordina Functions/Rules; T011, staging, costos/alertas, CD protegido y T058 siguen abiertos.",
     [
       "tasks.md",
       "STACK.md",
@@ -930,7 +930,7 @@ const roadmapV2Items = [
     "revision",
     "Automatizar acciones seleccionadas de retenciÃ³n y CRM.",
     "T019,T029,T033",
-    "Revision 2026-08-31: productor interno DI-only tenant-scoped para memberships trial/active y attendance canonica schema-v1, limites 200/5000, IDs/hash/replay diario deterministas y alertas + retention.alerts.generated atomicos. Focal 61/61, Emulator 5/5 y verify:mvp 1237/1237 + Rules 78/78 + carga 240/240 + smoke 5/5; reauditoria 0 critical/high/moderate. Sin wiring publico, scheduler, CRM/mensajes, datos reales, migracion ni despliegue; studentReference/T011/T057 bloquean produccion.",
+    "Revision 2026-08-31: productor interno DI-only tenant-scoped para memberships trial/active y attendance canonica schema-v1, limites 200/5000, IDs/hash/replay diario deterministas y alertas + retention.alerts.generated atomicos. Focal 61/61, Emulator 5/5 y verify:mvp 1237/1237 + Rules 78/78 + carga 240/240 + smoke 5/5; reauditoria 0 critical/high/moderate. El productor no tiene wiring runtime, endpoint, trigger ni scheduler; el callable read-only preexistente listRetentionAlerts se conserva. Sin CRM/mensajes, datos reales, migracion ni despliegue; studentReference/T011/T057 bloquean produccion.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1261,9 +1261,9 @@ const specialItems = [
 ];
 
 const projectData = {
-  cutoffDate: "2026-08-28",
+  cutoffDate: "2026-08-31",
   sourceLedger: "tasks.md",
-  ledgerCutoffDate: "2026-08-28",
+  ledgerCutoffDate: "2026-08-31",
   sourceFiles: [
     "tasks.md",
     "BRIEF.md",
