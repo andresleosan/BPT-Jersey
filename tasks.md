@@ -110,7 +110,7 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 | T054 | Configurar backups, restauraciÃ³n y runbook de rollback                    | T013,T024                                                             | aprobada  | Aprobada explÃ­citamente por el operador el 2026-08-25 solo para el piloto sintÃ©tico: contrato fail-closed, checksum/conteos, rehearsal Emulator applyâ†’rollback, runbook, unitarias 6/6, integraciÃ³n 1/1 y E2E 2/2; no autoriza backup/restore productivo                                               |
 | T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T008,T009,T011,T018,T019,T021-T033,T037-T042,T045,T047-T054,T083,T086 | aprobada  | QA aprobado unicamente para el piloto sintetico: verify:mvp, unitarias 159/1082, Rules 64/64, carga sintetica 240 solicitudes/concurrencia 24 sin fallos (p95 82 ms) y E2E smoke 5 pasan/1 omitida. T011, carga live/staging y produccion siguen bloqueados; no autoriza datos reales ni despliegue.        |
 | T056 | Ejecutar piloto con datos controlados y corregir hallazgos                 | T055                                                                  | aprobada  | Piloto E2E sintetico ejecutado: 71 pasaron, 14 omitidos por live/staging u opt-in y 0 fallos; verify:mvp y carga sintetica pasan; acta aprobada explicitamente por el operador el 2026-08-27 unicamente para el piloto sintetico; no autoriza staging real, produccion, datos reales, pagos ni migraciones. |
-| T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056                                                                  | revision  | Checkpoint T060/T063 verificado: commit/push a branch para CI/PR recomendado; produccion no. T011, staging, costos/alertas y T058 siguen abiertos. Sin contacto, cloud, credenciales, datos reales ni gasto.                                                                                                |
+| T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056                                                                  | revision  | Rollback verificado a `620d6c7`/`34b8ba2c`. El operador decidio conservar `production_branch=main` y `production_deployments_enabled=true`: cada push remoto a `main` despliega Pages. T011, staging, alertas, CD protegido y T058 continuan abiertos.                                                      |
 | T058 | Desplegar a producciÃ³n con confirmaciÃ³n explÃ­cita del operador          | T057                                                                  | pendiente | Deployment verificado y rollback disponible; fuera del piloto                                                                                                                                                                                                                                               |
 | T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md`        | T058                                                                  | pendiente | LecciÃ³n registrada despuÃ©s de producciÃ³n; fuera del piloto                                                                                                                                                                                                                                               |
 
@@ -3682,3 +3682,25 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
   operador autorizo publicar la branch para ejecutar CI y revision; no es recomendable desplegar.
   T011, staging real, rollback
   productivo, presupuestos/alertas, CD protegido y autorizacion T058 siguen bloqueando produccion.
+
+### T057 - rollback de Cloudflare Pages por release parcial - 2026-08-30
+
+- El push de `aac9e0c` a `main` ejecuto CI #47 y la integracion Git externa de Cloudflare Pages
+  publico automaticamente el frontend en produccion como deployment
+  `18fa3560-9d6e-4ea7-8636-2f75736dc7fe`. CI y el check de Pages terminaron `success`.
+- El bundle publico apuntaba a `bptjersey-f5a25`, mientras el workflow versionado no contiene
+  despliegue de Firebase Functions ni Firestore Rules. Se trato como release parcial; no se
+  probaron flujos autenticados con credenciales productivas ni se asumio compatibilidad backend.
+- El operador autorizo explicitamente revertir `18fa3560` a
+  `34b8ba2c-3e31-495a-b439-dc73500e84de`, correspondiente a `620d6c7`. El preflight confirmo
+  origen y target exactos, entorno `production`, build exitoso y permiso `Pages Write`.
+- El endpoint oficial de rollback respondio `success`; la verificacion posterior confirmo
+  `34b8ba2c` como deployment canonico. El alias productivo coincide con su HTML; smoke sin cache:
+  `/`, `/login` y `/account/waitlist` responden `200`, y `/admin/waitlists` vuelve a `404`.
+- El rollback no modifico commits, ramas, Functions, Rules, Firestore, RTDB, R2 ni datos.
+- El operador eligio conservar el comportamiento anterior: `production_branch=main` y
+  `production_deployments_enabled=true`. La API ya coincidia con esa decision y no se realizo una
+  escritura redundante. Cada push remoto a `main` desplegara Pages; esta seleccion de configuracion
+  no sustituye la autorizacion explicita de cada release exigida por T058.
+- Estado: T057 permanece `revision`, T058 `pendiente` y T011 `bloqueada`. El rollback restaura
+  coherencia operativa, pero no satisface los gates faltantes de produccion.

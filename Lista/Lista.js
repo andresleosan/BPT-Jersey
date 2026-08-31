@@ -856,7 +856,7 @@ const closeoutItems = [
     "revision",
     "Completar los controles operativos antes de produccion.",
     "T056",
-    "T057 en revision: checkpoint T060/T063 verificado con 1217 unitarias, 78 Rules, carga 240/240, smoke 5+1, runtime 3/3 y 0 high/critical. Rama feat/t060-waitlist-offers creada con commit funcional 6eef74d; push autorizado para CI/PR, sin autorizar despliegue. T011, staging, costos/alertas, CD protegido y T058 siguen abiertos.",
+    "T057 en revision: rollback productivo verificado a 620d6c7/34b8ba2c. El operador decidio conservar production_branch=main y production_deployments_enabled=true; cada push remoto a main despliega Pages, sin constituir autorizacion general de T058. T011, staging, costos/alertas y CD protegido siguen abiertos.",
     [
       "tasks.md",
       "STACK.md",
