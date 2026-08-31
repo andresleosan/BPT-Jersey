@@ -197,6 +197,10 @@ describe("domain contracts", () => {
       "consent.accepted",
       "consent.revoked",
       "consent.evidence.downloaded",
+      "waitlist.offer.issued",
+      "waitlist.offer.accepted",
+      "waitlist.offer.declined",
+      "waitlist.offer.expired",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

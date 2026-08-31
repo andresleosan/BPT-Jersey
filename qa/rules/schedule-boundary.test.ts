@@ -5,7 +5,16 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  setLogLevel,
+  updateDoc,
+} from "firebase/firestore";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, it } from "vitest";
 
 const projectId = `demo-bpt-jersey-schedule-boundary-${process.pid}`;
@@ -16,11 +25,17 @@ const scheduleCollections = Object.freeze([
   "classes",
   "sessions",
   "bookings",
+  "waitlistEntries",
+  "sessionCapacityStates",
+  "bookingQuotaStates",
+  "waitlistPositionStates",
   "attendance",
   "checkouts",
 ] as const);
 
 let testEnv: RulesTestEnvironment;
+
+setLogLevel("silent");
 
 beforeAll(async () => {
   const rules = await readFile(resolve(import.meta.dirname, "../../firestore.rules"), "utf8");
@@ -28,8 +43,6 @@ beforeAll(async () => {
     projectId,
     firestore: {
       rules,
-      host: "127.0.0.1",
-      port: 8080,
     },
   });
 });

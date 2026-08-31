@@ -293,6 +293,38 @@ function parseStoredPayment(snapshot: FinanceDocumentSnapshot): ManualPaymentRec
   return parsed.value;
 }
 
+function parseScopedStoredInvoice(
+  snapshot: FinanceDocumentSnapshot,
+  academyId: string,
+): InvoiceRecord {
+  const invoice = parseStoredInvoice(snapshot);
+  if (invoice.academyId !== academyId) {
+    throw new FinanceStoreError("tenant", "Invoice scope is invalid");
+  }
+  return invoice;
+}
+
+function parseScopedStoredPayment(
+  snapshot: FinanceDocumentSnapshot,
+  academyId: string,
+): ManualPaymentRecord {
+  const payment = parseStoredPayment(snapshot);
+  if (payment.academyId !== academyId) {
+    throw new FinanceStoreError("tenant", "Payment scope is invalid");
+  }
+  return payment;
+}
+
+function assertPaymentInvoiceScope(payment: ManualPaymentRecord, invoice: InvoiceRecord): void {
+  if (
+    payment.academyId !== invoice.academyId ||
+    payment.familyId !== invoice.familyId ||
+    payment.invoiceId !== invoice.invoiceId
+  ) {
+    throw new FinanceStoreError("tenant", "Payment invoice scope is invalid");
+  }
+}
+
 function validFamilySource(
   snapshot: FinanceDocumentSnapshot,
   academyId: string,
@@ -410,6 +442,93 @@ function invoiceView(
   });
 }
 
+async function matchesStudentScopeInTransaction(
+  firestore: FinanceFirestore,
+  transaction: FinanceTransaction,
+  scope: FinanceReadScope,
+  invoice: InvoiceRecord,
+): Promise<boolean> {
+  if (scope.studentIds === undefined) return true;
+  const membership = documentSnapshot(
+    await transaction.get(firestore.doc(membershipPath(scope.academyId, invoice.membershipId))),
+  );
+  const data = storedData(membership, "Membership");
+  if (
+    membership.id !== invoice.membershipId ||
+    data.academyId !== scope.academyId ||
+    data.familyId !== invoice.familyId ||
+    typeof data.studentId !== "string"
+  ) {
+    throw new FinanceStoreError("tenant", "Membership scope is invalid");
+  }
+  return scope.studentIds.includes(data.studentId);
+}
+
+export async function readFinancialAccountInTransaction(input: {
+  firestore: FinanceFirestore;
+  transaction: FinanceTransaction;
+  scope: FinanceReadScope;
+}): Promise<FinancialAccountView> {
+  const academy = pathSegment(input.scope.academyId, "academy");
+  if (input.scope.familyIds?.length === 0 || input.scope.studentIds?.length === 0) {
+    return Object.freeze({
+      invoices: Object.freeze([]),
+      balanceMinor: 0,
+      paygDebtMinor: 0,
+    });
+  }
+  const familyId = input.scope.familyIds?.length === 1 ? input.scope.familyIds[0] : undefined;
+  const invoices = querySnapshot(
+    await input.transaction.get(
+      input.firestore
+        .collection(invoicesPath(academy))
+        .where(familyId === undefined ? "academyId" : "familyId", "==", familyId ?? academy),
+    ),
+  )
+    .docs.map((document) => parseScopedStoredInvoice(document, academy))
+    .filter(
+      (invoice) =>
+        input.scope.familyIds === undefined || input.scope.familyIds.includes(invoice.familyId),
+    );
+  const scopedInvoices: InvoiceRecord[] = [];
+  for (const invoice of invoices) {
+    if (
+      await matchesStudentScopeInTransaction(
+        input.firestore,
+        input.transaction,
+        input.scope,
+        invoice,
+      )
+    ) {
+      scopedInvoices.push(invoice);
+    }
+  }
+  const payments = querySnapshot(
+    await input.transaction.get(
+      input.firestore
+        .collection(paymentsPath(academy))
+        .where(familyId === undefined ? "academyId" : "familyId", "==", familyId ?? academy),
+    ),
+  ).docs.map((document) => parseScopedStoredPayment(document, academy));
+  const scopedPayments = payments.filter((payment) => {
+    const invoice = scopedInvoices.find((candidate) => candidate.invoiceId === payment.invoiceId);
+    if (invoice === undefined) return false;
+    assertPaymentInvoiceScope(payment, invoice);
+    return true;
+  });
+  const views = scopedInvoices.map((invoice) =>
+    invoiceView(
+      invoice,
+      scopedPayments.filter((payment) => payment.invoiceId === invoice.invoiceId),
+    ),
+  );
+  return Object.freeze({
+    invoices: Object.freeze(views),
+    balanceMinor: calculateAccountBalance(scopedInvoices, scopedPayments),
+    paygDebtMinor: calculatePaygDebt(scopedInvoices, scopedPayments),
+  });
+}
+
 export function createFinanceStore(dependencies: FinanceStoreDependencies): FinanceStore {
   const now = dependencies.now ?? (() => new Date().toISOString());
   const generateInvoiceId = dependencies.generateInvoiceId ?? randomUUID;
@@ -436,30 +555,20 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
   async function paymentsFor(
     transaction: FinanceTransaction,
     academyId: string,
-    invoiceId: string,
+    invoice: InvoiceRecord,
   ): Promise<ManualPaymentRecord[]> {
     const snapshot = querySnapshot(
       await transaction.get(
         dependencies.firestore
           .collection(paymentsPath(academyId))
-          .where("invoiceId", "==", invoiceId),
+          .where("invoiceId", "==", invoice.invoiceId),
       ),
     );
-    return snapshot.docs.map(parseStoredPayment);
-  }
-
-  async function paymentsForAcademy(
-    transaction: FinanceTransaction,
-    academyId: string,
-  ): Promise<ManualPaymentRecord[]> {
-    const snapshot = querySnapshot(
-      await transaction.get(
-        dependencies.firestore
-          .collection(paymentsPath(academyId))
-          .where("academyId", "==", academyId),
-      ),
-    );
-    return snapshot.docs.map(parseStoredPayment);
+    return snapshot.docs.map((document) => {
+      const payment = parseScopedStoredPayment(document, academyId);
+      assertPaymentInvoiceScope(payment, invoice);
+      return payment;
+    });
   }
 
   async function paymentByReference(
@@ -478,7 +587,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
       throw new FinanceStoreError("conflict", "Payment reference is duplicated");
     }
     const document = snapshot.docs[0];
-    return document === undefined ? undefined : parseStoredPayment(document);
+    return document === undefined ? undefined : parseScopedStoredPayment(document, academyId);
   }
 
   async function matchesStudentScope(
@@ -486,22 +595,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     scope: FinanceReadScope,
     invoice: InvoiceRecord,
   ): Promise<boolean> {
-    if (scope.studentIds === undefined) return true;
-    const membership = documentSnapshot(
-      await transaction.get(
-        dependencies.firestore.doc(membershipPath(invoice.academyId, invoice.membershipId)),
-      ),
-    );
-    const data = storedData(membership, "Membership");
-    if (
-      membership.id !== invoice.membershipId ||
-      data.academyId !== invoice.academyId ||
-      data.familyId !== invoice.familyId ||
-      typeof data.studentId !== "string"
-    ) {
-      throw new FinanceStoreError("tenant", "Membership scope is invalid");
-    }
-    return scope.studentIds.includes(data.studentId);
+    return matchesStudentScopeInTransaction(dependencies.firestore, transaction, scope, invoice);
   }
 
   async function issueInvoice(
@@ -528,7 +622,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
       if (existingSnapshot.docs.length > 1)
         throw new FinanceStoreError("conflict", "Invoice reference is duplicated");
       if (existingSnapshot.docs.length === 1) {
-        const existing = parseStoredInvoice(existingSnapshot.docs[0]!);
+        const existing = parseScopedStoredInvoice(existingSnapshot.docs[0]!, input.academyId);
         const requested = invoicePayload(input, existing.invoiceId, current);
         if (
           existing.familyId !== requested.familyId ||
@@ -584,12 +678,13 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     const id = paymentId(input.academyId, input.manualReference);
     const actorId = pathSegment(input.actorId, "actor");
     return dependencies.firestore.runTransaction(async (transaction) => {
-      const invoice = parseStoredInvoice(
+      const invoice = parseScopedStoredInvoice(
         documentSnapshot(
           await transaction.get(
             dependencies.firestore.doc(invoicePath(input.academyId, input.invoiceId)),
           ),
         ),
+        input.academyId,
       );
       const existingByReference = await paymentByReference(
         transaction,
@@ -605,7 +700,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         }
         return existingByReference;
       }
-      const payments = await paymentsFor(transaction, input.academyId, invoice.invoiceId);
+      const payments = await paymentsFor(transaction, input.academyId, invoice);
       if (invoice.status === "void" || invoice.status === "paid") {
         throw new FinanceStoreError("precondition", "Invoice cannot receive a payment");
       }
@@ -668,14 +763,15 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     const current = now();
     const actorId = pathSegment(input.actorId, "actor");
     return dependencies.firestore.runTransaction(async (transaction) => {
-      const invoice = parseStoredInvoice(
+      const invoice = parseScopedStoredInvoice(
         documentSnapshot(
           await transaction.get(
             dependencies.firestore.doc(invoicePath(input.academyId, input.invoiceId)),
           ),
         ),
+        input.academyId,
       );
-      const payments = await paymentsFor(transaction, input.academyId, invoice.invoiceId);
+      const payments = await paymentsFor(transaction, input.academyId, invoice);
       if (invoice.status !== "open" || payments.length > 0) {
         throw new FinanceStoreError("precondition", "Invoice cannot be voided");
       }
@@ -711,10 +807,11 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     const academy = pathSegment(scope.academyId, "academy");
     const invoiceIdSafe = pathSegment(invoiceId, "invoice");
     return dependencies.firestore.runTransaction(async (transaction) => {
-      const invoice = parseStoredInvoice(
+      const invoice = parseScopedStoredInvoice(
         documentSnapshot(
           await transaction.get(dependencies.firestore.doc(invoicePath(academy, invoiceIdSafe))),
         ),
+        academy,
       );
       if (scope.familyIds !== undefined && !scope.familyIds.includes(invoice.familyId)) {
         throw new FinanceStoreError("not-found", "Invoice not found");
@@ -722,44 +819,18 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
       if (!(await matchesStudentScope(transaction, scope, invoice))) {
         throw new FinanceStoreError("not-found", "Invoice not found");
       }
-      return invoiceView(invoice, await paymentsFor(transaction, academy, invoice.invoiceId));
+      return invoiceView(invoice, await paymentsFor(transaction, academy, invoice));
     });
   }
 
   async function listFinancialAccount(scope: FinanceReadScope): Promise<FinancialAccountView> {
-    const academy = pathSegment(scope.academyId, "academy");
-    return dependencies.firestore.runTransaction(async (transaction) => {
-      const invoices = querySnapshot(
-        await transaction.get(
-          dependencies.firestore
-            .collection(invoicesPath(academy))
-            .where("academyId", "==", academy),
-        ),
-      )
-        .docs.map(parseStoredInvoice)
-        .filter(
-          (invoice) => scope.familyIds === undefined || scope.familyIds.includes(invoice.familyId),
-        );
-      const scopedInvoices: InvoiceRecord[] = [];
-      for (const invoice of invoices) {
-        if (await matchesStudentScope(transaction, scope, invoice)) scopedInvoices.push(invoice);
-      }
-      const payments = await paymentsForAcademy(transaction, academy);
-      const scopedPayments = payments.filter((payment) =>
-        scopedInvoices.some((invoice) => invoice.invoiceId === payment.invoiceId),
-      );
-      const views = scopedInvoices.map((invoice) =>
-        invoiceView(
-          invoice,
-          scopedPayments.filter((payment) => payment.invoiceId === invoice.invoiceId),
-        ),
-      );
-      return Object.freeze({
-        invoices: Object.freeze(views),
-        balanceMinor: calculateAccountBalance(scopedInvoices, scopedPayments),
-        paygDebtMinor: calculatePaygDebt(scopedInvoices, scopedPayments),
-      });
-    });
+    return dependencies.firestore.runTransaction((transaction) =>
+      readFinancialAccountInTransaction({
+        firestore: dependencies.firestore,
+        transaction,
+        scope,
+      }),
+    );
   }
 
   return Object.freeze({

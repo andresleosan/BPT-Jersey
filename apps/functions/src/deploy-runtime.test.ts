@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { getApps } from "firebase-admin/app";
 
-import { rewriteDeployRuntimeImports } from "./deploy-runtime.js";
+import { deployArtifactPnpmArguments, rewriteDeployRuntimeImports } from "./deploy-runtime.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -17,6 +17,11 @@ afterEach(async () => {
 });
 
 describe("deploy runtime import preparation", () => {
+  it("deploys into the artifact without switching the source workspace to production mode", () => {
+    expect(deployArtifactPnpmArguments).toContain("deploy");
+    expect(deployArtifactPnpmArguments).not.toContain("--prod");
+  });
+
   it("rewrites domain subpaths in a temporary copied runtime and rejects leftovers", async () => {
     const root = await mkdtemp(join(tmpdir(), "bpt-member-runtime-"));
     temporaryDirectories.push(root);
@@ -37,6 +42,7 @@ describe("deploy runtime import preparation", () => {
         'import "@bpt-jersey/domain/families";',
         'import "@bpt-jersey/domain/consents";',
         'import "@bpt-jersey/domain/finance";',
+        'import "@bpt-jersey/domain/finance/access";',
         'import "@bpt-jersey/domain/finance/dashboard";',
         'import "@bpt-jersey/domain/staff";',
         'import "@bpt-jersey/domain/reports";',
@@ -57,6 +63,7 @@ describe("deploy runtime import preparation", () => {
     expect(prepared).toContain("../../domain/families/family-contracts.js");
     expect(prepared).toContain("../../domain/consents/consent-contracts.js");
     expect(prepared).toContain("../../domain/finance/finance-contracts.js");
+    expect(prepared).toContain("../../domain/finance/financial-access.js");
     expect(prepared).toContain("../../domain/finance/financial-dashboard.js");
     expect(prepared).toContain("../../domain/staff/staff-contracts.js");
     expect(prepared).toContain("../../domain/reports/operational-report.js");
@@ -113,6 +120,9 @@ describe("deploy runtime import preparation", () => {
       repositoryRoot: temporaryRepositoryRoot,
       deployRoot: temporaryDeployRoot,
     });
+    expect(await readFile(join(deployRoot, "pnpm-workspace.yaml"), "utf8")).toBe(
+      'packages:\n  - "."\n',
+    );
     const indexPath = join(deployRoot, "lib", "src", "index.js");
     const indexSource = await readFile(indexPath, "utf8");
     expect(indexSource).not.toMatch(/@bpt-jersey\/domain/u);

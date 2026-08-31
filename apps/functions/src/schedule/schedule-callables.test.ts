@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createCancelBookingHandler,
@@ -26,6 +26,7 @@ import {
   createSaveProgramHandler,
   createSaveSessionHandler,
 } from "./schedule-callables";
+import { BookingTransactionError } from "./booking-transaction-service";
 import { createInMemoryScheduleStore } from "./schedule-service";
 
 function fakeRequest(
@@ -41,6 +42,47 @@ function fakeRequest(
 }
 
 describe("Schedule Callables", () => {
+  it.each([
+    {
+      error: new BookingTransactionError("capacity", "internal capacity detail"),
+      expected: {
+        code: "failed-precondition",
+        message: "Session capacity is no longer available",
+        details: { reason: "capacity" },
+      },
+    },
+    {
+      error: new BookingTransactionError("tenant", "internal tenant detail"),
+      expected: { code: "permission-denied", message: "Booking access is not permitted" },
+    },
+    {
+      error: new Error("database connection detail"),
+      expected: { code: "internal", message: "Booking operation failed" },
+    },
+  ])(
+    "maps transactional booking failures without leaking internals",
+    async ({ error, expected }) => {
+      const store = {
+        ...createInMemoryScheduleStore(),
+        requestBooking: async () => {
+          throw error;
+        },
+      };
+      const handler = createRequestBookingHandler({ store });
+
+      await expect(
+        handler(
+          fakeRequest(
+            { sessionId: "session-1", studentId: "student-1", membershipId: "membership-1" },
+            "adultStudent",
+            "student-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toMatchObject(expected);
+    },
+  );
+
   it("allows any authenticated role to list locations and programs", async () => {
     const store = createInMemoryScheduleStore();
     const handler = createListScheduleCatalogHandler({ store });
@@ -700,6 +742,28 @@ describe("Schedule Callables", () => {
   });
 
   describe("Child Check-Out & Release Callables", () => {
+    it("keeps adult self checkout fail-closed until the policy is approved", async () => {
+      const store = createInMemoryScheduleStore();
+      const recordCheckout = vi.spyOn(store, "recordCheckout");
+      const handler = createRecordCheckoutHandler({ store });
+
+      await expect(
+        handler(
+          fakeRequest(
+            {
+              sessionId: "session-adult",
+              studentId: "adult-1",
+              method: "independentRelease",
+            },
+            "adultStudent",
+            "adult-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toThrow(/Adult student checkout is not enabled/);
+      expect(recordCheckout).not.toHaveBeenCalled();
+    });
+
     it("handles child check-out authorization, staff overrides, and queries", async () => {
       const store = createInMemoryScheduleStore();
       const checkInHandler = createCheckInHandler({ store });

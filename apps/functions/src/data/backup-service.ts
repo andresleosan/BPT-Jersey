@@ -18,6 +18,9 @@ export const DEFAULT_BACKUP_RETENTION_DAYS = 7;
 export const BACKUP_JSON_CONTENT_TYPE = "application/json";
 
 const academyIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+// Firestore caps a document ID at 1,500 UTF-8 bytes. This allowlist is ASCII-only,
+// so the character count is also the byte count.
+const documentIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,1499}$/u;
 const operationIdPattern = /^op-[A-Za-z0-9-]{10,80}$/u;
 const sensitiveKeyPattern =
   /(?:password|secret|credential|privatekey|accesstoken|refreshtoken|apikey|cardnumber|cvv|cvc)/iu;
@@ -131,16 +134,79 @@ function countDocuments(documents: readonly TenantBackupDocument[]): TenantBacku
   return counts;
 }
 
-function validateDocuments(
+function assertWaitlistPositionInvariant(
+  academyId: string,
+  documents: readonly TenantBackupDocument[],
+): void {
+  const maximumPositions = new Map<string, number>();
+  const positionStates = new Map<string, number>();
+
+  for (const document of documents) {
+    if (document.collection === "waitlistEntries") {
+      const sessionId = document.data["sessionId"];
+      const position = document.data["position"];
+      if (
+        document.data["academyId"] !== academyId ||
+        typeof sessionId !== "string" ||
+        !academyIdPattern.test(sessionId) ||
+        !Number.isSafeInteger(position) ||
+        (position as number) < 1 ||
+        (position as number) > 10_000
+      ) {
+        throw new BackupOperationError("invalid", "Backup waitlist entry is invalid");
+      }
+      maximumPositions.set(
+        sessionId,
+        Math.max(maximumPositions.get(sessionId) ?? 0, position as number),
+      );
+    }
+
+    if (document.collection === "waitlistPositionStates") {
+      const sessionId = document.data["sessionId"];
+      const lastPosition = document.data["lastPosition"];
+      if (
+        document.data["academyId"] !== academyId ||
+        typeof sessionId !== "string" ||
+        !academyIdPattern.test(sessionId) ||
+        document.documentId !== sessionId ||
+        !Number.isSafeInteger(lastPosition) ||
+        (lastPosition as number) < 0 ||
+        (lastPosition as number) > 10_000 ||
+        positionStates.has(sessionId)
+      ) {
+        throw new BackupOperationError("invalid", "Backup waitlist position state is invalid");
+      }
+      positionStates.set(sessionId, lastPosition as number);
+    }
+  }
+
+  for (const [sessionId, maximumPosition] of maximumPositions) {
+    if ((positionStates.get(sessionId) ?? -1) < maximumPosition) {
+      throw new BackupOperationError(
+        "invalid",
+        "Backup waitlist position state is behind its historical queue",
+      );
+    }
+  }
+}
+
+export function validateTenantBackupDocuments(
   academyId: string,
   documents: readonly TenantBackupDocument[],
 ): readonly TenantBackupDocument[] {
+  assertAcademyId(academyId);
+  if (!Array.isArray(documents)) {
+    throw new BackupOperationError("invalid", "Backup documents are invalid");
+  }
   const seen = new Set<string>();
   for (const document of documents) {
+    if (typeof document !== "object" || document === null || Array.isArray(document)) {
+      throw new BackupOperationError("invalid", "Backup contains an invalid document");
+    }
     if (!isTenantBackupCollection(document.collection)) {
       throw new BackupOperationError("invalid", "Backup contains an unsupported collection");
     }
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(document.documentId)) {
+    if (!documentIdPattern.test(document.documentId)) {
       throw new BackupOperationError("invalid", "Backup contains an invalid document ID");
     }
     const identity = `${document.collection}/${document.documentId}`;
@@ -153,11 +219,34 @@ function validateDocuments(
     }
     assertSafeData(document.data);
   }
+  assertWaitlistPositionInvariant(academyId, documents);
   return [...documents].sort((left, right) =>
     `${left.collection}/${left.documentId}`.localeCompare(
       `${right.collection}/${right.documentId}`,
     ),
   );
+}
+
+async function inspectBackupArtifact(
+  artifacts: BackupArtifactStore,
+  manifest: TenantBackupManifest,
+): Promise<{ actualChecksum: string; valid: boolean }> {
+  const artifact = parseJson<TenantBackupArtifact>(
+    await artifacts.get(manifest.artifactPath),
+    "Backup artifact is invalid",
+  );
+  const documents = validateTenantBackupDocuments(manifest.academyId, artifact.documents);
+  const actualChecksum = checksum({ ...artifact, documents });
+  return {
+    actualChecksum,
+    valid:
+      artifact.schemaVersion === BACKUP_SCHEMA_VERSION &&
+      artifact.operationId === manifest.operationId &&
+      artifact.academyId === manifest.academyId &&
+      actualChecksum === manifest.checksum &&
+      documents.length === manifest.totalDocumentCount &&
+      stableJson(countDocuments(documents)) === stableJson(manifest.documentCounts),
+  };
 }
 
 async function writeJson(
@@ -197,7 +286,7 @@ export function createTenantBackupService(options: BackupServiceOptions): Tenant
       const expiresAt = new Date(
         now().getTime() + DEFAULT_BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000,
       ).toISOString();
-      const documents = validateDocuments(
+      const documents = validateTenantBackupDocuments(
         academyId,
         await options.source.listTenantDocuments(academyId),
       );
@@ -239,19 +328,10 @@ export function createTenantBackupService(options: BackupServiceOptions): Tenant
           verified: false,
         };
       }
-      const artifact = parseJson<TenantBackupArtifact>(
-        await options.artifacts.get(manifest.artifactPath),
-        "Backup artifact is invalid",
+      const { actualChecksum, valid: verified } = await inspectBackupArtifact(
+        options.artifacts,
+        manifest,
       );
-      const documents = validateDocuments(manifest.academyId, artifact.documents);
-      const actualChecksum = checksum({ ...artifact, documents });
-      const verified =
-        artifact.schemaVersion === BACKUP_SCHEMA_VERSION &&
-        artifact.operationId === manifest.operationId &&
-        artifact.academyId === manifest.academyId &&
-        actualChecksum === manifest.checksum &&
-        documents.length === manifest.totalDocumentCount &&
-        stableJson(countDocuments(documents)) === stableJson(manifest.documentCounts);
       await writeJson(options.artifacts, manifestPath(operationId), {
         ...manifest,
         status: verified ? "verified" : "failed",
@@ -272,6 +352,21 @@ export function createTenantBackupService(options: BackupServiceOptions): Tenant
       }
       if (confirmationToken !== `RESTORE:${operationId}`) {
         throw new BackupOperationError("invalid", "Restore confirmation token is invalid");
+      }
+      if (new Date(manifest.expiresAt).getTime() <= now().getTime()) {
+        await writeJson(options.artifacts, manifestPath(operationId), {
+          ...manifest,
+          status: "expired",
+        });
+        throw new BackupOperationError("conflict", "Verified backup has expired");
+      }
+      const inspection = await inspectBackupArtifact(options.artifacts, manifest);
+      if (!inspection.valid) {
+        await writeJson(options.artifacts, manifestPath(operationId), {
+          ...manifest,
+          status: "failed",
+        });
+        throw new BackupOperationError("conflict", "Backup changed after verification");
       }
       const restoreId = `restore-${checksum({ operationId, checksum: manifest.checksum }).slice(0, 24)}`;
       return { restoreId, rollbackManifestPath: manifest.rollbackManifestPath };

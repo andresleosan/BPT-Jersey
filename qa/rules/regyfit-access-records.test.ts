@@ -45,8 +45,6 @@ beforeAll(async () => {
   testEnvironment = await initializeTestEnvironment({
     projectId,
     firestore: {
-      host: "127.0.0.1",
-      port: 8080,
       rules: await readFile(resolve("firestore.rules"), "utf8"),
     },
   });

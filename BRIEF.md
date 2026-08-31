@@ -165,13 +165,13 @@ entre octubre y noviembre de 2026. No incluye despliegue productivo ni integraci
 - Referrals, privadas, competencias y retail. Los seminarios operativos ya pertenecen al MVP.
 - Analítica predictiva explicable, IA asistida, multi-academia y eventual SaaS.
 
-#### Corte actual T060 - waitlist persistida y autoservicio minimo
+#### Corte actual T060 - oferta FIFO y booking transaccional
 
-El primer usuario es el tutor o adulto que encuentra una sesión completa. Sin una waitlist, la intención se pierde o exige seguimiento manual del staff. El corte medible conserva solicitudes recuperables para una futura promoción, pero todavía no promete ni asigna cupos automáticamente.
+El primer usuario sigue siendo el tutor o adulto que encuentra una sesión completa. La waitlist ya conserva esa intención; el corte actual busca convertirla en un cupo de forma controlada, sin introducir todavía promoción automática ni mensajería externa.
 
-Entra ahora: join/list/cancel tenant-scoped, posición atómica, elegibilidad fail-closed por sesión completa y membresía `active`/`trial` vigente, RBAC y pruebas Emulator. El corte implementado añade autoservicio mínimo para que el adulto o tutor seleccione por nombre un participante y una sesión futura, vea su posición y cancele su propia entrada sin manejar IDs internos.
+Entra ahora: oferta manual del primer lugar FIFO por `owner`/`administrator`, una sola oferta activa por sesión, reserva temporal de cupo, TTL de 30 minutos limitado a una hora antes de la sesión, aceptación o declinación por el adulto/tutor autorizado y creación atómica del booking confirmado. El backend vuelve a validar tenant, sesión, membresía, plan/cuota, capacidad y la política financiera T038; los replays no duplican ni extienden la operación.
 
-Se difieren promoción, oferta/aceptación, reordenamiento, créditos, recurrencia, booking automático, cobros, mensajes y UI de staff hasta contar con políticas aprobadas. La métrica futura sigue siendo solicitudes recuperables frente a intentos rechazados por capacidad; este corte no promete un cupo.
+Se difieren promoción automática, scheduler, notificaciones, reordenamiento, créditos, recurrencia, cobros y pagos nuevos. Las posiciones permanecen históricas; una oferta declinada no se reencola automáticamente. La métrica del corte es la conversión segura de solicitudes recuperadas a bookings confirmados, sin sobrecupo ni escalamiento de privilegios.
 
 ## Plan provisional de avance v2/v3
 

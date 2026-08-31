@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { getFamily } from "../../../lib/family-client";
 import { listSessions } from "../../../lib/schedule-client";
 import {
+  acceptClientWaitlistOffer,
   cancelClientWaitlist,
+  declineClientWaitlistOffer,
   joinClientWaitlist,
   listClientMemberships,
   listStudentWaitlist,
@@ -40,12 +42,48 @@ const jerseyDateTime = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Jersey",
 });
 
+const jerseyOfferDeadline = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Jersey",
+  timeZoneName: "short",
+});
+
 function formatDateTime(value: string): string {
   return jerseyDateTime.format(new Date(value));
 }
 
 function locationLabel(locationId: SessionRecord["locationId"]): string {
   return locationId === "town" ? "Town" : "West";
+}
+
+function OfferCountdown({ expiresAt }: { expiresAt: string }) {
+  const expiry = Date.parse(expiresAt);
+  const [clock, setClock] = useState(() => Date.now());
+  const minutesRemaining = Math.max(0, Math.ceil((expiry - clock) / 60_000));
+
+  useEffect(() => {
+    const remaining = expiry - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setClock(Date.now()), Math.min(60_000, remaining));
+    return () => window.clearTimeout(timer);
+  }, [clock, expiry]);
+
+  return (
+    <p className="waitlist-offer-deadline">
+      <span>
+        Respond by{" "}
+        <time dateTime={expiresAt}>{jerseyOfferDeadline.format(new Date(expiresAt))}</time>
+      </span>
+      <span aria-hidden="true">{minutesRemaining} min remaining</span>
+      <span className="waitlist-visually-hidden">
+        The countdown is informational. The academy confirms whether the offer is still available.
+      </span>
+    </p>
+  );
 }
 
 function currentMembership(membership: ClientMembership, now: number): boolean {
@@ -115,6 +153,7 @@ function WaitlistContent() {
   const [notice, setNotice] = useState("");
   const [busyKey, setBusyKey] = useState("");
   const [confirmingSessionId, setConfirmingSessionId] = useState("");
+  const selectionGenerationRef = useRef(0);
 
   useEffect(() => {
     if (!session) return;
@@ -159,14 +198,15 @@ function WaitlistContent() {
   useEffect(() => {
     if (!selectedStudentId) return;
     let active = true;
+    const generation = selectionGenerationRef.current;
     void listStudentWaitlist(selectedStudentId)
       .then((result) => {
-        if (!active) return;
+        if (!active || generation !== selectionGenerationRef.current) return;
         setEntries(result);
         setEntriesState("ready");
       })
       .catch(() => {
-        if (active) setEntriesState("error");
+        if (active && generation === selectionGenerationRef.current) setEntriesState("error");
       });
     return () => {
       active = false;
@@ -186,11 +226,14 @@ function WaitlistContent() {
   );
   const selectedAlreadyRequested = requestedSessionIds.has(selectedSessionId);
 
-  async function refreshEntries(studentId: string): Promise<void> {
+  async function refreshEntries(studentId: string, generation: number): Promise<void> {
     try {
-      setEntries(await listStudentWaitlist(studentId));
+      const refreshed = await listStudentWaitlist(studentId);
+      if (generation !== selectionGenerationRef.current) return;
+      setEntries(refreshed);
       setEntriesState("ready");
     } catch {
+      if (generation !== selectionGenerationRef.current) return;
       setEntriesState("error");
     }
   }
@@ -198,6 +241,7 @@ function WaitlistContent() {
   async function handleJoin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!selectedParticipant || !selectedSessionId || selectedAlreadyRequested) return;
+    const generation = selectionGenerationRef.current;
     setMutationMessage("");
     setNotice("");
     setConfirmingSessionId("");
@@ -208,40 +252,80 @@ function WaitlistContent() {
         studentId: selectedParticipant.studentId,
         membershipId: selectedParticipant.membershipId,
       });
+      if (generation !== selectionGenerationRef.current) return;
       setNotice(`Joined the waitlist at position ${entry.position}.`);
-      await refreshEntries(selectedParticipant.studentId);
+      await refreshEntries(selectedParticipant.studentId, generation);
     } catch (error) {
+      if (generation !== selectionGenerationRef.current) return;
       setMutationMessage(
         error instanceof Error
           ? error.message
           : "Unable to update your waitlist. Please try again.",
       );
     } finally {
-      setBusyKey("");
+      if (generation === selectionGenerationRef.current) setBusyKey("");
     }
   }
 
   async function handleCancel(entry: ClientWaitlistItem): Promise<void> {
     if (!selectedParticipant) return;
+    const generation = selectionGenerationRef.current;
     setMutationMessage("");
     setNotice("");
-    setBusyKey(entry.sessionId);
+    setBusyKey(`cancel:${entry.sessionId}`);
     try {
       await cancelClientWaitlist({
         sessionId: entry.sessionId,
         studentId: selectedParticipant.studentId,
       });
+      if (generation !== selectionGenerationRef.current) return;
       setNotice("Waitlist place cancelled.");
       setConfirmingSessionId("");
-      await refreshEntries(selectedParticipant.studentId);
+      await refreshEntries(selectedParticipant.studentId, generation);
     } catch (error) {
+      if (generation !== selectionGenerationRef.current) return;
       setMutationMessage(
         error instanceof Error
           ? error.message
           : "Unable to update your waitlist. Please try again.",
       );
     } finally {
-      setBusyKey("");
+      if (generation === selectionGenerationRef.current) setBusyKey("");
+    }
+  }
+
+  async function handleOffer(
+    entry: ClientWaitlistItem,
+    action: "accept" | "decline",
+  ): Promise<void> {
+    if (!selectedParticipant) return;
+    const generation = selectionGenerationRef.current;
+    setMutationMessage("");
+    setNotice("");
+    setBusyKey(`${action}:${entry.sessionId}`);
+    try {
+      const input = {
+        sessionId: entry.sessionId,
+        studentId: selectedParticipant.studentId,
+      };
+      if (action === "accept") {
+        await acceptClientWaitlistOffer(input);
+      } else {
+        await declineClientWaitlistOffer(input);
+      }
+      if (generation !== selectionGenerationRef.current) return;
+      setNotice(action === "accept" ? "Place accepted." : "Offer declined.");
+      setConfirmingSessionId("");
+      await refreshEntries(selectedParticipant.studentId, generation);
+    } catch (error) {
+      if (generation !== selectionGenerationRef.current) return;
+      setMutationMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to update your waitlist. Please try again.",
+      );
+    } finally {
+      if (generation === selectionGenerationRef.current) setBusyKey("");
     }
   }
 
@@ -296,6 +380,8 @@ function WaitlistContent() {
                   <select
                     id="waitlist-participant"
                     onChange={(event) => {
+                      selectionGenerationRef.current += 1;
+                      setBusyKey("");
                       setEntriesState("loading");
                       setSelectedStudentId(event.target.value);
                       setMutationMessage("");
@@ -354,7 +440,11 @@ function WaitlistContent() {
             )}
           </section>
 
-          <section className="waitlist-queue" aria-labelledby="waitlist-queue-title">
+          <section
+            aria-busy={busyKey !== ""}
+            className="waitlist-queue"
+            aria-labelledby="waitlist-queue-title"
+          >
             <div className="waitlist-queue-heading">
               <div>
                 <p className="account-eyebrow">Your mat queue</p>
@@ -407,6 +497,62 @@ function WaitlistContent() {
                             ? `${formatDateTime(waitlistSession.startAt)} · ${locationLabel(waitlistSession.locationId)}`
                             : `Requested ${formatDateTime(entry.requestedAt)}`}
                         </p>
+                        {entry.status === "offered" && entry.offerExpiresAt ? (
+                          <OfferCountdown expiresAt={entry.offerExpiresAt} />
+                        ) : null}
+                        {entry.status === "offered" ? (
+                          <div className="waitlist-offer-actions">
+                            <button
+                              className="button waitlist-offer-accept"
+                              disabled={busyKey !== ""}
+                              onClick={() => void handleOffer(entry, "accept")}
+                              type="button"
+                            >
+                              {busyKey === `accept:${entry.sessionId}`
+                                ? "Accepting place..."
+                                : "Accept place"}
+                            </button>
+                            {isConfirming ? (
+                              <div
+                                aria-label="Confirm offer decline"
+                                className="waitlist-confirm"
+                                role="group"
+                              >
+                                <span>Decline this offered place?</span>
+                                <button
+                                  className="button waitlist-action-danger"
+                                  disabled={busyKey !== ""}
+                                  onClick={() => void handleOffer(entry, "decline")}
+                                  type="button"
+                                >
+                                  {busyKey === `decline:${entry.sessionId}`
+                                    ? "Declining offer..."
+                                    : "Confirm decline"}
+                                </button>
+                                <button
+                                  className="button waitlist-action-secondary"
+                                  disabled={busyKey !== ""}
+                                  onClick={() => setConfirmingSessionId("")}
+                                  type="button"
+                                >
+                                  Keep offer
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="button waitlist-action-secondary"
+                                disabled={busyKey !== ""}
+                                onClick={() => {
+                                  setConfirmingSessionId(entry.sessionId);
+                                  setMutationMessage("");
+                                }}
+                                type="button"
+                              >
+                                Decline offer
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
                         {entry.status === "waiting" ? (
                           isConfirming ? (
                             <div
@@ -421,7 +567,7 @@ function WaitlistContent() {
                                 onClick={() => void handleCancel(entry)}
                                 type="button"
                               >
-                                {busyKey === entry.sessionId
+                                {busyKey === `cancel:${entry.sessionId}`
                                   ? "Cancelling..."
                                   : "Confirm cancellation"}
                               </button>

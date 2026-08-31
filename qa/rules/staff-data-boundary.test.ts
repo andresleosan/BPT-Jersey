@@ -72,7 +72,7 @@ beforeAll(async () => {
   const firestoreRules = await readFile(resolve("firestore.rules"), "utf8");
   testEnvironment = await initializeTestEnvironment({
     projectId,
-    firestore: { host: "127.0.0.1", port: 8080, rules: firestoreRules },
+    firestore: { rules: firestoreRules },
   });
 });
 

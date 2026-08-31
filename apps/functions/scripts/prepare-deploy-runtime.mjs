@@ -19,6 +19,7 @@ export async function prepareDeployRuntime({
   packageValue.dependencies.zod = "4.4.3";
   delete packageValue.devDependencies;
   await writeFile(packagePath, `${JSON.stringify(packageValue, null, 2)}\n`, "utf8");
+  await writeFile(new URL("pnpm-workspace.yaml", deployRoot), 'packages:\n  - "."\n', "utf8");
 
   await cp(new URL("packages/domain/lib/", repositoryRoot), new URL("lib/domain/", deployRoot), {
     recursive: true,

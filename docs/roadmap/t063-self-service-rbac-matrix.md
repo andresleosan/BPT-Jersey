@@ -33,14 +33,23 @@ Los callables de agenda ya no aceptan un `studentId` arbitrario para un guardian
 
 La implementacion mantiene un resolver inyectable y ahora admite Firestore/clock controlados para comprobar en Emulator el tutor principal vigente, tutor no relacionado, tutor secundario, relacion futura, expirada, inactiva y reloj invalido. La ventana temporal sigue la semantica canonica `validFrom <= now < validTo` y cualquier error falla cerrado. No se agregaron colecciones, indices, migraciones, secretos, proveedores ni datos reales.
 
+El cierre correctivo del 2026-08-30 hace efectiva la politica restrictiva ya documentada:
+`recordCheckout` deniega expresamente a `adultStudent` antes de resolver scope o invocar el store.
+No cambia booking, cancelacion, check-in o consultas propias; guardian vinculado y staff conservan
+sus flujos existentes. Habilitar checkout adulto sigue requiriendo un checkpoint humano separado.
+
 ## Evidencia verificada
 
-- Unitarias focalizadas: 23/23.
+- Unitarias focalizadas vigentes: callable 18/18; la regresion nueva verifica que checkout adulto
+  no invoca el store.
 - Firestore Emulator del resolver: 2/2.
-- Rules completa: 64/64, incluido `checkouts`.
+- Rules completa: 78/78, incluido `checkouts`.
 - E2E Auth Emulator: 2/2 responsive y 10/10 en repeticion.
-- `corepack pnpm verify:mvp`: 1122/1122 unitarias, 64/64 Rules, carga sintetica 240/240 sin fallos (p95 28 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
-- Autocritica de seguridad sin hallazgos high/critical ni secretos; audit sin vulnerabilidades high/critical (2 moderadas existentes).
+- `corepack pnpm verify:mvp`: 1217/1217 unitarias, 78/78 Rules, carga sintetica 240/240 sin fallos
+  (p95 40 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
+- Autocritica de seguridad sin hallazgos high/critical ni secretos; audit sin vulnerabilidades
+  high/critical (2 moderadas existentes).
+
 ## Pendientes de checkpoint
 
 - Confirmar si un tutor secundario puede operar o si solo el contacto principal mantiene autoservicio.

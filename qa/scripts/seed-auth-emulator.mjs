@@ -24,8 +24,12 @@ async function main() {
   const email = required("AUTH_EMULATOR_E2E_EMAIL");
   const password = required("AUTH_EMULATOR_E2E_PASSWORD");
   const role = process.env.AUTH_EMULATOR_E2E_ROLE?.trim() || "owner";
-  if (!["owner", "guardian", "adultStudent"].includes(role)) {
-    throw new Error("Auth seed role must be owner, guardian, or adultStudent.");
+  if (
+    !["owner", "administrator", "headCoach", "coach", "guardian", "adultStudent"].includes(role)
+  ) {
+    throw new Error(
+      "Auth seed role must be owner, administrator, headCoach, coach, guardian, or adultStudent.",
+    );
   }
   if (!email.endsWith("@example.test") || password.length < 12) {
     throw new Error("Auth seed credentials must be synthetic emulator credentials.");

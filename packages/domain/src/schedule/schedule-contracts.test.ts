@@ -4,8 +4,11 @@ import {
   buildAttendanceId,
   buildDailyOperationsDashboard,
   buildBookingId,
+  buildBookingIdCandidates,
+  buildBookingIdV2,
   buildCheckoutId,
   buildCorrectionAttendanceId,
+  buildLegacyBookingId,
   buildSessionOperationalView,
   determinePunctuality,
   evaluateBookingEligibility,
@@ -396,8 +399,31 @@ describe("Schedule Domain Contracts", () => {
   });
 
   describe("buildBookingId", () => {
-    it("creates deterministic ID from sessionId and studentId", () => {
-      expect(buildBookingId("session-123", "student-456")).toBe("session-123__student-456");
+    it("creates the canonical injective v2 ID and keeps legacy lookup explicit", () => {
+      const canonical = "v2:11:session-123:11:student-456";
+
+      expect(buildBookingId(" session-123 ", " student-456 ")).toBe(canonical);
+      expect(buildBookingIdV2(" session-123 ", " student-456 ")).toBe(canonical);
+      expect(buildLegacyBookingId(" session-123 ", " student-456 ")).toBe(
+        "session-123__student-456",
+      );
+      expect(buildBookingIdCandidates(" session-123 ", " student-456 ")).toEqual([
+        canonical,
+        "session-123__student-456",
+      ]);
+      expect(Object.isFrozen(buildBookingIdCandidates("session-123", "student-456"))).toBe(true);
+    });
+
+    it("does not collide when either component contains the legacy separator", () => {
+      expect(buildLegacyBookingId("session__student", "one")).toBe(
+        buildLegacyBookingId("session", "student__one"),
+      );
+      expect(buildBookingIdV2("session__student", "one")).not.toBe(
+        buildBookingIdV2("session", "student__one"),
+      );
+      expect(buildBookingIdCandidates("session__student", "one")[1]).toBe(
+        buildBookingIdCandidates("session", "student__one")[1],
+      );
     });
   });
 

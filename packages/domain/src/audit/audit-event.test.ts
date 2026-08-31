@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAuditEventDraft } from "./audit-event";
+import { auditActions, parseAuditEventDraft } from "./audit-event";
 
 const common = {
   academyId: "academy-1",
@@ -145,6 +145,28 @@ describe("audit event draft contract", () => {
 
       expect(result).toEqual({ ok: true, value: event });
       expect(Object.isFrozen(result.ok ? result.value : undefined)).toBe(true);
+    }
+  });
+
+  it("accepts exact waitlist offer lifecycle actions without PII or finance payloads", () => {
+    for (const action of [
+      "waitlist.offer.issued",
+      "waitlist.offer.accepted",
+      "waitlist.offer.declined",
+      "waitlist.offer.expired",
+    ] as const) {
+      const event = {
+        ...common,
+        action,
+        targetRef: "academies/academy-1/waitlistEntries/waitlist-1",
+        purpose: "waitlist offer lifecycle",
+        correlationId: "waitlist-offer-1",
+      };
+
+      expect(auditActions).toContain(action);
+      expect(parseAuditEventDraft(event)).toEqual({ ok: true, value: event });
+      expect(parseAuditEventDraft({ ...event, studentName: "Synthetic Student" }).ok).toBe(false);
+      expect(parseAuditEventDraft({ ...event, paygDebtMinor: 1000 }).ok).toBe(false);
     }
   });
 

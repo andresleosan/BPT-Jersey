@@ -310,6 +310,94 @@ describe("finance store", () => {
     });
   });
 
+  it("scopes account queries before parsing another family's records", async () => {
+    const { service, records } = store();
+    const invoice = await service.issueManualInvoice({
+      academyId,
+      actorId: "admin-1",
+      familyId,
+      membershipId,
+      totalMinor: 1000,
+      dueAt: now,
+      chargeKind: "membership",
+      invoiceReference: "family-scoped-reference",
+      description: "Family scoped invoice",
+    });
+    records.set(`academies/${academyId}/invoices/corrupt-other-family`, {
+      academyId,
+      familyId: "family-2",
+    });
+
+    await expect(
+      service.listFinancialAccount({ academyId, familyIds: [familyId] }),
+    ).resolves.toMatchObject({
+      invoices: [{ invoice: { invoiceId: invoice.invoiceId } }],
+      balanceMinor: 1000,
+    });
+  });
+
+  it("fails closed on misplaced invoices and payments with matching external scope", async () => {
+    const invoiceScenario = store();
+    const misplacedInvoice = await invoiceScenario.service.issueManualInvoice({
+      academyId,
+      actorId: "admin-1",
+      familyId,
+      membershipId,
+      totalMinor: 1000,
+      dueAt: now,
+      chargeKind: "membership",
+      invoiceReference: "cross-tenant-invoice",
+      description: "Cross-tenant invoice fixture",
+    });
+    const invoicePath = `academies/${academyId}/invoices/${misplacedInvoice.invoiceId}`;
+    invoiceScenario.records.set(invoicePath, {
+      ...invoiceScenario.records.get(invoicePath)!,
+      academyId: "academy-2",
+    });
+    await expect(
+      invoiceScenario.service.listFinancialAccount({ academyId, familyIds: [familyId] }),
+    ).rejects.toMatchObject({ code: "tenant" });
+
+    const paymentScenario = store();
+    const invoice = await paymentScenario.service.issueManualInvoice({
+      academyId,
+      actorId: "admin-1",
+      familyId,
+      membershipId,
+      totalMinor: 1000,
+      dueAt: now,
+      chargeKind: "membership",
+      invoiceReference: "payment-scope-invoice",
+      description: "Payment scope fixture",
+    });
+    const payment = await paymentScenario.service.recordManualPayment({
+      academyId,
+      actorId: "admin-1",
+      invoiceId: invoice.invoiceId,
+      amountMinor: 400,
+      method: "cash",
+      manualReference: "payment-scope-reference",
+      occurredAt: now,
+    });
+    const paymentPath = `academies/${academyId}/payments/${payment.paymentId}`;
+    paymentScenario.records.set(paymentPath, {
+      ...paymentScenario.records.get(paymentPath)!,
+      academyId: "academy-2",
+    });
+    await expect(
+      paymentScenario.service.listFinancialAccount({ academyId, familyIds: [familyId] }),
+    ).rejects.toMatchObject({ code: "tenant" });
+
+    paymentScenario.records.set(paymentPath, {
+      ...paymentScenario.records.get(paymentPath)!,
+      academyId,
+      familyId: "family-2",
+    });
+    await expect(paymentScenario.service.listFinancialAccount({ academyId })).rejects.toMatchObject(
+      { code: "tenant" },
+    );
+  });
+
   it("rejects cross-tenant sources before writing", async () => {
     const { service, records } = store();
     const before = new Map(records);

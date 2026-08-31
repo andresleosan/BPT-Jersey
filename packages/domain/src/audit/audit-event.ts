@@ -25,6 +25,10 @@ export const auditActions = Object.freeze([
   "consent.accepted",
   "consent.revoked",
   "consent.evidence.downloaded",
+  "waitlist.offer.issued",
+  "waitlist.offer.accepted",
+  "waitlist.offer.declined",
+  "waitlist.offer.expired",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -54,7 +58,11 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "waiver.version.withdrawn"
           | "consent.accepted"
           | "consent.revoked"
-          | "consent.evidence.downloaded";
+          | "consent.evidence.downloaded"
+          | "waitlist.offer.issued"
+          | "waitlist.offer.accepted"
+          | "waitlist.offer.declined"
+          | "waitlist.offer.expired";
       }>
     | Readonly<{
         action: "invoice.created" | "invoice.voided" | "invoice.status.changed";
@@ -121,6 +129,10 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "consent.accepted": commonFields,
   "consent.revoked": commonFields,
   "consent.evidence.downloaded": commonFields,
+  "waitlist.offer.issued": commonFields,
+  "waitlist.offer.accepted": commonFields,
+  "waitlist.offer.declined": commonFields,
+  "waitlist.offer.expired": commonFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
     "imported",

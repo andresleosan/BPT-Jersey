@@ -17,10 +17,13 @@ vi.mock("./firebase-client", () => ({
 }));
 
 import {
+  acceptClientWaitlistOffer,
   cancelClientWaitlist,
+  declineClientWaitlistOffer,
   joinClientWaitlist,
   listClientMemberships,
   listStudentWaitlist,
+  parseClientWaitlistItem,
 } from "./waitlist-client";
 
 const waitingEntry = {
@@ -28,7 +31,17 @@ const waitingEntry = {
   position: 2,
   status: "waiting",
   requestedAt: "2026-09-01T10:00:00.000Z",
+  offeredAt: null,
+  offerExpiresAt: null,
+  acceptedAt: null,
   cancelledAt: null,
+} as const;
+
+const offeredEntry = {
+  ...waitingEntry,
+  status: "offered",
+  offeredAt: "2026-09-01T10:15:00.000Z",
+  offerExpiresAt: "2026-09-01T10:45:00.000Z",
 } as const;
 
 const membership = {
@@ -124,6 +137,113 @@ describe("waitlist client", () => {
         payload: { sessionId: "session-1", studentId: "student-1" },
       },
     ]);
+  });
+
+  it("accepts and declines offers with exact student-scoped payloads", async () => {
+    callableState.call
+      .mockResolvedValueOnce({
+        data: {
+          entry: {
+            ...offeredEntry,
+            status: "accepted",
+            acceptedAt: "2026-09-01T10:20:00.000Z",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          entry: {
+            ...offeredEntry,
+            status: "cancelled",
+            cancelledAt: "2026-09-01T10:21:00.000Z",
+          },
+        },
+      });
+
+    await expect(
+      acceptClientWaitlistOffer({ sessionId: "session-1", studentId: "student-1" }),
+    ).resolves.toMatchObject({ status: "accepted" });
+    await expect(
+      declineClientWaitlistOffer({ sessionId: "session-1", studentId: "student-1" }),
+    ).resolves.toMatchObject({ status: "cancelled" });
+
+    expect(callableState.calls).toEqual([
+      {
+        name: "acceptWaitlistOffer",
+        payload: { sessionId: "session-1", studentId: "student-1" },
+      },
+      {
+        name: "declineWaitlistOffer",
+        payload: { sessionId: "session-1", studentId: "student-1" },
+      },
+    ]);
+  });
+
+  it("rejects incomplete offer timestamps and private response fields", async () => {
+    callableState.call.mockResolvedValueOnce({
+      data: { entries: [{ ...offeredEntry, offerExpiresAt: null }] },
+    });
+    await expect(listStudentWaitlist("student-1")).rejects.toThrow(
+      "Unable to load your waitlist. Please try again.",
+    );
+
+    callableState.call.mockResolvedValueOnce({
+      data: {
+        entries: [
+          {
+            ...offeredEntry,
+            status: "accepted",
+            offerExpiresAt: null,
+            acceptedAt: "2026-09-01T10:20:00.000Z",
+          },
+        ],
+      },
+    });
+    await expect(listStudentWaitlist("student-1")).rejects.toThrow(
+      "Unable to load your waitlist. Please try again.",
+    );
+
+    callableState.call.mockResolvedValueOnce({
+      data: { entries: [{ ...offeredEntry, waitlistId: "private-waitlist" }] },
+    });
+    await expect(listStudentWaitlist("student-1")).rejects.toThrow(
+      "Unable to load your waitlist. Please try again.",
+    );
+  });
+
+  it("rejects a zero-length offer window and preserves nanosecond ordering", () => {
+    expect(() =>
+      parseClientWaitlistItem({
+        ...offeredEntry,
+        offerExpiresAt: offeredEntry.offeredAt,
+      }),
+    ).toThrow("Unable to load your waitlist");
+
+    expect(
+      parseClientWaitlistItem({
+        ...offeredEntry,
+        offeredAt: "2026-09-01T10:15:00.000000001Z",
+        offerExpiresAt: "2026-09-01T10:15:00.000000002Z",
+      }).status,
+    ).toBe("offered");
+  });
+
+  it("rejects accessor payloads without evaluating them", async () => {
+    let accessorReads = 0;
+    const hostileEntry = { ...waitingEntry } as Record<string, unknown>;
+    Object.defineProperty(hostileEntry, "sessionId", {
+      enumerable: true,
+      get: () => {
+        accessorReads += 1;
+        return "session-1";
+      },
+    });
+    callableState.call.mockResolvedValueOnce({ data: { entries: [hostileEntry] } });
+
+    await expect(listStudentWaitlist("student-1")).rejects.toThrow(
+      "Unable to load your waitlist. Please try again.",
+    );
+    expect(accessorReads).toBe(0);
   });
 
   it("maps backend eligibility and permission failures to safe messages", async () => {

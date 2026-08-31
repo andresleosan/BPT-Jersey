@@ -581,7 +581,7 @@ export const bookingStatuses = Object.freeze(["requested", "confirmed", "cancell
 export type BookingStatus = (typeof bookingStatuses)[number];
 
 export type BookingRecord = Readonly<{
-  bookingId: string; // deterministic: `${sessionId}__${studentId}`
+  bookingId: string; // canonical v2 length-prefixed ID; legacy pair IDs remain read-compatible
   academyId: string;
   sessionId: string;
   studentId: string;
@@ -609,11 +609,32 @@ export type CancelBookingInput = Readonly<{
   reason: string;
 }>;
 
-/**
- * Builds the deterministic identifier for a booking: `${sessionId}__${studentId}`.
- */
-export function buildBookingId(sessionId: string, studentId: string): string {
+/** Builds the legacy identifier retained for explicit compatibility reads. */
+export function buildLegacyBookingId(sessionId: string, studentId: string): string {
   return `${sessionId.trim()}__${studentId.trim()}`;
+}
+
+/** Builds the canonical injective identifier for new booking writes. */
+export function buildBookingIdV2(sessionId: string, studentId: string): string {
+  const normalizedSessionId = sessionId.trim();
+  const normalizedStudentId = studentId.trim();
+  return `v2:${normalizedSessionId.length}:${normalizedSessionId}:${normalizedStudentId.length}:${normalizedStudentId}`;
+}
+
+/** Canonical builder for new booking writes. */
+export function buildBookingId(sessionId: string, studentId: string): string {
+  return buildBookingIdV2(sessionId, studentId);
+}
+
+/** Ordered document IDs for compatibility reads: canonical first, legacy second. */
+export function buildBookingIdCandidates(
+  sessionId: string,
+  studentId: string,
+): readonly [string, string] {
+  return Object.freeze([
+    buildBookingIdV2(sessionId, studentId),
+    buildLegacyBookingId(sessionId, studentId),
+  ]);
 }
 
 /**

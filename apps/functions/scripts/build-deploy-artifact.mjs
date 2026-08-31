@@ -41,21 +41,9 @@ run(nodeExecutable, [
   "apps/functions",
 ]);
 run(nodeExecutable, ["apps/functions/scripts/clean-deploy-target.mjs"]);
-run(
-  corepackExecutable,
-  [
-    "pnpm",
-    "--filter",
-    "@bpt-jersey/functions",
-    "deploy",
-    "--prod",
-    "--legacy",
-    "--config.confirmModulesPurge=false",
-    ".firebase-functions",
-  ],
-  {
-    env: { ...process.env, CI: "true", npm_config_confirmModulesPurge: "false" },
-    shell: process.platform === "win32",
-  },
-);
+const { deployArtifactPnpmArguments } = await import("../lib/src/deploy-runtime.js");
+run(corepackExecutable, [...deployArtifactPnpmArguments, ".firebase-functions"], {
+  env: { ...process.env, CI: "true", npm_config_confirmModulesPurge: "false" },
+  shell: process.platform === "win32",
+});
 run(nodeExecutable, ["apps/functions/scripts/prepare-deploy-runtime.mjs"]);

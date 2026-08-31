@@ -14,6 +14,7 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/authorization/access-policy": "../../domain/authorization/access-policy.js",
   "@bpt-jersey/domain/migration/regyfit-access": "../../domain/migration/regyfit-access.js",
   "@bpt-jersey/domain/families": "../../domain/families/family-contracts.js",
+  "@bpt-jersey/domain/finance/access": "../../domain/finance/financial-access.js",
   "@bpt-jersey/domain/finance": "../../domain/finance/finance-contracts.js",
   "@bpt-jersey/domain/finance/dashboard": "../../domain/finance/financial-dashboard.js",
   "@bpt-jersey/domain/staff": "../../domain/staff/staff-contracts.js",
@@ -30,6 +31,18 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/reports": "../../domain/reports/operational-report.js",
   "@bpt-jersey/domain/exports": "../../domain/exports/aggregate-report-export.js",
 });
+
+// `pnpm deploy --prod` first synchronizes the source workspace in production mode.
+// The generated package manifest is pruned by prepare-deploy-runtime.mjs instead,
+// so the source workspace keeps its development toolchain intact.
+export const deployArtifactPnpmArguments = Object.freeze([
+  "pnpm",
+  "--filter",
+  "@bpt-jersey/functions",
+  "deploy",
+  "--legacy",
+  "--config.confirmModulesPurge=false",
+] as const);
 
 async function runtimeFiles(directory: string): Promise<readonly string[]> {
   const entries = await readdir(directory, { withFileTypes: true });

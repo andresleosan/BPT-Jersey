@@ -2,6 +2,7 @@ import {
   buildDailyOperationsDashboard,
   buildAttendanceId,
   buildBookingId,
+  buildBookingIdCandidates,
   buildCheckoutId,
   buildCorrectionAttendanceId,
   buildSessionOperationalView,
@@ -28,6 +29,11 @@ import {
   type SessionRecord,
   type UpdateClassInput,
 } from "@bpt-jersey/domain/schedule";
+
+import {
+  createBookingTransactionService,
+  type BookingFirestore,
+} from "./booking-transaction-service.js";
 
 export const defaultLocations: readonly LocationRecord[] = Object.freeze([
   {
@@ -270,6 +276,9 @@ export function createFirestoreScheduleStore(options: {
   firestore: GenericFirestore;
 }): ScheduleStore {
   const { firestore } = options;
+  const bookingTransactions = createBookingTransactionService({
+    firestore: firestore as unknown as BookingFirestore,
+  });
 
   return {
     async listLocations(academyId: string): Promise<readonly LocationRecord[]> {
@@ -556,69 +565,7 @@ export function createFirestoreScheduleStore(options: {
       input: RequestBookingInput,
       actorId: string,
     ): Promise<BookingRecord> {
-      const bookingId = buildBookingId(input.sessionId, input.studentId);
-      const sessionRef = firestore
-        .collection(`academies/${academyId}/sessions`)
-        .doc(input.sessionId);
-      const sessionDoc = await sessionRef.get();
-
-      if (!sessionDoc.exists) {
-        throw new Error(`Session ${input.sessionId} does not exist`);
-      }
-
-      const session = sessionDoc.data() as SessionRecord;
-      if (session.status === "cancelled") {
-        throw new Error(`Cannot book cancelled session ${input.sessionId}`);
-      }
-
-      const bookingRef = firestore.collection(`academies/${academyId}/bookings`).doc(bookingId);
-      const existingBookingDoc = await bookingRef.get();
-
-      if (existingBookingDoc.exists) {
-        const existing = existingBookingDoc.data() as BookingRecord;
-        if (existing.status === "confirmed") {
-          return existing;
-        }
-      }
-
-      // Check capacity
-      const bookingsSnapshot = await firestore
-        .collection(`academies/${academyId}/bookings`)
-        .where("sessionId", "==", input.sessionId)
-        .get();
-
-      const confirmedCount = bookingsSnapshot.docs
-        .map((d) => d.data() as BookingRecord)
-        .filter((b) => b.status === "confirmed" && b.bookingId !== bookingId).length;
-
-      if (confirmedCount >= session.capacity) {
-        throw new Error(`Session capacity reached (${session.capacity})`);
-      }
-
-      const now = new Date().toISOString();
-      const record: BookingRecord = Object.freeze({
-        bookingId,
-        academyId,
-        sessionId: input.sessionId,
-        studentId: input.studentId,
-        membershipId: input.membershipId,
-        status: "confirmed",
-        requestedAt: now,
-        cancelledAt: null,
-        cancellationReason: null,
-        schemaVersion: "1",
-        createdAt: existingBookingDoc.exists
-          ? (existingBookingDoc.data() as BookingRecord).createdAt
-          : now,
-        createdBy: existingBookingDoc.exists
-          ? (existingBookingDoc.data() as BookingRecord).createdBy
-          : actorId,
-        updatedAt: now,
-        updatedBy: actorId,
-      });
-
-      await bookingRef.set(record);
-      return record;
+      return bookingTransactions.requestBooking(academyId, input, actorId);
     },
 
     async cancelBooking(
@@ -627,41 +574,7 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       isStaffOverride = false,
     ): Promise<BookingRecord> {
-      const bookingId = buildBookingId(input.sessionId, input.studentId);
-      const bookingRef = firestore.collection(`academies/${academyId}/bookings`).doc(bookingId);
-      const existingDoc = await bookingRef.get();
-
-      if (!existingDoc.exists) {
-        throw new Error(`Booking ${bookingId} does not exist`);
-      }
-
-      const existing = existingDoc.data() as BookingRecord;
-
-      if (!isStaffOverride) {
-        const sessionRef = firestore
-          .collection(`academies/${academyId}/sessions`)
-          .doc(input.sessionId);
-        const sessionDoc = await sessionRef.get();
-        if (sessionDoc.exists) {
-          const session = sessionDoc.data() as SessionRecord;
-          if (!isWithinBookingCutoff(session.startAt)) {
-            throw new Error("Cannot cancel within 1 hour of session start without staff override");
-          }
-        }
-      }
-
-      const now = new Date().toISOString();
-      const updated: BookingRecord = Object.freeze({
-        ...existing,
-        status: "cancelled",
-        cancelledAt: now,
-        cancellationReason: input.reason,
-        updatedAt: now,
-        updatedBy: actorId,
-      });
-
-      await bookingRef.set(updated);
-      return updated;
+      return bookingTransactions.cancelBooking(academyId, input, actorId, isStaffOverride);
     },
 
     async listSessionBookings(
@@ -1459,11 +1372,19 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       isStaffOverride = false,
     ): Promise<BookingRecord> {
       const bMap = bookingsMap.get(academyId);
-      const bookingId = buildBookingId(input.sessionId, input.studentId);
+      const bookingIds = buildBookingIdCandidates(input.sessionId, input.studentId);
+      const existingIds = bookingIds.filter((bookingId) => bMap?.has(bookingId));
+      if (existingIds.length > 1) {
+        throw new Error("Duplicate booking versions cannot be cancelled");
+      }
+      const bookingId = existingIds[0] ?? bookingIds[0];
       const existing = bMap?.get(bookingId);
 
       if (!existing) {
         throw new Error(`Booking ${bookingId} does not exist`);
+      }
+      if (existing.status === "cancelled") {
+        return existing;
       }
 
       if (!isStaffOverride) {

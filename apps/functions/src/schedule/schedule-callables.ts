@@ -16,6 +16,7 @@ import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/f
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 
 import { requireUserActor } from "../auth/user-authorization.js";
+import { BookingTransactionError } from "./booking-transaction-service.js";
 import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-service.js";
 
 const staffRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
@@ -130,6 +131,35 @@ async function requireStudentScope(
     return;
   }
   throw new HttpsError("permission-denied", "Access denied for this student");
+}
+
+function mapBookingError(error: unknown): never {
+  if (error instanceof HttpsError) throw error;
+  if (error instanceof BookingTransactionError) {
+    if (error.code === "invalid") {
+      throw new HttpsError("invalid-argument", "Booking request is invalid");
+    }
+    if (error.code === "tenant") {
+      throw new HttpsError("permission-denied", "Booking access is not permitted");
+    }
+    if (error.code === "not-found") {
+      throw new HttpsError("not-found", "Booking resource is not available");
+    }
+    if (error.code === "capacity") {
+      throw new HttpsError("failed-precondition", "Session capacity is no longer available", {
+        reason: error.code,
+      });
+    }
+    if (error.code === "financial") {
+      throw new HttpsError("failed-precondition", "Booking is not available for this account", {
+        reason: error.code,
+      });
+    }
+    throw new HttpsError("failed-precondition", "Booking is not available", {
+      reason: error.code,
+    });
+  }
+  throw new HttpsError("internal", "Booking operation failed");
 }
 
 export function createListScheduleCatalogHandler(options: { store: ScheduleStore }) {
@@ -364,10 +394,14 @@ export function createRequestBookingHandler(options: StudentScopeOptions) {
 
     await requireStudentScope(request, parsed.value.studentId, options);
 
-    const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId);
-    return {
-      booking,
-    };
+    try {
+      const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId);
+      return {
+        booking,
+      };
+    } catch (error) {
+      return mapBookingError(error);
+    }
   };
 }
 
@@ -618,6 +652,12 @@ export function createRecordCheckoutHandler(options: StudentScopeOptions) {
 
     if (parsed.value.method === "staffOverride" && !isStaff) {
       throw new HttpsError("permission-denied", "Staff access required for staffOverride checkout");
+    }
+    if (actor.role === "adultStudent") {
+      throw new HttpsError(
+        "permission-denied",
+        "Adult student checkout is not enabled until the policy is approved",
+      );
     }
     if (!isStaff) await requireStudentScope(request, parsed.value.studentId, options);
 

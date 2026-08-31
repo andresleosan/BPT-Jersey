@@ -10,15 +10,18 @@ import {
 } from "react";
 
 import type { AdminRole } from "@bpt-jersey/domain";
+import { usePathname } from "next/navigation";
 
 import { AdminAuthProvider, useAdminSession, type AdminSession } from "../../lib/admin-auth";
 import { adminSessionForTestRole, isAdminE2EEnabled } from "../../lib/admin-test-bootstrap";
+import { StaffAuthProvider, useStaffSession, type StaffSession } from "../../lib/staff-auth";
 import { AdminShell } from "./admin-shell";
 
 type AdminTestRole = AdminRole | "coach" | "guardian" | "adultStudent";
 type GateStatus = "loading" | "signed-out" | "denied" | "authorized";
 
 const AdminGateSessionContext = createContext<AdminSession | undefined>(undefined);
+const WaitlistIssuePermissionContext = createContext<boolean | undefined>(undefined);
 
 export function AdminGateSessionProvider({
   children,
@@ -42,12 +45,36 @@ function AuthorizedAdminContent({
   session: AdminSession;
 }) {
   return (
-    <AdminGateSessionProvider session={session}>
-      <AdminShell {...(onSignOut ? { onSignOut } : {})} session={session}>
+    <WaitlistIssuePermissionContext.Provider value={true}>
+      <AdminGateSessionProvider session={session}>
+        <AdminShell {...(onSignOut ? { onSignOut } : {})} session={session}>
+          {children}
+        </AdminShell>
+      </AdminGateSessionProvider>
+    </WaitlistIssuePermissionContext.Provider>
+  );
+}
+
+function AuthorizedStaffWaitlistContent({
+  children,
+  onSignOut,
+  session,
+}: {
+  children: ReactNode;
+  onSignOut: () => Promise<void>;
+  session: StaffSession;
+}) {
+  return (
+    <WaitlistIssuePermissionContext.Provider value={false}>
+      <AdminShell onSignOut={onSignOut} session={session}>
         {children}
       </AdminShell>
-    </AdminGateSessionProvider>
+    </WaitlistIssuePermissionContext.Provider>
   );
+}
+
+function isWaitlistRoute(pathname: string): boolean {
+  return pathname === "/admin/waitlists" || pathname.startsWith("/admin/waitlists/");
 }
 
 function isAdminTestRole(value: string | null): value is AdminTestRole {
@@ -89,21 +116,35 @@ function AccessState({ status }: { status: Exclude<GateStatus, "loading" | "auth
 }
 
 function FirebaseAdminGate({ children }: { children: ReactNode }) {
-  const { session, signOut, status } = useAdminSession();
+  const pathname = usePathname() ?? "";
+  const admin = useAdminSession();
+  const staff = useStaffSession();
 
-  if (status === "authorized" && session) {
+  if (admin.status === "authorized" && admin.session) {
     return (
-      <AuthorizedAdminContent onSignOut={signOut} session={session}>
+      <AuthorizedAdminContent onSignOut={admin.signOut} session={admin.session}>
         {children}
       </AuthorizedAdminContent>
     );
   }
 
-  if (status === "signed-out" || status === "denied") {
-    return <AccessState status={status} />;
+  if (isWaitlistRoute(pathname) && staff.status === "signed-in" && staff.session) {
+    return (
+      <AuthorizedStaffWaitlistContent onSignOut={staff.signOut} session={staff.session}>
+        {children}
+      </AuthorizedStaffWaitlistContent>
+    );
   }
 
-  return <div className="admin-auth-loading" aria-busy="true" />;
+  if (admin.status === "loading" || staff.status === "loading") {
+    return <div className="admin-auth-loading" aria-busy="true" />;
+  }
+
+  if (admin.status === "signed-out" && staff.status === "signed-out") {
+    return <AccessState status="signed-out" />;
+  }
+
+  return <AccessState status="denied" />;
 }
 
 function E2EAdminGate({ children }: { children: ReactNode }) {
@@ -152,7 +193,9 @@ export function AdminGate({ children }: { children: ReactNode }) {
 
   return (
     <AdminAuthProvider>
-      <FirebaseAdminGate>{children}</FirebaseAdminGate>
+      <StaffAuthProvider>
+        <FirebaseAdminGate>{children}</FirebaseAdminGate>
+      </StaffAuthProvider>
     </AdminAuthProvider>
   );
 }
@@ -165,4 +208,12 @@ export function useAdminGateSession(): AdminSession {
   }
 
   return session;
+}
+
+export function useWaitlistIssuePermission(): boolean {
+  const canIssue = useContext(WaitlistIssuePermissionContext);
+  if (canIssue === undefined) {
+    throw new Error("useWaitlistIssuePermission must be used inside an authorized AdminGate.");
+  }
+  return canIssue;
 }

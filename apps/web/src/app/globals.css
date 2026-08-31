@@ -2355,6 +2355,7 @@ button:focus-visible {
 }
 
 .waitlist-submit:disabled,
+.waitlist-offer-accept:disabled,
 .waitlist-action-secondary:disabled,
 .waitlist-action-danger:disabled {
   cursor: not-allowed;
@@ -2407,6 +2408,15 @@ button:focus-visible {
   background: color-mix(in srgb, var(--gi-white) 82%, var(--canvas));
 }
 
+.waitlist-item-offered {
+  border-color: var(--bpt-purple);
+  box-shadow: inset 0.3rem 0 0 var(--bpt-purple);
+}
+
+.waitlist-item-offered .waitlist-position {
+  background: var(--bpt-purple);
+}
+
 .waitlist-position {
   align-items: center;
   background: var(--mat-ink);
@@ -2453,6 +2463,61 @@ button:focus-visible {
 .waitlist-item-body > p {
   color: var(--muted);
   margin: 0;
+}
+
+.waitlist-offer-deadline {
+  background: var(--canvas);
+  border-left: 0.25rem solid var(--bpt-purple);
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem 0.85rem;
+}
+
+.waitlist-offer-deadline > span:first-child {
+  color: var(--mat-ink);
+  font-weight: 700;
+}
+
+.waitlist-offer-deadline > span[aria-hidden="true"] {
+  color: var(--bpt-purple);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.waitlist-offer-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.waitlist-offer-actions .waitlist-confirm {
+  flex: 1 1 100%;
+}
+
+.waitlist-offer-accept {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+  justify-self: start;
+  padding: 0.55rem 0.8rem;
+}
+
+.waitlist-offer-accept:hover:not(:disabled) {
+  background: var(--mat-ink);
+  border-color: var(--mat-ink);
+}
+
+.waitlist-visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .waitlist-confirm {
@@ -2556,6 +2621,11 @@ button:focus-visible {
   }
 
   .waitlist-confirm .button {
+    width: 100%;
+  }
+
+  .waitlist-offer-actions > .button,
+  .waitlist-offer-actions .waitlist-confirm {
     width: 100%;
   }
 }

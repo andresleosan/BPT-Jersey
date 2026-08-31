@@ -17,6 +17,12 @@ function required(name) {
   return value;
 }
 
+function pairDocumentIds(leftInput, rightInput) {
+  const left = leftInput.trim();
+  const right = rightInput.trim();
+  return [`v2:${left.length}:${left}:${right.length}:${right}`, `${left}__${right}`];
+}
+
 function assertSafeEmulators() {
   if (
     !isSafeLoopbackEmulator(firestoreHost) ||
@@ -147,7 +153,10 @@ async function main() {
         updatedAt: createdAt,
         updatedBy: "student-confirmed-ui",
       }),
-      firestore.doc(`academies/${academyId}/waitlistEntries/${sessionId}__${studentId}`).delete(),
+      ...pairDocumentIds(sessionId, studentId).map((waitlistId) =>
+        firestore.doc(`academies/${academyId}/waitlistEntries/${waitlistId}`).delete(),
+      ),
+      firestore.doc(`academies/${academyId}/waitlistPositionStates/${sessionId}`).delete(),
     ]);
 
     console.log(JSON.stringify({ academyId, sessionId, studentId, firestoreHost, authHost }));

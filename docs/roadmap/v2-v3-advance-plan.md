@@ -56,7 +56,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - T066: definir versionado de tecnicas, autoria del coach y workflow de aprobacion.
 - T065: definir cola local, idempotencia, reloj confiable y resolucion fail-closed.
 
-## Estado del slice T060 (actualizado 2026-08-28)
+## Estado del slice T060 (actualizado 2026-08-30)
 
 - Se implementaron contratos de dominio para waitlist y creditos en packages/domain/src/schedule/advanced-booking-contracts.ts.
 - La validacion es estricta y fail-closed: entradas desconocidas, identificadores invalidos, timestamps incompatibles y saldos imposibles se rechazan.
@@ -65,6 +65,14 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - El corte persistido aprobado agrega `waitlistEntries` tenant-scoped, posición transaccional, join/list/cancel idempotentes, validación de sesión llena y membresía vigente, student-scope/RBAC y cuatro callables con proyecciones minimizadas.
 - Firestore directo permanece denegado. Unitarias focales 25/25, store Emulator 2/2, Rules focales 7/7 y E2E real Auth + Functions + Firestore Emulator 5/5 sin retries pasan.
 - T060 vuelve a revisión con autoservicio mínimo autenticado para adulto/tutor, adaptadores fail-closed y E2E real 5/5 sin retries. Promoción/ofertas, aceptación, expiración, reordenamiento, créditos operativos, recurrencia, UI de staff/final operativa, pagos, mensajes, migración y producción siguen fuera del corte y requieren checkpoint propio.
+- El operador aprobó el nuevo corte y T060 queda `en-progreso`: oferta manual FIFO por owner/admin,
+  una oferta activa con reserva temporal de cupo, TTL de 30 minutos limitado por el cutoff de una hora,
+  aceptación/declinación con student-scope, booking transaccional y auditoría. La expiración es bajo
+  demanda y no renumera posiciones. Promoción automática, scheduler, mensajes, créditos, recurrencia,
+  pagos, migración y producción continúan fuera de alcance.
+- El corte queda en `revision` tras pasar 1216/1216 unitarias, 78/78 Rules, 20/20 integraciones
+  Firestore, E2E real 6/6 y `verify:mvp`; la autocrítica independiente no deja hallazgos
+  critical/high abiertos. No queda WIP activo.
 
 ## Estado del slice T063 (actualizado 2026-08-28)
 

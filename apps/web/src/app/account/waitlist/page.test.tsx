@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,8 @@ const waitlistState = vi.hoisted(() => ({
   listWaitlist: vi.fn(),
   join: vi.fn(),
   cancel: vi.fn(),
+  accept: vi.fn(),
+  decline: vi.fn(),
 }));
 
 const scheduleState = vi.hoisted(() => ({ listSessions: vi.fn() }));
@@ -37,6 +39,8 @@ vi.mock("../../../lib/waitlist-client", () => ({
   listStudentWaitlist: waitlistState.listWaitlist,
   joinClientWaitlist: waitlistState.join,
   cancelClientWaitlist: waitlistState.cancel,
+  acceptClientWaitlistOffer: waitlistState.accept,
+  declineClientWaitlistOffer: waitlistState.decline,
 }));
 
 vi.mock("../../../lib/schedule-client", () => ({ listSessions: scheduleState.listSessions }));
@@ -83,7 +87,23 @@ const waitingEntry = {
   position: 3,
   status: "waiting",
   requestedAt: "2026-09-01T10:00:00.000Z",
+  offeredAt: null,
+  offerExpiresAt: null,
+  acceptedAt: null,
   cancelledAt: null,
+} as const;
+
+const offeredEntry = {
+  ...waitingEntry,
+  status: "offered",
+  offeredAt: "2026-09-01T09:00:00.000Z",
+  offerExpiresAt: "2026-09-01T09:30:00.000Z",
+} as const;
+
+const acceptedEntry = {
+  ...offeredEntry,
+  status: "accepted",
+  acceptedAt: "2026-09-01T09:05:00.000Z",
 } as const;
 
 function configureBase(): void {
@@ -95,6 +115,7 @@ function configureBase(): void {
 
 describe("account waitlist", () => {
   beforeEach(() => {
+    vi.resetAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-09-01T09:00:00.000Z"));
     authState.session = {
@@ -171,6 +192,99 @@ describe("account waitlist", () => {
       studentId: membership.studentId,
     });
     expect(screen.getByRole("button", { name: "Request already recorded" })).toBeDisabled();
+  });
+
+  it("shows an absolute offer deadline, updates an informational minute countdown and accepts", async () => {
+    waitlistState.listWaitlist
+      .mockResolvedValueOnce([offeredEntry])
+      .mockResolvedValueOnce([acceptedEntry]);
+    waitlistState.accept.mockResolvedValue(acceptedEntry);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<WaitlistPage />);
+
+    expect(await screen.findByText("30 min remaining")).toBeVisible();
+    expect(document.querySelector("time")).toHaveAttribute("datetime", "2026-09-01T09:30:00.000Z");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_001);
+    });
+    expect(screen.getByText("29 min remaining")).toBeVisible();
+    expect(waitlistState.accept).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Accept place" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Place accepted.");
+    expect(await screen.findByText("Accepted")).toBeVisible();
+    expect(waitlistState.accept).toHaveBeenCalledWith({
+      sessionId: session.sessionId,
+      studentId: membership.studentId,
+    });
+    expect(waitlistState.listWaitlist).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires confirmation before declining an offer and preserves feedback after refresh", async () => {
+    const declinedEntry = {
+      ...offeredEntry,
+      status: "cancelled",
+      cancelledAt: "2026-09-01T09:06:00.000Z",
+    } as const;
+    waitlistState.listWaitlist
+      .mockResolvedValueOnce([offeredEntry])
+      .mockResolvedValueOnce([declinedEntry]);
+    waitlistState.decline.mockResolvedValue(declinedEntry);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<WaitlistPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Decline offer" }));
+    expect(screen.getByText("Decline this offered place?")).toBeVisible();
+    expect(waitlistState.decline).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Confirm decline" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Offer declined.");
+    expect(await screen.findByText("Cancelled")).toBeVisible();
+    expect(waitlistState.decline).toHaveBeenCalledWith({
+      sessionId: session.sessionId,
+      studentId: membership.studentId,
+    });
+  });
+
+  it("ignores an offer response after the participant selection changes", async () => {
+    let resolveAccept: ((value: typeof acceptedEntry) => void) | undefined;
+    waitlistState.listMemberships.mockResolvedValue([
+      membership,
+      {
+        ...membership,
+        membershipId: "membership-private-2",
+        studentId: "child-private-1",
+      },
+    ]);
+    familyState.getFamily.mockResolvedValue({
+      family: { familyId: "family-private-1" },
+      students: [{ studentId: "child-private-1", fullName: "Charlie Child" }],
+    });
+    waitlistState.listWaitlist.mockImplementation((studentId: string) =>
+      Promise.resolve(studentId === membership.studentId ? [offeredEntry] : []),
+    );
+    waitlistState.accept.mockReturnValue(
+      new Promise((resolve) => {
+        resolveAccept = resolve;
+      }),
+    );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<WaitlistPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Accept place" }));
+    await user.selectOptions(screen.getByLabelText("Participant"), "child-private-1");
+    expect(await screen.findByText("No waitlist requests for this participant yet.")).toBeVisible();
+
+    await act(async () => {
+      resolveAccept?.(acceptedEntry);
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("Place accepted.")).not.toBeInTheDocument();
+    expect(screen.getByText("No waitlist requests for this participant yet.")).toBeVisible();
   });
 
   it("uses family names for guardian-scoped participants without exposing IDs", async () => {

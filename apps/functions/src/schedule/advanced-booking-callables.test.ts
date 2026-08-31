@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WaitlistEntryRecord } from "@bpt-jersey/domain/schedule/advanced-booking";
 import {
+  createAcceptWaitlistOfferHandler,
   createCancelWaitlistHandler,
+  createDeclineWaitlistOfferHandler,
+  createIssueNextWaitlistOfferHandler,
   createJoinWaitlistHandler,
   createListSessionWaitlistHandler,
   createListStudentWaitlistHandler,
@@ -35,6 +38,31 @@ const cancelledEntry: WaitlistEntryRecord = Object.freeze({
   cancelledAt: entry.updatedAt,
 });
 
+const offeredEntry: WaitlistEntryRecord = Object.freeze({
+  ...entry,
+  status: "offered",
+  offeredAt: "2026-08-28T12:05:00Z",
+  offerExpiresAt: "2026-08-28T12:35:00Z",
+  updatedAt: "2026-08-28T12:05:00Z",
+  updatedBy: "owner-1",
+});
+
+const acceptedEntry: WaitlistEntryRecord = Object.freeze({
+  ...offeredEntry,
+  status: "accepted",
+  acceptedAt: "2026-08-28T12:10:00Z",
+  updatedAt: "2026-08-28T12:10:00Z",
+  updatedBy: "student-1",
+});
+
+const declinedEntry: WaitlistEntryRecord = Object.freeze({
+  ...offeredEntry,
+  status: "cancelled",
+  cancelledAt: "2026-08-28T12:10:00Z",
+  updatedAt: "2026-08-28T12:10:00Z",
+  updatedBy: "student-1",
+});
+
 function request(data: unknown, role: string, uid = role + "-1", academyId = "academy-1") {
   return { auth: { uid, token: { role, academyId } }, data } as never;
 }
@@ -44,6 +72,10 @@ function store(overrides: Partial<WaitlistStore> = {}): WaitlistStore {
     joinWaitlist: vi.fn(async () => entry),
 
     cancelWaitlist: vi.fn(async () => cancelledEntry),
+    issueNextWaitlistOffer: vi.fn(async () => offeredEntry),
+    respondToWaitlistOffer: vi.fn(async ({ response }) =>
+      response === "accept" ? acceptedEntry : declinedEntry,
+    ),
 
     listSessionWaitlist: vi.fn(async () => [entry]),
     listStudentWaitlist: vi.fn(async () => [entry]),
@@ -112,6 +144,26 @@ describe("advanced booking waitlist callables", () => {
     ).rejects.toMatchObject({ code: "permission-denied" });
   });
 
+  it.each(["headCoach", "coach"])("keeps %s read-only for join and cancellation", async (role) => {
+    const waitlistStore = store();
+
+    await expect(
+      createJoinWaitlistHandler({ waitlistStore })(
+        request(
+          { sessionId: "session-1", studentId: "student-1", membershipId: "membership-1" },
+          role,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createCancelWaitlistHandler({ waitlistStore })(
+        request({ sessionId: "session-1", studentId: "student-1" }, role),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(waitlistStore.joinWaitlist).not.toHaveBeenCalled();
+    expect(waitlistStore.cancelWaitlist).not.toHaveBeenCalled();
+  });
+
   it("cancels and lists a student waitlist through the same scope guard", async () => {
     const waitlistStore = store();
     const cancellation = await createCancelWaitlistHandler({ waitlistStore })(
@@ -138,6 +190,90 @@ describe("advanced booking waitlist callables", () => {
       });
       expect(response.entries[0]).not.toHaveProperty("membershipId");
       expect(response.entries[0]).not.toHaveProperty("academyId");
+    },
+  );
+
+  it.each(["owner", "administrator"])(
+    "lets %s issue the next offer and returns the exact staff projection",
+    async (role) => {
+      const waitlistStore = store();
+      const response = await createIssueNextWaitlistOfferHandler({ waitlistStore })(
+        request({ sessionId: "session-1" }, role),
+      );
+
+      expect(response).toEqual({
+        entry: {
+          sessionId: "session-1",
+          position: 1,
+          status: "offered",
+          requestedAt: entry.requestedAt,
+          offeredAt: offeredEntry.offeredAt,
+          offerExpiresAt: offeredEntry.offerExpiresAt,
+          acceptedAt: null,
+          cancelledAt: null,
+          studentReference: "student-1",
+        },
+      });
+    },
+  );
+
+  it.each(["headCoach", "coach", "guardian", "adultStudent"])(
+    "denies %s from issuing an offer",
+    async (role) => {
+      const waitlistStore = store();
+      await expect(
+        createIssueNextWaitlistOfferHandler({ waitlistStore })(
+          request({ sessionId: "session-1" }, role),
+        ),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+      expect(waitlistStore.issueNextWaitlistOffer).not.toHaveBeenCalled();
+    },
+  );
+
+  it("accepts or declines within student scope and returns the exact student projection", async () => {
+    const waitlistStore = store();
+    const accept = await createAcceptWaitlistOfferHandler({ waitlistStore })(
+      request({ sessionId: "session-1", studentId: "student-1" }, "adultStudent", "student-1"),
+    );
+    const decline = await createDeclineWaitlistOfferHandler({
+      waitlistStore,
+      isGuardianOfStudent: vi.fn(async () => true),
+    })(request({ sessionId: "session-1", studentId: "student-1" }, "guardian"));
+
+    expect(accept).toEqual({
+      entry: {
+        sessionId: "session-1",
+        position: 1,
+        status: "accepted",
+        requestedAt: entry.requestedAt,
+        offeredAt: offeredEntry.offeredAt,
+        offerExpiresAt: offeredEntry.offerExpiresAt,
+        acceptedAt: acceptedEntry.acceptedAt,
+        cancelledAt: null,
+      },
+    });
+    expect(decline.entry.status).toBe("cancelled");
+    expect(decline.entry.cancelledAt).toBe(declinedEntry.cancelledAt);
+    expect(waitlistStore.respondToWaitlistOffer).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ response: "accept", actorId: "student-1" }),
+    );
+    expect(waitlistStore.respondToWaitlistOffer).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ response: "decline" }),
+    );
+  });
+
+  it.each(["owner", "administrator", "headCoach", "coach"])(
+    "keeps %s read-only for offer responses",
+    async (role) => {
+      const waitlistStore = store();
+      await expect(
+        createAcceptWaitlistOfferHandler({ waitlistStore })(
+          request({ sessionId: "session-1", studentId: "student-1" }, role),
+        ),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+      expect(waitlistStore.respondToWaitlistOffer).not.toHaveBeenCalled();
     },
   );
 

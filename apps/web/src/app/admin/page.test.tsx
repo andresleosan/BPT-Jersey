@@ -59,6 +59,10 @@ describe("administrative shell", () => {
     expect(within(brand).getByText("BPT", { exact: true })).toBeVisible();
     expect(within(brand).getByText("Jersey", { exact: true })).toBeVisible();
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Class waitlists" })).toHaveAttribute(
+      "href",
+      "/admin/waitlists",
+    );
     expect(screen.getByText("Shell content")).toBeVisible();
   });
 
@@ -133,6 +137,7 @@ describe("administrative shell", () => {
       "Waivers",
       "Groups / Teams",
       "Activities",
+      "Class waitlists",
       "Attendance",
       "Reports",
       "CRM",
@@ -146,7 +151,7 @@ describe("administrative shell", () => {
     labels.forEach((label) => {
       expect(within(navigation).getByRole("link", { name: label })).toBeVisible();
     });
-    expect(within(navigation).queryAllByRole("link")).toHaveLength(14);
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(15);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
       "/admin",
@@ -207,7 +212,7 @@ describe("administrative shell", () => {
 
     expect(main).toHaveClass("admin-main");
     expect(main).toHaveClass("admin-main-content");
-    expect(navigationLinks).toHaveLength(14);
+    expect(navigationLinks).toHaveLength(15);
     navigationLinks.forEach((link) => {
       expect(link.tagName).toBe("A");
       expect(link).toHaveAttribute("href");

@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import type { AdminSession } from "../../lib/admin-auth";
+import type { StaffSession } from "../../lib/staff-auth";
 import { AdminIcon } from "./admin-icons";
 
 import "./admin.css";
@@ -18,6 +19,7 @@ const navigationItems = [
   { label: "Waivers", href: "/admin/waivers" },
   { label: "Groups / Teams", href: "/admin/groups" },
   { label: "Activities", href: "/admin/activities" },
+  { label: "Class waitlists", href: "/admin/waitlists" },
   { label: "Attendance", href: "/admin/attendance" },
   { label: "Reports", href: "/admin/reports" },
   { label: "CRM", href: "/admin/crm" },
@@ -35,10 +37,21 @@ export function AdminShell({
 }: {
   children: ReactNode;
   onSignOut?: () => Promise<void>;
-  session: AdminSession;
+  session: AdminSession | StaffSession;
 }) {
   const pathname = usePathname() ?? "";
-  const roleLabel = session.role === "owner" ? "Owner access" : "Administrator access";
+  const roleLabel =
+    session.role === "owner"
+      ? "Owner access"
+      : session.role === "administrator"
+        ? "Administrator access"
+        : session.role === "headCoach"
+          ? "Head coach read-only access"
+          : "Coach read-only access";
+  const visibleNavigationItems =
+    session.role === "headCoach" || session.role === "coach"
+      ? navigationItems.filter((item) => item.href === "/admin/waitlists")
+      : navigationItems;
   const [navigationOpen, setNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -119,7 +132,7 @@ export function AdminShell({
     return (
       <nav aria-label="Admin navigation" className={className}>
         <ul className="admin-nav-list">
-          {navigationItems.map((item) => (
+          {visibleNavigationItems.map((item) => (
             <li key={item.label}>
               <Link
                 aria-current={isCurrentRoute(item.href) ? "page" : undefined}
@@ -233,7 +246,9 @@ export function AdminShell({
                   />
                   <div>
                     <strong>BPT Jersey</strong>
-                    <span>{navigationItems.find((item) => isCurrentRoute(item.href))?.label}</span>
+                    <span>
+                      {visibleNavigationItems.find((item) => isCurrentRoute(item.href))?.label}
+                    </span>
                   </div>
                   <button
                     aria-expanded="true"

@@ -2,7 +2,9 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
+  parseIssueNextWaitlistOfferInput,
   parseJoinWaitlistInput,
+  parseRespondToWaitlistOfferInput,
   type WaitlistEntryRecord,
 } from "@bpt-jersey/domain/schedule/advanced-booking";
 import { requireUserActor } from "../auth/user-authorization.js";
@@ -17,6 +19,7 @@ import {
 } from "./advanced-booking-service.js";
 
 const staffRoles = new Set(["owner", "administrator", "headCoach", "coach"]);
+const offerIssuerRoles = new Set(["owner", "administrator"]);
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
 export type StudentWaitlistItem = Readonly<{
@@ -24,6 +27,9 @@ export type StudentWaitlistItem = Readonly<{
   position: number;
   status: WaitlistEntryRecord["status"];
   requestedAt: string;
+  offeredAt: string | null;
+  offerExpiresAt: string | null;
+  acceptedAt: string | null;
   cancelledAt: string | null;
 }>;
 
@@ -37,10 +43,53 @@ type ScopeOptions = Readonly<{
 const defaultGuardianResolver = createFirestoreGuardianStudentScopeResolver();
 
 function exactObject(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const keys = Object.keys(value).sort();
-  const expected = [...fields].sort();
-  return keys.length === expected.length && keys.every((key, index) => key === expected[index]);
+  try {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype
+    ) {
+      return false;
+    }
+    const keys = Object.keys(value).sort();
+    const expected = [...fields].sort();
+    return (
+      keys.length === expected.length &&
+      keys.every((key, index) => {
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        return (
+          key === expected[index] &&
+          descriptor?.enumerable === true &&
+          descriptor.get === undefined &&
+          descriptor.set === undefined &&
+          Object.hasOwn(descriptor, "value")
+        );
+      })
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function requireOfferResponseScope(
+  request: CallableRequest<unknown>,
+  studentId: string,
+  resolver: GuardianStudentScopeResolver = defaultGuardianResolver,
+): Promise<void> {
+  const actor = requireUserActor(request);
+  if (actor.role === "adultStudent" && actor.userId === studentId) return;
+  if (
+    actor.role === "guardian" &&
+    (await resolver({
+      academyId: actor.academyId,
+      guardianUserId: actor.userId,
+      studentId,
+    }))
+  ) {
+    return;
+  }
+  throw new HttpsError("permission-denied", "Waitlist offer response is not permitted");
 }
 
 function identifier(value: unknown, label: string): string {
@@ -56,7 +105,7 @@ async function requireWaitlistStudentScope(
   resolver: GuardianStudentScopeResolver = defaultGuardianResolver,
 ): Promise<void> {
   const actor = requireUserActor(request);
-  if (staffRoles.has(actor.role)) return;
+  if (offerIssuerRoles.has(actor.role)) return;
   if (actor.role === "adultStudent" && actor.userId === studentId) return;
   if (
     actor.role === "guardian" &&
@@ -77,6 +126,9 @@ function studentItem(entry: WaitlistEntryRecord): StudentWaitlistItem {
     position: entry.position,
     status: entry.status,
     requestedAt: entry.requestedAt,
+    offeredAt: entry.offeredAt,
+    offerExpiresAt: entry.offerExpiresAt,
+    acceptedAt: entry.acceptedAt,
     cancelledAt: entry.cancelledAt,
   });
 }
@@ -143,6 +195,74 @@ export function createCancelWaitlistHandler(options: ScopeOptions) {
   };
 }
 
+export function createIssueNextWaitlistOfferHandler({
+  waitlistStore,
+}: {
+  waitlistStore: WaitlistStore;
+}) {
+  return async (request: CallableRequest<unknown>): Promise<{ entry: StaffWaitlistItem }> => {
+    const actor = requireUserActor(request);
+    if (!offerIssuerRoles.has(actor.role)) {
+      throw new HttpsError("permission-denied", "Waitlist offer issuance is not permitted");
+    }
+    const parsed = parseIssueNextWaitlistOfferInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", "Waitlist offer request is invalid");
+    }
+    try {
+      const entry = await waitlistStore.issueNextWaitlistOffer({
+        academyId: actor.academyId,
+        sessionId: parsed.value.sessionId,
+        actorId: actor.userId,
+      });
+      return { entry: staffItem(entry) };
+    } catch (error) {
+      return mapStoreError(error);
+    }
+  };
+}
+
+function createRespondToWaitlistOfferHandler(
+  options: ScopeOptions,
+  response: "accept" | "decline",
+) {
+  return async (request: CallableRequest<unknown>): Promise<{ entry: StudentWaitlistItem }> => {
+    const actor = requireUserActor(request);
+    if (!exactObject(request.data, ["sessionId", "studentId"])) {
+      throw new HttpsError("invalid-argument", "Waitlist offer response is invalid");
+    }
+    const parsed = parseRespondToWaitlistOfferInput({
+      sessionId: request.data.sessionId,
+      studentId: request.data.studentId,
+      response,
+    });
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", "Waitlist offer response is invalid");
+    }
+    await requireOfferResponseScope(request, parsed.value.studentId, options.isGuardianOfStudent);
+    try {
+      const entry = await options.waitlistStore.respondToWaitlistOffer({
+        academyId: actor.academyId,
+        sessionId: parsed.value.sessionId,
+        studentId: parsed.value.studentId,
+        response,
+        actorId: actor.userId,
+      });
+      return { entry: studentItem(entry) };
+    } catch (error) {
+      return mapStoreError(error);
+    }
+  };
+}
+
+export function createAcceptWaitlistOfferHandler(options: ScopeOptions) {
+  return createRespondToWaitlistOfferHandler(options, "accept");
+}
+
+export function createDeclineWaitlistOfferHandler(options: ScopeOptions) {
+  return createRespondToWaitlistOfferHandler(options, "decline");
+}
+
 export function createListStudentWaitlistHandler(options: ScopeOptions) {
   return async (
     request: CallableRequest<unknown>,
@@ -202,6 +322,15 @@ export const joinWaitlist = onCall(async (request) =>
 );
 export const cancelWaitlistEntry = onCall(async (request) =>
   createCancelWaitlistHandler({ waitlistStore: getStore() })(request),
+);
+export const issueNextWaitlistOffer = onCall(async (request) =>
+  createIssueNextWaitlistOfferHandler({ waitlistStore: getStore() })(request),
+);
+export const acceptWaitlistOffer = onCall(async (request) =>
+  createAcceptWaitlistOfferHandler({ waitlistStore: getStore() })(request),
+);
+export const declineWaitlistOffer = onCall(async (request) =>
+  createDeclineWaitlistOfferHandler({ waitlistStore: getStore() })(request),
 );
 export const listStudentWaitlist = onCall(async (request) =>
   createListStudentWaitlistHandler({ waitlistStore: getStore() })(request),

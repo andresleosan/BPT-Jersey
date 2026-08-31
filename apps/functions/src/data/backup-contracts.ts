@@ -1,4 +1,4 @@
-export const BACKUP_SCHEMA_VERSION = 1 as const;
+export const BACKUP_SCHEMA_VERSION = 2 as const;
 
 export const TENANT_BACKUP_COLLECTIONS = [
   "users",
@@ -12,6 +12,10 @@ export const TENANT_BACKUP_COLLECTIONS = [
   "sessions",
   "plans",
   "bookings",
+  "waitlistEntries",
+  "sessionCapacityStates",
+  "bookingQuotaStates",
+  "waitlistPositionStates",
   "attendance",
   "checkouts",
   "memberships",

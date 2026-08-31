@@ -96,7 +96,10 @@ export {
   saveSession,
 } from "./schedule/schedule-callables.js";
 export {
+  acceptWaitlistOffer,
   cancelWaitlistEntry,
+  declineWaitlistOffer,
+  issueNextWaitlistOffer,
   joinWaitlist,
   listSessionWaitlist,
   listStudentWaitlist,

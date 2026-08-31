@@ -22,13 +22,9 @@ beforeAll(async () => {
   testEnvironment = await initializeTestEnvironment({
     projectId,
     firestore: {
-      host: "127.0.0.1",
-      port: 8080,
       rules: firestoreRules,
     },
     database: {
-      host: "127.0.0.1",
-      port: 9000,
       rules: databaseRules,
     },
   });

@@ -421,6 +421,154 @@
   }
 }
 
+.admin-waitlist-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(17rem, 0.72fr) minmax(26rem, 1.28fr);
+}
+
+.admin-waitlist-control,
+.admin-waitlist-queue {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.admin-waitlist-control {
+  align-content: start;
+  border-top-color: var(--bpt-purple);
+}
+
+.admin-waitlist-control > div > p:last-child {
+  color: var(--muted);
+  margin: 0.8rem 0 0;
+}
+
+.admin-waitlist-field,
+.admin-waitlist-field select {
+  width: 100%;
+}
+
+.admin-waitlist-offer-button {
+  justify-content: center;
+  margin-top: 0;
+  width: 100%;
+}
+
+.admin-waitlist-offer-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-waitlist-active-note {
+  border-left: 0.25rem solid var(--bpt-purple);
+  color: var(--muted);
+  margin: 0;
+  padding: 0.45rem 0 0.45rem 0.75rem;
+}
+
+.admin-waitlist-queue {
+  align-content: start;
+}
+
+.admin-waitlist-error {
+  border-color: #a02c35;
+  color: #6f1520;
+}
+
+.admin-waitlist-list {
+  display: grid;
+  gap: 0.65rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-waitlist-list li {
+  align-items: center;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.admin-waitlist-position {
+  align-items: center;
+  align-self: stretch;
+  background: var(--mat-ink);
+  color: var(--bpt-lime);
+  display: flex;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 2rem;
+  justify-content: center;
+  line-height: 1;
+  min-height: 4.25rem;
+}
+
+.admin-waitlist-list li > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.admin-waitlist-list li > div > strong {
+  text-transform: uppercase;
+}
+
+.admin-waitlist-list li > div > span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.admin-waitlist-list li > .admin-status-badge {
+  justify-self: end;
+  margin-right: 0.9rem;
+}
+
+.admin-status-waiting {
+  color: #805500;
+}
+
+.admin-status-offered {
+  color: var(--bpt-purple);
+}
+
+.admin-status-accepted {
+  color: #176b49;
+}
+
+.admin-status-expired {
+  color: #a02c35;
+}
+
+@media (max-width: 56rem) {
+  .admin-waitlist-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 42rem) {
+  .admin-waitlist-list li {
+    align-items: stretch;
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+  }
+
+  .admin-waitlist-list li > div {
+    align-self: center;
+    padding: 0.7rem 0.7rem 0.7rem 0;
+  }
+
+  .admin-waitlist-list li > .admin-status-badge {
+    grid-column: 2;
+    justify-self: start;
+    margin: 0 0.7rem 0.7rem 0;
+  }
+
+  .admin-waitlist-offer-button {
+    min-height: 3.25rem;
+  }
+}
+
 .admin-auth-state {
   isolation: isolate;
   margin: 0 auto;

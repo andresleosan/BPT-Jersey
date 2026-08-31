@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildBookingId } from "@bpt-jersey/domain/schedule";
 
 import { createInMemoryScheduleStore } from "./schedule-service";
 
@@ -259,7 +260,7 @@ describe("Schedule Service (In-Memory Store)", () => {
         "student-1",
       );
 
-      expect(booking1.bookingId).toBe(`${session.sessionId}__student-1`);
+      expect(booking1.bookingId).toBe(buildBookingId(session.sessionId, "student-1"));
       expect(booking1.status).toBe("confirmed");
 
       // Idempotent retry by student 1
@@ -364,6 +365,18 @@ describe("Schedule Service (In-Memory Store)", () => {
 
       expect(staffCancelled.status).toBe("cancelled");
       expect(staffCancelled.cancellationReason).toBe("Emergency exception");
+      await expect(
+        store.cancelBooking(
+          "academy-1",
+          {
+            sessionId: urgentSession.sessionId,
+            studentId: "student-1",
+            reason: "Must remain idempotent",
+          },
+          "owner-1",
+          true,
+        ),
+      ).resolves.toEqual(staffCancelled);
     });
 
     it("evaluates session minimum quorum (4 participants default)", async () => {

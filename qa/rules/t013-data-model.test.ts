@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
+import { buildBookingId } from "@bpt-jersey/domain/schedule";
 import { get, ref, set } from "firebase/database";
 import { collection, doc, getDocs, orderBy, query, setDoc, where } from "firebase/firestore";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -101,13 +102,9 @@ beforeAll(async () => {
   testEnvironment = await initializeTestEnvironment({
     projectId,
     firestore: {
-      host: "127.0.0.1",
-      port: 8080,
       rules: firestoreRules,
     },
     database: {
-      host: "127.0.0.1",
-      port: 9000,
       rules: databaseRules,
     },
   });
@@ -134,18 +131,22 @@ describe("T013 Firestore and RTDB model fixtures", () => {
       expect(fixture.data.academyId).toBe(tenantId);
 
       const collectionName = pathPart(fixture.path, 2);
-      if (collectionName === "bookings" || collectionName === "attendance") {
+      if (collectionName === "bookings") {
+        const expectedId = buildBookingId(
+          requiredString(fixture.data, "sessionId"),
+          requiredString(fixture.data, "studentId"),
+        );
+        expect(pathPart(fixture.path, 1)).toBe(expectedId);
+        expect(requiredString(fixture.data, "bookingId")).toBe(expectedId);
+      }
+
+      if (collectionName === "attendance") {
         const expectedId = `${requiredString(fixture.data, "sessionId")}__${requiredString(
           fixture.data,
           "studentId",
         )}`;
         expect(pathPart(fixture.path, 1)).toBe(expectedId);
-        expect(
-          requiredString(
-            fixture.data,
-            collectionName === "bookings" ? "bookingId" : "attendanceId",
-          ),
-        ).toBe(expectedId);
+        expect(requiredString(fixture.data, "attendanceId")).toBe(expectedId);
       }
     }
 

@@ -1,4 +1,5 @@
 import type { TenantBackupDocument } from "./backup-contracts.js";
+import { validateTenantBackupDocuments } from "./backup-service.js";
 
 export type RehearsalTenantStore = Readonly<{
   readTenantDocuments: (academyId: string) => Promise<readonly TenantBackupDocument[]>;
@@ -20,13 +21,14 @@ export async function runTenantRestoreRehearsal(options: {
   target: RehearsalTenantStore;
   failAfterApply?: boolean;
 }): Promise<RestoreRehearsalResult> {
+  const backupDocuments = validateTenantBackupDocuments(options.academyId, options.backupDocuments);
   const previousDocuments = await options.target.readTenantDocuments(options.academyId);
   try {
-    await options.target.replaceTenantDocuments(options.academyId, options.backupDocuments);
+    await options.target.replaceTenantDocuments(options.academyId, backupDocuments);
     if (options.failAfterApply) throw new Error("synthetic restore failure");
     return {
       status: "restored",
-      restoredDocumentCount: options.backupDocuments.length,
+      restoredDocumentCount: backupDocuments.length,
       rollbackDocumentCount: previousDocuments.length,
     };
   } catch (error) {
@@ -34,7 +36,7 @@ export async function runTenantRestoreRehearsal(options: {
     if (error instanceof Error && error.message === "synthetic restore failure") {
       return {
         status: "rolled-back",
-        restoredDocumentCount: options.backupDocuments.length,
+        restoredDocumentCount: backupDocuments.length,
         rollbackDocumentCount: previousDocuments.length,
       };
     }

@@ -36,6 +36,7 @@ const canonicalCollections = Object.freeze([
   "sessions",
   "plans",
   "bookings",
+  "waitlistEntries",
   "attendance",
   "checkouts",
   "memberships",
@@ -61,6 +62,9 @@ const academyBackendOnlyCollections = Object.freeze([
   "members",
   "memberImportOperations",
   "adminRoleLocks",
+  "sessionCapacityStates",
+  "bookingQuotaStates",
+  "waitlistPositionStates",
 ] as const);
 const rootBackendOnlyCollections = Object.freeze([
   "memberReportExports",
@@ -129,8 +133,8 @@ beforeAll(async () => {
   ]);
   testEnvironment = await initializeTestEnvironment({
     projectId,
-    firestore: { host: "127.0.0.1", port: 8080, rules: firestoreRules },
-    database: { host: "127.0.0.1", port: 9000, rules: databaseRules },
+    firestore: { rules: firestoreRules },
+    database: { rules: databaseRules },
   });
 });
 

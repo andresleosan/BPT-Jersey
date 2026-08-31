@@ -13,6 +13,12 @@ function assertSafeEmulator() {
   }
 }
 
+function pairDocumentIds(leftInput, rightInput) {
+  const left = leftInput.trim();
+  const right = rightInput.trim();
+  return [`v2:${left.length}:${left}:${right.length}:${right}`, `${left}__${right}`];
+}
+
 async function main() {
   assertSafeEmulator();
   const academyId = "synthetic-academy";
@@ -85,9 +91,12 @@ async function main() {
         updatedAt: createdAt,
         updatedBy: "student-confirmed",
       }),
-      ...candidates.map(({ studentId }) =>
-        firestore.doc(`academies/${academyId}/waitlistEntries/${sessionId}__${studentId}`).delete(),
+      ...candidates.flatMap(({ studentId }) =>
+        pairDocumentIds(sessionId, studentId).map((waitlistId) =>
+          firestore.doc(`academies/${academyId}/waitlistEntries/${waitlistId}`).delete(),
+        ),
       ),
+      firestore.doc(`academies/${academyId}/waitlistPositionStates/${sessionId}`).delete(),
     ]);
     console.log(
       JSON.stringify({

@@ -35,11 +35,11 @@
       }
     },
     {
-      "path": "academies/demo-academy/bookings/session-demo-1__student-demo-1",
+      "path": "academies/demo-academy/bookings/v2:14:session-demo-1:14:student-demo-1",
       "data": {
         "academyId": "demo-academy",
         "schemaVersion": 1,
-        "bookingId": "session-demo-1__student-demo-1",
+        "bookingId": "v2:14:session-demo-1:14:student-demo-1",
         "sessionId": "session-demo-1",
         "studentId": "student-demo-1",
         "status": "requested",

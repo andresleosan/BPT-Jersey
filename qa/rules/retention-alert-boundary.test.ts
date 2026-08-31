@@ -16,7 +16,7 @@ beforeAll(async () => {
   const rules = await readFile(resolve(import.meta.dirname, "../../firestore.rules"), "utf8");
   testEnv = await initializeTestEnvironment({
     projectId,
-    firestore: { rules, host: "127.0.0.1", port: 8080 },
+    firestore: { rules },
   });
 });
 
