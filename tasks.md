@@ -110,7 +110,7 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 | T054 | Configurar backups, restauraciÃ³n y runbook de rollback                    | T013,T024                                                             | aprobada  | Aprobada explÃ­citamente por el operador el 2026-08-25 solo para el piloto sintÃ©tico: contrato fail-closed, checksum/conteos, rehearsal Emulator applyâ†’rollback, runbook, unitarias 6/6, integraciÃ³n 1/1 y E2E 2/2; no autoriza backup/restore productivo                                               |
 | T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T008,T009,T011,T018,T019,T021-T033,T037-T042,T045,T047-T054,T083,T086 | aprobada  | QA aprobado unicamente para el piloto sintetico: verify:mvp, unitarias 159/1082, Rules 64/64, carga sintetica 240 solicitudes/concurrencia 24 sin fallos (p95 82 ms) y E2E smoke 5 pasan/1 omitida. T011, carga live/staging y produccion siguen bloqueados; no autoriza datos reales ni despliegue.        |
 | T056 | Ejecutar piloto con datos controlados y corregir hallazgos                 | T055                                                                  | aprobada  | Piloto E2E sintetico ejecutado: 71 pasaron, 14 omitidos por live/staging u opt-in y 0 fallos; verify:mvp y carga sintetica pasan; acta aprobada explicitamente por el operador el 2026-08-27 unicamente para el piloto sintetico; no autoriza staging real, produccion, datos reales, pagos ni migraciones. |
-| T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056                                                                  | revision  | Roles T011 no designados registrados y brief de revision externa preparado; Gate A sigue bloqueado. Sin contacto, cloud, credenciales, datos reales ni gasto.                                                                                                                                               |
+| T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056                                                                  | revision  | Checkpoint T060/T063 verificado: commit/push a branch para CI/PR recomendado; produccion no. T011, staging, costos/alertas y T058 siguen abiertos. Sin contacto, cloud, credenciales, datos reales ni gasto.                                                                                                |
 | T058 | Desplegar a producciÃ³n con confirmaciÃ³n explÃ­cita del operador          | T057                                                                  | pendiente | Deployment verificado y rollback disponible; fuera del piloto                                                                                                                                                                                                                                               |
 | T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md`        | T058                                                                  | pendiente | LecciÃ³n registrada despuÃ©s de producciÃ³n; fuera del piloto                                                                                                                                                                                                                                               |
 
@@ -141,8 +141,23 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 
 El contador de Lista incluye T060-T071 como roadmap futuro. El discovery se prioriza en T060, T063,
 T062 y T067; el detalle, RICE preliminar, dependencias y gates esta en
-docs/roadmap/v2-v3-advance-plan.md. T060, T062, T063, T064, T065, T066 y T067 quedan en revision por sus slices tecnicos; no hay WIP activo y T061 y T068-T071 permanecen
-pendientes hasta contar con slice, contrato, criterios de aceptacion y evidencia de pruebas.
+docs/roadmap/v2-v3-advance-plan.md. T060 vuelve a revision tras cerrar el corte de oferta FIFO y
+booking transaccional confirmado el 2026-08-30; T062, T064, T065, T066 y T067 quedan en revision
+por sus slices tecnicos, T061 y T068-T071 permanecen pendientes hasta contar con slice, contrato,
+criterios de aceptacion y evidencia de pruebas. T063 vuelve a `revision` tras cerrar la divergencia
+fail-closed del checkout adulto detectada durante la reanudacion; no queda WIP activo.
+
+### Reanudacion T063 - checkout adulto fail-closed - 2026-08-30
+
+- Hallazgo: la matriz vigente deja el checkout de `adultStudent` pendiente de decision y lo reporta
+  como denegado, pero el guard compartido permite actualmente que un adulto registre checkout sobre
+  su propio `studentId`.
+- Alcance correctivo: denegar `recordCheckout` a `adultStudent` antes de invocar el store, conservar
+  booking/check-in/consultas propias y checkout de guardian vinculado o staff sin cambios, agregar
+  regresion focal y reconciliar documentacion/Lista.
+- Fuera de alcance: habilitar checkout adulto, tutor secundario, nuevas solicitudes de correccion,
+  esquema, Rules, UI, datos reales, migracion, despliegue o produccion.
+- Reversion: retirar el guard especifico y su regresion; no hay datos ni esquema que revertir.
 
 ### Evidencia T060 - contratos de waitlist y creditos - 2026-08-27
 
@@ -186,6 +201,64 @@ pendientes hasta contar con slice, contrato, criterios de aceptacion y evidencia
 - Higiene operativa: un arranque local heredó `DEBUG` y volcó en el log de herramienta una credencial efimera de la extension Playwright; se retiro `DEBUG`, no se repitio y los escaneos de workspace e historial confirmaron 0 persistencia. Se recomienda reconectar/rotar esa extension antes de cualquier trabajo productivo.
 - Estado: T060 vuelve a `revision`; no queda WIP activo. Staff UI, promociones/ofertas/aceptacion, expiracion/reordenamiento, creditos, recurrencia, booking automatico, pagos, mensajes, datos reales, migracion, despliegue y produccion siguen fuera del corte.
 
+### Checkpoint T060 - oferta FIFO y booking transaccional - 2026-08-30
+
+- Aprobacion explicita del operador para actualizar Graphify y seguir con este corte; T060 pasa a
+  `en-progreso` como unico WIP. La oferta es manual por `owner`/`administrator`; `headCoach` y `coach`
+  conservan lectura, pero no pueden mutar la cola.
+- Orden y capacidad: el backend elige la primera entrada `waiting` por `position` y `requestedAt`; el
+  cliente no envia ni elige estudiante. Solo puede existir una oferta activa por sesion. La oferta
+  reserva un cupo y su replay es idempotente sin extender el vencimiento.
+- Tiempo: TTL de 30 minutos, limitado siempre a una hora antes de `session.startAt`. La expiracion se
+  materializa bajo demanda, sin scheduler; las posiciones son historicas y no se renumeran.
+- Aceptacion: adulto/tutor puede aceptar su propia oferta mediante student-scope canonico. Oferta y
+  aceptacion revalidan tenant, sesion, membresia, capacidad, plan/cuota y politica financiera T038.
+  La aceptacion crea o restaura atomicamente el booking determinista confirmado, marca la waitlist
+  `accepted` y registra auditoria; un replay devuelve el mismo resultado.
+- Declinacion: adulto/tutor puede declinar su oferta; queda terminal `cancelled` y no se reencola de
+  forma automatica. El detalle de oferta/vencimiento se muestra en `/account/waitlist`; staff recibe
+  una superficie minima en `/admin/waitlists` para consultar la sesion y ofrecer el primer lugar.
+- Prerrequisito de integridad: corregir el booking Firestore actual para que capacidad y datos
+  dependientes se lean y escriban dentro de una transaccion antes de habilitar aceptacion.
+- Criterios de aceptacion: contratos estrictos, RBAC/student-scope fail-closed, una sola oferta/cupo,
+  carreras concurrentes sin sobrecupo, replays idempotentes, auditoria, pruebas unitarias, Emulator,
+  Rules y E2E real Auth + Functions + Firestore con `retries=0` y burn-in.
+- Fuera de alcance: promocion automatica, scheduler, notificaciones o proveedor, reordenamiento,
+  creditos operativos, recurrencia, pagos/cobros nuevos, App Check/rate limit nuevos, datos reales,
+  credenciales, gasto, migracion, despliegue o produccion.
+- Reversion: retirar callables/UI y restaurar el flujo previo; el esquema es aditivo y los fixtures del
+  Emulator son desechables. No se ejecuta limpieza ni rollback de datos productivos.
+
+### Evidencia T060 - oferta FIFO y booking transaccional - 2026-08-30
+
+- Implementacion: owner/administrator emiten manualmente la primera oferta FIFO sin seleccionar
+  estudiante; headCoach/coach solo leen. Una oferta activa reserva capacidad, vence bajo demanda,
+  y adulto/tutor autorizado acepta o declina desde /account/waitlist. La aceptacion confirma el
+  booking, actualiza la waitlist y audita dentro de una sola transaccion.
+- Integridad y safeguarding: se corrigieron colisiones y duales fisicos canonical/legacy, incluso con
+  estados distintos; FIFO compara el instante absoluto con precision nanosegundo; cancelacion y
+  aceptacion comparten sessionCapacityStates; invoice/payment/membership se aislan por
+  academy/family/invoice; el tipo kids/teens/adult se deriva del DOB a la fecha local de la sesion; y
+  backup valida IDs Firestore y lastPosition >= max(position) antes de crear, verificar o ensayar.
+- QA focal final: typecheck de 6 proyectos y 75/75 unitarias focales; Firestore Emulator 17/17 para
+  booking/ofertas y 3/3 para waitlist base/restore; Rules 10 archivos/78 pruebas; artefacto local de
+  Functions construido; E2E real Auth + Functions + Firestore pasa 6/6 (desktop y mobile), un worker
+  y retries=0. La primera corrida de integracion roja expuso dos fixtures incorrectos
+  (cronologia ISO y lock pesimista), ambos corregidos antes de la evidencia verde.
+- Gate global: corepack pnpm verify:mvp pasa formato, lint, typecheck, build estatico de 31 rutas,
+  174 archivos/1216 unitarias, 10 archivos/78 Rules, carga sintetica 240/240 sin fallos (p95 28 ms) y
+  smoke E2E 5 aprobadas/1 omitida esperada. corepack pnpm audit --audit-level high reporta 2
+  moderadas y 0 high/critical; git diff --check queda como gate final de higiene.
+- Autocritica independiente: 0 hallazgos critical/high abiertos despues de corregir RBAC, aislamiento
+  tenant/finance, colisiones legacy, duales divergentes, FIFO temporal, carrera cancel/accept,
+  elegibilidad por edad e invariantes de backup. No se agregaron secretos, proveedor ni gasto.
+- Herramientas: Graphify CLI/skills quedaron en 0.9.53; el indice existente sigue obsoleto y no se
+  reconstruyo porque el corpus supera 500 archivos sin una subcarpeta confirmada. AutoSkills 0.3.6
+  detecto 15 skills, 11 ya instaladas y 4 redundantes para T060; no se instalo ninguna.
+- Estado: T060 vuelve a revision; no queda WIP activo. Promocion automatica, scheduler,
+  notificaciones, creditos operativos, recurrencia, pagos/cobros nuevos, datos reales, migracion,
+  despliegue y produccion siguen fuera de alcance.
+
 ### Evidencia T063 - aislamiento de autoservicio guardian/adulto - 2026-08-27
 
 - Se corrigieron los callables de agenda para que un `guardian` no pueda operar con un `studentId` arbitrario: booking, cancelacion, consultas de booking, asistencia, historial y checkout exigen relacion activa, familia activa, contacto principal coincidente y menor activo en el mismo tenant.
@@ -201,6 +274,25 @@ pendientes hasta contar con slice, contrato, criterios de aceptacion y evidencia
 - Verificacion: unitarias focalizadas 23/23; Firestore Emulator 2/2; Rules completa 64/64; build web; E2E responsive 2/2 y repeticion 10/10; typecheck Functions, ESLint, Prettier, `corepack pnpm audit --audit-level high` sin high/critical y `git diff --check` pasan.
 - Gate global: `corepack pnpm verify:mvp` pasa con 1122/1122 unitarias, 64/64 Rules, carga sintetica de 240 solicitudes sin fallos (p95 28 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
 - Autocritica: sin hallazgos high/critical ni secretos; contrato y casos limite temporales cubiertos. No se requirio una prueba de carga especifica del resolver; el baseline global sintetico paso. T063 vuelve a revision; tutor secundario y checkout adulto siguen pendientes de checkpoint y permanecen denegados/fail-closed. Sin despliegue, migracion, datos reales, proveedor, cobro ni gasto.
+
+### Cierre correctivo T063 - checkout adulto fail-closed - 2026-08-30
+
+- Implementacion: `recordCheckout` deniega expresamente a `adultStudent` despues de autenticar y
+  validar el payload, y antes de resolver scope o invocar el store. El error especifico de
+  `staffOverride`, booking/cancelacion/check-in/consultas adultas, guardian vinculado y staff no
+  cambian.
+- TDD: la regresion roja demostro que el store se alcanzaba y devolvia el error de asistencia. La
+  primera iteracion verde revelo una insercion en el handler de cancelacion y la segunda preservo el
+  orden contractual de `staffOverride`; ambas se corrigieron antes del resultado final 18/18.
+- Seguridad: autenticacion, parser estricto y RBAC fallan cerrado; no hay respuesta exitosa, write,
+  dato nuevo, secreto, integracion, rate limit o superficie publica adicional. Escaneo acotado de
+  secretos 0 coincidencias; audit 2 moderate y 0 high/critical.
+- QA: Functions typecheck pasa; callable focal 18/18; Firestore Emulator del resolver 2/2;
+  `verify:mvp` pasa formato, lint, typecheck, build de 31 rutas, 174 archivos/1217 unitarias,
+  10 archivos/78 Rules, carga 240/240 sin fallos (p95 40 ms) y smoke E2E 5/5 con 1 omision esperada.
+- Estado: T063 vuelve a `revision` y no queda WIP activo. Tutor secundario, habilitacion de checkout
+  adulto y solicitudes de correccion de otros dominios requieren checkpoint humano; produccion,
+  datos reales, migracion, despliegue y gasto permanecen fuera de alcance.
 
 ### Evidencia T062 - contrato de alertas de retencion - 2026-08-27
 
@@ -3566,3 +3658,27 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
 - Autocritica de seguridad: el diff no agrega endpoints, entradas, dependencias o integraciones; `.gitignore` esta presente, el escaneo focalizado encontro 0 secretos y `.firebaserc` conserva `demo-bpt-jersey` sin alias staging. No hay hallazgos criticos/high.
 - QA real: `node --check Lista/Lista.js` y Prettier focalizado pasan; reconciliacion -> 88 IDs unicos en tasks/Lista, 76 filas con estado y 0 divergencias; 6/6 rutas presentes y `git diff --check` pasa. Carga, contratos entre servicios y E2E no aplican porque no cambio runtime ni infraestructura.
 - Estado: T011 `bloqueada`, T057 `revision` y T058 `pendiente`.
+
+### Checkpoint T057 - integracion T060/T063 para commit y push - 2026-08-30
+
+- Limite versionable: 59 archivos modificados y 10 nuevos, todos dentro del corte T060 de ofertas
+  FIFO/booking transaccional, sus invariantes de finanzas/backup/runtime/Rules/UI/QA, el cierre
+  fail-closed T063 y la evidencia T057. No se detectaron marcadores de conflicto ni artefactos
+  temporales versionables; `.firebase-functions` y reportes locales permanecen ignorados.
+- Git: `main`, `origin/main` local y la consulta remota read-only coincidieron en
+  `620d6c7d3b9315b6a93df2bd080e70cf536ab6bd`. Se creo `feat/t060-waitlist-offers` desde ese punto y
+  el corte funcional quedo en `6eef74d` (`feat(schedule): add transactional waitlist offers`), con
+  66 archivos y `git diff --cached --check` limpio. La evidencia operativa se conserva en un commit
+  separado antes de publicar la branch para CI/PR; no hacer push directo a `main`.
+- QA vigente: `verify:mvp` pasa formato, lint, typecheck, build de 31 rutas, 174 archivos/1217
+  unitarias, 10 archivos/78 Rules, carga sintetica 240/240 sin fallos (p95 40 ms) y smoke E2E 5/5
+  con 1 omision esperada. Integracion T063 Firestore 2/2; T060 conserva 20/20 integraciones y E2E
+  real 6/6 sin retries.
+- Artefacto y seguridad: build local de Functions exit 0, manifiesto sin dependencias workspace y
+  runtime 3/3. Secret scan acotado 0 coincidencias; audit 2 moderate y 0 high/critical. La advertencia
+  Windows `DEP0190` usa argumentos internos estaticos y no aparece en el runner Linux de CI; queda
+  como deuda de tooling no bloqueante, sin entrada externa.
+- Decision: T057 vuelve a `revision` y no queda WIP activo. El commit funcional esta creado y el
+  operador autorizo publicar la branch para ejecutar CI y revision; no es recomendable desplegar.
+  T011, staging real, rollback
+  productivo, presupuestos/alertas, CD protegido y autorizacion T058 siguen bloqueando produccion.
