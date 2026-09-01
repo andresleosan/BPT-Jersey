@@ -67,6 +67,8 @@ export {
   rejectPromotion,
 } from "./levels/level-callables.js";
 export { getProgressReport } from "./levels/progress-report-callables.js";
+export { getFamilyAchievementSummary } from "./levels/family-achievement-callables.js";
+export { approveLessonPlan, getLessonPlan } from "./levels/lesson-planning-callables.js";
 export { getOperationalReport } from "./reports/operational-report-callables.js";
 export { prepareAggregateReportExport } from "./exports/aggregate-report-export-callables.js";
 export {

@@ -75,6 +75,16 @@
       "import": "./src/levels/level-contracts.ts",
       "default": "./lib/levels/level-contracts.js"
     },
+    "./levels/lesson-planning": {
+      "types": "./src/levels/lesson-planning-contracts.ts",
+      "import": "./src/levels/lesson-planning-contracts.ts",
+      "default": "./lib/levels/lesson-planning-contracts.js"
+    },
+    "./levels/achievements": {
+      "types": "./src/levels/achievement-contracts.ts",
+      "import": "./src/levels/achievement-contracts.ts",
+      "default": "./lib/levels/achievement-contracts.js"
+    },
     "./schedule": {
       "types": "./src/schedule/schedule-contracts.ts",
       "import": "./src/schedule/schedule-contracts.ts",

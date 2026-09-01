@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildFamilyAchievementSummary,
+  parseFamilyAchievementSummary,
   type BuildFamilyAchievementSummaryInput,
 } from "./achievement-contracts";
 
@@ -150,6 +151,36 @@ describe("family achievement contracts", () => {
     ).toBe(false);
   });
 
+  it("parses immutable persisted summaries and rejects derived-data tampering", () => {
+    const built = buildFamilyAchievementSummary(baseInput);
+
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    const parsed = parseFamilyAchievementSummary(built.value);
+    expect(parsed).toEqual(built);
+    expect(Object.isFrozen(parsed.ok ? parsed.value : undefined)).toBe(true);
+
+    const firstMember = built.value.members[0];
+    expect(firstMember).toBeDefined();
+    if (!firstMember) return;
+    expect(
+      parseFamilyAchievementSummary({
+        ...built.value,
+        members: built.value.members.map((member, index) =>
+          index === 0
+            ? {
+                ...member,
+                achievementCandidates: member.achievementCandidates.map(
+                  (candidate, candidateIndex) =>
+                    candidateIndex === 0 ? { ...candidate, achievedValue: 0 } : candidate,
+                ),
+              }
+            : member,
+        ),
+      }).ok,
+    ).toBe(false);
+    expect(parseFamilyAchievementSummary({ ...built.value, unexpected: true }).ok).toBe(false);
+  });
   it("keeps the contract limited to progress metrics and does not grant promotion", () => {
     const result = buildFamilyAchievementSummary(baseInput);
 

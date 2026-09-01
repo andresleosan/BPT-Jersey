@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from "react";
 
 import { createFamily, type CreateFamilyClientInput } from "../../../lib/family-client";
+import { FamilyAchievementAdminPanel } from "./family-achievement-admin-panel";
 import { HealthSupportAdminPanel } from "./health-support-admin-panel";
 
 import "../admin.css";
@@ -267,6 +268,10 @@ export function FamilyAdminPage() {
               />
             ))}
           </div>
+          <FamilyAchievementAdminPanel
+            familyId={createdFamily.family.familyId}
+            instanceId="family-achievements-title"
+          />
           <div className="family-operation-actions">
             <button className="family-text-button" disabled type="button">
               Replace tutor

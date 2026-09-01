@@ -182,6 +182,8 @@ describe("domain contracts", () => {
       "regyfit.access.imported",
       "retention.alerts.generated",
       "report.export.prepared",
+      "family.achievements.generated",
+      "lesson.plan.approved",
       "membership.created",
       "membership.status.changed",
       "invoice.created",

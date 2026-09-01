@@ -81,7 +81,29 @@ service cloud.firestore {
     match /academies/{academyId}/retentionAlerts/{alertId} {
       allow read, write: if false;
     }
+    match /academies/{academyId}/techniqueLibraries/{libraryVersionId} {
+      allow read, write: if false;
+    }
 
+    match /academies/{academyId}/lessonPlans/{planId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/familyGoals/{goalId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/familyAchievements/{achievementId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/familyAchievementSnapshots/{snapshotId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/auditEvents/{auditEventId} {
+      allow read, write: if false;
+    }
     match /academies/{academyId}/waiverVersions/{waiverVersionId} {
       allow read, write: if false;
     }

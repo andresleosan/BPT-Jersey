@@ -33,6 +33,7 @@ describe("deploy runtime import preparation", () => {
       outputPath,
       [
         'import "@bpt-jersey/domain/audit";',
+        'import "@bpt-jersey/domain/levels/lesson-planning";',
         'import "@bpt-jersey/domain/members";',
         'import "@bpt-jersey/domain/memberships";',
         'import "@bpt-jersey/domain/memberships/lifecycle";',
@@ -54,6 +55,7 @@ describe("deploy runtime import preparation", () => {
 
     const prepared = await readFile(outputPath, "utf8");
     expect(prepared).toContain("../../domain/audit/audit-event.js");
+    expect(prepared).toContain("../../domain/levels/lesson-planning-contracts.js");
     expect(prepared).toContain("../../domain/members/member-contracts.js");
     expect(prepared).toContain("../../domain/memberships/plan-contracts.js");
     expect(prepared).toContain("../../domain/memberships/membership-contracts.js");

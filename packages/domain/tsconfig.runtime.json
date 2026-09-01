@@ -28,6 +28,8 @@
     "src/finance/financial-dashboard.ts",
     "src/staff/staff-contracts.ts",
     "src/levels/level-contracts.ts",
+    "src/levels/achievement-contracts.ts",
+    "src/levels/lesson-planning-contracts.ts",
     "src/schedule/schedule-contracts.ts",
     "src/schedule/advanced-booking-contracts.ts",
     "src/announcements/announcement-contracts.ts",

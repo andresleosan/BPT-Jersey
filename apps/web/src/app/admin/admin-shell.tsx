@@ -28,6 +28,7 @@ const navigationItems = [
   { label: "Regyfit Access Records", href: "/admin/regyfit-access-records" },
   { label: "Staff", href: "/admin/staff" },
   { label: "Levels", href: "/admin/levels" },
+  { label: "Lesson plans", href: "/admin/lesson-plans" },
 ] as const;
 
 export function AdminShell({
@@ -49,9 +50,15 @@ export function AdminShell({
           ? "Head coach read-only access"
           : "Coach read-only access";
   const visibleNavigationItems =
-    session.role === "headCoach" || session.role === "coach"
-      ? navigationItems.filter((item) => item.href === "/admin/waitlists")
-      : navigationItems;
+    session.role === "headCoach"
+      ? navigationItems.filter(
+          (item) => item.href === "/admin/waitlists" || item.href === "/admin/lesson-plans",
+        )
+      : session.role === "coach"
+        ? navigationItems.filter(
+            (item) => item.href === "/admin/waitlists" || item.href === "/admin/lesson-plans",
+          )
+        : navigationItems;
   const [navigationOpen, setNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);

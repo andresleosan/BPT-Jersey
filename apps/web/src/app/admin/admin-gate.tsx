@@ -21,6 +21,9 @@ type AdminTestRole = AdminRole | "coach" | "guardian" | "adultStudent";
 type GateStatus = "loading" | "signed-out" | "denied" | "authorized";
 
 const AdminGateSessionContext = createContext<AdminSession | undefined>(undefined);
+const AdminGateAnySessionContext = createContext<AdminSession | StaffSession | undefined>(
+  undefined,
+);
 const WaitlistIssuePermissionContext = createContext<boolean | undefined>(undefined);
 
 export function AdminGateSessionProvider({
@@ -47,9 +50,11 @@ function AuthorizedAdminContent({
   return (
     <WaitlistIssuePermissionContext.Provider value={true}>
       <AdminGateSessionProvider session={session}>
-        <AdminShell {...(onSignOut ? { onSignOut } : {})} session={session}>
-          {children}
-        </AdminShell>
+        <AdminGateAnySessionContext.Provider value={session}>
+          <AdminShell {...(onSignOut ? { onSignOut } : {})} session={session}>
+            {children}
+          </AdminShell>
+        </AdminGateAnySessionContext.Provider>
       </AdminGateSessionProvider>
     </WaitlistIssuePermissionContext.Provider>
   );
@@ -66,13 +71,18 @@ function AuthorizedStaffWaitlistContent({
 }) {
   return (
     <WaitlistIssuePermissionContext.Provider value={false}>
-      <AdminShell onSignOut={onSignOut} session={session}>
-        {children}
-      </AdminShell>
+      <AdminGateAnySessionContext.Provider value={session}>
+        <AdminShell onSignOut={onSignOut} session={session}>
+          {children}
+        </AdminShell>
+      </AdminGateAnySessionContext.Provider>
     </WaitlistIssuePermissionContext.Provider>
   );
 }
 
+function isLessonPlanningRoute(pathname: string): boolean {
+  return pathname === "/admin/lesson-plans" || pathname.startsWith("/admin/lesson-plans/");
+}
 function isWaitlistRoute(pathname: string): boolean {
   return pathname === "/admin/waitlists" || pathname.startsWith("/admin/waitlists/");
 }
@@ -128,7 +138,11 @@ function FirebaseAdminGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (isWaitlistRoute(pathname) && staff.status === "signed-in" && staff.session) {
+  if (
+    (isWaitlistRoute(pathname) || isLessonPlanningRoute(pathname)) &&
+    staff.status === "signed-in" &&
+    staff.session
+  ) {
     return (
       <AuthorizedStaffWaitlistContent onSignOut={staff.signOut} session={staff.session}>
         {children}
@@ -210,6 +224,15 @@ export function useAdminGateSession(): AdminSession {
   return session;
 }
 
+export function useAdminOrStaffSession(): AdminSession | StaffSession {
+  const session = useContext(AdminGateAnySessionContext);
+
+  if (!session) {
+    throw new Error("useAdminOrStaffSession must be used inside an authorized AdminGate.");
+  }
+
+  return session;
+}
 export function useWaitlistIssuePermission(): boolean {
   const canIssue = useContext(WaitlistIssuePermissionContext);
   if (canIssue === undefined) {

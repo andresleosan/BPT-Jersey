@@ -663,6 +663,65 @@ widens the projection.
 - `academies/{academyId}/levelDefinitions/{definitionKey}`: 171 immutable definitions (27 belts, 144 stripes) with merged DOCX criteria, observed criteria, visuals, and anomaly flags.
 - `academies/{academyId}/levelRequirements/{requirementKey}`: 165 technique requirements linked to definition keys and skills.
 
+## Technical library and lesson plans (T066)
+
+T066 adds only additive, tenant-scoped collections under
+academies/{academyId}. Libraries are versioned internal reference data; lesson
+plans are operational records that must reference one exact library version.
+No collection is public or client-writable in this slice.
+
+| Collection         | Required fields                                                                                                       | Classification | Write authority                                | Read authority           | History/rollback                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------- | ------------------------ | --------------------------------------------------------------------- |
+| techniqueLibraries | academyId, libraryId, version, status, publishedAt, techniques, schemaVersion                                         | Internal       | Internal lesson-planning service               | No direct Firestore read | Immutable version key libraryId__version; divergent replay fails      |
+| lessonPlans        | academyId, planId, title, libraryId, libraryVersion, status, activities, approvedByStaffId, approvedAt, schemaVersion | Internal       | Internal service; approval requires head_coach | No direct Firestore read | Idempotent by academy + plan ID; approved transition is transactional |
+
+The store validates every library and plan against the domain contract before
+writing. A plan cannot reference an unknown or inactive technique, and approval
+cannot be repeated or performed with a non-head-coach role. The Firestore paths
+are academies/{academyId}/techniqueLibraries/{libraryId}__{version} and
+academies/{academyId}/lessonPlans/{planId}; the academy is taken from the
+trusted backend call, never from a client override.
+
+Rollback for this additive slice is to stop the internal service and remove
+only T066 documents from an Emulator or approved test tenant. No production
+migration or destructive delete is authorized by T066; any production
+rollback requires a verified backup and explicit operator confirmation.
+The local authenticated E2E, persisted approval audit event, and staff UI are
+covered by T066. Definitive technique content, operational copy, and product
+approval remain outside this slice.
+
+## Family achievement catalog and snapshots (T067)
+
+T067 adds only additive, tenant-scoped collections under
+`academies/{academyId}`. The catalog is an internal source of definitions; the
+snapshot is a derived, read-only projection. No collection is public or
+client-writable.
+
+| Collection                   | Required fields                                                                                                                         | Classification                                             | Write authority                                | Read authority                                                          | History/rollback                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `familyGoals`                | `academyId`, `goalId`, `label`, `metric`, `target`, `schemaVersion`                                                                     | Internal                                                   | Internal catalog seed only; no public callable | No direct Firestore read                                                | Idempotent by academy + goal ID; divergent replay fails                                 |
+| `familyAchievements`         | `academyId`, `achievementId`, `label`, `metric`, `target`, `schemaVersion`                                                              | Internal                                                   | Internal catalog seed only; no public callable | No direct Firestore read                                                | Idempotent by academy + achievement ID; divergent replay fails                          |
+| `familyAchievementSnapshots` | `academyId`, `familyId`, `generatedAt`, `members`, `adultComparison`, `schemaVersion`                                                   | Restricted when minors are present; otherwise Confidential | Internal generator only                        | `getFamilyAchievementSummary` for `owner`, `administrator`, `headCoach` | Append-only generated snapshots; latest valid snapshot is read; replay is deterministic |
+| `auditEvents`                | Common audit envelope plus `familyId`, `snapshotId`, `memberCount`, `candidateCount`, `generatedAt` for `family.achievements.generated` | Confidential                                               | Backend transaction only                       | No direct Firestore read                                                | Append-only; never rewritten or deleted by this slice                                   |
+
+`members` contains only active family participants and allowlisted goal progress
+and achievement candidates. `adultComparison` contains only active adults with
+explicit opt-in; minors never appear there. The snapshot does not grant an
+award, belt, stripe, promotion, prize, or public ranking.
+
+The callable validates the academy from authenticated custom claims and the
+family identifier from the payload. It never accepts an academy override,
+arbitrary query filters, or a write payload. Firestore Rules explicitly deny
+direct reads and writes to all T067 collections, including `auditEvents`.
+Current reads are bounded and do not require a compound index. A future query
+or scheduler must add an index and an approved cost/performance review before
+changing this contract.
+
+Rollback for this additive slice is to disable the callable/internal generator
+and remove only T067 documents from an Emulator or approved test tenant. No
+production migration or destructive delete is authorized by T067; a production
+rollback requires a verified backup and explicit operator confirmation.
+
 The non-production seed (`apps/functions/scripts/seed-levels.mjs`) is the only writer. Direct client reads and writes are denied by default. The callable `listLevelCatalog` provides authenticated read access. Rollback deletes all documents belonging to a selected `systemId` in non-production environments.
 
 ## Backup and restoration boundary (T054)
@@ -673,18 +732,18 @@ The backup scope excludes Firebase Auth, RTDB `presence`, service credentials, t
 
 ## Versioning, migration, and rollback boundary
 
-This task publishes a contract only. It does not create collections, add
-indexes, apply Rules, migrate data, or deploy resources. The repository has no
-approved production migration in this document.
+T066 and T067 are additive and have been implemented only through tenant-scoped
+non-production stores, Rules, tests, protected callables, UI and local E2E. They do not
+migrate existing data, add production indexes, or deploy resources.
 
-Before a future migration uses this contract, its owner must document the
-exact version and scope, an idempotent `up`, a tested `down` or compensating
+Before a future production rollout uses this contract, its owner must document
+the exact version and scope, an idempotent `up`, a tested `down` or compensating
 procedure, dry-run results against synthetic emulator fixtures, and the
 invariants and query checks at each checkpoint. A migration affecting existing
 data requires a verified backup and restore test before production; destructive
-operations require explicit operator confirmation. If a migration fails, the
-operator stops the rollout, preserves evidence, and uses the documented
-rollback rather than deleting documents manually from a console.
+operations require explicit operator confirmation. If a rollout fails, the
+operator stops it, preserves evidence, and uses the documented rollback rather
+than deleting documents manually from a console.
 
 ## Implementation ownership and review boundaries
 

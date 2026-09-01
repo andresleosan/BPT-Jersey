@@ -10,6 +10,8 @@ export const auditActions = Object.freeze([
   "regyfit.access.imported",
   "retention.alerts.generated",
   "report.export.prepared",
+  "family.achievements.generated",
+  "lesson.plan.approved",
   "membership.created",
   "membership.status.changed",
   "invoice.created",
@@ -113,6 +115,21 @@ export type AuditEventDraft = CommonAuditEventDraft &
         contentSha256: string;
         byteLength: number;
       }>
+    | Readonly<{
+        action: "family.achievements.generated";
+        familyId: string;
+        snapshotId: string;
+        memberCount: number;
+        candidateCount: number;
+        generatedAt: string;
+      }>
+    | Readonly<{
+        action: "lesson.plan.approved";
+        planId: string;
+        libraryId: string;
+        libraryVersion: number;
+        approvedAt: string;
+      }>
   );
 
 const commonFields = Object.freeze([
@@ -183,10 +200,27 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
     "contentSha256",
     "byteLength",
   ]),
+  "family.achievements.generated": Object.freeze([
+    ...commonFields,
+    "familyId",
+    "snapshotId",
+    "memberCount",
+    "candidateCount",
+    "generatedAt",
+  ]),
+
+  "lesson.plan.approved": Object.freeze([
+    ...commonFields,
+    "planId",
+    "libraryId",
+    "libraryVersion",
+    "approvedAt",
+  ]),
 });
 const sha256Pattern = /^[a-f0-9]{64}$/u;
 const moduleKeyPattern = /^[A-Za-z0-9._-]+$/u;
 const importRunIdPattern = /^[A-Za-z0-9._-]+$/u;
+const safeAuditIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const sourceRoutePattern = /^\/[A-Za-z0-9._/-]+$/u;
 const controlCharacterPattern = /[\u0000-\u001f\u007f]/u;
 const dateTimePattern =
@@ -414,6 +448,68 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       }
     }
 
+    if (parsedAction === "family.achievements.generated") {
+      const expectedTarget =
+        "academies/" +
+        (snapshot.academyId as string) +
+        "/familyAchievementSnapshots/" +
+        (snapshot.familyId as string);
+      const expectedCorrelation =
+        "family-achievements:" +
+        (snapshot.academyId as string) +
+        ":" +
+        (snapshot.familyId as string) +
+        ":" +
+        (snapshot.generatedAt as string);
+      if (
+        !isBoundedString(snapshot.familyId, 128) ||
+        !safeAuditIdentifierPattern.test(snapshot.familyId as string) ||
+        !isBoundedString(snapshot.snapshotId, 512) ||
+        (snapshot.snapshotId as string).includes("/") ||
+        snapshot.targetRef !== expectedTarget ||
+        snapshot.purpose !== "family achievement snapshot generation" ||
+        snapshot.correlationId !== expectedCorrelation ||
+        !isBoundedString(snapshot.generatedAt, 64) ||
+        !dateTimePattern.test(snapshot.generatedAt as string) ||
+        Number.isNaN(Date.parse(snapshot.generatedAt as string)) ||
+        !isNonNegativeInteger(snapshot.memberCount) ||
+        (snapshot.memberCount as number) > 200 ||
+        !isNonNegativeInteger(snapshot.candidateCount) ||
+        (snapshot.candidateCount as number) > 200
+      ) {
+        issues.push(issue([], "AUDIT_FAMILY_ACHIEVEMENT_SCOPE_INVALID"));
+      }
+    }
+    if (parsedAction === "lesson.plan.approved") {
+      const expectedTarget =
+        "academies/" +
+        (snapshot.academyId as string) +
+        "/lessonPlans/" +
+        (snapshot.planId as string);
+      const expectedCorrelation =
+        "lesson-plan:" +
+        (snapshot.academyId as string) +
+        ":" +
+        (snapshot.planId as string) +
+        ":" +
+        (snapshot.approvedAt as string);
+      if (
+        !isBoundedString(snapshot.planId, 128) ||
+        !safeAuditIdentifierPattern.test(snapshot.planId as string) ||
+        !isBoundedString(snapshot.libraryId, 128) ||
+        !safeAuditIdentifierPattern.test(snapshot.libraryId as string) ||
+        !Number.isSafeInteger(snapshot.libraryVersion) ||
+        (snapshot.libraryVersion as number) < 1 ||
+        snapshot.targetRef !== expectedTarget ||
+        snapshot.purpose !== "lesson plan approval" ||
+        snapshot.correlationId !== expectedCorrelation ||
+        !isBoundedString(snapshot.approvedAt, 64) ||
+        !dateTimePattern.test(snapshot.approvedAt as string) ||
+        Number.isNaN(Date.parse(snapshot.approvedAt as string))
+      ) {
+        issues.push(issue([], "AUDIT_LESSON_PLAN_SCOPE_INVALID"));
+      }
+    }
     if (parsedAction === "report.export.prepared") {
       if (snapshot.scope !== "operational_and_progress_aggregates") {
         issues.push(issue(["scope"], "AUDIT_EXPORT_SCOPE_INVALID"));
@@ -541,6 +637,63 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           noShowThreshold: snapshot.noShowThreshold as number,
           membershipExpiryDays: snapshot.membershipExpiryDays as number,
           sourceHash: snapshot.sourceHash as string,
+        }),
+      );
+    }
+    if (parsedAction === "family.achievements.generated") {
+      const expectedTarget =
+        "academies/" +
+        (snapshot.academyId as string) +
+        "/familyAchievementSnapshots/" +
+        (snapshot.familyId as string);
+      const expectedCorrelation =
+        "family-achievements:" +
+        (snapshot.academyId as string) +
+        ":" +
+        (snapshot.familyId as string) +
+        ":" +
+        (snapshot.generatedAt as string);
+      if (
+        !isBoundedString(snapshot.familyId, 128) ||
+        !safeAuditIdentifierPattern.test(snapshot.familyId as string) ||
+        !isBoundedString(snapshot.snapshotId, 512) ||
+        (snapshot.snapshotId as string).includes("/") ||
+        snapshot.targetRef !== expectedTarget ||
+        snapshot.purpose !== "family achievement snapshot generation" ||
+        snapshot.correlationId !== expectedCorrelation ||
+        !isBoundedString(snapshot.generatedAt, 64) ||
+        !dateTimePattern.test(snapshot.generatedAt as string) ||
+        Number.isNaN(Date.parse(snapshot.generatedAt as string)) ||
+        !isNonNegativeInteger(snapshot.memberCount) ||
+        (snapshot.memberCount as number) > 200 ||
+        !isNonNegativeInteger(snapshot.candidateCount) ||
+        (snapshot.candidateCount as number) > 200
+      ) {
+        issues.push(issue([], "AUDIT_FAMILY_ACHIEVEMENT_SCOPE_INVALID"));
+      }
+    }
+    if (parsedAction === "family.achievements.generated") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          familyId: snapshot.familyId as string,
+          snapshotId: snapshot.snapshotId as string,
+          memberCount: snapshot.memberCount as number,
+          candidateCount: snapshot.candidateCount as number,
+          generatedAt: snapshot.generatedAt as string,
+        }),
+      );
+    }
+    if (parsedAction === "lesson.plan.approved") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          planId: snapshot.planId as string,
+          libraryId: snapshot.libraryId as string,
+          libraryVersion: snapshot.libraryVersion as number,
+          approvedAt: snapshot.approvedAt as string,
         }),
       );
     }

@@ -291,7 +291,11 @@ export type {
   StudentProgressSummary,
 } from "./levels/level-contracts";
 
-export { achievementMetrics, buildFamilyAchievementSummary } from "./levels/achievement-contracts";
+export {
+  achievementMetrics,
+  buildFamilyAchievementSummary,
+  parseFamilyAchievementSummary,
+} from "./levels/achievement-contracts";
 export type {
   AchievementMetric,
   AdultComparisonEntry,

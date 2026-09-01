@@ -60,6 +60,21 @@ Alertas y un evento append-only `retention.alerts.generated` se preflightan y cr
 - Gate global `corepack pnpm verify:mvp`: formato, lint, typecheck y build aprobados; 175 archivos/1237 unitarias, Rules 78/78, carga sintética 240/240 sin fallos (p95 31 ms) y smoke E2E 5/5 con 1 omisión esperada.
 - Seguridad: 0 firmas de secretos; audit con 0 high/critical y las 2 moderadas transitivas preexistentes registradas en DR-001.
 
+## Runner manual local
+
+El runner `apps/functions/src/retention/retention-alert-producer-runner.ts` permite una corrida manual y reversible del productor, solo contra el Firestore Emulator demo. Exige los seis parametros de entrada (`academyId`, `runDate` y los cuatro umbrales), valida sus limites y rechaza cualquier entorno distinto de `GCLOUD_PROJECT=demo-bpt-jersey` con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`.
+
+Para ejecutarlo se debe preparar el runtime aislado local y mantener `DEBUG` desactivado para que Firebase CLI no imprima el entorno heredado:
+
+```powershell
+Remove-Item Env:DEBUG -ErrorAction SilentlyContinue
+corepack pnpm --filter @bpt-jersey/domain build:runtime
+corepack pnpm exec node apps/functions/scripts/build-deploy-artifact.mjs
+$env:GCLOUD_PROJECT = "demo-bpt-jersey"
+corepack pnpm exec firebase emulators:exec --project demo-bpt-jersey --only firestore "node .firebase-functions/lib/src/retention/retention-alert-producer-runner.js --academy-id synthetic-empty --run-date 2026-09-01 --inactivity-days 14 --lookback-days 30 --no-show-threshold 2 --membership-expiry-days 14"
+```
+
+La corrida de verificacion del 2026-08-31 termino con codigo 0, fecha UTC canonica, 0 estudiantes, 0 alertas, hash determinista y una auditoria atomica en el Emulator. El runner no se exporta desde `index.ts`, no crea endpoint, trigger, scheduler, proveedor, secreto, migracion ni despliegue.
 ## Seguridad y límites conocidos
 
 - No existe mutación pública, export runtime, scheduler, red externa, CRM, email, SMS, datos reales, credenciales, gasto, migración ni despliegue.

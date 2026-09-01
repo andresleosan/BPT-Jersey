@@ -10,6 +10,18 @@ const common = {
   correlationId: "correlation-1",
 } as const;
 
+const lessonPlanApproved = {
+  ...common,
+  action: "lesson.plan.approved",
+  actorId: "head-coach-1",
+  targetRef: "academies/academy-1/lessonPlans/plan-1",
+  purpose: "lesson plan approval",
+  correlationId: "lesson-plan:academy-1:plan-1:2026-08-31T11:00:00.000Z",
+  planId: "plan-1",
+  libraryId: "library-1",
+  libraryVersion: 1,
+  approvedAt: "2026-08-31T11:00:00.000Z",
+} as const;
 const memberImport = {
   ...common,
   action: "member.import.confirmed",
@@ -111,6 +123,19 @@ const paymentRecorded = {
   method: "cash",
 } as const;
 
+const familyAchievementsGenerated = {
+  ...common,
+  actorId: "system-family-achievements",
+  action: "family.achievements.generated",
+  targetRef: "academies/academy-1/familyAchievementSnapshots/family-1",
+  purpose: "family achievement snapshot generation",
+  correlationId: "family-achievements:academy-1:family-1:2026-08-31T12:00:00.000Z",
+  familyId: "family-1",
+  snapshotId: "family-achievements-v1__academy-1__family-1__2026-08-31T12:00:00.000Z",
+  memberCount: 2,
+  candidateCount: 3,
+  generatedAt: "2026-08-31T12:00:00.000Z",
+} as const;
 describe("audit event draft contract", () => {
   it("accepts both minimal administrative role actions", () => {
     for (const action of ["admin.role.granted", "admin.role.revoked"] as const) {
@@ -139,6 +164,25 @@ describe("audit event draft contract", () => {
     expect(parseAuditEventDraft(regyfitImport)).toEqual({ ok: true, value: regyfitImport });
   });
 
+  it("accepts exact family achievement snapshot evidence and rejects unsafe variants", () => {
+    expect(parseAuditEventDraft(familyAchievementsGenerated)).toEqual({
+      ok: true,
+      value: familyAchievementsGenerated,
+    });
+    for (const candidate of [
+      { ...familyAchievementsGenerated, familyId: "family/other" },
+      {
+        ...familyAchievementsGenerated,
+        targetRef: "academies/academy-2/familyAchievementSnapshots/family-1",
+      },
+      { ...familyAchievementsGenerated, memberCount: 201 },
+      { ...familyAchievementsGenerated, candidateCount: -1 },
+      { ...familyAchievementsGenerated, generatedAt: "tomorrow" },
+      { ...familyAchievementsGenerated, email: "private@example.test" },
+    ]) {
+      expect(parseAuditEventDraft(candidate).ok).toBe(false);
+    }
+  });
   it("accepts exact retention production evidence and rejects unsafe variants", () => {
     expect(auditActions).toContain("retention.alerts.generated");
     expect(parseAuditEventDraft(retentionProduction)).toEqual({
@@ -410,6 +454,22 @@ it("accepts staff lifecycle actions without payload or PII", () => {
   }
 });
 
+it("accepts exact lesson plan approval evidence and rejects unsafe variants", () => {
+  expect(parseAuditEventDraft(lessonPlanApproved)).toEqual({
+    ok: true,
+    value: lessonPlanApproved,
+  });
+
+  for (const candidate of [
+    { ...lessonPlanApproved, planId: "plan/unsafe" },
+    { ...lessonPlanApproved, libraryVersion: 0 },
+    { ...lessonPlanApproved, approvedAt: "tomorrow" },
+    { ...lessonPlanApproved, targetRef: "academies/academy-2/lessonPlans/plan-1" },
+    { ...lessonPlanApproved, email: "person@example.test" },
+  ]) {
+    expect(parseAuditEventDraft(candidate).ok).toBe(false);
+  }
+});
 it("accepts waiver and consent lifecycle actions without payload or PII", () => {
   for (const action of [
     "waiver.version.published",

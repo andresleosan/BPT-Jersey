@@ -204,6 +204,218 @@ function parseInput(
   return issues.length === 0 ? ok(input) : err(Object.freeze(issues));
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function hasExactFields(value: Record<string, unknown>, expected: readonly string[]): boolean {
+  const keys = Reflect.ownKeys(value);
+  return (
+    keys.length === expected.length &&
+    keys.every((key) => {
+      if (typeof key !== "string" || !expected.includes(key)) return false;
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      return (
+        descriptor?.enumerable === true &&
+        descriptor.get === undefined &&
+        descriptor.set === undefined &&
+        Object.hasOwn(descriptor, "value")
+      );
+    })
+  );
+}
+
+function parseGoalProgress(value: unknown): FamilyGoalProgress | null {
+  if (
+    !isPlainRecord(value) ||
+    !hasExactFields(value, ["goalId", "label", "metric", "target", "progress", "status"]) ||
+    !isIdentifier(value.goalId) ||
+    !isLabel(value.label) ||
+    !isMetric(value.metric) ||
+    typeof value.target !== "number" ||
+    !Number.isSafeInteger(value.target) ||
+    value.target < 1 ||
+    value.target > 100000 ||
+    !isSafeMetricValue(value.progress) ||
+    (value.status !== "in_progress" && value.status !== "complete") ||
+    (value.status === "complete") !== value.progress >= value.target
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    goalId: value.goalId,
+    label: value.label,
+    metric: value.metric,
+    target: value.target as number,
+    progress: value.progress,
+    status: value.status,
+  });
+}
+
+function parseAchievementCandidate(value: unknown): FamilyAchievementCandidate | null {
+  if (
+    !isPlainRecord(value) ||
+    !hasExactFields(value, [
+      "achievementId",
+      "label",
+      "metric",
+      "target",
+      "achievedValue",
+      "status",
+    ]) ||
+    !isIdentifier(value.achievementId) ||
+    !isLabel(value.label) ||
+    !isMetric(value.metric) ||
+    typeof value.target !== "number" ||
+    !Number.isSafeInteger(value.target) ||
+    value.target < 1 ||
+    value.target > 100000 ||
+    !isSafeMetricValue(value.achievedValue) ||
+    value.achievedValue < value.target ||
+    value.status !== "candidate"
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    achievementId: value.achievementId,
+    label: value.label,
+    metric: value.metric,
+    target: value.target as number,
+    achievedValue: value.achievedValue,
+    status: "candidate" as const,
+  });
+}
+
+export function parseFamilyAchievementSummary(
+  value: unknown,
+): Result<FamilyAchievementSummary, readonly ValidationIssue[]> {
+  const issues: ValidationIssue[] = [];
+  if (!isPlainRecord(value)) return err([issue([], "invalid_summary")]);
+  if (
+    !hasExactFields(value, ["familyId", "generatedAt", "members", "adultComparison"]) ||
+    !isIdentifier(value.familyId) ||
+    !isDateTime(value.generatedAt) ||
+    !Array.isArray(value.members) ||
+    value.members.length > 200 ||
+    !Array.isArray(value.adultComparison) ||
+    value.adultComparison.length > 200
+  ) {
+    return err([issue([], "invalid_summary")]);
+  }
+
+  const studentTypes = new Map<string, "adult" | "minor">();
+  const members: FamilyMemberAchievementSummary[] = [];
+  value.members.forEach((memberValue, memberIndex) => {
+    if (
+      !isPlainRecord(memberValue) ||
+      !hasExactFields(memberValue, [
+        "studentId",
+        "displayName",
+        "participantType",
+        "goals",
+        "achievementCandidates",
+      ]) ||
+      !isIdentifier(memberValue.studentId) ||
+      !isLabel(memberValue.displayName) ||
+      (memberValue.participantType !== "adult" && memberValue.participantType !== "minor") ||
+      !Array.isArray(memberValue.goals) ||
+      memberValue.goals.length > 200 ||
+      !Array.isArray(memberValue.achievementCandidates) ||
+      memberValue.achievementCandidates.length > 200 ||
+      studentTypes.has(memberValue.studentId)
+    ) {
+      issues.push(issue(["members", memberIndex], "invalid_member"));
+      return;
+    }
+
+    const goals: FamilyGoalProgress[] = [];
+    const goalIds = new Set<string>();
+    memberValue.goals.forEach((goal, goalIndex) => {
+      const parsed = parseGoalProgress(goal);
+      if (parsed === null || goalIds.has(parsed.goalId)) {
+        issues.push(issue(["members", memberIndex, "goals", goalIndex], "invalid_goal"));
+        return;
+      }
+      goalIds.add(parsed.goalId);
+      goals.push(parsed);
+    });
+
+    const candidates: FamilyAchievementCandidate[] = [];
+    const achievementIds = new Set<string>();
+    memberValue.achievementCandidates.forEach((candidate, candidateIndex) => {
+      const parsed = parseAchievementCandidate(candidate);
+      if (parsed === null || achievementIds.has(parsed.achievementId)) {
+        issues.push(
+          issue(
+            ["members", memberIndex, "achievementCandidates", candidateIndex],
+            "invalid_candidate",
+          ),
+        );
+        return;
+      }
+      achievementIds.add(parsed.achievementId);
+      candidates.push(parsed);
+    });
+
+    studentTypes.set(memberValue.studentId, memberValue.participantType);
+    members.push(
+      Object.freeze({
+        studentId: memberValue.studentId,
+        displayName: memberValue.displayName,
+        participantType: memberValue.participantType,
+        goals: Object.freeze(goals),
+        achievementCandidates: Object.freeze(candidates),
+      }),
+    );
+  });
+
+  const adultComparison: AdultComparisonEntry[] = [];
+  const comparisonIds = new Set<string>();
+  value.adultComparison.forEach((entry, entryIndex) => {
+    if (
+      !isPlainRecord(entry) ||
+      !hasExactFields(entry, [
+        "studentId",
+        "classesAttended",
+        "currentStreakWeeks",
+        "longestStreakWeeks",
+      ]) ||
+      !isIdentifier(entry.studentId) ||
+      !isSafeMetricValue(entry.classesAttended) ||
+      !isSafeMetricValue(entry.currentStreakWeeks) ||
+      !isSafeMetricValue(entry.longestStreakWeeks) ||
+      comparisonIds.has(entry.studentId) ||
+      studentTypes.get(entry.studentId) !== "adult"
+    ) {
+      issues.push(issue(["adultComparison", entryIndex], "invalid_comparison"));
+      return;
+    }
+    comparisonIds.add(entry.studentId);
+    adultComparison.push(
+      Object.freeze({
+        studentId: entry.studentId,
+        classesAttended: entry.classesAttended,
+        currentStreakWeeks: entry.currentStreakWeeks,
+        longestStreakWeeks: entry.longestStreakWeeks,
+      }),
+    );
+  });
+
+  if (issues.length > 0) return err(Object.freeze(issues));
+  return ok(
+    Object.freeze({
+      familyId: value.familyId,
+      generatedAt: value.generatedAt,
+      members: Object.freeze(members),
+      adultComparison: Object.freeze(adultComparison),
+    }),
+  );
+}
 export function buildFamilyAchievementSummary(
   input: BuildFamilyAchievementSummaryInput,
 ): Result<FamilyAchievementSummary, readonly ValidationIssue[]> {

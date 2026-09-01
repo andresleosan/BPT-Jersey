@@ -65,11 +65,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - El corte persistido aprobado agrega `waitlistEntries` tenant-scoped, posición transaccional, join/list/cancel idempotentes, validación de sesión llena y membresía vigente, student-scope/RBAC y cuatro callables con proyecciones minimizadas.
 - Firestore directo permanece denegado. Unitarias focales 25/25, store Emulator 2/2, Rules focales 7/7 y E2E real Auth + Functions + Firestore Emulator 5/5 sin retries pasan.
 - T060 vuelve a revisión con autoservicio mínimo autenticado para adulto/tutor, adaptadores fail-closed y E2E real 5/5 sin retries. Promoción/ofertas, aceptación, expiración, reordenamiento, créditos operativos, recurrencia, UI de staff/final operativa, pagos, mensajes, migración y producción siguen fuera del corte y requieren checkpoint propio.
-- El operador aprobó el nuevo corte y T060 queda `en-progreso`: oferta manual FIFO por owner/admin,
-  una oferta activa con reserva temporal de cupo, TTL de 30 minutos limitado por el cutoff de una hora,
-  aceptación/declinación con student-scope, booking transaccional y auditoría. La expiración es bajo
-  demanda y no renumera posiciones. Promoción automática, scheduler, mensajes, créditos, recurrencia,
-  pagos, migración y producción continúan fuera de alcance.
+- El operador aprobó el nuevo corte y, tras las verificaciones, T060 queda en `revision`; no queda WIP activo. Oferta manual FIFO, reserva temporal y aceptación/declinación siguen limitadas al alcance aprobado; promoción automática, scheduler, mensajes, créditos, recurrencia, pagos, migración y producción continúan fuera de alcance.
 - El corte queda en `revision` tras pasar 1216/1216 unitarias, 78/78 Rules, 20/20 integraciones
   Firestore, E2E real 6/6 y `verify:mvp`; la autocrítica independiente no deja hallazgos
   critical/high abiertos. No queda WIP activo.
@@ -86,7 +82,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 
 ## Estado del slice T062 (actualizado 2026-08-31)
 
-- La bandeja read-only existente se conserva y se agrega un productor estrictamente interno, sin export runtime, endpoint, trigger ni scheduler.
+- La bandeja read-only existente se conserva y se agrega un productor estrictamente interno, sin export runtime, endpoint, trigger ni scheduler. El runner manual local exige el artefacto runtime aislado y solo permite Firestore Emulator demo.
 - El productor usa día UTC canónico, IDs v2 length-prefixed, baseline por inicio de membresía, fuentes mínimas tenant-scoped y límites `201/5001/200`; correcciones, `excused` y eventos futuros no cuentan.
 - Alertas y un evento append-only `retention.alerts.generated` se crean atómicamente. Replay exacto converge y replay divergente falla cerrado sin escrituras parciales.
 - Evidencia nueva: regresión focal T062 49/49 más contrato público 12/12, Firestore Emulator 5/5 (incluido máximo 200 alertas + auditoría), Rules específica 7/7 y typecheck Domain/Functions/QA aprobado.
@@ -109,7 +105,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - Cada plan referencia libraryId/libraryVersion exactos y solo puede usar tecnicas activas de esa version; las definiciones invalidas, duplicadas o fuera de version fallan cerrado.
 - La transicion a approved exige plan submitted, staffRole head_coach, staffId y timestamp validos. No se automatizan belts, stripes ni promociones.
 - Evidencia: 5/5 pruebas focalizadas y 42/42 de regresion de Levels/progreso/recordatorios, typecheck de @bpt-jersey/domain, ESLint, Prettier y git diff --check pasan.
-- No se agregaron Firestore writes, callables, UI, fuentes externas, auditoria persistida, credenciales, pagos ni datos reales. T066 pasa a revision; quedan pendientes persistencia tenant-scoped, Rules/Emulator, E2E, auditoria y checkpoint de producto.
+- T066 tiene persistencia interna tenant-scoped, Rules deny-by-default, callables RBAC, auditoria atomica, UI staff y runner E2E autenticado opt-in en Emulator; la E2E 1/1 pasa. Siguen pendientes contenido definitivo y checkpoint de producto.
 
 ## Estado del slice T065 (2026-08-27)
 
