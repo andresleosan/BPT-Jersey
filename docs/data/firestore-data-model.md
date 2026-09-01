@@ -401,9 +401,46 @@ backend decisions.
 
 ### T062 retention alert projection
 
-`retentionAlerts` is additive and is not a source of truth for attendance, membership, identity, or contact data. The trusted store rejects cross-tenant input, unknown fields, invalid calendar dates, duplicate identities, batches above 200, and altered replay of a deterministic alert. Reads are bounded to the newest 200 records. The public callable is read-only and exposes no tenant, internal record IDs, contact data, financial IDs, or deduplication keys.
+`retentionAlerts` is additive and is not a source of truth for attendance,
+membership, identity, or contact data. The producer is internal, DI-only
+composition through `createRetentionAlertProducer`; it is not exported from the
+Functions runtime entry point and does not add a public producer callable,
+scheduler, or trigger. Its Firestore source reads at most 200 current
+`trial`/`active` memberships, their directly referenced `students`, and at most
+5,000 recent `attendance` records. It accepts only active students in the same
+academy. Attendance projections must carry schema version `1`, and canonical
+records must use `{sessionId}__{studentId}`; opaque corrections must point back
+to that exact canonical identity. The membership start is the inactivity
+baseline when newer than the last attended event. Attendance before that start,
+corrections, excused events, future events, and records outside the eligible
+student set are ignored.
 
-No producer, external delivery, migration, production write, or cleanup is introduced by T062. Rollback removes the callable/UI and leaves any derived documents inert; production retention or deletion requires T011 and explicit operator approval.
+The producer canonicalizes `runDate` to a UTC calendar day, evaluates the
+closed T062 policy, and produces at most 200 alerts. The trusted store rejects
+cross-tenant input, unknown fields, invalid dates or identities, duplicate
+alerts, over-limit batches, and divergent existing documents. One Firestore
+transaction creates every missing
+`academies/{academyId}/retentionAlerts/{alertId}` document together with the
+create-only `academies/{academyId}/auditEvents/{auditEventId}` event whose
+action is `retention.alerts.generated`. The audit metadata records the UTC run
+date, fixed policy version and bounds, evaluated-student/generated-alert counts, and a SHA-256
+hash of the minimized canonical source. An exact retry is a no-op replay;
+missing or altered alerts behind an existing audit event, or any divergent
+pre-existing alert, fail closed without partial writes.
+
+`listRetentionAlerts` is the only wired T062 runtime surface in the current source. It remains
+owner/administrator-only, read-only, and bounded to the newest 200 records. Its
+`studentReference` field is currently exactly the opaque internal `studentId`;
+it is not a pseudonymized identifier. Pseudonymizing that value and reconciling
+the callable contract and tests is an explicit gate before T062 may be enabled
+in production against real student data. The projection omits contact data,
+financial and membership IDs, tenant fields, alert IDs, and deduplication keys.
+
+T062 introduces no external delivery, migration, production enablement, or
+cleanup. Rollback preserves the pre-existing callable/UI and removes only the
+DI-only producer, the `commitProductionRun` transaction operation, and the
+`retention.alerts.generated` audit variant; any derived documents remain inert.
+Production retention or deletion requires T011 and explicit operator approval.
 
 ### T053 aggregate export profile
 
@@ -438,15 +475,18 @@ these collections is exposed through a general student/family listing.
 
 `auditEvents` uses the exact discriminated action allowlist in
 `packages/domain/src/audit/audit-event.ts`, including the metadata-only
-`report.export.prepared` variant. `auditEventId`,
-`occurredAt`, `result: "completed"`, and `schemaVersion: 1` are server-owned.
-The backend validates the discriminated metadata variant and appends with
+`report.export.prepared` and `retention.alerts.generated` variants.
+`auditEventId`, `occurredAt`, `result: "completed"`, and `schemaVersion: 1` are
+backend-owned. The retention variant accepts only its fixed system actor,
+tenant target, purpose, run date, policy metadata, bounded counts, and source
+hash; it does not copy student, membership, or attendance records. The backend
+validates the discriminated metadata variant and appends with
 `transaction.create`; there is no audit reader or UI in the pilot. Audit drafts
 never contain emails, names, claims, tokens, IP addresses, raw records, or full
-before/after snapshots. Regyfit keeps its deterministic ID for replay, while
-administrative/member events use automatic IDs. No migration, hash chain, or
-retention policy is implied by this contract; those remain outside `T019` and
-depend on `T011`.
+before/after snapshots. Regyfit and the T062 production run keep deterministic
+IDs for replay, while the remaining administrative/member events use automatic
+IDs. No migration, hash chain, or retention policy is implied by this
+contract; those remain outside `T019` and depend on `T011`.
 
 ## Relationships, sources of truth, and module ownership
 
@@ -464,10 +504,31 @@ to authorization; it does not grant a role or bypass `T016`.
 | `checkout -> session/student/adult`      | `checkouts` owns the canonical release state and adult/staff evidence.                                                                                                                                                                                                     | Check-out/attendance module writes through a transaction after actor and authorization verification.                                       | Reception, authorized staff, family self-service, safeguarding, and reporting read scoped data.                                                                 | Maintain one active checkout per student/session; status corrections are auditable and do not erase delivery evidence.                                                                                                                                        |
 | `payment -> invoice/membership`          | `invoices` owns invoice totals/due state, `payments` owns payment records, and `memberships` owns membership state.                                                                                                                                                        | Billing/payment module writes financial records; payment integration adds verified provider events.                                        | Billing, membership, owner/finance reporting, and authorized family views read minimum fields.                                                                  | Provider events are reconciled idempotently; no payment event silently rewrites financial history or membership state.                                                                                                                                        |
 
+### T062 derived relationship
+
+`students`, current `memberships`, and canonical `attendance` remain the
+authoritative records for retention evaluation. The internal producer joins
+them only after matching `academyId` and exact student references. Only
+attendance without a correction parent and occurring on or after the current
+membership start contributes to the derived state; corrections, excused events,
+and future events do not. `retentionAlerts` is a
+reconstructable inbox projection, while its matching `auditEvents` record is
+append-only evidence of the bounded run. Neither the projection nor
+`studentReference` becomes a new identity, membership, or attendance source of
+truth.
+
 ## Consistency and integrity rules
 
 - The path and field `academyId` of every document must match.
 - Every cross-document reference must belong to the same academy.
+- T062 validates the tenant and exact student identity across the membership,
+  student, schema-v1 canonical attendance identity, derived alert, and audit
+  target before writing.
+- A T062 run derives alerts only from current `trial`/`active` memberships,
+  active students, and canonical eligible attendance within its bounded policy.
+- T062 creates missing alerts and the deterministic audit event atomically.
+  Exact replay is a no-op; incomplete, altered, or cross-tenant replay fails
+  closed without partial writes.
 - A booking is eligible only after backend verification of the student, family relationship, active membership, program, and session.
 - A booking uses the canonical injective v2 identity with explicit legacy compatibility reads; canonical attendance remains unique by `{sessionId}__{studentId}`. Retries are idempotent and divergent dual booking records fail closed.
 - An attendance correction preserves the original record and writes an audit event.
@@ -495,6 +556,20 @@ not reuse that deterministic ID, replace the original, or become a second
 canonical attendance record. It preserves the original history and writes an
 `auditEvents` record.
 
+T062 publishes two additional deterministic identities under the owning
+academy path:
+
+- Retention alert:
+  `retention-v2__{academyId.length}_{academyId}__{kind.length}_{kind}__{studentId.length}_{studentId}__{runDate}`.
+- Production audit event:
+  `retention-production-v1__{academyId.length}_{academyId}__{runDate}`.
+
+The corresponding alert deduplication key is
+`v2:{kind.length}:{kind}:{studentId.length}:{studentId}:{runDate}`. Segment
+lengths use the validated normalized values, and `runDate` is the canonical UTC
+calendar date. The IDs and key make an exact same-day run replayable; they do
+not authorize input or permit a divergent overwrite.
+
 Lengths in v2 identifiers are calculated after trimming each segment. New writes use
 the canonical v2 candidate. A compatibility read probes canonical first and legacy
 second and fails closed if both records exist with divergent payloads.
@@ -511,6 +586,12 @@ The following seventeen query contracts are the only compound-index ownership
 claims in this model. Firestore single-field indexes remain available by
 default. A new compound index requires a real owning module and a test or
 query contract before it is added to `firestore.indexes.json`.
+
+T062 adds no compound-index ownership claim. Its bounded source reads use the
+single-field membership `status` index, direct student document reads, and an
+attendance range ordered by that same `occurredAt` field. Its inbox read orders
+only by `createdAt`. Consequently, T062 adds no entry to
+`firestore.indexes.json`.
 
 | Collection      | Filters/order                                           | Owning module          | Index entry                                |
 | --------------- | ------------------------------------------------------- | ---------------------- | ------------------------------------------ |
@@ -549,6 +630,10 @@ widens the projection.
 - `students`, `checkouts`, `healthProfiles`, `safeguardingCases`, `consents`,
   `documents`, `auditEvents`, `exports`, and verified payment evidence are not
   general student/family directory data.
+- `retentionAlerts` is likewise restricted derived data. Its T062
+  `studentReference` currently contains the opaque internal `studentId`; it is
+  not a public or pseudonymized identifier and must be pseudonymized before the
+  feature is enabled in production against real student data.
 - Health data is limited to `minimumOperationalSupport`, review state, expiry,
   and the minimum additional fields later approved by `T011`; no full medical
   or diagnostic narrative is stored in the application contract.

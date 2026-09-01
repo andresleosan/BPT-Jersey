@@ -110,15 +110,17 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 | T054 | Configurar backups, restauraciÃ³n y runbook de rollback                    | T013,T024                                                             | aprobada  | Aprobada explÃ­citamente por el operador el 2026-08-25 solo para el piloto sintÃ©tico: contrato fail-closed, checksum/conteos, rehearsal Emulator applyâ†’rollback, runbook, unitarias 6/6, integraciÃ³n 1/1 y E2E 2/2; no autoriza backup/restore productivo                                               |
 | T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T008,T009,T011,T018,T019,T021-T033,T037-T042,T045,T047-T054,T083,T086 | aprobada  | QA aprobado unicamente para el piloto sintetico: verify:mvp, unitarias 159/1082, Rules 64/64, carga sintetica 240 solicitudes/concurrencia 24 sin fallos (p95 82 ms) y E2E smoke 5 pasan/1 omitida. T011, carga live/staging y produccion siguen bloqueados; no autoriza datos reales ni despliegue.        |
 | T056 | Ejecutar piloto con datos controlados y corregir hallazgos                 | T055                                                                  | aprobada  | Piloto E2E sintetico ejecutado: 71 pasaron, 14 omitidos por live/staging u opt-in y 0 fallos; verify:mvp y carga sintetica pasan; acta aprobada explicitamente por el operador el 2026-08-27 unicamente para el piloto sintetico; no autoriza staging real, produccion, datos reales, pagos ni migraciones. |
-| T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056                                                                  | revision  | Checkpoint T060/T063 verificado: commit/push a branch para CI/PR recomendado; produccion no. T011, staging, costos/alertas y T058 siguen abiertos. Sin contacto, cloud, credenciales, datos reales ni gasto.                                                                                                |
-| T058 | Desplegar a producciÃ³n con confirmaciÃ³n explÃ­cita del operador          | T057                                                                  | pendiente | Deployment verificado y rollback disponible; fuera del piloto                                                                                                                                                                                                                                               |
+| T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056                                                                  | revision  | PR #2 permanece como draft; la CI del PR y el preview de Pages finalizaron exitosamente sin produccion. El merge a `main` sigue bloqueado porque el autodeploy de Pages no coordina Functions/Rules; T011, staging, costos/alertas, CD protegido y T058 siguen abiertos.                                    |
+| T058 | Desplegar a producciÃ³n con confirmaciÃ³n explÃ­cita del operador          | T057                                                                  | pendiente | Produccion no esta desplegada: la release parcial de Pages fue revertida; T058 depende del cierre de T057 y de autorizacion explicita del operador.                                                                                                                                                         |
 | T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md`        | T058                                                                  | pendiente | LecciÃ³n registrada despuÃ©s de producciÃ³n; fuera del piloto                                                                                                                                                                                                                                               |
 
 ## v2 - post-lanzamiento
 
 - T060 - Booking avanzado, waitlists, crÃ©ditos y reservas recurrentes; el corte bÃ¡sico de una hora
   ya pertenece a `T027`.
-- T061 - Retries, grace periods, proration, promos y workflows de freeze/cancel.
+- T061 - Retries, grace periods, proration, promos y workflows de freeze/cancel. Depende de
+  T010/T034/T035; antes de habilitar un proveedor debe rechazar replays con la misma clave de
+  idempotencia y payload divergente.
 - T062 - Retention alerts y CRM automation.
 - T063 - Parent/adult self-service ampliado.
 - T064 - Notificaciones externas y automatizadas completas; los avisos in-app bÃ¡sicos pertenecen a
@@ -142,10 +144,11 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 El contador de Lista incluye T060-T071 como roadmap futuro. El discovery se prioriza en T060, T063,
 T062 y T067; el detalle, RICE preliminar, dependencias y gates esta en
 docs/roadmap/v2-v3-advance-plan.md. T060 vuelve a revision tras cerrar el corte de oferta FIFO y
-booking transaccional confirmado el 2026-08-30; T062, T064, T065, T066 y T067 quedan en revision
-por sus slices tecnicos, T061 y T068-T071 permanecen pendientes hasta contar con slice, contrato,
-criterios de aceptacion y evidencia de pruebas. T063 vuelve a `revision` tras cerrar la divergencia
-fail-closed del checkout adulto detectada durante la reanudacion; no queda WIP activo.
+booking transaccional confirmado el 2026-08-30; T062 vuelve a `revision` tras cerrar el productor
+interno auditado autorizado el 2026-08-31. T064, T065, T066 y T067 quedan en revision por sus
+slices tecnicos; T061 y T068-T071 permanecen pendientes hasta contar con slice, contrato, criterios
+de aceptacion y evidencia de pruebas. T063 vuelve a `revision` tras cerrar la divergencia fail-closed
+del checkout adulto detectada durante la reanudacion; no queda WIP activo.
 
 ### Reanudacion T063 - checkout adulto fail-closed - 2026-08-30
 
@@ -596,6 +599,8 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T086 | Aislar E2E sintÃ©tico de red externa y diferir el resolver del popup de Google                | T014,T049,T050 | aprobada | Resolver Google diferido hasta el sign-in y fixture operativa explÃ­cita; unitarias 1036/1036 y E2E 67/67; aprobada 2026-08-24                                                                                               |
 | T087 | Reconciliar estados, dependencias y evidencia entre `tasks.md` y `Lista/`                     | T082           | aprobada | 87 IDs Ãºnicos sincronizados; 0 divergencias de estado y 0 tareas aprobadas con dependencias abiertas; sintaxis, Prettier y diff verificados 2026-08-25                                                                      |
 | T088 | Mostrar el catalogo canonico de Levels en el panel administrativo                             | T083,T087      | aprobada | Aprobada 2026-08-28 para preview local/sanitizado: 171 definiciones visibles, backend solo opt-in, verify:mvp completo, Playwright focalizado 2/2 y cierre de seguridad; sin deploy, seed, migracion, datos reales ni gasto. |
+
+| T089 | Bloquear el proyecto Firebase productivo en el importador Regyfit | T075,T084 | revision | El ID productivo exacto queda denegado por argumento/entorno/Firebase config antes de I/O y staging permanece cerrado sin allowlist positiva. Focales 23/23 y verify:mvp 1220/1220 + Rules 78/78 + carga 240/240 + smoke 5/5; audit 0 high/critical. |
 
 ## Plan de implementaciÃ³n del MVP aprobado
 
@@ -3682,3 +3687,117 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
   operador autorizo publicar la branch para ejecutar CI y revision; no es recomendable desplegar.
   T011, staging real, rollback
   productivo, presupuestos/alertas, CD protegido y autorizacion T058 siguen bloqueando produccion.
+
+### T057 - rollback de Cloudflare Pages por release parcial - 2026-08-30
+
+- El push de `aac9e0c` a `main` ejecuto CI #47 y la integracion Git externa de Cloudflare Pages
+  publico automaticamente el frontend en produccion como deployment
+  `18fa3560-9d6e-4ea7-8636-2f75736dc7fe`. CI y el check de Pages terminaron `success`.
+- El bundle publico apuntaba a `bptjersey-f5a25`, mientras el workflow versionado no contiene
+  despliegue de Firebase Functions ni Firestore Rules. Se trato como release parcial; no se
+  probaron flujos autenticados con credenciales productivas ni se asumio compatibilidad backend.
+- El operador autorizo explicitamente revertir `18fa3560` a
+  `34b8ba2c-3e31-495a-b439-dc73500e84de`, correspondiente a `620d6c7`. El preflight confirmo
+  origen y target exactos, entorno `production`, build exitoso y permiso `Pages Write`.
+- El endpoint oficial de rollback respondio `success`; la verificacion posterior confirmo
+  `34b8ba2c` como deployment canonico. El alias productivo coincide con su HTML; smoke sin cache:
+  `/`, `/login` y `/account/waitlist` responden `200`, y `/admin/waitlists` vuelve a `404`.
+- El rollback no modifico commits, ramas, Functions, Rules, Firestore, RTDB, R2 ni datos.
+- El operador eligio conservar el comportamiento anterior: `production_branch=main` y
+  `production_deployments_enabled=true`. La API ya coincidia con esa decision y no se realizo una
+  escritura redundante. Cada push remoto a `main` desplegara Pages; esta seleccion de configuracion
+  no sustituye la autorizacion explicita de cada release exigida por T058.
+- Estado: T057 permanece `revision`, T058 `pendiente` y T011 `bloqueada`. El rollback restaura
+  coherencia operativa, pero no satisface los gates faltantes de produccion.
+
+### Checkpoint T089 - guarda explicita del proyecto productivo Regyfit - 2026-08-31
+
+- Hallazgo: el importador PDF de T084 si esta limitado a `target=emulator`, proyecto
+  `demo-bpt-jersey` y host loopback exacto. Sin embargo, la ruta local de importacion Regyfit aun
+  acepta `target=staging` con confirmacion y su detector generico de nombres productivos no reconoce
+  el ID real `bptjersey-f5a25`.
+- Alcance: registrar el ID productivo conocido en una denylist explicita, rechazarlo antes de toda
+  lectura o escritura, agregar regresiones directas y de cero acceso al store, y reconciliar
+  `STACK.md`, `tasks.md` y `Lista/Lista.js`.
+- Fuera de alcance: ejecutar el importador, leer la fuente privada, usar credenciales, conectar red,
+  modificar datos, migrar, desplegar, cambiar Cloudflare/Firebase o reescribir la evidencia historica
+  de una importacion ya ejecutada.
+- Reversion: retirar la constante y las regresiones nuevas; no existe estado remoto ni dato que
+  revertir. T089 pasa a `en-progreso` como unico WIP y bloquea abrir otro slice funcional hasta que
+  la autocritica de seguridad y QA quede verde.
+
+### Evidencia T089 - guarda productiva Regyfit - 2026-08-31
+
+- RED reproducible: las pruebas nuevas fallaron 3 casos y pasaron 19 porque
+  `bptjersey-f5a25` podia atravesar la etiqueta `staging`; la integracion alcanzo una lectura del
+  root antes de fallar por otra condicion.
+- Correccion: denylist explicita del proyecto productivo por argumento, `GCLOUD_PROJECT` y
+  `FIREBASE_CONFIG`; allowlist positiva de staging vacia hasta disponer de un proyecto separado;
+  la guarda se ejecuta antes de leer la fuente o Firestore.
+- Regresion focal: 2 archivos y 23/23 pruebas pasan, incluidos cero lecturas/escrituras, las tres
+  fuentes de project ID y un nombre de staging plausible no aprobado.
+- Gate global con JDK 21 solo para el proceso: `verify:mvp` pasa formato, lint, typecheck, build,
+  174 archivos/1220 pruebas unitarias, Rules 78/78, carga sintetica 240/240 sin fallos (p95 30 ms)
+  y smoke E2E 5/5 con 1 omision esperada.
+- Seguridad: escaneo acotado de los 8 archivos modificados sin firmas de secretos ni asignaciones
+  aparentes de credenciales. Audit: 0 high, 0 critical y las 2 moderadas transitivas ya registradas
+  en DR-001 (`uuid` por Firebase/Google y `@opentelemetry/core` solo por Firebase CLI).
+- Autocritica: no se agregaron dependencias, endpoints, red, credenciales, gasto, acceso a datos,
+  migracion ni despliegue. No se leyeron ni modificaron los 10 documentos historicos. T089 queda en
+  `revision`; T057 sigue en `revision`, T058 `pendiente` y T011 `bloqueada`.
+- Hallazgo separado no expuesto hoy: el adaptador base de pagos no esta conectado al runtime, pero
+  T061 debe comparar el payload canonico al reutilizar una clave de idempotencia antes de seleccionar
+  o habilitar cualquier proveedor. T061 conserva dependencias T010/T034/T035 y estado `pendiente`.
+
+### Reanudacion T062 - productor interno auditado de alertas - 2026-08-31
+
+- Autorizacion explicita del operador para el corte exacto recomendado; T062 pasa a `en-progreso`
+  como unico WIP. Depende de T019/T029/T033, ya aprobadas. Es un servicio backend interno sin
+  callable publico ni scheduler productivo.
+- Fuentes: proyecciones minimas y acotadas de `students`, `memberships` y `attendance` dentro de una
+  sola academia. Se validan tenant, referencias, fechas y limites antes de escribir; no se leen ni
+  persisten nombres, contactos, notas, IDs financieros ni texto libre.
+- Reglas: solo estudiantes activos con membership `trial`/`active` vigente. La politica permanece
+  inyectada; los valores 14 dias de inactividad, 30 de lookback, 2 no-shows y 14 de expiracion son
+  fixtures sinteticos, no una decision productiva. Una alta reciente sin asistencia usa el inicio de
+  membership como baseline y no genera `attendance_gap` prematuro.
+- Idempotencia: una corrida se identifica por fecha UTC y hash de entrada minima. Replay identico
+  queda unchanged; replay divergente falla cerrado. Antes del GREEN se corrige la identidad de alerta
+  para que IDs con `:`/`__` no colisionen, el binding kind/student/day y la atomicidad del store in-memory.
+- Persistencia y auditoria: el lote maximo de 200 alertas y un unico evento create-only
+  `retention.alerts.generated` se validan por completo y se escriben en una sola transaccion. Las
+  correcciones de asistencia se ignoran y se usa solo el registro canonico ya actualizado.
+- Criterios de aceptacion: TDD RED/GREEN para limites + 1, tenant mismatch, referencias invalidas,
+  membership reciente/antigua, correcciones, colisiones, replay igual/divergente y cero writes ante
+  conflicto; unitarias, contrato de auditoria, Firestore Emulator, Rules/regresion y gate global.
+- Fuera de alcance: asignar, snoozear, cerrar o borrar alertas; App Check/rate limit nuevos; CRM
+  externo, email/SMS, proveedor, contactos, datos reales, credenciales, gasto, migracion, scheduler,
+  despliegue o produccion. La reversion retira productor/accion auditada; no limpia datos remotos.
+
+### Evidencia T062 - productor interno auditado de alertas - 2026-08-31
+
+- Implementacion: productor DI-only sin export runtime, endpoint, trigger ni scheduler; carga
+  proyecciones minimas tenant-scoped de memberships `trial`/`active`, estudiantes activos y
+  attendance, con limites 200/5000 y politica inyectada sin defaults productivos.
+- Integridad: dia UTC canonico, IDs v2 length-prefixed, hash SHA-256 estable, baseline por inicio de
+  membership y exclusion de asistencia anterior; attendance exige `sessionId`, `studentId`,
+  `schemaVersion: "1"` e identidad canonica, y las correcciones opacas apuntan al registro canonico.
+- Persistencia: maximo 200 alertas y un evento create-only `retention.alerts.generated` se validan
+  y escriben atomicamente. Replay exacto converge; replay divergente, documento alterado o auditoria
+  preexistente inconsistente fallan cerrado sin escrituras parciales.
+- TDD/autocritica: los RED reprodujeron colisiones/tiempo, atomicidad, modulo ausente, limite global,
+  asistencia previa a membership, identidad canonica, inclusion de trial, nombre de accion y contrato
+  publico. La reauditoria final reporta 0 critical, 0 high y 0 moderate remanentes.
+- Verificacion focal: T062 49/49 mas contrato publico 12/12 (61/61); Firestore Emulator 5/5;
+  Rules especifica 7/7; typecheck Domain/Functions/QA y `git diff --check` pasan.
+- Gate global final con JDK 21 solo para el proceso: `corepack pnpm verify:mvp` pasa formato, lint,
+  typecheck, build de 31 rutas, 175 archivos/1237 unitarias, Rules 78/78, carga sintetica 240/240
+  sin fallos (p95 31 ms) y smoke E2E 5/5 con 1 omision esperada. Un intento previo detecto la
+  expectativa publica obsoleta; otro tuvo 1 fallo transitorio de carga que paso aislado y en la
+  corrida final completa.
+- Seguridad: escaneo acotado de 17 archivos sin firmas de secretos; audit 0 high/critical y 2
+  moderadas transitivas preexistentes registradas en DR-001. No se agregaron dependencias, PII, red,
+  credenciales, gasto, migracion, datos reales, despliegue ni estado remoto.
+- Riesgos/gates: `studentReference` aun es el `studentId` interno opaco y debe pseudonimizarse antes
+  de datos reales; zona Europe/Jersey, cierre/cleanup, App Check, rate limit y politica T011/T057
+  permanecen abiertos. T062 vuelve a `revision`; no queda WIP activo ni autorizacion productiva.

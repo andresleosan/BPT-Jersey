@@ -35,6 +35,24 @@ const regyfitImport = {
   contentSha256: "b".repeat(64),
 } as const;
 
+const retentionProduction = {
+  ...common,
+  actorId: "system-retention-producer",
+  action: "retention.alerts.generated",
+  targetRef: "academies/academy-1/retentionAlerts",
+  purpose: "daily retention alert production",
+  correlationId: "retention-alerts:academy-1:2026-08-31",
+  runDate: "2026-08-31",
+  policyVersion: "1",
+  evaluatedStudents: 12,
+  alertCount: 3,
+  inactivityDays: 14,
+  lookbackDays: 30,
+  noShowThreshold: 2,
+  membershipExpiryDays: 14,
+  sourceHash: "d".repeat(64),
+} as const;
+
 const reportExport = {
   ...common,
   action: "report.export.prepared",
@@ -119,6 +137,28 @@ describe("audit event draft contract", () => {
 
   it("accepts exact metadata-only Regyfit import evidence", () => {
     expect(parseAuditEventDraft(regyfitImport)).toEqual({ ok: true, value: regyfitImport });
+  });
+
+  it("accepts exact retention production evidence and rejects unsafe variants", () => {
+    expect(auditActions).toContain("retention.alerts.generated");
+    expect(parseAuditEventDraft(retentionProduction)).toEqual({
+      ok: true,
+      value: retentionProduction,
+    });
+
+    for (const candidate of [
+      { ...retentionProduction, actorId: "admin-1" },
+      { ...retentionProduction, targetRef: "academies/academy-1/students" },
+      { ...retentionProduction, runDate: "2026-02-30" },
+      { ...retentionProduction, policyVersion: "latest" },
+      { ...retentionProduction, evaluatedStudents: 201 },
+      { ...retentionProduction, alertCount: 201 },
+      { ...retentionProduction, inactivityDays: 31 },
+      { ...retentionProduction, sourceHash: "D".repeat(64) },
+      { ...retentionProduction, email: "private@example.test" },
+    ]) {
+      expect(parseAuditEventDraft(candidate).ok).toBe(false);
+    }
   });
 
   it("accepts exact aggregate export evidence and rejects unsafe variants", () => {

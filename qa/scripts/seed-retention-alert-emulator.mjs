@@ -16,8 +16,25 @@ async function main() {
   assertSafeEmulator();
   const academyId = "synthetic-academy";
   const studentId = "student-retention-real";
-  const deduplicationKey = "membership_expiring:" + studentId + ":2026-08-28";
-  const alertId = academyId + "__" + deduplicationKey.replaceAll(":", "__");
+  const kind = "membership_expiring";
+  const runDate = "2026-08-28";
+  const deduplicationKey =
+    "v2:" + kind.length + ":" + kind + ":" + studentId.length + ":" + studentId + ":" + runDate;
+  const alertId =
+    "retention-v2__" +
+    academyId.length +
+    "_" +
+    academyId +
+    "__" +
+    kind.length +
+    "_" +
+    kind +
+    "__" +
+    studentId.length +
+    "_" +
+    studentId +
+    "__" +
+    runDate;
   const app = initializeApp({ projectId: "demo-bpt-jersey" }, "t062-seed");
 
   try {
@@ -27,17 +44,17 @@ async function main() {
         alertId,
         academyId,
         studentId,
-        kind: "membership_expiring",
+        kind,
         severity: "warning",
         status: "open",
-        reasonCode: "membership_expiring",
+        reasonCode: kind,
         evidence: {
           lastAttendedAt: "2026-08-25T10:00:00Z",
           noShowCount: 0,
           membershipEndsAt: "2026-09-02T00:00:00Z",
         },
         deduplicationKey,
-        createdAt: "2026-08-28T12:00:00Z",
+        createdAt: runDate + "T00:00:00.000Z",
         schemaVersion: "1",
       });
     console.log(

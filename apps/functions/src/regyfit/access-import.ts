@@ -46,6 +46,9 @@ const expectedSourceRoute = "/admin2/modulos/alunos/acessos_alunos.php";
 const expectedRowCount = 10;
 const privateMarker = ".regyfit-private-staging";
 const stagingConfirmation = "real-data-private-staging-v1";
+const knownProductionProjectIds: ReadonlySet<string> = new Set(["bptjersey-f5a25"]);
+// No separate Regyfit staging project is approved yet. Keep the positive allowlist empty.
+const approvedStagingProjectIds: ReadonlySet<string> = new Set();
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 
 class ImportError extends Error {}
@@ -65,11 +68,16 @@ function isKnownProductionProject(value: string | undefined): boolean {
   if (!value) return false;
   const normalized = value.trim().toLowerCase();
   return (
+    knownProductionProjectIds.has(normalized) ||
     normalized === "production" ||
     normalized === "prod" ||
     normalized.includes("production") ||
     /(?:^|-)prod(?:-|$)/.test(normalized)
   );
+}
+
+function isApprovedStagingProject(value: string | undefined): boolean {
+  return value !== undefined && approvedStagingProjectIds.has(value.trim().toLowerCase());
 }
 
 function firebaseConfigProjectId(): string | undefined {
@@ -120,7 +128,8 @@ export function assertImportTargetIsSafe(config: ImportConfig, projectId: string
   }
   if (
     config.target === "staging" &&
-    process.env.REGYFIT_OPERATOR_CONFIRMATION !== stagingConfirmation
+    (!isApprovedStagingProject(projectId) ||
+      process.env.REGYFIT_OPERATOR_CONFIRMATION !== stagingConfirmation)
   ) {
     fail("Import target is not safe");
   }

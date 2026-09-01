@@ -22,6 +22,7 @@ function student(overrides: Partial<BuildRetentionAlertsInput["students"][number
     studentId: "student-1",
     active: true,
     hasActiveMembership: true,
+    membershipStartsAt: "2026-01-01T00:00:00Z",
     membershipEndsAt: null,
     attendance: [],
     ...overrides,
@@ -62,9 +63,11 @@ describe("retention contracts", () => {
     ]);
     expect(result.value[1]?.evidence.lastAttendedAt).toBe("2026-08-01T10:00:00Z");
     expect(result.value[2]?.evidence.noShowCount).toBe(2);
-    expect(result.value[0]?.deduplicationKey).toBe("membership_expiring:student-expiry:2026-08-27");
+    expect(result.value[0]?.deduplicationKey).toBe(
+      "v2:19:membership_expiring:14:student-expiry:2026-08-27",
+    );
     expect(result.value[0]?.alertId).toBe(
-      "academy-1__membership_expiring__student-expiry__2026-08-27",
+      "retention-v2__9_academy-1__19_membership_expiring__14_student-expiry__2026-08-27",
     );
   });
 
@@ -111,6 +114,87 @@ describe("retention contracts", () => {
     expect(result).toEqual({ ok: true, value: [] });
   });
 
+  it("uses one canonical UTC instant for every replay on the same run date", () => {
+    const students = [
+      student({
+        attendance: [{ state: "attended", occurredAt: "2026-08-01T10:00:00Z" }],
+      }),
+    ];
+
+    const early = buildRetentionAlerts({
+      ...baseInput,
+      now: "2026-08-27T00:01:00Z",
+      students,
+    });
+    const late = buildRetentionAlerts({
+      ...baseInput,
+      now: "2026-08-27T23:59:59Z",
+      students,
+    });
+
+    expect(early).toEqual(late);
+    expect(early.ok && early.value[0]?.createdAt).toBe("2026-08-27T00:00:00.000Z");
+  });
+
+  it("anchors a missing attendance history to membership start", () => {
+    const result = buildRetentionAlerts({
+      ...baseInput,
+      students: [
+        student({
+          studentId: "recent-member",
+          membershipStartsAt: "2026-08-20T00:00:00Z",
+        }),
+        student({
+          studentId: "established-member",
+          membershipStartsAt: "2026-08-01T00:00:00Z",
+        }),
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((alert) => [alert.studentId, alert.kind])).toEqual([
+      ["established-member", "attendance_gap"],
+    ]);
+  });
+
+  it("ignores attendance from before the current membership started", () => {
+    const result = buildRetentionAlerts({
+      ...baseInput,
+      students: [
+        student({
+          membershipStartsAt: "2026-08-01T00:00:00Z",
+          attendance: [
+            { state: "no_show", occurredAt: "2026-07-29T10:00:00Z" },
+            { state: "no_show", occurredAt: "2026-07-30T10:00:00Z" },
+          ],
+        }),
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((alert) => alert.kind)).toEqual(["attendance_gap"]);
+    expect(result.value[0]?.evidence.noShowCount).toBe(0);
+  });
+
+  it("uses a collision-free v2 identity for delimiter-bearing student IDs", () => {
+    const result = buildRetentionAlerts({
+      ...baseInput,
+      students: [student({ studentId: "a:b" }), student({ studentId: "a__b" })],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(new Set(result.value.map((alert) => alert.alertId)).size).toBe(2);
+    expect(
+      Object.fromEntries(result.value.map((alert) => [alert.studentId, alert.alertId])),
+    ).toEqual({
+      "a:b": "retention-v2__9_academy-1__14_attendance_gap__3_a:b__2026-08-27",
+      a__b: "retention-v2__9_academy-1__14_attendance_gap__4_a__b__2026-08-27",
+    });
+  });
+
   it("rejects invalid policies, cross-tenant snapshots, duplicate students, and malformed dates", () => {
     expect(
       buildRetentionAlerts({
@@ -134,6 +218,12 @@ describe("retention contracts", () => {
       buildRetentionAlerts({
         ...baseInput,
         students: [student({ membershipEndsAt: "2026-02-30T00:00:00Z" })],
+      }).ok,
+    ).toBe(false);
+    expect(
+      buildRetentionAlerts({
+        ...baseInput,
+        students: [student({ membershipStartsAt: null })],
       }).ok,
     ).toBe(false);
   });

@@ -29,6 +29,7 @@ describe("retention alert callable", () => {
           studentId: "student-a",
           active: true,
           hasActiveMembership: true,
+          membershipStartsAt: "2026-01-01T00:00:00Z",
           membershipEndsAt: null,
           attendance: [],
         },

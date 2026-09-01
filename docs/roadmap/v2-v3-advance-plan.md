@@ -12,20 +12,20 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 
 ## Orden recomendado de discovery e implementacion
 
-| Orden | Tarea | Capacidad | RICE preliminar | Motivo y condicion |
-|---:|---|---|---:|---|
-| 1 | T060 | Booking avanzado, waitlists, creditos y reservas recurrentes | 3.75 | Amplia la operacion central ya validada en T027. Requiere politica de cupos, prioridad, expiracion de creditos y recurrencia. |
-| 2 | T063 | Autoservicio ampliado para tutores y adultos | 3.75 | Reduce trabajo administrativo y usa roles existentes. Requiere delimitar acciones de tutor, adulto y staff. |
-| 3 | T062 | Alertas de retencion y automatizacion CRM | 3.25 | Aprovecha T043/T044 aprobadas en alcance sintetico. Empezar solo con proyecciones in-app y reglas auditables. |
-| 4 | T067 | Goals, achievements y resumen familiar ampliado | 3.25 | Extiende progreso y rachas existentes. Requiere privacidad, opt-in y definicion de logros. |
-| 5 | T064 | Notificaciones externas automatizadas | 2.75 | Tiene valor operativo, pero requiere proveedor, consentimiento, preferencias y costos. |
-| 6 | T066 | Biblioteca tecnica y lesson planning avanzado | 3.00 | Aumenta profundidad del producto. Requiere fuente de contenido, versionado y aprobacion del coach. |
-| 7 | T065 | Asistencia offline y resolucion de conflictos | 2.50 | Mejora resiliencia en tatami, pero requiere modelo de dispositivo, cola local y politica de conflicto. |
-| 8 | T061 | Automatizacion avanzada de cobros y membresias | 2.50 | Requiere resolver T010/T034/T035 y definir reglas financieras antes de codigo. |
-| 9 | T070 | Referidos, privadas, competencias y retail | 2.50 | Potencial comercial, pero mezcla ofertas, pagos y operacion; requiere separar slices. |
-| 10 | T069 | Comunidad moderada | 2.25 | Requiere modelo de moderacion, safeguarding, reportes y retencion de contenido. |
-| 11 | T068 | Aplicaciones nativas iOS/Android | 1.75 | No hay evidencia de necesidad antes de validar el producto web; requiere decision de plataforma. |
-| 12 | T071 | Analytics, IA, multiacademia, white label y SaaS | 1.50 | Iniciativa de escala; requiere metrica base, arquitectura, costos y estrategia comercial. |
+| Orden | Tarea | Capacidad                                                    | RICE preliminar | Motivo y condicion                                                                                                            |
+| ----: | ----- | ------------------------------------------------------------ | --------------: | ----------------------------------------------------------------------------------------------------------------------------- |
+|     1 | T060  | Booking avanzado, waitlists, creditos y reservas recurrentes |            3.75 | Amplia la operacion central ya validada en T027. Requiere politica de cupos, prioridad, expiracion de creditos y recurrencia. |
+|     2 | T063  | Autoservicio ampliado para tutores y adultos                 |            3.75 | Reduce trabajo administrativo y usa roles existentes. Requiere delimitar acciones de tutor, adulto y staff.                   |
+|     3 | T062  | Alertas de retencion y automatizacion CRM                    |            3.25 | Aprovecha T043/T044 aprobadas en alcance sintetico. Empezar solo con proyecciones in-app y reglas auditables.                 |
+|     4 | T067  | Goals, achievements y resumen familiar ampliado              |            3.25 | Extiende progreso y rachas existentes. Requiere privacidad, opt-in y definicion de logros.                                    |
+|     5 | T064  | Notificaciones externas automatizadas                        |            2.75 | Tiene valor operativo, pero requiere proveedor, consentimiento, preferencias y costos.                                        |
+|     6 | T066  | Biblioteca tecnica y lesson planning avanzado                |            3.00 | Aumenta profundidad del producto. Requiere fuente de contenido, versionado y aprobacion del coach.                            |
+|     7 | T065  | Asistencia offline y resolucion de conflictos                |            2.50 | Mejora resiliencia en tatami, pero requiere modelo de dispositivo, cola local y politica de conflicto.                        |
+|     8 | T061  | Automatizacion avanzada de cobros y membresias               |            2.50 | Requiere resolver T010/T034/T035 y definir reglas financieras antes de codigo.                                                |
+|     9 | T070  | Referidos, privadas, competencias y retail                   |            2.50 | Potencial comercial, pero mezcla ofertas, pagos y operacion; requiere separar slices.                                         |
+|    10 | T069  | Comunidad moderada                                           |            2.25 | Requiere modelo de moderacion, safeguarding, reportes y retencion de contenido.                                               |
+|    11 | T068  | Aplicaciones nativas iOS/Android                             |            1.75 | No hay evidencia de necesidad antes de validar el producto web; requiere decision de plataforma.                              |
+|    12 | T071  | Analytics, IA, multiacademia, white label y SaaS             |            1.50 | Iniciativa de escala; requiere metrica base, arquitectura, costos y estrategia comercial.                                     |
 
 ## Trabajo que puede adelantarse sin T010/T011
 
@@ -84,13 +84,15 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - Gate global: `corepack pnpm verify:mvp` pasa con 1122/1122 unitarias, 64/64 Rules, carga sintetica 240/240 sin fallos (p95 28 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
 - No se agregaron colecciones, indices, migraciones, secretos, proveedores, cobros ni datos reales. T063 pasa a revision; las decisiones de tutor secundario y checkout adulto siguen pendientes y permanecen denegadas/fail-closed.
 
-## Estado del slice T062 (actualizado 2026-08-28)
+## Estado del slice T062 (actualizado 2026-08-31)
 
-- Se extendio el contrato puro con una bandeja Firestore tenant-scoped: persistencia transaccional idempotente, conflicto fail-closed ante reuso alterado, lotes y lecturas limitados a 200 y fechas de calendario estrictas.
-- `listRetentionAlerts` es read-only, acepta payload nulo, deriva tenant del actor y autoriza solo owner/administrator. La proyeccion omite IDs internos, tenant, contactos y deduplicacion; Rules niega todo acceso directo cliente.
-- `/admin/retention` entrega estados loading/error/empty y una bandeja responsive sin mutaciones. El E2E real usa Auth, Functions y Firestore Emulator; el artefacto de Functions se corrigio para compilar desde la raiz adecuada y exporta el callable nuevo.
-- Evidencia focalizada: servicio/callable 15/15, cliente 8/8, store Emulator 1/1, Rules 71/71, E2E sintetico 2/2, E2E real 2/2, runtime 2/2, typecheck/build/lint y audit sin high/critical. Gate global: 1139/1139 unitarias, 71/71 Rules, carga 240/240 sin fallos (p95 32 ms) y smoke E2E 5 aprobadas/1 omitida esperada.
-- No se agregaron productor automatico, auditoria persistida, asignacion/cierre, App Check, rate limit persistente, CRM externo, mensajes, datos reales, credenciales, gasto, migracion ni despliegue. T062 pasa a revision y sigue bloqueada para produccion por T011/T057.
+- La bandeja read-only existente se conserva y se agrega un productor estrictamente interno, sin export runtime, endpoint, trigger ni scheduler.
+- El productor usa día UTC canónico, IDs v2 length-prefixed, baseline por inicio de membresía, fuentes mínimas tenant-scoped y límites `201/5001/200`; correcciones, `excused` y eventos futuros no cuentan.
+- Alertas y un evento append-only `retention.alerts.generated` se crean atómicamente. Replay exacto converge y replay divergente falla cerrado sin escrituras parciales.
+- Evidencia nueva: regresión focal T062 49/49 más contrato público 12/12, Firestore Emulator 5/5 (incluido máximo 200 alertas + auditoría), Rules específica 7/7 y typecheck Domain/Functions/QA aprobado.
+- Gate global: `verify:mvp` pasa formato, lint, typecheck, build, 175 archivos/1237 unitarias, Rules 78/78, carga 240/240 sin fallos (p95 31 ms) y smoke E2E 5/5 con 1 omisión esperada; audit queda en 0 high/critical y el escaneo acotado no encuentra secretos.
+- La política sigue inyectada; `14/30/2/14` son fixtures, no defaults. Zona Europe/Jersey, lifecycle de cierre/cleanup, App Check, rate limit, CRM/email/SMS, datos reales, migración, despliegue y producción siguen fuera y bloqueados por T011/T057.
+- T062 vuelve a `revision`; la evidencia global fresca quedó registrada en `tasks.md` y no queda WIP activo.
 
 ## Estado del slice T067 (2026-08-27)
 
@@ -100,6 +102,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - La entrada exige familia consistente, identificadores y definiciones válidas, métricas no negativas, targets acotados y opt-in prohibido para menores; la salida es inmutable y determinista.
 - Evidencia: 6/6 pruebas focalizadas y 37/37 pruebas de regresión, typecheck de @bpt-jersey/domain, ESLint, Prettier y `git diff --check` pasan.
 - No se agregaron Firestore writes, callables, UI, leaderboard público, auditoría persistida, credenciales, pagos ni datos reales. T067 pasa a revision; quedan pendientes persistencia tenant-scoped, Rules/Emulator, E2E, auditoría y checkpoint de producto sobre catálogo/visibilidad.
+
 ## Estado del slice T066 (2026-08-27)
 
 - Se implemento un contrato puro para biblioteca tecnica versionada y planes de leccion en packages/domain/src/levels/lesson-planning-contracts.ts.
@@ -107,6 +110,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - La transicion a approved exige plan submitted, staffRole head_coach, staffId y timestamp validos. No se automatizan belts, stripes ni promociones.
 - Evidencia: 5/5 pruebas focalizadas y 42/42 de regresion de Levels/progreso/recordatorios, typecheck de @bpt-jersey/domain, ESLint, Prettier y git diff --check pasan.
 - No se agregaron Firestore writes, callables, UI, fuentes externas, auditoria persistida, credenciales, pagos ni datos reales. T066 pasa a revision; quedan pendientes persistencia tenant-scoped, Rules/Emulator, E2E, auditoria y checkpoint de producto.
+
 ## Estado del slice T065 (2026-08-27)
 
 - Se implemento un contrato puro para eventos de asistencia offline y reconciliacion en packages/domain/src/attendance/offline-contracts.ts.
@@ -114,6 +118,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - Se validan IDs, tipo de evento, fechas y orden de reloj; la salida es inmutable y determinista.
 - Evidencia: 6/6 pruebas focalizadas y 48/48 de regresion de dominio, typecheck de @bpt-jersey/domain, ESLint, Prettier y git diff --check pasan.
 - No se agregaron red, Firestore writes, UI, persistencia de cola, migraciones, credenciales ni datos reales. T065 pasa a revision; quedan adaptador de dispositivo, politica operativa de conflictos, persistencia tenant-scoped, Rules/Emulator y E2E.
+
 ## Estado del slice T064 (2026-08-27)
 
 - Se implemento una politica pura de elegibilidad de notificaciones en packages/domain/src/delivery/notification-policy.ts, complementaria a la frontera provider-independent de T046.
@@ -121,6 +126,7 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - Preferencia ausente, disabled o withdrawn queda como skipped explicable. La salida no contiene contactos, mensajes, proveedor ni credenciales.
 - Evidencia: 6/6 pruebas focalizadas y 58/58 de regresion de delivery/offline/Levels/progreso/recordatorios, typecheck de @bpt-jersey/domain, ESLint, Prettier y git diff --check pasan.
 - No se agregaron red, Firestore writes, UI, reintentos, proveedor, credenciales ni gasto. T064 pasa a revision; quedan persistencia, RBAC/runtime, Rules/Emulator, E2E, seleccion de proveedor y limites de costo.
+
 ## Gates que siguen fuera de este avance
 
 - T061 y cualquier checkout, webhook o automatizacion financiera siguen dependiendo de T010/T034/T035.
