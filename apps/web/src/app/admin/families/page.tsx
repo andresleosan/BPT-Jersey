@@ -48,6 +48,8 @@ export function FamilyAdminPage() {
   >({ minors: {} });
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [achievementFamilyId, setAchievementFamilyId] = useState("");
+  const [reviewedFamilyId, setReviewedFamilyId] = useState("");
   const nextId = useRef(2);
   const tutorRef = useRef<HTMLInputElement>(null);
 
@@ -122,6 +124,11 @@ export function FamilyAdminPage() {
     }
   }
 
+  function handleAchievementReview(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const familyId = achievementFamilyId.trim();
+    if (familyId) setReviewedFamilyId(familyId);
+  }
   return (
     <section className="admin-module-page family-admin-page" aria-labelledby="family-admin-title">
       <header className="admin-section-header">
@@ -131,6 +138,44 @@ export function FamilyAdminPage() {
           <p>Link one existing tutor to one or more minors without exposing restricted records.</p>
         </div>
       </header>
+      <section
+        aria-labelledby="family-achievement-review-title"
+        className="family-admin-card family-achievement-review-card"
+      >
+        <div className="family-achievement-heading">
+          <div>
+            <p className="admin-eyebrow">Family progress</p>
+            <h3 id="family-achievement-review-title">Review achievement snapshot</h3>
+            <p className="family-helper">
+              Load a saved, read-only family snapshot for staff review.
+            </p>
+          </div>
+        </div>
+        <form
+          className="family-admin-form"
+          noValidate
+          onSubmit={(event) => void handleAchievementReview(event)}
+        >
+          <label className="family-field" htmlFor="family-achievement-reference">
+            Family reference
+            <input
+              id="family-achievement-reference"
+              onChange={(event) => setAchievementFamilyId(event.target.value)}
+              required
+              value={achievementFamilyId}
+            />
+          </label>
+          <button className="family-text-button" type="submit">
+            Load achievement summary
+          </button>
+        </form>
+        {reviewedFamilyId ? (
+          <FamilyAchievementAdminPanel
+            familyId={reviewedFamilyId}
+            instanceId="family-achievement-review-title"
+          />
+        ) : null}
+      </section>
 
       <form className="family-admin-form" noValidate onSubmit={(event) => void handleSubmit(event)}>
         <div className="family-admin-card">

@@ -151,7 +151,7 @@ describe("administrative shell", () => {
     labels.forEach((label) => {
       expect(within(navigation).getByRole("link", { name: label })).toBeVisible();
     });
-    expect(within(navigation).queryAllByRole("link")).toHaveLength(15);
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(16);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
       "/admin",
@@ -212,7 +212,7 @@ describe("administrative shell", () => {
 
     expect(main).toHaveClass("admin-main");
     expect(main).toHaveClass("admin-main-content");
-    expect(navigationLinks).toHaveLength(15);
+    expect(navigationLinks).toHaveLength(16);
     navigationLinks.forEach((link) => {
       expect(link.tagName).toBe("A");
       expect(link).toHaveAttribute("href");

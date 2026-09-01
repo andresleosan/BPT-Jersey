@@ -7,8 +7,12 @@ const familyApi = vi.hoisted(() => ({
   getFamily: vi.fn(),
   updateFamily: vi.fn(),
 }));
+const achievementApi = vi.hoisted(() => ({
+  getFamilyAchievementSummary: vi.fn(),
+}));
 
 vi.mock("../../../lib/family-client", () => familyApi);
+vi.mock("../../../lib/family-achievement-client", () => achievementApi);
 
 import FamilyAdminPage from "./page";
 
@@ -71,6 +75,7 @@ describe("admin family page", () => {
     familyApi.createFamily.mockReset();
     familyApi.getFamily.mockReset();
     familyApi.updateFamily.mockReset();
+    achievementApi.getFamilyAchievementSummary.mockReset();
   });
 
   it("renders a labeled tutor and one minor row, with add/remove controls", async () => {
@@ -143,5 +148,42 @@ describe("admin family page", () => {
     await user.click(screen.getByRole("button", { name: "Create family" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to create the family");
     expect(screen.queryByText("private callable details")).not.toBeInTheDocument();
+  });
+
+  it("loads an existing family achievement snapshot through the staff review form", async () => {
+    const user = userEvent.setup();
+    achievementApi.getFamilyAchievementSummary.mockResolvedValue({
+      familyId: "family-review",
+      generatedAt: "2026-08-31T10:00:00.000Z",
+      members: [
+        {
+          studentId: "student-review",
+          displayName: "Synthetic Member",
+          participantType: "minor",
+          goals: [
+            {
+              goalId: "goal-classes",
+              label: "Attend classes",
+              metric: "classes_attended",
+              target: 4,
+              progress: 4,
+              status: "complete",
+            },
+          ],
+          achievementCandidates: [],
+        },
+      ],
+      adultComparison: [],
+    });
+
+    render(<FamilyAdminPage />);
+
+    await user.type(screen.getByLabelText("Family reference"), "family-review");
+    await user.click(screen.getByRole("button", { name: "Load achievement summary" }));
+    await user.click(screen.getByRole("button", { name: "Open achievement summary" }));
+
+    expect(await screen.findByText("Synthetic Member")).toBeVisible();
+    expect(screen.getByText("4 / 4 classes attended")).toBeVisible();
+    expect(achievementApi.getFamilyAchievementSummary).toHaveBeenCalledWith("family-review");
   });
 });

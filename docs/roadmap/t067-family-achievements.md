@@ -24,7 +24,7 @@ Estado: revision (slice de dominio, persistencia read-only y cliente/panel admin
 ## Límites y dependencias abiertas
 
 - La generación del snapshot sigue siendo un servicio interno; falta conectar una fuente de progreso real y un scheduler/runner aprobado.
-- Cliente web validado y panel administrativo read-only implementados; falta E2E de callable autenticada y el slice queda en revisión hasta cerrar esa evidencia.
+- Cliente web validado y panel administrativo read-only implementados; el E2E de callable autenticada pasa en loopback y T067 permanece en revision por fuente de progreso, scheduler y checkpoint de producto.
 - Catálogo definitivo, copy, visibilidad y aprobación humana de logros requieren checkpoint de producto.
 - No se agregan índices compuestos: la lectura está acotada a un snapshot por familia y el catálogo se valida con límites de 200 elementos.
 - Rollback: detener el export de la callable y retirar únicamente documentos T067 del Emulator/entorno de prueba; cualquier borrado productivo exige backup verificado y confirmación explícita.
@@ -32,8 +32,9 @@ Estado: revision (slice de dominio, persistencia read-only y cliente/panel admin
 ## Evidencia
 
 - Dominio + auditoría: 26/26 focales.
-- Stores y callable: 12/12 focales Node; 38/38 pruebas focales T067 en total.
-- Cliente/panel web: 9/9 pruebas focales y suite completa de web 72 archivos/318 pruebas; cliente valida el payload y resumen con parser de dominio, y la UI no muestra identificadores internos ni ofrece escrituras.
+- Stores y callable: 12/12 focales Node; 38/38 pruebas focales T067 en total; UI cliente/panel 11/11.
+- Cliente/panel web: 11/11 pruebas focales y suite completa de web 72 archivos/318 pruebas; cliente valida el payload y resumen con parser de dominio, y la UI no muestra identificadores internos ni ofrece escrituras.
+- E2E autenticada local: node qa/scripts/run-family-achievement-ui-e2e.mjs -> 1/1 con cuenta @example.test, desktop-chromium, sin NEXT_PUBLIC_ADMIN_E2E ni lecturas directas de Firestore.
 - Rules/Emulator: 6/6 con Firestore Emulator y JDK 21.
 - Typecheck de `@bpt-jersey/domain` y `@bpt-jersey/functions`: pasan.
 - Unitarias globales: 179 archivos, 1254/1254 pruebas; Rules globales: 11 archivos, 84/84; runtime deploy 3/3; typecheck, ESLint, Prettier y git diff --check pasan.

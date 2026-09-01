@@ -1030,7 +1030,7 @@ const roadmapV3Items = [
     "revision",
     "AÃ±adir participaciÃ³n despuÃ©s de las rachas bÃ¡sicas de T041.",
     "-",
-    "Slice 2026-08-31: catalogo canonico interno en familyGoals/familyAchievements, snapshots tenant-scoped en familyAchievementSnapshots, auditoria atomica family.achievements.generated, callable read-only para owner/administrator/headCoach y Rules deny-by-default. Slice UI: cliente web validado y panel administrativo read-only en la familia creada, sin IDs internos ni escrituras; 26/26 dominio+auditoria, 12/12 stores/callable Node, 72 archivos/318 pruebas web (incluye 9/9 focales), 38/38 focales T067, 6/6 Rules focales y 84/84 Rules globales; web typecheck, runtime 3/3, ESLint, Prettier y diff pasan; quedan fuente de progreso real, runner/scheduler, E2E callable autenticada y checkpoint de producto; sin migracion ni produccion.",
+    "Cierre tecnico 2026-09-01: catalogo/persistencia tenant-scoped, auditoria atomica family.achievements.generated, callable read-only y UI staff verificados; envelope { summary } corregido; E2E autenticada Emulator 1/1, Rules 6/6, focal T067 49/49, typecheck/build/lint/Prettier/diff pasan; quedan fuente de progreso real, runner/scheduler y checkpoint de producto; sin migracion ni produccion.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1042,6 +1042,9 @@ const roadmapV3Items = [
       "apps/web/src/lib/family-achievement-client.ts",
       "apps/web/src/app/admin/families/family-achievement-admin-panel.tsx",
       "apps/web/src/app/admin/families/page.tsx",
+      "qa/tests/family-achievement-auth-emulator.spec.ts",
+      "qa/scripts/run-family-achievement-ui-e2e.mjs",
+      "qa/scripts/seed-family-achievement-emulator.mjs",
       "qa/rules/family-achievement-boundary.test.ts",
     ],
     "roadmap",

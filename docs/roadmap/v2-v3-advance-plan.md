@@ -90,14 +90,14 @@ impacto van de 1 a 5; confianza va de 1 a 5; esfuerzo inverso va de 1 a 5. Punta
 - La política sigue inyectada; `14/30/2/14` son fixtures, no defaults. Zona Europe/Jersey, lifecycle de cierre/cleanup, App Check, rate limit, CRM/email/SMS, datos reales, migración, despliegue y producción siguen fuera y bloqueados por T011/T057.
 - T062 vuelve a `revision`; la evidencia global fresca quedó registrada en `tasks.md` y no queda WIP activo.
 
-## Estado del slice T067 (2026-08-27)
+## Estado del slice T067 (2026-09-01)
 
 - Se implementó un contrato puro para objetivos familiares, candidatos de logros y resumen de progreso en packages/domain/src/levels/achievement-contracts.ts.
 - Los objetivos y candidatos usan únicamente clases asistidas y rachas; un logro solo queda como `candidate` y nunca otorga belt, stripe o promoción automáticamente.
 - El resumen excluye miembros inactivos. La comparación familiar solo incluye adultos activos con `adultComparisonOptIn`; los menores nunca se exponen en esa comparación.
 - La entrada exige familia consistente, identificadores y definiciones válidas, métricas no negativas, targets acotados y opt-in prohibido para menores; la salida es inmutable y determinista.
 - Evidencia: 6/6 pruebas focalizadas y 37/37 pruebas de regresión, typecheck de @bpt-jersey/domain, ESLint, Prettier y `git diff --check` pasan.
-- No se agregaron Firestore writes, callables, UI, leaderboard público, auditoría persistida, credenciales, pagos ni datos reales. T067 pasa a revision; quedan pendientes persistencia tenant-scoped, Rules/Emulator, E2E, auditoría y checkpoint de producto sobre catálogo/visibilidad.
+- Se agregaron persistencia tenant-scoped, callable read-only, UI staff y auditoría append-only, con Rules deny-by-default. El cliente desempaqueta { summary } y el E2E autenticado local pasa 1/1; fuente de progreso real, runner/scheduler, catálogo definitivo y checkpoint de producto siguen fuera.
 
 ## Estado del slice T066 (2026-08-27)
 

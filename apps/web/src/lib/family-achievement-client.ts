@@ -25,7 +25,17 @@ export async function getFamilyAchievementSummary(
       "getFamilyAchievementSummary",
     );
     const result = await callable({ familyId });
-    const parsed = parseFamilyAchievementSummary(result.data);
+    const response = result.data;
+    const isEnvelope =
+      typeof response === "object" &&
+      response !== null &&
+      !Array.isArray(response) &&
+      Reflect.ownKeys(response).length === 1 &&
+      Object.hasOwn(response, "summary");
+    if (!isEnvelope) throw new Error(safeLoadError);
+    const parsed = parseFamilyAchievementSummary(
+      (response as { summary: unknown }).summary,
+    );
     if (!parsed.ok) throw new Error(safeLoadError);
     return parsed.value;
   } catch (error) {

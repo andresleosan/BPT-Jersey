@@ -2,31 +2,30 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getFamilyAchievementSummary } from "./family-achievement-client";
 
-let mockCallableResult: unknown = {
-  data: {
-    familyId: "family-1",
-    generatedAt: "2026-08-31T12:00:00.000Z",
-    members: [
-      {
-        studentId: "student-1",
-        displayName: "Synthetic Minor",
-        participantType: "minor",
-        goals: [
-          {
-            goalId: "family-classes",
-            label: "Family classes",
-            metric: "classes_attended",
-            target: 10,
-            progress: 4,
-            status: "in_progress",
-          },
-        ],
-        achievementCandidates: [],
-      },
-    ],
-    adultComparison: [],
-  },
-};
+const mockSummary = {
+  familyId: "family-1",
+  generatedAt: "2026-08-31T12:00:00.000Z",
+  members: [
+    {
+      studentId: "student-1",
+      displayName: "Synthetic Minor",
+      participantType: "minor",
+      goals: [
+        {
+          goalId: "family-classes",
+          label: "Family classes",
+          metric: "classes_attended",
+          target: 10,
+          progress: 4,
+          status: "in_progress",
+        },
+      ],
+      achievementCandidates: [],
+    },
+  ],
+  adultComparison: [],
+} as const;
+let mockCallableResult: unknown = { data: { summary: mockSummary } };
 let mockCallableError: Error | null = null;
 let mockCallableInvocations = 0;
 
@@ -45,31 +44,7 @@ vi.mock("./firebase-client", () => ({
 
 describe("Family achievement web client", () => {
   afterEach(() => {
-    mockCallableResult = {
-      data: {
-        familyId: "family-1",
-        generatedAt: "2026-08-31T12:00:00.000Z",
-        members: [
-          {
-            studentId: "student-1",
-            displayName: "Synthetic Minor",
-            participantType: "minor",
-            goals: [
-              {
-                goalId: "family-classes",
-                label: "Family classes",
-                metric: "classes_attended",
-                target: 10,
-                progress: 4,
-                status: "in_progress",
-              },
-            ],
-            achievementCandidates: [],
-          },
-        ],
-        adultComparison: [],
-      },
-    };
+    mockCallableResult = { data: { summary: mockSummary } };
     mockCallableError = null;
     mockCallableInvocations = 0;
   });
@@ -82,6 +57,13 @@ describe("Family achievement web client", () => {
     expect(mockCallableInvocations).toBe(1);
   });
 
+  it("unwraps the callable summary envelope", async () => {
+    mockCallableResult = { data: { summary: mockSummary } };
+
+    await expect(getFamilyAchievementSummary("family-1")).resolves.toMatchObject({
+      familyId: "family-1",
+    });
+  });
   it("rejects unsafe family IDs before contacting Firebase", async () => {
     await expect(getFamilyAchievementSummary("family/other")).rejects.toThrow(
       "Unable to load family achievements. Please try again.",
