@@ -85,6 +85,11 @@
       "import": "./src/levels/achievement-contracts.ts",
       "default": "./lib/levels/achievement-contracts.js"
     },
+    "./attendance/offline-queue": {
+      "types": "./src/attendance/offline-queue.ts",
+      "import": "./src/attendance/offline-queue.ts",
+      "default": "./lib/attendance/offline-queue.js"
+    },
     "./schedule": {
       "types": "./src/schedule/schedule-contracts.ts",
       "import": "./src/schedule/schedule-contracts.ts",
