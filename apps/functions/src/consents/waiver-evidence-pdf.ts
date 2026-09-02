@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { PDFDocument, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 
 import type { WaiverEvidencePdfGenerator } from "./consent-service.js";
@@ -55,7 +57,16 @@ function drawLines(
 }
 
 export const createWaiverEvidencePdf: WaiverEvidencePdfGenerator = async (input) => {
-  const document = await PDFDocument.create();
+  const sourceBytes = await readFile(
+    new URL(
+      "./assets/Brazilian Power Team Jersey Waiver and Release of Liability.pdf",
+      import.meta.url,
+    ),
+  );
+  const sourceHash = createHash("sha256").update(sourceBytes).digest("hex");
+  if (sourceHash !== "5ff6add6f1cc59b8cd23b73fb0c29371e1cb85c66829ab63e8642db7c3c10ad1")
+    throw new Error("Official waiver source integrity check failed");
+  const document = await PDFDocument.load(sourceBytes);
   const bodyFont = await document.embedFont(StandardFonts.Helvetica);
   const headingFont = await document.embedFont(StandardFonts.HelveticaBold);
   document.setTitle(`BPT Jersey waiver evidence ${safeText(input.version.versionLabel)}`);

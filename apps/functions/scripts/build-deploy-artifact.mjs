@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { cpSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -29,6 +29,11 @@ function run(executable, args, options = {}) {
 run(nodeExecutable, [tscExecutable, "-p", "packages/domain/tsconfig.runtime.json"]);
 run(nodeExecutable, ["packages/domain/scripts/prepare-runtime.mjs"]);
 rmSync(functionsBuildDirectory, { recursive: true, force: true });
+cpSync(
+  path.resolve(repositoryRoot, "apps/functions/src/consents/assets"),
+  path.resolve(repositoryRoot, "apps/functions/lib/src/consents/assets"),
+  { recursive: true },
+);
 run(nodeExecutable, [
   tscExecutable,
   "-p",

@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { useEffect, useState, type FormEvent } from "react";
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
@@ -62,6 +64,7 @@ function FieldError({ id, message }: Readonly<{ id: string; message?: string | u
 }
 
 function ProfileContent() {
+  const router = useRouter();
   const { session } = useClientSession();
   const [form, setForm] = useState<ProfileFormInput>(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -135,6 +138,7 @@ function ProfileContent() {
         phoneNumber: form.phoneNumber.trim(),
       });
       setForm(formFromStudent(saved.student));
+      router.push("/account/waiver");
       setNotice("Profile saved.");
     } catch (error: unknown) {
       setSaveError(

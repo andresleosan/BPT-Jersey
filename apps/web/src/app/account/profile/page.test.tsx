@@ -65,6 +65,7 @@ describe("client profile page", () => {
     authState.status = "signed-in";
     profileApi.getClientProfile.mockReset();
     profileApi.saveClientProfile.mockReset();
+    profileNavigation.push.mockReset();
   });
 
   it("loads the form, validates required fields, and shows accessible errors", async () => {
@@ -117,3 +118,5 @@ describe("client profile page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save your profile");
   });
 });
+const profileNavigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => profileNavigation }));

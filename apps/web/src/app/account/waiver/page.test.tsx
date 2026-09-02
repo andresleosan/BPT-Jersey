@@ -91,6 +91,11 @@ describe("account waiver page", () => {
     const user = userEvent.setup();
     render(<WaiverPage />);
     expect(await screen.findByRole("heading", { name: "Synthetic pilot waiver" })).toBeVisible();
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "I have read and agree to the official waiver document above.",
+      }),
+    );
     expect(screen.getByText("Version pilot-2026-08")).toBeVisible();
     await user.click(screen.getByLabelText("Decline Photo and video"));
     for (const heading of ["Medical treatment", "Hygiene", "Data protection"])

@@ -110,6 +110,8 @@
 }
 
 .waiver-document {
+  grid-column: 2;
+  grid-row: 2;
   overflow: hidden;
 }
 
@@ -211,6 +213,53 @@
   display: inline-block;
   margin-top: 1rem;
   font-weight: 800;
+}
+
+.waiver-official-source {
+  grid-column: 2;
+  overflow: hidden;
+  border: 1px solid rgba(47, 36, 131, 0.16);
+  border-radius: 0.35rem;
+  background: #fff;
+  box-shadow: 0 1rem 3rem rgba(18, 15, 48, 0.12);
+}
+.waiver-official-source-heading {
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border-bottom: 1px solid #dfdbe8;
+  background: #f5f2fb;
+}
+.waiver-official-source-heading h2 {
+  margin: 0.3rem 0 0.7rem;
+  color: #2f2483;
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  line-height: 1;
+}
+.waiver-official-source-heading p:last-of-type {
+  margin-bottom: 1rem;
+}
+.waiver-official-source-heading a {
+  font-weight: 800;
+}
+.waiver-official-iframe {
+  display: block;
+  width: 100%;
+  height: min(70vh, 48rem);
+  border: 0;
+  background: #f3efe8;
+}
+.waiver-official-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border: 1px solid #d8d3e5;
+  border-left: 0.3rem solid #efc232;
+  border-radius: 0.25rem;
+  padding: 1rem 1.1rem;
+  font-weight: 800;
+}
+.waiver-official-confirmation input {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
 }
 
 .waiver-message,
@@ -318,6 +367,14 @@
   .waiver-subject-card,
   .waiver-current-card {
     position: static;
+  }
+  .waiver-official-source {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .waiver-document {
+    grid-column: auto;
+    grid-row: auto;
   }
   .waiver-admin-clauses,
   .waiver-admin-fields {

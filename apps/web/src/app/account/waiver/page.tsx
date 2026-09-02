@@ -17,6 +17,9 @@ import {
 } from "../../../lib/waiver-client";
 import "./waiver.css";
 
+const officialWaiverDocumentUrl =
+  "/legal/Brazilian%20Power%20Team%20Jersey%20Waiver%20and%20Release%20of%20Liability.pdf";
+
 type DecisionDraft = Partial<Record<WaiverClauseKey, "accepted" | "declined">>;
 
 function WaiverContent() {
@@ -31,6 +34,7 @@ function WaiverContent() {
   const [evidenceUrl, setEvidenceUrl] = useState("");
   const firstDecisionRef = useRef<HTMLInputElement>(null);
   const typedNameRef = useRef<HTMLInputElement>(null);
+  const [officialDocumentReviewed, setOfficialDocumentReviewed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -68,6 +72,7 @@ function WaiverContent() {
     );
   }
   function selectSubject(studentId: string): void {
+    setOfficialDocumentReviewed(false);
     setSelectedStudentId(studentId);
     setDecisions({});
     setTypedName("");
@@ -96,6 +101,11 @@ function WaiverContent() {
     if (declinedRequired) {
       setError(`${declinedRequired.heading} must be accepted for this waiver version.`);
       document.getElementById(`waiver-${declinedRequired.key}-accept`)?.focus();
+      return;
+    }
+    if (!officialDocumentReviewed) {
+      setError("Confirm that you have read the official waiver document.");
+      document.getElementById("official-waiver-reviewed")?.focus();
       return;
     }
     if (!typedName.trim()) {
@@ -236,6 +246,25 @@ function WaiverContent() {
               </div>
             </dl>
           </aside>
+          <section className="waiver-official-source" aria-labelledby="official-waiver-title">
+            <div className="waiver-official-source-heading">
+              <p className="waiver-version">Official source document</p>
+              <h2 id="official-waiver-title">
+                Brazilian Power Team Jersey Waiver and Release of Liability
+              </h2>
+              <p>
+                Read this exact document before completing the acknowledgements and signing below.
+              </p>
+              <a href={officialWaiverDocumentUrl} target="_blank" rel="noreferrer noopener">
+                Open the official waiver document
+              </a>
+            </div>
+            <iframe
+              className="waiver-official-iframe"
+              src={officialWaiverDocumentUrl}
+              title="Official waiver document"
+            />
+          </section>
 
           <section className="waiver-document" aria-labelledby="waiver-document-title">
             <div className="waiver-document-heading">
@@ -292,6 +321,18 @@ function WaiverContent() {
               </div>
             ) : (
               <form className="waiver-form" noValidate onSubmit={(event) => void submit(event)}>
+                <label className="waiver-official-confirmation">
+                  <input
+                    checked={officialDocumentReviewed}
+                    id="official-waiver-reviewed"
+                    onChange={(event) => {
+                      setOfficialDocumentReviewed(event.target.checked);
+                      setError("");
+                    }}
+                    type="checkbox"
+                  />
+                  I have read and agree to the official waiver document above.
+                </label>
                 {currentVersion.clauses.map((clause, index) => {
                   const missing = Boolean(error && decisions[clause.key] === undefined);
                   return (

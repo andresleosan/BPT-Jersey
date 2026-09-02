@@ -223,3 +223,9 @@ existan; no son criterios de aceptación de este MVP.
 - Reglas de freeze, descuentos y refunds posteriores al catálogo inicial.
 - Política de retención, residencia y eliminación de datos, validada para Jersey y para información de menores.
 - Fecha objetivo de producción y presupuesto mensual máximo.
+
+## Official registration waiver source
+
+- `F:\Proyectos\BPT Jersey\Varios\Brazilian Power Team Jersey Waiver and Release of Liability.pdf` is the official document every adult student or legal guardian must complete and sign when joining the academy.
+- The platform must not replace that document with custom legal wording or a different editable copy. The UI presents the official template and signed evidence preserves its original pages alongside the authenticated signature record.
+- The profile may be created first so the participant can be identified, but registration is not complete and operational use is not enabled until the official waiver is accepted.
