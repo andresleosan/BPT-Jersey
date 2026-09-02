@@ -74,7 +74,7 @@ export function ActivitiesPage() {
   useEffect(() => {
     let mounted = true;
     const from = new Date();
-    const to = new Date(from.getTime() + 180 * 24 * 60 * 60 * 1000);
+    const to = new Date(from.getTime() + 90 * 24 * 60 * 60 * 1000);
     void listSessions({ from: from.toISOString(), to: to.toISOString() })
       .then((sessions) => {
         if (!mounted) return;

@@ -1,10 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActivitiesPage } from "./page";
 
+const { listSessionsMock } = vi.hoisted(() => ({
+  listSessionsMock: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("../../../lib/schedule-client", () => ({
-  listSessions: vi.fn().mockResolvedValue([]),
+  listSessions: listSessionsMock,
   saveSession: vi.fn().mockResolvedValue({
     sessionId: "sess-new",
     title: "New Activity",
@@ -19,6 +23,10 @@ vi.mock("../../../lib/schedule-client", () => ({
 }));
 
 describe("activities page", () => {
+  afterEach(() => {
+    cleanup();
+    listSessionsMock.mockClear();
+  });
   it("renders activities with schedule, location, capacity, and status", () => {
     render(<ActivitiesPage />);
     expect(screen.getByRole("heading", { name: "Activities" })).toBeVisible();
@@ -26,7 +34,18 @@ describe("activities page", () => {
     expect(screen.getByRole("table", { name: "Academy activities" })).toBeVisible();
   });
 
+  it("requests a range supported by the sessions callable", async () => {
+    render(<ActivitiesPage />);
+
+    await waitFor(() => expect(listSessionsMock).toHaveBeenCalled());
+    const request = listSessionsMock.mock.calls[0]?.[0] as { from: string; to: string };
+    expect(new Date(request.to).getTime() - new Date(request.from).getTime()).toBeLessThanOrEqual(
+      90 * 24 * 60 * 60 * 1000,
+    );
+  });
+
   it("does not replace an empty connected response with preview rows", async () => {
+    render(<ActivitiesPage />);
     expect(await screen.findByText("No activities match these filters.")).toBeVisible();
     expect(screen.queryByText("Kids Gi Fundamentals")).not.toBeInTheDocument();
   });
