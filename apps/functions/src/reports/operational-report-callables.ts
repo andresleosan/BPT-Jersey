@@ -2,6 +2,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { parseOperationalReportQuery, type OperationalReport } from "@bpt-jersey/domain/reports";
 
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createFirestoreOperationalReportStore,
@@ -55,6 +56,7 @@ function getStore(): OperationalReportStore {
 
 export const getOperationalReport = onCall(
   {
+    ...browserAdminCallableOptions,
     enforceAppCheck: false,
     consumeAppCheckToken: false,
   },

@@ -4,6 +4,7 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import type { FinancialDashboard } from "@bpt-jersey/domain/finance/dashboard";
 import type { UserActorContext } from "@bpt-jersey/domain";
 
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createFirestoreFinancialDashboardStore,
@@ -66,6 +67,7 @@ function callableServices(): FinancialDashboardCallableServices {
 
 export const getFinancialDashboard = onCall(
   {
+    ...browserAdminCallableOptions,
     enforceAppCheck: false,
     consumeAppCheckToken: false,
   },

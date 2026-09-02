@@ -8,54 +8,6 @@ import { listCrmLeads } from "../../../lib/crm-client";
 
 import "../admin.css";
 
-const syntheticLeads: readonly LeadRecord[] = [
-  {
-    academyId: "demo-academy",
-    leadId: "lead-morgan-f",
-    schemaVersion: "1",
-    createdBy: "synthetic-seed",
-    updatedBy: "synthetic-seed",
-    contactReference: "Morgan family",
-    source: "website-f",
-    ownerId: "reception-f",
-    status: "trial_booked",
-    nextActionAt: "2026-08-27T10:00:00Z",
-    consentState: "unknown",
-    createdAt: "2026-08-25T10:00:00Z",
-    updatedAt: "2026-08-25T10:00:00Z",
-  },
-  {
-    academyId: "demo-academy",
-    leadId: "lead-jamie-f",
-    schemaVersion: "1",
-    createdBy: "synthetic-seed",
-    updatedBy: "synthetic-seed",
-    contactReference: "Jamie Carter",
-    source: "referral-f",
-    ownerId: "admin-team-f",
-    status: "new_enquiry",
-    nextActionAt: "2026-08-26T10:00:00Z",
-    consentState: "unknown",
-    createdAt: "2026-08-25T10:00:00Z",
-    updatedAt: "2026-08-25T10:00:00Z",
-  },
-  {
-    academyId: "demo-academy",
-    leadId: "lead-riley-f",
-    schemaVersion: "1",
-    createdBy: "synthetic-seed",
-    updatedBy: "synthetic-seed",
-    contactReference: "Riley Stone",
-    source: "walk_in-f",
-    ownerId: "reception-f",
-    status: "follow_up",
-    nextActionAt: "2026-08-28T10:00:00Z",
-    consentState: "unknown",
-    createdAt: "2026-08-25T10:00:00Z",
-    updatedAt: "2026-08-25T10:00:00Z",
-  },
-];
-
 const stageLabels: Record<LeadRecord["status"], string> = {
   new_enquiry: "New enquiry",
   trial_booked: "Trial booked",
@@ -70,29 +22,24 @@ const ownerLabels: Record<string, string> = {
   "admin-team-f": "Admin team",
 };
 
-const backendEnabled = process.env.NEXT_PUBLIC_CRM_BACKEND === "true";
+type CrmState =
+  { status: "loading" } | { status: "ready"; leads: readonly LeadRecord[] } | { status: "error" };
 
 export function CrmPage() {
   const [stage, setStage] = useState("All stages");
   const [owner, setOwner] = useState("All owners");
-  const [leads, setLeads] = useState<readonly LeadRecord[]>(syntheticLeads);
-  const [loadState, setLoadState] = useState<"synthetic" | "loading" | "ready" | "error">(
-    backendEnabled ? "loading" : "synthetic",
-  );
+  const [state, setState] = useState<CrmState>({ status: "loading" });
 
   useEffect(() => {
-    if (!backendEnabled) return;
     let active = true;
-    void listCrmLeads()
-      .then((result) => {
-        if (!active) return;
-        setLeads(result);
-        setLoadState("ready");
-      })
-      .catch(() => {
-        if (!active) return;
-        setLoadState("error");
-      });
+    void listCrmLeads().then(
+      (leads) => {
+        if (active) setState({ status: "ready", leads });
+      },
+      () => {
+        if (active) setState({ status: "error" });
+      },
+    );
     return () => {
       active = false;
     };
@@ -100,19 +47,19 @@ export function CrmPage() {
 
   const filteredLeads = useMemo(
     () =>
-      leads.filter(
+      (state.status === "ready" ? state.leads : []).filter(
         (lead) =>
           (stage === "All stages" || stageLabels[lead.status] === stage) &&
           (owner === "All owners" || (ownerLabels[lead.ownerId] ?? lead.ownerId) === owner),
       ),
-    [leads, owner, stage],
+    [state, owner, stage],
   );
 
   return (
     <section className="admin-module-page" aria-labelledby="crm-title">
       <AdminSectionHeader
         description="Keep enquiries, trials, follow-ups, and retention actions visible to the academy team."
-        eyebrow={loadState === "synthetic" ? "CRM / Synthetic preview" : "CRM / Callable backend"}
+        eyebrow="CRM / Connected"
         title="CRM"
       />
       <AdminFilterBar>
@@ -142,29 +89,35 @@ export function CrmPage() {
           </select>
         </label>
       </AdminFilterBar>
-      <div className="admin-lead-list">
-        {filteredLeads.map((lead) => (
-          <article
-            aria-label={lead.contactReference}
-            className="admin-panel-card"
-            key={lead.leadId}
-          >
-            <p className="admin-eyebrow">{stageLabels[lead.status]}</p>
-            <h3>{lead.contactReference}</h3>
-            <p>{lead.nextActionAt ? `Next action: ${lead.nextActionAt}` : "No next action set"}</p>
-            <span className="admin-status-badge admin-status-active">
-              Owner: {ownerLabels[lead.ownerId] ?? lead.ownerId}
-            </span>
-          </article>
-        ))}
-        {filteredLeads.length === 0 ? (
-          <p className="admin-empty-state">
-            {loadState === "error"
-              ? "CRM backend unavailable; showing no live leads."
-              : "No leads match these filters."}
-          </p>
-        ) : null}
-      </div>
+      {state.status === "loading" ? <p role="status">Loading connected CRM leads...</p> : null}
+      {state.status === "error" ? (
+        <p className="admin-report-state" role="alert">
+          Unable to load connected CRM leads. No synthetic data was displayed.
+        </p>
+      ) : null}
+      {state.status === "ready" ? (
+        <div className="admin-lead-list">
+          {filteredLeads.map((lead) => (
+            <article
+              aria-label={lead.contactReference}
+              className="admin-panel-card"
+              key={lead.leadId}
+            >
+              <p className="admin-eyebrow">{stageLabels[lead.status]}</p>
+              <h3>{lead.contactReference}</h3>
+              <p>
+                {lead.nextActionAt ? `Next action: ${lead.nextActionAt}` : "No next action set"}
+              </p>
+              <span className="admin-status-badge admin-status-active">
+                Owner: {ownerLabels[lead.ownerId] ?? lead.ownerId}
+              </span>
+            </article>
+          ))}
+          {filteredLeads.length === 0 ? (
+            <p className="admin-empty-state">No leads available.</p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

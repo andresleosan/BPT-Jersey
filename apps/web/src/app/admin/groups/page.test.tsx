@@ -27,6 +27,11 @@ describe("groups page", () => {
     expect(screen.getByRole("table", { name: "Groups and teams" })).toBeVisible();
   });
 
+  it("does not replace an empty connected response with preview rows", async () => {
+    expect(await screen.findByText("No groups match these filters.")).toBeVisible();
+    expect(screen.queryByText("Little Warriors")).not.toBeInTheDocument();
+  });
+
   it("opens create group modal on button click", () => {
     render(<GroupsPage />);
     const buttons = screen.getAllByRole("button", { name: "Create group" });

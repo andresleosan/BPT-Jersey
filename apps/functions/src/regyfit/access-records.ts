@@ -2,6 +2,8 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
+
 import {
   assertAcademyScope,
   getRegyfitProjectionScope,
@@ -135,6 +137,6 @@ export async function listRegyfitAccessRecordsHandler(
   return listRegyfitAccessWithServices(request, services);
 }
 
-export const listRegyfitAccessRecords = onCall(async (request) =>
+export const listRegyfitAccessRecords = onCall(browserAdminCallableOptions, async (request) =>
   listRegyfitAccessRecordsHandler(request, { firestore: getFirestore() }),
 );

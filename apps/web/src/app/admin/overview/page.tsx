@@ -1,28 +1,49 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import type { DailyOperationsDashboard } from "@bpt-jersey/domain/schedule";
+import type { OperationalReport } from "@bpt-jersey/domain/reports";
 
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
-import { previewData, type PreviewClass } from "../preview-data";
-import { LiveOperationsPanel } from "./live-operations-panel";
+import { getOperationalReport } from "../../../lib/reports-client";
+import { getDailyOperationsDashboard } from "../../../lib/schedule-client";
 
 import "../admin.css";
 
+type OverviewClass = Readonly<{
+  name: string;
+  group: string;
+  coach: string;
+  time: string;
+  capacity: number;
+  booked: number;
+  status: string;
+}>;
+
+type OverviewData = Readonly<{
+  dashboard: DailyOperationsDashboard;
+  report: OperationalReport;
+}>;
+
+type OverviewState =
+  { status: "loading" } | { status: "ready"; data: OverviewData } | { status: "error" };
+
 const classColumns = [
-  { key: "name", label: "Activity", render: (item: PreviewClass) => <strong>{item.name}</strong> },
-  { key: "group", label: "Group", render: (item: PreviewClass) => item.group },
-  { key: "time", label: "Time", render: (item: PreviewClass) => item.time },
-  { key: "coach", label: "Coach", render: (item: PreviewClass) => item.coach },
+  { key: "name", label: "Activity", render: (item: OverviewClass) => <strong>{item.name}</strong> },
+  { key: "group", label: "Class ID", render: (item: OverviewClass) => item.group },
+  { key: "time", label: "Time", render: (item: OverviewClass) => item.time },
+  { key: "coach", label: "Instructor ID", render: (item: OverviewClass) => item.coach },
   {
     key: "capacity",
     label: "Capacity",
-    render: (item: PreviewClass) => `${item.booked} / ${item.capacity}`,
+    render: (item: OverviewClass) => `${item.booked} / ${item.capacity}`,
   },
   {
     key: "status",
     label: "Status",
-    render: (item: PreviewClass) => <AdminStatusBadge status={item.status} />,
+    render: (item: OverviewClass) => <AdminStatusBadge status={item.status} />,
   },
 ] as const;
 
@@ -36,15 +57,99 @@ const quickActions = [
   { label: "Reports", href: "/admin/reports" },
 ] as const;
 
+function getTodayQuery() {
+  const date = new Date().toISOString().slice(0, 10);
+  return {
+    from: date + "T00:00:00.000Z",
+    to: date + "T23:59:59.999Z",
+  } as const;
+}
+
+function toClassRows(dashboard: DailyOperationsDashboard): readonly OverviewClass[] {
+  return dashboard.sessions.map(({ session, summary }) => ({
+    name: session.title,
+    group: session.classId ?? "Not linked",
+    coach: session.instructorId,
+    time: `${session.startAt.slice(11, 16)} - ${session.endAt.slice(11, 16)}`,
+    capacity: summary.capacity,
+    booked: summary.totalBookings,
+    status: session.status,
+  }));
+}
+
 export function OverviewPage() {
-  const dashboard = previewData.dashboard;
+  const [state, setState] = useState<OverviewState>({ status: "loading" });
+
+  useEffect(() => {
+    let active = true;
+    const query = getTodayQuery();
+    void Promise.all([getDailyOperationsDashboard(query), getOperationalReport(query)]).then(
+      ([dashboard, report]) => {
+        if (active) setState({ status: "ready", data: { dashboard, report } });
+      },
+      () => {
+        if (active) setState({ status: "error" });
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (state.status === "loading") {
+    return (
+      <section className="admin-overview" aria-labelledby="overview-title">
+        <AdminSectionHeader
+          eyebrow="Academy operations / Connected"
+          title="Today's academy view"
+          description="Loading the academy's connected schedule, student and membership data."
+        />
+        <p role="status" aria-live="polite">
+          Loading connected dashboard...
+        </p>
+      </section>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <section className="admin-overview" aria-labelledby="overview-title">
+        <AdminSectionHeader
+          eyebrow="Academy operations / Connected"
+          title="Today's academy view"
+          description="The dashboard only displays data returned by the connected backend."
+        />
+        <p className="admin-report-state" role="alert">
+          Unable to load today&apos;s connected dashboard. No synthetic data was displayed.
+        </p>
+      </section>
+    );
+  }
+
+  const { dashboard, report } = state.data;
+  const classes = toClassRows(dashboard);
+  const attendancePending = dashboard.sessions.reduce(
+    (total, snapshot) => total + snapshot.summary.totalPendingArrival,
+    0,
+  );
+  const attention = [
+    report.memberships.overdue > 0
+      ? `${report.memberships.overdue} overdue memberships`
+      : "No overdue memberships",
+    attendancePending > 0
+      ? `${attendancePending} arrivals pending across today's sessions`
+      : "No arrivals pending for today's sessions",
+    report.attendance.noShow > 0
+      ? `${report.attendance.noShow} no-shows in today's window`
+      : "No no-shows in today's window",
+  ];
 
   return (
     <section className="admin-overview" aria-labelledby="overview-title">
       <AdminSectionHeader
-        eyebrow="Academy operations / Synthetic preview"
+        eyebrow="Academy operations / Connected"
         title="Today's academy view"
-        description="A working control room for classes, members, attendance, and payment follow-up. Preview data is local and synthetic until the connected sources are approved."
+        description="Live schedule and canonical student, membership and attendance aggregates for the authenticated academy."
       />
 
       <div className="admin-quick-actions" aria-label="Quick actions">
@@ -58,24 +163,24 @@ export function OverviewPage() {
 
       <div className="admin-metrics-grid" aria-label="Academy metrics">
         <AdminMetric
-          detail="Scheduled across the academy"
+          detail="Connected sessions for today"
           label="Classes today"
-          value={`${dashboard.classesToday}`}
+          value={dashboard.sessions.length}
         />
         <AdminMetric
-          detail="Active memberships"
+          detail="Active student profiles"
           label="Members"
-          value={`${dashboard.activeMembers}`}
+          value={report.students.activeStudents}
         />
         <AdminMetric
-          detail="Awaiting attendance review"
+          detail="Pending arrival in today's sessions"
           label="Attendance pending"
-          value={`${dashboard.attendancePending}`}
+          value={attendancePending}
         />
         <AdminMetric
-          detail="Requires follow-up"
-          label="Overdue payments"
-          value={`${dashboard.overduePayments}`}
+          detail="Membership records marked overdue"
+          label="Overdue memberships"
+          value={report.memberships.overdue}
         />
       </div>
 
@@ -86,19 +191,23 @@ export function OverviewPage() {
         >
           <div className="admin-panel-card-heading">
             <div>
-              <p className="admin-eyebrow">Live schedule</p>
+              <p className="admin-eyebrow">Connected schedule</p>
               <h3 id="today-classes-title">Today&apos;s classes</h3>
             </div>
             <Link className="admin-text-link" href="/admin/activities">
               View activities
             </Link>
           </div>
-          <AdminDataTable
-            caption="Today's classes"
-            columns={classColumns}
-            rowKey={(item) => `${item.name}-${item.time}`}
-            rows={dashboard.todaysClasses}
-          />
+          {classes.length === 0 ? (
+            <p className="admin-empty-state">No connected sessions are scheduled for today.</p>
+          ) : (
+            <AdminDataTable
+              caption="Today's classes"
+              columns={classColumns}
+              rowKey={(item) => `${item.name}-${item.time}`}
+              rows={classes}
+            />
+          )}
         </section>
 
         <section className="admin-panel-card" aria-labelledby="attention-title">
@@ -109,7 +218,7 @@ export function OverviewPage() {
             </div>
           </div>
           <ul className="admin-action-list">
-            {dashboard.recentActions.map((action) => (
+            {attention.map((action) => (
               <li key={action}>
                 <span aria-hidden="true">/</span>
                 {action}
@@ -121,8 +230,6 @@ export function OverviewPage() {
           </Link>
         </section>
       </div>
-
-      <LiveOperationsPanel />
     </section>
   );
 }

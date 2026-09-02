@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActivitiesPage } from "./activities/page";
 import { AttendancePage } from "./attendance/page";
@@ -8,82 +8,49 @@ import { CrmPage } from "./crm/page";
 import { GroupsPage } from "./groups/page";
 import { ReportsPage } from "./reports/page";
 
-describe("administrative preview modules", () => {
+vi.mock("../../lib/schedule-client", () => ({
+  listClasses: vi.fn().mockResolvedValue([]),
+  listSessions: vi.fn().mockResolvedValue([]),
+  getSessionOperationalView: vi.fn(),
+  saveClass: vi.fn(),
+  saveSession: vi.fn(),
+}));
+
+vi.mock("../../lib/crm-client", () => ({
+  listCrmLeads: vi.fn().mockResolvedValue([]),
+}));
+
+describe("administrative connected modules", () => {
   afterEach(() => cleanup());
 
-  it("filters groups and exposes the training center", async () => {
-    const user = userEvent.setup();
+  it("does not render preview groups when the connected source is empty", async () => {
     render(<GroupsPage />);
-
+    expect(await screen.findByText("No groups match these filters.")).toBeVisible();
+    expect(screen.queryByText("Little Warriors")).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Training center" })).toBeVisible();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Coach" }), "Coach Alex");
-
-    expect(screen.getByRole("row", { name: /Little Warriors/ })).toBeVisible();
-    expect(screen.queryByRole("row", { name: /Adult No-Gi/ })).not.toBeInTheDocument();
   });
 
-  it("combines archived group status with the other filters", async () => {
-    const user = userEvent.setup();
-    render(<GroupsPage />);
-
-    await user.selectOptions(screen.getByRole("combobox", { name: "Program" }), "MMA");
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Group status" }),
-      "Archived groups",
-    );
-
-    expect(screen.getByText("No groups match these filters.")).toBeVisible();
-  });
-
-  it("filters activities by status", async () => {
-    const user = userEvent.setup();
+  it("does not render preview activities when the connected source is empty", async () => {
     render(<ActivitiesPage />);
-
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Activity status" }),
-      "Completed",
-    );
-
-    expect(screen.getByText("No activities match these filters.")).toBeVisible();
+    expect(await screen.findByText("No activities match these filters.")).toBeVisible();
+    expect(screen.queryByText("Kids Gi Fundamentals")).not.toBeInTheDocument();
   });
 
-  it("filters attendance by group and coach", async () => {
-    const user = userEvent.setup();
+  it("does not render preview attendance when the connected source is empty", async () => {
     render(<AttendancePage />);
-
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Attendance group" }),
-      "Little Warriors",
-    );
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Attendance coach" }),
-      "Coach Alex",
-    );
-
-    expect(screen.getByRole("row", { name: /Taylor Morgan/ })).toBeVisible();
-    expect(screen.queryByRole("row", { name: /Jordan Blake/ })).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("No connected attendance records match these filters."),
+    ).toBeVisible();
+    expect(screen.queryByText("Taylor Morgan")).not.toBeInTheDocument();
   });
 
-  it("applies the attendance date filter", async () => {
-    render(<AttendancePage />);
-
-    fireEvent.change(screen.getByLabelText("Attendance date"), { target: { value: "2026-08-13" } });
-
-    expect(screen.getByText("No attendance records match these filters.")).toBeVisible();
-  });
-
-  it("filters CRM leads by stage and owner", async () => {
-    const user = userEvent.setup();
+  it("does not render preview CRM leads when the connected source is empty", async () => {
     render(<CrmPage />);
-
-    await user.selectOptions(screen.getByRole("combobox", { name: "CRM stage" }), "New enquiry");
-    await user.selectOptions(screen.getByRole("combobox", { name: "CRM owner" }), "Admin team");
-
-    expect(screen.getByRole("article", { name: /Jamie Carter/ })).toBeVisible();
-    expect(screen.queryByRole("article", { name: /Morgan family/ })).not.toBeInTheDocument();
+    expect(await screen.findByText("No leads available.")).toBeVisible();
+    expect(screen.queryByText("Morgan family")).not.toBeInTheDocument();
   });
 
-  it("prepares a remaining preview report and exposes the resulting state", async () => {
+  it("keeps the remaining CRM report explicitly marked as preview", async () => {
     const user = userEvent.setup();
     render(<ReportsPage />);
     const report = screen.getByRole("article", { name: "CRM follow-up report" });

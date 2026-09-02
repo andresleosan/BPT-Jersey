@@ -15,6 +15,7 @@ import {
 import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { BookingTransactionError } from "./booking-transaction-service.js";
 import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-service.js";
@@ -768,22 +769,22 @@ export const saveProgram = onCall(
 );
 
 export const listClasses = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
+  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createListClassesHandler({ store: getStore() })(request),
 );
 
 export const listSessions = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
+  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createListSessionsHandler({ store: getStore() })(request),
 );
 
 export const getDailyOperationsDashboard = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
+  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createGetDailyOperationsDashboardHandler({ store: getStore() })(request),
 );
 
 export const saveClass = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
+  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createSaveClassHandler({ store: getStore() })(request),
 );
 
@@ -793,7 +794,7 @@ export const generateSessions = onCall(
 );
 
 export const saveSession = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
+  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createSaveSessionHandler({ store: getStore() })(request),
 );
 
@@ -873,6 +874,6 @@ export const getStudentCheckout = onCall(
 );
 
 export const getSessionOperationalView = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
+  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
   async (request) => createGetSessionOperationalViewHandler({ store: getStore() })(request),
 );

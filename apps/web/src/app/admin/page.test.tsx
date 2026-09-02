@@ -185,16 +185,14 @@ describe("administrative shell", () => {
     ).toHaveAttribute("aria-current", "page");
   });
 
-  it("renders the operational dashboard instead of placeholder module cards", () => {
+  it("renders a connected dashboard state instead of placeholder module cards", () => {
     renderAuthenticatedPreview();
 
     expect(screen.getByRole("heading", { name: "Today's academy view" })).toBeVisible();
-    expect(screen.getByRole("article", { name: "8 Classes today" })).toBeVisible();
-    expect(screen.getByRole("table", { name: "Today's classes" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Add new member" })).toHaveAttribute(
-      "href",
-      "/admin/members/add",
-    );
+    expect(screen.getByText("Loading connected dashboard...")).toBeVisible();
+    expect(screen.queryByRole("article", { name: "8 Classes today" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Today's classes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Add new member" })).not.toBeInTheDocument();
 
     const pageText = document.body.textContent ?? "";
     expect(pageText).not.toMatch(

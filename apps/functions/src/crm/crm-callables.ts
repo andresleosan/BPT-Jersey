@@ -8,6 +8,7 @@ import {
   type LeadStatus,
   type LeadTimelineEvent,
 } from "@bpt-jersey/domain/crm";
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createFirestoreCrmStore, type CrmStore, type LeadListFilter } from "./crm-service.js";
 
@@ -200,7 +201,7 @@ function getStore(): CrmStore {
 export const createCrmLead = onCall(async (request) =>
   createCreateLeadHandler({ store: getStore() })(request),
 );
-export const listCrmLeads = onCall(async (request) =>
+export const listCrmLeads = onCall(browserAdminCallableOptions, async (request) =>
   createListLeadsHandler({ store: getStore() })(request),
 );
 export const updateCrmLead = onCall(async (request) =>

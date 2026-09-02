@@ -9,6 +9,7 @@ import {
   toWaiverVersionProjection,
 } from "@bpt-jersey/domain/consents";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createR2ClientFromEnvironment, type R2Client } from "../storage/r2-client.js";
@@ -251,13 +252,13 @@ function callableServices(): ConsentCallableServices {
   };
 }
 
-export const publishWaiverVersion = onCall((request) =>
+export const publishWaiverVersion = onCall(browserAdminCallableOptions, (request) =>
   publishWaiverVersionHandler(request, callableServices()),
 );
-export const getCurrentWaiverAdmin = onCall((request) =>
+export const getCurrentWaiverAdmin = onCall(browserAdminCallableOptions, (request) =>
   getCurrentWaiverAdminHandler(request, callableServices()),
 );
-export const withdrawCurrentWaiver = onCall((request) =>
+export const withdrawCurrentWaiver = onCall(browserAdminCallableOptions, (request) =>
   withdrawCurrentWaiverHandler(request, callableServices()),
 );
 export const getWaiverRegistration = onCall((request) =>

@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { CreateSessionInput, SessionRecord } from "@bpt-jersey/domain/schedule";
 
 import { AdminDataTable } from "../admin-data-table";
 import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
-import { previewData, type PreviewActivity } from "../preview-data";
+type ActivityRow = Readonly<{
+  name: string;
+  program: string;
+  date: string;
+  time: string;
+  coach: string;
+  location: string;
+  capacity: number;
+  booked: string;
+  status: string;
+}>;
 import { listSessions, saveSession } from "../../../lib/schedule-client";
 import "../admin.css";
 
@@ -13,22 +23,22 @@ const columns = [
   {
     key: "name",
     label: "Activity",
-    render: (item: PreviewActivity) => <strong>{item.name}</strong>,
+    render: (item: ActivityRow) => <strong>{item.name}</strong>,
   },
-  { key: "program", label: "Program", render: (item: PreviewActivity) => item.program },
-  { key: "date", label: "Date", render: (item: PreviewActivity) => item.date },
-  { key: "time", label: "Time", render: (item: PreviewActivity) => item.time },
-  { key: "coach", label: "Coach", render: (item: PreviewActivity) => item.coach },
-  { key: "location", label: "Location", render: (item: PreviewActivity) => item.location },
+  { key: "program", label: "Program", render: (item: ActivityRow) => item.program },
+  { key: "date", label: "Date", render: (item: ActivityRow) => item.date },
+  { key: "time", label: "Time", render: (item: ActivityRow) => item.time },
+  { key: "coach", label: "Coach", render: (item: ActivityRow) => item.coach },
+  { key: "location", label: "Location", render: (item: ActivityRow) => item.location },
   {
     key: "capacity",
     label: "Capacity",
-    render: (item: PreviewActivity) => `${item.booked} / ${item.capacity}`,
+    render: (item: ActivityRow) => `${item.booked} / ${item.capacity}`,
   },
   {
     key: "status",
     label: "Status",
-    render: (item: PreviewActivity) => <AdminStatusBadge status={item.status} />,
+    render: (item: ActivityRow) => <AdminStatusBadge status={item.status} />,
   },
 ] as const;
 
@@ -59,19 +69,21 @@ export function ActivitiesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [connectedSessions, setConnectedSessions] = useState<readonly SessionRecord[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     let mounted = true;
-    void listSessions({
-      from: "2026-08-01T00:00:00Z",
-      to: "2026-12-31T23:59:59Z",
-    })
+    const from = new Date();
+    const to = new Date(from.getTime() + 180 * 24 * 60 * 60 * 1000);
+    void listSessions({ from: from.toISOString(), to: to.toISOString() })
       .then((sessions) => {
         if (!mounted) return;
         setConnectedSessions(sessions);
+        setLoadState("ready");
       })
       .catch(() => {
-        // Fallback to preview data if offline
+        if (!mounted) return;
+        setLoadState("error");
       });
 
     return () => {
@@ -79,27 +91,22 @@ export function ActivitiesPage() {
     };
   }, []);
 
-  const combinedActivities: readonly PreviewActivity[] =
-    connectedSessions.length > 0
-      ? connectedSessions.map((s) => ({
-          name: s.title,
-          program: s.programId.includes("adult")
-            ? "Brazilian Jiu-Jitsu"
-            : s.isSeminar
-              ? "Seminar"
-              : "BJJ",
-          date: s.startAt.slice(0, 10),
-          time: `${s.startAt.slice(11, 16)} - ${s.endAt.slice(11, 16)}`,
-          coach: "Coach Alex",
-          location: s.locationId === "town" ? "BPT Town" : "BPT West",
-          booked: 0,
-          capacity: s.capacity,
-          status:
-            s.status === "active"
-              ? ("scheduled" as const)
-              : (s.status as "scheduled" | "completed" | "cancelled"),
-        }))
-      : previewData.activities;
+  const combinedActivities: readonly ActivityRow[] = connectedSessions.map((s) => ({
+    name: s.title,
+    program: s.programId,
+    date: s.startAt.slice(0, 10),
+    time: `${s.startAt.slice(11, 16)} - ${s.endAt.slice(11, 16)}`,
+    coach: s.instructorId,
+    location: s.locationId,
+    booked: "Not available",
+    capacity: s.capacity,
+    status: s.status,
+  }));
+
+  const programOptions = useMemo(
+    () => Array.from(new Set(combinedActivities.map((activity) => activity.program))).sort(),
+    [combinedActivities],
+  );
 
   const activities = combinedActivities.filter(
     (activity) =>
@@ -150,7 +157,7 @@ export function ActivitiesPage() {
           </button>
         }
         description="Schedule classes and academy activities with coach, location, capacity, and attendance visibility."
-        eyebrow="Activities / Synthetic preview"
+        eyebrow={`Activities / ${loadState === "ready" ? "Connected" : "Connected source"}`}
         title="Activities"
       />
 
@@ -297,8 +304,9 @@ export function ActivitiesPage() {
             value={program}
           >
             <option>All programs</option>
-            <option>Brazilian Jiu-Jitsu</option>
-            <option>Seminar</option>
+            {programOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
           </select>
         </label>
         <label className="admin-filter-control">
@@ -314,6 +322,11 @@ export function ActivitiesPage() {
           </select>
         </label>
       </AdminFilterBar>
+      {loadState === "error" ? (
+        <p className="admin-report-state" role="alert">
+          Unable to load connected activities. No synthetic data was displayed.
+        </p>
+      ) : null}
       {notice ? (
         <p aria-live="polite" className="admin-preview-notice" role="status">
           {notice}
@@ -325,7 +338,9 @@ export function ActivitiesPage() {
             <p className="admin-eyebrow">Schedule</p>
             <h3 id="activities-table-title">Academy activities</h3>
           </div>
-          <span className="admin-status-badge admin-status-active">Synthetic preview</span>
+          <span className="admin-status-badge admin-status-active">
+            {loadState === "ready" ? "Connected" : "Loading"}
+          </span>
         </div>
         <AdminDataTable
           caption="Academy activities"
@@ -333,7 +348,7 @@ export function ActivitiesPage() {
           rowKey={(item) => `${item.name}-${item.time}`}
           rows={activities}
         />
-        {activities.length === 0 ? (
+        {loadState === "ready" && activities.length === 0 ? (
           <p className="admin-empty-state">No activities match these filters.</p>
         ) : null}
       </section>

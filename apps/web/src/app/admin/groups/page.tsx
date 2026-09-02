@@ -1,34 +1,43 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { ClassRecord, CreateClassInput } from "@bpt-jersey/domain/schedule";
 
 import { AdminDataTable } from "../admin-data-table";
 import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
-import { previewData, type PreviewGroup } from "../preview-data";
+type GroupRow = Readonly<{
+  name: string;
+  program: string;
+  coach: string;
+  level: string;
+  schedule: string;
+  capacity: string;
+  trainingCenter: string;
+  status: "active" | "archived";
+}>;
 import { listClasses, saveClass } from "../../../lib/schedule-client";
 import "../admin.css";
 
 const columns = [
-  { key: "name", label: "Group", render: (item: PreviewGroup) => <strong>{item.name}</strong> },
-  { key: "program", label: "Program", render: (item: PreviewGroup) => item.program },
-  { key: "coach", label: "Coach", render: (item: PreviewGroup) => item.coach },
-  { key: "level", label: "Age / skill band", render: (item: PreviewGroup) => item.level },
-  { key: "schedule", label: "Schedule", render: (item: PreviewGroup) => item.schedule },
+  { key: "name", label: "Group", render: (item: GroupRow) => <strong>{item.name}</strong> },
+  { key: "program", label: "Program", render: (item: GroupRow) => item.program },
+  { key: "coach", label: "Coach", render: (item: GroupRow) => item.coach },
+  { key: "level", label: "Age / skill band", render: (item: GroupRow) => item.level },
+  { key: "schedule", label: "Schedule", render: (item: GroupRow) => item.schedule },
   {
     key: "capacity",
     label: "Capacity",
-    render: (item: PreviewGroup) => `${item.members} / ${item.capacity}`,
+    render: (item: GroupRow) => item.capacity,
   },
   {
     key: "trainingCenter",
     label: "Training center",
-    render: (item: PreviewGroup) => item.trainingCenter,
+    render: (item: GroupRow) => item.trainingCenter,
   },
   {
     key: "status",
     label: "Status",
-    render: (item: PreviewGroup) => <AdminStatusBadge status={item.status} />,
+    render: (item: GroupRow) => <AdminStatusBadge status={item.status} />,
   },
 ] as const;
 
@@ -61,6 +70,7 @@ export function GroupsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [connectedClasses, setConnectedClasses] = useState<readonly ClassRecord[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     let mounted = true;
@@ -68,34 +78,36 @@ export function GroupsPage() {
       .then((classes) => {
         if (!mounted) return;
         setConnectedClasses(classes);
+        setLoadState("ready");
       })
       .catch(() => {
-        // Fallback to preview data if offline / unconfigured
+        if (!mounted) return;
+        setLoadState("error");
       });
     return () => {
       mounted = false;
     };
   }, []);
 
-  // Merge connected data or use preview data
-  const combinedGroups: readonly PreviewGroup[] =
-    connectedClasses.length > 0
-      ? connectedClasses.map((cls) => ({
-          name: cls.name,
-          program: cls.programId.includes("adult")
-            ? "Brazilian Jiu-Jitsu"
-            : cls.programId.includes("kids")
-              ? "Kids BJJ"
-              : "MMA",
-          coach: cls.instructorIds.join(", ") || "Coach Alex",
-          level: "All levels",
-          schedule: `${dayName(cls.recurrenceRule.dayOfWeek)} ${cls.recurrenceRule.startTime}`,
-          members: 0,
-          capacity: cls.capacity,
-          trainingCenter: cls.locationId === "town" ? "BPT Town" : "BPT West",
-          status: cls.active ? ("active" as const) : ("archived" as const),
-        }))
-      : previewData.groups;
+  const combinedGroups: readonly GroupRow[] = connectedClasses.map((cls) => ({
+    name: cls.name,
+    program: cls.programId,
+    coach: cls.instructorIds.join(", ") || "Not assigned",
+    level: "Not provided",
+    schedule: `${dayName(cls.recurrenceRule.dayOfWeek)} ${cls.recurrenceRule.startTime}`,
+    capacity: `Not provided / ${cls.capacity}`,
+    trainingCenter: cls.locationId,
+    status: cls.active ? "active" : "archived",
+  }));
+
+  const programOptions = useMemo(
+    () => Array.from(new Set(combinedGroups.map((group) => group.program))).sort(),
+    [combinedGroups],
+  );
+  const coachOptions = useMemo(
+    () => Array.from(new Set(combinedGroups.map((group) => group.coach))).sort(),
+    [combinedGroups],
+  );
 
   const groups = combinedGroups.filter(
     (group) =>
@@ -146,7 +158,7 @@ export function GroupsPage() {
           </button>
         }
         description="Manage training groups, coaches, capacity, and the members assigned to each team."
-        eyebrow="Groups / Teams / Synthetic preview"
+        eyebrow={`Groups / Teams / ${loadState === "ready" ? "Connected" : "Connected source"}`}
         title="Groups / Teams"
       />
 
@@ -269,9 +281,9 @@ export function GroupsPage() {
             value={program}
           >
             <option>All programs</option>
-            <option>Brazilian Jiu-Jitsu</option>
-            <option>Kids BJJ</option>
-            <option>MMA</option>
+            {programOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
           </select>
         </label>
         <label className="admin-filter-control">
@@ -282,8 +294,9 @@ export function GroupsPage() {
             value={coach}
           >
             <option>All coaches</option>
-            <option>Coach Alex</option>
-            <option>Coach Bruno</option>
+            {coachOptions.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
           </select>
         </label>
         <label className="admin-filter-control">
@@ -298,6 +311,11 @@ export function GroupsPage() {
           </select>
         </label>
       </AdminFilterBar>
+      {loadState === "error" ? (
+        <p className="admin-report-state" role="alert">
+          Unable to load connected groups. No synthetic data was displayed.
+        </p>
+      ) : null}
       {notice ? (
         <p aria-live="polite" className="admin-preview-notice" role="status">
           {notice}
@@ -309,7 +327,9 @@ export function GroupsPage() {
             <p className="admin-eyebrow">Directory</p>
             <h3 id="groups-table-title">Training groups</h3>
           </div>
-          <span className="admin-status-badge admin-status-active">Synthetic preview</span>
+          <span className="admin-status-badge admin-status-active">
+            {loadState === "ready" ? "Connected" : "Loading"}
+          </span>
         </div>
         <AdminDataTable
           caption="Groups and teams"
@@ -317,7 +337,7 @@ export function GroupsPage() {
           rowKey={(item) => item.name}
           rows={groups}
         />
-        {groups.length === 0 ? (
+        {loadState === "ready" && groups.length === 0 ? (
           <p className="admin-empty-state">No groups match these filters.</p>
         ) : null}
       </section>
