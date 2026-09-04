@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProgressReport } from "@bpt-jersey/domain/levels";
 import { createGetProgressReportHandler } from "./progress-report-callables";
 import type { ProgressReportStore } from "./progress-report-service";
+import type { LevelAuthorizationService } from "./level-authorization";
 
 const report: ProgressReport = {
   activeStudentCount: 2,
@@ -19,9 +20,26 @@ const report: ProgressReport = {
 function request(data: unknown, role = "owner", uid: string | null = "staff-1") {
   return {
     auth: uid ? { uid, token: { academyId: "academy-1", role } } : undefined,
+    app: { appId: "test-app" },
     data,
   } as never;
 }
+
+const authorization: LevelAuthorizationService = {
+  requireActor: async (call) => {
+    if (!call.auth) throw new Error("unauthenticated");
+    return {
+      kind: "user",
+      userId: call.auth.uid as never,
+      academyId: "academy-1" as never,
+      role: call.auth.token.role as never,
+      staffId: "staff-1",
+    };
+  },
+  resolveStudent: async () => {
+    throw new Error("unused");
+  },
+};
 
 describe("progress report callable", () => {
   it("allows staff and preserves the aggregate-only response", async () => {
@@ -31,7 +49,7 @@ describe("progress report callable", () => {
         return report;
       },
     };
-    const handler = createGetProgressReportHandler({ store });
+    const handler = createGetProgressReportHandler({ store, authorization });
 
     const response = await handler(request(null, "headCoach"));
     expect(response.report).toEqual(report);
@@ -42,7 +60,7 @@ describe("progress report callable", () => {
     const store: ProgressReportStore = {
       getProgressReport: async () => report,
     };
-    const handler = createGetProgressReportHandler({ store });
+    const handler = createGetProgressReportHandler({ store, authorization });
 
     await expect(handler(request(null, "adultStudent", "student-1"))).rejects.toThrow(
       "Staff role required",

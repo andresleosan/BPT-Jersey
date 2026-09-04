@@ -50,7 +50,7 @@ const classColumns = [
 const quickActions = [
   { label: "Add new member", href: "/admin/members/add" },
   { label: "Search members", href: "/admin/members/search" },
-  { label: "Groups / teams", href: "/admin/groups" },
+  { label: "Classes", href: "/admin/classes" },
   { label: "Create / manage activities", href: "/admin/activities" },
   { label: "Attendance", href: "/admin/attendance" },
   { label: "Finance", href: "/admin/finance" },

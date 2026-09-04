@@ -10,19 +10,23 @@ export {
 export type { AdminActor } from "./auth/admin-authorization.js";
 export { bootstrapEmulatorOwner, provisionAdminRole } from "./auth/admin-provisioning.js";
 export { listRegyfitAccessRecords } from "./regyfit/access-records.js";
+export { cleanupExpiredMemberImportSessionsSchedule } from "./members/member-callables.js";
 export {
-  cleanupExpiredMemberImportSessions,
-  cleanupExpiredMemberImportSessionsSchedule,
+  cleanupExpiredCanonicalMemberImportSessionsSchedule,
   confirmMemberPdfImport,
-  createMember,
   createMemberPdfImportSession,
-  getMemberReport,
-  getMemberReportPdf,
-  getMemberReportSummary,
   previewMemberPdfImport,
-  searchMembers,
-} from "./members/member-callables.js";
+  reviewMemberPdfImportMatches,
+} from "./members/canonical-member-import-callables.js";
+export {
+  createCanonicalMember as createMember,
+  getMemberDetail,
+  listMembers,
+  lookupMemberIdentity,
+  updateCanonicalMember as updateMember,
+} from "./members/member-directory-callables.js";
 export { getClientProfile, saveClientProfile } from "./profiles/profile-callables.js";
+export { getGuardianProfile, saveGuardianProfile } from "./profiles/guardian-profile-callables.js";
 export { createFamily, getFamily, updateFamily } from "./families/family-callables.js";
 export {
   createStaffProfile,
@@ -36,6 +40,7 @@ export {
   activatePlan,
   deactivatePlan,
   getPlan,
+  listManagedPlans,
   listPlans,
   savePlan,
 } from "./memberships/plan-callables.js";
@@ -96,6 +101,7 @@ export {
   saveClass,
   saveProgram,
   saveSession,
+  updateClass,
 } from "./schedule/schedule-callables.js";
 export {
   acceptWaitlistOffer,
@@ -119,6 +125,10 @@ export {
 } from "./announcements/announcement-callables.js";
 export { listClientReminders } from "./reminders/reminder-callables.js";
 export { listRetentionAlerts } from "./retention/retention-alert-callables.js";
+export {
+  listNotificationPreferences,
+  saveNotificationPreference,
+} from "./delivery/notification-preference-callables.js";
 export {
   createTenantBackup,
   prepareTenantRestore,

@@ -16,192 +16,196 @@ vi.mock("firebase/functions", () => ({
 
 import {
   createMember,
-  getMemberReport,
-  getMemberReportPdf,
-  getMemberReportSummary,
-  searchMembers,
+  getMemberDetail,
+  listMembers,
+  lookupMemberIdentity,
+  updateMember,
 } from "./members-client";
 
-describe("Members web client", () => {
+const row = {
+  studentId: "student-1",
+  fullName: "Synthetic Adult",
+  trainingCenter: "Town" as const,
+  participantType: "adult" as const,
+  active: true,
+  status: "active" as const,
+  membershipReference: "****0001",
+};
+
+const createInput = {
+  requestId: "request-1",
+  membershipNumber: " bpt 00000001 ",
+  fullName: "Synthetic Adult",
+  dateOfBirth: "1990-01-02",
+  phoneNumber: "+44 7000 000000",
+  email: "adult@example.test",
+  trainingCenter: "Town" as const,
+  trainingTimePreferences: ["evening" as const],
+  gender: "unknown" as const,
+  frequencyNote: "Twice weekly",
+};
+
+const updateInput = {
+  studentId: "student-1",
+  requestId: "41cbb1aa-7020-4bb5-88a4-dbc73c5f0123",
+  fullName: "Updated Adult",
+  dateOfBirth: "1990-01-02",
+  trainingCenter: "West" as const,
+  trainingTimePreferences: ["morning" as const],
+  membershipNumber: " new 0001 ",
+  gender: "female" as const,
+};
+
+describe("canonical members web client", () => {
   beforeEach(() => {
     mocks.callable.mockReset();
     mocks.getFirebaseFunctions.mockClear();
     mocks.httpsCallable.mockReset();
+    mocks.httpsCallable.mockReturnValue(mocks.callable);
   });
 
-  it("sends the exact member-owned payload and returns the member ID", async () => {
-    mocks.callable.mockResolvedValue({ data: { memberId: "member-123" } });
-    mocks.httpsCallable.mockReturnValue(mocks.callable);
+  it("sends the strict canonical creation payload and requires matching student aliases", async () => {
+    mocks.callable.mockResolvedValue({
+      data: { memberId: "student-1", studentId: "student-1" },
+    });
 
-    await expect(
-      createMember({
-        membershipNumber: "BPT-123",
-        fullName: "Alex Johnson",
-        email: "alex@example.test",
-        idCardNumber: "ID-123",
-        vatNumber: "VAT-123",
-        birthDate: "1990-01-02",
-        mobileNumber: "+44 7000 000000",
-        frequency: "Twice weekly",
-        gender: "unknown",
-        trainingCenter: "St Helier",
-      }),
-    ).resolves.toEqual({ memberId: "member-123" });
-
+    await expect(createMember(createInput)).resolves.toEqual({
+      memberId: "student-1",
+      studentId: "student-1",
+    });
     expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "createMember");
     expect(mocks.callable).toHaveBeenCalledWith({
-      membershipNumber: "BPT-123",
-      fullName: "Alex Johnson",
-      email: "alex@example.test",
-      idCardNumber: "ID-123",
-      vatNumber: "VAT-123",
-      birthDate: "1990-01-02",
-      mobileNumber: "+44 7000 000000",
-      frequency: "Twice weekly",
-      gender: "unknown",
-      trainingCenter: "St Helier",
+      ...createInput,
+      membershipNumber: "BPT 00000001",
     });
-  });
 
-  it("omits undefined optional fields from the callable payload", async () => {
-    mocks.callable.mockResolvedValue({ data: { memberId: "member-456" } });
-    mocks.httpsCallable.mockReturnValue(mocks.callable);
-
-    await createMember({ fullName: "Alex Johnson" });
-
-    expect(mocks.callable).toHaveBeenCalledWith({ fullName: "Alex Johnson" });
-  });
-
-  it("sanitizes callable failures and malformed responses", async () => {
-    mocks.httpsCallable.mockReturnValue(mocks.callable);
-    mocks.callable.mockRejectedValue(new Error("private Firebase stack detail"));
-
-    await expect(createMember({ fullName: "Alex Johnson" })).rejects.toThrow(
-      "Unable to create member. Please try again.",
-    );
-    await expect(createMember({ fullName: "Alex Johnson" })).rejects.not.toThrow(
-      "private Firebase stack detail",
-    );
-
-    mocks.callable.mockResolvedValue({ data: { memberId: "" } });
-    await expect(createMember({ fullName: "Alex Johnson" })).rejects.toThrow(
-      "Unable to create member. Please try again.",
-    );
-  });
-
-  it("sends only the eleven approved member search filters and the continuation token", async () => {
-    mocks.callable.mockResolvedValue({ data: { members: [], nextPageToken: "next-token" } });
-    mocks.httpsCallable.mockReturnValue(mocks.callable);
-    const filters = {
-      membershipNumber: "M-001",
-      name: "Alex",
-      email: "alex@example.test",
-      idCardNumber: "ID-001",
-      vatNumber: "VAT-001",
-      mobileNumber: "+441234567890",
-      frequency: "twice-weekly",
-      paymentOrStatus: "active" as const,
-      gender: "unknown" as const,
-      trainingCenter: "Main Center",
-      orderBy: "registrationDate" as const,
-      unexpected: "must-not-cross-boundary",
-    };
-
-    await expect(searchMembers(filters, "next-token")).resolves.toEqual({
-      members: [],
-      nextPageToken: "next-token",
-    });
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "searchMembers");
-    expect(mocks.callable).toHaveBeenCalledWith({
-      filters: {
-        membershipNumber: "M-001",
-        name: "Alex",
-        email: "alex@example.test",
-        idCardNumber: "ID-001",
-        vatNumber: "VAT-001",
-        mobileNumber: "+441234567890",
-        frequency: "twice-weekly",
-        paymentOrStatus: "active",
-        gender: "unknown",
-        trainingCenter: "Main Center",
-        orderBy: "registrationDate",
-      },
-      pageToken: "next-token",
-    });
-  });
-
-  it("accepts only a future, bounded PDF expiry", async () => {
-    mocks.httpsCallable.mockReturnValue(mocks.callable);
     mocks.callable.mockResolvedValue({
-      data: {
-        downloadUrl: "https://signed.example/report.pdf",
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      },
+      data: { memberId: "legacy-1", studentId: "student-1" },
     });
-
-    await expect(getMemberReportPdf("active")).resolves.toHaveProperty("downloadUrl");
-
-    for (const expiresAt of [
-      new Date(Date.now() - 1_000).toISOString(),
-      new Date(Date.now() + 11 * 60 * 1000).toISOString(),
-      "not-a-date",
-    ]) {
-      mocks.callable.mockResolvedValue({
-        data: { downloadUrl: "https://signed.example/report.pdf", expiresAt },
-      });
-      await expect(getMemberReportPdf("active")).rejects.toThrow(
-        "Unable to download member report. Please try again.",
-      );
-    }
-  });
-
-  it("keeps report calls allowlisted and returns a signed PDF URL", async () => {
-    mocks.callable.mockResolvedValueOnce({
-      data: { report: "active", members: [], generatedAt: "2026-08-11T12:00:00.000Z" },
-    });
-    mocks.callable.mockResolvedValueOnce({
-      data: {
-        downloadUrl: "https://signed.example/report.pdf",
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      },
-    });
-    mocks.httpsCallable.mockReturnValue(mocks.callable);
-
-    await expect(getMemberReport("active")).resolves.toMatchObject({ report: "active" });
-    await expect(getMemberReportPdf("active")).resolves.toMatchObject({
-      downloadUrl: "https://signed.example/report.pdf",
-    });
-    expect(mocks.callable).toHaveBeenNthCalledWith(1, { report: "active" });
-    expect(mocks.callable).toHaveBeenNthCalledWith(2, { report: "active" });
-  });
-
-  it("returns a count-only report summary", async () => {
-    mocks.callable.mockResolvedValue({ data: { report: "active", count: 12 } });
-    mocks.httpsCallable.mockReturnValue(mocks.callable);
-
-    await expect(getMemberReportSummary("active")).resolves.toEqual({ report: "active", count: 12 });
-    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "getMemberReportSummary");
-    expect(mocks.callable).toHaveBeenCalledWith({ report: "active" });
-  });
-
-  it("sanitizes malformed search and report responses", async () => {
-    mocks.httpsCallable.mockReturnValue(mocks.callable);
-    mocks.callable.mockResolvedValueOnce({ data: { members: [{ memberId: "" }] } });
-    await expect(searchMembers({})).rejects.toThrow("Unable to search members. Please try again.");
-
-    mocks.callable.mockResolvedValueOnce({ data: { report: "active", members: [] } });
-    await expect(getMemberReport("active")).rejects.toThrow(
-      "Unable to load member report. Please try again.",
+    await expect(createMember(createInput)).rejects.toThrow(
+      "Unable to create member. Please try again.",
     );
+  });
 
-    mocks.callable.mockResolvedValueOnce({ data: { downloadUrl: "javascript:alert(1)" } });
-    await expect(getMemberReportPdf("active")).rejects.toThrow(
-      "Unable to download member report. Please try again.",
+  it("rejects malformed creation data before invoking Firebase", async () => {
+    await expect(
+      createMember({ ...createInput, unexpected: "blocked" } as never),
+    ).rejects.toThrow("Unable to create member. Please try again.");
+    expect(mocks.callable).not.toHaveBeenCalled();
+  });
+
+  it("sends a strict full-replacement update and binds both public aliases", async () => {
+    mocks.callable.mockResolvedValue({
+      data: { memberId: "student-1", studentId: "student-1" },
+    });
+
+    await expect(updateMember(updateInput)).resolves.toEqual({
+      memberId: "student-1",
+      studentId: "student-1",
+    });
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "updateMember");
+    expect(mocks.callable).toHaveBeenCalledWith({
+      ...updateInput,
+      membershipNumber: "NEW 0001",
+    });
+
+    mocks.callable.mockResolvedValue({
+      data: { memberId: "student-other", studentId: "student-other" },
+    });
+    await expect(updateMember(updateInput)).rejects.toThrow(
+      "Unable to update member. Please try again.",
     );
+  });
 
-    mocks.callable.mockResolvedValueOnce({ data: { report: "active", count: -1 } });
-    await expect(getMemberReportSummary("active")).rejects.toThrow(
-      "Unable to load member report counters. Please try again.",
+  it("lists only minimized rows with an opaque continuation cursor", async () => {
+    mocks.callable.mockResolvedValue({
+      data: { rows: [row], nextCursor: "signed-cursor" },
+    });
+
+    await expect(listMembers(20, "prior-cursor")).resolves.toEqual({
+      rows: [row],
+      nextCursor: "signed-cursor",
+    });
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMembers");
+    expect(mocks.callable).toHaveBeenCalledWith({
+      pageSize: 20,
+      cursor: "prior-cursor",
+    });
+
+    mocks.callable.mockResolvedValue({
+      data: { rows: [{ ...row, email: "private@example.test" }] },
+    });
+    await expect(listMembers()).rejects.toThrow(
+      "Unable to load members. Please try again.",
+    );
+  });
+
+  it("binds restricted detail to its closed purpose and validates the response", async () => {
+    const detail = {
+      studentId: row.studentId,
+      fullName: row.fullName,
+      trainingCenter: row.trainingCenter,
+      participantType: row.participantType,
+      active: row.active,
+      status: row.status,
+      dateOfBirth: "1990-01-02",
+      phoneNumber: "+44 7000 000000",
+      email: "adult@example.test",
+      trainingTimePreferences: ["evening"],
+      membershipNumber: "BPT 00000001",
+      idCardNumber: "ID-0001",
+      vatNumber: "VAT-0001",
+      gender: "unknown",
+      frequencyNote: "Twice weekly",
+    };
+    mocks.callable.mockResolvedValue({ data: detail });
+
+    await expect(getMemberDetail("student-1")).resolves.toEqual(detail);
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "getMemberDetail");
+    expect(mocks.callable).toHaveBeenCalledWith({
+      studentId: "student-1",
+      purpose: "member-record-maintenance",
+    });
+
+    mocks.callable.mockResolvedValue({ data: { ...detail, source: "admin" } });
+    await expect(getMemberDetail("student-1")).rejects.toThrow(
+      "Unable to load member details. Please try again.",
+    );
+  });
+
+  it("performs exact identity lookup without accepting echoed identifiers", async () => {
+    mocks.callable.mockResolvedValueOnce({ data: { matched: false } });
+    await expect(
+      lookupMemberIdentity("membership-number", "BPT 00000001"),
+    ).resolves.toEqual({ matched: false });
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "lookupMemberIdentity");
+    expect(mocks.callable).toHaveBeenCalledWith({
+      lookupKind: "membership-number",
+      value: "BPT 00000001",
+      purpose: "member-identity-lookup",
+    });
+
+    mocks.callable.mockResolvedValueOnce({ data: { matched: true, row } });
+    await expect(
+      lookupMemberIdentity("membership-number", "BPT 00000001"),
+    ).resolves.toEqual({ matched: true, row });
+
+    mocks.callable.mockResolvedValueOnce({
+      data: { matched: true, row, membershipNumber: "BPT 00000001" },
+    });
+    await expect(
+      lookupMemberIdentity("membership-number", "BPT 00000001"),
+    ).rejects.toThrow("Unable to find member. Please try again.");
+  });
+
+  it("sanitizes callable failures and invalid bounds", async () => {
+    mocks.callable.mockRejectedValue(new Error("private Firebase stack detail"));
+    await expect(listMembers()).rejects.toThrow(
+      "Unable to load members. Please try again.",
+    );
+    await expect(listMembers()).rejects.not.toThrow("private Firebase stack detail");
+    await expect(listMembers(51)).rejects.toThrow(
+      "Unable to load members. Please try again.",
     );
   });
 });

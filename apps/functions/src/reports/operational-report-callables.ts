@@ -57,7 +57,7 @@ function getStore(): OperationalReportStore {
 export const getOperationalReport = onCall(
   {
     ...browserAdminCallableOptions,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => createGetOperationalReportHandler({ store: getStore() })(request),

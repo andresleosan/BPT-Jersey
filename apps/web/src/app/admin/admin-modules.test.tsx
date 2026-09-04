@@ -1,5 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ActivitiesPage } from "./activities/page";
@@ -50,13 +49,10 @@ describe("administrative connected modules", () => {
     expect(screen.queryByText("Morgan family")).not.toBeInTheDocument();
   });
 
-  it("keeps the remaining CRM report explicitly marked as preview", async () => {
-    const user = userEvent.setup();
+  it("renders the connected operational and export report cards", () => {
     render(<ReportsPage />);
-    const report = screen.getByRole("article", { name: "CRM follow-up report" });
-
-    await user.click(within(report).getByRole("button", { name: /Prepare crm follow-up report/i }));
-
-    expect(within(report).getByRole("status")).toHaveTextContent("Report ready for preview");
+    expect(screen.getByRole("article", { name: "Operational reports" })).toBeVisible();
+    expect(screen.getByRole("article", { name: "Progress coverage report" })).toBeVisible();
+    expect(screen.getByRole("article", { name: "Authorized aggregate export" })).toBeVisible();
   });
 });

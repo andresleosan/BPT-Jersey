@@ -2,43 +2,40 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const clientMocks = vi.hoisted(() => ({ searchMembers: vi.fn() }));
+const clientMocks = vi.hoisted(() => ({ listMembers: vi.fn() }));
 
 vi.mock("../../../lib/members-client", () => clientMocks);
 
 import { MembersPage } from "./page";
 
 const member = {
-  memberId: "member-1",
-  membershipNumber: "M-001",
+  studentId: "student-1",
+  membershipReference: "****1234",
   fullName: "Alex Johnson",
-  email: "alex@example.test",
-  idCardNumber: "ID-001",
-  vatNumber: "VAT-001",
-  birthDate: "1990-01-02",
-  mobileNumber: "+441234567890",
-  frequency: "twice-weekly",
-  paymentStatus: "regularized" as const,
-  gender: "unknown" as const,
-  trainingCenter: "Main Center",
-  membershipStatus: "active" as const,
-  createdAt: "2026-08-11T10:00:00.000Z",
-  updatedAt: "2026-08-11T10:00:00.000Z",
-  source: "staging-import",
-  schemaVersion: "1" as const,
+  trainingCenter: "Town" as const,
+  participantType: "adult" as const,
+  active: true,
+  status: "active" as const,
+  email: "alex.private@example.test",
+  idCardNumber: "ID-PRIVATE-001",
+  vatNumber: "VAT-PRIVATE-001",
+  dateOfBirth: "1990-01-02",
+  phoneNumber: "+441234567890",
+  paymentStatus: "GBP 99 overdue",
+  reportSummary: "Private progress report",
 };
 
 describe("members landing page", () => {
   afterEach(() => {
     cleanup();
-    clientMocks.searchMembers.mockReset();
+    clientMocks.listMembers.mockReset();
   });
 
-  it("loads connected member data and renders the approved fields", async () => {
-    let resolveSearch!: (value: { members: (typeof member)[] }) => void;
-    clientMocks.searchMembers.mockReturnValue(
+  it("loads only the minimized canonical directory columns", async () => {
+    let resolveList!: (value: { rows: (typeof member)[] }) => void;
+    clientMocks.listMembers.mockReturnValue(
       new Promise((resolve) => {
-        resolveSearch = resolve;
+        resolveList = resolve;
       }),
     );
 
@@ -46,16 +43,37 @@ describe("members landing page", () => {
 
     expect(screen.getByRole("heading", { name: "Members" })).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Loading members...");
-    await waitFor(() =>
-      expect(clientMocks.searchMembers).toHaveBeenCalledWith({ orderBy: "name" }),
-    );
+    await waitFor(() => expect(clientMocks.listMembers).toHaveBeenCalledWith(50));
 
-    resolveSearch({ members: [member] });
+    resolveList({ rows: [member] });
 
     expect(await screen.findByRole("table", { name: "Member directory" })).toBeVisible();
-    expect(screen.getByText("Membership number")).toBeVisible();
+    expect(
+      screen
+        .getAllByRole("button", { name: /^Sort by/u })
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual([
+      "Sort by Membership reference ascending",
+      "Sort by Name ascending",
+      "Sort by Training center ascending",
+      "Sort by Participant type ascending",
+      "Sort by Active ascending",
+      "Sort by Status ascending",
+    ]);
+    expect(screen.getByText("****1234")).toBeVisible();
     expect(screen.getByText("Alex Johnson")).toBeVisible();
-    expect(screen.getByText("Staging import")).toBeVisible();
+    expect(screen.getByText("Town")).toBeVisible();
+    expect(screen.getByText("adult")).toBeVisible();
+    expect(screen.getByText("Yes")).toBeVisible();
+    expect(screen.getByText("active")).toBeVisible();
+    expect(screen.queryByText("student-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("alex.private@example.test")).not.toBeInTheDocument();
+    expect(screen.queryByText("ID-PRIVATE-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("VAT-PRIVATE-001")).not.toBeInTheDocument();
+    expect(screen.queryByText("1990-01-02")).not.toBeInTheDocument();
+    expect(screen.queryByText("+441234567890")).not.toBeInTheDocument();
+    expect(screen.queryByText("GBP 99 overdue")).not.toBeInTheDocument();
+    expect(screen.queryByText("Private progress report")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Next page" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add new member" })).toHaveAttribute(
       "href",
@@ -67,8 +85,8 @@ describe("members landing page", () => {
     );
   });
 
-  it("renders an empty state when the callable returns no members", async () => {
-    clientMocks.searchMembers.mockResolvedValue({ members: [] });
+  it("renders an empty state when the callable returns no rows", async () => {
+    clientMocks.listMembers.mockResolvedValue({ rows: [] });
 
     render(<MembersPage />);
 
@@ -76,7 +94,7 @@ describe("members landing page", () => {
   });
 
   it("renders a safe error when the callable fails", async () => {
-    clientMocks.searchMembers.mockRejectedValue(new Error("private Firebase detail"));
+    clientMocks.listMembers.mockRejectedValue(new Error("private Firebase detail"));
 
     render(<MembersPage />);
 
@@ -85,11 +103,17 @@ describe("members landing page", () => {
     expect(error).not.toHaveTextContent("private Firebase detail");
   });
 
-  it("requests the next page only when the signed page token exists", async () => {
+  it("requests the next page using only the opaque next cursor", async () => {
     const user = userEvent.setup();
-    clientMocks.searchMembers
-      .mockResolvedValueOnce({ members: [], nextPageToken: "next-token" })
-      .mockResolvedValueOnce({ members: [member] });
+    const nextMember = {
+      ...member,
+      studentId: "student-2",
+      membershipReference: "****5678",
+      fullName: "Bea Smith",
+    };
+    clientMocks.listMembers
+      .mockResolvedValueOnce({ rows: [member], nextCursor: "signed-next-cursor" })
+      .mockResolvedValueOnce({ rows: [nextMember] });
 
     render(<MembersPage />);
 
@@ -97,8 +121,9 @@ describe("members landing page", () => {
     await user.click(nextPage);
 
     await waitFor(() =>
-      expect(clientMocks.searchMembers).toHaveBeenLastCalledWith({ orderBy: "name" }, "next-token"),
+      expect(clientMocks.listMembers).toHaveBeenLastCalledWith(50, "signed-next-cursor"),
     );
-    expect(await screen.findByText("Alex Johnson")).toBeVisible();
+    expect(await screen.findByText("Bea Smith")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Next page" })).not.toBeInTheDocument();
   });
 });

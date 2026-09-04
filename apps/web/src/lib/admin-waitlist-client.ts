@@ -1,10 +1,22 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable as firebaseHttpsCallable } from "firebase/functions";
 
 import { getFirebaseFunctions } from "./firebase-client";
 import {
   parseClientWaitlistItem,
   type ClientWaitlistItem,
 } from "./waitlist-client";
+import { scheduleCallableClientOptions } from "./schedule-client";
+
+function httpsCallable<RequestData, ResponseData>(
+  functions: ReturnType<typeof getFirebaseFunctions>,
+  name: string,
+) {
+  return firebaseHttpsCallable<RequestData, ResponseData>(
+    functions,
+    name,
+    scheduleCallableClientOptions,
+  );
+}
 
 export type AdminWaitlistItem = ClientWaitlistItem &
   Readonly<{

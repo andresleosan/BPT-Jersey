@@ -17,9 +17,11 @@ vi.mock("./firebase-client", () => ({
 }));
 
 import {
+  createProfileRequestId,
   getClientProfile,
   saveClientProfile,
   type ProfileFormInput,
+  type SaveClientProfileRequest,
 } from "./profile-client";
 
 const projection = {
@@ -67,12 +69,17 @@ const form: ProfileFormInput = {
   trainingTimePreferences: ["evening"],
 };
 
+const saveRequest: SaveClientProfileRequest = {
+  requestId: "profile-request-1",
+  ...form,
+};
+
 describe("profile callable client", () => {
-  it("sends only editable fields and validates the response projection", async () => {
+  it("sends only the retry identity and editable fields, and validates the response projection", async () => {
     callableState.call.mockResolvedValueOnce({ data: projection });
-    await expect(saveClientProfile(form)).resolves.toEqual(projection);
+    await expect(saveClientProfile(saveRequest)).resolves.toEqual(projection);
     expect(callableState.name).toBe("saveClientProfile");
-    expect(callableState.call).toHaveBeenCalledWith(form);
+    expect(callableState.call).toHaveBeenCalledWith(saveRequest);
 
     callableState.call.mockResolvedValueOnce({ data: { ...projection, user: { ...projection.user, token: "nope" } } });
     await expect(getClientProfile()).rejects.toThrow("Unable to load your profile");
@@ -85,6 +92,12 @@ describe("profile callable client", () => {
     expect(callableState.call).toHaveBeenCalledWith(null);
 
     callableState.call.mockRejectedValueOnce(new Error("claims, token, infrastructure"));
-    await expect(saveClientProfile(form)).rejects.toThrow("Unable to save your profile");
+    await expect(saveClientProfile(saveRequest)).rejects.toThrow("Unable to save your profile");
+  });
+
+  it("creates an opaque request identity accepted by the server contract", () => {
+    expect(createProfileRequestId()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
+    );
   });
 });

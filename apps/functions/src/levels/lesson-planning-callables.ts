@@ -2,7 +2,10 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { LessonPlanRecord, TechniqueLibraryVersion } from "@bpt-jersey/domain";
-import { requireUserActor } from "../auth/user-authorization.js";
+import {
+  createFirebaseLevelAuthorization,
+  type LevelAuthorizationService,
+} from "./level-authorization.js";
 import {
   createFirestoreLessonPlanningStore,
   LessonPlanningStoreError,
@@ -40,11 +43,17 @@ function mapStoreError(error: unknown, action: string): never {
   throw new HttpsError("internal", `Unable to ${action} lesson plan.`);
 }
 
-export function createGetLessonPlanHandler({ store }: { store: LessonPlanningStore }) {
+export function createGetLessonPlanHandler({
+  store,
+  authorization,
+}: {
+  store: LessonPlanningStore;
+  authorization: LevelAuthorizationService;
+}) {
   return async (
     request: CallableRequest<unknown>,
   ): Promise<{ plan: LessonPlanRecord; library: TechniqueLibraryVersion }> => {
-    const actor = requireUserActor(request);
+    const actor = await authorization.requireActor(request);
     if (!readRoles.includes(actor.role as (typeof readRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff role required to read lesson plans.");
     }
@@ -59,10 +68,16 @@ export function createGetLessonPlanHandler({ store }: { store: LessonPlanningSto
   };
 }
 
-export function createApproveLessonPlanHandler({ store }: { store: LessonPlanningStore }) {
+export function createApproveLessonPlanHandler({
+  store,
+  authorization,
+}: {
+  store: LessonPlanningStore;
+  authorization: LevelAuthorizationService;
+}) {
   return async (request: CallableRequest<unknown>): Promise<{ plan: LessonPlanRecord }> => {
-    const actor = requireUserActor(request);
-    if (actor.role !== "headCoach") {
+    const actor = await authorization.requireActor(request);
+    if (actor.role !== "headCoach" || actor.staffId === null) {
       throw new HttpsError("permission-denied", "Only a head coach may approve lesson plans.");
     }
     const planId = parsePlanIdPayload(request.data);
@@ -72,7 +87,7 @@ export function createApproveLessonPlanHandler({ store }: { store: LessonPlannin
           academyId: actor.academyId,
           planId,
           input: {
-            staffId: actor.userId,
+            staffId: actor.staffId,
             staffRole: "head_coach",
             approvedAt: new Date().toISOString(),
           },
@@ -85,6 +100,7 @@ export function createApproveLessonPlanHandler({ store }: { store: LessonPlannin
 }
 
 let defaultStore: LessonPlanningStore | undefined;
+let defaultAuthorization: LevelAuthorizationService | undefined;
 
 function getStore(): LessonPlanningStore {
   if (!defaultStore) {
@@ -95,10 +111,21 @@ function getStore(): LessonPlanningStore {
   return defaultStore;
 }
 
-export const getLessonPlan = onCall(async (request) =>
-  createGetLessonPlanHandler({ store: getStore() })(request),
+function getAuthorization(): LevelAuthorizationService {
+  defaultAuthorization ??= createFirebaseLevelAuthorization();
+  return defaultAuthorization;
+}
+
+export const getLessonPlan = onCall({ enforceAppCheck: true }, async (request) =>
+  createGetLessonPlanHandler({
+    store: getStore(),
+    authorization: getAuthorization(),
+  })(request),
 );
 
-export const approveLessonPlan = onCall(async (request) =>
-  createApproveLessonPlanHandler({ store: getStore() })(request),
+export const approveLessonPlan = onCall({ enforceAppCheck: true }, async (request) =>
+  createApproveLessonPlanHandler({
+    store: getStore(),
+    authorization: getAuthorization(),
+  })(request),
 );

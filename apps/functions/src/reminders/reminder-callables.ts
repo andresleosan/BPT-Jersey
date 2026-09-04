@@ -188,6 +188,8 @@ function getServices(): ReminderCallableServices {
   return defaultServices;
 }
 
-export const listClientReminders = onCall(async (request) =>
+export const reminderCallableOptions = { enforceAppCheck: true };
+
+export const listClientReminders = onCall(reminderCallableOptions, async (request) =>
   createListClientRemindersHandler({ services: getServices() })(request),
 );

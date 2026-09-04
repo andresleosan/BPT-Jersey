@@ -1,486 +1,485 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
-import {
-  memberGenders,
-  memberOrderByValues,
-  memberReportKeys,
-  membershipStatuses,
-  paymentStatuses,
-  type MemberGender,
-  type MemberOrderBy,
-  type MemberReportKey,
-  type MemberSearchFilters,
-} from "@bpt-jersey/domain";
+import { useState, type FormEvent } from "react";
+import type {
+  AdminDirectoryRow,
+  MemberRecordMaintenanceDetail,
+  PublicAdminIdentifierLookupKind,
+} from "@bpt-jersey/domain/members/directory";
+import { maskMembershipReference } from "@bpt-jersey/domain/members/directory";
 
 import {
-  getMemberReportPdf,
-  getMemberReportSummary,
-  searchMembers,
-  type MemberSearchProjection,
-  type MemberSearchResult,
+  getMemberDetail,
+  lookupMemberIdentity,
+  updateMember,
+  type UpdateMemberInput,
 } from "../../../../lib/members-client";
 
 import "../../admin.css";
 
-type SearchFormValues = Readonly<{
-  membershipNumber: string;
-  name: string;
+type LookupState =
+  | Readonly<{ status: "idle" }>
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "no-match" }>
+  | Readonly<{ status: "match"; row: AdminDirectoryRow }>
+  | Readonly<{ status: "error" }>;
+
+type DetailState =
+  | Readonly<{ status: "idle" }>
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "loaded"; detail: MemberRecordMaintenanceDetail }>
+  | Readonly<{ status: "error" }>;
+
+function displayOptional(value: string | undefined): string {
+  return value === undefined || value.length === 0 ? "Not provided" : value;
+}
+
+type MemberEditDraft = Readonly<{
+  fullName: string;
+  dateOfBirth: string;
+  phoneNumber: string;
   email: string;
+  trainingCenter: "Town" | "West";
+  trainingTimePreferences: readonly ("morning" | "afternoon" | "evening")[];
+  membershipNumber: string;
   idCardNumber: string;
   vatNumber: string;
-  mobileNumber: string;
-  frequency: string;
-  paymentOrStatus: "" | NonNullable<MemberSearchFilters["paymentOrStatus"]>;
-  gender: "" | MemberGender;
-  trainingCenter: string;
-  orderBy: "" | MemberOrderBy;
+  gender: "male" | "female" | "unknown";
+  frequencyNote: string;
 }>;
 
-const initialFormValues: SearchFormValues = {
-  membershipNumber: "",
-  name: "",
-  email: "",
-  idCardNumber: "",
-  vatNumber: "",
-  mobileNumber: "",
-  frequency: "",
-  paymentOrStatus: "",
-  gender: "",
-  trainingCenter: "",
-  orderBy: "",
-};
+function detailToDraft(detail: MemberRecordMaintenanceDetail): MemberEditDraft {
+  return Object.freeze({
+    fullName: detail.fullName,
+    dateOfBirth: detail.dateOfBirth,
+    phoneNumber: detail.phoneNumber ?? "",
+    email: detail.email ?? "",
+    trainingCenter: detail.trainingCenter,
+    trainingTimePreferences: Object.freeze([...detail.trainingTimePreferences]),
+    membershipNumber: detail.membershipNumber ?? "",
+    idCardNumber: detail.idCardNumber ?? "",
+    vatNumber: detail.vatNumber ?? "",
+    gender: detail.gender,
+    frequencyNote: detail.frequencyNote ?? "",
+  });
+}
 
-const reportLabels: Readonly<Record<MemberReportKey, string>> = {
-  total: "Total members",
-  active: "Active members",
-  withNumber: "Members with number",
-  noNumber: "Members without number",
-  inactive: "Inactive members",
-  regularized: "Regularized members",
-  activeRegularized: "Active regularized members",
-  suspended: "Suspended members",
-};
-
-const textFields = [
-  "membershipNumber",
-  "name",
-  "email",
-  "idCardNumber",
-  "vatNumber",
-  "mobileNumber",
-  "frequency",
-  "trainingCenter",
-] as const;
-
-function optionalText(value: string): string | undefined {
+function optionalTrimmed(value: string): string | undefined {
   const normalized = value.trim();
-  return normalized.length > 0 ? normalized : undefined;
+  return normalized.length === 0 ? undefined : normalized;
 }
 
-function filtersFromForm(values: SearchFormValues): MemberSearchFilters {
-  const filters: { -readonly [K in keyof MemberSearchFilters]?: MemberSearchFilters[K] } = {};
-  for (const field of textFields) {
-    const value = optionalText(values[field]);
-    if (value !== undefined) filters[field] = value;
+function updatePayload(
+  detail: MemberRecordMaintenanceDetail,
+  draft: MemberEditDraft,
+  requestId: string,
+): UpdateMemberInput {
+  const phoneNumber = optionalTrimmed(draft.phoneNumber);
+  const email = optionalTrimmed(draft.email);
+  const membershipNumber = optionalTrimmed(draft.membershipNumber);
+  const idCardNumber = optionalTrimmed(draft.idCardNumber);
+  const vatNumber = optionalTrimmed(draft.vatNumber);
+  const frequencyNote = optionalTrimmed(draft.frequencyNote);
+  return Object.freeze({
+    studentId: detail.studentId,
+    requestId,
+    fullName: draft.fullName.trim(),
+    dateOfBirth: draft.dateOfBirth,
+    ...(phoneNumber === undefined ? {} : { phoneNumber }),
+    ...(email === undefined ? {} : { email }),
+    trainingCenter: draft.trainingCenter,
+    trainingTimePreferences: Object.freeze([...draft.trainingTimePreferences]),
+    ...(membershipNumber === undefined ? {} : { membershipNumber }),
+    ...(idCardNumber === undefined ? {} : { idCardNumber }),
+    ...(vatNumber === undefined ? {} : { vatNumber }),
+    gender: draft.gender,
+    ...(frequencyNote === undefined ? {} : { frequencyNote }),
+  });
+}
+
+function updatedDetail(
+  current: MemberRecordMaintenanceDetail,
+  input: UpdateMemberInput,
+): MemberRecordMaintenanceDetail {
+  return Object.freeze({
+    studentId: current.studentId,
+    fullName: input.fullName,
+    dateOfBirth: input.dateOfBirth,
+    ...(input.phoneNumber === undefined ? {} : { phoneNumber: input.phoneNumber }),
+    ...(input.email === undefined ? {} : { email: input.email }),
+    trainingCenter: input.trainingCenter,
+    trainingTimePreferences: Object.freeze([...input.trainingTimePreferences]),
+    participantType: current.participantType,
+    active: current.active,
+    status: current.status,
+    ...(input.membershipNumber === undefined ? {} : { membershipNumber: input.membershipNumber }),
+    ...(input.idCardNumber === undefined ? {} : { idCardNumber: input.idCardNumber }),
+    ...(input.vatNumber === undefined ? {} : { vatNumber: input.vatNumber }),
+    gender: input.gender,
+    ...(input.frequencyNote === undefined ? {} : { frequencyNote: input.frequencyNote }),
+  });
+}
+
+function RestrictedDetail({
+  detail,
+  onUpdated,
+}: {
+  detail: MemberRecordMaintenanceDetail;
+  onUpdated: (detail: MemberRecordMaintenanceDetail) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<MemberEditDraft>(() => detailToDraft(detail));
+  const [requestId, setRequestId] = useState<string>();
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "error" | "success">("idle");
+
+  function newRequestId(): string {
+    return globalThis.crypto.randomUUID();
   }
-  if (values.paymentOrStatus !== "") filters.paymentOrStatus = values.paymentOrStatus;
-  if (values.gender !== "") filters.gender = values.gender;
-  if (values.orderBy !== "") filters.orderBy = values.orderBy;
-  return filters;
-}
 
-function updateFormField<K extends keyof SearchFormValues>(
-  values: SearchFormValues,
-  field: K,
-  value: SearchFormValues[K],
-): SearchFormValues {
-  return { ...values, [field]: value };
-}
+  function beginEdit(): void {
+    setDraft(detailToDraft(detail));
+    setRequestId(newRequestId());
+    setSaveStatus("idle");
+    setEditing(true);
+  }
 
-function formatMemberValue(value: string | undefined): string {
-  return value ?? "Not provided";
-}
+  function replaceDraft(next: Partial<MemberEditDraft>): void {
+    setDraft((current) => Object.freeze({ ...current, ...next }));
+    setRequestId(newRequestId());
+    setSaveStatus("idle");
+  }
 
-function formatDate(value: string | undefined): string {
-  if (value === undefined) return "Not provided";
-  return value.slice(0, 10);
-}
+  function cancelEdit(): void {
+    setEditing(false);
+    setRequestId(undefined);
+    setSaveStatus("idle");
+  }
 
-function MemberTable({ members }: { members: readonly MemberSearchProjection[] }) {
+  async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (requestId === undefined) {
+      setSaveStatus("error");
+      return;
+    }
+    const payload = updatePayload(detail, draft, requestId);
+    setSaveStatus("saving");
+    try {
+      await updateMember(payload);
+      onUpdated(updatedDetail(detail, payload));
+      setEditing(false);
+      setRequestId(undefined);
+      setSaveStatus("success");
+    } catch {
+      setSaveStatus("error");
+    }
+  }
+
   return (
-    <div className="regyfit-table-wrap">
-      <table className="regyfit-access-table">
-        <caption className="visually-hidden">Member search results</caption>
-        <thead>
-          <tr>
-            <th scope="col">Membership number</th>
-            <th scope="col">Name</th>
-            <th scope="col">Email</th>
-            <th scope="col">ID card number</th>
-            <th scope="col">VAT number</th>
-            <th scope="col">Birth date</th>
-            <th scope="col">Mobile number</th>
-            <th scope="col">Frequency</th>
-            <th scope="col">Payment / status</th>
-            <th scope="col">Gender</th>
-            <th scope="col">Training center</th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((member) => (
-            <MemberRow key={member.memberId} member={member} />
+    <section aria-labelledby="member-restricted-detail-title">
+      <h3 id="member-restricted-detail-title">Restricted member details</h3>
+      <dl>
+        <dt>Date of birth</dt>
+        <dd>{detail.dateOfBirth}</dd>
+        <dt>Phone number</dt>
+        <dd>{displayOptional(detail.phoneNumber)}</dd>
+        <dt>Email</dt>
+        <dd>{displayOptional(detail.email)}</dd>
+        <dt>Training time preferences</dt>
+        <dd>{detail.trainingTimePreferences.join(", ")}</dd>
+        <dt>Membership number</dt>
+        <dd>{displayOptional(detail.membershipNumber)}</dd>
+        <dt>ID card number</dt>
+        <dd>{displayOptional(detail.idCardNumber)}</dd>
+        <dt>VAT number</dt>
+        <dd>{displayOptional(detail.vatNumber)}</dd>
+        <dt>Gender</dt>
+        <dd>{detail.gender}</dd>
+        <dt>Frequency note</dt>
+        <dd>{displayOptional(detail.frequencyNote)}</dd>
+      </dl>
+      {editing ? (
+        <form aria-label="Edit member" onSubmit={(event) => void save(event)}>
+          <div className="login-field">
+            <label htmlFor="member-edit-full-name">Full name</label>
+            <input
+              id="member-edit-full-name"
+              maxLength={160}
+              onChange={(event) => replaceDraft({ fullName: event.target.value })}
+              required
+              type="text"
+              value={draft.fullName}
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="member-edit-date-of-birth">Date of birth</label>
+            <input
+              id="member-edit-date-of-birth"
+              onChange={(event) => replaceDraft({ dateOfBirth: event.target.value })}
+              required
+              type="date"
+              value={draft.dateOfBirth}
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="member-edit-phone">Phone number</label>
+            <input
+              id="member-edit-phone"
+              maxLength={64}
+              onChange={(event) => replaceDraft({ phoneNumber: event.target.value })}
+              type="tel"
+              value={draft.phoneNumber}
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="member-edit-email">Email</label>
+            <input
+              id="member-edit-email"
+              maxLength={320}
+              onChange={(event) => replaceDraft({ email: event.target.value })}
+              type="email"
+              value={draft.email}
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="member-edit-training-center">Training center</label>
+            <select
+              id="member-edit-training-center"
+              onChange={(event) =>
+                replaceDraft({ trainingCenter: event.target.value as "Town" | "West" })
+              }
+              value={draft.trainingCenter}
+            >
+              <option value="Town">Town</option>
+              <option value="West">West</option>
+            </select>
+          </div>
+          <fieldset>
+            <legend>Training time preferences</legend>
+            {(["morning", "afternoon", "evening"] as const).map((preference) => (
+              <label key={preference}>
+                <input
+                  checked={draft.trainingTimePreferences.includes(preference)}
+                  onChange={(event) =>
+                    replaceDraft({
+                      trainingTimePreferences: event.target.checked
+                        ? Object.freeze([...draft.trainingTimePreferences, preference])
+                        : Object.freeze(
+                            draft.trainingTimePreferences.filter(
+                              (current) => current !== preference,
+                            ),
+                          ),
+                    })
+                  }
+                  type="checkbox"
+                />
+                {preference[0]?.toUpperCase()}
+                {preference.slice(1)}
+              </label>
+            ))}
+          </fieldset>
+          {(
+            [
+              ["Membership number", "member-edit-membership", "membershipNumber"],
+              ["ID card number", "member-edit-id-card", "idCardNumber"],
+              ["VAT number", "member-edit-vat", "vatNumber"],
+              ["Frequency note", "member-edit-frequency", "frequencyNote"],
+            ] as const
+          ).map(([label, id, field]) => (
+            <div className="login-field" key={field}>
+              <label htmlFor={id}>{label}</label>
+              <input
+                id={id}
+                maxLength={field === "frequencyNote" ? 256 : 64}
+                onChange={(event) => replaceDraft({ [field]: event.target.value })}
+                type="text"
+                value={draft[field]}
+              />
+            </div>
           ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function MemberRow({ member }: { member: MemberSearchProjection }) {
-  return (
-    <tr>
-      <td data-label="Membership number">{formatMemberValue(member.membershipNumber)}</td>
-      <td data-label="Name">
-        <strong>{member.fullName}</strong>
-      </td>
-      <td data-label="Email">{formatMemberValue(member.email)}</td>
-      <td data-label="ID card number">{formatMemberValue(member.idCardNumber)}</td>
-      <td data-label="VAT number">{formatMemberValue(member.vatNumber)}</td>
-      <td data-label="Birth date">{formatDate(member.birthDate)}</td>
-      <td data-label="Mobile number">{formatMemberValue(member.mobileNumber)}</td>
-      <td data-label="Frequency">{formatMemberValue(member.frequency)}</td>
-      <td data-label="Payment / status">
-        {member.paymentStatus} / {member.membershipStatus}
-      </td>
-      <td data-label="Gender">{member.gender}</td>
-      <td data-label="Training center">{formatMemberValue(member.trainingCenter)}</td>
-    </tr>
-  );
-}
-
-function FilterField({
-  field,
-  label,
-  onChange,
-  type = "text",
-  value,
-}: {
-  field: keyof Pick<SearchFormValues, (typeof textFields)[number]>;
-  label: string;
-  onChange: (field: keyof SearchFormValues, value: string) => void;
-  type?: "email" | "tel" | "text";
-  value: string;
-}) {
-  const inputId = `member-search-${field}`;
-  return (
-    <div className="login-field">
-      <label htmlFor={inputId}>{label}</label>
-      <input
-        id={inputId}
-        name={field}
-        onChange={(event) => onChange(field, event.target.value)}
-        type={type}
-        value={value}
-      />
-    </div>
-  );
-}
-
-function ReportCounters({
-  counts,
-  busyReport,
-  onDownload,
-}: {
-  counts: Partial<Record<MemberReportKey, number>>;
-  busyReport: MemberReportKey | undefined;
-  onDownload: (report: MemberReportKey) => void;
-}) {
-  return (
-    <section className="member-report-list" aria-labelledby="member-reports-title">
-      <h3 className="visually-hidden" id="member-reports-title">
-        Member reports
-      </h3>
-      {memberReportKeys.map((report) => (
-        <article className="member-report-row" data-testid="member-report-row" key={report}>
-          <p className="member-report-count" data-testid={`member-report-row-${report}`}>
-            <span className="visually-hidden">{reportLabels[report]}: </span>
-            {String(counts[report] ?? "-")}
-          </p>
-          <h4>{reportLabels[report]}</h4>
-          <button
-            aria-label={`Download ${reportLabels[report].toLowerCase()} report`}
-            className="member-report-download"
-            disabled={busyReport !== undefined}
-            onClick={() => onDownload(report)}
-            type="button"
-          >
-            {busyReport === report ? "Preparing..." : "Download"}
+          <div className="login-field">
+            <label htmlFor="member-edit-gender">Gender</label>
+            <select
+              id="member-edit-gender"
+              onChange={(event) =>
+                replaceDraft({ gender: event.target.value as MemberEditDraft["gender"] })
+              }
+              value={draft.gender}
+            >
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </div>
+          <button disabled={saveStatus === "saving"} type="submit">
+            {saveStatus === "saving" ? "Saving..." : "Save changes"}
           </button>
-        </article>
-      ))}
+          <button disabled={saveStatus === "saving"} onClick={cancelEdit} type="button">
+            Cancel
+          </button>
+        </form>
+      ) : (
+        <button className="regyfit-filter-button" onClick={beginEdit} type="button">
+          Edit member
+        </button>
+      )}
+      {saveStatus === "error" ? (
+        <p aria-live="assertive" role="alert">
+          Unable to update member. Please try again.
+        </p>
+      ) : null}
+      {saveStatus === "success" ? (
+        <p aria-live="polite" role="status">
+          Member updated.
+        </p>
+      ) : null}
     </section>
   );
 }
 
 function SearchMembersContent() {
-  const [values, setValues] = useState<SearchFormValues>(initialFormValues);
-  const [submittedFilters, setSubmittedFilters] = useState<MemberSearchFilters>({});
-  const [result, setResult] = useState<MemberSearchResult | undefined>();
-  const [pageToken, setPageToken] = useState<string | undefined>();
-  const [pageHistory, setPageHistory] = useState<readonly (string | undefined)[]>([]);
-  const [counts, setCounts] = useState<Partial<Record<MemberReportKey, number>>>({});
-  const [error, setError] = useState("");
-  const [counterError, setCounterError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [busyReport, setBusyReport] = useState<MemberReportKey>();
-  const [, startTransition] = useTransition();
+  const [lookupKind, setLookupKind] =
+    useState<PublicAdminIdentifierLookupKind>("membership-number");
+  const [identifier, setIdentifier] = useState("");
+  const [lookup, setLookup] = useState<LookupState>({ status: "idle" });
+  const [detail, setDetail] = useState<DetailState>({ status: "idle" });
 
-  async function loadResults(filters: MemberSearchFilters, token?: string): Promise<void> {
-    setError("");
-    setCounterError("");
-    setCounts({});
-    setLoading(true);
-    try {
-      const searchPromise =
-        token === undefined ? searchMembers(filters) : searchMembers(filters, token);
-      const [searchOutcome, summaryOutcome] = await Promise.all([
-        Promise.allSettled([searchPromise]),
-        Promise.allSettled(memberReportKeys.map((report) => getMemberReportSummary(report))),
-      ]);
-      const searchResult = searchOutcome[0];
-      const summaries = summaryOutcome
-        .filter(
-          (
-            outcome,
-          ): outcome is PromiseFulfilledResult<{ report: MemberReportKey; count: number }> =>
-            outcome.status === "fulfilled",
-        )
-        .map((outcome) => outcome.value);
-      if (searchResult?.status === "rejected" || searchResult === undefined) {
-        throw searchResult?.reason ?? new Error("Search failed");
-      }
-      startTransition(() => {
-        setResult(searchResult.value);
-        if (summaryOutcome.some((outcome) => outcome.status === "rejected")) {
-          setCounterError("Unable to load report counters. Please try again.");
-        } else {
-          setCounts(
-            Object.fromEntries(summaries.map((summary) => [summary.report, summary.count])),
-          );
-        }
-      });
-    } catch {
-      setError("Unable to load members. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleFieldChange(field: keyof SearchFormValues, value: string): void {
-    setValues((current) => updateFormField(current, field, value));
-  }
-
-  function handleSearch(event: FormEvent<HTMLFormElement>): void {
+  async function handleSearch(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    const filters = filtersFromForm(values);
-    setSubmittedFilters(filters);
-    setPageToken(undefined);
-    setPageHistory([]);
-    void loadResults(filters);
-  }
-
-  function handleNextPage(): void {
-    if (!result?.nextPageToken || loading) return;
-    setPageHistory((history) => [...history, pageToken]);
-    setPageToken(result.nextPageToken);
-    void loadResults(submittedFilters, result.nextPageToken);
-  }
-
-  function handlePreviousPage(): void {
-    if (pageHistory.length === 0 || loading) return;
-    const previousToken = pageHistory[pageHistory.length - 1];
-    setPageHistory((history) => history.slice(0, -1));
-    setPageToken(previousToken);
-    void loadResults(submittedFilters, previousToken);
-  }
-
-  async function handleDownload(report: MemberReportKey): Promise<void> {
-    setError("");
-    setBusyReport(report);
-    const reportWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!reportWindow) {
-      setError("Unable to download member report. Please try again.");
-      setBusyReport(undefined);
+    const value = identifier.trim();
+    setDetail({ status: "idle" });
+    if (value.length === 0) {
+      setLookup({ status: "error" });
       return;
     }
+    setLookup({ status: "loading" });
     try {
-      const { downloadUrl } = await getMemberReportPdf(report);
-      reportWindow.location.replace(downloadUrl);
+      const result = await lookupMemberIdentity(lookupKind, value);
+      setLookup(result.matched ? { status: "match", row: result.row } : { status: "no-match" });
     } catch {
-      reportWindow.close();
-      setError("Unable to download member report. Please try again.");
-    } finally {
-      setBusyReport(undefined);
+      setLookup({ status: "error" });
     }
+  }
+
+  async function handleDetail(studentId: string): Promise<void> {
+    setDetail({ status: "loading" });
+    try {
+      setDetail({ status: "loaded", detail: await getMemberDetail(studentId) });
+    } catch {
+      setDetail({ status: "error" });
+    }
+  }
+
+  function handleUpdatedMember(nextDetail: MemberRecordMaintenanceDetail): void {
+    setDetail({ status: "loaded", detail: nextDetail });
+    setLookup((current) => {
+      if (current.status !== "match" || current.row.studentId !== nextDetail.studentId) {
+        return current;
+      }
+      const membershipReference = maskMembershipReference(nextDetail.membershipNumber);
+      return {
+        status: "match",
+        row: Object.freeze({
+          studentId: current.row.studentId,
+          fullName: nextDetail.fullName,
+          trainingCenter: nextDetail.trainingCenter,
+          participantType: current.row.participantType,
+          active: current.row.active,
+          status: current.row.status,
+          ...(membershipReference === undefined ? {} : { membershipReference }),
+        }),
+      };
+    });
   }
 
   return (
     <section className="regyfit-access-panel" aria-labelledby="member-search-title">
       <header className="regyfit-access-heading">
-        <p className="admin-eyebrow">Members / Search and reports</p>
-        <h2 id="member-search-title">Find the right member record.</h2>
-        <p>Use the approved member fields to search the academy directory or prepare a report.</p>
+        <p className="admin-eyebrow">Members / Exact lookup</p>
+        <h2 id="member-search-title">Find a canonical student record.</h2>
+        <p>Search by one exact approved identifier. Restricted fields load only on request.</p>
       </header>
 
-      <form className="regyfit-access-controls" onSubmit={handleSearch}>
-        <FilterField
-          field="membershipNumber"
-          label="Membership number"
-          onChange={handleFieldChange}
-          value={values.membershipNumber}
-        />
-        <FilterField field="name" label="Name" onChange={handleFieldChange} value={values.name} />
-        <FilterField
-          field="email"
-          label="Email"
-          onChange={handleFieldChange}
-          type="email"
-          value={values.email}
-        />
-        <FilterField
-          field="idCardNumber"
-          label="ID card number"
-          onChange={handleFieldChange}
-          value={values.idCardNumber}
-        />
-        <FilterField
-          field="vatNumber"
-          label="VAT number"
-          onChange={handleFieldChange}
-          value={values.vatNumber}
-        />
-        <FilterField
-          field="mobileNumber"
-          label="Mobile number"
-          onChange={handleFieldChange}
-          type="tel"
-          value={values.mobileNumber}
-        />
-        <FilterField
-          field="frequency"
-          label="Frequency"
-          onChange={handleFieldChange}
-          value={values.frequency}
-        />
+      <form className="regyfit-access-controls" onSubmit={(event) => void handleSearch(event)}>
         <div className="login-field">
-          <label htmlFor="member-search-payment-or-status">Payment or status</label>
+          <label htmlFor="member-lookup-kind">Identifier type</label>
           <select
-            id="member-search-payment-or-status"
-            onChange={(event) => handleFieldChange("paymentOrStatus", event.target.value)}
-            value={values.paymentOrStatus}
+            id="member-lookup-kind"
+            onChange={(event) =>
+              setLookupKind(event.target.value as PublicAdminIdentifierLookupKind)
+            }
+            value={lookupKind}
           >
-            <option value="">Any payment or status</option>
-            {[...paymentStatuses, ...membershipStatuses].map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
+            <option value="membership-number">Membership number</option>
+            <option value="id-card-number">ID card number</option>
+            <option value="vat-number">VAT number</option>
           </select>
         </div>
         <div className="login-field">
-          <label htmlFor="member-search-gender">Gender</label>
-          <select
-            id="member-search-gender"
-            onChange={(event) => handleFieldChange("gender", event.target.value)}
-            value={values.gender}
-          >
-            <option value="">Any gender</option>
-            {memberGenders.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
+          <label htmlFor="member-exact-identifier">Exact identifier</label>
+          <input
+            autoComplete="off"
+            id="member-exact-identifier"
+            onChange={(event) => setIdentifier(event.target.value)}
+            required
+            type="text"
+            value={identifier}
+          />
         </div>
-        <FilterField
-          field="trainingCenter"
-          label="Training center"
-          onChange={handleFieldChange}
-          value={values.trainingCenter}
-        />
-        <div className="login-field">
-          <label htmlFor="member-search-order-by">Order by</label>
-          <select
-            id="member-search-order-by"
-            onChange={(event) => handleFieldChange("orderBy", event.target.value)}
-            value={values.orderBy}
-          >
-            <option value="">Name</option>
-            {memberOrderByValues.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button className="admin-auth-button" disabled={loading} type="submit">
-          {loading ? "SEARCHING..." : "SEARCH"}
+        <button className="admin-auth-button" disabled={lookup.status === "loading"} type="submit">
+          {lookup.status === "loading" ? "Searching..." : "Search exact identifier"}
         </button>
       </form>
 
-      <ReportCounters
-        counts={counts}
-        busyReport={busyReport}
-        onDownload={(report) => void handleDownload(report)}
-      />
-      {counterError ? (
-        <p aria-live="assertive" className="regyfit-no-results" role="alert">
-          {counterError}
-        </p>
-      ) : null}
-
-      <section aria-busy={loading} aria-label="Search results" className="regyfit-access-panel">
-        <h3 className="visually-hidden">Search results</h3>
-        {error ? (
-          <p aria-live="assertive" className="regyfit-no-results" role="alert">
-            {error}
+      <section
+        aria-busy={lookup.status === "loading"}
+        aria-label="Member lookup result"
+        className="regyfit-access-panel"
+      >
+        {lookup.status === "idle" ? <p>Search to see a student.</p> : null}
+        {lookup.status === "loading" ? <p role="status">Searching...</p> : null}
+        {lookup.status === "no-match" ? (
+          <p aria-live="polite" role="status">
+            No matching student was found.
           </p>
         ) : null}
-        {loading ? (
-          <p aria-live="polite" className="regyfit-no-results" role="status">
-            Loading members...
+        {lookup.status === "error" ? (
+          <p aria-live="assertive" role="alert">
+            Unable to find member. Please try again.
           </p>
-        ) : result?.members.length ? (
-          <MemberTable members={result.members} />
-        ) : result ? (
-          <p aria-live="polite" className="regyfit-no-results" role="status">
-            No members match these filters.
-          </p>
-        ) : (
-          <p aria-live="polite" className="regyfit-no-results" role="status">
-            Search to see members.
-          </p>
-        )}
-        {result ? (
-          <div className="regyfit-filter-buttons" aria-label="Member result pagination">
+        ) : null}
+        {lookup.status === "match" ? (
+          <>
+            <dl>
+              <dt>Membership reference</dt>
+              <dd>{lookup.row.membershipReference}</dd>
+              <dt>Name</dt>
+              <dd>{lookup.row.fullName}</dd>
+              <dt>Training center</dt>
+              <dd>{lookup.row.trainingCenter}</dd>
+              <dt>Participant type</dt>
+              <dd>{lookup.row.participantType}</dd>
+              <dt>State</dt>
+              <dd>{lookup.row.active ? lookup.row.status : "inactive"}</dd>
+            </dl>
             <button
               className="regyfit-filter-button"
-              disabled={pageHistory.length === 0 || loading}
-              onClick={handlePreviousPage}
+              disabled={detail.status === "loading" || detail.status === "loaded"}
+              onClick={() => void handleDetail(lookup.row.studentId)}
               type="button"
             >
-              Previous page
+              {detail.status === "loading"
+                ? "Loading restricted details..."
+                : "View restricted details"}
             </button>
-            <button
-              className="regyfit-filter-button"
-              disabled={!result.nextPageToken || loading}
-              onClick={handleNextPage}
-              type="button"
-            >
-              Next page
-            </button>
-          </div>
+            {detail.status === "error" ? (
+              <p aria-live="assertive" role="alert">
+                Unable to load member details. Please try again.
+              </p>
+            ) : null}
+            {detail.status === "loaded" ? (
+              <RestrictedDetail detail={detail.detail} onUpdated={handleUpdatedMember} />
+            ) : null}
+          </>
         ) : null}
       </section>
     </section>
@@ -492,6 +491,5 @@ export function SearchMembersPage() {
 }
 
 export default function SearchMembersRoute() {
-  if (process.env.NODE_ENV === "test") return <SearchMembersPage />;
   return <SearchMembersPage />;
 }

@@ -62,6 +62,29 @@ despliegues productivos, cobros online ni mensajería externa.
 - Tiempo real efímero: Firebase Realtime Database solo para presencia/estado operativo no canónico cuando aporte valor medible.
 - Por qué: Firestore ofrece reglas de seguridad, transacciones, consultas e integración con Functions. RTDB no duplicará membresías, pagos, evaluaciones ni auditoría; esos registros permanecen en Firestore.
 - Integridad: pagos, consentimientos, asistencia y cambios sensibles usan eventos idempotentes, historial inmutable y soft delete/estado cuando corresponda.
+- Identidad de participante: `students/{studentId}` es canónica. `studentAdminProfiles/{studentId}`
+  es una extensión backend-only Restricted sin estado comercial; `members` queda legacy y
+  congelada durante la convergencia reversible de ADR-009. ID card, VAT y legacy IDs no aparecen
+  en listados o exports generales. La unicidad/consulta exacta usa blind keys HMAC tenant-scoped
+  para membership, ID card, VAT, legacy y Auth UID, con secretos separados/versionados de al menos
+  32 bytes y bootstrap/cobertura verificable. El listado general es solo owner/administrator con
+  Auth + App Check, tenant derivado y paginacion acotada. Cada chunk valida state/revision/lease en
+  su transaccion; el cutover administrativo libera el freeze sin afirmar que T097 ya elimino todos
+  los readers legacy. El rollback post-cutover materializa y verifica primero una proyeccion
+  privacy-safe y queda en un estado read-only estable sin lease hasta recuperar el reader canonico.
+  Mientras ese rollback sigue disponible, el state limita a 400 el conteo monotono de students y
+  toda alta reserva capacidad en su misma transaccion. T097 requiere una operacion atomica separada
+  y ensayo aislado verificado de backup v3 para marcar la eliminacion global. Restore v3 en T093 es
+  create-only entre dos project namespaces Emulator exactos; prepara state/guard/event/operation/audit
+  en una sola transaccion y separa 10.000 documentos/256 MiB de payload de 2.048/32 MiB de control.
+  El state fuente queda cifrado como evidencia no materializada ligada por MAC; el target crea su
+  propio state de control sin colision de ruta.
+  No restaura objetos Auth y conserva los enlaces Firestore en cuarentena inerte para no romper
+  familias; termina bloqueado y sin runtime. I4 crea una atestacion source-local create-only que T097
+  vuelve a verificar con un readTime/MAC fresco, liga junto al proof original y consume atomicamente
+  con el marcador global.
+  No activa ni sobrescribe un tenant servido. Una activacion futura exige fence global,
+  revision Auth, T011 y otro ADR/checkpoint. No borra `members` ni autoriza cleanup productivo.
 
 ## Levels y progreso IBJJF
 
@@ -71,14 +94,22 @@ despliegues productivos, cobros online ni mensajería externa.
   contenido `9b039b795f8178c42730ff567ef9283fb385895368115ac2621ce816a829835a`.
 - Cobertura observada: 171 definiciones, 27 belts, 144 stripes y 11 habilidades iniciales. No
   contiene IDs fuente, HTML, códigos de acción, tokens, cookies ni datos personales.
-- Persistencia: `levelSystems`, `levelDefinitions`, `levelRequirements`, `studentLevelProgress` y
-  `levelPromotions` como subcolecciones de `academies/{academyId}`.
+- Persistencia directa bajo `academies/{academyId}`: `levelSystems`, `levelDefinitions`,
+  `levelRequirements`, `assessments`, `studentLevelProgress`, `levelPromotions` y `recognitions`.
+  `medicalLeaves` pertenece a la frontera Restricted de salud, no al directorio/progreso general.
 - Versionado: una definición publicada queda inmutable. Los estudiantes conservan la versión usada
   para su evaluación; editar requisitos crea una versión nueva.
 - Herencia: requisitos de técnicas distinguen `inherit`, `replace` y `none`; un array vacío de la
   fuente no se interpreta automáticamente como ausencia de requisito.
 - Promoción: asistencia y skills solo generan elegibilidad/propuesta. Head coach es el único actor
   que aprueba o rechaza belts/stripes, siempre con auditoría.
+- Estado inicial: ausencia de `studentLevelProgress` significa `uninitialized`; nunca se asigna
+  white belt ni la primera definición del catálogo por fallback. Una aprobación crea la decisión,
+  actualiza el head y audita en una sola transacción.
+- Transición: el runtime histórico aún usa subcolecciones `evaluations`/`graduations`, enumera
+  `members` y acepta owner en promociones. Esas rutas no representan el contrato final: T097 debe
+  migrarlas a las colecciones directas, eliminar el fallback y dejar aprobación solo a head coach
+  antes del cutover global.
 - UI: `/admin/levels` para owner/head coach, `/coach/levels` para consulta y seguimiento asignado,
   y `/account/progress` para progreso propio/familiar. Los belts se renderizan mediante SVG propio,
   sin copiar HTML de Regyfit.
@@ -154,8 +185,8 @@ evidencia fresca antes de pasar a revision. El gate local usa verify:mvp con bui
 - Cloud Functions: hasta 2 millones de invocaciones mensuales sin costo dentro de Blaze, además de cuotas de cómputo y red.
 - Authentication: 50,000 MAU sin costo aplica a Blaze con Identity Platform; Phone Auth se factura por SMS y no se presupuestará como “10,000 verificaciones gratuitas”.
 - Pagos y mensajería: costo pendiente hasta elegir proveedores y volumen. T034 adapter unconfigured: USD 0/mes comprometidos; T035/T036 siguen sin activación. T046 tiene costo externo comprometido **USD 0/mes** mientras permanece en modo unconfigured; al seleccionar proveedor se debe documentar rango mensual, límite/alerta de facturación y aprobación del operador antes de activarlo.
-- T010 investigacion oficial 2026-08-27: PayPal (primera opcion a validar), Adyen (alternativa de escala) y Revolut Business (condicionada); Stripe descartado para entidad de Jersey. Fuentes y limites en docs/operations/payment-provider-decision-packet.md.
-- T010 permanece bloqueada: no hay proveedor seleccionado, cuenta, credenciales, cobro ni gasto. Antes de activar se requieren seleccion explicita, cotizacion/terminos, onboarding, alertas y pruebas sandbox.
+- T010 propuesta explicita 2026-09-01: CityPay Limited + Paylink alojado para pagos unicos GBP, detras del adapter provider-independent; PayPal queda como fallback y Adyen como alternativa de escala. CityPay aun debe confirmar por escrito elegibilidad de la entidad Jersey, entidad contratante/adquirente, settlement, monedas, tarifas, DPA y AOC PCI del producto exacto.
+- T010 permanece bloqueada: costo comprometido GBP 0, sin cuenta, credenciales, cobro ni gasto. Antes de activar se requieren aceptacion del operador, onboarding/contrato, presupuesto y alertas, Secret Manager, sandbox con 3DS/webhooks y rollback.
 - Alertas configuradas: **no**. El repositorio de Artifact Registry de staging tiene cleanup policy de 7 días; aún deben crearse presupuestos/alertas de Google Cloud y notificaciones de Cloudflare. Firebase/Google Cloud no se tratará como un hard cap automático.
 - Fuentes verificadas el 2026-08-06: https://firebase.google.com/pricing, https://firebase.google.com/docs/auth/limits y https://developers.cloudflare.com/r2/pricing/.
 
@@ -177,6 +208,14 @@ evidencia fresca antes de pasar a revision. El gate local usa verify:mvp con bui
   forma explícita por argumento, `GCLOUD_PROJECT` y `FIREBASE_CONFIG`, y todo `target=staging`
   permanece fail-closed mientras no exista un proyecto separado en la allowlist positiva. No se
   ejecutará ninguna importación ni reconciliación productiva como parte de esta corrección.
+- T100 aplica la misma frontera al seed/rollback de Levels: target y academia explícitos, IDs de
+  proyecto coincidentes, Emulator fijado a `demo-bpt-jersey` en `127.0.0.1:8080`, confirmaciones
+  distintas para seed y rollback, y staging con allowlist positiva vacía. T101 sigue abierto para
+  publicación atómica, hashes fuente vinculantes y rollback con integridad referencial; T099 no
+  puede habilitar staging antes de cerrarlo.
+- La proyección legacy de Members todavía incluye ID card/VAT en listados y PDFs generales. T093
+  debe eliminar esa exposición con pruebas negativas antes de cualquier dato real o cutover; hasta
+  entonces esas superficies siguen bloqueadas para PII real.
 - La decisión ADR-005 de operar sin MFA solo se acepta para el piloto con datos sintéticos o
   sanitizados. Producción continúa bloqueada hasta reconciliar el threat model, MFA o mitigaciones
   compensatorias con aceptación explícita del operador.
@@ -195,6 +234,9 @@ evidencia fresca antes de pasar a revision. El gate local usa verify:mvp con bui
 5. **Integraciones asíncronas solo donde existen consumidores reales**: webhooks, notificaciones y reportes lentos; no se introduce event sourcing general ni colas “por si acaso”.
 6. **Levels versionados y propios, sin sincronización Regyfit**: el inventario observado se usa como
    seed sanitizado; BPT conserva su propio contrato, historial y aprobación humana.
+7. **`students` como única identidad de participante**: ADR-009 separa los metadatos
+   administrativos Restricted, mantiene memberships/finanzas como autoridades propias y define
+   una convergencia reversible sin matching automático ni dual-write permanente.
 
 Alternativas descartadas:
 
@@ -216,3 +258,10 @@ Alternativas descartadas:
 - Estructura: monorepo pnpm con `apps/web`, `apps/functions`, `packages/domain`, `packages/ui`, `packages/config` y `qa/`.
 - Nomenclatura: código y contratos en inglés; componentes `PascalCase`, funciones/variables `camelCase`, archivos descriptivos en `kebab-case`.
 - Dependencias: versiones fijadas por lockfile; toda instalación se realiza con pnpm.
+
+### Official registration waiver
+
+- Source: `F:\Proyectos\BPT Jersey\Varios\Brazilian Power Team Jersey Waiver and Release of Liability.pdf`.
+- The PDF is kept as an immutable asset in `apps/web/public/legal/` and as a Functions runtime asset; its SHA-256 is checked in tests so the legal source cannot be silently substituted.
+- The source PDF is static and has no AcroForm fields. The portal captures acceptance and the authenticated name, then produces private evidence with the original PDF pages plus a server-side signature record.
+- Account onboarding sends the user to the waiver step immediately after profile completion. Existing callable authorization and consent state remain canonical.

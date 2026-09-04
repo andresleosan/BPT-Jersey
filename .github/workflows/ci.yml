@@ -21,6 +21,11 @@ jobs:
     name: Quality gates
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      NEXT_PUBLIC_FIREBASE_ENV: "staging"
+      NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "false"
+      NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: "synthetic-ci-enterprise-site-key"
+      NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN: ""
 
     steps:
       - name: Check out repository

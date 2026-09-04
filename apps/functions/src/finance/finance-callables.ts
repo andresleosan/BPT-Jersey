@@ -393,18 +393,23 @@ function financeCallableServices(): FinanceCallableServices {
   };
 }
 
-export const issueManualInvoice = onCall(async (request) =>
+export const financeCallableOptions = {
+  enforceAppCheck: true,
+  consumeAppCheckToken: true,
+};
+
+export const issueManualInvoice = onCall(financeCallableOptions, async (request) =>
   issueManualInvoiceHandler(request, financeCallableServices()),
 );
-export const recordManualPayment = onCall(async (request) =>
+export const recordManualPayment = onCall(financeCallableOptions, async (request) =>
   recordManualPaymentHandler(request, financeCallableServices()),
 );
-export const voidManualInvoice = onCall(async (request) =>
+export const voidManualInvoice = onCall(financeCallableOptions, async (request) =>
   voidManualInvoiceHandler(request, financeCallableServices()),
 );
-export const listFinancialAccount = onCall(async (request) =>
+export const listFinancialAccount = onCall(financeCallableOptions, async (request) =>
   listFinancialAccountHandler(request, financeCallableServices()),
 );
-export const getInvoice = onCall(async (request) =>
+export const getInvoice = onCall(financeCallableOptions, async (request) =>
   getInvoiceHandler(request, financeCallableServices()),
 );

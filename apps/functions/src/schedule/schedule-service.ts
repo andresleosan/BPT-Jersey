@@ -34,6 +34,12 @@ import {
   createBookingTransactionService,
   type BookingFirestore,
 } from "./booking-transaction-service.js";
+import {
+  createTransactionalAttendanceService,
+  ScheduleAttendanceError,
+  type AttendanceFirestore,
+  type ScheduleMutationActorRole,
+} from "./attendance-transaction-service.js";
 
 export const defaultLocations: readonly LocationRecord[] = Object.freeze([
   {
@@ -193,6 +199,7 @@ export type ScheduleStore = Readonly<{
     input: CheckInInput,
     actorId: string,
     occurredAt?: string,
+    actorRole?: ScheduleMutationActorRole,
   ) => Promise<AttendanceRecord>;
   listSessionAttendance: (
     academyId: string,
@@ -207,6 +214,7 @@ export type ScheduleStore = Readonly<{
     input: CorrectAttendanceInput,
     actorId: string,
     occurredAt?: string,
+    actorRole?: ScheduleMutationActorRole,
   ) => Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }>;
   reconcileSessionNoShows: (
     academyId: string,
@@ -224,6 +232,7 @@ export type ScheduleStore = Readonly<{
     input: RecordCheckoutInput,
     actorId: string,
     occurredAt?: string,
+    actorRole?: ScheduleMutationActorRole,
   ) => Promise<CheckoutRecord>;
   listSessionCheckouts: (
     academyId: string,
@@ -279,6 +288,18 @@ export function createFirestoreScheduleStore(options: {
   const bookingTransactions = createBookingTransactionService({
     firestore: firestore as unknown as BookingFirestore,
   });
+  const attendanceTransactions = createTransactionalAttendanceService({
+    firestore: firestore as unknown as AttendanceFirestore,
+  });
+
+  const requireAttendanceActorRole = (
+    value: ScheduleMutationActorRole | undefined,
+  ): ScheduleMutationActorRole => {
+    if (value === undefined) {
+      throw new ScheduleAttendanceError("credential", "Attendance mutation authority is required");
+    }
+    return value;
+  };
 
   return {
     async listLocations(academyId: string): Promise<readonly LocationRecord[]> {
@@ -405,12 +426,18 @@ export function createFirestoreScheduleStore(options: {
       const current = existing.data() as ClassRecord;
       const now = new Date().toISOString();
 
+      const nextCapacity = input.capacity ?? current.capacity;
+      const nextMinimum = input.minParticipants ?? current.minParticipants;
+      if (nextMinimum > nextCapacity) {
+        throw new Error("Class minimum participants cannot exceed capacity");
+      }
+
       const updated: ClassRecord = Object.freeze({
         ...current,
         name: input.name ?? current.name,
         instructorIds: input.instructorIds ?? current.instructorIds,
-        capacity: input.capacity ?? current.capacity,
-        minParticipants: input.minParticipants ?? current.minParticipants,
+        capacity: nextCapacity,
+        minParticipants: nextMinimum,
         active: input.active ?? current.active,
         updatedAt: now,
         updatedBy: actorId,
@@ -640,53 +667,15 @@ export function createFirestoreScheduleStore(options: {
       input: CheckInInput,
       actorId: string,
       occurredAt?: string,
+      actorRole?: ScheduleMutationActorRole,
     ): Promise<AttendanceRecord> {
-      const attendanceId = buildAttendanceId(input.sessionId, input.studentId);
-      const sessionRef = firestore
-        .collection(`academies/${academyId}/sessions`)
-        .doc(input.sessionId);
-      const sessionDoc = await sessionRef.get();
-
-      if (!sessionDoc.exists) {
-        throw new Error(`Session ${input.sessionId} does not exist`);
-      }
-
-      const session = sessionDoc.data() as SessionRecord;
-      if (session.status === "cancelled") {
-        throw new Error(`Cannot check in to cancelled session ${input.sessionId}`);
-      }
-
-      const attendanceRef = firestore
-        .collection(`academies/${academyId}/attendance`)
-        .doc(attendanceId);
-      const existingDoc = await attendanceRef.get();
-
-      if (existingDoc.exists) {
-        return existingDoc.data() as AttendanceRecord;
-      }
-
-      const checkInTime = occurredAt ?? new Date().toISOString();
-      const state = determinePunctuality(session.startAt, checkInTime);
-
-      const record: AttendanceRecord = Object.freeze({
-        attendanceId,
+      return attendanceTransactions.recordCheckIn({
         academyId,
-        sessionId: input.sessionId,
-        studentId: input.studentId,
-        method: input.method,
-        state,
-        occurredAt: checkInTime,
-        notes: input.notes ?? null,
-        correctionOf: null,
-        schemaVersion: "1",
-        createdAt: checkInTime,
-        createdBy: actorId,
-        updatedAt: checkInTime,
-        updatedBy: actorId,
+        input,
+        actorId,
+        actorRole: requireAttendanceActorRole(actorRole),
+        ...(occurredAt === undefined ? {} : { occurredAt }),
       });
-
-      await attendanceRef.set(record);
-      return record;
     },
 
     async listSessionAttendance(
@@ -722,65 +711,15 @@ export function createFirestoreScheduleStore(options: {
       input: CorrectAttendanceInput,
       actorId: string,
       occurredAt?: string,
+      actorRole?: ScheduleMutationActorRole,
     ): Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }> {
-      const canonicalId = buildAttendanceId(input.sessionId, input.studentId);
-      const canonicalRef = firestore
-        .collection(`academies/${academyId}/attendance`)
-        .doc(canonicalId);
-      const canonicalDoc = await canonicalRef.get();
-
-      if (!canonicalDoc.exists) {
-        throw new Error(`Canonical attendance record ${canonicalId} does not exist`);
-      }
-
-      const existingCanonical = canonicalDoc.data() as AttendanceRecord;
-      const now = occurredAt ?? new Date().toISOString();
-      const correctionId = buildCorrectionAttendanceId();
-
-      const correction: AttendanceRecord = Object.freeze({
-        attendanceId: correctionId,
+      return attendanceTransactions.correctAttendance({
         academyId,
-        sessionId: input.sessionId,
-        studentId: input.studentId,
-        method: existingCanonical.method,
-        state: input.newState,
-        occurredAt: now,
-        notes: input.reason,
-        correctionOf: canonicalId,
-        schemaVersion: "1",
-        createdAt: now,
-        createdBy: actorId,
-        updatedAt: now,
-        updatedBy: actorId,
+        input,
+        actorId,
+        actorRole: requireAttendanceActorRole(actorRole),
+        ...(occurredAt === undefined ? {} : { occurredAt }),
       });
-
-      const updatedCanonical: AttendanceRecord = Object.freeze({
-        ...existingCanonical,
-        state: input.newState,
-        updatedAt: now,
-        updatedBy: actorId,
-      });
-
-      await Promise.all([
-        firestore.collection(`academies/${academyId}/attendance`).doc(correctionId).set(correction),
-        canonicalRef.update(updatedCanonical),
-        firestore
-          .collection(`academies/${academyId}/auditEvents`)
-          .doc(`audit_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`)
-          .set({
-            action: "attendance_correction",
-            academyId,
-            sessionId: input.sessionId,
-            studentId: input.studentId,
-            previousState: existingCanonical.state,
-            newState: input.newState,
-            reason: input.reason,
-            actorId,
-            occurredAt: now,
-          }),
-      ]);
-
-      return { correction, canonical: updatedCanonical };
     },
 
     async reconcileSessionNoShows(
@@ -872,71 +811,15 @@ export function createFirestoreScheduleStore(options: {
       input: RecordCheckoutInput,
       actorId: string,
       occurredAt?: string,
+      actorRole?: ScheduleMutationActorRole,
     ): Promise<CheckoutRecord> {
-      const checkoutId = buildCheckoutId(input.sessionId, input.studentId);
-      const checkoutRef = firestore.collection(`academies/${academyId}/checkouts`).doc(checkoutId);
-      const existingDoc = await checkoutRef.get();
-
-      if (existingDoc.exists) {
-        return existingDoc.data() as CheckoutRecord;
-      }
-
-      // Verify attendance
-      const attendanceId = buildAttendanceId(input.sessionId, input.studentId);
-      const attendanceDoc = await firestore
-        .collection(`academies/${academyId}/attendance`)
-        .doc(attendanceId)
-        .get();
-
-      if (!attendanceDoc.exists) {
-        throw new Error(
-          `Student ${input.studentId} did not attend this session ${input.sessionId}`,
-        );
-      }
-
-      const attendance = attendanceDoc.data() as AttendanceRecord;
-      if (attendance.state !== "attended" && attendance.state !== "late") {
-        throw new Error(
-          `Student ${input.studentId} did not attend this session (state: ${attendance.state})`,
-        );
-      }
-
-      const now = occurredAt ?? new Date().toISOString();
-      const record: CheckoutRecord = Object.freeze({
-        checkoutId,
+      return attendanceTransactions.recordCheckout({
         academyId,
-        sessionId: input.sessionId,
-        studentId: input.studentId,
-        method: input.method,
-        authorizedAdultId: input.authorizedAdultId ?? null,
-        authorizedAdultName: input.authorizedAdultName ?? null,
-        notes: input.notes ?? null,
-        checkedOutAt: now,
-        schemaVersion: "1",
-        createdAt: now,
-        createdBy: actorId,
-        updatedAt: now,
-        updatedBy: actorId,
+        input,
+        actorId,
+        actorRole: requireAttendanceActorRole(actorRole),
+        ...(occurredAt === undefined ? {} : { occurredAt }),
       });
-
-      await Promise.all([
-        checkoutRef.set(record),
-        firestore
-          .collection(`academies/${academyId}/auditEvents`)
-          .doc(`audit_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`)
-          .set({
-            action: "child_checkout",
-            academyId,
-            sessionId: input.sessionId,
-            studentId: input.studentId,
-            method: input.method,
-            authorizedAdultId: input.authorizedAdultId ?? null,
-            actorId,
-            occurredAt: now,
-          }),
-      ]);
-
-      return record;
     },
 
     async listSessionCheckouts(

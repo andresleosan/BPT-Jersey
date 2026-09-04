@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import { requireAdminActor } from "../auth/admin-authorization.js";
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { withSharedRoleLock, type SyntheticFirestore } from "../auth/admin-provisioning.js";
 import {
@@ -540,21 +541,21 @@ function callableServices(): StaffCallableServices {
   };
 }
 
-export const createStaffProfile = onCall(async (request) =>
+export const createStaffProfile = onCall(browserAdminCallableOptions, async (request) =>
   createStaffProfileHandler(request, callableServices()),
 );
-export const updateStaffProfile = onCall(async (request) =>
+export const updateStaffProfile = onCall(browserAdminCallableOptions, async (request) =>
   updateStaffProfileHandler(request, callableServices()),
 );
-export const setStaffActive = onCall(async (request) =>
+export const setStaffActive = onCall(browserAdminCallableOptions, async (request) =>
   setStaffActiveHandler(request, callableServices()),
 );
-export const replaceStaffAvailability = onCall(async (request) =>
+export const replaceStaffAvailability = onCall(browserAdminCallableOptions, async (request) =>
   replaceStaffAvailabilityHandler(request, callableServices()),
 );
-export const replaceStaffAssignments = onCall(async (request) =>
+export const replaceStaffAssignments = onCall(browserAdminCallableOptions, async (request) =>
   replaceStaffAssignmentsHandler(request, callableServices()),
 );
-export const listStaffProfiles = onCall(async (request) =>
+export const listStaffProfiles = onCall(browserAdminCallableOptions, async (request) =>
   listStaffProfilesHandler(request, callableServices()),
 );

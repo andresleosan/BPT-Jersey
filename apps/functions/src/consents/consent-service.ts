@@ -31,6 +31,7 @@ import {
   type UserProfile,
 } from "@bpt-jersey/domain/profiles";
 import type { R2Client } from "../storage/r2-client.js";
+import { consentRecordId } from "./consent-identifiers.js";
 
 export type ConsentDocumentData = Readonly<Record<string, unknown>>;
 export type ConsentDocumentReference = Readonly<{ id: string; path: string }>;
@@ -178,9 +179,6 @@ function asDocument(
 function asQuery(value: ConsentDocumentSnapshot | ConsentQuerySnapshot): ConsentQuerySnapshot {
   if (!("docs" in value)) throw new ConsentStoreError("invalid", "Expected query snapshot");
   return value;
-}
-function consentIdFor(academyId: string, studentId: string, versionId: string): string {
-  return `consent_${createHash("sha256").update(`${academyId}|${studentId}|${versionId}`).digest("hex").slice(0, 40)}`;
 }
 function versionIdFor(
   academyId: string,
@@ -545,7 +543,11 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
         ).values()) {
           let consent: ConsentProjection | null = null;
           if (current) {
-            const consentId = consentIdFor(academyId, student.studentId, current.waiverVersionId);
+            const consentId = consentRecordId(
+              academyId,
+              student.studentId,
+              current.waiverVersionId,
+            );
             const snapshot = asDocument(
               await transaction.get(
                 dependencies.firestore.doc(recordPath(academyId, "consents", consentId)),
@@ -582,7 +584,7 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
         clauseResponses: input.clauseResponses,
       });
       if (!parsedInput.ok) throw new ConsentStoreError("invalid", "Waiver acceptance is invalid");
-      const consentId = consentIdFor(
+      const consentId = consentRecordId(
         academyId,
         parsedInput.value.studentId,
         parsedInput.value.waiverVersionId,

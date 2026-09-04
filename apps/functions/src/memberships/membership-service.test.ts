@@ -4,6 +4,8 @@ import { PLAN_CATALOG, type PlanRecord } from "@bpt-jersey/domain/memberships";
 import type { MembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { FamilyRecord, FamilyRelationship } from "@bpt-jersey/domain/families";
 import type { StudentProfile } from "@bpt-jersey/domain/profiles";
+import type { ConsentRecord, WaiverVersion } from "@bpt-jersey/domain/consents";
+import { consentRecordId } from "../consents/consent-identifiers.js";
 
 import {
   MembershipStoreError,
@@ -26,6 +28,9 @@ const familyId = "family-1";
 const studentId = "student-1";
 const now = "2026-08-19T10:00:00.000Z";
 const later = "2026-08-20T10:00:00.000Z";
+const waiverVersionId = "waiver-1";
+const waiverContentHash = "a".repeat(64);
+const currentConsentId = consentRecordId(academyId, studentId, waiverVersionId);
 
 function createFakeFirestore(initial: Record<string, MembershipDocumentData> = {}) {
   const records = new Map(Object.entries(initial));
@@ -124,7 +129,7 @@ function student(overrides: Partial<StudentProfile> = {}): StudentProfile {
     academyId,
     familyId,
     fullName: "Synthetic Student",
-    dateOfBirth: "2012-01-01",
+    dateOfBirth: "2018-01-01",
     trainingCenter: "Town",
     trainingTimePreferences: ["evening"],
     participantType: "minor",
@@ -162,7 +167,7 @@ function relationship(overrides: Partial<FamilyRelationship> = {}): FamilyRelati
 
 function plan(overrides: Partial<PlanRecord> = {}): PlanRecord {
   return {
-    ...PLAN_CATALOG[1]!,
+    ...PLAN_CATALOG[7]!,
     academyId,
     active: true,
     schemaVersion: "1",
@@ -174,13 +179,89 @@ function plan(overrides: Partial<PlanRecord> = {}): PlanRecord {
   };
 }
 
+function waiver(overrides: Partial<WaiverVersion> = {}): WaiverVersion {
+  return {
+    waiverVersionId,
+    academyId,
+    versionLabel: "pilot-2026-08",
+    title: "Synthetic pilot waiver",
+    introduction: "Synthetic content only.",
+    clauses: [
+      {
+        key: "photoVideo",
+        heading: "Photo and video",
+        body: "Synthetic media clause.",
+        required: false,
+      },
+      {
+        key: "medicalTreatment",
+        heading: "Medical treatment",
+        body: "Synthetic medical clause.",
+        required: true,
+      },
+      {
+        key: "hygiene",
+        heading: "Hygiene",
+        body: "Synthetic hygiene clause.",
+        required: true,
+      },
+      {
+        key: "dataProtection",
+        heading: "Data protection",
+        body: "Synthetic data clause.",
+        required: true,
+      },
+    ],
+    contentHash: waiverContentHash,
+    effectiveAt: now,
+    status: "published",
+    supersededAt: null,
+    schemaVersion: "1",
+    createdAt: now,
+    createdBy: "owner-1",
+    updatedAt: now,
+    updatedBy: "owner-1",
+    ...overrides,
+  };
+}
+
+function consent(overrides: Partial<ConsentRecord> = {}): ConsentRecord {
+  return {
+    consentId: currentConsentId,
+    academyId,
+    subjectType: "minor",
+    subjectId: studentId,
+    waiverVersionId,
+    versionLabel: "pilot-2026-08",
+    waiverContentHash,
+    signedBy: "guardian-1",
+    signatureMethod: "authenticated_typed_name",
+    clauseResponses: {
+      photoVideo: "declined",
+      medicalTreatment: "accepted",
+      hygiene: "accepted",
+      dataProtection: "accepted",
+    },
+    signedAt: now,
+    revokedAt: null,
+    evidenceDocumentId: "document-1",
+    status: "accepted",
+    schemaVersion: "1",
+    createdAt: now,
+    createdBy: "guardian-1",
+    updatedAt: now,
+    updatedBy: "guardian-1",
+    ...overrides,
+  };
+}
+
 function membership(overrides: Partial<MembershipRecord> = {}): MembershipRecord {
   return {
     membershipId: "membership-1",
     academyId,
     familyId,
     studentId,
-    planId: "bpt-jersey-adult",
+    planId: "town-kids-1x",
     status: "active",
     startsAt: now,
     endsAt: null,
@@ -199,7 +280,9 @@ function services(extra: Record<string, MembershipDocumentData> = {}) {
     [`academies/${academyId}/families/${familyId}`]: family(),
     [`academies/${academyId}/students/${studentId}`]: student(),
     [`academies/${academyId}/relationships/${familyId}--${studentId}`]: relationship(),
-    [`academies/${academyId}/plans/bpt-jersey-adult`]: plan(),
+    [`academies/${academyId}/plans/town-kids-1x`]: plan(),
+    [`academies/${academyId}/waiverVersions/${waiverVersionId}`]: waiver(),
+    [`academies/${academyId}/consents/${currentConsentId}`]: consent(),
     ...extra,
   });
   const store = createMembershipStore({
@@ -216,12 +299,31 @@ const baseCreateInput = {
   now,
   familyId,
   studentId,
-  planId: "bpt-jersey-adult" as const,
+  planId: "town-kids-1x" as const,
   status: "trial" as const,
   scope: unrestrictedScope,
 };
 
 describe("membership Firestore store", () => {
+  it("requires an accepted consent for the current published waiver", async () => {
+    const missing = services();
+    missing.records.delete(`academies/${academyId}/consents/${currentConsentId}`);
+    await expect(missing.store.createMembership(baseCreateInput)).rejects.toMatchObject({
+      code: "precondition",
+    });
+
+    const revoked = services({
+      [`academies/${academyId}/consents/${currentConsentId}`]: consent({
+        status: "revoked",
+        revokedAt: later,
+        updatedAt: later,
+      }),
+    });
+    await expect(revoked.store.createMembership(baseCreateInput)).rejects.toMatchObject({
+      code: "precondition",
+    });
+  });
+
   it("creates trial and active memberships with references, envelope, and one audit draft", async () => {
     const { store, records, writes, audits, reads, state } = services();
 
@@ -231,7 +333,7 @@ describe("membership Firestore store", () => {
       academyId,
       familyId,
       studentId,
-      planId: "bpt-jersey-adult",
+      planId: "town-kids-1x",
       status: "trial",
       startsAt: now,
       endsAt: null,
@@ -291,7 +393,7 @@ describe("membership Firestore store", () => {
   it("rejects inactive plans, unknown students, family mismatch, and cross-tenant references", async () => {
     await expect(
       services({
-        [`academies/${academyId}/plans/bpt-jersey-adult`]: plan({ active: false }),
+        [`academies/${academyId}/plans/town-kids-1x`]: plan({ active: false }),
       }).store.createMembership(baseCreateInput),
     ).rejects.toMatchObject({ code: "precondition" });
 
@@ -311,7 +413,7 @@ describe("membership Firestore store", () => {
 
     await expect(
       services({
-        [`academies/${academyId}/plans/bpt-jersey-adult`]: plan({ academyId: "academy-2" }),
+        [`academies/${academyId}/plans/town-kids-1x`]: plan({ academyId: "academy-2" }),
       }).store.createMembership(baseCreateInput),
     ).rejects.toMatchObject({ code: "tenant" });
 
@@ -327,7 +429,7 @@ describe("membership Firestore store", () => {
     ).rejects.toMatchObject({ code: "invalid" });
     await expect(
       services({
-        [`academies/${academyId}/plans/bpt-jersey-adult`]: plan({ planId: "town-adult" }),
+        [`academies/${academyId}/plans/town-kids-1x`]: plan({ planId: "town-adult" }),
       }).store.createMembership(baseCreateInput),
     ).rejects.toMatchObject({ code: "invalid" });
   });
@@ -411,7 +513,7 @@ describe("membership Firestore store", () => {
     await expect(
       services({
         [`academies/${academyId}/memberships/membership-1`]: membership({ status: "paused" }),
-        [`academies/${academyId}/plans/bpt-jersey-adult`]: plan({ active: false }),
+        [`academies/${academyId}/plans/town-kids-1x`]: plan({ active: false }),
       }).store.transitionMembership({
         academyId,
         actorId: "actor-2",

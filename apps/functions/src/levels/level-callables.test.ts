@@ -4,6 +4,7 @@ import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-cr
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { createInMemoryLevelStore } from "./level-service";
 import { normalizeLevelCatalogSource } from "./level-source";
+import type { LevelAuthorizationService } from "./level-authorization";
 import {
   createApprovePromotionHandler,
   createGetStudentProgressSummaryHandler,
@@ -25,9 +26,43 @@ function fakeRequest(
 ) {
   return {
     auth: uid ? { uid, token: { academyId, role } } : undefined,
+    app: { appId: "test-app" },
     data,
   } as never;
 }
+
+const authorization: LevelAuthorizationService = {
+  requireActor: async (request) => {
+    if (!request.auth) throw new Error("unauthenticated");
+    return {
+      kind: "user",
+      userId: request.auth.uid as never,
+      academyId: request.auth.token.academyId as never,
+      role: request.auth.token.role as never,
+      staffId:
+        request.auth.token.role === "headCoach" || request.auth.token.role === "coach"
+          ? "staff-1"
+          : null,
+    };
+  },
+  resolveStudent: async (actor, requestedStudentId) => ({
+    studentId: requestedStudentId ?? actor.userId,
+    academyId: actor.academyId,
+    ...(actor.role === "adultStudent" ? { userId: actor.userId } : {}),
+    fullName: "Synthetic Student",
+    dateOfBirth: "1990-01-01",
+    trainingCenter: "Town",
+    trainingTimePreferences: ["evening"],
+    participantType: "adult",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    createdBy: "owner-1",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    updatedBy: "owner-1",
+  }),
+};
 
 describe("Level Callables", () => {
   const normalized = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
@@ -40,7 +75,7 @@ describe("Level Callables", () => {
 
   it("allows authenticated owner to read the catalog", async () => {
     const store = createTestStore();
-    const handler = createListLevelCatalogHandler({ store });
+    const handler = createListLevelCatalogHandler({ store, authorization });
 
     const response = await handler(fakeRequest(null, "owner", "user-1", "demo-academy"));
 
@@ -52,7 +87,7 @@ describe("Level Callables", () => {
 
   it("allows authenticated coach and guardian to read the catalog", async () => {
     const store = createTestStore();
-    const handler = createListLevelCatalogHandler({ store });
+    const handler = createListLevelCatalogHandler({ store, authorization });
 
     const coachResponse = await handler(fakeRequest(null, "coach", "coach-1", "demo-academy"));
     expect(coachResponse.definitions).toHaveLength(171);
@@ -65,14 +100,14 @@ describe("Level Callables", () => {
 
   it("rejects unauthenticated requests", async () => {
     const store = createTestStore();
-    const handler = createListLevelCatalogHandler({ store });
+    const handler = createListLevelCatalogHandler({ store, authorization });
 
     await expect(handler(fakeRequest(null, "owner", null, "demo-academy"))).rejects.toThrow();
   });
 
   it("rejects non-null request payload", async () => {
     const store = createTestStore();
-    const handler = createListLevelCatalogHandler({ store });
+    const handler = createListLevelCatalogHandler({ store, authorization });
 
     await expect(
       handler(fakeRequest({ unexpected: "payload" }, "owner", "user-1", "demo-academy")),
@@ -81,7 +116,7 @@ describe("Level Callables", () => {
 
   it("enforces tenant boundary (cannot read another academy)", async () => {
     const store = createTestStore();
-    const handler = createListLevelCatalogHandler({ store });
+    const handler = createListLevelCatalogHandler({ store, authorization });
 
     await expect(handler(fakeRequest(null, "owner", "user-2", "other-academy"))).rejects.toThrow();
   });
@@ -89,12 +124,13 @@ describe("Level Callables", () => {
   describe("Record Evaluation Callable (T039)", () => {
     it("allows coach to record valid evaluation", async () => {
       const store = createTestStore();
-      const recordHandler = createRecordEvaluationHandler({ store });
+      const recordHandler = createRecordEvaluationHandler({ store, authorization });
 
       const result = await recordHandler(
         fakeRequest(
           {
             studentId: "student-1",
+            sessionId: "session-1",
             definitionKey: "white-1",
             skillKey: "guard-pass-knee-cut",
             score: 4,
@@ -113,13 +149,14 @@ describe("Level Callables", () => {
 
     it("rejects non-staff attempts to record evaluation", async () => {
       const store = createTestStore();
-      const recordHandler = createRecordEvaluationHandler({ store });
+      const recordHandler = createRecordEvaluationHandler({ store, authorization });
 
       await expect(
         recordHandler(
           fakeRequest(
             {
               studentId: "student-1",
+              sessionId: "session-1",
               definitionKey: "white-1",
               skillKey: "guard-pass-knee-cut",
               score: 4,
@@ -130,18 +167,19 @@ describe("Level Callables", () => {
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/Staff role required to record evaluation/);
+      ).rejects.toThrow(/current coach role is required/);
     });
 
     it("rejects invalid payload arguments", async () => {
       const store = createTestStore();
-      const recordHandler = createRecordEvaluationHandler({ store });
+      const recordHandler = createRecordEvaluationHandler({ store, authorization });
 
       await expect(
         recordHandler(
           fakeRequest(
             {
               studentId: "student-1",
+              sessionId: "session-1",
               definitionKey: "white-1",
               skillKey: "guard-pass",
               score: 99,
@@ -163,16 +201,18 @@ describe("Level Callables", () => {
         academyId: "demo-academy",
         input: {
           studentId: "student-1",
+          sessionId: "session-1",
           definitionKey: "white-1",
           skillKey: "armbar-closed-guard",
           score: 5,
           evidenceNotes: "Perfect hip elevation and breaking mechanics.",
         },
         evaluatorId: "coach-1",
+        evaluatorStaffId: "staff-1",
         evaluatorRole: "coach",
       });
 
-      const listHandler = createListStudentEvaluationsHandler({ store });
+      const listHandler = createListStudentEvaluationsHandler({ store, authorization });
       const result = await listHandler(
         fakeRequest({ studentId: "student-1" }, "headCoach", "headcoach-1", "demo-academy"),
       );
@@ -188,20 +228,22 @@ describe("Level Callables", () => {
         academyId: "demo-academy",
         input: {
           studentId: "adult-1",
+          sessionId: "session-1",
           definitionKey: "white-1",
           skillKey: "armbar-closed-guard",
           score: 3,
           evidenceNotes: "Good attempt.",
         },
         evaluatorId: "coach-1",
+        evaluatorStaffId: "staff-1",
         evaluatorRole: "coach",
       });
 
-      const listHandler = createListStudentEvaluationsHandler({ store });
+      const listHandler = createListStudentEvaluationsHandler({ store, authorization });
 
       // Can list own
       const ownResult = await listHandler(
-        fakeRequest({ studentId: "adult-1" }, "adultStudent", "adult-1", "demo-academy"),
+        fakeRequest({}, "adultStudent", "adult-1", "demo-academy"),
       );
       expect(ownResult.evaluations).toHaveLength(1);
 
@@ -210,41 +252,30 @@ describe("Level Callables", () => {
         listHandler(
           fakeRequest({ studentId: "adult-2" }, "adultStudent", "adult-1", "demo-academy"),
         ),
-      ).rejects.toThrow(/Access denied: student evaluation visibility restricted/);
+      ).rejects.toThrow(/Levels payload is invalid/);
     });
   });
 
   describe("Get Student Progress Summary Callable (T040)", () => {
     it("allows staff to retrieve student progress summary", async () => {
       const store = createTestStore();
-      const progressHandler = createGetStudentProgressSummaryHandler({ store });
+      const progressHandler = createGetStudentProgressSummaryHandler({ store, authorization });
 
       const res = await progressHandler(
-        fakeRequest(
-          {
-            studentId: "student-1",
-            currentDefinitionKey: "white-0",
-            attendedClassesCount: 20,
-            totalHours: 30,
-          },
-          "coach",
-          "coach-1",
-          "demo-academy",
-        ),
+        fakeRequest({ studentId: "student-1" }, "coach", "coach-1", "demo-academy"),
       );
 
       expect(res.progress.studentId).toBe("student-1");
-      expect(res.progress.totalAttendedClasses).toBe(20);
-      expect(res.progress.totalHours).toBe(30);
+      expect(res.progress.state).toBe("uninitialized");
     });
 
     it("enforces family visibility on progress summary", async () => {
       const store = createTestStore();
-      const progressHandler = createGetStudentProgressSummaryHandler({ store });
+      const progressHandler = createGetStudentProgressSummaryHandler({ store, authorization });
 
       // Student can view own progress
       const ownRes = await progressHandler(
-        fakeRequest({ studentId: "adult-1" }, "adultStudent", "adult-1", "demo-academy"),
+        fakeRequest({}, "adultStudent", "adult-1", "demo-academy"),
       );
       expect(ownRes.progress.studentId).toBe("adult-1");
 
@@ -253,15 +284,15 @@ describe("Level Callables", () => {
         progressHandler(
           fakeRequest({ studentId: "other-student" }, "adultStudent", "adult-1", "demo-academy"),
         ),
-      ).rejects.toThrow(/Access denied: student progress visibility restricted/);
+      ).rejects.toThrow(/Levels payload is invalid/);
     });
   });
 
   describe("Medical Leave Callables (T041)", () => {
     it("allows staff to record and list medical leave", async () => {
       const store = createTestStore();
-      const recordHandler = createRecordMedicalLeaveHandler({ store });
-      const listHandler = createListMedicalLeavesHandler({ store });
+      const recordHandler = createRecordMedicalLeaveHandler({ store, authorization });
+      const listHandler = createListMedicalLeavesHandler({ store, authorization });
 
       const recordRes = await recordHandler(
         fakeRequest(
@@ -269,7 +300,7 @@ describe("Level Callables", () => {
             studentId: "student-1",
             startDate: "2026-08-01T00:00:00Z",
             endDate: "2026-08-15T00:00:00Z",
-            reason: "Ankle recovery from sprain",
+            reasonCode: "recovery",
           },
           "coach",
           "coach-1",
@@ -278,7 +309,7 @@ describe("Level Callables", () => {
       );
 
       expect(recordRes.medicalLeave.studentId).toBe("student-1");
-      expect(recordRes.medicalLeave.reason).toBe("Ankle recovery from sprain");
+      expect(recordRes.medicalLeave.reasonCode).toBe("recovery");
 
       const listRes = await listHandler(
         fakeRequest({ studentId: "student-1" }, "coach", "coach-1", "demo-academy"),
@@ -288,7 +319,7 @@ describe("Level Callables", () => {
 
     it("rejects non-staff recording medical leave", async () => {
       const store = createTestStore();
-      const recordHandler = createRecordMedicalLeaveHandler({ store });
+      const recordHandler = createRecordMedicalLeaveHandler({ store, authorization });
 
       await expect(
         recordHandler(
@@ -297,24 +328,24 @@ describe("Level Callables", () => {
               studentId: "student-1",
               startDate: "2026-08-01T00:00:00Z",
               endDate: "2026-08-15T00:00:00Z",
-              reason: "Ankle recovery",
+              reasonCode: "recovery",
             },
             "adultStudent",
             "adult-1",
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/Staff role required to record medical leave/);
+      ).rejects.toThrow(/current staff role is required/);
     });
   });
 
   describe("Recognition Candidates Callable (T041)", () => {
     it("allows staff to list recognition candidates", async () => {
       const store = createTestStore();
-      const candidatesHandler = createListRecognitionCandidatesHandler({ store });
+      const candidatesHandler = createListRecognitionCandidatesHandler({ store, authorization });
 
       const res = await candidatesHandler(
-        fakeRequest(null, "headCoach", "headcoach-1", "demo-academy"),
+        fakeRequest({}, "headCoach", "headcoach-1", "demo-academy"),
       );
 
       expect(Array.isArray(res.candidates)).toBe(true);
@@ -322,20 +353,20 @@ describe("Level Callables", () => {
 
     it("rejects non-staff listing recognition candidates", async () => {
       const store = createTestStore();
-      const candidatesHandler = createListRecognitionCandidatesHandler({ store });
+      const candidatesHandler = createListRecognitionCandidatesHandler({ store, authorization });
 
       await expect(
-        candidatesHandler(fakeRequest(null, "adultStudent", "adult-1", "demo-academy")),
-      ).rejects.toThrow(/Staff role required to view recognition candidates/);
+        candidatesHandler(fakeRequest({}, "adultStudent", "adult-1", "demo-academy")),
+      ).rejects.toThrow(/current staff role is required/);
     });
   });
 
   describe("Head Coach Promotion & Graduation Callables (T042)", () => {
     it("allows headCoach to approve and reject promotions and lists graduations", async () => {
       const store = createTestStore();
-      const approveHandler = createApprovePromotionHandler({ store });
-      const rejectHandler = createRejectPromotionHandler({ store });
-      const listHandler = createListGraduationsHandler({ store });
+      const approveHandler = createApprovePromotionHandler({ store, authorization });
+      const rejectHandler = createRejectPromotionHandler({ store, authorization });
+      const listHandler = createListGraduationsHandler({ store, authorization });
 
       const appRes = await approveHandler(
         fakeRequest(
@@ -363,8 +394,8 @@ describe("Level Callables", () => {
             targetDefinitionKey: "white-1",
             decisionNotes: "Requires additional sparring rounds and defensive posture drills.",
           },
-          "owner",
-          "owner-1",
+          "headCoach",
+          "headcoach-1",
           "demo-academy",
         ),
       );
@@ -379,8 +410,8 @@ describe("Level Callables", () => {
 
     it("rejects regular coach or student from approving or rejecting promotions", async () => {
       const store = createTestStore();
-      const approveHandler = createApprovePromotionHandler({ store });
-      const rejectHandler = createRejectPromotionHandler({ store });
+      const approveHandler = createApprovePromotionHandler({ store, authorization });
+      const rejectHandler = createRejectPromotionHandler({ store, authorization });
 
       await expect(
         approveHandler(
@@ -396,7 +427,7 @@ describe("Level Callables", () => {
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/Head Coach or Owner role required to approve promotions/);
+      ).rejects.toThrow(/current head coach is required/);
 
       await expect(
         rejectHandler(
@@ -411,7 +442,7 @@ describe("Level Callables", () => {
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/Head Coach or Owner role required to reject promotions/);
+      ).rejects.toThrow(/current head coach is required/);
     });
   });
 });

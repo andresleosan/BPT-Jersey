@@ -87,6 +87,36 @@ const membershipCreated = {
   correlationId: "membership-correlation-1",
 } as const;
 
+const memberCreated = {
+  ...common,
+  action: "member.created",
+  targetRef: "academies/academy-1/students/student-1",
+  purpose: "member-record-maintenance",
+  correlationId: `write-${"a".repeat(64)}`,
+} as const;
+
+const memberUpdated = {
+  ...memberCreated,
+  action: "member.updated",
+  correlationId: `write-${"d".repeat(64)}`,
+} as const;
+
+const familyCreated = {
+  ...common,
+  action: "family.created",
+  targetRef: "academies/academy-1/families/family-1",
+  purpose: "family-record-maintenance",
+  correlationId: `family-write-${"b".repeat(64)}`,
+} as const;
+
+const familyStudentAdded = {
+  ...common,
+  action: "family.student.added",
+  targetRef: "academies/academy-1/students/student-1",
+  purpose: "family-record-maintenance",
+  correlationId: `family-write-${"c".repeat(64)}`,
+} as const;
+
 const membershipStatusChanged = {
   ...common,
   action: "membership.status.changed",
@@ -136,6 +166,25 @@ const familyAchievementsGenerated = {
   candidateCount: 3,
   generatedAt: "2026-08-31T12:00:00.000Z",
 } as const;
+
+const restrictedMemberReadDrafts = [
+  {
+    ...common,
+    action: "member.detail.read",
+    targetRef: "academies/academy-1/studentRestrictedReadLimits/admin-1",
+    purpose: "member-record-maintenance",
+    correlationId: "restricted-audit-detail-1",
+    result: "completed",
+  },
+  {
+    ...common,
+    action: "member.identity.lookup",
+    targetRef: "academies/academy-1/studentRestrictedReadLimits/admin-1",
+    purpose: "member-identity-lookup",
+    correlationId: "restricted-audit-lookup-1",
+    result: "no-match",
+  },
+] as const;
 describe("audit event draft contract", () => {
   it("accepts both minimal administrative role actions", () => {
     for (const action of ["admin.role.granted", "admin.role.revoked"] as const) {
@@ -162,6 +211,30 @@ describe("audit event draft contract", () => {
 
   it("accepts exact metadata-only Regyfit import evidence", () => {
     expect(parseAuditEventDraft(regyfitImport)).toEqual({ ok: true, value: regyfitImport });
+  });
+
+  it("accepts exact metadata-only restricted member read evidence", () => {
+    for (const draft of restrictedMemberReadDrafts) {
+      expect(auditActions).toContain(draft.action);
+      expect(parseAuditEventDraft(draft)).toEqual({ ok: true, value: draft });
+    }
+  });
+
+  it("rejects non-minimal or incorrectly scoped restricted member read evidence", () => {
+    const [detail, lookup] = restrictedMemberReadDrafts;
+    for (const candidate of [
+      { ...detail, targetRef: "academies/academy-1/students/student-1" },
+      { ...detail, purpose: "member-identity-lookup" },
+      { ...detail, result: "no-match" },
+      { ...lookup, result: "not-found" },
+      { ...lookup, correlationId: "BPT 00000001" },
+      { ...lookup, value: "BPT 00000001" },
+      { ...lookup, digest: "a".repeat(64) },
+      { ...lookup, keyId: "private-key-1" },
+      { ...lookup, membershipNumber: "BPT 00000001" },
+    ]) {
+      expect(parseAuditEventDraft(candidate).ok).toBe(false);
+    }
   });
 
   it("accepts exact family achievement snapshot evidence and rejects unsafe variants", () => {
@@ -230,6 +303,46 @@ describe("audit event draft contract", () => {
       expect(result).toEqual({ ok: true, value: event });
       expect(Object.isFrozen(result.ok ? result.value : undefined)).toBe(true);
     }
+  });
+
+  it("accepts only tightly scoped metadata for canonical member creation and update", () => {
+    for (const event of [memberCreated, memberUpdated]) {
+      expect(auditActions).toContain(event.action);
+      expect(parseAuditEventDraft(event)).toEqual({ ok: true, value: event });
+    }
+
+    for (const candidate of [
+      { ...memberCreated, targetRef: "academies/academy-1/members/member-1" },
+      { ...memberCreated, targetRef: "academies/academy-1/students/student/other" },
+      { ...memberCreated, purpose: "bulk export" },
+      { ...memberCreated, correlationId: "request-1" },
+      { ...memberCreated, email: "private@example.test" },
+      { ...memberUpdated, targetRef: "academies/academy-1/users/user-1" },
+    ]) {
+      expect(parseAuditEventDraft(candidate).ok).toBe(false);
+    }
+  });
+
+  it("accepts only closed metadata for family and minor creation", () => {
+    for (const event of [familyCreated, familyStudentAdded]) {
+      expect(auditActions).toContain(event.action);
+      expect(parseAuditEventDraft(event)).toEqual({ ok: true, value: event });
+      expect(parseAuditEventDraft({ ...event, fullName: "Private Minor" }).ok).toBe(false);
+      expect(parseAuditEventDraft({ ...event, dateOfBirth: "2015-08-19" }).ok).toBe(false);
+      expect(parseAuditEventDraft({ ...event, correlationId: "request-1" }).ok).toBe(false);
+    }
+    expect(
+      parseAuditEventDraft({
+        ...familyCreated,
+        targetRef: "academies/academy-1/students/student-1",
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseAuditEventDraft({
+        ...familyStudentAdded,
+        targetRef: "academies/academy-1/families/family-1",
+      }).ok,
+    ).toBe(false);
   });
 
   it("accepts exact waitlist offer lifecycle actions without PII or finance payloads", () => {

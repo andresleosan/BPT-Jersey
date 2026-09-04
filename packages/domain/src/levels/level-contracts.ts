@@ -534,12 +534,13 @@ export type EvaluationRecord = Readonly<{
   evaluationId: string;
   academyId: string;
   studentId: string;
+  sessionId: string;
   definitionKey: string;
   skillKey: string;
   score: EvaluationScore;
   evidenceNotes: string;
   evaluatorId: string;
-  evaluatorRole: "owner" | "administrator" | "headCoach" | "coach";
+  evaluatorRole: "headCoach" | "coach";
   evaluatedAt: string;
   schemaVersion: "1";
   createdAt: string;
@@ -550,6 +551,7 @@ export type EvaluationRecord = Readonly<{
 
 export type RecordEvaluationInput = Readonly<{
   studentId: string;
+  sessionId: string;
   definitionKey: string;
   skillKey: string;
   score: EvaluationScore;
@@ -576,10 +578,14 @@ export function parseRecordEvaluationInput(
     return err([issue(["input"], "invalid_evaluation_object")]);
   }
 
-  const { studentId, definitionKey, skillKey, score, evidenceNotes } = input;
+  const { studentId, sessionId, definitionKey, skillKey, score, evidenceNotes } = input;
 
   if (typeof studentId !== "string" || !safeIdPattern.test(studentId)) {
     issues.push(issue(["input", "studentId"], "invalid_student_id"));
+  }
+
+  if (typeof sessionId !== "string" || !safeIdPattern.test(sessionId)) {
+    issues.push(issue(["input", "sessionId"], "invalid_session_id"));
   }
 
   if (typeof definitionKey !== "string" || !safeIdPattern.test(definitionKey)) {
@@ -613,6 +619,7 @@ export function parseRecordEvaluationInput(
   return ok(
     Object.freeze({
       studentId: (studentId as string).trim(),
+      sessionId: (sessionId as string).trim(),
       definitionKey: (definitionKey as string).trim(),
       skillKey: (skillKey as string).trim(),
       score: score as EvaluationScore,
@@ -652,7 +659,8 @@ export type ProgressCriteriaSummary = Readonly<{
   overallEligible: boolean;
 }>;
 
-export type StudentProgressSummary = Readonly<{
+export type InitializedStudentProgressSummary = Readonly<{
+  state: "initialized";
   studentId: string;
   currentDefinition: LevelDefinitionRecord;
   targetDefinition: LevelDefinitionRecord | null;
@@ -663,6 +671,22 @@ export type StudentProgressSummary = Readonly<{
   currentLevelStartedAt: string | null;
   calculatedAt: string;
 }>;
+
+export type UninitializedStudentProgressSummary = Readonly<{
+  state: "uninitialized";
+  studentId: string;
+  calculatedAt: string;
+}>;
+
+export type StudentProgressSummary =
+  InitializedStudentProgressSummary | UninitializedStudentProgressSummary;
+
+export function buildUninitializedStudentProgressSummary(
+  studentId: string,
+  calculatedAt = new Date().toISOString(),
+): UninitializedStudentProgressSummary {
+  return Object.freeze({ state: "uninitialized", studentId, calculatedAt });
+}
 
 export type ProgressReportLevelBreakdown = Readonly<{
   definitionKey: string;
@@ -741,11 +765,13 @@ export function buildProgressReport(options: {
   for (const student of students) {
     const studentEvaluations = evaluationsByStudent.get(student.studentId) ?? [];
     if (studentEvaluations.length > 0) assessedStudentIds.add(student.studentId);
+    if (student.currentDefinitionKey === undefined) {
+      continue;
+    }
     const progress = buildStudentProgressSummary({
       catalog,
       studentId: student.studentId,
-      currentDefinitionKey:
-        student.currentDefinitionKey ?? catalog.definitions[0]?.definitionKey ?? "white-0",
+      currentDefinitionKey: student.currentDefinitionKey,
       evaluations: studentEvaluations,
       attendedClassesCount: attendedCountByStudent.get(student.studentId) ?? 0,
       totalHours: (attendedCountByStudent.get(student.studentId) ?? 0) * 1.5,
@@ -825,7 +851,7 @@ export function buildStudentProgressSummary(options: {
   totalHours?: number;
   currentLevelStartedAt?: string | null;
   now?: string;
-}): StudentProgressSummary {
+}): InitializedStudentProgressSummary {
   const {
     catalog,
     studentId,
@@ -837,9 +863,12 @@ export function buildStudentProgressSummary(options: {
     now = new Date().toISOString(),
   } = options;
 
-  const currentDefinition =
-    catalog.definitions.find((d) => d.definitionKey === currentDefinitionKey) ??
-    catalog.definitions[0]!;
+  const currentDefinition = catalog.definitions.find(
+    (definition) => definition.definitionKey === currentDefinitionKey,
+  );
+  if (currentDefinition === undefined) {
+    throw new Error("Current level definition is not available");
+  }
 
   const targetDefinition =
     catalog.definitions.find((d) => d.sequence === currentDefinition.sequence + 1) ?? null;
@@ -938,6 +967,7 @@ export function buildStudentProgressSummary(options: {
   });
 
   return Object.freeze({
+    state: "initialized",
     studentId,
     currentDefinition,
     targetDefinition,
@@ -950,22 +980,36 @@ export function buildStudentProgressSummary(options: {
   });
 }
 
+export const medicalLeaveReasonCodes = Object.freeze([
+  "injury",
+  "illness",
+  "recovery",
+  "other",
+] as const);
+export type MedicalLeaveReasonCode = (typeof medicalLeaveReasonCodes)[number];
+
 export type MedicalLeaveRecord = Readonly<{
   leaveId: string;
   academyId: string;
   studentId: string;
   startDate: string;
   endDate: string;
-  reason: string;
+  reasonCode: MedicalLeaveReasonCode;
+  status: "active";
+  schemaVersion: "1";
   recordedBy: string;
   recordedAt: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
 }>;
 
 export type RecordMedicalLeaveInput = Readonly<{
   studentId: string;
   startDate: string;
   endDate: string;
-  reason: string;
+  reasonCode: MedicalLeaveReasonCode;
 }>;
 
 export function parseRecordMedicalLeaveInput(
@@ -981,7 +1025,7 @@ export function parseRecordMedicalLeaveInput(
   const studentId = record["studentId"];
   const startDate = record["startDate"];
   const endDate = record["endDate"];
-  const reason = record["reason"];
+  const reasonCode = record["reasonCode"];
 
   if (typeof studentId !== "string" || !safeIdPattern.test(studentId)) {
     issues.push(issue(["input", "studentId"], "invalid_student_id"));
@@ -1002,8 +1046,8 @@ export function parseRecordMedicalLeaveInput(
     issues.push(issue(["input", "endDate"], "end_date_must_be_after_start_date"));
   }
 
-  if (typeof reason !== "string" || reason.trim().length < 3 || reason.trim().length > 500) {
-    issues.push(issue(["input", "reason"], "reason_length_3_to_500"));
+  if (!medicalLeaveReasonCodes.includes(reasonCode as MedicalLeaveReasonCode)) {
+    issues.push(issue(["input", "reasonCode"], "invalid_reason_code"));
   }
 
   if (issues.length > 0) {
@@ -1015,7 +1059,7 @@ export function parseRecordMedicalLeaveInput(
       studentId: (studentId as string).trim(),
       startDate: (startDate as string).trim(),
       endDate: (endDate as string).trim(),
-      reason: (reason as string).trim(),
+      reasonCode: reasonCode as MedicalLeaveReasonCode,
     }),
   );
 }
@@ -1171,8 +1215,8 @@ export function generateRecognitionCandidates(options: {
   const candidates: RecognitionCandidate[] = [];
 
   for (const student of students) {
-    const defKey =
-      student.currentDefinitionKey ?? catalog.definitions[0]?.definitionKey ?? "white-0";
+    if (student.currentDefinitionKey === undefined) continue;
+    const defKey = student.currentDefinitionKey;
     const studentEvals = evaluations.filter((e) => e.studentId === student.studentId);
     const studentAtts = attendances.filter((a) => a.studentId === student.studentId);
     const studentLeaves = medicalLeaves.filter((l) => l.studentId === student.studentId);
@@ -1291,7 +1335,7 @@ export type GraduationRecord = Readonly<{
   status: PromotionDecisionStatus;
   decisionNotes: string;
   decidedBy: string;
-  decidedByRole: "owner" | "headCoach";
+  decidedByRole: "headCoach";
   decidedAt: string;
   ceremonyDate: string | null;
   schemaVersion: "1";
@@ -1424,4 +1468,55 @@ export function parseRejectPromotionInput(
       decisionNotes: (decisionNotes as string).trim(),
     }),
   );
+}
+
+export type PeerComparisonStudent = Readonly<{
+  studentId: string;
+  studentName: string;
+  beltName: string;
+  beltColor?: string;
+  stripes: number;
+  streakWeeks: number;
+  techniquesLearned: number;
+  totalTechniques: number;
+  sequence: number;
+  classesInRank: number;
+}>;
+
+export type PeerComparisonResult = Readonly<{
+  currentStudent: PeerComparisonStudent;
+  peersAbove: readonly PeerComparisonStudent[];
+  peersBelow: readonly PeerComparisonStudent[];
+}>;
+
+export function buildPeerComparison(input: {
+  currentStudentId: string;
+  students: readonly PeerComparisonStudent[];
+}): PeerComparisonResult | null {
+  const { currentStudentId, students } = input;
+  const current = students.find((s) => s.studentId === currentStudentId);
+  if (!current) return null;
+
+  // Sort descending: highest rank / progression first
+  const sorted = [...students].sort((a, b) => {
+    if (a.sequence !== b.sequence) return b.sequence - a.sequence;
+    if (a.stripes !== b.stripes) return b.stripes - a.stripes;
+    if (a.techniquesLearned !== b.techniquesLearned)
+      return b.techniquesLearned - a.techniquesLearned;
+    if (a.streakWeeks !== b.streakWeeks) return b.streakWeeks - a.streakWeeks;
+    if (a.classesInRank !== b.classesInRank) return b.classesInRank - a.classesInRank;
+    return a.studentName.localeCompare(b.studentName);
+  });
+
+  const currentIndex = sorted.findIndex((s) => s.studentId === currentStudentId);
+  if (currentIndex === -1) return null;
+
+  const peersAbove = sorted.slice(Math.max(0, currentIndex - 2), currentIndex);
+  const peersBelow = sorted.slice(currentIndex + 1, currentIndex + 3);
+
+  return Object.freeze({
+    currentStudent: current,
+    peersAbove: Object.freeze(peersAbove),
+    peersBelow: Object.freeze(peersBelow),
+  });
 }

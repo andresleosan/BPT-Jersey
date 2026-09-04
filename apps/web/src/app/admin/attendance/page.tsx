@@ -1,53 +1,51 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { SessionOperationalStatus } from "@bpt-jersey/domain/schedule";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import type {
+  AttendanceState as CanonicalAttendanceState,
+  RecordCheckoutInput,
+  SessionOperationalStatus,
+  SessionOperationalView,
+} from "@bpt-jersey/domain/schedule";
 
-import { getSessionOperationalView, listSessions } from "../../../lib/schedule-client";
+import {
+  correctAttendance,
+  getSessionOperationalView,
+  listSessions,
+  reconcileSessionNoShows,
+  recordCheckIn,
+  recordCheckout,
+} from "../../../lib/schedule-client";
 import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
+import { AttendanceDialog, type AttendanceDialogState } from "./attendance-dialog";
 
 import "../admin.css";
+import "./attendance.css";
 
 type AttendanceRow = Readonly<{
-  student: string;
-  group: string;
-  session: string;
-  coach: string;
+  studentId: string;
+  sessionId: string;
+  sessionLabel: string;
+  instructorId: string;
   checkIn: string;
-  state: string;
+  stateLabel: string;
+  status: SessionOperationalStatus;
+  hasAttendance: boolean;
 }>;
 
-type AttendanceState =
+type AttendanceLoadState =
   | { status: "loading"; date: string }
-  | { status: "ready"; date: string; rows: readonly AttendanceRow[] }
+  | { status: "ready"; date: string; views: readonly SessionOperationalView[] }
   | { status: "error"; date: string };
 
-const columns = [
-  {
-    key: "student",
-    label: "Student ID",
-    render: (item: AttendanceRow) => <strong>{item.student}</strong>,
-  },
-  { key: "group", label: "Session ID", render: (item: AttendanceRow) => item.group },
-  { key: "session", label: "Session", render: (item: AttendanceRow) => item.session },
-  { key: "coach", label: "Instructor ID", render: (item: AttendanceRow) => item.coach },
-  { key: "checkIn", label: "Check-in", render: (item: AttendanceRow) => item.checkIn },
-  {
-    key: "state",
-    label: "State",
-    render: (item: AttendanceRow) => <AdminStatusBadge status={item.state} />,
-  },
-] as const;
-
-const statusLabels: Readonly<Record<SessionOperationalStatus | "pending", string>> = {
+const statusLabels: Readonly<Record<SessionOperationalStatus, string>> = {
   booked_not_arrived: "Pending",
   attended: "Present",
   late: "Late",
   absent: "Absent",
   no_show: "No-show",
   checked_out: "Checked out",
-  pending: "Pending",
 };
 
 function todayDate(): string {
@@ -61,22 +59,34 @@ function dayQuery(date: string) {
   } as const;
 }
 
-async function loadAttendanceRows(date: string): Promise<readonly AttendanceRow[]> {
+async function loadAttendanceViews(date: string): Promise<readonly SessionOperationalView[]> {
   const sessions = await listSessions(dayQuery(date));
-  const views = await Promise.all(
-    sessions.map((session) => getSessionOperationalView(session.sessionId)),
-  );
+  return Promise.all(sessions.map((session) => getSessionOperationalView(session.sessionId)));
+}
+
+function rowsFromViews(views: readonly SessionOperationalView[]): readonly AttendanceRow[] {
   return views.flatMap((view) =>
     view.roster.map((student) => ({
-      student: student.studentId,
-      group: view.session.sessionId,
-      session: `${view.session.title} (${view.session.startAt.slice(11, 16)})`,
-      coach: view.session.instructorId,
+      studentId: student.studentId,
+      sessionId: view.session.sessionId,
+      sessionLabel: `${view.session.title} (${view.session.startAt.slice(11, 16)})`,
+      instructorId: view.session.instructorId,
       checkIn: student.attendance?.occurredAt.slice(11, 16) ?? "-",
-      state: statusLabels[student.computedStatus],
+      stateLabel: statusLabels[student.computedStatus],
+      status: student.computedStatus,
+      hasAttendance: student.attendance !== null,
     })),
   );
 }
+
+function correctionInitialState(status: SessionOperationalStatus): CanonicalAttendanceState {
+  if (status === "late") return "late";
+  if (status === "absent") return "absent";
+  if (status === "no_show") return "no_show";
+  return "attended";
+}
+
+const EMPTY_VIEWS: readonly SessionOperationalView[] = Object.freeze([]);
 
 export function AttendancePage() {
   const [date, setDate] = useState(todayDate);
@@ -84,13 +94,24 @@ export function AttendancePage() {
   const [group, setGroup] = useState("All sessions");
   const [coach, setCoach] = useState("All instructors");
   const [stateFilter, setStateFilter] = useState("All states");
-  const [data, setData] = useState<AttendanceState>({ status: "loading", date: todayDate() });
+  const [data, setData] = useState<AttendanceLoadState>(() => ({
+    status: "loading",
+    date: todayDate(),
+  }));
+  const [dialog, setDialog] = useState<AttendanceDialogState>();
+  const [dialogError, setDialogError] = useState("");
+  const [operationError, setOperationError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busyKey, setBusyKey] = useState<string>();
 
   useEffect(() => {
     let active = true;
-    void loadAttendanceRows(date).then(
-      (rows) => {
-        if (active) setData({ status: "ready", date, rows });
+    setData({ status: "loading", date });
+    setOperationError("");
+    setNotice("");
+    void loadAttendanceViews(date).then(
+      (views) => {
+        if (active) setData({ status: "ready", date, views });
       },
       () => {
         if (active) setData({ status: "error", date });
@@ -102,46 +123,283 @@ export function AttendancePage() {
   }, [date]);
 
   const isLoading = data.date !== date || data.status === "loading";
-  const rows = useMemo(
-    () => (!isLoading && data.status === "ready" ? data.rows : []),
-    [data, isLoading],
+  const views = useMemo(
+    () => (!isLoading && data.status === "ready" ? data.views : EMPTY_VIEWS),
+    [isLoading, data],
   );
+  const rows = useMemo(() => rowsFromViews(views), [views]);
   const sessionOptions = useMemo(
-    () => ["All sessions", ...new Set(rows.map((row) => row.session))],
+    () => ["All sessions", ...new Set(rows.map((row) => row.sessionLabel))],
     [rows],
   );
   const groupOptions = useMemo(
-    () => ["All sessions", ...new Set(rows.map((row) => row.group))],
+    () => ["All sessions", ...new Set(rows.map((row) => row.sessionId))],
     [rows],
   );
   const coachOptions = useMemo(
-    () => ["All instructors", ...new Set(rows.map((row) => row.coach))],
+    () => ["All instructors", ...new Set(rows.map((row) => row.instructorId))],
     [rows],
   );
   const stateOptions = useMemo(
-    () => ["All states", ...new Set(rows.map((row) => row.state))],
+    () => ["All states", ...new Set(rows.map((row) => row.stateLabel))],
     [rows],
   );
   const filteredRows = rows.filter(
     (item) =>
-      (session === "All sessions" || item.session === session) &&
-      (group === "All sessions" || item.group === group) &&
-      (coach === "All instructors" || item.coach === coach) &&
-      (stateFilter === "All states" || item.state === stateFilter),
+      (session === "All sessions" || item.sessionLabel === session) &&
+      (group === "All sessions" || item.sessionId === group) &&
+      (coach === "All instructors" || item.instructorId === coach) &&
+      (stateFilter === "All states" || item.stateLabel === stateFilter),
   );
+  const busy = busyKey !== undefined;
+
+  async function refreshAfterSuccess(successMessage: string): Promise<void> {
+    setData({ status: "loading", date });
+    try {
+      const nextViews = await loadAttendanceViews(date);
+      setData({ status: "ready", date, views: nextViews });
+      setNotice(successMessage);
+    } catch {
+      setData({ status: "error", date });
+      setOperationError(
+        `${successMessage} The connected roster could not be refreshed; reload before another action.`,
+      );
+    }
+  }
+
+  async function handleCheckIn(row: AttendanceRow): Promise<void> {
+    setBusyKey(`check-in:${row.sessionId}:${row.studentId}`);
+    setOperationError("");
+    setNotice("");
+    try {
+      await recordCheckIn({
+        sessionId: row.sessionId,
+        studentId: row.studentId,
+        method: "manual",
+      });
+      await refreshAfterSuccess(`Manual check-in recorded for ${row.studentId}.`);
+    } catch {
+      setOperationError("Unable to record manual check-in. Nothing was changed.");
+    } finally {
+      setBusyKey(undefined);
+    }
+  }
+
+  async function handleNoShows(view: SessionOperationalView): Promise<void> {
+    setBusyKey(`no-shows:${view.session.sessionId}`);
+    setOperationError("");
+    setNotice("");
+    try {
+      const result = await reconcileSessionNoShows(view.session.sessionId);
+      const label = result.noShowsMarked === 1 ? "no-show" : "no-shows";
+      await refreshAfterSuccess(
+        `Marked ${result.noShowsMarked} ${label} for ${view.session.title}.`,
+      );
+    } catch {
+      setOperationError("Unable to mark session no-shows. Nothing was changed.");
+    } finally {
+      setBusyKey(undefined);
+    }
+  }
+
+  function openCorrection(row: AttendanceRow): void {
+    setDialogError("");
+    setOperationError("");
+    setNotice("");
+    setDialog({
+      kind: "correction",
+      sessionId: row.sessionId,
+      studentId: row.studentId,
+      currentStatus: row.status,
+      newState: correctionInitialState(row.status),
+      reason: "",
+    });
+  }
+
+  function openCheckout(row: AttendanceRow): void {
+    setDialogError("");
+    setOperationError("");
+    setNotice("");
+    setDialog({
+      kind: "checkout",
+      sessionId: row.sessionId,
+      studentId: row.studentId,
+      method: "authorizedAdult",
+      authorizedAdultId: "",
+      authorizedAdultName: "",
+      notes: "",
+    });
+  }
+
+  function updateDialog(next: AttendanceDialogState): void {
+    setDialog(next);
+    setDialogError("");
+  }
+
+  async function submitDialog(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!dialog) return;
+
+    if (dialog.kind === "correction") {
+      const reason = dialog.reason.trim();
+      if (!reason) {
+        setDialogError("A correction reason is required.");
+        return;
+      }
+      setBusyKey(`correction:${dialog.sessionId}:${dialog.studentId}`);
+      setDialogError("");
+      try {
+        await correctAttendance({
+          sessionId: dialog.sessionId,
+          studentId: dialog.studentId,
+          newState: dialog.newState,
+          reason,
+        });
+        const studentId = dialog.studentId;
+        setDialog(undefined);
+        await refreshAfterSuccess(`Attendance corrected for ${studentId}.`);
+      } catch {
+        setDialogError("Unable to correct attendance. Nothing was changed.");
+      } finally {
+        setBusyKey(undefined);
+      }
+      return;
+    }
+
+    const authorizedAdultId = dialog.authorizedAdultId.trim();
+    const authorizedAdultName = dialog.authorizedAdultName.trim();
+    const notes = dialog.notes.trim();
+    let input: RecordCheckoutInput;
+    if (dialog.method === "authorizedAdult") {
+      if (!authorizedAdultId || !authorizedAdultName) {
+        setDialogError("Authorized adult ID and name are required.");
+        return;
+      }
+      input = {
+        sessionId: dialog.sessionId,
+        studentId: dialog.studentId,
+        method: "authorizedAdult",
+        authorizedAdultId,
+        authorizedAdultName,
+      };
+    } else if (dialog.method === "staffOverride") {
+      if (!notes) {
+        setDialogError("A staff override note is required.");
+        return;
+      }
+      input = {
+        sessionId: dialog.sessionId,
+        studentId: dialog.studentId,
+        method: "staffOverride",
+        notes,
+      };
+    } else {
+      input = {
+        sessionId: dialog.sessionId,
+        studentId: dialog.studentId,
+        method: "independentRelease",
+      };
+    }
+
+    setBusyKey(`checkout:${dialog.sessionId}:${dialog.studentId}`);
+    setDialogError("");
+    try {
+      await recordCheckout(input);
+      const studentId = dialog.studentId;
+      setDialog(undefined);
+      await refreshAfterSuccess(`Checkout recorded for ${studentId}.`);
+    } catch {
+      setDialogError("Unable to record checkout. Nothing was changed.");
+    } finally {
+      setBusyKey(undefined);
+    }
+  }
+
+  const columns = [
+    {
+      key: "student",
+      label: "Student ID",
+      render: (item: AttendanceRow) => <strong>{item.studentId}</strong>,
+    },
+    { key: "group", label: "Session ID", render: (item: AttendanceRow) => item.sessionId },
+    { key: "session", label: "Session", render: (item: AttendanceRow) => item.sessionLabel },
+    { key: "coach", label: "Instructor ID", render: (item: AttendanceRow) => item.instructorId },
+    { key: "checkIn", label: "Check-in", render: (item: AttendanceRow) => item.checkIn },
+    {
+      key: "state",
+      label: "State",
+      render: (item: AttendanceRow) => <AdminStatusBadge status={item.stateLabel} />,
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (item: AttendanceRow) => (
+        <div className="attendance-row-actions">
+          {item.status === "booked_not_arrived" ? (
+            <button
+              aria-label={`Check in ${item.studentId}`}
+              className="attendance-action-button attendance-action-button-primary"
+              disabled={busy}
+              onClick={() => void handleCheckIn(item)}
+              type="button"
+            >
+              Check in
+            </button>
+          ) : null}
+          {item.hasAttendance && item.status !== "checked_out" ? (
+            <button
+              aria-label={`Correct attendance for ${item.studentId}`}
+              className="attendance-action-button"
+              disabled={busy}
+              onClick={() => openCorrection(item)}
+              type="button"
+            >
+              Correct
+            </button>
+          ) : null}
+          {item.status === "attended" || item.status === "late" ? (
+            <button
+              aria-label={`Check out ${item.studentId}`}
+              className="attendance-action-button"
+              disabled={busy}
+              onClick={() => openCheckout(item)}
+              type="button"
+            >
+              Checkout
+            </button>
+          ) : null}
+        </div>
+      ),
+    },
+  ] as const;
 
   return (
-    <section className="admin-module-page" aria-labelledby="attendance-title">
+    <section className="admin-module-page attendance-page" aria-labelledby="attendance-title">
       <AdminSectionHeader
-        description="Review canonical session rosters, check-ins, late arrivals, absences, and no-shows."
-        eyebrow="Attendance / Connected"
+        description="Operate canonical session rosters: manual arrivals, corrections, no-shows, and verified student release."
+        eyebrow="Attendance / Connected operations"
         title="Attendance"
       />
+
+      <aside className="attendance-credential-note" aria-labelledby="credential-note-title">
+        <span aria-hidden="true" className="attendance-credential-mark">
+          ID
+        </span>
+        <div>
+          <strong id="credential-note-title">Verified check-in only</strong>
+          <p>
+            QR and PIN check-in are unavailable until the backend exposes verifiable credentials.
+            Use manual roster check-in; no code entered here is treated as identity proof.
+          </p>
+        </div>
+      </aside>
+
       <AdminFilterBar>
         <label className="admin-filter-control">
           Date
           <input
             aria-label="Attendance date"
+            disabled={busy}
             onChange={(event) => setDate(event.target.value)}
             type="date"
             value={date}
@@ -200,6 +458,56 @@ export function AttendancePage() {
           </select>
         </label>
       </AdminFilterBar>
+
+      {views.length > 0 ? (
+        <section className="attendance-session-strip" aria-labelledby="session-operations-title">
+          <div className="attendance-session-strip-heading">
+            <div>
+              <p className="admin-eyebrow">Session closeout</p>
+              <h3 id="session-operations-title">Mark no-shows by session</h3>
+            </div>
+            <span>{views.length} connected</span>
+          </div>
+          <div className="attendance-session-list">
+            {views.map((view) => (
+              <article className="attendance-session-item" key={view.session.sessionId}>
+                <div>
+                  <strong>{view.session.title}</strong>
+                  <span>
+                    {view.session.startAt.slice(11, 16)} / {view.session.sessionId}
+                  </span>
+                </div>
+                <p>
+                  {view.summary.totalPendingArrival} pending · {view.summary.totalNoShows} no-show
+                </p>
+                <button
+                  aria-label={`Mark no-shows for ${view.session.title}`}
+                  className="attendance-action-button attendance-action-button-primary"
+                  disabled={busy || view.session.status === "cancelled"}
+                  onClick={() => void handleNoShows(view)}
+                  type="button"
+                >
+                  {busyKey === `no-shows:${view.session.sessionId}`
+                    ? "Marking..."
+                    : "Mark no-shows"}
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {operationError ? (
+        <p className="attendance-operation-message attendance-operation-error" role="alert">
+          {operationError}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="attendance-operation-message attendance-operation-success" role="status">
+          {notice}
+        </p>
+      ) : null}
+
       <section className="admin-panel-card" aria-labelledby="attendance-table-title">
         <div className="admin-panel-card-heading">
           <div>
@@ -207,7 +515,11 @@ export function AttendancePage() {
             <h3 id="attendance-table-title">Today&apos;s attendance</h3>
           </div>
           <span className="admin-status-badge admin-status-active">
-            {data.status === "ready" ? "Connected" : "Loading"}
+            {data.status === "ready"
+              ? "Connected"
+              : data.status === "error"
+                ? "Unavailable"
+                : "Loading"}
           </span>
         </div>
         {isLoading ? <p role="status">Loading connected attendance...</p> : null}
@@ -220,7 +532,7 @@ export function AttendancePage() {
           <AdminDataTable
             caption="Attendance roster"
             columns={columns}
-            rowKey={(item) => `${item.group}-${item.student}`}
+            rowKey={(item) => `${item.sessionId}-${item.studentId}`}
             rows={filteredRows}
           />
         ) : null}
@@ -228,6 +540,20 @@ export function AttendancePage() {
           <p className="admin-empty-state">No connected attendance records match these filters.</p>
         ) : null}
       </section>
+
+      {dialog ? (
+        <AttendanceDialog
+          busy={busy}
+          dialog={dialog}
+          error={dialogError}
+          onChange={updateDialog}
+          onClose={() => {
+            setDialog(undefined);
+            setDialogError("");
+          }}
+          onSubmit={(event) => void submitDialog(event)}
+        />
+      ) : null}
     </section>
   );
 }

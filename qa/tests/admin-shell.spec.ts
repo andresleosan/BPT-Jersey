@@ -23,6 +23,66 @@ async function installAdminFixture(page: Page): Promise<void> {
       return;
     }
 
+    if (requestUrl.pathname.endsWith("/getOperationalReport")) {
+      const body = route.request().postDataJSON() as {
+        data: Readonly<{ from: string; to: string }>;
+      };
+      await route.fulfill({
+        body: JSON.stringify({
+          data: {
+            report: {
+              query: body.data,
+              students: {
+                totalStudents: 0,
+                activeStudents: 0,
+                inactiveStudents: 0,
+                suspendedStudents: 0,
+                activeAdults: 0,
+                activeMinors: 0,
+                activeTown: 0,
+                activeWest: 0,
+              },
+              attendance: {
+                totalRecords: 0,
+                checkedIn: 0,
+                attended: 0,
+                late: 0,
+                absent: 0,
+                noShow: 0,
+                excused: 0,
+                attendanceRatePercentage: 0,
+              },
+              memberships: {
+                currentMemberships: 0,
+                trial: 0,
+                active: 0,
+                paused: 0,
+                overdue: 0,
+                cancelled: 0,
+              },
+              revenue: {
+                currency: "GBP",
+                issuedMinor: 0,
+                receivedMinor: 0,
+                outstandingMinor: 0,
+                invoiceCount: 0,
+                openInvoiceCount: 0,
+                partiallyPaidInvoiceCount: 0,
+                paidInvoiceCount: 0,
+                voidedInvoiceCount: 0,
+                paymentCount: 0,
+                paymentsByMethod: { cash: 0, bankTransfer: 0, other: 0 },
+              },
+              calculatedAt: "2026-08-24T20:00:00.000Z",
+            },
+          },
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+
     if (requestUrl.pathname.startsWith("/admin")) {
       if (requestUrl.pathname === "/admin") requestUrl.pathname = "/admin.html";
       requestUrl.searchParams.set("adminTestRole", "owner");
@@ -87,7 +147,8 @@ test.describe("admin shell @smoke", () => {
     await expect(
       page.getByRole("heading", { name: "Today's academy view", level: 2 }),
     ).toBeVisible();
-    await expect(page.getByRole("table", { name: "Today's classes" })).toBeVisible();
+    await expect(page.getByText("No connected sessions are scheduled for today.")).toBeVisible();
+    await expect(page.getByRole("table", { name: "Today's classes" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Add new member" })).toHaveAttribute(
       "href",
       "/admin/members/add",

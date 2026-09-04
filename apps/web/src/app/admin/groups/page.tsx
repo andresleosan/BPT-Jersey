@@ -58,6 +58,7 @@ export function GroupsPage() {
   const [coach, setCoach] = useState("All coaches");
   const [status, setStatus] = useState("Active groups");
   const [notice, setNotice] = useState("");
+  const [noticeKind, setNoticeKind] = useState<"success" | "error">("success");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form state
@@ -121,6 +122,7 @@ export function GroupsPage() {
     if (!newGroupName.trim()) return;
 
     setIsSubmitting(true);
+    setNotice("");
     try {
       const input: CreateClassInput = {
         programId: newGroupProgram,
@@ -138,12 +140,13 @@ export function GroupsPage() {
 
       const created = await saveClass(input);
       setConnectedClasses((prev) => [...prev, created]);
+      setNoticeKind("success");
       setNotice(`Group "${created.name}" created successfully.`);
       setIsModalOpen(false);
       setNewGroupName("");
     } catch {
-      setNotice("Group creation is ready for the connected data source.");
-      setIsModalOpen(false);
+      setNoticeKind("error");
+      setNotice("Unable to create the group. Review the connected fields and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -317,7 +320,11 @@ export function GroupsPage() {
         </p>
       ) : null}
       {notice ? (
-        <p aria-live="polite" className="admin-preview-notice" role="status">
+        <p
+          aria-live="polite"
+          className={noticeKind === "error" ? "family-error" : "admin-preview-notice"}
+          role={noticeKind === "error" ? "alert" : "status"}
+        >
           {notice}
         </p>
       ) : null}

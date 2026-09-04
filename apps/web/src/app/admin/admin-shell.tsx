@@ -15,9 +15,10 @@ import "./admin.css";
 const navigationItems = [
   { label: "Overview", href: "/admin" },
   { label: "Members", href: "/admin/members" },
+  { label: "Memberships", href: "/admin/memberships" },
   { label: "Families", href: "/admin/families" },
   { label: "Waivers", href: "/admin/waivers" },
-  { label: "Groups / Teams", href: "/admin/groups" },
+  { label: "Classes", href: "/admin/classes" },
   { label: "Activities", href: "/admin/activities" },
   { label: "Class waitlists", href: "/admin/waitlists" },
   { label: "Attendance", href: "/admin/attendance" },
@@ -25,6 +26,7 @@ const navigationItems = [
   { label: "CRM", href: "/admin/crm" },
   { label: "Retention", href: "/admin/retention" },
   { label: "Finance", href: "/admin/finance" },
+  { label: "Billing", href: "/admin/billing" },
   { label: "Regyfit Access Records", href: "/admin/regyfit-access-records" },
   { label: "Staff", href: "/admin/staff" },
   { label: "Levels", href: "/admin/levels" },
@@ -47,16 +49,23 @@ export function AdminShell({
       : session.role === "administrator"
         ? "Administrator access"
         : session.role === "headCoach"
-          ? "Head coach read-only access"
-          : "Coach read-only access";
+          ? "Head coach operational access"
+          : "Coach attendance access";
   const visibleNavigationItems =
     session.role === "headCoach"
       ? navigationItems.filter(
-          (item) => item.href === "/admin/waitlists" || item.href === "/admin/lesson-plans",
+          (item) =>
+            item.href === "/admin/classes" ||
+            item.href === "/admin/attendance" ||
+            item.href === "/admin/waitlists" ||
+            item.href === "/admin/lesson-plans",
         )
       : session.role === "coach"
         ? navigationItems.filter(
-            (item) => item.href === "/admin/waitlists" || item.href === "/admin/lesson-plans",
+            (item) =>
+              item.href === "/admin/attendance" ||
+              item.href === "/admin/waitlists" ||
+              item.href === "/admin/lesson-plans",
           )
         : navigationItems;
   const [navigationOpen, setNavigationOpen] = useState(false);

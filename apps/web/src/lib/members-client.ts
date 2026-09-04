@@ -1,326 +1,201 @@
 import { httpsCallable } from "firebase/functions";
+
 import {
-  memberGenders,
-  memberReportKeys,
-  membershipStatuses,
-  paymentStatuses,
-  type MemberGender,
-  type MemberReportKey,
-  type MemberSearchFilters,
-} from "@bpt-jersey/domain";
+  adminCreateStudentInputSchema,
+  adminUpdateStudentInputSchema,
+  adminDirectoryRowSchema,
+  memberRecordMaintenanceDetailSchema,
+  type AdminCreateStudentInput,
+  type AdminDirectoryRow,
+  type AdminUpdateStudentInput,
+  type MemberRecordMaintenanceDetail,
+  type PublicAdminIdentifierLookupKind,
+} from "@bpt-jersey/domain/members/directory";
 
 import { getFirebaseFunctions } from "./firebase-client";
 
-export type CreateMemberInput = Readonly<{
-  membershipNumber?: string;
-  fullName: string;
-  email?: string;
-  idCardNumber?: string;
-  vatNumber?: string;
-  birthDate?: string;
-  mobileNumber?: string;
-  frequency?: string;
-  gender?: MemberGender;
-  trainingCenter?: string;
+export type CreateMemberInput = AdminCreateStudentInput;
+export type UpdateMemberInput = AdminUpdateStudentInput;
+export type MemberDirectoryPage = Readonly<{
+  rows: readonly AdminDirectoryRow[];
+  nextCursor?: string;
 }>;
+export type MemberIdentityLookupResult =
+  | Readonly<{ matched: false }>
+  | Readonly<{ matched: true; row: AdminDirectoryRow }>;
 
-type CreateMemberResponse = Readonly<{ memberId: string }>;
-
-export type MemberSearchProjection = Readonly<{
-  memberId: string;
-  membershipNumber?: string;
-  fullName: string;
-  email?: string;
-  idCardNumber?: string;
-  vatNumber?: string;
-  birthDate?: string;
-  mobileNumber?: string;
-  frequency?: string;
-  paymentStatus: "regularized" | "notRegularized" | "unknown";
-  gender: MemberGender;
-  trainingCenter?: string;
-  membershipStatus: "active" | "inactive" | "suspended";
-  inactiveAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  source: string;
-  schemaVersion: "1";
-}>;
-
-export type MemberSearchResult = Readonly<{
-  members: readonly MemberSearchProjection[];
-  nextPageToken?: string;
-}>;
-
-export type MemberReportResult = Readonly<{
-  report: MemberReportKey;
-  members: readonly MemberSearchProjection[];
-  generatedAt: string;
-}>;
-
-export type MemberReportSummary = Readonly<{
-  report: MemberReportKey;
-  count: number;
-}>;
-
-type SearchRequest = Readonly<{ filters: MemberSearchFilters; pageToken?: string }>;
-type MemberReportPdfResult = Readonly<{ downloadUrl: string; expiresAt: string }>;
-
-const memberInputFields = [
-  "membershipNumber",
-  "fullName",
-  "email",
-  "idCardNumber",
-  "vatNumber",
-  "birthDate",
-  "mobileNumber",
-  "frequency",
-  "gender",
-  "trainingCenter",
-] as const satisfies readonly (keyof CreateMemberInput)[];
-
-const safeCreateMemberError = "Unable to create member. Please try again.";
-const safeSearchMembersError = "Unable to search members. Please try again.";
-const safeMemberReportError = "Unable to load member report. Please try again.";
-const safeMemberReportSummaryError = "Unable to load member report counters. Please try again.";
-const safeMemberReportPdfError = "Unable to download member report. Please try again.";
-const MAX_SIGNED_PDF_URL_AGE_MS = 10 * 60 * 1000;
-
-const memberSearchFilterFields = [
-  "membershipNumber",
-  "name",
-  "email",
-  "idCardNumber",
-  "vatNumber",
-  "mobileNumber",
-  "frequency",
-  "paymentOrStatus",
-  "gender",
-  "trainingCenter",
-  "orderBy",
-] as const satisfies readonly (keyof MemberSearchFilters)[];
-
-const projectionFields = new Set([
-  "memberId",
-  "membershipNumber",
-  "fullName",
-  "email",
-  "idCardNumber",
-  "vatNumber",
-  "birthDate",
-  "mobileNumber",
-  "frequency",
-  "paymentStatus",
-  "gender",
-  "trainingCenter",
-  "membershipStatus",
-  "inactiveAt",
-  "createdAt",
-  "updatedAt",
-  "source",
-  "schemaVersion",
-]);
+const safeCreateError = "Unable to create member. Please try again.";
+const safeUpdateError = "Unable to update member. Please try again.";
+const safeListError = "Unable to load members. Please try again.";
+const safeDetailError = "Unable to load member details. Please try again.";
+const safeLookupError = "Unable to find member. Please try again.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
 }
 
-function isMemberProjection(value: unknown): value is MemberSearchProjection {
-  if (!isRecord(value) || Object.keys(value).some((key) => !projectionFields.has(key))) return false;
-  if (
-    !isNonEmptyString(value.memberId) ||
-    !isNonEmptyString(value.fullName) ||
-    !isNonEmptyString(value.paymentStatus) ||
-    !paymentStatuses.includes(value.paymentStatus as MemberSearchProjection["paymentStatus"]) ||
-    !memberGenders.includes(value.gender as MemberGender) ||
-    !membershipStatuses.includes(
-      value.membershipStatus as MemberSearchProjection["membershipStatus"],
-    ) ||
-    !isNonEmptyString(value.createdAt) ||
-    !isNonEmptyString(value.updatedAt) ||
-    !isNonEmptyString(value.source) ||
-    value.schemaVersion !== "1"
-  ) {
-    return false;
-  }
-
-  return [
-    "membershipNumber",
-    "email",
-    "idCardNumber",
-    "vatNumber",
-    "birthDate",
-    "mobileNumber",
-    "frequency",
-    "trainingCenter",
-    "inactiveAt",
-  ].every((field) => value[field] === undefined || isNonEmptyString(value[field]));
-}
-
-function isMemberSearchResult(value: unknown): value is MemberSearchResult {
-  return (
-    isRecord(value) &&
-    Array.isArray(value.members) &&
-    value.members.every(isMemberProjection) &&
-    (value.nextPageToken === undefined || isNonEmptyString(value.nextPageToken))
-  );
-}
-
-function isMemberReportResult(value: unknown): value is MemberReportResult {
-  return (
-    isRecord(value) &&
-    memberReportKeys.includes(value.report as MemberReportKey) &&
-    Array.isArray(value.members) &&
-    value.members.every(isMemberProjection) &&
-    isNonEmptyString(value.generatedAt)
-  );
-}
-
-function isMemberReportSummary(value: unknown): value is MemberReportSummary {
-  return (
-    isRecord(value) &&
-    Object.keys(value).every((key) => key === "report" || key === "count") &&
-    memberReportKeys.includes(value.report as MemberReportKey) &&
-    typeof value.count === "number" &&
-    Number.isSafeInteger(value.count) &&
-    value.count >= 0
-  );
-}
-
-function isMemberReportPdfResult(value: unknown): value is MemberReportPdfResult {
+function parseCreateResponse(value: unknown): Readonly<{
+  memberId: string;
+  studentId: string;
+}> {
   if (
     !isRecord(value) ||
-    !isNonEmptyString(value.downloadUrl) ||
-    !isNonEmptyString(value.expiresAt)
+    !hasExactKeys(value, ["memberId", "studentId"]) ||
+    typeof value.memberId !== "string" ||
+    typeof value.studentId !== "string" ||
+    value.memberId.length === 0 ||
+    value.memberId !== value.studentId
   ) {
-    return false;
+    throw new Error(safeCreateError);
   }
+  return Object.freeze({ memberId: value.memberId, studentId: value.studentId });
+}
+
+function parseDirectoryPage(value: unknown): MemberDirectoryPage {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(
+      value,
+      value.nextCursor === undefined ? ["rows"] : ["rows", "nextCursor"],
+    ) ||
+    !Array.isArray(value.rows) ||
+    (value.nextCursor !== undefined &&
+      (typeof value.nextCursor !== "string" || value.nextCursor.length === 0))
+  ) {
+    throw new Error(safeListError);
+  }
+  const rows = value.rows.map((row) => {
+    const parsed = adminDirectoryRowSchema.safeParse(row);
+    if (!parsed.success) throw new Error(safeListError);
+    return Object.freeze(parsed.data);
+  });
+  return Object.freeze({
+    rows: Object.freeze(rows),
+    ...(value.nextCursor === undefined ? {} : { nextCursor: value.nextCursor }),
+  });
+}
+
+function parseLookupResult(value: unknown): MemberIdentityLookupResult {
+  if (!isRecord(value) || typeof value.matched !== "boolean") {
+    throw new Error(safeLookupError);
+  }
+  if (!value.matched) {
+    if (!hasExactKeys(value, ["matched"])) throw new Error(safeLookupError);
+    return Object.freeze({ matched: false });
+  }
+  if (!hasExactKeys(value, ["matched", "row"])) throw new Error(safeLookupError);
+  const row = adminDirectoryRowSchema.safeParse(value.row);
+  if (!row.success) throw new Error(safeLookupError);
+  return Object.freeze({ matched: true, row: Object.freeze(row.data) });
+}
+
+export async function createMember(
+  input: CreateMemberInput,
+): Promise<Readonly<{ memberId: string; studentId: string }>> {
   try {
-    const expiresAt = Date.parse(value.expiresAt);
-    const now = Date.now();
-    return (
-      new URL(value.downloadUrl).protocol === "https:" &&
-      Number.isFinite(expiresAt) &&
-      new Date(expiresAt).toISOString() === value.expiresAt &&
-      expiresAt > now &&
-      expiresAt <= now + MAX_SIGNED_PDF_URL_AGE_MS
-    );
-  } catch {
-    return false;
-  }
-}
-
-function isCreateMemberResponse(value: unknown): value is CreateMemberResponse {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    typeof (value as { memberId?: unknown }).memberId === "string" &&
-    (value as { memberId: string }).memberId.trim().length > 0
-  );
-}
-
-function memberPayload(input: CreateMemberInput): CreateMemberInput {
-  const payload: Record<string, unknown> = {};
-
-  for (const field of memberInputFields) {
-    const value = input[field];
-    if (value !== undefined) {
-      payload[field] = value;
-    }
-  }
-
-  return payload as CreateMemberInput;
-}
-
-function searchFiltersPayload(filters: MemberSearchFilters): MemberSearchFilters {
-  const payload: Record<string, unknown> = {};
-  for (const field of memberSearchFilterFields) {
-    const value = filters[field];
-    if (value !== undefined) payload[field] = value;
-  }
-  return payload as MemberSearchFilters;
-}
-
-export async function createMember(input: CreateMemberInput): Promise<{ memberId: string }> {
-  try {
-    const callable = httpsCallable<CreateMemberInput, CreateMemberResponse>(
+    const parsed = adminCreateStudentInputSchema.safeParse(input);
+    if (!parsed.success) throw new Error(safeCreateError);
+    const callable = httpsCallable<CreateMemberInput, unknown>(
       getFirebaseFunctions(),
       "createMember",
     );
-    const result = await callable(memberPayload(input));
+    const result = await callable(parsed.data);
+    return parseCreateResponse(result.data);
+  } catch {
+    throw new Error(safeCreateError);
+  }
+}
 
-    if (!isCreateMemberResponse(result.data)) {
-      throw new Error(safeCreateMemberError);
+export async function updateMember(
+  input: UpdateMemberInput,
+): Promise<Readonly<{ memberId: string; studentId: string }>> {
+  try {
+    const parsed = adminUpdateStudentInputSchema.safeParse(input);
+    if (!parsed.success) throw new Error(safeUpdateError);
+    const callable = httpsCallable<UpdateMemberInput, unknown>(
+      getFirebaseFunctions(),
+      "updateMember",
+    );
+    const result = await callable(parsed.data);
+    const response = parseCreateResponse(result.data);
+    if (response.studentId !== parsed.data.studentId) throw new Error(safeUpdateError);
+    return response;
+  } catch {
+    throw new Error(safeUpdateError);
+  }
+}
+
+export async function listMembers(
+  pageSize = 50,
+  cursor?: string,
+): Promise<MemberDirectoryPage> {
+  try {
+    if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+      throw new Error(safeListError);
     }
-
-    return { memberId: result.data.memberId };
+    const callable = httpsCallable<
+      Readonly<{ pageSize: number; cursor?: string }>,
+      unknown
+    >(getFirebaseFunctions(), "listMembers");
+    const result = await callable({
+      pageSize,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    return parseDirectoryPage(result.data);
   } catch {
-    throw new Error(safeCreateMemberError);
+    throw new Error(safeListError);
   }
 }
 
-export async function searchMembers(
-  filters: MemberSearchFilters,
-  pageToken?: string,
-): Promise<MemberSearchResult> {
+export async function getMemberDetail(
+  studentId: string,
+): Promise<MemberRecordMaintenanceDetail> {
   try {
-    const callable = httpsCallable<SearchRequest, unknown>(getFirebaseFunctions(), "searchMembers");
-    const safeFilters = searchFiltersPayload(filters);
-    const request: SearchRequest =
-      pageToken === undefined
-        ? { filters: safeFilters }
-        : { filters: safeFilters, pageToken };
-    const result = await callable(request);
-    if (!isMemberSearchResult(result.data)) throw new Error(safeSearchMembersError);
-    return result.data;
+    const callable = httpsCallable<
+      Readonly<{
+        studentId: string;
+        purpose: "member-record-maintenance";
+      }>,
+      unknown
+    >(getFirebaseFunctions(), "getMemberDetail");
+    const result = await callable({
+      studentId,
+      purpose: "member-record-maintenance",
+    });
+    const parsed = memberRecordMaintenanceDetailSchema.safeParse(result.data);
+    if (!parsed.success) throw new Error(safeDetailError);
+    return Object.freeze(parsed.data);
   } catch {
-    throw new Error(safeSearchMembersError);
+    throw new Error(safeDetailError);
   }
 }
 
-export async function getMemberReport(report: MemberReportKey): Promise<MemberReportResult> {
+export async function lookupMemberIdentity(
+  lookupKind: PublicAdminIdentifierLookupKind,
+  value: string,
+): Promise<MemberIdentityLookupResult> {
   try {
-    const callable = httpsCallable<{ report: MemberReportKey }, unknown>(
-      getFirebaseFunctions(),
-      "getMemberReport",
-    );
-    const result = await callable({ report });
-    if (!isMemberReportResult(result.data)) throw new Error(safeMemberReportError);
-    return result.data;
+    const callable = httpsCallable<
+      Readonly<{
+        lookupKind: PublicAdminIdentifierLookupKind;
+        value: string;
+        purpose: "member-identity-lookup";
+      }>,
+      unknown
+    >(getFirebaseFunctions(), "lookupMemberIdentity");
+    const result = await callable({
+      lookupKind,
+      value,
+      purpose: "member-identity-lookup",
+    });
+    return parseLookupResult(result.data);
   } catch {
-    throw new Error(safeMemberReportError);
-  }
-}
-
-export async function getMemberReportSummary(report: MemberReportKey): Promise<MemberReportSummary> {
-  try {
-    const callable = httpsCallable<{ report: MemberReportKey }, unknown>(
-      getFirebaseFunctions(),
-      "getMemberReportSummary",
-    );
-    const result = await callable({ report });
-    if (!isMemberReportSummary(result.data)) throw new Error(safeMemberReportSummaryError);
-    return result.data;
-  } catch {
-    throw new Error(safeMemberReportSummaryError);
-  }
-}
-
-export async function getMemberReportPdf(report: MemberReportKey): Promise<MemberReportPdfResult> {
-  try {
-    const callable = httpsCallable<{ report: MemberReportKey }, unknown>(
-      getFirebaseFunctions(),
-      "getMemberReportPdf",
-    );
-    const result = await callable({ report });
-    if (!isMemberReportPdfResult(result.data)) throw new Error(safeMemberReportPdfError);
-    return result.data;
-  } catch {
-    throw new Error(safeMemberReportPdfError);
+    throw new Error(safeLookupError);
   }
 }

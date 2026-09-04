@@ -1,51 +1,65 @@
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { createLevelCatalogStore } from "../src/levels/level-service.ts";
-import { seedLevelCatalog, rollbackLevelCatalog } from "../src/levels/level-seed.ts";
-
-function parseArgs() {
-  const args = process.argv.slice(2);
-  const options = {};
-  for (const arg of args) {
-    if (arg.startsWith("--")) {
-      const [key, value] = arg.slice(2).split("=");
-      options[key] = value ?? true;
-    }
-  }
-  return options;
-}
+import {
+  assertLevelSeedConfirmation,
+  assertLevelSeedTargetEnvironment,
+  parseLevelSeedArguments,
+} from "./level-seed-target.mjs";
 
 async function main() {
-  const options = parseArgs();
-  const target = options["target"] ?? (process.env.FIREBASE_EMULATOR_HOST ? "emulator" : undefined);
-  const academyId = options["academy-id"] ?? "demo-academy";
-  const systemId = options["system-id"] ?? "ibjjf-v1";
+  const options = parseLevelSeedArguments(process.argv.slice(2));
+  const target = options["target"];
+  const academyId = options["academy-id"];
+  const systemId = options["system-id"];
   const confirmation = options["confirmation"];
   const isRollback = Boolean(options["rollback"]);
 
-  if (!target || (target !== "emulator" && target !== "staging")) {
+  if (target !== "emulator" && target !== "staging") {
     throw new Error("Missing or invalid --target (must be 'emulator' or 'staging').");
   }
 
-  const app =
-    getApps()[0] ?? initializeApp({ projectId: process.env.GCLOUD_PROJECT ?? "demo-bpt-jersey" });
-  const firestore = getFirestore(app);
-  const store = createLevelCatalogStore({ firestore });
+  const initialEnvironment = {
+    gcloudProjectId: process.env.GCLOUD_PROJECT,
+    firebaseConfig: process.env.FIREBASE_CONFIG,
+    firestoreEmulatorHost: process.env.FIRESTORE_EMULATOR_HOST,
+    nodeEnvironment: process.env.NODE_ENV,
+  };
+  const targetBinding = assertLevelSeedTargetEnvironment(target, initialEnvironment);
+  assertLevelSeedConfirmation(target, isRollback, confirmation);
+  const firebaseApp = await import("firebase-admin/app");
+  const existingApp = firebaseApp.getApps()[0];
+  const environment = {
+    ...initialEnvironment,
+    existingAppPresent: existingApp !== undefined,
+    existingAppProjectId: existingApp?.options.projectId,
+  };
+  const verifiedBinding = assertLevelSeedTargetEnvironment(target, environment);
+  if (verifiedBinding.projectId !== targetBinding.projectId) {
+    throw new Error("Level seed target is not safe.");
+  }
+  const app = existingApp ?? firebaseApp.initializeApp({ projectId: targetBinding.projectId });
+  const [firebaseFirestore, levelService, levelSeed] = await Promise.all([
+    import("firebase-admin/firestore"),
+    import("../../../.firebase-functions/lib/src/levels/level-service.js"),
+    import("../../../.firebase-functions/lib/src/levels/level-seed.js"),
+  ]);
+  const firestore = firebaseFirestore.getFirestore(app);
+  const store = levelService.createLevelCatalogStore({ firestore });
 
   if (isRollback) {
-    const result = await rollbackLevelCatalog({
+    const result = await levelSeed.rollbackLevelCatalog({
       target,
       academyId,
       systemId,
       confirmation,
+      environment,
       store,
     });
     console.log(JSON.stringify(result, null, 2));
   } else {
-    const result = await seedLevelCatalog({
+    const result = await levelSeed.seedLevelCatalog({
       target,
       academyId,
       confirmation,
+      environment,
       store,
     });
     console.log(JSON.stringify(result, null, 2));

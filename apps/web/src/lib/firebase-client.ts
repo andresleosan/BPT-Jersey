@@ -2,6 +2,11 @@
 
 import { getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
 import {
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  type AppCheck,
+} from "firebase/app-check";
+import {
   browserLocalPersistence,
   browserPopupRedirectResolver,
   browserSessionPersistence,
@@ -75,6 +80,7 @@ export type MfaEnrollment = Readonly<{
 let authEmulatorConnected = false;
 let firestoreEmulatorConnected = false;
 let functionsEmulatorConnected = false;
+let firebaseAppCheck: AppCheck | undefined;
 let firebaseAuth: Auth | undefined;
 const enrollmentUsers = new WeakMap<object, User>();
 
@@ -100,6 +106,51 @@ function requiredPublicValue(value: string | undefined): string {
   }
 
   return value;
+}
+
+function optionalPublicValue(value: string | undefined): string | undefined {
+  const normalizedValue = value?.trim();
+  return normalizedValue ? normalizedValue : undefined;
+}
+
+function initializeFirebaseAppCheck(useFirebaseEmulators: boolean): void {
+  const siteKey = optionalPublicValue(
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
+  );
+  const debugToken = optionalPublicValue(
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN,
+  );
+
+  if (debugToken && !useFirebaseEmulators) {
+    throw new Error("Firebase App Check debug tokens are local Emulator-only.");
+  }
+
+  if (!siteKey) {
+    if (useFirebaseEmulators && !debugToken) return;
+
+    throw new Error(
+      "A Firebase App Check site key is required before using Firebase Functions.",
+    );
+  }
+
+  if (typeof window === "undefined") {
+    throw new Error("Firebase App Check is browser-only.");
+  }
+
+  if (firebaseAppCheck) return;
+
+  if (debugToken) {
+    (
+      globalThis as typeof globalThis & {
+        FIREBASE_APPCHECK_DEBUG_TOKEN?: string;
+      }
+    ).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+  }
+
+  firebaseAppCheck = initializeAppCheck(getFirebaseClient(), {
+    provider: new ReCaptchaEnterpriseProvider(siteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
 }
 
 function publicFirebaseOptions(): FirebaseOptions {
@@ -167,9 +218,11 @@ export function getFirebaseFirestore(): Firestore {
 }
 
 export function getFirebaseFunctions(): Functions {
+  const useFirebaseEmulators = shouldUseFirebaseEmulators();
+  initializeFirebaseAppCheck(useFirebaseEmulators);
   const functions = getFunctions(getFirebaseClient());
 
-  if (shouldUseFirebaseEmulators() && !functionsEmulatorConnected) {
+  if (useFirebaseEmulators && !functionsEmulatorConnected) {
     connectFunctionsEmulator(functions, firestoreEmulatorHost, functionsEmulatorPort);
     functionsEmulatorConnected = true;
   }

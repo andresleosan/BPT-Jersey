@@ -10,14 +10,20 @@ import {
   parseListSessionsQuery,
   parseRecordCheckoutInput,
   parseRequestBookingInput,
+  parseUpdateClassInput,
 } from "@bpt-jersey/domain/schedule";
 
-import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
-import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
-
-import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { BookingTransactionError } from "./booking-transaction-service.js";
+import {
+  ScheduleAttendanceError,
+  type ScheduleMutationActorRole,
+} from "./attendance-transaction-service.js";
+import {
+  createFirestoreCanonicalClientStudentScopeResolver,
+  type CanonicalClientStudentScopeResolver,
+} from "./canonical-client-student-scope.js";
+import { scheduleCallableOptions } from "./schedule-callable-options.js";
 import { createFirestoreScheduleStore, type ScheduleStore } from "./schedule-service.js";
 
 const staffRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
@@ -33,86 +39,26 @@ export type GuardianStudentScopeResolver = (input: GuardianStudentScopeInput) =>
 
 type StudentScopeOptions = Readonly<{
   store: ScheduleStore;
-  isGuardianOfStudent?: GuardianStudentScopeResolver;
+  resolveClientStudentScope?: CanonicalClientStudentScopeResolver;
 }>;
 
 export function createFirestoreGuardianStudentScopeResolver(
   options: Readonly<{ firestore?: Firestore; now?: () => Date }> = {},
 ): GuardianStudentScopeResolver {
-  return async (input: GuardianStudentScopeInput): Promise<boolean> => {
-    try {
-      const nowMs = (options.now?.() ?? new Date()).getTime();
-      if (!Number.isFinite(nowMs)) return false;
-
-      const firestore = options.firestore ?? getFirestore();
-      const relationshipSnapshot = await firestore
-        .collection("academies/" + input.academyId + "/relationships")
-        .where("adultUserId", "==", input.guardianUserId)
-        .limit(101)
-        .get();
-
-      for (const relationshipDocument of relationshipSnapshot.docs) {
-        const relationshipResult = parseFamilyRelationship(relationshipDocument.data());
-        if (!relationshipResult.ok) continue;
-
-        const relationship = relationshipResult.value;
-        const validFromMs = Date.parse(relationship.validFrom);
-        const validToMs =
-          relationship.validTo === undefined ? undefined : Date.parse(relationship.validTo);
-        if (
-          relationship.academyId !== input.academyId ||
-          relationship.adultUserId !== input.guardianUserId ||
-          relationship.studentId !== input.studentId ||
-          !relationship.active ||
-          relationship.status !== "active" ||
-          !Number.isFinite(validFromMs) ||
-          validFromMs > nowMs ||
-          (validToMs !== undefined && (!Number.isFinite(validToMs) || nowMs >= validToMs))
-        ) {
-          continue;
-        }
-
-        const familyDocument = await firestore
-          .collection("academies/" + input.academyId + "/families")
-          .doc(relationship.familyId)
-          .get();
-        const familyResult = parseFamilyRecord(familyDocument.data());
-        if (
-          !familyDocument.exists ||
-          !familyResult.ok ||
-          familyResult.value.academyId !== input.academyId ||
-          familyResult.value.primaryContactUserId !== input.guardianUserId ||
-          !familyResult.value.active ||
-          familyResult.value.status !== "active"
-        ) {
-          continue;
-        }
-
-        const studentDocument = await firestore
-          .collection("academies/" + input.academyId + "/students")
-          .doc(input.studentId)
-          .get();
-        const studentResult = parseStudentProfile(studentDocument.data());
-        if (
-          studentDocument.exists &&
-          studentResult.ok &&
-          studentResult.value.academyId === input.academyId &&
-          studentResult.value.familyId === relationship.familyId &&
-          studentResult.value.participantType === "minor" &&
-          studentResult.value.active &&
-          studentResult.value.status === "active"
-        ) {
-          return true;
-        }
-      }
-    } catch {
-      // Access checks fail closed when the relationship cannot be resolved.
-    }
-    return false;
-  };
+  const resolver = createFirestoreCanonicalClientStudentScopeResolver({
+    ...(options.firestore === undefined ? {} : { firestore: options.firestore }),
+    ...(options.now === undefined ? {} : { now: () => options.now!().toISOString() }),
+  });
+  return (input) =>
+    resolver({
+      academyId: input.academyId,
+      actorUserId: input.guardianUserId,
+      actorRole: "guardian",
+      requestedStudentId: input.studentId,
+    });
 }
 
-const isGuardianOfStudent = createFirestoreGuardianStudentScopeResolver();
+const resolveCanonicalClientStudent = createFirestoreCanonicalClientStudentScopeResolver();
 async function requireStudentScope(
   request: CallableRequest<unknown>,
   studentId: string,
@@ -120,13 +66,13 @@ async function requireStudentScope(
 ): Promise<void> {
   const actor = requireUserActor(request);
   if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) return;
-  if (actor.role === "adultStudent" && actor.userId === studentId) return;
   if (
-    actor.role === "guardian" &&
-    (await (options.isGuardianOfStudent ?? isGuardianOfStudent)({
+    (actor.role === "guardian" || actor.role === "adultStudent") &&
+    (await (options.resolveClientStudentScope ?? resolveCanonicalClientStudent)({
       academyId: actor.academyId,
-      guardianUserId: actor.userId,
-      studentId,
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      requestedStudentId: studentId,
     }))
   ) {
     return;
@@ -161,6 +107,25 @@ function mapBookingError(error: unknown): never {
     });
   }
   throw new HttpsError("internal", "Booking operation failed");
+}
+
+function mapAttendanceError(error: unknown): never {
+  if (error instanceof HttpsError) throw error;
+  if (error instanceof ScheduleAttendanceError) {
+    if (error.code === "invalid") {
+      throw new HttpsError("invalid-argument", "Attendance request is invalid");
+    }
+    if (error.code === "credential" || error.code === "tenant") {
+      throw new HttpsError("permission-denied", "Attendance operation is not permitted");
+    }
+    if (error.code === "not-found") {
+      throw new HttpsError("not-found", "Attendance resource is not available");
+    }
+    throw new HttpsError("failed-precondition", "Attendance operation is not available", {
+      reason: error.code,
+    });
+  }
+  throw new HttpsError("internal", "Attendance operation failed");
 }
 
 export function createListScheduleCatalogHandler(options: { store: ScheduleStore }) {
@@ -282,6 +247,25 @@ export function createSaveClassHandler(options: { store: ScheduleStore }) {
     return {
       class: created,
     };
+  };
+}
+
+export function createUpdateClassHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
+      throw new HttpsError("permission-denied", "Manager access required to configure classes");
+    }
+
+    const parsed = parseUpdateClassInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.error);
+    }
+
+    const updated = await store.updateClass(actor.academyId, parsed.value, actor.userId);
+    return { class: updated };
   };
 }
 
@@ -501,19 +485,28 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
     }
 
     const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
-
-    if ((parsed.value.method === "manual" || parsed.value.method === "nameSearch") && !isStaff) {
+    if (!isStaff) {
+      throw new HttpsError("permission-denied", "Staff access is required for check-in");
+    }
+    if (parsed.value.method !== "manual") {
       throw new HttpsError(
-        "permission-denied",
-        "Staff access required for manual or nameSearch check-in",
+        "failed-precondition",
+        "QR, PIN, and name-search check-in require a verified academy credential",
       );
     }
 
-    if (!isStaff && (actor.role !== "adultStudent" || actor.userId !== parsed.value.studentId)) {
-      throw new HttpsError("permission-denied", "Access denied: student self check-in is required");
+    let attendance: Awaited<ReturnType<ScheduleStore["recordCheckIn"]>>;
+    try {
+      attendance = await store.recordCheckIn(
+        actor.academyId,
+        parsed.value,
+        actor.userId,
+        undefined,
+        actor.role as ScheduleMutationActorRole,
+      );
+    } catch (error) {
+      return mapAttendanceError(error);
     }
-
-    const attendance = await store.recordCheckIn(actor.academyId, parsed.value, actor.userId);
 
     return {
       attendance,
@@ -576,7 +569,18 @@ export function createCorrectAttendanceHandler(options: { store: ScheduleStore }
       throw new HttpsError("invalid-argument", parsed.error);
     }
 
-    const result = await store.correctAttendance(actor.academyId, parsed.value, actor.userId);
+    let result: Awaited<ReturnType<ScheduleStore["correctAttendance"]>>;
+    try {
+      result = await store.correctAttendance(
+        actor.academyId,
+        parsed.value,
+        actor.userId,
+        undefined,
+        actor.role as ScheduleMutationActorRole,
+      );
+    } catch (error) {
+      return mapAttendanceError(error);
+    }
 
     return result;
   };
@@ -654,6 +658,23 @@ export function createRecordCheckoutHandler(options: StudentScopeOptions) {
     if (parsed.value.method === "staffOverride" && !isStaff) {
       throw new HttpsError("permission-denied", "Staff access required for staffOverride checkout");
     }
+    if (
+      parsed.value.method === "staffOverride" &&
+      (parsed.value.notes === undefined ||
+        parsed.value.notes.length < 2 ||
+        parsed.value.notes.length > 200)
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A staff override reason between 2 and 200 characters is required",
+      );
+    }
+    if (parsed.value.method === "independentRelease") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Independent release requires verified policy evidence",
+      );
+    }
     if (actor.role === "adultStudent") {
       throw new HttpsError(
         "permission-denied",
@@ -662,7 +683,18 @@ export function createRecordCheckoutHandler(options: StudentScopeOptions) {
     }
     if (!isStaff) await requireStudentScope(request, parsed.value.studentId, options);
 
-    const checkout = await store.recordCheckout(actor.academyId, parsed.value, actor.userId);
+    let checkout: Awaited<ReturnType<ScheduleStore["recordCheckout"]>>;
+    try {
+      checkout = await store.recordCheckout(
+        actor.academyId,
+        parsed.value,
+        actor.userId,
+        undefined,
+        actor.role as ScheduleMutationActorRole,
+      );
+    } catch (error) {
+      return mapAttendanceError(error);
+    }
 
     return {
       checkout,
@@ -758,122 +790,109 @@ function getStore(): ScheduleStore {
   return defaultStore;
 }
 
-export const listScheduleCatalog = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListScheduleCatalogHandler({ store: getStore() })(request),
+function getStudentScopeOptions(): StudentScopeOptions {
+  return {
+    store: getStore(),
+    resolveClientStudentScope: resolveCanonicalClientStudent,
+  };
+}
+
+export const listScheduleCatalog = onCall(scheduleCallableOptions, async (request) =>
+  createListScheduleCatalogHandler({ store: getStore() })(request),
 );
 
-export const saveProgram = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createSaveProgramHandler({ store: getStore() })(request),
+export const saveProgram = onCall(scheduleCallableOptions, async (request) =>
+  createSaveProgramHandler({ store: getStore() })(request),
 );
 
-export const listClasses = onCall(
-  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListClassesHandler({ store: getStore() })(request),
+export const listClasses = onCall(scheduleCallableOptions, async (request) =>
+  createListClassesHandler({ store: getStore() })(request),
 );
 
-export const listSessions = onCall(
-  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListSessionsHandler({ store: getStore() })(request),
+export const listSessions = onCall(scheduleCallableOptions, async (request) =>
+  createListSessionsHandler({ store: getStore() })(request),
 );
 
-export const getDailyOperationsDashboard = onCall(
-  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createGetDailyOperationsDashboardHandler({ store: getStore() })(request),
+export const getDailyOperationsDashboard = onCall(scheduleCallableOptions, async (request) =>
+  createGetDailyOperationsDashboardHandler({ store: getStore() })(request),
 );
 
-export const saveClass = onCall(
-  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createSaveClassHandler({ store: getStore() })(request),
+export const saveClass = onCall(scheduleCallableOptions, async (request) =>
+  createSaveClassHandler({ store: getStore() })(request),
 );
 
-export const generateSessions = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createGenerateSessionsHandler({ store: getStore() })(request),
+export const updateClass = onCall(scheduleCallableOptions, async (request) =>
+  createUpdateClassHandler({ store: getStore() })(request),
 );
 
-export const saveSession = onCall(
-  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createSaveSessionHandler({ store: getStore() })(request),
+export const generateSessions = onCall(scheduleCallableOptions, async (request) =>
+  createGenerateSessionsHandler({ store: getStore() })(request),
 );
 
-export const cancelSession = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createCancelSessionHandler({ store: getStore() })(request),
+export const saveSession = onCall(scheduleCallableOptions, async (request) =>
+  createSaveSessionHandler({ store: getStore() })(request),
 );
 
-export const requestBooking = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createRequestBookingHandler({ store: getStore() })(request),
+export const cancelSession = onCall(scheduleCallableOptions, async (request) =>
+  createCancelSessionHandler({ store: getStore() })(request),
 );
 
-export const cancelBooking = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createCancelBookingHandler({ store: getStore() })(request),
+export const requestBooking = onCall(scheduleCallableOptions, async (request) =>
+  createRequestBookingHandler(getStudentScopeOptions())(request),
 );
 
-export const listSessionBookings = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListSessionBookingsHandler({ store: getStore() })(request),
+export const cancelBooking = onCall(scheduleCallableOptions, async (request) =>
+  createCancelBookingHandler(getStudentScopeOptions())(request),
 );
 
-export const listStudentBookings = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListStudentBookingsHandler({ store: getStore() })(request),
+export const listSessionBookings = onCall(scheduleCallableOptions, async (request) =>
+  createListSessionBookingsHandler({ store: getStore() })(request),
 );
 
-export const evaluateSessionMinimum = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createEvaluateSessionMinimumHandler({ store: getStore() })(request),
+export const listStudentBookings = onCall(scheduleCallableOptions, async (request) =>
+  createListStudentBookingsHandler(getStudentScopeOptions())(request),
 );
 
-export const checkIn = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createCheckInHandler({ store: getStore() })(request),
+export const evaluateSessionMinimum = onCall(scheduleCallableOptions, async (request) =>
+  createEvaluateSessionMinimumHandler({ store: getStore() })(request),
 );
 
-export const listSessionAttendance = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListSessionAttendanceHandler({ store: getStore() })(request),
+export const checkIn = onCall(scheduleCallableOptions, async (request) =>
+  createCheckInHandler({ store: getStore() })(request),
 );
 
-export const listStudentAttendance = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListStudentAttendanceHandler({ store: getStore() })(request),
+export const listSessionAttendance = onCall(scheduleCallableOptions, async (request) =>
+  createListSessionAttendanceHandler({ store: getStore() })(request),
 );
 
-export const correctAttendance = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createCorrectAttendanceHandler({ store: getStore() })(request),
+export const listStudentAttendance = onCall(scheduleCallableOptions, async (request) =>
+  createListStudentAttendanceHandler(getStudentScopeOptions())(request),
 );
 
-export const reconcileSessionNoShows = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createReconcileSessionNoShowsHandler({ store: getStore() })(request),
+export const correctAttendance = onCall(scheduleCallableOptions, async (request) =>
+  createCorrectAttendanceHandler({ store: getStore() })(request),
 );
 
-export const listAttendanceHistory = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListAttendanceHistoryHandler({ store: getStore() })(request),
+export const reconcileSessionNoShows = onCall(scheduleCallableOptions, async (request) =>
+  createReconcileSessionNoShowsHandler({ store: getStore() })(request),
 );
 
-export const recordCheckout = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createRecordCheckoutHandler({ store: getStore() })(request),
+export const listAttendanceHistory = onCall(scheduleCallableOptions, async (request) =>
+  createListAttendanceHistoryHandler(getStudentScopeOptions())(request),
 );
 
-export const listSessionCheckouts = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createListSessionCheckoutsHandler({ store: getStore() })(request),
+export const recordCheckout = onCall(scheduleCallableOptions, async (request) =>
+  createRecordCheckoutHandler(getStudentScopeOptions())(request),
 );
 
-export const getStudentCheckout = onCall(
-  { enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createGetStudentCheckoutHandler({ store: getStore() })(request),
+export const listSessionCheckouts = onCall(scheduleCallableOptions, async (request) =>
+  createListSessionCheckoutsHandler({ store: getStore() })(request),
 );
 
-export const getSessionOperationalView = onCall(
-  { ...browserAdminCallableOptions, enforceAppCheck: false, consumeAppCheckToken: false },
-  async (request) => createGetSessionOperationalViewHandler({ store: getStore() })(request),
+export const getStudentCheckout = onCall(scheduleCallableOptions, async (request) =>
+  createGetStudentCheckoutHandler(getStudentScopeOptions())(request),
+);
+
+export const getSessionOperationalView = onCall(scheduleCallableOptions, async (request) =>
+  createGetSessionOperationalViewHandler({ store: getStore() })(request),
 );

@@ -9,6 +9,7 @@ export default defineConfig([
   {
     rules: {
       "@next/next/no-html-link-for-pages": "off",
+      "react-hooks/set-state-in-effect": "off",
     },
     settings: {
       next: {

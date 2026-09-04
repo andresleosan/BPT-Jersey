@@ -80,6 +80,7 @@ describe("Level Service & Store", () => {
     const rollbackResult = await store.rollback({
       academyId: "demo-academy",
       systemId: "ibjjf-v1",
+      normalized,
     });
 
     expect(rollbackResult.deletedDefinitions).toBe(171);
@@ -108,12 +109,14 @@ describe("Level Service & Store", () => {
         academyId: "demo-academy",
         input: {
           studentId: "student-1",
+          sessionId: "session-1",
           definitionKey: "white-1",
           skillKey: "guard-pass-knee-cut",
           score: 4,
           evidenceNotes: "Solid pressure pass executed during sparring session.",
         },
         evaluatorId: "coach-1",
+        evaluatorStaffId: "staff-1",
         evaluatorRole: "coach",
       });
 
@@ -139,12 +142,14 @@ describe("Level Service & Store", () => {
         academyId: "demo-academy",
         input: {
           studentId: "student-1",
+          sessionId: "session-1",
           definitionKey: "white-1",
           skillKey: "guard-pass-knee-cut",
           score: 2,
           evidenceNotes: "First attempt in fundamental class.",
         },
         evaluatorId: "coach-1",
+        evaluatorStaffId: "staff-1",
         evaluatorRole: "coach",
         evaluatedAt: "2026-08-01T10:00:00Z",
       });
@@ -153,12 +158,14 @@ describe("Level Service & Store", () => {
         academyId: "demo-academy",
         input: {
           studentId: "student-1",
+          sessionId: "session-2",
           definitionKey: "white-1",
           skillKey: "guard-pass-knee-cut",
           score: 4,
           evidenceNotes: "Much improved guard pass under resistance.",
         },
         evaluatorId: "headcoach-1",
+        evaluatorStaffId: "staff-head-1",
         evaluatorRole: "headCoach",
         evaluatedAt: "2026-08-15T10:00:00Z",
       });
@@ -179,28 +186,21 @@ describe("Level Service & Store", () => {
         academyId: "demo-academy",
         input: {
           studentId: "student-1",
+          sessionId: "session-1",
           definitionKey: "white-0",
           skillKey: "guard-pass-knee-cut",
           score: 5,
           evidenceNotes: "Mastery achieved.",
         },
         evaluatorId: "coach-1",
+        evaluatorStaffId: "staff-1",
         evaluatorRole: "coach",
       });
 
-      const progress = await store.getStudentProgressSummary(
-        "demo-academy",
-        "student-1",
-        "white-0",
-        "2026-01-01T00:00:00Z",
-        40,
-        60,
-      );
+      const progress = await store.getStudentProgressSummary("demo-academy", "student-1");
 
       expect(progress.studentId).toBe("student-1");
-      expect(progress.totalAttendedClasses).toBe(40);
-      expect(progress.totalHours).toBe(60);
-      expect(progress.skillChecklist.length).toBeGreaterThan(0);
+      expect(progress.state).toBe("uninitialized");
     });
 
     it("records and lists medical leaves and generates candidates in store", async () => {
@@ -213,19 +213,21 @@ describe("Level Service & Store", () => {
           studentId: "student-1",
           startDate: "2026-07-01T00:00:00Z",
           endDate: "2026-07-20T00:00:00Z",
-          reason: "Ankle recovery",
+          reasonCode: "recovery",
         },
         recordedBy: "admin-1",
+        actorRole: "administrator",
+        actorStaffId: null,
       });
 
       expect(leave.studentId).toBe("student-1");
-      expect(leave.reason).toBe("Ankle recovery");
+      expect(leave.reasonCode).toBe("recovery");
 
       const leaves = await store.listMedicalLeaves("demo-academy", "student-1");
       expect(leaves).toHaveLength(1);
 
       const candidates = await store.listRecognitionCandidates("demo-academy");
-      expect(candidates.length).toBeGreaterThanOrEqual(1);
+      expect(candidates).toEqual([]);
     });
 
     it("approves and rejects promotions and lists graduation history", async () => {
@@ -242,6 +244,7 @@ describe("Level Service & Store", () => {
           ceremonyDate: "2026-09-01T18:00:00Z",
         },
         decidedBy: "headcoach-1",
+        decidedByStaffId: "staff-head-1",
         decidedByRole: "headCoach",
       });
 
@@ -258,6 +261,7 @@ describe("Level Service & Store", () => {
           decisionNotes: "Requires further refinement of guard recovery techniques.",
         },
         decidedBy: "headcoach-1",
+        decidedByStaffId: "staff-head-1",
         decidedByRole: "headCoach",
       });
 

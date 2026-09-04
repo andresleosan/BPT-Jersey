@@ -118,6 +118,7 @@ describe("Levels Web Client", () => {
 
     const evalRecord = await recordEvaluation({
       studentId: "std-1",
+      sessionId: "session-1",
       definitionKey: "white-1",
       skillKey: "guard-pass",
       score: 4,
@@ -160,6 +161,7 @@ describe("Levels Web Client", () => {
     mockCallableResult = {
       data: {
         progress: {
+          state: "initialized",
           studentId: "std-1",
           totalAttendedClasses: 25,
           totalHours: 37.5,
@@ -176,6 +178,8 @@ describe("Levels Web Client", () => {
 
     const progress = await getStudentProgressSummary("std-1");
     expect(progress.studentId).toBe("std-1");
+    expect(progress.state).toBe("initialized");
+    if (progress.state !== "initialized") throw new Error("expected initialized progress");
     expect(progress.criteria.overallEligible).toBe(true);
     expect(progress.totalAttendedClasses).toBe(25);
   });
@@ -236,7 +240,7 @@ describe("Levels Web Client", () => {
           studentId: "std-1",
           startDate: "2026-08-01T00:00:00Z",
           endDate: "2026-08-15T00:00:00Z",
-          reason: "Ankle recovery",
+          reasonCode: "recovery",
         },
       },
     };
@@ -245,11 +249,11 @@ describe("Levels Web Client", () => {
       studentId: "std-1",
       startDate: "2026-08-01T00:00:00Z",
       endDate: "2026-08-15T00:00:00Z",
-      reason: "Ankle recovery",
+      reasonCode: "recovery",
     });
 
     expect(record.studentId).toBe("std-1");
-    expect(record.reason).toBe("Ankle recovery");
+    expect(record.reasonCode).toBe("recovery");
 
     mockCallableResult = {
       data: {
@@ -348,5 +352,3 @@ describe("Levels Web Client", () => {
     expect(history[0]?.status).toBe("approved");
   });
 });
-
-

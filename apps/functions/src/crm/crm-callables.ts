@@ -198,18 +198,18 @@ function getStore(): CrmStore {
   return defaultStore;
 }
 
-export const createCrmLead = onCall(async (request) =>
+export const createCrmLead = onCall(browserAdminCallableOptions, async (request) =>
   createCreateLeadHandler({ store: getStore() })(request),
 );
 export const listCrmLeads = onCall(browserAdminCallableOptions, async (request) =>
   createListLeadsHandler({ store: getStore() })(request),
 );
-export const updateCrmLead = onCall(async (request) =>
+export const updateCrmLead = onCall(browserAdminCallableOptions, async (request) =>
   createUpdateLeadHandler({ store: getStore() })(request),
 );
-export const transitionCrmLead = onCall(async (request) =>
+export const transitionCrmLead = onCall(browserAdminCallableOptions, async (request) =>
   createTransitionLeadHandler({ store: getStore() })(request),
 );
-export const listCrmLeadTimeline = onCall(async (request) =>
+export const listCrmLeadTimeline = onCall(browserAdminCallableOptions, async (request) =>
   createListLeadTimelineHandler({ store: getStore() })(request),
 );

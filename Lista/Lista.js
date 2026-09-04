@@ -1,6 +1,6 @@
 const VALID_STATUSES = [
   "aprobada",
-  "revisiÃ³n",
+  "revision",
   "en-progreso",
   "pendiente",
   "bloqueada",
@@ -9,19 +9,19 @@ const VALID_STATUSES = [
 
 const statusEvidence = {
   approved: "Estado aprobado en tasks.md.",
-  review: "Implementado o verificado; queda pendiente de aprobaciÃ³n explÃ­cita.",
+  review: "Implementado o verificado; queda pendiente de aprobación explícita.",
   "en-progreso":
-    "Trabajo iniciado; la reconciliaciÃ³n o verificaciÃ³n indicada todavÃ­a estÃ¡ pendiente.",
+    "Trabajo iniciado; la reconciliación o verificación indicada todavía está pendiente.",
   pending: "Trabajo pendiente o sin evidencia suficiente para aprobarlo.",
-  blocked: "No puede avanzar hasta resolver la decisiÃ³n o dependencia indicada.",
-  cancelled: "Cancelada en tasks.md y sustituida por una decisiÃ³n posterior.",
+  blocked: "No puede avanzar hasta resolver la decisión o dependencia indicada.",
+  cancelled: "Cancelada en tasks.md y sustituida por una decisión posterior.",
 };
 
 const IMPLEMENTATION_STATUS_LABELS = {
-  "no-iniciada": "Sin implementaciÃ³n registrada",
-  parcial: "ImplementaciÃ³n parcial",
-  implementada: "ImplementaciÃ³n realizada",
-  verificada: "ImplementaciÃ³n verificada",
+  "no-iniciada": "Sin implementación registrada",
+  parcial: "Implementación parcial",
+  implementada: "Implementación realizada",
+  verificada: "Implementación verificada",
 };
 
 const IMPLEMENTATION_STATUS_CLASSES = {
@@ -31,6 +31,194 @@ const IMPLEMENTATION_STATUS_CLASSES = {
   verificada: "implementation-verified",
 };
 
+const RESOLUTION_REQUIREMENTS = {
+  T010: [
+    "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
+    "Completar onboarding, t\u00e9rminos, tarifas, monedas, disponibilidad regional y revisi\u00f3n legal.",
+    "Definir presupuesto, l\u00edmites, alertas de gasto y custodia de credenciales sin almacenar tarjetas.",
+    "Validar el adaptador en un entorno aislado con credenciales de prueba y documentar rollback.",
+  ],
+  T011: [
+    "Designar al controller, owner y reviewer independiente responsables de la decisi\u00f3n.",
+    "Resolver y aprobar las diez decisiones sobre base legal, retenci\u00f3n, residencia y eliminaci\u00f3n.",
+    "Completar el registro JOIC, evaluaci\u00f3n de impacto y controles para datos de menores y salud.",
+    "Actualizar reglas, runbook, auditor\u00eda y pruebas con la pol\u00edtica aprobada.",
+  ],
+  T017: [
+    "Mantener la cancelaci\u00f3n: no implementar MFA obligatorio dentro de esta tarea sustituida.",
+    "Conservar como referencia el redise\u00f1o administrativo aprobado que reemplaza este requisito.",
+    "Abrir una tarea nueva \u00fanicamente si aparece un requisito de seguridad distinto y aprobado.",
+  ],
+  T035: [
+    "Resolver primero T010 y obtener proveedor, t\u00e9rminos, presupuesto y credenciales de prueba.",
+    "Implementar checkout alojado y suscripciones detr\u00e1s del adaptador independiente del proveedor.",
+    "Cubrir alta, renovaci\u00f3n, fallo, cancelaci\u00f3n, reintento e idempotencia sin guardar datos de tarjeta.",
+    "Validar en Emulator/staging aislado con rollback y autorizaci\u00f3n expl\u00edcita antes de cobrar.",
+  ],
+  T036: [
+    "Completar T035 y definir el contrato de eventos de pago aceptado por el adaptador.",
+    "Verificar firma, timestamp, replay, idempotencia y payload divergente con fallo cerrado.",
+    "Configurar secretos \u00fanicamente en el entorno aislado y probar rotaci\u00f3n sin exponerlos en logs.",
+    "Ejecutar integraci\u00f3n y E2E con eventos sint\u00e9ticos antes de cualquier endpoint productivo.",
+  ],
+  T057: [
+    "Cerrar T011 y documentar retenci\u00f3n, residencia, eliminaci\u00f3n y sus responsables.",
+    "Crear y validar staging separado con datos sint\u00e9ticos, proyecto y alias sin acceso productivo.",
+    "Definir costos, presupuesto, alertas, monitoreo, CD protegido y procedimiento de rollback.",
+    "Ejecutar el checklist completo y obtener el checkpoint del operador antes de abrir T058.",
+  ],
+  T058: [
+    "T057 debe estar cerrado y todos los gates de seguridad, staging, costos y rollback deben estar verdes.",
+    "Obtener confirmaci\u00f3n expl\u00edcita del operador para el despliegue productivo.",
+    "Verificar backup/rollback, variables y controles de acceso antes de publicar.",
+    "Desplegar, ejecutar smoke post-release y registrar la revisi\u00f3n desplegada y sus m\u00e9tricas.",
+  ],
+  T059: [
+    "Completar T058 y conservar evidencia del release y del rollback ensayado.",
+    "Ejecutar an\u00e1lisis de brechas, registrar riesgos residuales y crear o actualizar LECCIONES.md.",
+    "Reconciliar tasks.md, Lista/ y documentaci\u00f3n final; dejar todas las dependencias cerradas.",
+    "Registrar el checkpoint de cierre del proyecto sin ocultar pendientes ni riesgos.",
+  ],
+  T060: [
+    "Definir y aprobar reglas de promociones, cr\u00e9ditos, recurrencia, expiraci\u00f3n y cancelaci\u00f3n.",
+    "Implementar scheduler y workflows de ofertas FIFO, expiraci\u00f3n y reordenamiento con auditor\u00eda.",
+    "Completar cr\u00e9ditos, reservas recurrentes y conflictos con capacidad y bookings existentes.",
+    "Integrar pagos y mensajes solo con proveedores autorizados, l\u00edmites de costo y E2E aislada.",
+  ],
+  T061: [
+    "Cerrar T010, T034 y T035 antes de ampliar el ciclo de facturaci\u00f3n.",
+    "Definir reglas de reintentos, per\u00edodos de gracia, prorrateo, promociones, pausa y cancelaci\u00f3n.",
+    "Conectar el adaptador al runtime con idempotencia y rechazo de payload divergente.",
+    "Cubrir escenarios financieros, auditor\u00eda, seguridad, costos y rollback en Emulator/staging.",
+  ],
+  T062: [
+    "Conectar el productor al runtime mediante endpoint, trigger o scheduler con l\u00edmites expl\u00edcitos.",
+    "Completar bandeja y acciones CRM tenant-scoped con permisos, auditor\u00eda e idempotencia.",
+    "Resolver studentReference, retenci\u00f3n y pol\u00edtica T011 antes de usar datos reales.",
+    "A\u00f1adir Rules, Emulator, E2E y operaci\u00f3n de reintentos; no activar mensajes externos sin proveedor.",
+  ],
+  T063: [
+    "Definir y aprobar el modelo de tutor secundario, vigencia, revocaci\u00f3n y contacto principal.",
+    "Definir y aprobar si se habilita checkout adulto y bajo qu\u00e9 l\u00edmites de identidad y riesgo.",
+    "Implementar guards, Rules, auditor\u00eda y UI correspondientes con pruebas negativas.",
+    "Ejecutar E2E autenticada desktop/m\u00f3vil y registrar el checkpoint de producto.",
+  ],
+  T064: [
+    "Seleccionar y autorizar proveedor, canales, contactos, presupuesto, l\u00edmites y alertas de costo.",
+    "Completar la UI de preferencias y consentimiento con estados explicables y acceso RBAC.",
+    "Conectar runtime, reintentos, idempotencia y entrega externa sin guardar mensajes o secretos sensibles.",
+    "Ejecutar E2E autenticada con proveedor de prueba y registrar el checkpoint de producto.",
+  ],
+  T065: [
+    "Definir la pol\u00edtica aprobada para resolver conflictos sin sobrescribir silenciosamente asistencia.",
+    "Implementar sincronizaci\u00f3n autenticada con Firestore transaccional, idempotencia y l\u00edmites de dispositivo.",
+    "A\u00f1adir Rules y pruebas Firestore Emulator para tenant, usuario, sesi\u00f3n y payload divergente.",
+    "Ejecutar E2E real desktop/m\u00f3vil y validar el adaptador de almacenamiento del dispositivo elegido.",
+  ],
+  T066: [
+    "Recibir y versionar contenido t\u00e9cnico definitivo en ingl\u00e9s desde una fuente aprobada.",
+    "Revisar t\u00e9cnicas, requisitos, progresiones y permisos con el coach responsable.",
+    "Cargar \u00fanicamente contenido validado y repetir persistencia, auditor\u00eda, UI y E2E.",
+    "Registrar el checkpoint de producto; el contenido sint\u00e9tico no puede cerrar esta tarea.",
+  ],
+  T067: [
+    "Conectar logros y res\u00famenes con la fuente can\u00f3nica real de progreso y asistencia.",
+    "Implementar runner/scheduler determinista con replay, l\u00edmites, auditor\u00eda y fallo cerrado.",
+    "Validar privacidad, visibilidad familiar, opt-in y ausencia de leaderboard infantil p\u00fablico.",
+    "Ejecutar E2E con datos sint\u00e9ticos representativos y registrar el checkpoint de producto.",
+  ],
+  T090: [
+    "Publicar el PDF oficial como asset inmutable y verificar que web y Functions conservan el mismo SHA-256.",
+    "Mostrar el documento exacto en el paso de inscripcion y exigir la confirmacion de lectura, decisiones requeridas y nombre autenticado.",
+    "Generar evidencia privada con las paginas originales del PDF y el registro de firma server-side; no sustituir el texto legal.",
+    "Ejecutar pruebas focales, build del runtime y QA responsive antes de cerrar la tarea; no desplegar ni usar datos reales.",
+  ],
+  T068: [
+    "Decidir si se necesita cliente nativo y seleccionar plataforma, alcance y fecha objetivo.",
+    "Definir arquitectura, autenticaci\u00f3n, almacenamiento offline, privacidad y soporte de dispositivos.",
+    "Implementar el cliente con paridad m\u00ednima, pruebas en dispositivos/CI y plan de distribuci\u00f3n.",
+    "Obtener checkpoint de producto antes de mantener dos superficies operativas.",
+  ],
+  T069: [
+    "Definir pol\u00edtica de moderaci\u00f3n, safeguarding, reportes, apelaciones y tiempos de respuesta.",
+    "Definir roles, permisos, retenci\u00f3n, auditor\u00eda y controles de contenido generado por usuarios.",
+    "Implementar el flujo m\u00ednimo y probar abuso, privacidad, accesibilidad y borrado controlado.",
+    "Validar el modelo con el operador antes de activar comunidad o notificaciones.",
+  ],
+  T070: [
+    "Separar referidos, clases privadas, competiciones y tienda en tareas con alcance independiente.",
+    "Definir oferta, capacidad, pagos, reembolsos, elegibilidad y reglas comerciales de cada slice.",
+    "Resolver dependencias de proveedor, costos, fraude, inventario y operaci\u00f3n.",
+    "Implementar y probar cada slice solo despu\u00e9s del checkpoint de producto correspondiente.",
+  ],
+  T071: [
+    "Definir objetivos de negocio, m\u00e9tricas, l\u00edmites de costo y se\u00f1ales de estabilidad del producto central.",
+    "Resolver arquitectura de multiacademia, privacidad, segregaci\u00f3n tenant y estrategia de datos.",
+    "Decidir el alcance de IA, proveedores, revisi\u00f3n humana, observabilidad y controles de seguridad.",
+    "Implementar por etapas con pruebas de carga, contratos, migraci\u00f3n reversible y checkpoint ejecutivo.",
+  ],
+  T092: [
+    "Definir una sola identidad can\u00f3nica de participante y las invariantes entre usuario, familia y estudiante.",
+    "Documentar en un ADR la compatibilidad temporal de members y students, sin dual-write silencioso.",
+    "Dise\u00f1ar dry-run, reconciliaci\u00f3n, cuarentena y rollback antes de cualquier backfill.",
+    "Definir la matriz RED de colisi\u00f3n, tenant, privacidad, referencias, concurrencia y replays que T093 debe ejecutar.",
+  ],
+  T093: [
+    "Conectar alta, listado e importaci\u00f3n administrativa a la identidad can\u00f3nica.",
+    "Crear relaciones de familia y estudiante de forma at\u00f3mica o fallar sin escrituras parciales.",
+    "Conservar procedencia, idempotencia y cuarentena de registros ambiguos sin exponer PII.",
+    "Validar la convergencia en Firebase Emulator; no ejecutar backfill productivo.",
+    "Escribir y ejecutar primero los RED definidos por T092, incluidos ID/VAT fuera de listados y exports generales.",
+  ],
+  T094: [
+    "Cerrar el onboarding autenticado de adulto/tutor, perfil, familia y waiver oficial.",
+    "Mantener salud y documentos privados fail-closed fuera de entornos expresamente permitidos.",
+    "Cubrir autorizaci\u00f3n, consentimiento versionado, reintentos e idempotencia con pruebas negativas.",
+    "Resolver T011 antes de datos reales o producci\u00f3n.",
+  ],
+  T095: [
+    "Publicar UI operativa para planes, memberships, deuda PAYG, facturas y pagos manuales.",
+    "Eliminar IDs fijos y cargar opciones desde contratos/callables can\u00f3nicos.",
+    "Mantener checkout, tarjetas y proveedor externo fuera del MVP.",
+    "Verificar persistencia, auditor\u00eda, errores y accesibilidad en desktop/m\u00f3vil.",
+  ],
+  T096: [
+    "Publicar calendario y UI para crear clases, reservar, cancelar y aplicar el corte de una hora.",
+    "Habilitar roster y check-in/out por QR, PIN y manual con overrides auditados.",
+    "Usar sedes, programas, coaches y participantes can\u00f3nicos en vez de defaults hardcodeados.",
+    "Probar quorum, capacidad, no-show, puntualidad y aislamiento por rol en Emulator.",
+  ],
+  T097: [
+    "Conectar progreso propio/familiar, evaluaciones y propuestas de promoci\u00f3n a datos can\u00f3nicos.",
+    "Mantener aprobaci\u00f3n humana de belts/stripes y excluir comparaci\u00f3n infantil.",
+    "Conectar dashboards y reportes sin fallback sint\u00e9tico ni IDs sensibles.",
+    "Verificar autorizaci\u00f3n, exactitud agregada y auditor\u00eda de correcciones.",
+  ],
+  T098: [
+    "Corregir las expectativas obsoletas del gate solo cuando reproduzcan el contrato actual.",
+    "Automatizar el golden path con Auth, Functions y Firestore Emulator reales.",
+    "Ejecutar desktop/m\u00f3vil, Rules, contratos, carga, seguridad y cleanup con cero fallos del alcance.",
+    "Registrar evidencia fresca; ninguna omisi\u00f3n del golden path puede contarse como aprobada.",
+  ],
+  T099: [
+    "Cerrar T011 y definir responsables, retenci\u00f3n, residencia, borrado y datos permitidos.",
+    "Autorizar y crear un proyecto Firebase staging separado con presupuesto y alertas.",
+    "Configurar allowlist, variables, datos controlados, backup y rollback sin acceso a producci\u00f3n.",
+    "Ejecutar el golden path autenticado en staging y eliminar fixtures conforme al runbook.",
+  ],
+  T100: [
+    "Vincular target=emulator al projectId demo y a hosts loopback exactos antes de inicializar Firebase.",
+    "Mantener staging cerrado hasta que un projectId exacto entre en una allowlist positiva aprobada.",
+    "Negar el projectId productivo por argumento, GCLOUD_PROJECT y FIREBASE_CONFIG antes de todo I/O.",
+    "Probar seed y rollback con destinos cruzados, faltantes y host remoto antes de restaurar el avance.",
+  ],
+  T101: [
+    "Publicar el catalogo de Levels de forma atomica o mediante estados verificables con manifest completo.",
+    "Rechazar como idempotente cualquier replay con hijos ausentes, alterados o conteos divergentes.",
+    "Fijar los hashes aprobados y resolver las fuentes desde una ruta inmutable, no desde el CWD.",
+    "Permitir rollback solo con operacion identificada, cero referencias y auditoria; mantener staging bloqueado.",
+  ],
+};
 const IMPLEMENTATION_OVERRIDES = {
   T014: {
     implementationStatus: "verificada",
@@ -50,12 +238,12 @@ const IMPLEMENTATION_OVERRIDES = {
   T019: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Contrato discriminado, adapter create-only y los tres writers migrados; focused 101/101, integraciÃ³n Firestore Emulator 8/8, typecheck y packaging portable aprobados.",
+      "Contrato discriminado, adapter create-only y los tres writers migrados; focused 101/101, integración Firestore Emulator 8/8, typecheck y packaging portable aprobados.",
   },
   T020: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Shell responsive, navegaciÃ³n por rol y QA de teclado/mÃ³vil documentados; falta aprobaciÃ³n formal.",
+      "Shell responsive, navegación por rol y QA de teclado/móvil documentados; falta aprobación formal.",
   },
   T020A: {
     implementationStatus: "verificada",
@@ -64,27 +252,27 @@ const IMPLEMENTATION_OVERRIDES = {
   T021: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Domain 7/7, store 3/3, callables 4/4, web client/UI 12/12, suite 500/500, Rules 16/16, Firestore Emulator 8/8, lint/typecheck/build/formato, smoke E2E 5/5 y seguridad sin crÃ­ticos.",
+      "Domain 7/7, store 3/3, callables 4/4, web client/UI 12/12, suite 500/500, Rules 16/16, Firestore Emulator 8/8, lint/typecheck/build/formato, smoke E2E 5/5 y seguridad sin críticos.",
   },
   T022: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Tasks 1-6 verificadas: suite 533/533, Rules 23/23, lint/typecheck/build/formato/diff, domain 24/24, store 8/8, callables/deploy 18/18, Emulator 9/9, RTL 17/17 y E2E 2/2; pendiente aprobaciÃ³n formal.",
+      "Tasks 1-6 verificadas: suite 533/533, Rules 23/23, lint/typecheck/build/formato/diff, domain 24/24, store 8/8, callables/deploy 18/18, Emulator 9/9, RTL 17/17 y E2E 2/2; pendiente aprobación formal.",
   },
   T023: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "ImplementaciÃ³n tÃ©cnica verificada para el piloto sintÃ©tico: unitarias 133 archivos/976 pruebas, Rules 4/4, integraciÃ³n Firestore Emulator 1/1, UI guardian/administrativa, typecheck, lint y formato; producciÃ³n bloqueada por T011 y BPT_SYNTHETIC_PILOT.",
+      "Implementación técnica verificada para el piloto sintético: unitarias 133 archivos/976 pruebas, Rules 4/4, integración Firestore Emulator 1/1, UI guardian/administrativa, typecheck, lint y formato; producción bloqueada por T011 y BPT_SYNTHETIC_PILOT.",
   },
   T032: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Tasks 1-6 verificadas: suite 572/572; Rules 30/30; domain 11/11 y regresiÃ³n 98/98; store 15/15; runtime 2/2; callables 13/13 y regresiÃ³n 31/31; Emulator 4/4 con casos individuales 1/1; lint/typecheck/build/formato/diff pasaron; audit sin high/critical, con DR-001 moderadas; el rate-limit de catÃ¡logo permanece documentado como control transversal que bloquea producciÃ³n, no resuelto por T032; pendiente aprobaciÃ³n formal.",
+      "Tasks 1-6 verificadas: suite 572/572; Rules 30/30; domain 11/11 y regresión 98/98; store 15/15; runtime 2/2; callables 13/13 y regresión 31/31; Emulator 4/4 con casos individuales 1/1; lint/typecheck/build/formato/diff pasaron; audit sin high/critical, con DR-001 moderadas; el rate-limit de catálogo permanece documentado como control transversal que bloquea producción, no resuelto por T032; pendiente aprobación formal.",
   },
   T010: {
     implementationStatus: "parcial",
     implementationEvidence:
-      "Investigacion oficial 2026-08-27: shortlist real PayPal, Adyen y Revolut Business; Stripe descartado para una entidad incorporada en Jersey. PayPal es primera opcion a validar. T010 sigue bloqueada hasta seleccion, onboarding, terminos, cotizacion y alertas; no hay cuenta, credenciales, cobro ni gasto.",
+      "Propuesta explicita 2026-09-01: CityPay Limited + Paylink alojado para pagos unicos GBP, detras del adapter provider-independent. T010 sigue bloqueada hasta aceptacion del operador, onboarding, contrato/tarifas/monedas/settlement, revision legal, presupuesto/alertas, secretos y sandbox con rollback; costo comprometido GBP 0, sin cobro.",
   },
   T008: {
     implementationStatus: "parcial",
@@ -99,42 +287,42 @@ const IMPLEMENTATION_OVERRIDES = {
   T033: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Tasks 1-6 verificadas: lifecycle focused 8/8 y domain regression 106/106; audit 12/12, writer 7/7 y domain 110/110; store 9/9 y contracts/audit 20/20; callables 11/11 y regresiÃ³n 36/36; Emulator 6/6, Rules 37/37 y unit 32/32; gates completos sin high/critical. Corregidos runtime mapping/draft status, audit getter snapshot/contracts expectation, store scope/internal IDs/uniqueness/read-before-write/audit retry y callable family-active/date payload/real invalid transition. DR-001 conserva dos moderadas transitivas y rate-limit residual transversal; pendiente aprobaciÃ³n formal y no es aprobaciÃ³n de producciÃ³n.",
+      "Tasks 1-6 verificadas: lifecycle focused 8/8 y domain regression 106/106; audit 12/12, writer 7/7 y domain 110/110; store 9/9 y contracts/audit 20/20; callables 11/11 y regresión 36/36; Emulator 6/6, Rules 37/37 y unit 32/32; gates completos sin high/critical. Corregidos runtime mapping/draft status, audit getter snapshot/contracts expectation, store scope/internal IDs/uniqueness/read-before-write/audit retry y callable family-active/date payload/real invalid transition. DR-001 conserva dos moderadas transitivas y rate-limit residual transversal; pendiente aprobación formal y no es aprobación de producción.",
   },
   T037: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "T037 verificada: facturas como fuente canÃ³nica, pagos manuales append-only en efecto, balances/deuda PAYG derivados; owner/administrator escriben, guardian/adultStudent solo leen su alcance y coaches quedan denegados. Domain 7/7, store 9/9, callables 6/6, audit domain 13/13, writer 8/8, Emulator 4/4, Rules 44/44, suite 629/629, lint/typecheck/build/formato/diff pasan. Audit sin high/critical con dos moderadas DR-001; refunds, providers, UI y booking writes fuera de alcance; pendiente aprobaciÃ³n formal.",
+      "T037 verificada: facturas como fuente canónica, pagos manuales append-only en efecto, balances/deuda PAYG derivados; owner/administrator escriben, guardian/adultStudent solo leen su alcance y coaches quedan denegados. Domain 7/7, store 9/9, callables 6/6, audit domain 13/13, writer 8/8, Emulator 4/4, Rules 44/44, suite 629/629, lint/typecheck/build/formato/diff pasan. Audit sin high/critical con dos moderadas DR-001; refunds, providers, UI y booking writes fuera de alcance; pendiente aprobación formal.",
   },
   T024: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Adaptador piloto verificado: unitarias 133 archivos/979 pruebas, focalizadas T024 20/20, integraciÃ³n Firestore Emulator con R2 sintÃ©tico 1/1, Rules directas 4/4, typecheck, lint y formato; el cierre productivo depende de T011 y del texto/revisiÃ³n legal final.",
+      "Adaptador piloto verificado: unitarias 133 archivos/979 pruebas, focalizadas T024 20/20, integración Firestore Emulator con R2 sintético 1/1, Rules directas 4/4, typecheck, lint y formato; el cierre productivo depende de T011 y del texto/revisión legal final.",
   },
   T025: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Tasks 1-4 verificadas: suite unitaria 90 archivos/701 pruebas; Rules 6 archivos/50 pruebas; Emulator integration 9/9; UI /admin/staff y E2E sintÃ©tico 10/10; Auth Emulator E2E 2/2; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; pendiente aprobaciÃ³n formal.",
+      "Tasks 1-4 verificadas: suite unitaria 90 archivos/701 pruebas; Rules 6 archivos/50 pruebas; Emulator integration 9/9; UI /admin/staff y E2E sintético 10/10; Auth Emulator E2E 2/2; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; pendiente aprobación formal.",
   },
   T049: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Dashboard diario conectado y verificado con sesiones, asistencia y check-out canÃ³nicos; callable staff-only y proyecciÃ³n agregada sin roster.",
+      "Dashboard diario conectado y verificado con sesiones, asistencia y check-out canónicos; callable staff-only y proyección agregada sin roster.",
   },
   T050: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Dashboard financiero read-only conectado a membresÃ­as, facturas y pagos canÃ³nicos; sin PII/IDs sensibles, 1036/1036 unitarias, Rules 64/64 y E2E 67/67.",
+      "Dashboard financiero read-only conectado a membresías, facturas y pagos canónicos; sin PII/IDs sensibles, 1036/1036 unitarias, Rules 64/64 y E2E 67/67.",
   },
   T051: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Reporte owner/admin conectado y tenant-scoped para estudiantes, asistencia, membresÃ­as y finanzas manuales; rango mÃ¡ximo de 31 dÃ­as, sin PII/IDs y gates completos.",
+      "Reporte owner/admin conectado y tenant-scoped para estudiantes, asistencia, membresías y finanzas manuales; rango máximo de 31 días, sin PII/IDs y gates completos.",
   },
   T053: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "CSV agregado T051/T052 owner/admin, piloto sintÃ©tico fail-closed, journal y auditorÃ­a atÃ³micos, rate limit persistente, sin PII/IDs ni archivo server-side; unitarias 1019/1019, Rules 64/64 y E2E 65/65.",
+      "CSV agregado T051/T052 owner/admin, piloto sintético fail-closed, journal y auditoría atómicos, rate limit persistente, sin PII/IDs ni archivo server-side; unitarias 1019/1019, Rules 64/64 y E2E 65/65.",
   },
   T055: {
     implementationStatus: "parcial",
@@ -144,17 +332,17 @@ const IMPLEMENTATION_OVERRIDES = {
   T082: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Regla persistente aÃ±adida a AGENTS.md, Copilot y MASTER_PROMPT.md; 83 entradas Ãºnicas sincronizadas y Lista.js verificado.",
+      "Regla persistente añadida a AGENTS.md, Copilot y MASTER_PROMPT.md; 83 entradas únicas sincronizadas y Lista.js verificado.",
   },
   T026: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Contratos de dominio 27/27, generador determinÃ­stico de sesiones con soporte DST Europe/Jersey, store 6/6, callables protegidos 6/6, UI admin groups/activities 4/4, client 7/7, suite completa 788/788 en 105 archivos; typecheck/build/lint/format pasan; sin producciÃ³n ni migraciones destructivas.",
+      "Contratos de dominio 27/27, generador determinístico de sesiones con soporte DST Europe/Jersey, store 6/6, callables protegidos 6/6, UI admin groups/activities 4/4, client 7/7, suite completa 788/788 en 105 archivos; typecheck/build/lint/format pasan; sin producción ni migraciones destructivas.",
   },
   T083: {
     implementationStatus: "verificada",
     implementationEvidence:
-      "Tasks 1-5 completadas y verificadas: 171 definiciones, 27 belts, 144 stripes, 11 habilidades y 165 requisitos; unitarias 101 archivos/739 pruebas; Rules 7 archivos/56 pruebas; Emulator integration 1/1; E2E Playwright 6/6; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; pendiente aprobaciÃ³n formal.",
+      "Tasks 1-5 completadas y verificadas: 171 definiciones, 27 belts, 144 stripes, 11 habilidades y 165 requisitos; unitarias 101 archivos/739 pruebas; Rules 7 archivos/56 pruebas; Emulator integration 1/1; E2E Playwright 6/6; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; pendiente aprobación formal.",
   },
 };
 
@@ -176,16 +364,16 @@ function getImplementationDetails(item) {
     };
   }
 
-  if (item.status === "revisiÃ³n") {
+  if (item.status === "revision") {
     return {
       implementationStatus: "verificada",
-      implementationEvidence: "ImplementaciÃ³n y pruebas documentadas; falta aprobaciÃ³n formal.",
+      implementationEvidence: "Implementación y pruebas documentadas; falta aprobación formal.",
     };
   }
 
   return {
     implementationStatus: "no-iniciada",
-    implementationEvidence: "No hay evidencia de ejecuciÃ³n registrada.",
+    implementationEvidence: "No hay evidencia de ejecución registrada.",
   };
 }
 
@@ -203,6 +391,7 @@ function task(id, title, status, description, dependsOn = "-", evidence, referen
     evidence,
     references,
     kind,
+    resolutionRequirements: RESOLUTION_REQUIREMENTS[id] || [],
   };
 }
 
@@ -237,15 +426,21 @@ const phase0Items = [
     "bloqueada",
     "Elegir el proveedor manteniendo los pagos detras de un adaptador independiente del proveedor.",
     "-",
-    "Investigacion oficial 2026-08-27: shortlist real PayPal, Adyen y Revolut Business; Stripe descartado para entidad de Jersey. PayPal es primera opcion a validar; T010 sigue bloqueada hasta seleccion explicita, onboarding, terminos, cotizacion y alertas; sin cuenta, credenciales, cobro ni gasto.",
-    ["tasks.md", "BRIEF.md", "STACK.md", "docs/operations/payment-provider-decision-packet.md"],
+    "Propuesta explicita 2026-09-01: CityPay Limited + Paylink alojado para pagos unicos GBP, detras del adapter provider-independent. T010 sigue bloqueada hasta aceptacion del operador, onboarding, contrato/tarifas/monedas/settlement, revision legal, presupuesto/alertas, secretos y sandbox con rollback; costo comprometido GBP 0, sin cobro.",
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "STACK.md",
+      "docs/operations/payment-provider-decision-packet.md",
+      "docs/adr/ADR-006-citypay-payment-provider-proposal.md",
+    ],
     "decision",
   ),
   task(
     "T011",
-    "Confirmar la polÃ­tica de retenciÃ³n, residencia y eliminaciÃ³n",
+    "Confirmar la política de retención, residencia y eliminación",
     "bloqueada",
-    "Confirmar la polÃ­tica aplicable a los datos de la academia, menores e informaciÃ³n restringida.",
+    "Confirmar la política aplicable a los datos de la academia, menores e información restringida.",
     "-",
     "Decision owner y reviewer confirmados como no designados el 2026-08-28; brief de seleccion/consulta listo sin envio ni gasto. T011 sigue bloqueada hasta aprobar controller/registro JOIC y las 10 decisiones.",
     [
@@ -272,9 +467,9 @@ const foundationItems = [
   ),
   task(
     "T002",
-    "Configurar TypeScript estricto, lint, formato y comandos raÃ­z",
+    "Configurar TypeScript estricto, lint, formato y comandos raíz",
     "aprobada",
-    "Establecer los controles de calidad del repositorio y la configuraciÃ³n estricta del compilador.",
+    "Establecer los controles de calidad del repositorio y la configuración estricta del compilador.",
     "T001",
     statusEvidence.approved,
     ["tasks.md", "STACK.md"],
@@ -294,7 +489,7 @@ const foundationItems = [
     "T004",
     "Configurar Firebase CLI, proyectos de desarrollo y emuladores",
     "aprobada",
-    "Configurar la emulaciÃ³n local de Auth, Firestore y Realtime Database sin acceso a producciÃ³n.",
+    "Configurar la emulación local de Auth, Firestore y Realtime Database sin acceso a producción.",
     "T001",
     statusEvidence.approved,
     ["tasks.md", "STACK.md"],
@@ -304,7 +499,7 @@ const foundationItems = [
     "T005",
     "Configurar proyectos de Playwright y artefactos de QA no versionados",
     "aprobada",
-    "Configurar pruebas de humo del navegador en escritorio y mÃ³vil.",
+    "Configurar pruebas de humo del navegador en escritorio y móvil.",
     "T002",
     statusEvidence.approved,
     ["tasks.md", "STACK.md"],
@@ -322,9 +517,9 @@ const foundationItems = [
   ),
   task(
     "T007",
-    "Documentar clasificaciÃ³n de datos, amenazas y matriz de acceso",
+    "Documentar clasificación de datos, amenazas y matriz de acceso",
     "aprobada",
-    "Registrar los lÃ­mites de seguridad para menores, salud, pagos y datos operativos.",
+    "Registrar los límites de seguridad para menores, salud, pagos y datos operativos.",
     "-",
     statusEvidence.approved,
     ["tasks.md", "STACK.md"],
@@ -335,9 +530,9 @@ const foundationItems = [
 const identityItems = [
   task(
     "T012",
-    "Definir mÃ³dulos de dominio, contratos base y errores tipados",
+    "Definir módulos de dominio, contratos base y errores tipados",
     "aprobada",
-    "Definir los contratos de dominio compartidos por los mÃ³dulos posteriores.",
+    "Definir los contratos de dominio compartidos por los módulos posteriores.",
     "T002,T007",
     statusEvidence.approved,
     ["tasks.md"],
@@ -345,9 +540,9 @@ const identityItems = [
   ),
   task(
     "T013",
-    "DiseÃ±ar colecciones, Ã­ndices, invariantes y plan de migraciÃ³n",
+    "Diseñar colecciones, índices, invariantes y plan de migración",
     "aprobada",
-    "Definir lÃ­mites de Firestore, uso de RTDB y documentaciÃ³n de reversiÃ³n.",
+    "Definir límites de Firestore, uso de RTDB y documentación de reversión.",
     "T007",
     statusEvidence.approved,
     ["tasks.md", "STACK.md"],
@@ -355,17 +550,17 @@ const identityItems = [
   ),
   task(
     "T014",
-    "Implementar autenticaciÃ³n por correo/contraseÃ±a y Google con emulador",
+    "Implementar autenticación por correo/contraseña y Google con emulador",
     "aprobada",
-    "Proporcionar los flujos iniciales de registro, inicio y cierre de sesiÃ³n.",
+    "Proporcionar los flujos iniciales de registro, inicio y cierre de sesión.",
     "T004,T084",
-    "Google usa el popup SDK conectado al Auth Emulator; email/Google y login sin MFA revalidados con unitarias, integraciÃ³n local y E2E responsive.",
+    "Google usa el popup SDK conectado al Auth Emulator; email/Google y login sin MFA revalidados con unitarias, integración local y E2E responsive.",
     ["tasks.md", "BRIEF.md", "STACK.md", "docs/adr/ADR-005-admin-auth-without-mfa.md"],
     "mvp",
   ),
   task(
     "T015",
-    "Implementar roles y permisos personalizados de mÃ­nimo privilegio",
+    "Implementar roles y permisos personalizados de mínimo privilegio",
     "aprobada",
     "Aplicar el modelo aprobado de roles y alcance de academia.",
     "T013,T014",
@@ -377,7 +572,7 @@ const identityItems = [
     "T016",
     "Implementar reglas de Firestore y RTDB con pruebas de aislamiento",
     "aprobada",
-    "Mantener cerrado todo acceso Firebase directo y centralizar autorizaciÃ³n por tenant, rol, relaciÃ³n, asignaciÃ³n y propÃ³sito.",
+    "Mantener cerrado todo acceso Firebase directo y centralizar autorización por tenant, rol, relación, asignación y propósito.",
     "T013,T015",
     "Evaluador fail-closed, actor de seis roles, matriz Firebase exhaustiva y packaging verificados con gates globales.",
     ["tasks.md", "STACK.md"],
@@ -387,19 +582,19 @@ const identityItems = [
     "T017",
     "Implementar MFA obligatorio para propietario/administrador",
     "cancelada",
-    "El requisito histÃ³rico de MFA fue sustituido por el rediseÃ±o administrativo aprobado sin MFA.",
+    "El requisito histórico de MFA fue sustituido por el rediseño administrativo aprobado sin MFA.",
     "T014,T015",
-    "Cancelada y sustituida por el rediseÃ±o administrativo aprobado.",
+    "Cancelada y sustituida por el rediseño administrativo aprobado.",
     ["tasks.md", "STACK.md"],
     "mvp",
   ),
   task(
     "T019",
-    "Implementar registro de auditorÃ­a de solo anexado para cambios sensibles",
+    "Implementar registro de auditoría de solo anexado para cambios sensibles",
     "aprobada",
     "Conservar autor, hora e historial de correcciones sensibles.",
     "T012,T013,T016",
-    "DiseÃ±o create-only y plan TDD aprobados; pendiente centralizar admin, member import y Regyfit sin lectura/UI.",
+    "Diseño create-only y plan TDD aprobados; pendiente centralizar admin, member import y Regyfit sin lectura/UI.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -408,21 +603,21 @@ const identityItems = [
 const peopleItems = [
   task(
     "T020",
-    "Construir tokens de diseÃ±o, carcasa adaptable y navegaciÃ³n accesible por roles",
+    "Construir tokens de diseño, carcasa adaptable y navegación accesible por roles",
     "aprobada",
-    "Crear la carcasa autenticada compartida y las bases de navegaciÃ³n.",
+    "Crear la carcasa autenticada compartida y las bases de navegación.",
     "T002,T015",
-    "Shell responsive, navegaciÃ³n por rol y QA de teclado/mÃ³vil documentados; falta aprobaciÃ³n formal.",
+    "Shell responsive, navegación por rol y QA de teclado/móvil documentados; falta aprobación formal.",
     ["tasks.md", "STACK.md"],
     "mvp",
   ),
   task(
     "T020A",
-    "Integrar identidad visual oficial y navegaciÃ³n de inicio",
+    "Integrar identidad visual oficial y navegación de inicio",
     "aprobada",
     "Aplicar los recursos de identidad aprobados, metadatos y rutas de inicio.",
     "T002,T020",
-    "Los recursos, rutas y controles adaptables estÃ¡n documentados; la aprobaciÃ³n explÃ­cita sigue pendiente.",
+    "Los recursos, rutas y controles adaptables están documentados; la aprobación explícita sigue pendiente.",
     ["tasks.md", "STACK.md"],
     "mvp",
   ),
@@ -432,7 +627,7 @@ const peopleItems = [
     "aprobada",
     "Proporcionar perfiles autorizados sin crear cuentas individuales para menores.",
     "T016,T020",
-    "Primer WIP documental: campos de nombre, fecha de nacimiento, telÃ©fono, email, sede y preferencias horarias.",
+    "Primer WIP documental: campos de nombre, fecha de nacimiento, teléfono, email, sede y preferencias horarias.",
     ["tasks.md", "BRIEF.md", "F:\\Proyectos\\BPT Jersey\\Varios\\BPTJ FUNCTIONS APP.docx"],
     "mvp",
   ),
@@ -442,7 +637,7 @@ const peopleItems = [
     "aprobada",
     "Modelar contactos familiares y relaciones de tutores permitidas.",
     "T021",
-    "Inicio 2026-08-19; plan aprobado en ejecuciÃ³n inline, comenzando por contratos de dominio con TDD.",
+    "Inicio 2026-08-19; plan aprobado en ejecución inline, comenzando por contratos de dominio con TDD.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -453,11 +648,11 @@ const peopleItems = [
   ),
   task(
     "T023",
-    "Implementar datos mÃ©dicos y de apoyo restringidos",
+    "Implementar datos médicos y de apoyo restringidos",
     "aprobada",
-    "Proteger la informaciÃ³n de apoyo restringida con pruebas de permisos negativos.",
+    "Proteger la información de apoyo restringida con pruebas de permisos negativos.",
     "T021",
-    "Alcance tÃ©cnico del piloto sintÃ©tico aprobado por el operador el 2026-08-25; producciÃ³n y datos reales continÃºan bloqueados por T011 y BPT_SYNTHETIC_PILOT.",
+    "Alcance técnico del piloto sintético aprobado por el operador el 2026-08-25; producción y datos reales continúan bloqueados por T011 y BPT_SYNTHETIC_PILOT.",
     ["tasks.md", "BRIEF.md", "docs/superpowers/specs/2026-08-19-t023-health-support-design.md"],
     "mvp",
   ),
@@ -467,17 +662,17 @@ const peopleItems = [
     "aprobada",
     "Mantener autorizados, breves y protegidos el acceso a consentimientos y documentos privados.",
     "T016,T021,T023",
-    "Alcance tÃ©cnico con R2 sintÃ©tico aprobado por el operador el 2026-08-25; R2 productivo, datos reales y cierre productivo continÃºan bloqueados por T011 y por el texto/revisiÃ³n legal final.",
+    "Alcance técnico con R2 sintético aprobado por el operador el 2026-08-25; R2 productivo, datos reales y cierre productivo continúan bloqueados por T011 y por el texto/revisión legal final.",
     ["tasks.md", "STACK.md", "F:\\Proyectos\\BPT Jersey\\Varios\\BPTJ FUNCTIONS APP.docx"],
     "mvp",
   ),
   task(
     "T018",
-    "Implementar waiver versionado y aceptaciÃ³n de registro",
+    "Implementar waiver versionado y aceptación de registro",
     "aprobada",
-    "Completar el registro con el waiver Ãºnico, aceptaciÃ³n, revocaciÃ³n y renovaciÃ³n sin sobrescritura destructiva.",
+    "Completar el registro con el waiver único, aceptación, revocación y renovación sin sobrescritura destructiva.",
     "T016,T021,T022,T023,T024",
-    "Aprobada explÃ­citamente por el operador el 2026-08-25 solo para el piloto sintÃ©tico: waiver versionado, firma tutor/adulto, revocaciÃ³n, PDF privado, auditorÃ­a y UI verificados; producciÃ³n bloqueada por T011 y por el texto/revisiÃ³n legal final.",
+    "Aprobada explícitamente por el operador el 2026-08-25 solo para el piloto sintético: waiver versionado, firma tutor/adulto, revocación, PDF privado, auditoría y UI verificados; producción bloqueada por T011 y por el texto/revisión legal final.",
     ["tasks.md", "BRIEF.md", "F:\\Proyectos\\BPT Jersey\\Varios\\BPTJ FUNCTIONS APP.docx"],
     "mvp",
   ),
@@ -487,7 +682,7 @@ const peopleItems = [
     "aprobada",
     "Gestionar el acceso del personal y las asignaciones operativas.",
     "T015,T020",
-    "Tasks 1-4 verificadas: suite unitaria 90 archivos/701 pruebas; Rules 6 archivos/50 pruebas; Emulator integration 9/9; UI /admin/staff y E2E sintÃ©tico 10/10; Auth Emulator E2E 2/2; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; aprobada 2026-08-23.",
+    "Tasks 1-4 verificadas: suite unitaria 90 archivos/701 pruebas; Rules 6 archivos/50 pruebas; Emulator integration 9/9; UI /admin/staff y E2E sintético 10/10; Auth Emulator E2E 2/2; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -496,9 +691,9 @@ const peopleItems = [
 const levelsItems = [
   task(
     "T083",
-    "Recrear catÃ¡logo completo y secciÃ³n MVP de Levels IBJJF",
+    "Recrear catálogo completo y sección MVP de Levels IBJJF",
     "aprobada",
-    "Implementar la jerarquÃ­a completa de belts, stripes y habilidades antes de progreso y promociones.",
+    "Implementar la jerarquía completa de belts, stripes y habilidades antes de progreso y promociones.",
     "T025,T072,T084",
     "Tasks 1-5 completadas y verificadas: 171 definiciones, 27 belts, 144 stripes, 11 habilidades y 165 requisitos; unitarias 101 archivos/739 pruebas; Rules 7 archivos/56 pruebas; Emulator integration 1/1; E2E Playwright 6/6; lint, typecheck, build y formato pasan; audit sin high/critical con dos moderadas DR-001; aprobada 2026-08-23.",
     [
@@ -519,27 +714,27 @@ const attendanceItems = [
     "aprobada",
     "Modelar el horario de clases y las reglas de zona horaria.",
     "T013,T025",
-    "Contratos de dominio 27/27, generador determinÃ­stico de sesiones con soporte DST Europe/Jersey, store 6/6, callables 6/6 y UI admin verificados; aprobada 2026-08-23.",
+    "Contratos de dominio 27/27, generador determinístico de sesiones con soporte DST Europe/Jersey, store 6/6, callables 6/6 y UI admin verificados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T027",
-    "Implementar elegibilidad, capacidad, lista, reserva y cancelaciÃ³n",
+    "Implementar elegibilidad, capacidad, lista, reserva y cancelación",
     "aprobada",
     "Aplicar las restricciones de elegibilidad y capacidad de las reservas.",
     "T021,T026",
-    "Contratos y evaluador multicriterio 44/44, store transaccional de capacidad atÃ³mica/idempotencia 9/9, callables RBAC 8/8, client 8/8, suite completa 811/811 en 105 archivos; corte de 1h y quÃ³rum mÃ­nimo validados; aprobada 2026-08-23.",
+    "Contratos y evaluador multicriterio 44/44, store transaccional de capacidad atómica/idempotencia 9/9, callables RBAC 8/8, client 8/8, suite completa 811/811 en 105 archivos; corte de 1h y quórum mínimo validados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T028",
-    "Implementar registro de llegada por QR, PIN, nombre y mÃ©todo manual",
+    "Implementar registro de llegada por QR, PIN, nombre y método manual",
     "aprobada",
-    "Admitir los cuatro mÃ©todos aprobados para registrar llegadas.",
+    "Admitir los cuatro métodos aprobados para registrar llegadas.",
     "T022,T027",
-    "Contratos de check-in y 4 mÃ©todos 54/54, store de asistencia e idempotencia 10/10, callables protegidos RBAC 9/9, client 9/9, suite completa 824/824 en 105 archivos; puntualidad (attended/late) y reglas de seguridad verificadas; aprobada 2026-08-23.",
+    "Contratos de check-in y 4 métodos 54/54, store de asistencia e idempotencia 10/10, callables protegidos RBAC 9/9, client 9/9, suite completa 824/824 en 105 archivos; puntualidad (attended/late) y reglas de seguridad verificadas; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -549,27 +744,27 @@ const attendanceItems = [
     "aprobada",
     "Mantener trazables las correcciones mientras se registran los resultados de asistencia.",
     "T019,T028",
-    "Contratos y parsers de correcciÃ³n 58/58, store con correctionOf inmutable y reconciliaciÃ³n de no-shows 12/12, callables RBAC 10/10, client 9/9, suite completa 831/831 en 105 archivos; eventos de auditorÃ­a registrados; aprobada 2026-08-23.",
+    "Contratos y parsers de corrección 58/58, store con correctionOf inmutable y reconciliación de no-shows 12/12, callables RBAC 10/10, client 9/9, suite completa 831/831 en 105 archivos; eventos de auditoría registrados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T030",
-    "Implementar salida de menores y autorizaciÃ³n de recogida",
+    "Implementar salida de menores y autorización de recogida",
     "aprobada",
-    "Registrar al adulto autorizado, la salida independiente o la confirmaciÃ³n del personal.",
+    "Registrar al adulto autorizado, la salida independiente o la confirmación del personal.",
     "T022,T029",
-    "Contratos y parsers de checkout 64/64, 3 mÃ©todos (authorizedAdult, independentRelease, staffOverride con notas), store con validaciÃ³n de asistencia previa e idempotencia 13/13, callables RBAC 11/11, client 10/10, suite completa 840/840 en 105 archivos; eventos de auditorÃ­a registrados; aprobada 2026-08-23.",
+    "Contratos y parsers de checkout 64/64, 3 métodos (authorizedAdult, independentRelease, staffOverride con notas), store con validación de asistencia previa e idempotencia 13/13, callables RBAC 11/11, client 10/10, suite completa 840/840 en 105 archivos; eventos de auditoría registrados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T031",
-    "Implementar vista operativa en vivo sin duplicar la fuente canÃ³nica",
+    "Implementar vista operativa en vivo sin duplicar la fuente canónica",
     "aprobada",
-    "Mostrar las operaciones actuales de asistencia sin duplicar los registros canÃ³nicos.",
+    "Mostrar las operaciones actuales de asistencia sin duplicar los registros canónicos.",
     "T029,T030",
-    "ProyecciÃ³n pura agregada 65/65, store unificado sin estado duplicado 14/14, callable RBAC 12/12, client 11/11, suite completa 844/844 en 105 archivos; consistencia y quÃ³rum en vivo verificados; aprobada 2026-08-23.",
+    "Proyección pura agregada 65/65, store unificado sin estado duplicado 14/14, callable RBAC 12/12, client 11/11, suite completa 844/844 en 105 archivos; consistencia y quórum en vivo verificados; aprobada 2026-08-23.",
     ["tasks.md", "STACK.md"],
     "mvp",
   ),
@@ -578,21 +773,21 @@ const attendanceItems = [
 const membershipItems = [
   task(
     "T032",
-    "Implementar catÃ¡logo y reglas base de planes de membresÃ­a",
+    "Implementar catálogo y reglas base de planes de membresía",
     "aprobada",
     "Definir todos los planes, precios, sedes y accesos Town/West del DOCX, incluidos Kids, Teens, Adults y Open Mats.",
     "T013",
-    "Tasks 1-6 verificadas; suite 572/572; Rules 30/30; domain 11/11 y regresiÃ³n 98/98; store 15/15; runtime 2/2; callables 13/13; Emulator 4/4; lint/typecheck/build/formato pasan; aprobada 2026-08-23.",
+    "Tasks 1-6 verificadas; suite 572/572; Rules 30/30; domain 11/11 y regresión 98/98; store 15/15; runtime 2/2; callables 13/13; Emulator 4/4; lint/typecheck/build/formato pasan; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md", "F:\\Proyectos\\BPT Jersey\\Varios\\BPT-memberships.docx"],
     "mvp",
   ),
   task(
     "T033",
-    "Implementar ciclo de vida de la membresÃ­a",
+    "Implementar ciclo de vida de la membresía",
     "aprobada",
     "Admitir transiciones de prueba, activa, pausada, vencida y cancelada sin perder el acceso definido por plan.",
     "T032",
-    "Lifecycle completo, mÃºltiples suites verdes, gates sin high/critical; aprobada 2026-08-23.",
+    "Lifecycle completo, múltiples suites verdes, gates sin high/critical; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md", "F:\\Proyectos\\BPT Jersey\\Varios\\BPT-memberships.docx"],
     "mvp",
   ),
@@ -612,7 +807,7 @@ const membershipItems = [
     "pendiente",
     "Usar flujos de pago alojados sin almacenar datos de tarjeta sin procesar.",
     "T034",
-    "El pago alojado estÃ¡ fuera del piloto manual.",
+    "El pago alojado está fuera del piloto manual.",
     ["tasks.md", "BRIEF.md"],
     "roadmap",
   ),
@@ -622,7 +817,7 @@ const membershipItems = [
     "pendiente",
     "Prevenir efectos financieros duplicados ante reintentos y eventos fuera de orden.",
     "T019,T035",
-    "Los webhooks estÃ¡n fuera del piloto manual.",
+    "Los webhooks están fuera del piloto manual.",
     ["tasks.md", "STACK.md"],
     "roadmap",
   ),
@@ -630,7 +825,7 @@ const membershipItems = [
     "T037",
     "Implementar pagos manuales, facturas, recibos, saldos, deuda PAYG y refunds",
     "aprobada",
-    "Admitir cash, factura/recibo, deuda PAYG, cobro de la sesiÃ³n nueva y de la anterior pendiente.",
+    "Admitir cash, factura/recibo, deuda PAYG, cobro de la sesión nueva y de la anterior pendiente.",
     "T019,T033",
     "Suite completa 629/629, Rules 44/44, domain/store/callables/audit verdes; aprobada 2026-08-23.",
     [
@@ -643,11 +838,11 @@ const membershipItems = [
   ),
   task(
     "T038",
-    "Vincular estado manual de pago/membresÃ­a y restricciones por deuda",
+    "Vincular estado manual de pago/membresía y restricciones por deuda",
     "aprobada",
-    "Conectar el estado de facturaciÃ³n con el acceso y el seguimiento operativo.",
+    "Conectar el estado de facturación con el acceso y el seguimiento operativo.",
     "T037",
-    "Suite 650/650, Rules 35/35, policy/service/Emulator verdes; integraciÃ³n PAYG 1750 -> 0 verificada; aprobada 2026-08-23.",
+    "Suite 650/650, Rules 35/35, policy/service/Emulator verdes; integración PAYG 1750 -> 0 verificada; aprobada 2026-08-23.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -665,7 +860,7 @@ const progressItems = [
     "aprobada",
     "Registrar evaluaciones basadas en evidencias con la visibilidad adecuada.",
     "T021,T025,T083",
-    "Contratos y parsers de evaluaciÃ³n 14/14, store con agregaciÃ³n y auditorÃ­a 7/7, callables RBAC con visibilidad familiar 10/10, client 5/5, suite completa 858/858 en 105 archivos; escala 1-5 y 11 habilidades vinculadas; aprobada 2026-08-23.",
+    "Contratos y parsers de evaluación 14/14, store con agregación y auditoría 7/7, callables RBAC con visibilidad familiar 10/10, client 5/5, suite completa 858/858 en 105 archivos; escala 1-5 y 11 habilidades vinculadas; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -673,9 +868,9 @@ const progressItems = [
     "T040",
     "Implementar checklist de habilidades y resumen de progreso",
     "aprobada",
-    "Resumir tÃ©cnicas, total de clases, horas, racha y belt/stripes sin promociÃ³n automÃ¡tica.",
+    "Resumir técnicas, total de clases, horas, racha y belt/stripes sin promoción automática.",
     "T039",
-    "Contratos y pure builder buildStudentProgressSummary 16/16, store aggregations 8/8, callables RBAC con visibilidad familiar 12/12, client 6/6, suite completa 864/864 en 105 archivos; checklist tÃ©cnico, clases, horas y elegibilidad no automÃ¡tica probados; aprobada 2026-08-23.",
+    "Contratos y pure builder buildStudentProgressSummary 16/16, store aggregations 8/8, callables RBAC con visibilidad familiar 12/12, client 6/6, suite completa 864/864 en 105 archivos; checklist técnico, clases, horas y elegibilidad no automática probados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -683,19 +878,19 @@ const progressItems = [
     "T041",
     "Implementar rachas y candidatos de reconocimiento explicables",
     "aprobada",
-    "Calcular asistencia, rachas y candidatos con pesos explÃ­citos y ausencias mÃ©dicas.",
+    "Calcular asistencia, rachas y candidatos con pesos explícitos y ausencias médicas.",
     "T029,T039",
-    "Contratos y pure functions calculateAttendanceStreak/generateRecognitionCandidates 21/21, store methods 9/9, callables RBAC 16/16, client 8/8, suite completa 876/876 en 105 archivos; rachas, pausas mÃ©dicas justificadas y cola explicable de candidatos para el Head Coach probados; aprobada 2026-08-23.",
+    "Contratos y pure functions calculateAttendanceStreak/generateRecognitionCandidates 21/21, store methods 9/9, callables RBAC 16/16, client 8/8, suite completa 876/876 en 105 archivos; rachas, pausas médicas justificadas y cola explicable de candidatos para el Head Coach probados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T042",
-    "Implementar revisiÃ³n y aprobaciÃ³n exclusivas del entrenador principal",
+    "Implementar revisión y aprobación exclusivas del entrenador principal",
     "aprobada",
-    "Mantener todas las promociones del catÃ¡logo MVP bajo aprobaciÃ³n humana autorizada.",
+    "Mantener todas las promociones del catálogo MVP bajo aprobación humana autorizada.",
     "T015,T041",
-    "Contratos y parsers de graduaciÃ³n/promociÃ³n 25/25, store con actualizaciÃ³n de perfil y auditorÃ­a 10/10, callables RBAC headCoach/owner 18/18, client 9/9, suite completa 884/884 en 105 archivos; regla de oro de aprobaciÃ³n humana formal, registro inmutable y trazabilidad probados; aprobada 2026-08-23.",
+    "Contratos y parsers de graduación/promoción 25/25, store con actualización de perfil y auditoría 10/10, callables RBAC headCoach/owner 18/18, client 9/9, suite completa 884/884 en 105 archivos; regla de oro de aprobación humana formal, registro inmutable y trazabilidad probados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -714,9 +909,9 @@ const crmItems = [
   ),
   task(
     "T044",
-    "Implementar lÃ­nea de tiempo automÃ¡tica de CRM post-piloto",
+    "Implementar línea de tiempo automática de CRM post-piloto",
     "aprobada",
-    "Registrar una sola vez los eventos relevantes en una lÃ­nea de tiempo trazable.",
+    "Registrar una sola vez los eventos relevantes en una línea de tiempo trazable.",
     "T019,T043",
     "Persistencia de timeline, idempotencia por eventKey, parser y callable implementados; duplicado conflictivo falla cerrado; pruebas focalizadas 10/10, typecheck Functions/Web, regresion y verify:mvp pasan; UI y datos reales no activados; Revalidacion tecnica 2026-08-27: pruebas focalizadas CRM/UI 5/5; typecheck de Functions/Web, ESLint CRM y Prettier del alcance pasan. No bloquea T056. Aprobacion explicita del operador recibida el 2026-08-27 para alcance tecnico/sintetico; no autoriza produccion, credenciales, red ni servicios externos reales.",
     ["tasks.md", "BRIEF.md", "docs/operations/t043-t044-crm-synthetic-scope.md"],
@@ -728,7 +923,7 @@ const crmItems = [
     "aprobada",
     "Entregar avisos internos de academia y clase adecuados al rol.",
     "T025,T026",
-    "Contratos y parsers de anuncios 7/7, store en Firestore e in-memory con soporte readBy y auditorÃ­a 4/4, callables RBAC staff/client 3/3, client 4/4, suite completa 902/902 en 109 archivos; canales academy/class/group, estados draft/published/archived y lectura in-app probados; aprobada 2026-08-23.",
+    "Contratos y parsers de anuncios 7/7, store en Firestore e in-memory con soporte readBy y auditoría 4/4, callables RBAC staff/client 3/3, client 4/4, suite completa 902/902 en 109 archivos; canales academy/class/group, estados draft/published/archived y lectura in-app probados; aprobada 2026-08-23.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -736,7 +931,7 @@ const crmItems = [
     "T046",
     "Implementar email/SMS e historial externo de entrega post-piloto",
     "aprobada",
-    "Integrar proveedores externos solo despuÃ©s del piloto.",
+    "Integrar proveedores externos solo después del piloto.",
     "T045",
     "Frontera provider-independent, historial tenant-scoped y fallback unconfigured verificados; contract/service 7/7; typecheck de dominio/Functions, ESLint y Prettier del alcance pasan; proveedor unconfigured, sin red, credenciales, gasto ni envio real. Aprobacion explicita del operador recibida el 2026-08-27 para alcance tecnico/sintetico; no autoriza produccion, credenciales, red ni servicios externos reales.",
     ["tasks.md", "STACK.md"],
@@ -746,9 +941,9 @@ const crmItems = [
     "T047",
     "Aplicar safeguarding a avisos de menores visibles al tutor",
     "aprobada",
-    "Mantener la comunicaciÃ³n con menores visible para el tutor autorizado.",
+    "Mantener la comunicación con menores visible para el tutor autorizado.",
     "T022,T045",
-    "Aprobada tÃ©cnicamente para el piloto: resolver canÃ³nico, portal guardian, pruebas unitarias/Rules, typecheck, lint y build pasan; sin producciÃ³n ni canales privados.",
+    "Aprobada técnicamente para el piloto: resolver canónico, portal guardian, pruebas unitarias/Rules, typecheck, lint y build pasan; sin producción ni canales privados.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -756,9 +951,9 @@ const crmItems = [
     "T048",
     "Implementar recordatorios in-app de pagos y asistencia",
     "aprobada",
-    "Admitir recordatorios internos con audiencia y resoluciÃ³n auditables.",
+    "Admitir recordatorios internos con audiencia y resolución auditables.",
     "T029,T038,T045",
-    "Aprobada tÃ©cnicamente para recordatorios on-demand tenant-scoped; unit 930/930, rules exit 0, typecheck/lint/build/E2E gateway 8/8; sin producciÃ³n ni persistencia adicional.",
+    "Aprobada técnicamente para recordatorios on-demand tenant-scoped; unit 930/930, rules exit 0, typecheck/lint/build/E2E gateway 8/8; sin producción ni persistencia adicional.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -771,7 +966,7 @@ const closeoutItems = [
     "aprobada",
     "Dar a los operadores una vista coherente de la actividad diaria.",
     "T031",
-    "Dashboard conectado a sesiones, asistencia y check-out canÃ³nicos; callable staff-only, lÃ­mite de 24 h y vista agregada sin roster; unitarias 983/983, E2E sintÃ©tico 63/63 con 14 omitidos, typecheck/build/lint/formato/diff pasan; aprobado tÃ©cnicamente para el piloto.",
+    "Dashboard conectado a sesiones, asistencia y check-out canónicos; callable staff-only, límite de 24 h y vista agregada sin roster; unitarias 983/983, E2E sintético 63/63 con 14 omitidos, typecheck/build/lint/formato/diff pasan; aprobado técnicamente para el piloto.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
@@ -781,47 +976,47 @@ const closeoutItems = [
     "aprobada",
     "Mostrar a los operadores las acciones financieras manuales y renovaciones.",
     "T038",
-    "ProyecciÃ³n read-only conectada a membresÃ­as, facturas y pagos canÃ³nicos; contrato owner/admin sin PII/IDs sensibles y gates completos.",
+    "Proyección read-only conectada a membresías, facturas y pagos canónicos; contrato owner/admin sin PII/IDs sensibles y gates completos.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T051",
-    "Implementar informes de estudiantes, asistencia, membresÃ­as e ingresos manuales",
+    "Implementar informes de estudiantes, asistencia, membresías e ingresos manuales",
     "aprobada",
     "Proporcionar informes operativos autorizados con totales conciliados.",
     "T029,T038",
-    "Reporte agregado owner/admin conectado a fuentes canÃ³nicas; tenant-scoped, rango mÃ¡ximo de 31 dÃ­as, sin PII/IDs; unitarias 998/998, Rules 64/64 y E2E 65/65 ejecutadas con 14 omitidas.",
+    "Reporte agregado owner/admin conectado a fuentes canónicas; tenant-scoped, rango máximo de 31 días, sin PII/IDs; unitarias 998/998, Rules 64/64 y E2E 65/65 ejecutadas con 14 omitidas.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T052",
-    "Implementar informes de cobertura de progreso, reconocimiento y evaluaciÃ³n",
+    "Implementar informes de cobertura de progreso, reconocimiento y evaluación",
     "aprobada",
-    "Informar la cobertura de progreso respetando los lÃ­mites de privacidad.",
+    "Informar la cobertura de progreso respetando los límites de privacidad.",
     "T042",
-    "Aprobada tÃ©cnicamente para reporte agregado staff-only tenant-scoped; coverage/recognition/readiness y privacidad sin IDs.",
+    "Aprobada técnicamente para reporte agregado staff-only tenant-scoped; coverage/recognition/readiness y privacidad sin IDs.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T053",
-    "Implementar exportaciÃ³n de datos autorizada y auditable",
+    "Implementar exportación de datos autorizada y auditable",
     "aprobada",
-    "Exportar Ãºnicamente los datos permitidos para el rol activo.",
+    "Exportar únicamente los datos permitidos para el rol activo.",
     "T019,T051,T052",
-    "CSV agregado T051/T052 owner/admin, piloto sintÃ©tico fail-closed, journal y auditorÃ­a atÃ³micos, rate limit persistente y sin PII/IDs ni archivo server-side; gates completos y producciÃ³n bloqueada por T011 y por el texto/revisiÃ³n legal final.",
+    "CSV agregado T051/T052 owner/admin, piloto sintético fail-closed, journal y auditoría atómicos, rate limit persistente y sin PII/IDs ni archivo server-side; gates completos y producción bloqueada por T011 y por el texto/revisión legal final.",
     ["tasks.md", "BRIEF.md"],
     "mvp",
   ),
   task(
     "T054",
-    "Configurar respaldos, restauraciÃ³n y guÃ­a de reversiÃ³n",
+    "Configurar respaldos, restauración y guía de reversión",
     "aprobada",
-    "Demostrar la capacidad de recuperaciÃ³n antes de producciÃ³n.",
+    "Demostrar la capacidad de recuperación antes de producción.",
     "T013,T024",
-    "Aprobada explÃ­citamente por el operador el 2026-08-25 solo para el piloto sintÃ©tico: contrato fail-closed, checksum/conteos, rehearsal Emulator applyâ†’rollback, runbook, unitarias 6/6, integraciÃ³n 1/1 y E2E 2/2; no autoriza backup/restore productivo.",
+    "Aprobada explícitamente por el operador el 2026-08-25 solo para el piloto sintético: contrato fail-closed, checksum/conteos, rehearsal Emulator applyâ†’rollback, runbook, unitarias 6/6, integración 1/1 y E2E 2/2; no autoriza backup/restore productivo.",
     ["tasks.md", "STACK.md"],
     "mvp",
   ),
@@ -829,7 +1024,7 @@ const closeoutItems = [
     "T055",
     "Ejecutar pruebas de carga, contrato, seguridad, accesibilidad y roles",
     "aprobada",
-    "Ejecutar el control de calidad completo previo a la publicaciÃ³n.",
+    "Ejecutar el control de calidad completo previo a la publicación.",
     "T008,T009,T011,T018,T019,T021-T033,T037-T042,T045,T047-T054,T083,T086",
     "QA aprobado unicamente para el piloto sintetico: verify:mvp, unitarias 159/1082, Rules 64/64, carga sintetica 240 solicitudes/concurrencia 24 sin fallos (p95 82 ms) y E2E smoke 5 pasan/1 omitida. T011/live/staging/produccion siguen bloqueados; no autoriza datos reales ni despliegue.",
     ["tasks.md", "STACK.md"],
@@ -916,9 +1111,9 @@ const roadmapV2Items = [
   ),
   task(
     "T061",
-    "Reintentos, perÃ­odos de gracia, prorrateo, promociones y flujos de pausa/cancelaciÃ³n",
+    "Reintentos, períodos de gracia, prorrateo, promociones y flujos de pausa/cancelación",
     "pendiente",
-    "Automatizar operaciones mÃ¡s profundas del ciclo de facturaciÃ³n.",
+    "Automatizar operaciones más profundas del ciclo de facturación.",
     "T010,T034,T035",
     "Plan preliminar en docs/roadmap/v2-v3-advance-plan.md. Antes de habilitar proveedor, el primer gate debe rechazar replays con la misma clave de idempotencia y payload divergente; el adaptador base aun no esta conectado al runtime. Pendiente de slice, contrato, criterios y checkpoint humano.",
     ["tasks.md", "BRIEF.md"],
@@ -926,9 +1121,9 @@ const roadmapV2Items = [
   ),
   task(
     "T062",
-    "Alertas de retenciÃ³n y automatizaciÃ³n de CRM",
+    "Alertas de retención y automatización de CRM",
     "revision",
-    "Automatizar acciones seleccionadas de retenciÃ³n y CRM.",
+    "Automatizar acciones seleccionadas de retención y CRM.",
     "T019,T029,T033",
     "Revision 2026-08-31: productor interno DI-only tenant-scoped y runner manual local solo Emulator para memberships trial/active y attendance canonica schema-v1, limites 200/5000, IDs/hash/replay diario deterministas y alertas + retention.alerts.generated atomicos. Runner 3/3, corrida aislada codigo 0; gate global 176/1240 + Rules 78/78 + carga 240/240 (p95 34 ms) + smoke 5/5; reauditoria 0 critical/high/moderate. El productor no tiene wiring runtime, endpoint, trigger ni scheduler; el callable read-only preexistente listRetentionAlerts se conserva. Sin CRM/mensajes, datos reales, migracion ni despliegue; studentReference/T011/T057 bloquean produccion.",
     [
@@ -951,7 +1146,7 @@ const roadmapV2Items = [
     "T063",
     "Autoservicio ampliado para tutores y adultos",
     "revision",
-    "Ampliar el autoservicio sin debilitar los lÃ­mites de roles.",
+    "Ampliar el autoservicio sin debilitar los límites de roles.",
     "-",
     "T063 en revision: checkout adulto queda expresamente fail-closed antes del store; booking, cancelacion, check-in y consultas propias no cambian. Callable 18/18, Emulator 2/2 y verify:mvp 1217 unitarias/78 Rules/carga 240/240/smoke 5+1 pasan; 0 high/critical. Tutor secundario y habilitacion de checkout adulto siguen pendientes de checkpoint.",
     [
@@ -969,9 +1164,9 @@ const roadmapV2Items = [
     "T064",
     "Notificaciones externas y automatizadas completas",
     "revision",
-    "Ampliar cobertura despuÃ©s de los avisos in-app bÃ¡sicos de T045 y T048.",
+    "Ampliar cobertura después de los avisos in-app básicos de T045 y T048.",
     "-",
-    "Politica de notificaciones por consentimiento y canal; 6 pruebas focalizadas y 58 de regresion, typecheck, ESLint, Prettier y diff check pasan; sin proveedor, red, contactos ni gasto; quedan persistencia, runtime y E2E.",
+    "Cierre tecnico 2026-08-31: preferencia tenant-scoped y auditoria Firestore atomica; pruebas focalizadas 13/13, suite 1297/1297, Firestore Emulator 1/1 y E2E autenticada 2/2 en desktop/movil; typecheck, build y diff check pasan. Sin proveedor real, limites de costo, UI final ni checkpoint de producto; T064 permanece en revision.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -983,9 +1178,9 @@ const roadmapV2Items = [
   ),
   task(
     "T065",
-    "Asistencia sin conexiÃ³n con sincronizaciÃ³n y resoluciÃ³n de conflictos",
+    "Asistencia sin conexión con sincronización y resolución de conflictos",
     "revision",
-    "Admitir operaciÃ³n controlada sin conexiÃ³n y conciliaciÃ³n.",
+    "Admitir operación controlada sin conexión y conciliación.",
     "-",
     "Corte tecnico 2026-08-31: cola local tenant-scoped y adaptador web opt-in verificados; offline-queue 5/5, adaptador web 2/2, typecheck Domain/Web y regresiones focales pasan. Payload divergente, cruce de scope, corrupcion y conflicto de misma sesion fallan cerrado. Sin red, Firestore writes, Rules/Emulator ni E2E de sync; politica operativa y adaptador productivo siguen pendientes.",
     [
@@ -1002,9 +1197,9 @@ const roadmapV2Items = [
   ),
   task(
     "T066",
-    "Biblioteca tÃ©cnica ampliada y planificaciÃ³n avanzada de lecciones",
+    "Biblioteca técnica ampliada y planificación avanzada de lecciones",
     "revision",
-    "AÃ±adir profundidad al currÃ­culo bÃ¡sico y la aprobaciÃ³n humana del piloto.",
+    "Añadir profundidad al currículo básico y la aprobación humana del piloto.",
     "-",
     "Cierre tecnico 2026-09-01: auditoria atomica lesson.plan.approved, UI staff en /admin/lesson-plans y E2E autenticada Emulator 1/1; persistencia, Rules, RBAC, builds y typechecks verificados. Se mantienen datos y contenido sinteticos; quedan contenido definitivo y checkpoint de producto.",
     [
@@ -1030,9 +1225,9 @@ const roadmapV2Items = [
 const roadmapV3Items = [
   task(
     "T067",
-    "Objetivos, logros y resÃºmenes familiares ampliados",
+    "Objetivos, logros y resúmenes familiares ampliados",
     "revision",
-    "AÃ±adir participaciÃ³n despuÃ©s de las rachas bÃ¡sicas de T041.",
+    "Añadir participación después de las rachas básicas de T041.",
     "-",
     "Cierre tecnico 2026-09-01: catalogo/persistencia tenant-scoped, auditoria atomica family.achievements.generated, callable read-only y UI staff verificados; envelope { summary } corregido; E2E autenticada Emulator 1/1, Rules 6/6, focal T067 49/49, typecheck/build/lint/Prettier/diff pasan; quedan fuente de progreso real, runner/scheduler y checkpoint de producto; sin migracion ni produccion.",
     [
@@ -1057,7 +1252,7 @@ const roadmapV3Items = [
     "T068",
     "Aplicaciones nativas para iOS y Android",
     "pendiente",
-    "Considerar clientes nativos despuÃ©s de validar el producto web.",
+    "Considerar clientes nativos después de validar el producto web.",
     "-",
     "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP.",
     ["tasks.md", "BRIEF.md"],
@@ -1067,7 +1262,7 @@ const roadmapV3Items = [
     "T069",
     "Comunidad moderada",
     "pendiente",
-    "AÃ±adir funciones comunitarias controladas con protecciÃ³n.",
+    "Añadir funciones comunitarias controladas con protección.",
     "-",
     "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP.",
     ["tasks.md", "BRIEF.md"],
@@ -1077,7 +1272,7 @@ const roadmapV3Items = [
     "T070",
     "Referidos, clases privadas, competiciones y tienda",
     "pendiente",
-    "Ampliar crecimiento y comercio despuÃ©s de los seminarios operativos de T026.",
+    "Ampliar crecimiento y comercio después de los seminarios operativos de T026.",
     "-",
     "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP.",
     ["tasks.md", "BRIEF.md"],
@@ -1085,7 +1280,7 @@ const roadmapV3Items = [
   ),
   task(
     "T071",
-    "AnalÃ­tica, IA asistida, multiacademia, marca blanca y SaaS",
+    "Analítica, IA asistida, multiacademia, marca blanca y SaaS",
     "pendiente",
     "Considerar funciones de escala solo cuando el producto central sea estable.",
     "-",
@@ -1102,17 +1297,17 @@ const specialItems = [
     "aprobada",
     "Ejecutar descubrimiento estructural read-only de Regyfit.",
     "T007,T013",
-    "Manifiesto sanitizado, contratos y Playwright offline 2/2; entidades fuente todavÃ­a insuficientes para aprobar el mapeo.",
+    "Manifiesto sanitizado, contratos y Playwright offline 2/2; entidades fuente todavía insuficientes para aprobar el mapeo.",
     ["tasks.md"],
     "special",
   ),
   task(
     "T073",
-    "Implementar autorizaciÃ³n, locks y provisioning administrativo de Regyfit",
+    "Implementar autorización, locks y provisioning administrativo de Regyfit",
     "aprobada",
-    "Implementar autorizaciÃ³n, locks y provisioning administrativo de Regyfit.",
+    "Implementar autorización, locks y provisioning administrativo de Regyfit.",
     "T015,T016",
-    "Locks renovables, fencing, recuperaciÃ³n y compensaciÃ³n fail-closed; 32 pruebas focused y 83 de suite documentadas.",
+    "Locks renovables, fencing, recuperación y compensación fail-closed; 32 pruebas focused y 83 de suite documentadas.",
     ["tasks.md"],
     "special",
   ),
@@ -1122,7 +1317,7 @@ const specialItems = [
     "aprobada",
     "Construir shell y panel read-only administrativo de Regyfit.",
     "T020,T015",
-    "Shell responsive, proyecciones owner/safe, filtros, foco, 24 E2E sintÃ©ticos; falta aprobaciÃ³n/live Auth completa.",
+    "Shell responsive, proyecciones owner/safe, filtros, foco, 24 E2E sintéticos; falta aprobación/live Auth completa.",
     ["tasks.md"],
     "special",
   ),
@@ -1132,7 +1327,7 @@ const specialItems = [
     "aprobada",
     "Implementar importer Regyfit idempotente y aplicar lote aprobado.",
     "T073,T074",
-    "Importer protegido, dry-run e importaciÃ³n de 10 registros verificada; lectura live owner/administrator y alertas de facturaciÃ³n pendientes.",
+    "Importer protegido, dry-run e importación de 10 registros verificada; lectura live owner/administrator y alertas de facturación pendientes.",
     ["tasks.md"],
     "special",
   ),
@@ -1142,7 +1337,7 @@ const specialItems = [
     "aprobada",
     "Publicar callable protegido de registros Regyfit.",
     "T074,T075",
-    "Callable v2 desplegado y smoke sin identidad devuelve 403; verificaciÃ³n Auth live queda pendiente.",
+    "Callable v2 desplegado y smoke sin identidad devuelve 403; verificación Auth live queda pendiente.",
     ["tasks.md"],
     "special",
   ),
@@ -1152,15 +1347,15 @@ const specialItems = [
     "aprobada",
     "Implementar gateway unificado de login, logout y acceso administrativo.",
     "T014,T015",
-    "Email/Google, destinos allowlisted, logout, E2E sintÃ©tico y verificaciÃ³n manual staging documentados; live Auth automatizado opt-in.",
+    "Email/Google, destinos allowlisted, logout, E2E sintético y verificación manual staging documentados; live Auth automatizado opt-in.",
     ["tasks.md"],
     "special",
   ),
   task(
     "T078",
-    "Entregar panel administrativo visible con preview sintÃ©tico",
+    "Entregar panel administrativo visible con preview sintético",
     "aprobada",
-    "Entregar panel administrativo visible con preview sintÃ©tico.",
+    "Entregar panel administrativo visible con preview sintético.",
     "T020,T021",
     "Overview, Members, Groups, Activities, Attendance, Reports, CRM y Finance con filtros y QA 374/374; persistencia real posterior.",
     ["tasks.md"],
@@ -1168,51 +1363,51 @@ const specialItems = [
   ),
   task(
     "T079",
-    "Implementar operaciones de miembros, informes y exportaciÃ³n PDF protegida",
+    "Implementar operaciones de miembros, informes y exportación PDF protegida",
     "aprobada",
-    "Implementar operaciones de miembros, informes y exportaciÃ³n PDF protegida.",
+    "Implementar operaciones de miembros, informes y exportación PDF protegida.",
     "T021,T024,T053",
-    "Callables, lÃ­mites, rate limit, export journal, PDF Unicode, integraciÃ³n Firestore y QA 427/427 documentados.",
+    "Callables, límites, rate limit, export journal, PDF Unicode, integración Firestore y QA 427/427 documentados.",
     ["tasks.md"],
     "special",
   ),
   task(
     "T080",
-    "Validar lote real de PDFs de miembros y planificar importaciÃ³n",
+    "Validar lote real de PDFs de miembros y planificar importación",
     "aprobada",
-    "Validar lote real de PDFs de miembros y planificar importaciÃ³n.",
+    "Validar lote real de PDFs de miembros y planificar importación.",
     "T079",
-    "8 reportes, 243 canÃ³nicos, 0 conflictos y dry-run aprobado; cualquier apply continÃºa prohibido sin confirmaciÃ³n explÃ­cita y sin cerrar los gates productivos.",
+    "8 reportes, 243 canónicos, 0 conflictos y dry-run aprobado; cualquier apply continúa prohibido sin confirmación explícita y sin cerrar los gates productivos.",
     ["tasks.md"],
     "special",
   ),
   task(
     "T081",
-    "Implementar navegaciÃ³n responsive administrativa y tablas ordenables",
+    "Implementar navegación responsive administrativa y tablas ordenables",
     "aprobada",
-    "Implementar navegaciÃ³n responsive administrativa y tablas ordenables.",
+    "Implementar navegación responsive administrativa y tablas ordenables.",
     "T020,T078",
-    "Drawer mÃ³vil, foco, responsive, ordenaciÃ³n y E2E desktop/mÃ³vil documentados; aprobaciÃ³n formal pendiente.",
+    "Drawer móvil, foco, responsive, ordenación y E2E desktop/móvil documentados; aprobación formal pendiente.",
     ["tasks.md"],
     "special",
   ),
   task(
     "T082",
-    "Establecer sincronizaciÃ³n permanente entre `tasks.md` y `Lista/`",
+    "Establecer sincronización permanente entre `tasks.md` y `Lista/`",
     "aprobada",
-    "Establecer sincronizaciÃ³n permanente entre `tasks.md` y `Lista/`.",
+    "Establecer sincronización permanente entre `tasks.md` y `Lista/`.",
     "T001",
-    "Regla persistente aÃ±adida a AGENTS.md, Copilot y MASTER_PROMPT.md; 83 entradas Ãºnicas sincronizadas y Lista.js verificado.",
+    "Regla persistente añadida a AGENTS.md, Copilot y MASTER_PROMPT.md; 83 entradas únicas sincronizadas y Lista.js verificado.",
     ["tasks.md"],
     "special",
   ),
   task(
     "T084",
-    "Limitar el importador PDF al emulador y rechazar producciÃ³n",
+    "Limitar el importador PDF al emulador y rechazar producción",
     "aprobada",
     "Eliminar el alias production-as-staging antes de continuar el MVP.",
     "T080,T085",
-    "Runner/CLI emulator-only, fuente sintÃ©tica temporal, symlinks rechazados y gates globales verdes.",
+    "Runner/CLI emulator-only, fuente sintética temporal, symlinks rechazados y gates globales verdes.",
     ["tasks.md", "STACK.md"],
     "special",
   ),
@@ -1228,11 +1423,11 @@ const specialItems = [
   ),
   task(
     "T086",
-    "Aislar E2E sintÃ©tico de red externa y diferir el resolver de Google",
+    "Aislar E2E sintético de red externa y diferir el resolver de Google",
     "aprobada",
-    "Mantener las pruebas sintÃ©ticas deterministas y cargar OAuth solo al iniciar Google sign-in.",
+    "Mantener las pruebas sintéticas deterministas y cargar OAuth solo al iniciar Google sign-in.",
     "T014,T049,T050",
-    "Resolver Google diferido, fixture operativa explÃ­cita, unitarias 1036/1036 y E2E 67/67; aprobada 2026-08-24.",
+    "Resolver Google diferido, fixture operativa explícita, unitarias 1036/1036 y E2E 67/67; aprobada 2026-08-24.",
     ["tasks.md", "apps/web/src/lib/firebase-client.ts", "qa/tests/admin-auth.spec.ts"],
     "special",
   ),
@@ -1282,12 +1477,165 @@ const specialItems = [
     ],
     "special",
   ),
+  task(
+    "T090",
+    "Integrar el waiver oficial como requisito obligatorio de inscripcion",
+    "revision",
+    "Usar el PDF oficial como unica plantilla legal, capturar firma autenticada y llevar el perfil completado al paso de waiver.",
+    "T018,T021,T024",
+    "Revisada 2026-09-01: PDF oficial web/Functions byte-a-byte identico, hash SHA-256 validado, evidencia basada en paginas originales, confirmacion obligatoria y redireccion desde perfil; focales 17/17, suite 197 archivos/1305 pruebas, typecheck, lint, Prettier, build y git diff --check pasan. E2E cliente desktop/mobile 2/2; caso admin historico requiere bootstrap autenticado. Sin despliegue ni datos reales.",
+    [
+      "tasks.md",
+      "BRIEF.md",
+      "STACK.md",
+      "docs/superpowers/specs/2026-09-01-t090-official-waiver-registration-design.md",
+      "apps/web/src/app/account/waiver/page.tsx",
+      "apps/functions/src/consents/waiver-evidence-pdf.ts",
+    ],
+    "special",
+  ),
+  task(
+    "T091",
+    "Corregir vistas administrativas para mostrar solo datos conectados",
+    "aprobada",
+    "Eliminar fallbacks de preview en las vistas administrativas conectadas.",
+    "T021,T024,T030,T047",
+    "Overview, Activities, Groups, Attendance y CRM usan callables conectados, estados vacios explicitos y RBAC; la evidencia remota registrada no sustituye el nuevo golden path.",
+    [
+      "tasks.md",
+      "apps/web/src/app/admin/overview/page.tsx",
+      "apps/web/src/app/admin/activities/page.tsx",
+      "apps/web/src/app/admin/groups/page.tsx",
+      "apps/web/src/app/admin/attendance/page.tsx",
+      "apps/web/src/app/admin/crm/page.tsx",
+    ],
+    "special",
+  ),
+];
+
+const recoveryItems = [
+  task(
+    "T092",
+    "Definir el participante canonico y la convergencia members/students",
+    "revision",
+    "Fijar una sola identidad operativa y un plan reversible antes de tocar datos.",
+    "T013,T021,T079,T091,T100",
+    "ADR-009, modelo y runbook cierran identidad, privacidad, rollback y restore aislado; tres revisiones independientes quedaron CLEAN sobre hashes exactos.",
+    [
+      "tasks.md",
+      "STACK.md",
+      "docs/adr/ADR-009-students-canonical-member-directory.md",
+      "docs/data/firestore-data-model.md",
+      "docs/data/migrations/member-directory-v1.md",
+    ],
+    "mvp",
+  ),
+  task(
+    "T093",
+    "Conectar administracion de miembros con estudiantes y familias canonicos",
+    "en-progreso",
+    "Eliminar el silo funcional de members sin perder procedencia ni idempotencia.",
+    "T092",
+    "Checkpoint abierto: ejecutar primero los RED de T092 y conectar writers, listado e importacion a students solo con datos sinteticos en Emulator.",
+    ["tasks.md", "docs/data/migrations/member-directory-v1.md"],
+    "mvp",
+  ),
+  task(
+    "T094",
+    "Completar onboarding de perfil, tutor y waiver por entorno",
+    "pendiente",
+    "Cerrar el alta autenticada en Emulator/staging manteniendo datos reales bloqueados por T011.",
+    "T090,T092,T093",
+    statusEvidence.pending,
+    ["tasks.md", "BRIEF.md"],
+    "mvp",
+  ),
+  task(
+    "T095",
+    "Completar memberships, deuda PAYG y finanzas manuales desde UI",
+    "pendiente",
+    "Hacer operable el ciclo financiero manual del MVP sin proveedor online.",
+    "T032,T033,T037,T038,T093",
+    statusEvidence.pending,
+    ["tasks.md"],
+    "mvp",
+  ),
+  task(
+    "T096",
+    "Completar clases, bookings y asistencia desde UI",
+    "pendiente",
+    "Operar calendario, reserva, cancelacion y check-in/out con entidades canonicas.",
+    "T026,T027,T028,T029,T030,T031,T093,T095",
+    statusEvidence.pending,
+    ["tasks.md"],
+    "mvp",
+  ),
+  task(
+    "T097",
+    "Conectar progreso, promociones revisadas y reportes",
+    "pendiente",
+    "Cerrar progreso propio/familiar y reportes sin fallback sintetico.",
+    "T039,T040,T041,T042,T047,T048,T049,T050,T051,T052,T093",
+    statusEvidence.pending,
+    ["tasks.md"],
+    "mvp",
+  ),
+  task(
+    "T098",
+    "Ejecutar el golden path autenticado completo en Firebase Emulator",
+    "pendiente",
+    "Reparar el gate y demostrar el flujo completo con Auth, Functions y Firestore Emulator.",
+    "T094,T095,T096,T097",
+    statusEvidence.pending,
+    ["tasks.md", "scripts/verify-mvp.mjs", "qa/tests"],
+    "mvp",
+  ),
+  task(
+    "T099",
+    "Preparar y validar un Firebase staging separado",
+    "bloqueada",
+    "Validar el golden path con datos controlados fuera de produccion.",
+    "T011,T057,T098,T101",
+    "Bloqueada por T011, T101, inexistencia de staging aprobado y checkpoint pendiente para crear recursos/configurar costos.",
+    ["tasks.md", "STACK.md", "docs/operations/t057-post-pilot-production-checklist.md"],
+    "mvp",
+  ),
+  task(
+    "T100",
+    "Vincular seed y rollback de Levels al destino Firebase permitido",
+    "revision",
+    "Impedir que una etiqueta no productiva alcance otro projectId antes de inicializar Admin SDK.",
+    "T083,T089",
+    "Guardas, artefacto y seed/rollback en Emulator verificados: focal 14/14 y verify:mvp verde. Sin acceso remoto, PII, migracion ni despliegue.",
+    [
+      "tasks.md",
+      "apps/functions/scripts/seed-levels.mjs",
+      "apps/functions/src/levels/level-seed.ts",
+      "apps/functions/src/levels/level-seed.test.ts",
+    ],
+    "mvp",
+  ),
+  task(
+    "T101",
+    "Cerrar integridad de publicacion y rollback del catalogo Levels",
+    "pendiente",
+    "Evitar catalogos parciales y rollback inseguro antes de habilitar staging.",
+    "T083,T100",
+    "Revision independiente detecto replay parcial, fuentes no fijadas y borrado sin referencias; T101 bloquea T099.",
+    [
+      "tasks.md",
+      "STACK.md",
+      "apps/functions/src/levels/level-service.ts",
+      "apps/functions/src/levels/level-seed.ts",
+    ],
+    "mvp",
+  ),
 ];
 
 const projectData = {
-  cutoffDate: "2026-08-31",
+  cutoffDate: "2026-09-03",
   sourceLedger: "tasks.md",
-  ledgerCutoffDate: "2026-08-31",
+  ledgerCutoffDate: "2026-09-03",
   sourceFiles: [
     "tasks.md",
     "BRIEF.md",
@@ -1303,23 +1651,23 @@ const projectData = {
       "phase-0",
       "phase-0",
       "Fase 0 - Decisiones operativas",
-      "Decisiones abiertas con su bloqueo real; proveedor, retenciÃ³n y producciÃ³n no detienen el piloto aislado.",
+      "Decisiones abiertas con su bloqueo real; proveedor, retención y producción no detienen el piloto aislado.",
       "bloqueada",
       phase0Items,
     ),
     stage(
       "m0-foundations",
       "mvp",
-      "M0 - Bases tÃ©cnicas",
-      "Bases tÃ©cnicas aprobadas y documentaciÃ³n de seguridad. T008-T011 solo aparecen en la Fase 0.",
+      "M0 - Bases técnicas",
+      "Bases técnicas aprobadas y documentación de seguridad. T008-T011 solo aparecen en la Fase 0.",
       "aprobada",
       foundationItems,
     ),
     stage(
       "m1-identity",
       "mvp",
-      "M1 - Identidad, autorizaciÃ³n y auditorÃ­a",
-      "Bases de identidad, autorizaciÃ³n, consentimiento y auditorÃ­a para la plataforma protegida de la academia.",
+      "M1 - Identidad, autorización y auditoría",
+      "Bases de identidad, autorización, consentimiento y auditoría para la plataforma protegida de la academia.",
       "aprobada",
       identityItems,
     ),
@@ -1335,15 +1683,15 @@ const projectData = {
       "m2a-levels",
       "mvp",
       "M2A - Levels IBJJF MVP",
-      "CatÃ¡logo completo de belts, stripes y habilidades disponible antes de progreso, reservas y operaciÃ³n del tatami.",
+      "Catálogo completo de belts, stripes y habilidades disponible antes de progreso, reservas y operación del tatami.",
       "aprobada",
       levelsItems,
     ),
     stage(
       "m4-memberships",
       "mvp",
-      "M4 - MembresÃ­as y pagos",
-      "Planes y finanzas manuales del piloto; la integraciÃ³n online estÃ¡ marcada post-piloto.",
+      "M4 - Membresías y pagos",
+      "Planes y finanzas manuales del piloto; la integración online está marcada post-piloto.",
       "aprobada",
       membershipItems,
     ),
@@ -1367,22 +1715,30 @@ const projectData = {
       "m6-crm",
       "mvp",
       "M6 - Avisos y safeguarding; CRM post-piloto",
-      "Avisos in-app protegidos para el piloto; las filas CRM/email estÃ¡n marcadas post-piloto.",
+      "Avisos in-app protegidos para el piloto; las filas CRM/email están marcadas post-piloto.",
       "aprobada",
       crmItems,
+    ),
+    stage(
+      "mvp-recovery",
+      "mvp",
+      "Recuperacion - Golden path operativo",
+      "Convergencia de identidad y cierre desde onboarding hasta reportes, primero en Emulator y luego en staging separado.",
+      "en-progreso",
+      recoveryItems,
     ),
     stage(
       "m7-closeout",
       "mvp",
       "M7 - Paneles, informes y cierre del piloto",
-      "Cierre verificable del piloto; producciÃ³n y cierre global estÃ¡n marcados post-piloto.",
+      "Cierre verificable del piloto; producción y cierre global están marcados post-piloto.",
       "bloqueada",
       closeoutItems,
     ),
     stage(
       "special-lines",
       "special",
-      "LÃ­neas especiales",
+      "Líneas especiales",
       "Trabajo transversal seguido por separado del backlog MVP numerado.",
       "aprobada",
       specialItems,
@@ -1390,26 +1746,26 @@ const projectData = {
     stage(
       "roadmap-v2",
       "roadmap",
-      "Ruta v2 - AutomatizaciÃ³n y profundidad operativa",
-      "Capacidades futuras despuÃ©s del lanzamiento MVP; estas entradas no son aprobaciones.",
+      "Ruta v2 - Automatización y profundidad operativa",
+      "Capacidades futuras después del lanzamiento MVP; estas entradas no son aprobaciones.",
       "pendiente",
       roadmapV2Items,
     ),
     stage(
       "roadmap-v3",
       "roadmap",
-      "Ruta v3 - ParticipaciÃ³n, crecimiento y escala",
-      "Capacidades futuras de participaciÃ³n, escala y plataforma; estas entradas no son aprobaciones.",
+      "Ruta v3 - Participación, crecimiento y escala",
+      "Capacidades futuras de participación, escala y plataforma; estas entradas no son aprobaciones.",
       "pendiente",
       roadmapV3Items,
     ),
   ],
   maintenanceSteps: [
-    "Actualizar primero tasks.md porque es la fuente Ãºnica de verdad del estado y la evidencia de las tareas.",
-    "Actualizar Lista/Lista.js despuÃ©s, en el mismo cambio lÃ³gico, con el estado y la evidencia registrados, sin copiar datos sensibles.",
-    "Ajustar Lista.html o Lista.css solo cuando cambie la estructura o la presentaciÃ³n del panel.",
+    "Actualizar primero tasks.md porque es la fuente única de verdad del estado y la evidencia de las tareas.",
+    "Actualizar Lista/Lista.js después, en el mismo cambio lógico, con el estado y la evidencia registrados, sin copiar datos sensibles.",
+    "Ajustar Lista.html o Lista.css solo cuando cambie la estructura o la presentación del panel.",
     "Ejecutar las comprobaciones disponibles de sintaxis y del panel, y revisar el resultado.",
-    "Subir tasks.md y los archivos modificados de Lista juntos cuando el trabajo con Git estÃ© autorizado explÃ­citamente.",
+    "Subir tasks.md y los archivos modificados de Lista juntos cuando el trabajo con Git esté autorizado explícitamente.",
   ],
 };
 
@@ -1489,7 +1845,7 @@ function itemMatches(item, filters = {}) {
 
 const STATUS_LABELS = {
   aprobada: "Aprobada",
-  "revisiÃ³n": "En revisiÃ³n",
+  revision: "En revisión",
   "en-progreso": "En progreso",
   pendiente: "Pendiente",
   bloqueada: "Bloqueada",
@@ -1498,7 +1854,7 @@ const STATUS_LABELS = {
 
 const STATUS_CLASSES = {
   aprobada: "status-approved",
-  "revisiÃ³n": "status-review",
+  revision: "status-review",
   "en-progreso": "status-in-progress",
   pendiente: "status-pending",
   bloqueada: "status-blocked",
@@ -1506,17 +1862,17 @@ const STATUS_CLASSES = {
 };
 
 const KIND_LABELS = {
-  decision: "DecisiÃ³n",
-  foundation: "Base tÃ©cnica",
+  decision: "Decisión",
+  foundation: "Base técnica",
   mvp: "MVP",
   roadmap: "Ruta futura",
-  special: "LÃ­nea especial",
+  special: "Línea especial",
 };
 
 const TRACK_LABELS = {
   "phase-0": "Fase 0",
   mvp: "MVP",
-  special: "LÃ­neas especiales",
+  special: "Líneas especiales",
   roadmap: "Ruta futura",
 };
 
@@ -1667,6 +2023,44 @@ function renderSummary(summaryGrid, items, activeFilters, onStatusSelect, onTota
   }
 }
 
+function getResolutionRequirements(item) {
+  return item.resolutionRequirements?.length
+    ? item.resolutionRequirements
+    : RESOLUTION_REQUIREMENTS[item.id] || [];
+}
+
+function renderResolutionBoard(resolutionList) {
+  const unresolvedItems = flattenItems(projectData.stages).filter(
+    (item) => item.status !== "aprobada",
+  );
+  resolutionList.replaceChildren();
+
+  for (const item of unresolvedItems) {
+    const entry = createElement("article", undefined, "resolution-item");
+    entry.dataset.resolutionItem = item.id;
+
+    const heading = createElement("div", undefined, "resolution-item-header");
+    heading.append(
+      createElement("span", item.id, "task-id"),
+      createElement("h3", item.title, "resolution-item-title"),
+      createStatusBadge(item.status, "resolution-item-status"),
+    );
+
+    const metadata = createElement("p", undefined, "resolution-item-meta");
+    metadata.append(
+      createElement("strong", "Dependencias: "),
+      document.createTextNode(item.dependsOn),
+    );
+
+    const requirements = createElement("ol", undefined, "resolution-requirements");
+    for (const requirement of getResolutionRequirements(item)) {
+      requirements.append(createElement("li", requirement));
+    }
+
+    entry.append(heading, metadata, requirements);
+    resolutionList.append(entry);
+  }
+}
 function renderTask(item) {
   const taskElement = createElement("article", undefined, "task");
   taskElement.dataset.taskId = item.id;
@@ -1719,7 +2113,7 @@ function renderTask(item) {
 
   const implementationEvidence = createElement("div", undefined, "task-detail");
   implementationEvidence.append(
-    createElement("span", "EjecuciÃ³n detectada", "detail-label"),
+    createElement("span", "Ejecución detectada", "detail-label"),
     createElement("span", implementation.implementationEvidence, "task-evidence"),
   );
 
@@ -1798,7 +2192,7 @@ function renderMaintenance(maintenance) {
   const list = createElement("ul");
   list.dataset.renderedMaintenance = "true";
   for (const step of projectData.maintenanceSteps) list.append(createElement("li", step));
-  maintenance.append(createElement("h3", "Checklist de actualizaciÃ³n"), list);
+  maintenance.append(createElement("h3", "Checklist de actualización"), list);
 }
 
 function initializeFilters(statusFilter, trackFilter) {
@@ -1811,7 +2205,7 @@ function initializeFilters(statusFilter, trackFilter) {
   }
 
   const tracks = [...new Set(projectData.stages.map((currentStage) => currentStage.track))].sort();
-  trackFilter.replaceChildren(createElement("option", "Todas las lÃ­neas"));
+  trackFilter.replaceChildren(createElement("option", "Todas las líneas"));
   trackFilter.firstElementChild.value = "";
   for (const track of tracks) {
     const option = createElement("option", TRACK_LABELS[track] || track);
@@ -1824,6 +2218,7 @@ function renderProject(documentRoot = typeof document !== "undefined" ? document
   if (!documentRoot) return false;
   const app = documentRoot.getElementById("app");
   const summaryGrid = documentRoot.getElementById("summary-grid");
+  const resolutionList = documentRoot.getElementById("resolution-list");
   const filters = documentRoot.getElementById("filters");
   const phaseList = documentRoot.getElementById("phase-list");
   const emptyState = documentRoot.getElementById("empty-state");
@@ -1840,6 +2235,7 @@ function renderProject(documentRoot = typeof document !== "undefined" ? document
   if (
     !app ||
     !summaryGrid ||
+    !resolutionList ||
     !filters ||
     !phaseList ||
     !emptyState ||
@@ -1852,6 +2248,7 @@ function renderProject(documentRoot = typeof document !== "undefined" ? document
 
   initializeFilters(statusFilter, trackFilter);
   renderMaintenance(maintenance);
+  renderResolutionBoard(resolutionList);
   if (lastUpdated) {
     lastUpdated.dateTime = projectData.cutoffDate;
     lastUpdated.textContent = new Intl.DateTimeFormat("es-ES", {
@@ -1971,6 +2368,8 @@ globalThis.ListaProject = {
   getVisibleStages,
   getGlobalProgress,
   getImplementationDetails,
+  getResolutionRequirements,
+  renderResolutionBoard,
   setVisiblePhasesExpanded,
   renderProject,
 };

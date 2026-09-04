@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type {
   FinancialDashboard,
@@ -267,14 +268,19 @@ export function FinancePage() {
     <section className="admin-module-page finance-dashboard-page" aria-labelledby="finance-title">
       <AdminSectionHeader
         actions={
-          <button
-            className="admin-home-link"
-            disabled={status === "loading"}
-            onClick={refreshDashboard}
-            type="button"
-          >
-            Refresh finance
-          </button>
+          <>
+            <Link className="admin-auth-button" href="/admin/billing">
+              Billing operations
+            </Link>
+            <button
+              className="admin-home-link"
+              disabled={status === "loading"}
+              onClick={refreshDashboard}
+              type="button"
+            >
+              Refresh finance
+            </button>
+          </>
         }
         description="Review manual GBP receipts, derived balances, and upcoming billing dates without exposing member identity or card data."
         eyebrow="Finance / Connected"

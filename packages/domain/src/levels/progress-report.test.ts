@@ -71,6 +71,7 @@ const evaluation: EvaluationRecord = {
   evaluationId: "eval-1",
   academyId: "academy-1",
   studentId: "student-1",
+  sessionId: "session-1",
   definitionKey: "white-1",
   skillKey: "guard",
   score: 4,

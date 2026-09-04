@@ -7,6 +7,7 @@ describe("browser admin callable transport", () => {
     expect(browserAdminCallableOptions).toEqual({
       cors: ["https://bptjersey.pages.dev"],
       invoker: "public",
+      enforceAppCheck: true,
     });
   });
 });

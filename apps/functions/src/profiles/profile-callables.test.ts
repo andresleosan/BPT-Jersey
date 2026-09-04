@@ -4,6 +4,7 @@ import type { ClientProfileProjection } from "@bpt-jersey/domain";
 
 import {
   getClientProfileHandler,
+  profileCallableOptions,
   saveClientProfileHandler,
   type ProfileCallableServices,
 } from "./profile-callables.js";
@@ -46,6 +47,7 @@ const projection = {
 } as ClientProfileProjection;
 
 const payload = {
+  requestId: "profile-request-1",
   fullName: "Synthetic Adult",
   dateOfBirth: "1990-08-19",
   phoneNumber: "+15550000001",
@@ -59,8 +61,9 @@ function request(
     uid: "user-1",
     token: { academyId: "academy-1", role: "adultStudent" },
   },
+  app: unknown = { appId: "verified-app" },
 ) {
-  return { auth, data } as never;
+  return { auth, data, ...(app === null ? {} : { app }) } as never;
 }
 
 function services(): ProfileCallableServices & {
@@ -69,7 +72,13 @@ function services(): ProfileCallableServices & {
 } {
   return {
     auth: {
-      getUser: vi.fn(async () => ({ email: "adult@example.test", displayName: "Synthetic Adult" })),
+      getUser: vi.fn(async () => ({
+        uid: "user-1",
+        disabled: false,
+        email: "adult@example.test",
+        displayName: "Synthetic Adult",
+        customClaims: { academyId: "academy-1", role: "adultStudent" },
+      })),
     },
     store: {
       getClientProfile: vi.fn(async () => projection),
@@ -80,6 +89,13 @@ function services(): ProfileCallableServices & {
 }
 
 describe("profile callables", () => {
+  it("configures mandatory App Check and the versioned directory secrets on the wrappers", () => {
+    expect(profileCallableOptions).toMatchObject({
+      enforceAppCheck: true,
+    });
+    expect(profileCallableOptions.secrets).toHaveLength(2);
+  });
+
   it("requires an authenticated adult client and derives the tenant from claims", async () => {
     const current = services();
 
@@ -90,6 +106,7 @@ describe("profile callables", () => {
         academyId: "academy-1",
         userId: "user-1",
         email: "adult@example.test",
+        requestId: "profile-request-1",
       }),
     );
   });
@@ -113,11 +130,51 @@ describe("profile callables", () => {
     ).rejects.toMatchObject({ code: "permission-denied" });
   });
 
+  it("requires verified App Check before any Auth or Firestore work", async () => {
+    const current = services();
+    await expect(
+      saveClientProfileHandler(
+        request(
+          payload,
+          { uid: "user-1", token: { academyId: "academy-1", role: "adultStudent" } },
+          null,
+        ),
+        current,
+      ),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    await expect(
+      getClientProfileHandler(
+        request(
+          null,
+          { uid: "user-1", token: { academyId: "academy-1", role: "adultStudent" } },
+          null,
+        ),
+        current,
+      ),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(current.auth.getUser).not.toHaveBeenCalled();
+    expect(current.store.saveClientProfile).not.toHaveBeenCalled();
+    expect(current.store.getClientProfile).not.toHaveBeenCalled();
+  });
+
   it("rejects client-controlled authority fields and invalid editable fields", async () => {
     const current = services();
     await expect(
-      saveClientProfileHandler(request({ ...payload, academyId: "academy-2" }), current),
+      saveClientProfileHandler(request({ ...payload, requestId: "" }), current),
     ).rejects.toMatchObject({ code: "invalid-argument" });
+    for (const [field, value] of [
+      ["academyId", "academy-2"],
+      ["userId", "other-user"],
+      ["email", "attacker@example.test"],
+      ["active", false],
+      ["status", "suspended"],
+      ["createdBy", "attacker"],
+      ["source", "admin"],
+    ] as const) {
+      await expect(
+        saveClientProfileHandler(request({ ...payload, [field]: value }), current),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+    }
     await expect(
       saveClientProfileHandler(
         request({ ...payload, trainingTimePreferences: ["evening", "evening"] }),
@@ -125,6 +182,49 @@ describe("profile callables", () => {
       ),
     ).rejects.toMatchObject({ code: "invalid-argument" });
     expect(current.store.saveClientProfile).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when current Auth identity, status, tenant, or role no longer matches", async () => {
+    for (const authUser of [
+      {
+        uid: "other-user",
+        disabled: false,
+        email: "adult@example.test",
+        customClaims: { academyId: "academy-1", role: "adultStudent" },
+      },
+      {
+        uid: "user-1",
+        disabled: true,
+        email: "adult@example.test",
+        customClaims: { academyId: "academy-1", role: "adultStudent" },
+      },
+      {
+        uid: "user-1",
+        disabled: false,
+        email: "adult@example.test",
+        customClaims: { academyId: "academy-2", role: "adultStudent" },
+      },
+      {
+        uid: "user-1",
+        disabled: false,
+        email: "adult@example.test",
+        customClaims: { academyId: "academy-1", role: "guardian" },
+      },
+    ]) {
+      const current = services();
+      vi.mocked(current.auth.getUser).mockResolvedValue(authUser);
+      await expect(saveClientProfileHandler(request(), current)).rejects.toMatchObject({
+        code: "permission-denied",
+      });
+      expect(current.store.saveClientProfile).not.toHaveBeenCalled();
+
+      const reader = services();
+      vi.mocked(reader.auth.getUser).mockResolvedValue(authUser);
+      await expect(getClientProfileHandler(request(null), reader)).rejects.toMatchObject({
+        code: "permission-denied",
+      });
+      expect(reader.store.getClientProfile).not.toHaveBeenCalled();
+    }
   });
 
   it("returns a minimal own-profile projection and generic store errors", async () => {

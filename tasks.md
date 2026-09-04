@@ -648,6 +648,21 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T090 | Integrar el waiver oficial como requisito obligatorio de inscripcion | T018,T021,T024 | revision | El PDF oficial de `Varios` queda como asset inmutable web/Functions; la pantalla de waiver lo muestra como fuente legal, captura aceptacion y nombre autenticado, y la evidencia privada conserva sus paginas originales. El perfil redirige a este paso; no hay despliegue ni datos reales. |
 | T091 | Corregir vistas administrativas para mostrar solo datos conectados | T021,T024,T030,T047 | aprobada | Overview, Activities, Groups, Attendance y CRM muestran exclusivamente datos conectados y estados explicitos; funciones, CORS/IAM, RBAC y verificacion remota completados. |
 
+## Recuperacion del MVP operativo - 2026-09-03
+
+| ID   | Tarea atomica                                                                              | Depende de                                             | Estado      | Evidencia de salida                                                                                                                                                                                             |
+| ---- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T092 | Definir el participante canonico y el plan reversible de convergencia `members`/`students` | T013,T021,T079,T091,T100                               | revision    | ADR-009, modelo y runbook v1 cierran identidad, privacidad, state machine, rollback y restore aislado; tres revisiones independientes quedaron CLEAN sobre hashes exactos. Sin migracion, PII ni produccion.    |
+| T093 | Conectar alta, listado e importacion administrativa con estudiantes y familias canonicos   | T092                                                   | en-progreso | Checkpoint abierto: ejecutar primero la matriz RED de T092 y conectar writers/listado/import a students sin dual-write; solo datos sinteticos y Firebase Emulator, sin backfill remoto.                         |
+| T094 | Completar onboarding real de perfil, tutor y waiver con gates de privacidad por entorno    | T090,T092,T093                                         | pendiente   | Debe cerrar el flujo autenticado en Emulator/staging aislado; datos reales y produccion continuan bloqueados por T011 y la politica legal aprobada.                                                             |
+| T095 | Completar UI operativa de planes, memberships, deuda PAYG, facturas y pagos manuales       | T032,T033,T037,T038,T093                               | pendiente   | Debe permitir el ciclo manual completo sin checkout online, tarjetas, proveedor externo ni IDs hardcodeados.                                                                                                    |
+| T096 | Completar UI de clases, reservas, cancelaciones, check-in/out y asistencia                 | T026,T027,T028,T029,T030,T031,T093,T095                | pendiente   | Debe operar Town/West, corte de una hora, quorum, QR/PIN/manual y auditoria usando entidades canonicas.                                                                                                         |
+| T097 | Conectar progreso personal, promociones revisadas y reportes al participante canonico      | T039,T040,T041,T042,T047,T048,T049,T050,T051,T052,T093 | pendiente   | Debe mostrar progreso propio/familiar autorizado y reportes sin leaderboard infantil ni fallback sintetico.                                                                                                     |
+| T098 | Reparar el gate y ejecutar E2E autenticado del golden path completo en Firebase Emulator   | T094,T095,T096,T097                                    | pendiente   | Debe cubrir `familia -> alumno -> waiver -> membership -> clase -> booking -> asistencia -> factura/pago -> progreso -> reporte`, desktop/movil, Rules, contratos, carga y cleanup con cero fallos del alcance. |
+| T099 | Preparar y validar un Firebase staging separado con rollback y datos controlados           | T011,T057,T098,T101                                    | bloqueada   | No existe proyecto staging aprobado. Requiere cerrar T011 y T101, costos/alertas, crear allowlist separada y obtener checkpoint explicito antes de crear recursos, desplegar o usar datos reales.               |
+| T100 | Vincular seed/rollback de Levels al projectId y Emulator permitidos                        | T083,T089                                              | revision    | Guardas fail-closed, CLI explicita, artefacto fresco y seed/rollback real en Emulator verificados; 14/14 focales y gate MVP completo verde. Sin red remota, datos reales, migracion ni despliegue.              |
+| T101 | Garantizar integridad del seed y rollback de Levels antes de staging                       | T083,T100                                              | pendiente   | Debe impedir publicacion/replay parciales, fijar hashes fuente aprobados y permitir rollback solo con manifest, cero referencias y auditoria; bloquea T099, no el uso sintetico en Emulator.                    |
+
 ## Plan de implementaciÃ³n del MVP aprobado
 
 > **Para workers agentic:** usar `subagent-driven-development` o `executing-plans` al ejecutar
@@ -3900,3 +3915,73 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
 - Verificacion remota final: deploy de Firebase completado 13/13; preflight CORS 9/9 devuelve 204 con el origen exacto; peticiones sin Auth 9/9 rechazan con 400 sin datos. Pages release `2a6089f` carga Overview, Activities, Groups, Attendance, CRM y Regyfit con funciones 200 y sin filas sinteticas.
 - T091 queda aprobada tras el despliegue y QA remoto. Waivers conserva el bloqueo seguro esperado porque no hay texto legal aprobado; no se activo consentimiento productivo. No se registraron credenciales, PII ni datos del scraper.
 - Rollback preparado y no ejecutado: redeployar las mismas funciones desde el commit previo conocido `0cd2446` y revertir el frontend a la release anterior de Pages, sin tocar Firestore. La publicacion actual no hizo migraciones ni escrituras de datos.
+
+### Evidencia T092 - participante canonico y convergencia reversible - 2026-09-03
+
+- Decision: `students/{studentId}` es el unico participante; `studentAdminProfiles/{studentId}`
+  contiene solo la extension administrativa Restricted y `members` queda fuente legacy congelada
+  hasta el gate global de T097. Memberships, invoices y payments conservan su autoridad propia.
+- Integridad/privacidad: blind keys HMAC tenant-scoped, state/guard/event monotonicos, approvals
+  consumibles, listados minimizados y Rules deny-direct. No existe matching automatico de personas,
+  scan de identificadores crudos ni dual-write silencioso.
+- Reversibilidad: bootstrap, forward, compensacion, rollback read-only y recovery tienen estados,
+  leases, deadlines, chunks y receipts cerrados. El ensayo restore v3 usa dos proyectos Emulator,
+  target sin Auth/runtime, state fuente verify-only, payload/control disjuntos y preparacion atomica.
+- Prueba terminal: I4 crea una atestacion source-local create-only ligada a backupManifestMac y
+  sourceStateEvidenceMac; T097 repite inventario con readTime/MAC fresco y la consume atomicamente con
+  el marcador global. El ensayo no activa ni sobrescribe un tenant servido.
+- Verificacion documental: Prettier y `git diff --check` pasan. Tres auditorias independientes de
+  requisitos, implementabilidad y seguridad reportaron 0 P0/P1 sobre el mismo corte: STACK
+  `A25B66E59C8AFD033BCF7C6D92530C98A821B365366B05E26EDD47D714436657`, ADR
+  `D8B1E3249FC1A52E0B3B41EE735F35C0D63669E3A0565790E9167DF93A12FBAF`, modelo
+  `9D6E37DDF93006730719245D3B8AF1EA29FE68FFF2D34AF636C49F62E4C31B0D` y runbook
+  `F049E907BA7E133C8D14DD52C0C6D725FF6F077DEFB23171B26CEACA546C2877`.
+- Estado: T092 pasa a `revision` documental. La matriz RED ejecutable, implementacion y evidencia de
+  Emulator pertenecen a T093. No hubo Firebase remoto, red externa, datos reales, credenciales,
+  migracion, despliegue ni gasto.
+
+### Checkpoint T093 - directorio administrativo canonico - 2026-09-03
+
+- Usuario prioritario: owner/administrator que necesita crear, buscar e importar participantes sin
+  separar el alta operativa de la familia/student usados por waiver, membership, booking y progreso.
+- Archivos previstos: contratos/tests en `packages/domain/src/members`; state, identity keys,
+  directorio, import y backup/restore con tests en `apps/functions/src/members` y
+  `apps/functions/src/data`; clientes/paginas/tests de `/admin/members`; `firestore.rules`, indexes y
+  QA Emulator.
+- Orden RED -> GREEN -> REFACTOR: (1) schemas cerrados y state/env guards; (2) writer atomico
+  student/profile/family/relationship/keys/audit; (3) list/detail/exact lookup privado y UI sin PII
+  administrativa general; (4) import dry-run, clasificacion/quarantine, forward/rollback; (5) backup
+  v3 y restore rehearsal aislado; (6) Rules, concurrencia, bounds, replay y E2E autenticado.
+- Criterio de salida: todos los RED obligatorios de
+  `docs/data/migrations/member-directory-v1.md` tienen evidencia verde en datos sinteticos; ningun
+  writer normal toca `members`, public memberId siempre es studentId y el backfill productivo sigue
+  prohibido.
+- Reversion: retirar adapters/callables/UI canonicos y conservar legacy sin mutarlo. Los fixtures del
+  Emulator son desechables; no se ejecuta cleanup, migracion o rollback sobre datos remotos.
+
+### Evidencia T100 - binding seguro del seed/rollback de Levels - 2026-09-03
+
+- RED: la prueba inicial reprodujo cuatro fallos porque `target=staging` podía usar el proyecto demo o productivo sin binding; regresiones posteriores reprodujeron app Admin ambigua, carga del runtime antes del preflight, flags implícitos y confirmación compartida.
+- Implementación: el preflight exige `--target` y `--academy-id`, rechaza flags duplicados/desconocidos y `--system-id` durante seed, limita rollback a `--system-id=ibjjf-v1`, usa confirmaciones `T083-LEVELS-SEED`/`T083-LEVELS-ROLLBACK` distintas y mantiene staging con allowlist positiva vacía.
+- Binding: `GCLOUD_PROJECT`, `FIREBASE_CONFIG` y un app Admin existente deben identificar exactamente el mismo proyecto; `bptjersey-f5a25` se deniega explícitamente. Emulator exige `demo-bpt-jersey` y `127.0.0.1:8080`. La primera guarda precede Firebase y la segunda precede Firestore/store.
+- Artefacto y Emulator: `build-deploy-artifact.mjs` finalizó con exit 0 sin descargas nuevas. Sobre el artefacto fresco, una academia sintética efímera sembró 171 definiciones, 165 requisitos, 27 belts, 144 stripes y 11 skills; rollback eliminó 171/165/1 y el proceso terminó con exit 0.
+- QA: prueba focal final 14/14. `verify:mvp` pasó formato, lint, typecheck, build de 32 rutas, 198 archivos/1316 unitarias, Rules 12 archivos/90 pruebas, carga 240/240 sin fallos (p95 34 ms) y smoke 5/5 con 1 omisión desktop esperada.
+- Revisión independiente: no encontró bypass P0 después de reconstruir el artefacto. No hubo acceso a Firebase remoto, datos reales, credenciales, migración, despliegue ni gasto. T100 pasa a `revision`; T092 se reanuda como único WIP.
+- Hallazgo separado: T101 registra que el store actual puede publicar/revertir parcialmente y que la fuente no está vinculada aún a hashes aprobados. T101 debe cerrar antes de T099 y de cualquier staging; no invalida el smoke sintético en Emulator.
+
+### Evidencia T102 - consolidacion del MVP funcional y resolucion de bugs - 2026-09-04
+
+- Corrección de bugs y tipos en monorepo: se resolvieron errores tipados con exactOptionalPropertyTypes en apps/functions (backup, importación canónica, callables de familia y rehearsaler), paquetes de dominio y apps/web.
+- Calidad y lint: 0 errores y 0 warnings en ESLint (--max-warnings 0) en los 6 proyectos. Prettier format:check 100% en verde.
+- Panel Operativo de Coaches (/coach): selector de sede Town (St Helier) vs West (St Peter) persistido localmente; roster pre-clase a 5 minutos del inicio con cálculo en vivo de quórum mínimo (>= 4 alumnos) y aforo; botón de check-in manual; formulario directo de cobro walk-in PAYG (£10 en efectivo) con generación de recibo; widget de cumpleaños próximos para felicitación comunitaria en tatami; navegación integrada con /coach/levels.
+- Comparativa de Pares / Competidores (/account/progress): proyección pura buildPeerComparison en @bpt-jersey/domain que extrae los 2 alumnos inmediatamente por encima y 2 por debajo según grado IBJJF, stripes, racha de asistencia y técnicas adquiridas; widget visual responsive con desglose de técnicas dominadas frente a pendientes.
+- Salvaguarda Médica (/admin/members/add y /admin/members): captura de condiciones médicas y necesidades de soporte de hasta 1.000 caracteres en el alta con tutor obligatorio para menores; sección de revisión y asignación de etiqueta de alerta médica corta (hasta 25 caracteres) en el directorio administrativo.
+- Entorno y Emuladores: resolución automática de JDK 21 Temurin en Windows para emuladores Firebase Auth, Firestore y Realtime Database; compatibilidad de exportación estática Next.js (40 páginas prerenderizadas) con runtime de pruebas.
+- Compuertas verify:mvp 100% en verde:
+  - format:check y lint: 0 errores y 0 warnings.
+  - typecheck: 6 de 6 workspaces sin errores.
+  - test:unit: 228 suites y 1.605 pruebas aprobadas (100%).
+  - test:rules: 13 suites y 91 pruebas de reglas de seguridad en emuladores aprobadas.
+  - test:load:synthetic: 240 solicitudes (24 hilos concurrentes), 0 fallos, p95 32 ms.
+  - test:e2e:smoke: 5 pasadas y 1 omitida esperada en Chromium Desktop y Mobile.
+- Estado: todas las compuertas técnicas del MVP local operativas y verificadas sin datos reales ni gastos externos.

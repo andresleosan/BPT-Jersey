@@ -99,6 +99,7 @@ const guardianProjection = {
 };
 
 const createInput: CreateFamilyClientInput = {
+  requestId: "request-create-1",
   tutorUserId: "user-1",
   students: [
     {
@@ -154,5 +155,28 @@ describe("family callable client", () => {
     await expect(updateFamily({ familyId: "family-1", operation: { kind: "deactivateFamily" } })).rejects.toThrow(
       "Unable to update your family",
     );
+  });
+
+  it("forwards a strict requestId for addStudent and rejects a missing one", async () => {
+    callableState.call.mockResolvedValueOnce({ data: familyProjection });
+    const input = {
+      familyId: "family-1",
+      operation: {
+        kind: "addStudent",
+        requestId: "request-add-1",
+        student: createInput.students[0]!,
+      },
+    } as const;
+    await expect(updateFamily(input)).resolves.toEqual(familyProjection);
+    expect(callableState.call).toHaveBeenCalledWith(input);
+
+    callableState.call.mockClear();
+    await expect(
+      updateFamily({
+        familyId: "family-1",
+        operation: { kind: "addStudent", student: createInput.students[0]! },
+      } as never),
+    ).rejects.toThrow("Unable to update your family");
+    expect(callableState.call).not.toHaveBeenCalled();
   });
 });

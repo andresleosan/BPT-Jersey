@@ -5,6 +5,7 @@ import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.
 import {
   buildEvaluationId,
   buildGraduationId,
+  buildPeerComparison,
   buildStudentProgressSummary,
   calculateAttendanceStreak,
   generateRecognitionCandidates,
@@ -19,6 +20,7 @@ import {
   type EvaluationScore,
   type LevelCatalogProjection,
   type MedicalLeaveRecord,
+  type PeerComparisonStudent,
   type RecordEvaluationInput,
   type StudentProgressSummary,
 } from "./level-contracts";
@@ -171,6 +173,7 @@ describe("Level Contracts", () => {
     it("parses and validates valid evaluation input", () => {
       const validInput: RecordEvaluationInput = {
         studentId: "student-1",
+        sessionId: "session-1",
         definitionKey: "white-1",
         skillKey: "guard-pass-knee-cut",
         score: 4,
@@ -274,6 +277,7 @@ describe("Level Contracts", () => {
           evaluationId: "eval-1",
           academyId: "acad-1",
           studentId: "std-1",
+          sessionId: "session-1",
           definitionKey: firstDef.definitionKey,
           skillKey: req.skillKey,
           score: 4,
@@ -374,9 +378,15 @@ describe("Level Contracts", () => {
           studentId: "std-1",
           startDate: "2026-07-12T00:00:00Z",
           endDate: "2026-07-31T23:59:59Z",
-          reason: "Ankle sprain during tournament.",
+          reasonCode: "injury",
+          status: "active",
+          schemaVersion: "1",
           recordedBy: "coach-1",
           recordedAt: "2026-07-12T00:00:00Z",
+          createdAt: "2026-07-12T00:00:00Z",
+          createdBy: "coach-1",
+          updatedAt: "2026-07-12T00:00:00Z",
+          updatedBy: "coach-1",
         },
       ];
 
@@ -413,18 +423,18 @@ describe("Level Contracts", () => {
         studentId: "std-1",
         startDate: "2026-08-01T00:00:00Z",
         endDate: "2026-08-15T00:00:00Z",
-        reason: "Knee rehabilitation",
+        reasonCode: "recovery",
       });
 
       expect(valid.ok).toBe(true);
       if (!valid.ok) throw new Error("Expected ok result");
-      expect(valid.value.reason).toBe("Knee rehabilitation");
+      expect(valid.value.reasonCode).toBe("recovery");
 
       const invalidDateOrder = parseRecordMedicalLeaveInput({
         studentId: "std-1",
         startDate: "2026-08-15T00:00:00Z",
         endDate: "2026-08-01T00:00:00Z",
-        reason: "Bad dates",
+        reasonCode: "recovery",
       });
       expect(invalidDateOrder.ok).toBe(false);
     });
@@ -463,6 +473,7 @@ describe("Level Contracts", () => {
             evaluationId: "ev-1",
             academyId: "acad-1",
             studentId: "std-ready",
+            sessionId: "session-1",
             definitionKey: firstDef.definitionKey,
             skillKey: req.skillKey,
             score: 4,
@@ -546,6 +557,118 @@ describe("Level Contracts", () => {
       if (!result.ok) throw new Error("Expected ok result");
       expect(result.value.studentId).toBe("std-1");
       expect(result.value.decisionNotes).toContain("Needs more sparring");
+    });
+  });
+
+  describe("buildPeerComparison (2 above, 2 below)", () => {
+    const students: PeerComparisonStudent[] = [
+      {
+        studentId: "std-1",
+        studentName: "Lucas Silva",
+        beltName: "Blue Belt",
+        stripes: 2,
+        streakWeeks: 12,
+        techniquesLearned: 9,
+        totalTechniques: 11,
+        sequence: 20,
+        classesInRank: 75,
+      },
+      {
+        studentId: "std-2",
+        studentName: "Mateo Rossi",
+        beltName: "Blue Belt",
+        stripes: 1,
+        streakWeeks: 8,
+        techniquesLearned: 7,
+        totalTechniques: 11,
+        sequence: 19,
+        classesInRank: 55,
+      },
+      {
+        studentId: "std-3",
+        studentName: "Alex Le Brocq",
+        beltName: "White Belt",
+        stripes: 4,
+        streakWeeks: 10,
+        techniquesLearned: 6,
+        totalTechniques: 11,
+        sequence: 14,
+        classesInRank: 40,
+      },
+      {
+        studentId: "std-4",
+        studentName: "Chloe Martin",
+        beltName: "White Belt",
+        stripes: 3,
+        streakWeeks: 5,
+        techniquesLearned: 5,
+        totalTechniques: 11,
+        sequence: 13,
+        classesInRank: 32,
+      },
+      {
+        studentId: "std-5",
+        studentName: "David De La Haye",
+        beltName: "White Belt",
+        stripes: 2,
+        streakWeeks: 4,
+        techniquesLearned: 4,
+        totalTechniques: 11,
+        sequence: 12,
+        classesInRank: 20,
+      },
+    ];
+
+    it("returns 2 peers above and 2 peers below for a middle-ranked student", () => {
+      const result = buildPeerComparison({
+        currentStudentId: "std-3",
+        students,
+      });
+
+      expect(result).not.toBeNull();
+      if (!result) return;
+
+      expect(result.currentStudent.studentId).toBe("std-3");
+      expect(result.peersAbove).toHaveLength(2);
+      expect(result.peersAbove.map((p) => p.studentId)).toEqual(["std-1", "std-2"]);
+      expect(result.peersBelow).toHaveLength(2);
+      expect(result.peersBelow.map((p) => p.studentId)).toEqual(["std-4", "std-5"]);
+    });
+
+    it("handles top-ranked student with no peers above and up to 2 below", () => {
+      const result = buildPeerComparison({
+        currentStudentId: "std-1",
+        students,
+      });
+
+      expect(result).not.toBeNull();
+      if (!result) return;
+
+      expect(result.peersAbove).toHaveLength(0);
+      expect(result.peersBelow).toHaveLength(2);
+      expect(result.peersBelow.map((p) => p.studentId)).toEqual(["std-2", "std-3"]);
+    });
+
+    it("handles lowest-ranked student with up to 2 peers above and no peers below", () => {
+      const result = buildPeerComparison({
+        currentStudentId: "std-5",
+        students,
+      });
+
+      expect(result).not.toBeNull();
+      if (!result) return;
+
+      expect(result.peersAbove).toHaveLength(2);
+      expect(result.peersAbove.map((p) => p.studentId)).toEqual(["std-3", "std-4"]);
+      expect(result.peersBelow).toHaveLength(0);
+    });
+
+    it("returns null when current student is not found", () => {
+      const result = buildPeerComparison({
+        currentStudentId: "non-existent",
+        students,
+      });
+      expect(result).toBeNull();
     });
   });
 });

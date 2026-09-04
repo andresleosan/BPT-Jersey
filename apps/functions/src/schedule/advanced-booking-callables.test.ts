@@ -86,11 +86,15 @@ function store(overrides: Partial<WaitlistStore> = {}): WaitlistStore {
 describe("advanced booking waitlist callables", () => {
   it("lets an adult join only their own student scope and minimizes the response", async () => {
     const waitlistStore = store();
-    const response = await createJoinWaitlistHandler({ waitlistStore })(
+    const resolveClientStudentScope = vi.fn(async () => true);
+    const response = await createJoinWaitlistHandler({
+      waitlistStore,
+      resolveClientStudentScope,
+    })(
       request(
-        { sessionId: "session-1", studentId: "adult-1", membershipId: "membership-1" },
+        { sessionId: "session-1", studentId: "student-1", membershipId: "membership-1" },
         "adultStudent",
-        "adult-1",
+        "adult-user-1",
       ),
     );
     expect(response.entry).toMatchObject({
@@ -102,15 +106,21 @@ describe("advanced booking waitlist callables", () => {
     expect(response.entry).not.toHaveProperty("membershipId");
     expect(response.entry).not.toHaveProperty("waitlistId");
     expect(waitlistStore.joinWaitlist).toHaveBeenCalledWith(
-      expect.objectContaining({ academyId: "academy-1", actorId: "adult-1" }),
+      expect.objectContaining({ academyId: "academy-1", actorId: "adult-user-1" }),
     );
+    expect(resolveClientStudentScope).toHaveBeenCalledWith({
+      academyId: "academy-1",
+      actorUserId: "adult-user-1",
+      actorRole: "adultStudent",
+      requestedStudentId: "student-1",
+    });
   });
 
   it("permits an active guardian resolver and denies unrelated student scope", async () => {
     const waitlistStore = store();
     const allowed = createJoinWaitlistHandler({
       waitlistStore,
-      isGuardianOfStudent: vi.fn(async () => true),
+      resolveClientStudentScope: vi.fn(async () => true),
     });
     await expect(
       allowed(
@@ -123,7 +133,7 @@ describe("advanced booking waitlist callables", () => {
 
     const denied = createJoinWaitlistHandler({
       waitlistStore,
-      isGuardianOfStudent: vi.fn(async () => false),
+      resolveClientStudentScope: vi.fn(async () => false),
     });
     await expect(
       denied(
@@ -134,7 +144,10 @@ describe("advanced booking waitlist callables", () => {
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
     await expect(
-      createJoinWaitlistHandler({ waitlistStore })(
+      createJoinWaitlistHandler({
+        waitlistStore,
+        resolveClientStudentScope: vi.fn(async () => false),
+      })(
         request(
           { sessionId: "session-1", studentId: "student-2", membershipId: "membership-1" },
           "adultStudent",
@@ -166,14 +179,17 @@ describe("advanced booking waitlist callables", () => {
 
   it("cancels and lists a student waitlist through the same scope guard", async () => {
     const waitlistStore = store();
-    const cancellation = await createCancelWaitlistHandler({ waitlistStore })(
-      request({ sessionId: "session-1", studentId: "adult-1" }, "adultStudent", "adult-1"),
-    );
+    const resolveClientStudentScope = vi.fn(async () => true);
+    const cancellation = await createCancelWaitlistHandler({
+      waitlistStore,
+      resolveClientStudentScope,
+    })(request({ sessionId: "session-1", studentId: "student-1" }, "adultStudent", "adult-user-1"));
     expect(cancellation.entry.status).toBe("cancelled");
 
-    const listed = await createListStudentWaitlistHandler({ waitlistStore })(
-      request({ studentId: "adult-1" }, "adultStudent", "adult-1"),
-    );
+    const listed = await createListStudentWaitlistHandler({
+      waitlistStore,
+      resolveClientStudentScope,
+    })(request({ studentId: "student-1" }, "adultStudent", "adult-user-1"));
     expect(listed.entries).toHaveLength(1);
     expect(listed.entries[0]).not.toHaveProperty("studentReference");
   });
@@ -232,12 +248,13 @@ describe("advanced booking waitlist callables", () => {
 
   it("accepts or declines within student scope and returns the exact student projection", async () => {
     const waitlistStore = store();
-    const accept = await createAcceptWaitlistOfferHandler({ waitlistStore })(
-      request({ sessionId: "session-1", studentId: "student-1" }, "adultStudent", "student-1"),
-    );
+    const accept = await createAcceptWaitlistOfferHandler({
+      waitlistStore,
+      resolveClientStudentScope: vi.fn(async () => true),
+    })(request({ sessionId: "session-1", studentId: "student-1" }, "adultStudent", "adult-user-1"));
     const decline = await createDeclineWaitlistOfferHandler({
       waitlistStore,
-      isGuardianOfStudent: vi.fn(async () => true),
+      resolveClientStudentScope: vi.fn(async () => true),
     })(request({ sessionId: "session-1", studentId: "student-1" }, "guardian"));
 
     expect(accept).toEqual({
@@ -256,7 +273,7 @@ describe("advanced booking waitlist callables", () => {
     expect(decline.entry.cancelledAt).toBe(declinedEntry.cancelledAt);
     expect(waitlistStore.respondToWaitlistOffer).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ response: "accept", actorId: "student-1" }),
+      expect.objectContaining({ response: "accept", actorId: "adult-user-1" }),
     );
     expect(waitlistStore.respondToWaitlistOffer).toHaveBeenNthCalledWith(
       2,

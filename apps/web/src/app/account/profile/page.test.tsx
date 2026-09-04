@@ -7,6 +7,7 @@ const authState = vi.hoisted(() => ({
   session: { uid: "user-1", email: "adult@example.test", displayName: "Synthetic Adult" },
 }));
 const profileApi = vi.hoisted(() => ({
+  createProfileRequestId: vi.fn(),
   getClientProfile: vi.fn(),
   saveClientProfile: vi.fn(),
 }));
@@ -65,6 +66,7 @@ describe("client profile page", () => {
     authState.status = "signed-in";
     profileApi.getClientProfile.mockReset();
     profileApi.saveClientProfile.mockReset();
+    profileApi.createProfileRequestId.mockReset();
     profileNavigation.push.mockReset();
   });
 
@@ -84,6 +86,7 @@ describe("client profile page", () => {
   it("saves the editable fields and reports success without exposing authority data", async () => {
     profileApi.getClientProfile.mockResolvedValue(savedProjection);
     profileApi.saveClientProfile.mockResolvedValue(savedProjection);
+    profileApi.createProfileRequestId.mockReturnValue("profile-request-1");
     const user = userEvent.setup();
     render(<ProfilePage />);
 
@@ -92,17 +95,24 @@ describe("client profile page", () => {
 
     await waitFor(() => expect(profileApi.saveClientProfile).toHaveBeenCalled());
     expect(profileApi.saveClientProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ fullName: "Synthetic Adult", trainingCenter: "Town" }),
+      expect.objectContaining({
+        requestId: "profile-request-1",
+        fullName: "Synthetic Adult",
+        trainingCenter: "Town",
+      }),
     );
     expect(screen.getByRole("status")).toHaveTextContent("Profile saved.");
     expect(screen.queryByText(/academyId|claims|student-1|user-1/i)).not.toBeInTheDocument();
   });
 
-  it("shows a safe error when the profile cannot be saved", async () => {
+  it("reuses one requestId across retries and rotates it only after the form changes", async () => {
     profileApi.getClientProfile.mockResolvedValue(undefined);
     profileApi.saveClientProfile.mockRejectedValue(
       new Error("Unable to save your profile. Please try again."),
     );
+    profileApi.createProfileRequestId
+      .mockReturnValueOnce("profile-request-1")
+      .mockReturnValueOnce("profile-request-2");
     const user = userEvent.setup();
     render(<ProfilePage />);
 
@@ -116,6 +126,17 @@ describe("client profile page", () => {
     await user.click(screen.getByRole("button", { name: "Save profile" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save your profile");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    await waitFor(() => expect(profileApi.saveClientProfile).toHaveBeenCalledTimes(2));
+    expect(profileApi.saveClientProfile.mock.calls[0]?.[0].requestId).toBe("profile-request-1");
+    expect(profileApi.saveClientProfile.mock.calls[1]?.[0].requestId).toBe("profile-request-1");
+    expect(profileApi.createProfileRequestId).toHaveBeenCalledTimes(1);
+
+    await user.clear(screen.getByLabelText("Full name"));
+    await user.type(screen.getByLabelText("Full name"), "Synthetic Adult Updated");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    await waitFor(() => expect(profileApi.saveClientProfile).toHaveBeenCalledTimes(3));
+    expect(profileApi.saveClientProfile.mock.calls[2]?.[0].requestId).toBe("profile-request-2");
   });
 });
 const profileNavigation = vi.hoisted(() => ({ push: vi.fn() }));

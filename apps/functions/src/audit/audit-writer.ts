@@ -36,6 +36,13 @@ function sameValue(left: unknown, right: unknown): boolean {
   return left === right;
 }
 
+function storedResult(draft: AuditEventDraft): string {
+  if (draft.action === "member.detail.read" || draft.action === "member.identity.lookup") {
+    return draft.result;
+  }
+  return "completed";
+}
+
 export function appendAuditEventInTransaction<Reference extends AuditDocumentReference>(
   transaction: AuditCreateTransaction<Reference>,
   ref: Reference,
@@ -50,7 +57,7 @@ export function appendAuditEventInTransaction<Reference extends AuditDocumentRef
     ...parsed.value,
     auditEventId: ref.id,
     occurredAt: FieldValue.serverTimestamp(),
-    result: "completed",
+    result: storedResult(parsed.value),
     schemaVersion: 1,
   });
 }
@@ -63,7 +70,7 @@ export function matchesAuditEventReplay(
 ): boolean {
   const parsedDraft = parseAuditEventDraft(draft);
   if (!parsedDraft.ok || !isPlainRecord(stored)) return false;
-  if (stored.result !== "completed" || stored.schemaVersion !== 1) return false;
+  if (stored.result !== storedResult(parsedDraft.value) || stored.schemaVersion !== 1) return false;
 
   const hasAuditEventId = Object.prototype.hasOwnProperty.call(stored, "auditEventId");
   const hasOccurredAt = Object.prototype.hasOwnProperty.call(stored, "occurredAt");
@@ -74,12 +81,13 @@ export function matchesAuditEventReplay(
     return false;
   }
 
-  const stableKeys = Object.keys(parsedDraft.value);
+  const draftKeys = Object.keys(parsedDraft.value);
+  const stableKeys = draftKeys.filter((key) => key !== "result");
   const generatedKeys = hasAuditEventId ? ["auditEventId", "occurredAt"] : [];
   if (!hasExactKeys(stored, [...stableKeys, "result", "schemaVersion", ...generatedKeys])) {
     return false;
   }
-  const stableStored = Object.fromEntries(stableKeys.map((key) => [key, stored[key]]));
+  const stableStored = Object.fromEntries(draftKeys.map((key) => [key, stored[key]]));
   const parsedStored = parseAuditEventDraft(stableStored);
   return (
     parsedStored.ok &&

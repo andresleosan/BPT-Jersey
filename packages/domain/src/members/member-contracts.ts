@@ -84,6 +84,25 @@ export const memberReportKeys = Object.freeze([
 ] as const);
 export type MemberReportKey = (typeof memberReportKeys)[number];
 
+const memberImportPdfControlPattern = /[\p{Cc}\p{Cf}]/u;
+const memberImportPdfPathSeparatorPattern = /[\\/]/u;
+
+export function normalizeMemberImportPdfFileName(value: string): string | undefined {
+  const normalized = value.normalize("NFKC").trim();
+  if (
+    normalized.length < 5 ||
+    normalized.length > 132 ||
+    memberImportPdfControlPattern.test(normalized) ||
+    memberImportPdfPathSeparatorPattern.test(normalized) ||
+    !normalized.toLocaleLowerCase("en-US").endsWith(".pdf")
+  ) {
+    return undefined;
+  }
+  const baseName = normalized.slice(0, -4).trim();
+  if (baseName.length === 0 || baseName === "." || baseName === "..") return undefined;
+  return normalized;
+}
+
 export type MemberImportSourceReport = Readonly<{
   source: string;
   report: MemberReportKey;

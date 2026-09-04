@@ -116,6 +116,37 @@ export {
   parseMemberSearchFilters,
   paymentStatuses,
 } from "./members/member-contracts";
+
+export {
+  adminDirectoryReadPurposes,
+  adminDirectoryRowSchema,
+  adminCreateStudentInputSchema,
+  maskMembershipReference,
+  memberDirectoryFreezeStatuses,
+  memberDirectoryOperationPhases,
+  memberDirectoryReaderVersions,
+  memberDirectoryStateSchema,
+  memberDirectoryWriteModes,
+  memberRecordMaintenanceDetailSchema,
+  normalizeAdministrativeIdentifier,
+  parseAdminCreateStudentInput,
+  publicAdminIdentifierLookupKinds,
+  studentAdminProfileSchema,
+  studentAdminProfileSources,
+  toAdminDirectoryRow,
+  toMemberRecordMaintenanceDetail,
+} from "./members/member-directory-contracts";
+export type {
+  AdminDirectoryReadPurpose,
+  AdminDirectoryRow,
+  AdminCreateStudentInput,
+  MemberDirectoryState,
+  MemberRecordMaintenanceDetail,
+  PublicAdminIdentifierLookupKind,
+  StudentAdminProfile,
+  StudentAdminProfileSource,
+  StudentDirectorySource,
+} from "./members/member-directory-contracts";
 export type {
   MemberAuditMetadata,
   MemberGender,
@@ -133,6 +164,7 @@ export type {
 export {
   deriveParticipantType,
   parseStudentProfile,
+  parseStudentProfileAt,
   parseUserProfile,
   participantTypes as profileParticipantTypes,
   trainingCenters,
@@ -252,11 +284,13 @@ export {
   buildEvaluationId,
   buildGraduationId,
   buildStudentProgressSummary,
+  buildUninitializedStudentProgressSummary,
   calculateAttendanceStreak,
   evaluationScores,
   generateRecognitionCandidates,
   levelDefinitionKinds,
   levelRequirementInheritanceModes,
+  medicalLeaveReasonCodes,
   parseApprovePromotionInput,
   parseLevelCatalogProjection,
   parseLevelCatalogSource,
@@ -271,6 +305,7 @@ export type {
   EvaluationRecord,
   EvaluationScore,
   GraduationRecord,
+  InitializedStudentProgressSummary,
   LevelCatalogProjection,
   LevelCriteria,
   LevelDefinitionKind,
@@ -280,6 +315,7 @@ export type {
   LevelSystemRecord,
   LevelVisual,
   MedicalLeaveRecord,
+  MedicalLeaveReasonCode,
   ProgressCriteriaSummary,
   PromotionDecisionStatus,
   RecognitionCandidate,
@@ -289,6 +325,7 @@ export type {
   SkillChecklistItem,
   SkillDefinition,
   StudentProgressSummary,
+  UninitializedStudentProgressSummary,
 } from "./levels/level-contracts";
 
 export {

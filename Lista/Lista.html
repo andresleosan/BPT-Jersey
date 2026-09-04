@@ -36,7 +36,7 @@
           <h2 id="summary-heading">Resumen del proyecto</h2>
           <div id="summary-grid">
              <div data-status="aprobada" data-render-target="status-cards"></div>
-             <div data-status="revisión" data-render-target="status-cards"></div>
+             <div data-status="revision" data-render-target="status-cards"></div>
              <div data-status="en-progreso" data-render-target="status-cards"></div>
              <div data-status="pendiente" data-render-target="status-cards"></div>
             <div data-status="bloqueada" data-render-target="status-cards"></div>
@@ -46,6 +46,13 @@
           </div>
         </section>
 
+        <section id="resolution-board" aria-labelledby="resolution-heading">
+          <h2 id="resolution-heading">Qu&#233; falta para resolver</h2>
+          <p class="resolution-intro">
+            Requisitos concretos para cerrar cada tarea pendiente, en revisi&#243;n, bloqueada o cancelada.
+          </p>
+          <div id="resolution-list"></div>
+        </section>
         <section id="filters" aria-labelledby="filters-heading">
           <h2 id="filters-heading">Filtrar seguimiento</h2>
           <form>

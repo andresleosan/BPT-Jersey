@@ -3,7 +3,8 @@
 ## Path and identity conventions
 
 - Firestore root: `academies/{academyId}`.
-- Direct subcollections: `users`, `families`, `students`, `staff`, `relationships`, `locations`, `programs`, `classes`, `sessions`, `plans`, `bookings`, `waitlistEntries`, `sessionCapacityStates`, `bookingQuotaStates`, `waitlistPositionStates`, `attendance`, `checkouts`, `memberships`, `invoices`, `payments`, `paymentEvents`, `assessments`, `skillProgress`, `recognitions`, `leads`, `messages`, `deliveryEvents`, `healthProfiles`, `safeguardingCases`, `waiverVersions`, `consents`, `documents`, `auditEvents`, `exports`, `exportRateLimits`, and `regyfitAccessRecords`.
+- Direct subcollections: `users`, `families`, `students`, `studentAdminProfiles`, `studentIdentityKeys`, `studentRestrictedReadLimits`, `memberDirectoryCursorStates`, `memberDirectoryStates`, `memberDirectoryMigrations`, `memberDirectoryMigrationChunks`, `memberDirectoryApprovals`, `memberDirectoryApprovalConsumptions`, `memberDirectoryWriteReceipts`, `familyWriteReceipts`, `profileWriteReceipts`, `memberDirectoryImportReceipts`, `memberDirectoryImportSessions`, `staff`, `relationships`, `locations`, `programs`, `classes`, `sessions`, `plans`, `bookings`, `waitlistEntries`, `sessionCapacityStates`, `bookingQuotaStates`, `waitlistPositionStates`, `attendance`, `checkouts`, `memberships`, `invoices`, `payments`, `paymentEvents`, `assessments`, `studentLevelProgress`, `levelPromotions`, `recognitions`, `medicalLeaves`, `levelSystems`, `levelDefinitions`, `levelRequirements`, `levelCatalogManifests`, `leads`, `messages`, `deliveryEvents`, `notificationPreferences`, `healthProfiles`, `safeguardingCases`, `waiverVersions`, `consents`, `documents`, `auditEvents`, `exports`, `exportRateLimits`, and `regyfitAccessRecords`.
+- Non-restorable control-plane exceptions: tenant-local `memberDirectoryImportSessions/{sessionId}`, top-level `memberDirectoryRestoreGuards/{academyId}` and its `events/{stateRevision}` subcollection, source-local `memberDirectoryRestoreAttestations/{attestationId}`, and source-local `memberDirectoryRestoreAttestationConsumptions/{attestationId}`. They are project/tenant-bound, backend-only and excluded from tenant backup/export. Guard state is updated atomically with directory state; attestations and their one-time consumptions are create-only proofs. Import sessions are short-lived coordination envelopes removed with their private PDF objects by their own bounded cleanup schedule.
 - RTDB presence: `academies/{academyId}/presence/{sessionId}/{studentId}`.
 - Booking document ID for new writes: `v2:{sessionId.length}:{sessionId}:{studentId.length}:{studentId}` after trimming both identifiers. Compatibility reads probe this canonical ID first and legacy `{sessionId}__{studentId}` second; divergent dual records fail closed.
 - Waitlist document ID for new writes follows the same canonical v2 and legacy-read compatibility rule.
@@ -137,17 +138,18 @@ mutable history.
 
 ## Collection groups and aggregate boundaries
 
-| Group                   | Collections                                                                              | Ownership boundary                                                                                                                                                                          |
-| ----------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Academy                 | `locations`, `programs`, `classes`, `sessions`, `plans`                                  | Academy configuration, catalogue, scheduling templates, session instances, and membership plans. Pending operational values remain configurable.                                            |
-| Identity                | `users`, `families`, `students`, `staff`, `relationships`                                | Adult identity, family records, protected minor profiles, staff assignments, and explicit tutor relationships. Relationships are documents, not unbounded embedded arrays.                  |
-| Scheduling              | `bookings`, `waitlistEntries`                                                            | Reservation, roster, and recoverable waitlist intent. They reference, but do not duplicate, the session, student, or membership as sources of truth.                                        |
-| Scheduling coordination | `sessionCapacityStates`, `bookingQuotaStates`, `waitlistPositionStates`                  | Backend-only revision and monotonic-position locks. They serialize transactions but never replace sessions, bookings, memberships, plans, finance, or waitlist entries as sources of truth. |
-| Attendance              | `attendance`, `checkouts`                                                                | Canonical attendance, corrections, and child check-out state. Presence in RTDB is not part of this aggregate.                                                                               |
-| Commercial              | `memberships`, `invoices`, `payments`, `paymentEvents`                                   | Membership lifecycle, invoices, administrative payments, and minimal verified provider events. Card data is outside the platform.                                                           |
-| Development             | `assessments`, `skillProgress`, `recognitions`                                           | Evidence-based assessment, skill progress, and human-reviewed recognition. No automatic belt or stripe grant.                                                                               |
-| CRM and communication   | `leads`, `messages`, `deliveryEvents`                                                    | Prospects, audiences, messages, and delivery history. Communication involving a minor remains visible to the tutor.                                                                         |
-| Restricted governance   | `healthProfiles`, `safeguardingCases`, `consents`, `documents`, `auditEvents`, `exports` | Minimum operational restricted data, versioned evidence, private object metadata, append-only audit, and controlled exports. These collections are not general student/family directories.  |
+| Group                   | Collections                                                                                                                                                                                                                                                                                                                                                                              | Ownership boundary                                                                                                                                                                                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Academy                 | `locations`, `programs`, `classes`, `sessions`, `plans`                                                                                                                                                                                                                                                                                                                                  | Academy configuration, catalogue, scheduling templates, session instances, and membership plans. Pending operational values remain configurable.                                                                                                                       |
+| Identity                | `users`, `families`, `students`, `studentAdminProfiles`, `studentIdentityKeys`, `staff`, `relationships`                                                                                                                                                                                                                                                                                 | Adult identity, family records, protected minor profiles, private administrative extensions, uniqueness reservations, staff assignments, and explicit tutor relationships.                                                                                             |
+| Identity coordination   | `studentRestrictedReadLimits`, `memberDirectoryCursorStates`, `memberDirectoryStates`, `memberDirectoryMigrations`, `memberDirectoryMigrationChunks`, `memberDirectoryApprovals`, `memberDirectoryApprovalConsumptions`, `memberDirectoryWriteReceipts`, `profileWriteReceipts`, top-level `memberDirectoryRestoreGuards`, `memberDirectoryRestoreAttestations`, `memberDirectoryRestoreAttestationConsumptions` | Backend-only throttling/cursor, freeze, reader-version, approval-consumption and non-restorable restore proofs. Only cursor state may contain one Restricted legacy continuation ID; other receipts contain no source PII and never replace students or relationships. |
+| Scheduling              | `bookings`, `waitlistEntries`                                                                                                                                                                                                                                                                                                                                                            | Reservation, roster, and recoverable waitlist intent. They reference, but do not duplicate, the session, student, or membership as sources of truth.                                                                                                                   |
+| Scheduling coordination | `sessionCapacityStates`, `bookingQuotaStates`, `waitlistPositionStates`                                                                                                                                                                                                                                                                                                                  | Backend-only revision and monotonic-position locks. They serialize transactions but never replace sessions, bookings, memberships, plans, finance, or waitlist entries as sources of truth.                                                                            |
+| Attendance              | `attendance`, `checkouts`                                                                                                                                                                                                                                                                                                                                                                | Canonical attendance, corrections, and child check-out state. Presence in RTDB is not part of this aggregate.                                                                                                                                                          |
+| Commercial              | `memberships`, `invoices`, `payments`, `paymentEvents`                                                                                                                                                                                                                                                                                                                                   | Membership lifecycle, invoices, administrative payments, and minimal verified provider events. Card data is outside the platform.                                                                                                                                      |
+| Development             | `assessments`, `studentLevelProgress`, `levelPromotions`, `recognitions`                                                                                                                                                                                                                                                                                                                 | Evidence, one current level/skill head per student, append-only formal promotion decisions and separate recognitions. No automatic belt or stripe grant.                                                                                                               |
+| CRM and communication   | `leads`, `messages`, `notificationPreferences`, `deliveryEvents`                                                                                                                                                                                                                                                                                                                         | Prospects, audiences, notification consent/preferences, and delivery history. Communication involving a minor remains visible to the tutor.                                                                                                                            |
+| Restricted governance   | `medicalLeaves`, `healthProfiles`, `safeguardingCases`, `consents`, `documents`, `auditEvents`, `exports`                                                                                                                                                                                                                                                                                | Minimum operational restricted data, versioned evidence, private object metadata, append-only audit, and controlled exports. These collections are not general directories.                                                                                            |
 
 ## Identity and relationship contracts
 
@@ -158,6 +160,278 @@ mutable history.
 | `students`      | `studentId`, `academyId`, `familyId` (T022 minor), `fullName`, `dateOfBirth`, `phoneNumber`, `email`, `trainingCenter`, `trainingTimePreferences`, `participantType`, `active`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`, `status` | `userId` optionally references the adult Firebase Auth identity; T022 minors have no `userId`, and `familyId` references one same-academy family.                                        | `Restricted`                                                          | Identity backend; T022 derives `minor` and checks the current `relationships` record for guardian access.                   | Deactivation or approved retention workflow; no normal hard delete when referenced by attendance, progress, consent, or safeguarding history.                                                                                     |
 | `staff`         | `staffId`, `academyId`, `userId`, `roleAssignments`, `active`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`, `status`                                                                                                                  | `userId` references `users`; `roleAssignments` may reference approved programs, classes, or locations.                                                                                   | `Confidential`                                                        | Staff/identity backend; role and assignment changes require an authorized backend actor.                                    | Deactivation revokes interactive access and effective assignments; preserve historical authorship and audit.                                                                                                                      |
 | `relationships` | `relationshipId`, `academyId`, `familyId`, `studentId`, `adultUserId`, `relationshipType`, `permissions`, `validFrom`, optional `validTo`, `active`, `status`, `schemaVersion`, timestamps and actors                                                         | `familyId` -> `families`, `studentId` -> `students`, `adultUserId` -> `users`; all references must share `academyId`. `relationshipId` is the deterministic `familyId + studentId` pair. | `Confidential`; the tutor-minor link is `Restricted` in exports/logs. | T022 family backend; only `owner`/`administrator` commands write. `guardian` only reads its resolved family projection.     | Validity, tutor replacement, and `active/status` changes preserve history; no embedded arrays and no delete. Permissions is fixed to `readProfile` in T022 and grants no health, waiver, payment, attendance, or progress access. |
+
+### T092 administrative participant extension and coordination
+
+| Collection                                                                | Required fields                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Classification | Authority and history                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `studentAdminProfiles`                                                    | `studentId`, `academyId`, optional `membershipNumber`, `idCardNumber`, `vatNumber`, required `gender`, optional bounded `frequencyNote`, optional `legacyMemberId`, `source`, optional `importRunId`/`migrationId`, literal `schemaVersion: "1"`, timestamps/actors                                                                                                                                                                                                                                        | `Restricted`   | Backend identity/directory only; ID equals an existing same-academy student. No direct access or normal hard delete. It deliberately has no `active` or `status`.                                                                                                                                                                                                                                                                   |
+| `studentIdentityKeys`                                                     | `keyId`, `academyId`, `kind`, `digestVersion`, `secretVersion`, `ownerStudentId`, `schemaVersion`, timestamps/actors                                                                                                                                                                                                                                                                                                                                                                                       | `Restricted`   | Backend create-only immutable reservation in the identity transaction. Raw values are absent; reassignment/delete is forbidden and rotation/erasure belongs to T011.                                                                                                                                                                                                                                                                |
+| `studentRestrictedReadLimits`                                             | `actorId`, `academyId`, `windowStartedAt`, `attemptCount`, `overLimitObserved`, `schemaVersion`, `updatedAt`                                                                                                                                                                                                                                                                                                                                                                                               | `Restricted`   | Backend-only shared rolling five-minute counter for exact lookup and sensitive detail, keyed by authenticated actorId. Direct access is denied; client time cannot reset it.                                                                                                                                                                                                                                                        |
+| `memberDirectoryCursorStates`                                             | `cursorId`, `academyId`, `actorId`, `role`, literal rollback projection/order, `stateRevision`, `afterLegacyDocumentId`, `issuedAt`, `expiresAt`, `cursorSecretVersion`, `schemaVersion`                                                                                                                                                                                                                                                                                                                   | `Restricted`   | Backend-only five-minute rollback continuation state. The client receives only a random signed handle; the legacy ID never leaves this record. Excluded from backup/export and removed by bounded TTL cleanup.                                                                                                                                                                                                                      |
+| `memberDirectoryStates`                                                   | `stateId: "current"`, `academyId`, `stateRevision`, `readerVersion`, `directoryWriteMode`, `globalLegacyReadEliminated`, `freezeStatus`, `operationPhase`, identity-key algorithm/secret/baseline MAC plus opaque artifact ID, rollback protocol/capacity/monotonic count, integer `lastCommittedChunkNo`, optional `preparedOperationId` or active operation/lease IDs and expiry/deadline, `schemaVersion`, timestamps/actors                                                                            | `Confidential` | Backend coordination only. Every writer reads the state in its own transaction. Only restore-prepared has preparedOperationId and no active operation/lease/deadline; every stable tuple requires lastCommittedChunkNo=0. Reader/freeze changes are versioned and audited.                                                                                                                                                          |
+| `memberDirectoryMigrations`                                               | `operationId`, closed `operationType`, `academyId`, target/code/schema/effective/disposition versions, optional `authorityMode`, source/private-manifest/plan/proof/inventory MACs including `backupManifestMac` and `sourceStateEvidenceMac`, integrity/identity algorithm and secret versions, public code/schema hashes, classification counts, row/chunk budget, closed status, expiry, audit correlation, timestamps/actors                                                                           | `Confidential` | Metadata-only receipt: identity/MACs/hashes/counts are immutable; backend status transitions are versioned and audited. It contains no source PII and status alone never authorizes a participant.                                                                                                                                                                                                                                  |
+| `memberDirectoryMigrationChunks`                                          | `chunkId`, `operationId`, `phase`, `chunkNo`, optional `sourceForwardChunkNo`, `academyId`, `previousStateRevision`, `committedStateRevision`, `leaseId`, `inputMac`, `outputSetMac`, expected/written counts, literal `status: committed`, audit correlation, timestamps/actors                                                                                                                                                                                                                           | `Confidential` | Metadata-only create receipt. Chunks are bounded/content-addressed; phase prevents forward/compensation collisions and divergent replay or missing documents block activation.                                                                                                                                                                                                                                                      |
+| `memberDirectoryApprovals`                                                | `approvalId`, `operationId`, closed `approvalKind`, `authorizedTransition`, `expectedStateRevision`, optional `sourceProjectId`/`targetProjectId`/`restoreEpoch`/`authorityMode`, `academyId`, `projectId`, `planMac`, `reviewerActorId`, `approvedAt`, `expiresAt`, `schemaVersion`                                                                                                                                                                                                                       | `Confidential` | Auth + App Check backend creates an immutable approval for an active owner/administrator. Restore derives authority from source Auth and binds both projects; IDs/tenant/project/transition/revision/epoch/MAC/expiry are backend-owned. Direct access and overwrite are denied.                                                                                                                                                    |
+| `memberDirectoryApprovalConsumptions`                                     | `approvalId`, `operationId`, `authorizedTransition`, closed `stage`, state revisions before/after, `approvalMac`, consumed timestamp/actor, plus stage-specific optional source/target project IDs, `restoreEpoch`, `authorityMode`, `targetStateAttestationMac`, `sourceHandoffMac`, `targetConsumptionMac`, handoff issued/expiry timestamps, `schemaVersion`                                                                                                                                            | `Confidential` | Backend create-only receipt. Local stage is atomic with its transition. Restore creates source-handoff atomically with source approval consumption, then target-transition atomically with target state change; reuse/divergence fails and restored receipts are inert evidence.                                                                                                                                                    |
+| `memberDirectoryWriteReceipts`                                            | `receiptId` matching `write-{64 lowercase hex}`, `academyId`, `actorId`, `requestMac`, `studentId`, `auditEventId`, nonnegative integer `stateRevisionBefore`, positive integer `stateRevisionAfter = stateRevisionBefore + 1`, literal `status: "completed"`, UTC-millisecond `createdAt`, literal `schemaVersion: "1"`                                                                                                                                                                                   | `Confidential` | Backend-only, create-only, metadata-only receipt written atomically with the canonical student, admin profile, identity keys, state/guard head/event and audit event. It stores no raw request or administrative identifier. Exact replay verifies its request MAC and referenced records. No update or delete is allowed; retention remains blocked until T011. Backup v3 materializes it exactly as quarantined payload evidence. |
+| `profileWriteReceipts`                                                    | `receiptId` matching `write-{64 lowercase hex}`, `academyId`, `actorId`, `requestMac`, `studentId`, auth identity `identityKeyId`, identity/integrity secret versions, `auditEventId`, state revisions before/after, `createdStudent`, literal completed status, UTC-millisecond `createdAt`, literal `schemaVersion: "1"`                                                                                                                                                                                      | `Confidential` | Backend-only, create-only, metadata-only idempotency receipt for adult self-service profile linking. It is atomic with user/student, auth identity reservation, control-plane revision and audit evidence; it stores no raw Auth ID, profile fields or identifier value. Backup v3 materializes it so a restored retry cannot become a new operation.                                                                                 |
+| `memberDirectoryImportReceipts`                                           | Document ID equals `receiptId` matching `import-{64 lowercase hex}`. Exact fields: `receiptId`, `operationId`, `academyId`, `actorId`, `projectId`, `targetProjectClassification`, literal `codeVersion: "canonical-member-import-v1"`, literal `schemaVersion: "1"`, UTC-millisecond `operationWriteTime`/`expiresAt`, `sourceMac`, `privateManifestMac`, `planMac`, `outputSetMac`, literal `digestVersion: "hmac-sha256-v1"`, `identitySecretVersion`, literal `integrityMacVersion: "hmac-sha256-v1"`, `integritySecretVersion`, `identityKeyBaselineMac`, the nine closed `classificationCounts`, admitted/planned/post-cutover counts, unique closed `reportKeys`, literal `maximumApprovedRows: 50`, consecutive `stateRevisionBefore`/`stateRevisionAfter`, literal `status: "completed"`. | `Confidential` | Backend-only, create-only metadata receipt written in the same canonical transaction as students/profiles/identity keys, state/guard/event and shared audit evidence. It contains no source row, name, contact, administrative identifier or private manifest. Exact replay validates all MACs and materialized outputs. Backup v3 materializes the exact path and body. |
+| `memberDirectoryImportSessions`                                           | Document ID equals `sessionId` matching `import-session-{64 lowercase hex}`. Every variant has exactly `sessionId`, UUIDv4 `operationId`, `academyId`, `actorId`, `actorRole` (`owner` or `administrator`), `projectId`, `targetProjectClassification`, `uploadManifestMac`, `sessionMac`, ordered `uploads[{objectKey,sizeBytes}]`, `trainingCenter`, unique `trainingTimePreferences`, UTC-millisecond `operationWriteTime`/`expiresAt`/`createdAt`/`updatedAt`, literal `schemaVersion: "1"`, and closed `status`. `uploading` has only the base fields; `previewed` additionally has `sourceUploadMac` and an exact metadata-only `preview` (`classifications[{rowMac,classification}]`, `confirmable`, signed planned receipt); `confirmed` additionally has exact `result{receiptId,created,matched}` and `completedAt`. | `Restricted` | Private backend coordination only. The path, ordered object keys/sizes and every immutable envelope field are covered by `sessionMac`; each read/transition verifies the HMAC and actor/tenant/project/operation/expiry binding before private-object I/O. The browser receives upload URLs only, classifications by row MAC and the signed receipt; it never receives object keys, raw rows or the private manifest. Sessions expire after at most ten minutes, are excluded before backup/restore, and a separate bounded schedule deletes every private object before the MAC-bound session. |
+| top-level `memberDirectoryRestoreGuards/{academyId}`                      | `guardId`, `projectId`, `academyId`, `highestStateRevision`, `globalLegacyReadEverEliminated`, `highestRollbackEligibleStudentCount`, `restoreEpoch`, integrity versions, `lastEventId`, `lastEventMac`, `schemaVersion`, timestamps/actor; create-only child events bind previous/current revision/MAC, monotonic values, operation/transition and event MAC                                                                                                                                              | `Confidential` | Non-restorable control-plane head plus append-only HMAC chain. Every state revision updates state/head/event in one transaction; missing/divergent/decreasing data fails closed. Direct client access and backup/export are denied.                                                                                                                                                                                                 |
+| top-level `memberDirectoryRestoreAttestations/{attestationId}`            | `attestationId`, source/target project IDs, `academyId`, target operation ID, completed target state revision/restore epoch, literal `authorityMode: "quarantined-no-auth"`, disposition/inventory versions, `backupManifestMac`, `sourceStateEvidenceMac`, `attestedReadTime`, payload/control/combined counts, bytes and roots, restore-complete approval ID, source handoff/target consumption MACs, `attestedTargetInventoryMac`, source integrity version/attestation MAC, timestamps/workload/schema | `Confidential` | Source-local create-only I4 proof. Its deterministic opaque HMAC ID makes exact replay idempotent; later verification uses a separate read time/MAC and must match every stable binding/root. It contains no participant paths or raw fields and is excluded from backup/export.                                                                                                                                                    |
+| top-level `memberDirectoryRestoreAttestationConsumptions/{attestationId}` | `attestationId`, source global operation ID, state revisions before/after, `attestedReadTime`, `attestedTargetInventoryMac`, `verificationReadTime`, `verificationTargetInventoryMac`, attestation MAC, consumed timestamp/actor, `schemaVersion`                                                                                                                                                                                                                                                          | `Confidential` | Source-local create-only one-time consumption written atomically with the T097 marker, guard and event. Same-operation replay is a no-op; reuse or divergence fails. Direct client access and backup/export are denied.                                                                                                                                                                                                             |
+
+`operationType` is exactly identity-key-bootstrap, identity-key-reconcile,
+directory-forward, post-cutover-rollback, canonical-recovery,
+member-directory-restore-recovery or global-legacy-elimination. Normal
+operation status transitions are planned -> frozen -> applying -> verified ->
+completed; frozen/applying/verified may fail, failed may resume applying for
+the exact plan or enter compensating only for directory-forward, and
+compensating reaches aborted only after exact prior-state proof.
+completed/aborted are terminal. The sole additional failed transition is
+identity-key-bootstrap failed -> aborted under preservation-only
+failed-bootstrap-abandon. The sole short success transition is planned ->
+completed for the atomic global-elimination marker.
+
+`approvalKind` is exactly bootstrap-confirm, failed-bootstrap-abandon,
+forward-confirm, failed-operation-compensate, post-cutover-rollback,
+post-deadline-recovery,
+canonical-recovery, identity-reconcile-confirm, restore-acquire,
+restore-complete or global-legacy-eliminate. Operation/action/transition pairs
+are fixed by the migration plan; kinds are never interchangeable and an
+approval cannot outlive expiry, reviewer revocation before consumption or its
+parent operation. Each same-project use creates a stage=local-transition
+approval-consumption receipt in the state transition transaction. Restore
+acquire, completion and post-deadline recovery instead use the source-handoff
+-> target-transition saga below; acquire and completion remain distinct
+approvals bound to the same restore epoch and their respective revisions.
+
+Failed directory-forward compensation consumes failed-operation-compensate in the
+failed-to-compensating transaction. That transaction changes the parent to
+compensating, switches phase to compensation, resets lastCommittedChunkNo,
+issues a fresh lease/deadline and advances state/guard/audit, but performs no
+domain write. Zero committed chunks still require a separate exact proof before
+compensating reaches aborted.
+
+Failed identity-key-bootstrap is resume-or-abandon and never compensates or
+deletes reservations. failed-bootstrap-abandon verifies every committed
+bootstrap receipt and created immutable key, then atomically moves failed ->
+aborted, preserves all keys/domain documents, returns to the stable legacy
+tuple with incomplete coverage and lastCommittedChunkNo=0, and clears
+operation/lease/deadline. A new bootstrap adopts compatible preserved keys;
+ambiguity leaves the freeze in place.
+
+`studentAdminProfiles.source` is immutable: `admin` forbids import/migration IDs,
+and legacyMemberId; `member-pdf-import` requires `importRunId` and forbids
+migrationId/legacyMemberId; `legacy-member-migration` requires migrationId plus
+legacyMemberId and permits importRunId only when the forward receipt binds the
+prior import MAC. No MVP callable/UI exposes provenance. `frequencyNote` is a
+short imported label, not a place for health, safeguarding, finance, booking
+rules, credentials or free-form case notes.
+
+`membershipNumber`, `idCardNumber`, `vatNumber` and `legacyMemberId` are
+Restricted identifiers. None appears in a general list, table, PDF, analytics
+or export. An exact lookup by an approved public administrative value requires an
+owner/administrator, a closed purpose, rate limit and append-only audit; the
+response identifies the matching student without echoing the searched value.
+The public lookupKind enum is exactly membership-number, id-card-number or
+vat-number. legacy-member-id is runner/rollback-only and auth-user-id is
+Auth-link-flow-only; either public input fails before key reads.
+The exact general admin-directory row allowlist is `studentId`, `fullName`,
+`trainingCenter`, `participantType`, `active`, `status` and an optional
+backend-computed masked `membershipReference`; DOB, contacts, gender and every
+admin-profile/provenance/actor field are absent.
+
+`membershipReference` is omitted for normalized values shorter than eight
+characters; otherwise it is the literal `****` plus the final four characters.
+It is display-only and cannot be searched, sorted or exported.
+
+The general admin directory requires verified Auth + App Check and a currently
+active owner/administrator. Academy is claim-derived. Its only inputs are an
+integer page size from 1 to 50 and an optional opaque five-minute cursor. The
+authenticated cursor payload is exactly academyId, actorId, role,
+projectionVersion=`admin-directory-v1`, order=`__name__:asc`, afterDocumentId,
+issuedAt, expiresAt and cursorSecretVersion. The backend orders by document ID
+ascending, applies startAfter only from the verified afterDocumentId, queries
+limit+1, returns at most 50 rows and direct-gets at most 50 admin profiles. No
+payload tenant/filter/order is accepted; unknown fields and forged, expired,
+cross-tenant or cross-reader cursors fail before the query. The canonical list
+never scans `members`; only the stable rollback adapter has a bounded exception.
+That adapter uses projectionVersion=`legacy-rollback-directory-v1` and a signed
+token containing only a random cursorId, fixed private order, actor/tenant/role,
+stateRevision and expiry. Its Restricted `memberDirectoryCursorStates` record
+stores the afterLegacyDocumentId; no legacy ID appears in the client token.
+
+State, optional rollback cursor state, selected rows and every profile/key get
+execute in one Firestore transaction/snapshot. The state read lock conflicts
+with migration/restore acquisition or a chunk transition, so a retry reselects
+the reader. legacy-v1 and every active operation fail before domain queries;
+only canonical open/idle or stable rollback-readonly may return a page.
+
+The single-student `member-record-maintenance` detail allowlist combines the editable
+Student fields with membershipNumber, idCardNumber, vatNumber, gender and
+frequencyNote. It excludes legacy/source/import/migration IDs, timestamps and
+actors. Provenance remains private to the migration runner/approval receipt and
+is not a callable/UI read purpose. The detail accepts exactly one studentId and
+has no batch form; because that ID is listed, the detail uses the same Auth, App
+Check, role, shared rate-limit, state lock and audit transaction as exact lookup
+before returning bytes.
+
+Exact identifier lookup requires verified Auth, App Check, owner/administrator
+and one of the closed purposes. It permits 20 attempts per actor/academy in a
+server-clock five-minute window. One transaction consumes the
+`studentRestrictedReadLimits/{actorId}` quota, first validates
+`memberDirectoryStates/current`, reads the key and authoritative current
+profile/student, and appends the audit event before returning match/no-match.
+An acquisition/chunk race retries into the new state and cannot return mixed
+data. The first over-limit attempt sets
+overLimitObserved/create-only audit without reading the blind key; later rejects
+in that actor/window are read-only, so spam causes O(1) writes. Concurrent
+attempt 21 cannot pass. Audit, logs and errors omit raw/normalized input,
+digest/keyId and admin values.
+
+Uniqueness and exact Restricted lookup are tenant-scoped through
+`studentIdentityKeys/{kind}:{digest}` for `membership-number`, `id-card-number`,
+`vat-number`, `legacy-member-id` and `auth-user-id`. `digest` is lowercase hex
+HMAC-SHA-256 over a domain prefix plus unambiguous uint32-length-prefixed UTF-8
+segments for academy, kind and normalized value. Administrative values use
+NFKC + trim + uppercase, a bounded length and a closed ASCII alphabet; Firebase
+UID comparison is exact. The raw value is never included in the key document.
+The body includes `keyId`, `academyId`, algorithm `digestVersion`, non-secret
+`secretVersion`, owner and server envelope. Missing or mismatched secret
+versions fail closed.
+
+Identity-key, migration-integrity and directory-cursor HMAC secrets are strict
+unpadded base64url values decoding to 32-64 random bytes. They are pairwise
+distinct, version-pinned and distinct across environments, with no default or
+fallback. Remote runtimes obtain them from approved Secret Manager bindings;
+explicit test material is accepted only for exact loopback Emulator bindings
+`demo-bpt-jersey` and `demo-bpt-jersey-restore`, with distinct material per
+purpose/project. Empty, malformed, short, placeholder, equal or
+cross-environment-reused keys fail before source/Firestore reads, and equal
+length MACs are compared in constant time.
+
+T093 never changes the identity-key secretVersion. Identity reconciliation may
+replace the exact baseline artifact only under that same secret. Rotation needs
+a later explicit multi-version read/deny and single-write design so obsolete
+immutable reservations continue blocking reuse; missing/changed versions fail
+before reads or writes.
+
+`memberDirectoryStates/current` must report exact algorithm/secret versions,
+an `identityKeyCoverage` of `complete`, a verified `identityKeyBaselineMac` and
+an opaque `identityKeyBaselineArtifactId` before a canonical identity writer or
+directory cutover can proceed. The encrypted private artifact retains the exact
+sorted baseline tuple set; verification, compensation and restore reopen it and
+recompute the MAC because a root alone cannot prove absence. T093 bootstraps and
+reconciles reservations for every existing student/user/admin identifier, not
+only migrated legacy rows. A stale reservation can block reuse, but lookup must
+also compare the authoritative current value in the same operation and return
+no-match when an old key no longer represents it. Membership-number,
+id-card-number, vat-number and legacy-member-id recheck
+`studentAdminProfiles`; auth-user-id rechecks `students.userId`. The owning
+create/link/change and recheck share one same-academy transaction.
+
+T093 owns explicit single-field index exemptions for `studentAdminProfiles`
+membershipNumber, idCardNumber, vatNumber, legacyMemberId and frequencyNote,
+for `memberDirectoryCursorStates` afterLegacyDocumentId,
+and for legacy `members` membershipNumber, fullName, email, idCardNumber,
+vatNumber, birthDate, mobileNumber, frequency, source and importRunId.
+Backend search uses only the blind-key document and direct profile/student gets;
+the rollback adapter direct-gets legacy rows. Raw-value collection scans and
+Firestore indexes are prohibited.
+
+The coordination state uses closed reader versions `legacy-v1`, `canonical-v1`
+and the emergency privacy-safe `legacy-rollback-v1`; directory write modes are
+`legacy-v1`, `canonical-v1` or `blocked`. Freeze states are `open`/`frozen`,
+stateRevision is monotonic and leases are bounded. Operation phases are idle,
+bootstrap, identity-reconcile, forward, compensation, rollback-projection,
+rollback-readonly, canonical-recovery, restore-prepared, restore-recovery or
+restore-rehearsal-complete. Every normal identity
+writer and every chunk reads the current state, revision and lease inside its
+own transaction. Every canonical identity mutation advances stateRevision and
+the non-restorable guard in that same transaction. Chunks advance revision and
+lastCommittedChunkNo atomically.
+An expired lease fails closed and requires audited recovery; it never unfreezes
+itself. Initial operationDeadline is at most 30 minutes, or two hours only for
+identity-reconcile-paged-v2. After either deadline, each fresh
+post-deadline-recovery approval may issue exactly one new lease/deadline bounded
+to 30 minutes from server now without changing plan, mode, phase, freeze or
+domain data; every later lapse requires another non-replayable approval.
+
+The stable rollback-readonly tuple is `legacy-rollback-v1/blocked/frozen` with
+phase rollback-readonly, no active operation/lease/deadline and
+lastCommittedChunkNo=0. Ephemeral `memberDirectoryCursorStates` may exist for a
+five-minute rollback page but are not state-machine cursors. A separately
+approved canonical-recovery operation acquires a fresh
+lease directly from that tuple without opening legacy writes, even after a long
+interval. Canonical identity reconciliation is valid only as
+`canonical-v1/blocked/frozen/identity-reconcile` and preserves the global
+marker. The only valid prepared restore tuple is
+`canonical-v1/blocked/frozen/restore-prepared`, with preparedOperationId,
+lastCommittedChunkNo=0 and no active operation/lease/deadline. One atomic target
+transaction creates state, guard head/event, planned restore parent and audit;
+restore acquisition clears preparedOperationId and enters restore-recovery with
+a fresh operation and lease. Isolated restore recovery is always
+canonical-v1/blocked/frozen regardless of the source marker. Any legacy reader
+with marker=true and every unlisted tuple fail before domain reads.
+The only terminal restore tuple is
+`canonical-v1/blocked/frozen/restore-rehearsal-complete`; it has no active
+operation/lease/deadline and lastCommittedChunkNo=0. Application bootstrap
+rejects the restore-only project and the directory parser rejects prepared,
+recovery and terminal restore phases.
+
+While `globalLegacyReadEliminated=false`, rollbackProtocolVersion is exactly
+`legacy-projection-v1`, rollbackCapacityLimit is 400 and
+rollbackEligibleStudentCount is the monotonic number of identities admitted to
+a stable canonical set. Existing pre-forward students form its baseline;
+operation-private forward outputs do not increment it until atomic cutover, so
+failed compensation never decrements it. In a stable false-marker tuple it
+equals the student count because normal hard delete is forbidden. Every normal
+student create increments it in the same transaction; the create after 400
+fails with zero domain/key/audit writes. Forward receipt and pre-write recheck
+bind pre-existing + planned-new = post-cutover <= 400. Global elimination sets
+the protocol to disabled and retains the count as audit metadata.
+
+The top-level restore-guard head and append-only event chain use the schema in
+the T092 table. State initialization creates revision zero head/event. Every
+state revision direct-gets and verifies head/state agreement, HMAC chain,
+project, tenant, monotonic marker/count/epoch, then updates state/head and
+creates the next event in one transaction. Missing/divergent evidence or an
+event collision yields zero state/domain writes. Restore compare-and-swaps this
+head and increments restoreEpoch; the global marker transaction advances it
+with globalLegacyReadEverEliminated=true.
+
+Pre-global identity reconciliation is bounded by rollback-v1. Post-global
+`identity-reconcile-paged-v2` instead captures one state/guard revision, then
+independently pages students and studentAdminProfiles by document ID in pages of 200. It rejects row 10,001 in either set, orphan/profile ID or tenant/version
+mismatch, and any state/guard revision change between the initial and final
+read. It binds both exact manifests before a planned receipt, processes at most
+50 student bundles per chunk and has a two-hour initial deadline. Acquisition
+rejects a stale inventory. Both protocols keep the same secretVersion and use
+separate frozen/applying/verified/completed transactions.
+
+Operation types are identity-key-bootstrap, identity-key-reconcile,
+directory-forward, post-cutover-rollback, canonical-recovery,
+member-directory-restore-recovery and global-legacy-elimination. Chunk phases
+are bootstrap, identity-reconcile, forward, compensation, rollback-projection,
+canonical-recovery and restore-recovery. Chunk receipts remain create-only
+`committed`; parent success is always planned -> frozen -> applying -> verified
+-> completed in separate audited transactions, except the atomic metadata-only
+global marker. A crash resumes only the exact next transition and stable reader
+state is never exposed before parent completion.
+
+Only directory-forward has compensation chunks. A failed bootstrap either
+resumes its exact plan or uses failed-bootstrap-abandon to preserve all
+monotonic keys and terminate the parent without entering compensation.
+
+Every T092 integrity value derived from a private source/path/body is a
+domain-separated HMAC-SHA-256 MAC under a versioned migration-integrity secret
+that is distinct per environment and distinct from the identity-key secret.
+Receipts store only MACs, versions and counts. Plain SHA-256 is limited to
+public code/schema artifacts without personal data. Remote use fails closed
+unless both secret versions are available from approved backend secret
+management.
 
 ### T021 profile registration projection
 
@@ -171,8 +445,98 @@ created by T021; `T022`, `T023`, `T018`, `T024`, `T032`, and `T083` own those la
 The browser has no direct read or write path to either collection. `getClientProfile` and
 `saveClientProfile` derive `academyId`, `userId`, actor fields, status, participant type, and
 timestamps in the backend. Both documents are created or updated in one Firestore transaction, and
-the update path preserves `createdAt` and `createdBy`. The registration is additive only; no existing
-`members` records are migrated or reconciled.
+the update path preserves `createdAt` and `createdBy`. The registration was additive only at the
+historical T021 boundary; no existing `members` records were migrated or reconciled by that task.
+ADR-009/T092 now defines `students` as the sole participant identity and T093 owns the reversible
+administrative-directory convergence.
+
+### T092 canonical directory and legacy boundary
+
+`academies/{academyId}/students/{studentId}` is the only operational participant identity.
+Memberships, bookings, attendance, consents, progress and reports use that `studentId`;
+`studentAdminProfiles` can never grant those capabilities. Commercial status is derived only from
+`memberships`, `invoices` and `payments`.
+
+The historical `members` collection is legacy-only and is not part of the canonical collection
+list. T093 may switch the administrative directory reader only after normal writers to `members`
+are gone. The cutover transaction sets the administrative reader/write mode to canonical and
+releases the identity freeze after all chunks and identity-key coverage verify. Explicit
+compatibility readers in Levels/reporting remain until T097 replaces them; the independent
+`globalLegacyReadEliminated` marker remains false until then. A rollback compensator is the sole
+exception: under freeze, exact receipt and separate authorization it may create a missing legacy
+projection, but never overwrite an original document.
+
+Every directory request reads `memberDirectoryStates/current`, cursor state and
+domain/profile rows in one Firestore transaction/snapshot. A concurrent state
+transition locks/retries the request before return. `legacy-v1` returns migration-required with zero
+members/students queries because a legacy member ID cannot be exposed as a
+student ID. Only the exact canonical open/idle tuple queries students. The exact
+stable rollback-readonly tuple invokes the bounded privacy-safe adapter. Every
+active bootstrap, forward, reconciliation, rollback projection, recovery or
+restore tuple fails closed, so partially migrated students never become visible.
+
+New migrated adults receive backend-generated opaque `studentId` values bound by the private
+manifest MAC; `legacyMemberId` is never reused to create an identity. They are created with
+`active: false` and the existing `status: "inactive"`. A later activation is a separate audited
+canonical command. A legacy membership/payment label never activates the student or creates
+access. A minor is eligible only through an explicit match to an existing same-academy student,
+active family and active relationship; migration never creates that linkage. Normal operations
+never auto-match by name, email or birth date.
+
+Failure before cutover leaves the reader legacy and permits only exact-plan resume or receipt-bound
+failed-forward compensation. Rollback after cutover first creates and verifies every missing legacy
+directory projection, then switches the reader; it preserves canonical records. Generated legacy
+projections use opaque `memberId=studentId`, `membershipStatus=inactive` and
+`paymentStatus=unknown`, exact placeholder `fullName=Canonical student`, and no optional MemberRecord
+field; they never become commercial authority. That emergency legacy view remains
+read-only with directoryWriteMode=blocked/freezeStatus=frozen until a verified canonical forward
+recovery; no permanent dual-write is reintroduced. Its adapter resolves an original legacy row
+through the `legacy-member-id` blind key, verifies the current admin profile and emits only the
+canonical studentId. Stale, missing or duplicate mappings fail closed and legacyMemberId is never
+returned.
+
+Backup/restore v3 must capture and validate `members`, `students`, `studentAdminProfiles`,
+`studentIdentityKeys`, `studentRestrictedReadLimits`, `memberDirectoryStates`,
+`memberDirectoryMigrations`, `memberDirectoryMigrationChunks`, `memberDirectoryApprovals`,
+`memberDirectoryApprovalConsumptions` and their audit events as one consistent identity boundary,
+plus direct progress/promotions/medical leaves and
+the still-transitional nested Levels history. The manifest binds snapshot read time/revision/marker,
+reader/write/freeze/phase, rollback protocol/count, code/schema versions, collection counts/roots,
+the baseline MAC/artifact ID and exact secret versions. It does not copy encrypted private
+artifacts, but the isolated rehearsal requires reopening and verifying each one. Retention,
+anonymization and key release belong to T011; until that decision, there is no normal hard delete,
+serving restore or real-data cutover.
+
+`backupManifestMac` is a domain-separated source-integrity HMAC over the full canonical closed v3
+manifest, including privateManifestMac. The exact source `memberDirectoryStates/current` is captured
+by backup v3 as encrypted source-authority evidence, not as a target payload document. A separate
+domain-separated `sourceStateEvidenceMac` covers its canonical path and full closed body and is bound
+by the manifest, target restore parent and source-local I4
+attestation and is reverified during planning, I2/I3 verification and I4. The target state is newly created
+only in target-control; source state, guard, lease and approvals are never materialized as target
+authority or written over that path.
+
+Backup v3 binds `artifactDispositionVersion=member-directory-restore-v1`. The exact source state is
+`verify-only-authority`; every other allowlisted direct/nested tenant artifact is
+`materialize-exact`; cursor state, import sessions and top-level guards/attestations/consumptions are excluded before
+backup; every other disposition/path is rejected. The backup root covers materialized plus
+verify-only rows, the payload root covers only materialized rows, and sourceStateEvidenceMac covers
+the sole verify-only row. Target-control is generated only by the rehearsal; v1 has no remap.
+
+T097 sets `globalLegacyReadEliminated=true` only through a metadata-only
+global-legacy-elimination operation. Its MAC binds the completed canonical cutover, state revision,
+identity baseline, deployed code/schema, a zero legacy-dependency proof, backupManifestMac,
+sourceStateEvidenceMac and the source-local create-only I4 restore attestation ID/MAC/attested read
+time/inventory MAC/target project/revision/epoch/roots from a verified backup-v3 isolated rehearsal.
+Before creating the source planned operation, the planner verifies that attestation, repeats target I4
+through the dual-project preflight and binds its fresh verification read time/inventory MAC. One
+approved transaction requires
+canonical-v1/canonical-v1/open/idle with no lease,
+direct-gets and create-only consumes the exact attestation, consumes the exact approval, increments
+revision, advances the matching guard head/event with its
+ever-eliminated marker true, completes the receipt and audits. It conflicts atomically with rollback
+acquisition, is idempotent only for the exact completed receipt, never returns the marker to false
+in v1 and never deletes `members`.
 
 Owner role provisioning uses the backend-only deterministic lock path
 `academies/{academyId}/adminRoleLocks/{uid}`. The lock carries a short numeric
@@ -367,14 +731,25 @@ recovery.
 
 ## Development, CRM, and communication contracts
 
-| Collection       | Required fields                                                                                                                                                                    | References                                                                                                                                                                                                                                                            | Classification                                                                                          | Write authority                                                                                            | Deletion/history rule                                                                                                                                                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `assessments`    | `assessmentId`, `academyId`, `studentId`, `coachStaffId`, `sessionId`, `dimensions`, `observedAt`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`   | `studentId` -> `students`, `coachStaffId` -> `staff`, `sessionId` -> `sessions`; dimensions are owned by `T009`.                                                                                                                                                      | `Confidential`                                                                                          | Development/assessment backend; assigned coach or authorized head coach workflow.                          | Preserve the original assessment and correction author/moment; no normal hard delete. `T009` owns final review and weighting rules.                                                                                   |
-| `skillProgress`  | `progressId`, `academyId`, `studentId`, `skillKey`, `level`, `evidence`, `reviewedBy`, `reviewedAt`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy` | `studentId` -> `students`, `reviewedBy` -> `staff`; `skillKey` is a module-owned identifier, not an arbitrary public label.                                                                                                                                           | `Confidential`                                                                                          | Development backend; review is performed by authorized staff.                                              | Preserve evidence and review history; corrections update status or append history with audit. It never grants a belt or stripe automatically.                                                                         |
-| `recognitions`   | `recognitionId`, `academyId`, `studentId`, `category`, `proposedBy`, `approvedBy`, `approvedAt`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`     | `studentId` -> `students`, `proposedBy` and `approvedBy` -> `staff`; approval must be a human head coach decision.                                                                                                                                                    | `Confidential`                                                                                          | Development backend; proposal and approval are separate authorized actions.                                | Preserve proposal, approval, rejection, and correction history; no automatic grant and no public child leaderboard.                                                                                                   |
-| `leads`          | `leadId`, `academyId`, `contactReference`, `source`, `ownerId`, `status`, `nextActionAt`, `consentState`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`      | `contactReference` may point to an adult/family record when linked; `ownerId` references an authorized `users` or `staff` identity.                                                                                                                                   | `Confidential`                                                                                          | CRM backend and assigned owner workflow; consent state is backend-validated.                               | Preserve status and activity history; deactivate or redact only through the future `T011` policy, not a casual delete.                                                                                                |
-| `messages`       | `messageId`, `academyId`, `audienceId`, `channel`, `templateKey`, `sentAt`, `createdBy`, `status`, `schemaVersion`, `createdAt`, `updatedAt`, `updatedBy`                          | `audienceId` is a backend identifier for an evaluated audience, not a collection or path. It is evaluated from canonical `relationships`, `families`, `students`, `sessions`, and `programs`/`classes` as applicable; the message stores only this minimal reference. | `Confidential`; communication involving a minor is `Restricted`.                                        | Communication backend and authorized sender workflow; clients cannot create a private minor-coach channel. | Preserve sent message status and delivery linkage. Audience membership is recomputed/validated and is never authorized from `audienceId` alone; restricted content or recipients require a separate authorized query. |
-| `deliveryEvents` | `deliveryEventId`, `academyId`, `messageId`, `provider`, `providerEventId`, `status`, `occurredAt`, `idempotencyKey`, `schemaVersion`                                              | `messageId` -> `messages`; provider identifiers are minimal opaque evidence.                                                                                                                                                                                          | `Confidential`; classification inherits `Restricted` when the source audience or payload is restricted. | Communication integration backend after provider verification and idempotency checks.                      | Append-only delivery history; retries do not duplicate events and interactive users cannot rewrite provider evidence.                                                                                                 |
+| Collection                | Required fields                                                                                                                                                                                                                             | References                                                                                                                                                                                                                                                            | Classification                                                                                          | Write authority                                                                                                                  | Deletion/history rule                                                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assessments`             | `assessmentId`, `academyId`, `studentId`, `coachStaffId`, `sessionId`, `dimensions`, `observedAt`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`                                                            | `studentId` -> `students`, `coachStaffId` -> `staff`, `sessionId` -> `sessions`; dimensions are owned by `T009`.                                                                                                                                                      | `Confidential`                                                                                          | Development/assessment backend; assigned coach or authorized head coach workflow.                                                | Preserve the original assessment and correction author/moment; no normal hard delete. `T009` owns final review and weighting rules.                                                                                   |
+| `studentLevelProgress`    | `studentId`, `academyId`, `systemId`, optional `currentDefinitionKey`/`currentLevelStartedAt`/`lastApprovedPromotionId`, bounded `skillSummary`, `state`, `schemaVersion`, timestamps/actors                                                | Document ID and `studentId` -> `students`; `systemId` -> one published `levelSystems`; promotion pointer -> `levelPromotions`.                                                                                                                                        | `Restricted` for a minor; otherwise `Confidential`                                                      | Development backend only. Assessment may update reviewed skill summary; an approved promotion updates the level head atomically. | One mutable, reconstructable head per student. Missing document means `uninitialized`, never an inferred white belt. Preserve audit and promotion history.                                                            |
+| `levelPromotions`         | `promotionId`, `academyId`, `studentId`, `systemId`, optional `fromDefinitionKey`, `toDefinitionKey`, `decisionStatus`, `proposedBy`, `decidedBy`, `decidedAt`, optional `ceremonyDate`/`decisionNotes`, `schemaVersion`, timestamps/actors | `studentId` -> `students`; definition keys -> the exact immutable level system; staff references are same-academy.                                                                                                                                                    | `Restricted` for a minor; otherwise `Confidential`                                                      | Development backend; only `headCoach` may approve/reject. Owner cannot substitute the required technical decision.               | Append-only formal decision. Approval creates the promotion, updates `studentLevelProgress` and appends audit in one transaction; no automatic grant or hard delete.                                                  |
+| `recognitions`            | `recognitionId`, `academyId`, `studentId`, `category`, `proposedBy`, `approvedBy`, `approvedAt`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`                                                              | `studentId` -> `students`, `proposedBy` and `approvedBy` -> `staff`; approval must be a human head coach decision.                                                                                                                                                    | `Confidential`                                                                                          | Development backend; proposal and approval are separate authorized actions.                                                      | Preserve proposal, approval, rejection, and correction history; no automatic grant and no public child leaderboard.                                                                                                   |
+| `leads`                   | `leadId`, `academyId`, `contactReference`, `source`, `ownerId`, `status`, `nextActionAt`, `consentState`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`                                                               | `contactReference` may point to an adult/family record when linked; `ownerId` references an authorized `users` or `staff` identity.                                                                                                                                   | `Confidential`                                                                                          | CRM backend and assigned owner workflow; consent state is backend-validated.                                                     | Preserve status and activity history; deactivate or redact only through the future `T011` policy, not a casual delete.                                                                                                |
+| `messages`                | `messageId`, `academyId`, `audienceId`, `channel`, `templateKey`, `sentAt`, `createdBy`, `status`, `schemaVersion`, `createdAt`, `updatedAt`, `updatedBy`                                                                                   | `audienceId` is a backend identifier for an evaluated audience, not a collection or path. It is evaluated from canonical `relationships`, `families`, `students`, `sessions`, and `programs`/`classes` as applicable; the message stores only this minimal reference. | `Confidential`; communication involving a minor is `Restricted`.                                        | Communication backend and authorized sender workflow; clients cannot create a private minor-coach channel.                       | Preserve sent message status and delivery linkage. Audience membership is recomputed/validated and is never authorized from `audienceId` alone; restricted content or recipients require a separate authorized query. |
+| `deliveryEvents`          | `deliveryEventId`, `academyId`, `messageId`, `provider`, `providerEventId`, `status`, `occurredAt`, `idempotencyKey`, `schemaVersion`                                                                                                       | `messageId` -> `messages`; provider identifiers are minimal opaque evidence.                                                                                                                                                                                          | `Confidential`; classification inherits `Restricted` when the source audience or payload is restricted. | Communication integration backend after provider verification and idempotency checks.                                            | Append-only delivery history; retries do not duplicate events and interactive users cannot rewrite provider evidence.                                                                                                 |
+| `notificationPreferences` | `preferenceId`, `academyId`, `audienceId`, `purpose`, `channel`, `enabled`, `consentState`, `updatedAt`                                                                                                                                     | `audienceId` is a backend identifier for an evaluated audience; it is not a path or authorization grant.                                                                                                                                                              | `Confidential`; consent state is privacy-sensitive.                                                     | Only `owner`/`administrator` backend callables; direct client reads/writes are denied by Rules.                                  | Upsert by deterministic preference identity; withdrawal/disable is retained as state and not hard-deleted.                                                                                                            |
+
+`skillProgress` and the nested transitional paths
+`students/{studentId}/evaluations` and `students/{studentId}/graduations` are not
+additional canonical heads. T097 must migrate/adapt their history into
+`assessments`, `studentLevelProgress` and `levelPromotions`, stop all new writes
+to the transitional paths, and prove that Levels/reports never enumerate or
+write `members` before setting the global legacy-read marker. Formal promotion
+is head-coach-only. Absence of `studentLevelProgress` is rendered as
+`uninitialized`; code must not substitute the first catalog definition.
 
 Communication records never create a hidden one-to-one channel between a coach
 and a minor. No new audience collection or audience path is introduced by this
@@ -389,6 +764,7 @@ backend decisions.
 
 | Collection          | Required fields                                                                                                                                                                                                                                                      | References                                                                                                                                    | Classification                                                                      | Write authority                                                                                                                              | Deletion/history rule                                                                                                                                                                                                                                  |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `medicalLeaves`     | `leaveId`, `academyId`, `studentId`, `startDate`, `endDate`, minimized `reasonCode`, `status`, `schemaVersion`, timestamps/actors                                                                                                                                    | `studentId` -> `students`; no general progress/directory projection may return the reason.                                                    | `Restricted`                                                                        | Restricted health/support backend; only a minimized authorized interval may pause an eligibility calculation.                                | Preserve the leave and audit history. Review, expiry and deletion await T011; no nested unbacked copy under a student after T097.                                                                                                                      |
 | `healthProfiles`    | `healthProfileId`, `academyId`, `studentId`, `minimumOperationalSupport`, `reviewState`, `expiresAt`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`                                                                                  | `studentId` -> `students`; references to documents, if needed, use `documents` and inherit `Restricted`.                                      | `Restricted`                                                                        | Restricted health/support backend and expressly authorized staff or guardian workflow.                                                       | Minimum operational data only; expire/review through status and the `T011` policy. Never store a full medical record or narrative here.                                                                                                                |
 | `safeguardingCases` | `caseId`, `academyId`, `studentId`, `intakeReference`, `participants`, `actions`, `resolution`, `status`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`                                                                                        | `studentId` -> `students`; `participants` and `intakeReference` use controlled references, not unrestricted narrative payloads.               | `Restricted`                                                                        | Safeguarding backend; intake and case reading have separate authorization scopes.                                                            | Preserve intake, actions, resolution, actor, and audit history. No normal hard delete, and no full safeguarding narrative in a general profile or log.                                                                                                 |
 | `waiverVersions`    | `waiverVersionId`, `academyId`, `versionLabel`, `title`, `introduction`, four fixed `clauses`, `contentHash`, `effectiveAt`, `status`, `supersededAt`, `schemaVersion`, timestamps and actors                                                                        | One current `published` version per academy; the server hash covers only the normalized immutable content and effective timestamp.            | `Restricted` governance content; client receives an allowlisted current projection. | Owner/administrator callable only; direct Firestore access remains denied and no legal template is bundled.                                  | Publication creates a new immutable version. Supersession or withdrawal changes lifecycle metadata without deleting or rewriting the prior text.                                                                                                       |
@@ -497,6 +873,8 @@ to authorization; it does not grant a role or bypass `T016`.
 | Relationship                             | Source of truth                                                                                                                                                                                                                                                            | Module that writes the record                                                                                                              | Modules that may read it                                                                                                                                        | Correction/history behavior                                                                                                                                                                                                                                   |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `family -> relationship -> student`      | `families` owns family identity, `students` owns the protected minor profile, and `relationships` owns tutor identity, permissions, and validity.                                                                                                                          | Identity/family module writes family, student, and relationship records through separate authorized commands.                              | Identity, family access, scheduling, attendance, membership, communication, reporting, and restricted workflows read only the minimum fields for their purpose. | Change `validFrom`, `validTo`, or `status` with audit; do not replace the relationship with an embedded array or delete prior authorization evidence.                                                                                                         |
+| `student -> admin profile/identity key`  | `students` owns participant identity; `studentAdminProfiles` owns only Restricted administrative metadata; `studentIdentityKeys` owns uniqueness reservations without raw values.                                                                                          | Identity/directory backend writes the student/profile and create-only reservations transactionally.                                        | General workflows read students only. Purpose-bound admin lookup may resolve one key/profile through a minimized audited command.                               | No normal hard delete. A correction reserves a new immutable key and preserves the prior claim; neither profile nor reservation can grant product access.                                                                                                     |
+| `student -> progress/promotion`          | `studentLevelProgress` owns the current reviewed head; `assessments` own evidence; `levelPromotions` own formal decisions; `recognitions` remain separate.                                                                                                                 | Development backend writes evidence; only head coach approval atomically creates a promotion, updates the head and appends audit.          | Authorized student/family/staff/report projections read the minimum scope; no general minor ranking.                                                            | Missing head is uninitialized. Promotions/evidence are preserved; corrections never rewrite the decision history or infer a level from catalog order.                                                                                                         |
 | `session -> program/class/location`      | `programs`, `classes`, and `locations` own their records; `sessions` owns the concrete date/time and capacity snapshot.                                                                                                                                                    | Academy/scheduling module writes configuration and session records.                                                                        | Scheduling, booking, attendance, checkout, staff assignment, and reporting read the relevant references.                                                        | A session correction updates auditable session state; it does not rewrite the programme, class template, or location source record.                                                                                                                           |
 | `booking -> session/student/membership`  | `bookings` owns reservation status; `sessions`, `students`, and `memberships` remain authoritative for eligibility inputs.                                                                                                                                                 | Booking/scheduling module writes bookings in a transaction after verifying all references and eligibility.                                 | Scheduling, roster, attendance, membership, notifications, and reporting may read scoped booking data.                                                          | Cancellation/status changes are explicit and auditable. A retry reuses the deterministic ID and does not create a second booking.                                                                                                                             |
 | `waitlist -> session/student/membership` | `waitlistEntries` owns recoverable queue intent, offer state, and historical position; sessions, students, memberships, plans, finance, and confirmed bookings remain authoritative eligibility inputs. The three scheduling lock collections only serialize transactions. | Waitlist/scheduling backend writes in a transaction after tenant, capacity, membership, plan, quota, student-family, and financial checks. | Authorized student/family callables receive a minimized self projection; staff callables receive a bounded operational projection.                              | Issue and response replay are idempotent without extending TTL. Accept creates/restores the deterministic booking atomically; decline is terminal; expiry is materialized on demand; historical positions are not renumbered.                                 |
@@ -541,13 +919,32 @@ truth.
 
 ## Deterministic IDs and idempotency
 
-The only deterministic document IDs mandated by this contract are:
+The shared identities and T092 coordination IDs mandated directly by this
+contract are listed below. Task-owned modules may define additional
+deterministic IDs in their own approved sections, such as T062 retention,
+notification preferences, catalogue plans and administrative locks.
 
-| Record               | Document ID                                                        | Purpose                                                                                                                            |
-| -------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Booking              | `v2:{sessionId.length}:{sessionId}:{studentId.length}:{studentId}` | Enforces one injective booking identity per student and session; compatibility reads also probe legacy `{sessionId}__{studentId}`. |
-| Waitlist entry       | `v2:{sessionId.length}:{sessionId}:{studentId.length}:{studentId}` | Enforces one injective queue identity per student and session with the same explicit legacy-read compatibility rule.               |
-| Canonical attendance | `{sessionId}__{studentId}`                                         | Enforces one canonical attendance identity per student and session; T060 does not migrate attendance identity.                     |
+| Record                      | Document ID                                                              | Purpose                                                                                                                            |
+| --------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Booking                     | `v2:{sessionId.length}:{sessionId}:{studentId.length}:{studentId}`       | Enforces one injective booking identity per student and session; compatibility reads also probe legacy `{sessionId}__{studentId}`. |
+| Waitlist entry              | `v2:{sessionId.length}:{sessionId}:{studentId.length}:{studentId}`       | Enforces one injective queue identity per student and session with the same explicit legacy-read compatibility rule.               |
+| Canonical attendance        | `{sessionId}__{studentId}`                                               | Enforces one canonical attendance identity per student and session; T060 does not migrate attendance identity.                     |
+| Family relationship         | `{familyId}--{studentId}`                                                | Enforces one T022 relationship record for a family/student pair; authorization still validates every same-tenant reference.        |
+| Student admin profile       | `{studentId}`                                                            | Keeps the Restricted administrative extension one-to-one with the canonical participant.                                           |
+| Current student progress    | `{studentId}`                                                            | Keeps one reconstructable reviewed progress head; absence means uninitialized.                                                     |
+| Student identity key        | `{kind}:{digest}`                                                        | Reserves one HMAC blind index for an approved identifier kind without exposing the raw identifier.                                 |
+| Restricted-read limit       | `{actorId}`                                                              | Serializes one backend-only rolling exact-lookup/sensitive-detail quota for an authenticated academy actor.                        |
+| Restricted-read limit audit | `restricted-read-limit-v1:{actorId.length}:{actorId}:{windowStartEpoch}` | Coalesces all over-limit rejects for one server-derived five-minute actor window into one create-only audit event.                 |
+| Member-directory state      | `current`                                                                | Serializes reader/directory-write mode, freeze lease and verified identity-key coverage for one academy.                           |
+| Member-directory operation  | `{operationId}`                                                          | Stores a server-issued, receipt-bound bootstrap/forward/rollback/recovery operation identity.                                      |
+| Member-directory chunk      | `{operationId}:{phase}:{chunkNo}`                                        | Separates phases and makes each ordered bounded chunk create-only and exactly replayable under the same plan.                      |
+| Approval consumption        | `{approvalId}`                                                           | Makes one approved operation transition consumable exactly once; its create shares the transition transaction.                     |
+| Restore-guard head          | top-level `{academyId}`                                                  | Keeps one non-restorable project/academy high-water outside tenant backup.                                                         |
+| Restore-guard event         | `{stateRevision}` under the guard head                                   | Creates one HMAC-chained immutable event for every directory state revision.                                                       |
+
+Member-directory approval IDs and all target/audit IDs not explicitly listed
+as deterministic are backend-generated opaque values. A reviewer/client cannot
+select an approval ID, actor, tenant, expiry or binding.
 
 Attendance corrections remain in the `attendance` collection with
 backend-generated opaque IDs. Their `correctionOf` points to the canonical
@@ -574,11 +971,15 @@ Lengths in v2 identifiers are calculated after trimming each segment. New writes
 the canonical v2 candidate. A compatibility read probes canonical first and legacy
 second and fails closed if both records exist with divergent payloads.
 
-For all other collections, IDs are backend-generated opaque IDs unless an
-owning module publishes an additional approved contract. `providerEventId`,
-`deliveryEventId`, and `idempotencyKey` provide integration idempotency but do
-not authorize a client-chosen document ID. A deterministic ID must never be
-derived from raw personal data, a secret, or a value marked `Pending approval`.
+For collections not covered here or in an owning-module section, IDs are
+backend-generated opaque IDs. `providerEventId`, `deliveryEventId`, and
+`idempotencyKey` provide integration idempotency but do not authorize a
+client-chosen document ID. A deterministic ID must never contain raw personal
+data, a reversible encoding, an unkeyed hash of personal data, secret material,
+or a value marked `Pending approval`. The sole personal-identifier derivation
+approved here is the T092 HMAC blind index: it uses a backend-only secret and a
+normalized Restricted value, while neither the value nor the secret is stored
+in the path or reservation body.
 
 ## Query contracts and index ownership
 
@@ -592,6 +993,14 @@ single-field membership `status` index, direct student document reads, and an
 attendance range ordered by that same `occurredAt` field. Its inbox read orders
 only by `createdAt`. Consequently, T062 adds no entry to
 `firestore.indexes.json`.
+
+T092 adds no compound-index claim. An admin profile is fetched by exact
+`studentId`; uniqueness/exact lookup uses the HMAC-derived
+`studentIdentityKeys` document ID; migration/chunk receipts are fetched from an
+exact bounded manifest. General scanning by ID-card, VAT, legacy ID or other
+Restricted value is prohibited. T093 must add and test the explicit
+single-field exemptions listed in the T092 identity section before cutover,
+including `memberDirectoryCursorStates.afterLegacyDocumentId`.
 
 | Collection      | Filters/order                                           | Owning module          | Index entry                                |
 | --------------- | ------------------------------------------------------- | ---------------------- | ------------------------------------------ |
@@ -627,9 +1036,29 @@ widens the projection.
 
 ## Restrictions for restricted data
 
-- `students`, `checkouts`, `healthProfiles`, `safeguardingCases`, `consents`,
-  `documents`, `auditEvents`, `exports`, and verified payment evidence are not
-  general student/family directory data.
+- `students`, `studentAdminProfiles`, `studentIdentityKeys`, `studentRestrictedReadLimits`, `medicalLeaves`,
+  `checkouts`, `healthProfiles`, `safeguardingCases`, `consents`, `documents`,
+  `auditEvents`, `exports`, minor progress/promotion records, and verified
+  payment evidence are not general student/family directory data.
+- `memberDirectoryStates`, migrations, chunks, approvals, consumptions,
+  `memberDirectoryWriteReceipts`, `profileWriteReceipts` and
+  restore guards/events/attestations/attestation consumptions are backend-only coordination. They contain metadata
+  only; `memberDirectoryCursorStates` alone holds one Restricted legacy
+  continuation ID, never returned to the client. None is exposed in Members UI.
+- Firestore Rules deny direct get/list/create/update/delete for
+  `studentAdminProfiles`, `studentIdentityKeys`, `studentRestrictedReadLimits`,
+  `memberDirectoryCursorStates`, `memberDirectoryStates`,
+  `memberDirectoryMigrations`, `memberDirectoryMigrationChunks`,
+  `memberDirectoryApprovals`, `memberDirectoryApprovalConsumptions`,
+  `memberDirectoryWriteReceipts`, `profileWriteReceipts`, legacy
+  `members` and top-level restore guard heads/events, restore attestations and
+  restore-attestation consumptions to unauthenticated,
+  adultStudent, guardian, coach, headCoach, administrator and owner clients.
+  Authorized behavior is callable/backend projection only; a role never grants
+  a direct collection exception.
+- ID card, VAT, legacy member and unmasked membership numbers are excluded from
+  every general list/report/export. Exact administrative lookup is separately
+  authorized, purpose-bound, rate-limited and audited without echoing the key.
 - `retentionAlerts` is likewise restricted derived data. Its T062
   `studentReference` currently contains the opaque internal `studentId`; it is
   not a public or pseudonymized identifier and must be pseudonymized before the
@@ -655,13 +1084,35 @@ widens the projection.
 - Export records preserve purpose, scope, classification, recipient, expiry,
   status, and audit correlation. An export is not a new canonical source.
 
-## Levels catalog (T083)
+## Levels catalog (T083/T101)
 
-`levelSystems`, `levelDefinitions`, and `levelRequirements` are `Internal` reference collections at:
+`levelSystems`, `levelDefinitions`, `levelRequirements`, and
+`levelCatalogManifests` are `Internal` reference collections at:
 
 - `academies/{academyId}/levelSystems/{systemId}`: Published system summary, metadata, precedence, source hash, and embedded skill catalog (11 skills).
 - `academies/{academyId}/levelDefinitions/{definitionKey}`: 171 immutable definitions (27 belts, 144 stripes) with merged DOCX criteria, observed criteria, visuals, and anomaly flags.
 - `academies/{academyId}/levelRequirements/{requirementKey}`: 165 technique requirements linked to definition keys and skills.
+- `academies/{academyId}/levelCatalogManifests/{systemId}`: immutable publication manifest
+  binding the exact system, 171 definition IDs, 165 requirement IDs, aggregate catalog hash,
+  publication operation/audit IDs, and both approved canonical JSON hashes:
+  `1118e362ad02db54a8da1117e19a77f1bd05598aa770e53ca502bd18b8da6794`
+  (observed source) and
+  `209a46d2c9e13404601248ec7cfd82868058e567d91bb95946676d4f5fe0d98d`
+  (business criteria).
+
+The non-production seed (`apps/functions/scripts/seed-levels.mjs`) is the only writer. Its preflight requires explicit target and academy, exact agreement among every discovered Firebase project ID, and the exact Emulator project/host pair. The production project is deny-listed and staging remains closed until T099 supplies an operator-approved positive allowlist. Direct client reads and writes are denied by default. The callable `listLevelCatalog` provides authenticated read access.
+
+Publication uses one Firestore transaction with 339 writes: the 337 catalog documents
+(1 system + 171 definitions + 165 requirements), one manifest, and one standard
+`auditEvents` record. This remains below Firestore's 500-write transaction limit. A replay may
+return `idempotent: true` only after verifying the complete stored system, both complete child
+sets, the exact manifest hashes/counts, and the original publication audit record.
+
+Rollback is limited to `ibjjf-v1`, loads the same approved sources, and uses a distinct staging
+confirmation. In one transaction it verifies the manifest/catalog/publication audit, scans the
+canonical reference collections, rejects any active system or definition reference, deletes the
+337 catalog documents plus the manifest, and appends `level.catalog.rolled_back` to
+`auditEvents`. Production and remote staging remain unauthorized.
 
 ## Technical library and lesson plans (T066)
 
@@ -704,8 +1155,9 @@ client-writable.
 | `familyAchievementSnapshots` | `academyId`, `familyId`, `generatedAt`, `members`, `adultComparison`, `schemaVersion`                                                   | Restricted when minors are present; otherwise Confidential | Internal generator only                        | `getFamilyAchievementSummary` for `owner`, `administrator`, `headCoach` | Append-only generated snapshots; latest valid snapshot is read; replay is deterministic |
 | `auditEvents`                | Common audit envelope plus `familyId`, `snapshotId`, `memberCount`, `candidateCount`, `generatedAt` for `family.achievements.generated` | Confidential                                               | Backend transaction only                       | No direct Firestore read                                                | Append-only; never rewritten or deleted by this slice                                   |
 
-`members` contains only active family participants and allowlisted goal progress
-and achievement candidates. `adultComparison` contains only active adults with
+The embedded `familyAchievementSnapshots.members` field contains only active
+family participants and allowlisted goal/achievement candidates; it is not the
+legacy `members` collection. `adultComparison` contains only active adults with
 explicit opt-in; minors never appear there. The snapshot does not grant an
 award, belt, stripe, promotion, prize, or public ranking.
 
@@ -722,13 +1174,132 @@ and remove only T067 documents from an Emulator or approved test tenant. No
 production migration or destructive delete is authorized by T067; a production
 rollback requires a verified backup and explicit operator confirmation.
 
-The non-production seed (`apps/functions/scripts/seed-levels.mjs`) is the only writer. Direct client reads and writes are denied by default. The callable `listLevelCatalog` provides authenticated read access. Rollback deletes all documents belonging to a selected `systemId` in non-production environments.
-
 ## Backup and restoration boundary (T054)
 
 Tenant backups are operation artifacts, not a new canonical collection. Backup schema v2 includes `waitlistEntries` and the three backend-only scheduling coordination states. The allowlist, manifest schema, checksum, retention placeholder, excluded secrets, and operator confirmation gate live in `apps/functions/src/data/backup-contracts.ts` and `apps/functions/src/data/restore-runbook.md`. A backup is tenant-scoped under `academies/{academyId}` and must preserve the path/field `academyId` invariant.
 
-The backup scope excludes Firebase Auth, RTDB `presence`, service credentials, tokens, card data, and raw private object contents. Waitlist records and locks remain excluded from aggregate user/report exports. Before enabling a restored tenant, validation requires `waitlistPositionStates.lastPosition >= max(waitlistEntries.position)` for every session; a smaller value fails closed, while a larger value only preserves safe gaps. Backup and restore callables are owner/administrator-only, require App Check, reject arbitrary collection paths, and remain fail-closed until an approved private artifact store and production retention policy exist. The emulator rehearsal captures the current state, applies a verified artifact in an isolated namespace, and rolls back the previous state after a synthetic failure. No production backup, restore, migration, or deployment is implied by this contract.
+Backup schema v2 is not sufficient for a member-directory cutover: its direct-collection allowlist
+does not include the legacy `members` rollback source, T092 identity extensions/coordination,
+`studentLevelProgress`, `levelPromotions`, or direct `medicalLeaves`, and it cannot capture the
+current nested Levels history. T093 must introduce and test backup schema v3 containing `members`,
+`students`, `studentAdminProfiles`, `studentIdentityKeys`, `studentRestrictedReadLimits`,
+`memberDirectoryStates`, `memberDirectoryMigrations`, `memberDirectoryMigrationChunks`,
+`memberDirectoryApprovals`, `memberDirectoryApprovalConsumptions`,
+`memberDirectoryWriteReceipts`, `profileWriteReceipts`, their audit evidence, direct
+progress/promotions/medical leaves and the current nested Levels history. Ephemeral
+`memberDirectoryCursorStates`, top-level restore guards/events, source-local restore attestations and
+their consumptions are expressly excluded.
+
+Only a consistent source snapshot captured from legacy/open/idle, canonical/open/idle or stable
+rollback-readonly is rehearsal-eligible; active-operation snapshots are evidence-only. Its manifest
+binds source project/academy, read time, state revision/global marker, reader/write/freeze/phase,
+rollback protocol/count, source guard revision/marker/count/epoch/event MAC, code/schema versions,
+every direct/nested count/root, identity baseline/artifact, private-manifest MAC and exact secret
+versions. All encrypted artifacts reopen and verify. The current source guard must not exceed the
+snapshot revision/count and a false snapshot cannot be replayed after its source guard recorded true.
+
+T092/T093 restore only from local Emulator project `demo-bpt-jersey` into the separate local project
+`demo-bpt-jersey-restore`, with the same academyId, Firestore at `127.0.0.1:8080` and Auth at
+`127.0.0.1:9099`. The target
+must contain zero Auth users, Firestore documents at any depth, control-plane state or application
+workloads. Restore uses the exact two named Admin apps and explicit source/target role flags; ambient
+project variables may be absent or source-only. Same project, remote host, nonempty target or a
+default/extra/swapped/ambiguous app fails before artifact/domain reads. The target remains unreachable
+by application runtimes throughout rehearsal.
+
+Initial Firestore emptiness is proven by versioned
+`firestore-namespace-inventory-v1`. At one Emulator readTime it recursively
+paginates ListCollectionIds and ListDocuments(showMissing=true, pageSize=200)
+from the database root, validates each parent-pattern/collection-ID pair and
+queues missing document references to discover their children. Only the exact
+`academies/{academyId}` structural anchor may be missing; other missing parents,
+unknown/wrong-depth collections, another academy and malformed pagination fail.
+Every expected target document belongs to exactly one disjoint plan set. `payload` contains all
+materialized v3 artifact documents, including non-state historical coordination evidence but
+excluding source-authority evidence such as `memberDirectoryStates/current`, and permits
+at most 10,000 real documents and 256 MiB canonical decoded path+body bytes.
+`target-control` contains only this rehearsal's current state, restore operation,
+chunks, target approval consumptions, guard/events and audits, and permits at
+most 2,048 real documents and 32 MiB. Combined hard caps are 12,048 real
+documents, 288 MiB and 12,049 visited document paths, with the final path reserved
+only for the missing academy anchor. Separate payload/control counts, bytes and
+HMAC roots plus a combined root are retained; overlap or unclassified content
+fails. Auth listUsers(1) and direct state/guard gets are independent checks. I0
+requires empty; I1 accepts the exact atomically prepared controls; I2/I3 accept
+the complete planned sets; I4 authenticates the terminal set for a source-local
+attestation. A fresh no-import emulators:exec with singleProjectMode=false and
+one target writer is mandatory.
+
+The runner verifies source artifacts/handoffs with source-project secrets and MACs target receipts
+with distinct target-project material; exact `(role, project, purpose, version)` bindings are
+plan-bound. Restore approval use is a saga: a source transaction revalidates current source
+owner/administrator Auth + App Check and consumes the approval into an immutable stage=source-handoff
+receipt, bound to both projects, academy, target operation/revision/epoch/transition and a maximum
+60-second handoff MAC. A target transaction verifies it, create-only writes a
+stage=target-transition receipt and atomically applies the target transition. Crash resumes only the
+same unexpired handoff; expiry or CAS drift requires a new source approval. Revocation before handoff
+blocks; after handoff it is non-retroactive. Acquire, complete and restore post-deadline recovery all
+use this pattern; no contract assumes a cross-project transaction.
+
+Firebase Auth objects and authority remain excluded. The encrypted authority inventory is evidence
+only. To preserve valid family/minor and historical references, the logical Firestore contents of
+`students.userId`, auth-user-id reservations, users, staff, families and relationships are restored
+unchanged as quarantined evidence rather than rewritten into partial inactive records. The operation,
+handoffs, target completion state and target-transition consumption bind
+authorityMode=quarantined-no-auth. Those references grant no
+authority because target Auth remains empty, the project is unserved, application bootstrap rejects
+the restore-only project ID and directory paths reject restore phases. listUsers(1) is rechecked before acquisition, each chunk transition,
+verification and completion. Relinking, target-key derivation or activation requires a future
+operation and full referential/Auth revalidation.
+
+Restore does not reinstall source state, guard, lease or approval as authority. Preparation verifies
+the source artifact/guard, backupManifestMac/sourceStateEvidenceMac, exact Emulator pair,
+quarantined-no-auth plan and I0-empty target, then one
+target Firestore transaction create-only writes state, guard head/revision-zero event, planned restore
+parent binding the disposition version and both evidence MACs, and audit. The state is
+canonical-v1/blocked/frozen/restore-prepared with
+preparedOperationId, lastCommittedChunkNo=0 and no active operation/lease/deadline. A pre-commit crash
+leaves I0; a post-commit crash leaves the complete I1 set. Exact retry returns I1 and any divergence
+fails. Restore-acquire is consumed through source-handoff -> target-transition while target
+epoch/revision advances beyond the snapshot, preparedOperationId is cleared, an active operation and
+lease are issued, and the parent enters canonical-v1/blocked/frozen/restore-recovery. The operation
+allows at most 10,000 payload documents and 256 MiB canonical decoded payload bytes plus only the
+exact 2,048-document/32-MiB target-control headroom, with a 30-minute deadline. Each create-only target
+transaction handles at most 40 planned payload documents,
+2,500 reads, 8 MiB decoded, 100 writes and 15 server seconds. Existing planned paths or planned
+count/root drift fails before that chunk writes; the recursive inventory checkpoints catch unrelated or
+nested drift before verification/completion. First/zero-row transitions and applying-to-verified
+remain separate.
+
+Restore-complete uses a fresh source handoff, binds target revision/epoch/logical roots and enters only
+canonical-v1/blocked/frozen/restore-rehearsal-complete with no active operation/lease/deadline and
+lastCommittedChunkNo=0. Application bootstrap and the directory parser reject it: completion proves isolated
+reconstruction, not tenant activation. After completion the runner executes I4, MACs the exact target
+inventory and submits only bounded evidence to an allowlisted source workload. A source transaction
+reopens the matching completion handoff and create-only writes
+`memberDirectoryRestoreAttestations/{attestationId}` under a deterministic opaque HMAC ID derived
+from stable completion identity, backupManifestMac and sourceStateEvidenceMac. The attestation binds
+both projects, academy, target operation/revision/epoch, authority mode, inventory version,
+attestedReadTime, payload/control/combined counts, bytes and roots,
+approval/handoff/target-consumption MACs, attestedTargetInventoryMac and sourceAttestationMac. Exact
+retry validates the existing source document, then scans at a new verificationReadTime and computes
+verificationTargetInventoryMac. The read time/MAC may differ, but all stable bindings, terminal
+state/parent/consumption, counts/bytes/roots and manifest/state MACs must match. T097 binds both
+attested and verification proofs before planning and atomically create-only writes
+`memberDirectoryRestoreAttestationConsumptions/{attestationId}` with its marker/guard/event; reuse by
+another operation fails. In-place overwrite or promotion requires a later ADR with a
+tenant-wide domain-write fence or versioned namespace cutover and a non-restorable Auth/claims
+revision shared by all provisioning/revocation paths, plus T011 and a new checkpoint. T097 must
+remove/migrate nested paths. No remote restore, serving cutover or real-data claim is authorized.
+
+Both target inventory MACs use the same domain-separated target HMAC schema over inventory version,
+target project/academy/operation/revision/epoch, authority mode, their own read time, terminal
+state/parent/consumption MACs and all payload/control/combined counts, bytes and roots.
+sourceAttestationMac covers every closed attestation field except itself. An expired completion
+handoff may support evidence only when its target transition proves consumption before expiry; it
+cannot authorize another transition.
+
+The backup scope excludes restorable Firebase Auth objects, RTDB `presence`, service credentials, tokens, passwords/MFA data, card data, and raw private object contents. The encrypted authority inventory described above is verification evidence only and cannot provision Auth or widen access. Waitlist records and locks remain excluded from aggregate user/report exports. The isolated reconstruction validates `waitlistPositionStates.lastPosition >= max(waitlistEntries.position)` for every session; a smaller value fails closed, while a larger value only preserves safe gaps. Backup and restore callables are owner/administrator-only, require App Check, reject arbitrary collection paths, and remain fail-closed until an approved private artifact store and production retention policy exist. The Emulator rehearsal writes create-only into the separate empty target project, verifies a synthetic failure leaves that target non-serving, and never rolls back or overwrites the source. No production backup, restore, migration, activation or deployment is implied by this contract.
 
 ## Versioning, migration, and rollback boundary
 

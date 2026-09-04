@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { FamilyAchievementSummary } from "@bpt-jersey/domain";
 import { createGetFamilyAchievementSummaryHandler } from "./family-achievement-callables";
 import type { FamilyAchievementStore } from "./family-achievement-service";
+import type { LevelAuthorizationService } from "./level-authorization";
 
 const summary = {
   familyId: "family-1",
@@ -19,9 +20,26 @@ function request(
 ) {
   return {
     auth: uid ? { uid, token: { academyId, role } } : undefined,
+    app: { appId: "test-app" },
     data,
   } as never;
 }
+
+const authorization: LevelAuthorizationService = {
+  requireActor: async (call) => {
+    if (!call.auth) throw Object.assign(new Error("unauthenticated"), { code: "unauthenticated" });
+    return {
+      kind: "user",
+      userId: call.auth.uid as never,
+      academyId: call.auth.token.academyId as never,
+      role: call.auth.token.role as never,
+      staffId: call.auth.token.role === "headCoach" ? "staff-1" : null,
+    };
+  },
+  resolveStudent: async () => {
+    throw new Error("unused");
+  },
+};
 
 describe("family achievement summary callable", () => {
   it.each(["owner", "administrator", "headCoach"])(
@@ -38,7 +56,7 @@ describe("family achievement summary callable", () => {
         },
       };
 
-      const response = await createGetFamilyAchievementSummaryHandler({ store })(
+      const response = await createGetFamilyAchievementSummaryHandler({ store, authorization })(
         request({ familyId: "family-1" }, role),
       );
       expect(response).toEqual({ summary });
@@ -53,7 +71,9 @@ describe("family achievement summary callable", () => {
       },
     };
     await expect(
-      createGetFamilyAchievementSummaryHandler({ store })(request({ familyId: "family-1" }, role)),
+      createGetFamilyAchievementSummaryHandler({ store, authorization })(
+        request({ familyId: "family-1" }, role),
+      ),
     ).rejects.toMatchObject({ code: "permission-denied" });
   });
 
@@ -64,7 +84,7 @@ describe("family achievement summary callable", () => {
         throw new Error("unused");
       },
     };
-    const handler = createGetFamilyAchievementSummaryHandler({ store });
+    const handler = createGetFamilyAchievementSummaryHandler({ store, authorization });
 
     await expect(handler(request(null, "owner"))).rejects.toMatchObject({
       code: "invalid-argument",

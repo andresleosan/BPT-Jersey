@@ -261,13 +261,17 @@ export const getCurrentWaiverAdmin = onCall(browserAdminCallableOptions, (reques
 export const withdrawCurrentWaiver = onCall(browserAdminCallableOptions, (request) =>
   withdrawCurrentWaiverHandler(request, callableServices()),
 );
-export const getWaiverRegistration = onCall((request) =>
+export const consentClientCallableOptions = { enforceAppCheck: true };
+
+export const getWaiverRegistration = onCall(consentClientCallableOptions, (request) =>
   getWaiverRegistrationHandler(request, callableServices()),
 );
-export const acceptWaiver = onCall((request) => acceptWaiverHandler(request, callableServices()));
-export const revokeWaiverConsent = onCall((request) =>
+export const acceptWaiver = onCall(consentClientCallableOptions, (request) =>
+  acceptWaiverHandler(request, callableServices()),
+);
+export const revokeWaiverConsent = onCall(consentClientCallableOptions, (request) =>
   revokeWaiverConsentHandler(request, callableServices()),
 );
-export const getWaiverEvidenceDownload = onCall((request) =>
+export const getWaiverEvidenceDownload = onCall(consentClientCallableOptions, (request) =>
   getWaiverEvidenceDownloadHandler(request, callableServices()),
 );

@@ -1,7 +1,10 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
-import { requireUserActor } from "../auth/user-authorization.js";
+import {
+  createFirebaseLevelAuthorization,
+  type LevelAuthorizationService,
+} from "./level-authorization.js";
 import {
   createFirestoreFamilyAchievementStore,
   FamilyAchievementStoreError,
@@ -34,13 +37,15 @@ function parseFamilyIdPayload(data: unknown): string {
 
 export function createGetFamilyAchievementSummaryHandler({
   store,
+  authorization,
 }: {
   store: FamilyAchievementStore;
+  authorization: LevelAuthorizationService;
 }) {
   return async (
     request: CallableRequest<unknown>,
   ): Promise<{ summary: FamilyAchievementSummary }> => {
-    const actor = requireUserActor(request);
+    const actor = await authorization.requireActor(request);
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError(
         "permission-denied",
@@ -67,6 +72,7 @@ export function createGetFamilyAchievementSummaryHandler({
 }
 
 let defaultStore: FamilyAchievementStore | undefined;
+let defaultAuthorization: LevelAuthorizationService | undefined;
 
 function getStore(): FamilyAchievementStore {
   if (!defaultStore) {
@@ -80,10 +86,18 @@ function getStore(): FamilyAchievementStore {
   return defaultStore;
 }
 
+function getAuthorization(): LevelAuthorizationService {
+  defaultAuthorization ??= createFirebaseLevelAuthorization();
+  return defaultAuthorization;
+}
+
 export const getFamilyAchievementSummary = onCall(
   {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
+    enforceAppCheck: true,
   },
-  async (request) => createGetFamilyAchievementSummaryHandler({ store: getStore() })(request),
+  async (request) =>
+    createGetFamilyAchievementSummaryHandler({
+      store: getStore(),
+      authorization: getAuthorization(),
+    })(request),
 );

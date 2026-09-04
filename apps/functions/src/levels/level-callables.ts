@@ -13,7 +13,11 @@ import {
   type RecognitionCandidate,
   type StudentProgressSummary,
 } from "@bpt-jersey/domain/levels";
-import { requireUserActor } from "../auth/user-authorization.js";
+import {
+  createFirebaseLevelAuthorization,
+  type AuthorizedLevelActor,
+  type LevelAuthorizationService,
+} from "./level-authorization.js";
 import {
   createLevelCatalogStore,
   LevelStoreError,
@@ -21,535 +25,397 @@ import {
   type StudentSkillSummary,
 } from "./level-service.js";
 
-const staffRoles = ["owner", "administrator", "headCoach", "coach"] as const;
-const headCoachRoles = ["owner", "headCoach"] as const;
+type HandlerDependencies = Readonly<{
+  store: LevelCatalogStore;
+  authorization: LevelAuthorizationService;
+}>;
 
-export function createListLevelCatalogHandler({ store }: { store: LevelCatalogStore }) {
-  return async (request: CallableRequest): Promise<LevelCatalogProjection> => {
-    if (request.data !== null && request.data !== undefined) {
-      throw new HttpsError("invalid-argument", "listLevelCatalog does not accept a payload.");
+const staffRoles = new Set(["owner", "administrator", "headCoach", "coach"]);
+const assessmentRoles = new Set(["headCoach", "coach"]);
+
+function invalidPayload(): never {
+  throw new HttpsError("invalid-argument", "Levels payload is invalid");
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function exactFields(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[] = [],
+): boolean {
+  const keys = Reflect.ownKeys(value);
+  return (
+    keys.every(
+      (key) => typeof key === "string" && (required.includes(key) || optional.includes(key)),
+    ) && required.every((field) => Object.hasOwn(value, field))
+  );
+}
+
+function emptyPayload(value: unknown): void {
+  if (!isPlainRecord(value) || !exactFields(value, [])) invalidPayload();
+}
+
+function targetPayload(
+  value: unknown,
+  actor: AuthorizedLevelActor,
+  options: Readonly<{ staffMayOmit?: boolean }> = {},
+): string | undefined {
+  if (actor.role === "adultStudent") {
+    emptyPayload(value);
+    return undefined;
+  }
+  if (
+    staffRoles.has(actor.role) &&
+    options.staffMayOmit &&
+    isPlainRecord(value) &&
+    exactFields(value, [])
+  ) {
+    return undefined;
+  }
+  if (!isPlainRecord(value) || !exactFields(value, ["studentId"])) invalidPayload();
+  const studentId = value.studentId;
+  if (typeof studentId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(studentId)) {
+    invalidPayload();
+  }
+  return studentId;
+}
+
+function mapStoreError(error: unknown, action: string): never {
+  if (error instanceof HttpsError) throw error;
+  if (error instanceof LevelStoreError) {
+    if (error.code === "invalid") {
+      throw new HttpsError("invalid-argument", "Levels request is invalid");
     }
+    if (error.code === "tenant") {
+      throw new HttpsError("permission-denied", "Levels access is not permitted");
+    }
+    if (error.code === "not-found") {
+      throw new HttpsError("not-found", "Levels record is not available");
+    }
+    throw new HttpsError("failed-precondition", "Levels state conflicts");
+  }
+  throw new HttpsError("internal", `Unable to ${action}`);
+}
 
-    const actor = requireUserActor(request);
+async function targetStudent(
+  authorization: LevelAuthorizationService,
+  actor: AuthorizedLevelActor,
+  requestedStudentId: string | undefined,
+): Promise<string> {
+  return (await authorization.resolveStudent(actor, requestedStudentId)).studentId;
+}
 
+export function createListLevelCatalogHandler(dependencies: HandlerDependencies) {
+  return async (request: CallableRequest<unknown>): Promise<LevelCatalogProjection> => {
+    const actor = await dependencies.authorization.requireActor(request);
+    if (request.data !== null && request.data !== undefined) invalidPayload();
     try {
-      return await store.listPublished(actor.academyId);
+      return await dependencies.store.listPublished(actor.academyId);
     } catch (error) {
-      if (error instanceof LevelStoreError) {
-        if (error.code === "not-found") {
-          throw new HttpsError("not-found", error.message);
-        }
-        if (error.code === "tenant" || error.code === "invalid") {
-          throw new HttpsError("permission-denied", error.message);
-        }
-      }
-      throw new HttpsError("internal", "Unable to retrieve level catalog.");
+      return mapStoreError(error, "retrieve level catalog");
     }
   };
 }
 
-export function createRecordEvaluationHandler({ store }: { store: LevelCatalogStore }) {
+export function createRecordEvaluationHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<{ evaluation: EvaluationRecord }> => {
-    const actor = requireUserActor(request);
-    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      throw new HttpsError(
-        "permission-denied",
-        "Staff role required to record evaluation (owner, administrator, headCoach, coach)",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    if (!assessmentRoles.has(actor.role) || actor.staffId === null) {
+      throw new HttpsError("permission-denied", "A current coach role is required");
     }
-
+    if (
+      !isPlainRecord(request.data) ||
+      !exactFields(request.data, [
+        "studentId",
+        "sessionId",
+        "definitionKey",
+        "skillKey",
+        "score",
+        "evidenceNotes",
+      ])
+    ) {
+      invalidPayload();
+    }
     const parsed = parseRecordEvaluationInput(request.data);
-    if (!parsed.ok) {
-      throw new HttpsError(
-        "invalid-argument",
-        `Invalid evaluation payload: ${parsed.error.map((e) => e.code).join(", ")}`,
-      );
+    if (!parsed.ok) invalidPayload();
+    const studentId = await targetStudent(
+      dependencies.authorization,
+      actor,
+      parsed.value.studentId,
+    );
+    try {
+      return {
+        evaluation: await dependencies.store.recordEvaluation({
+          academyId: actor.academyId,
+          input: { ...parsed.value, studentId },
+          evaluatorId: actor.userId,
+          evaluatorStaffId: actor.staffId,
+          evaluatorRole: actor.role as "headCoach" | "coach",
+        }),
+      };
+    } catch (error) {
+      return mapStoreError(error, "record assessment");
     }
-
-    const evaluation = await store.recordEvaluation({
-      academyId: actor.academyId,
-      input: parsed.value,
-      evaluatorId: actor.userId,
-      evaluatorRole: actor.role as (typeof staffRoles)[number],
-    });
-
-    return {
-      evaluation,
-    };
   };
 }
 
-export function createListStudentEvaluationsHandler({ store }: { store: LevelCatalogStore }) {
+export function createListStudentEvaluationsHandler(dependencies: HandlerDependencies) {
   return async (
     request: CallableRequest<unknown>,
   ): Promise<{ evaluations: readonly EvaluationRecord[]; summary: StudentSkillSummary }> => {
-    const actor = requireUserActor(request);
-    const data = (request.data as { studentId?: unknown }) ?? {};
-
-    let targetStudentId: string = String(actor.userId);
-
-    if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      if (typeof data.studentId === "string" && data.studentId.trim()) {
-        targetStudentId = data.studentId.trim();
-      } else {
-        throw new HttpsError(
-          "invalid-argument",
-          "studentId is required for staff evaluation query",
-        );
-      }
-    } else if (actor.role === "adultStudent") {
-      if (
-        typeof data.studentId === "string" &&
-        data.studentId.trim() &&
-        data.studentId.trim() !== String(actor.userId)
-      ) {
-        throw new HttpsError(
-          "permission-denied",
-          "Access denied: student evaluation visibility restricted to self or authorized guardians",
-        );
-      }
-      targetStudentId = String(actor.userId);
-    } else if (actor.role === "guardian") {
-      if (typeof data.studentId === "string" && data.studentId.trim()) {
-        targetStudentId = data.studentId.trim();
-      } else {
-        throw new HttpsError(
-          "invalid-argument",
-          "studentId is required for guardian evaluation query",
-        );
-      }
-    } else {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: student evaluation visibility restricted",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    const requested = targetPayload(request.data, actor);
+    const studentId = await targetStudent(dependencies.authorization, actor, requested);
+    try {
+      const [evaluations, summary] = await Promise.all([
+        dependencies.store.listStudentEvaluations(actor.academyId, studentId),
+        dependencies.store.getStudentSkillSummary(actor.academyId, studentId),
+      ]);
+      return { evaluations, summary };
+    } catch (error) {
+      return mapStoreError(error, "retrieve assessments");
     }
-
-    const evaluations = await store.listStudentEvaluations(actor.academyId, targetStudentId);
-    const summary = await store.getStudentSkillSummary(actor.academyId, targetStudentId);
-
-    return {
-      evaluations,
-      summary,
-    };
   };
 }
 
-export function createGetStudentProgressSummaryHandler({ store }: { store: LevelCatalogStore }) {
+export function createGetStudentProgressSummaryHandler(dependencies: HandlerDependencies) {
   return async (
     request: CallableRequest<unknown>,
   ): Promise<{ progress: StudentProgressSummary }> => {
-    const actor = requireUserActor(request);
-    const data =
-      (request.data as {
-        studentId?: unknown;
-        currentDefinitionKey?: unknown;
-        currentLevelStartedAt?: unknown;
-        attendedClassesCount?: unknown;
-        totalHours?: unknown;
-      }) ?? {};
-
-    let targetStudentId: string = String(actor.userId);
-
-    if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      if (typeof data.studentId === "string" && data.studentId.trim()) {
-        targetStudentId = data.studentId.trim();
-      } else {
-        throw new HttpsError("invalid-argument", "studentId is required for staff progress query");
-      }
-    } else if (actor.role === "adultStudent") {
-      if (
-        typeof data.studentId === "string" &&
-        data.studentId.trim() &&
-        data.studentId.trim() !== String(actor.userId)
-      ) {
-        throw new HttpsError(
-          "permission-denied",
-          "Access denied: student progress visibility restricted to self or authorized guardians",
-        );
-      }
-      targetStudentId = String(actor.userId);
-    } else if (actor.role === "guardian") {
-      if (typeof data.studentId === "string" && data.studentId.trim()) {
-        targetStudentId = data.studentId.trim();
-      } else {
-        throw new HttpsError(
-          "invalid-argument",
-          "studentId is required for guardian progress query",
-        );
-      }
-    } else {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: student progress visibility restricted",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    const requested = targetPayload(request.data, actor);
+    const studentId = await targetStudent(dependencies.authorization, actor, requested);
+    try {
+      return {
+        progress: await dependencies.store.getStudentProgressSummary(actor.academyId, studentId),
+      };
+    } catch (error) {
+      return mapStoreError(error, "retrieve student progress");
     }
-
-    const currentDefinitionKey =
-      typeof data.currentDefinitionKey === "string" && data.currentDefinitionKey.trim()
-        ? data.currentDefinitionKey.trim()
-        : undefined;
-
-    const currentLevelStartedAt =
-      typeof data.currentLevelStartedAt === "string" && data.currentLevelStartedAt.trim()
-        ? data.currentLevelStartedAt.trim()
-        : null;
-
-    const attendedClassesCount =
-      typeof data.attendedClassesCount === "number" && data.attendedClassesCount >= 0
-        ? data.attendedClassesCount
-        : undefined;
-
-    const totalHours =
-      typeof data.totalHours === "number" && data.totalHours >= 0 ? data.totalHours : undefined;
-
-    const progress = await store.getStudentProgressSummary(
-      actor.academyId,
-      targetStudentId,
-      currentDefinitionKey,
-      currentLevelStartedAt,
-      attendedClassesCount,
-      totalHours,
-    );
-
-    return {
-      progress,
-    };
   };
 }
 
-export function createRecordMedicalLeaveHandler({ store }: { store: LevelCatalogStore }) {
+export function createRecordMedicalLeaveHandler(dependencies: HandlerDependencies) {
   return async (
     request: CallableRequest<unknown>,
   ): Promise<{ medicalLeave: MedicalLeaveRecord }> => {
-    const actor = requireUserActor(request);
-    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      throw new HttpsError(
-        "permission-denied",
-        "Staff role required to record medical leave (owner, administrator, headCoach, coach)",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    if (!staffRoles.has(actor.role)) {
+      throw new HttpsError("permission-denied", "A current staff role is required");
     }
-
+    if (
+      !isPlainRecord(request.data) ||
+      !exactFields(request.data, ["studentId", "startDate", "endDate", "reasonCode"])
+    ) {
+      invalidPayload();
+    }
     const parsed = parseRecordMedicalLeaveInput(request.data);
-    if (!parsed.ok) {
-      throw new HttpsError(
-        "invalid-argument",
-        `Invalid medical leave payload: ${parsed.error.map((e) => e.code).join(", ")}`,
-      );
+    if (!parsed.ok) invalidPayload();
+    const studentId = await targetStudent(
+      dependencies.authorization,
+      actor,
+      parsed.value.studentId,
+    );
+    try {
+      return {
+        medicalLeave: await dependencies.store.recordMedicalLeave({
+          academyId: actor.academyId,
+          input: { ...parsed.value, studentId },
+          recordedBy: actor.userId,
+          actorRole: actor.role as "owner" | "administrator" | "headCoach" | "coach",
+          actorStaffId: actor.staffId,
+        }),
+      };
+    } catch (error) {
+      return mapStoreError(error, "record medical leave");
     }
-
-    const medicalLeave = await store.recordMedicalLeave({
-      academyId: actor.academyId,
-      input: parsed.value,
-      recordedBy: actor.userId,
-    });
-
-    return {
-      medicalLeave,
-    };
   };
 }
 
-export function createListMedicalLeavesHandler({ store }: { store: LevelCatalogStore }) {
+export function createListMedicalLeavesHandler(dependencies: HandlerDependencies) {
   return async (
     request: CallableRequest<unknown>,
   ): Promise<{ medicalLeaves: readonly MedicalLeaveRecord[] }> => {
-    const actor = requireUserActor(request);
-    const data = (request.data as { studentId?: unknown }) ?? {};
-
-    let targetStudentId: string = String(actor.userId);
-
-    if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      if (typeof data.studentId === "string" && data.studentId.trim()) {
-        targetStudentId = data.studentId.trim();
-      } else {
-        throw new HttpsError(
-          "invalid-argument",
-          "studentId is required for staff medical leave query",
-        );
-      }
-    } else if (actor.role === "adultStudent") {
-      if (
-        typeof data.studentId === "string" &&
-        data.studentId.trim() &&
-        data.studentId.trim() !== String(actor.userId)
-      ) {
-        throw new HttpsError(
-          "permission-denied",
-          "Access denied: medical leave visibility restricted to self or authorized guardians",
-        );
-      }
-      targetStudentId = String(actor.userId);
-    } else if (actor.role === "guardian") {
-      if (typeof data.studentId === "string" && data.studentId.trim()) {
-        targetStudentId = data.studentId.trim();
-      } else {
-        throw new HttpsError(
-          "invalid-argument",
-          "studentId is required for guardian medical leave query",
-        );
-      }
-    } else {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: medical leave visibility restricted",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    const requested = targetPayload(request.data, actor);
+    const studentId = await targetStudent(dependencies.authorization, actor, requested);
+    try {
+      return {
+        medicalLeaves: await dependencies.store.listMedicalLeaves(actor.academyId, studentId),
+      };
+    } catch (error) {
+      return mapStoreError(error, "retrieve medical leaves");
     }
-
-    const medicalLeaves = await store.listMedicalLeaves(actor.academyId, targetStudentId);
-    return {
-      medicalLeaves,
-    };
   };
 }
 
-export function createListRecognitionCandidatesHandler({ store }: { store: LevelCatalogStore }) {
+export function createListRecognitionCandidatesHandler(dependencies: HandlerDependencies) {
   return async (
     request: CallableRequest<unknown>,
   ): Promise<{ candidates: readonly RecognitionCandidate[] }> => {
-    const actor = requireUserActor(request);
-    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      throw new HttpsError(
-        "permission-denied",
-        "Staff role required to view recognition candidates (owner, administrator, headCoach, coach)",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    if (!staffRoles.has(actor.role)) {
+      throw new HttpsError("permission-denied", "A current staff role is required");
     }
-
-    const candidates = await store.listRecognitionCandidates(actor.academyId);
-    return {
-      candidates,
-    };
+    emptyPayload(request.data);
+    try {
+      return { candidates: await dependencies.store.listRecognitionCandidates(actor.academyId) };
+    } catch (error) {
+      return mapStoreError(error, "retrieve recognition candidates");
+    }
   };
 }
 
-export function createApprovePromotionHandler({ store }: { store: LevelCatalogStore }) {
+export function createApprovePromotionHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<{ graduation: GraduationRecord }> => {
-    const actor = requireUserActor(request);
-    if (!headCoachRoles.includes(actor.role as (typeof headCoachRoles)[number])) {
-      throw new HttpsError(
-        "permission-denied",
-        "Head Coach or Owner role required to approve promotions and graduations",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    if (actor.role !== "headCoach" || actor.staffId === null) {
+      throw new HttpsError("permission-denied", "The current head coach is required");
     }
-
+    if (
+      !isPlainRecord(request.data) ||
+      !exactFields(
+        request.data,
+        ["studentId", "fromDefinitionKey", "toDefinitionKey", "decisionNotes"],
+        ["ceremonyDate"],
+      )
+    ) {
+      invalidPayload();
+    }
     const parsed = parseApprovePromotionInput(request.data);
-    if (!parsed.ok) {
-      throw new HttpsError(
-        "invalid-argument",
-        `Invalid promotion approval payload: ${parsed.error.map((e) => e.code).join(", ")}`,
-      );
+    if (!parsed.ok) invalidPayload();
+    const studentId = await targetStudent(
+      dependencies.authorization,
+      actor,
+      parsed.value.studentId,
+    );
+    try {
+      return {
+        graduation: await dependencies.store.approvePromotion({
+          academyId: actor.academyId,
+          input: { ...parsed.value, studentId },
+          decidedBy: actor.userId,
+          decidedByStaffId: actor.staffId,
+          decidedByRole: "headCoach",
+        }),
+      };
+    } catch (error) {
+      return mapStoreError(error, "approve promotion");
     }
-
-    const graduation = await store.approvePromotion({
-      academyId: actor.academyId,
-      input: parsed.value,
-      decidedBy: actor.userId,
-      decidedByRole: actor.role as "owner" | "headCoach",
-    });
-
-    return {
-      graduation,
-    };
   };
 }
 
-export function createRejectPromotionHandler({ store }: { store: LevelCatalogStore }) {
+export function createRejectPromotionHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<{ graduation: GraduationRecord }> => {
-    const actor = requireUserActor(request);
-    if (!headCoachRoles.includes(actor.role as (typeof headCoachRoles)[number])) {
-      throw new HttpsError(
-        "permission-denied",
-        "Head Coach or Owner role required to reject promotions",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    if (actor.role !== "headCoach" || actor.staffId === null) {
+      throw new HttpsError("permission-denied", "The current head coach is required");
     }
-
+    if (
+      !isPlainRecord(request.data) ||
+      !exactFields(request.data, ["studentId", "targetDefinitionKey", "decisionNotes"])
+    ) {
+      invalidPayload();
+    }
     const parsed = parseRejectPromotionInput(request.data);
-    if (!parsed.ok) {
-      throw new HttpsError(
-        "invalid-argument",
-        `Invalid promotion rejection payload: ${parsed.error.map((e) => e.code).join(", ")}`,
-      );
+    if (!parsed.ok) invalidPayload();
+    const studentId = await targetStudent(
+      dependencies.authorization,
+      actor,
+      parsed.value.studentId,
+    );
+    try {
+      return {
+        graduation: await dependencies.store.rejectPromotion({
+          academyId: actor.academyId,
+          input: { ...parsed.value, studentId },
+          decidedBy: actor.userId,
+          decidedByStaffId: actor.staffId,
+          decidedByRole: "headCoach",
+        }),
+      };
+    } catch (error) {
+      return mapStoreError(error, "reject promotion");
     }
-
-    const graduation = await store.rejectPromotion({
-      academyId: actor.academyId,
-      input: parsed.value,
-      decidedBy: actor.userId,
-      decidedByRole: actor.role as "owner" | "headCoach",
-    });
-
-    return {
-      graduation,
-    };
   };
 }
 
-export function createListGraduationsHandler({ store }: { store: LevelCatalogStore }) {
+export function createListGraduationsHandler(dependencies: HandlerDependencies) {
   return async (
     request: CallableRequest<unknown>,
   ): Promise<{ graduations: readonly GraduationRecord[] }> => {
-    const actor = requireUserActor(request);
-    const data = (request.data as { studentId?: unknown }) ?? {};
-
-    let targetStudentId: string | undefined;
-
-    if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
-      if (typeof data.studentId === "string" && data.studentId.trim()) {
-        targetStudentId = data.studentId.trim();
-      }
-    } else if (actor.role === "adultStudent") {
-      if (
-        typeof data.studentId === "string" &&
-        data.studentId.trim() &&
-        data.studentId.trim() !== String(actor.userId)
-      ) {
-        throw new HttpsError(
-          "permission-denied",
-          "Access denied: graduation history visibility restricted to self or authorized guardians",
-        );
-      }
-      targetStudentId = String(actor.userId);
-    } else if (actor.role === "guardian") {
-      if (typeof data.studentId === "string" && data.studentId.trim()) {
-        targetStudentId = data.studentId.trim();
-      } else {
-        throw new HttpsError(
-          "invalid-argument",
-          "studentId is required for guardian graduation query",
-        );
-      }
-    } else {
-      throw new HttpsError(
-        "permission-denied",
-        "Access denied: graduation history visibility restricted",
-      );
+    const actor = await dependencies.authorization.requireActor(request);
+    const requested = targetPayload(request.data, actor, { staffMayOmit: true });
+    const studentId =
+      requested === undefined && staffRoles.has(actor.role)
+        ? undefined
+        : await targetStudent(dependencies.authorization, actor, requested);
+    try {
+      return { graduations: await dependencies.store.listGraduations(actor.academyId, studentId) };
+    } catch (error) {
+      return mapStoreError(error, "retrieve promotion history");
     }
-
-    const graduations = await store.listGraduations(actor.academyId, targetStudentId);
-    return {
-      graduations,
-    };
   };
 }
 
 let defaultStore: LevelCatalogStore | undefined;
+let defaultAuthorization: LevelAuthorizationService | undefined;
 
 function getStore(): LevelCatalogStore {
   if (!defaultStore) {
-    const firestore = getFirestore();
-    defaultStore = createLevelCatalogStore({
-      firestore: firestore as unknown as Parameters<typeof createLevelCatalogStore>[0]["firestore"],
-    });
+    defaultStore = createLevelCatalogStore({ firestore: getFirestore() as never });
   }
   return defaultStore;
 }
 
-export const listLevelCatalog = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createListLevelCatalogHandler({ store: getStore() });
-    return handler(request);
-  },
-);
+function getAuthorization(): LevelAuthorizationService {
+  if (!defaultAuthorization) {
+    defaultAuthorization = createFirebaseLevelAuthorization();
+  }
+  return defaultAuthorization;
+}
 
-export const recordEvaluation = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createRecordEvaluationHandler({ store: getStore() });
-    return handler(request);
-  },
-);
+function dependencies(): HandlerDependencies {
+  return { store: getStore(), authorization: getAuthorization() };
+}
 
-export const listStudentEvaluations = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createListStudentEvaluationsHandler({ store: getStore() });
-    return handler(request);
-  },
-);
+export const levelCallableOptions = { enforceAppCheck: true } as const;
 
-export const getStudentProgressSummary = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createGetStudentProgressSummaryHandler({ store: getStore() });
-    return handler(request);
-  },
+export const listLevelCatalog = onCall(levelCallableOptions, (request) =>
+  createListLevelCatalogHandler(dependencies())(request),
 );
-
-export const recordMedicalLeave = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createRecordMedicalLeaveHandler({ store: getStore() });
-    return handler(request);
-  },
+export const recordEvaluation = onCall(levelCallableOptions, (request) =>
+  createRecordEvaluationHandler(dependencies())(request),
 );
-
-export const listMedicalLeaves = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createListMedicalLeavesHandler({ store: getStore() });
-    return handler(request);
-  },
+export const listStudentEvaluations = onCall(levelCallableOptions, (request) =>
+  createListStudentEvaluationsHandler(dependencies())(request),
 );
-
-export const listRecognitionCandidates = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createListRecognitionCandidatesHandler({ store: getStore() });
-    return handler(request);
-  },
+export const getStudentProgressSummary = onCall(levelCallableOptions, (request) =>
+  createGetStudentProgressSummaryHandler(dependencies())(request),
 );
-
-export const approvePromotion = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createApprovePromotionHandler({ store: getStore() });
-    return handler(request);
-  },
+export const recordMedicalLeave = onCall(levelCallableOptions, (request) =>
+  createRecordMedicalLeaveHandler(dependencies())(request),
 );
-
-export const rejectPromotion = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createRejectPromotionHandler({ store: getStore() });
-    return handler(request);
-  },
+export const listMedicalLeaves = onCall(levelCallableOptions, (request) =>
+  createListMedicalLeavesHandler(dependencies())(request),
 );
-
-export const listGraduations = onCall(
-  {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
-  },
-  async (request) => {
-    const handler = createListGraduationsHandler({ store: getStore() });
-    return handler(request);
-  },
+export const listRecognitionCandidates = onCall(levelCallableOptions, (request) =>
+  createListRecognitionCandidatesHandler(dependencies())(request),
+);
+export const approvePromotion = onCall(levelCallableOptions, (request) =>
+  createApprovePromotionHandler(dependencies())(request),
+);
+export const rejectPromotion = onCall(levelCallableOptions, (request) =>
+  createRejectPromotionHandler(dependencies())(request),
+);
+export const listGraduations = onCall(levelCallableOptions, (request) =>
+  createListGraduationsHandler(dependencies())(request),
 );

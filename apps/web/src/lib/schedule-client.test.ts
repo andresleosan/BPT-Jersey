@@ -24,6 +24,7 @@ import {
   saveClass,
   saveProgram,
   saveSession,
+  scheduleCallableClientOptions,
 } from "./schedule-client";
 
 const mockCallable = vi.fn();
@@ -38,6 +39,10 @@ vi.mock("./firebase-client", () => ({
 
 describe("Schedule Client", () => {
   it("fetches schedule catalog", async () => {
+    expect(scheduleCallableClientOptions).toEqual({
+      limitedUseAppCheckTokens: true,
+    });
+    expect(Object.isFrozen(scheduleCallableClientOptions)).toBe(true);
     mockCallable.mockResolvedValueOnce({
       data: {
         locations: [{ locationId: "town", name: "BPT Town" }],
@@ -332,7 +337,6 @@ describe("Schedule Client", () => {
     expect(view.roster[0]?.computedStatus).toBe("attended");
   });
 });
-
 
 
 

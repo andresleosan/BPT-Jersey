@@ -6,6 +6,7 @@ const clientMocks = vi.hoisted(() => ({
   confirmMemberImport: vi.fn(),
   createMemberImportSession: vi.fn(),
   previewMemberImport: vi.fn(),
+  reviewMemberImportMatches: vi.fn(),
   uploadMemberImportFiles: vi.fn(),
 }));
 
@@ -18,27 +19,52 @@ vi.mock("../../../../lib/member-import-client", async () => {
 
 import { MemberImportPage } from "./page";
 
+const receiptId = `import-${"b".repeat(64)}`;
+
 function futureIso(minutes = 5): string {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
 }
 
-function session(expiresAt = futureIso()) {
+function session(operationId: string, expiresAt = futureIso()) {
   return {
-    sessionId: "session-1",
-    uploads: [{ objectKey: "server/key.pdf", uploadUrl: "https://upload.example/key" }],
+    sessionId: `import-session-${"2".repeat(64)}`,
+    operationId,
+    uploads: [{ uploadUrl: "https://upload.example/key" }],
     expiresAt,
   };
 }
 
-function preview(expiresAt = futureIso()) {
+function preview(
+  operationId: string,
+  options: Readonly<{ expiresAt?: string; confirmable?: boolean }> = {},
+) {
+  const expiresAt = options.expiresAt ?? futureIso();
+  const confirmable = options.confirmable ?? true;
   return {
-    previewId: "preview-1",
-    expiresAt,
-    sourceReports: [{ source: "pdf-1", report: "active", rowCount: 2 }],
-    additions: [{ stableKey: "new-member", rowNumbers: [2], fieldNames: ["fullName"] }],
-    updates: [{ stableKey: "existing-member", rowNumbers: [3], fieldNames: ["email"] }],
-    duplicates: [],
-    conflicts: [],
+    classifications: [
+      { rowMac: "a".repeat(64), classification: "createable-adult" },
+      ...(confirmable
+        ? [{ rowMac: "c".repeat(64), classification: "explicit-existing-student-match" }]
+        : [{ rowMac: "c".repeat(64), classification: "identity-conflict" }]),
+    ],
+    reviewMatches: [],
+    confirmable,
+    receipt: {
+      receiptId,
+      operationId,
+      expiresAt,
+      classificationCounts: {
+        "same-id-compatible": 0,
+        "explicit-existing-student-match": confirmable ? 1 : 0,
+        "createable-adult": 1,
+        "minor-requires-family-match": 0,
+        "missing-required-fields": 0,
+        "identity-conflict": confirmable ? 0 : 1,
+        "duplicate-membership-number": 0,
+        "cross-tenant": 0,
+        "invalid-record": 0,
+      },
+    },
   };
 }
 
@@ -48,11 +74,22 @@ function chooseFiles(user: ReturnType<typeof userEvent.setup>) {
   ]);
 }
 
-describe("member import page", () => {
+function mockHappyFlow(): void {
+  clientMocks.createMemberImportSession.mockImplementation(async (_files, options) =>
+    session(options.operationId),
+  );
+  clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
+  clientMocks.previewMemberImport.mockImplementation(async (_sessionId, operationId) =>
+    preview(operationId),
+  );
+}
+
+describe("canonical member import page", () => {
   beforeEach(() => {
     clientMocks.confirmMemberImport.mockReset();
     clientMocks.createMemberImportSession.mockReset();
     clientMocks.previewMemberImport.mockReset();
+    clientMocks.reviewMemberImportMatches.mockReset();
     clientMocks.uploadMemberImportFiles.mockReset();
   });
 
@@ -61,98 +98,229 @@ describe("member import page", () => {
     vi.clearAllMocks();
   });
 
-  it("renders accessible upload landmarks and blocks confirmation before preview", () => {
+  it("renders accessible upload and training controls and blocks confirmation before preview", () => {
     render(<MemberImportPage />);
 
     expect(screen.getByRole("heading", { name: "Import member reports" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "Import member reports" })).toBeVisible();
     expect(screen.getByLabelText("Member report PDFs")).toHaveAttribute(
       "accept",
       ".pdf,application/pdf",
     );
+    expect(screen.getByLabelText("Training center")).toHaveValue("Town");
+    expect(screen.getByLabelText("Evening")).toBeChecked();
     expect(screen.getByRole("button", { name: "Preview import" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirm import" })).toBeDisabled();
+  });
+
+  it("uploads with one stable operation UUID and renders only canonical classification counts", async () => {
+    const user = userEvent.setup();
+    mockHappyFlow();
+    render(<MemberImportPage />);
+
+    await chooseFiles(user);
+    await user.click(screen.getByRole("button", { name: "Preview import" }));
+
+    await waitFor(() => expect(clientMocks.previewMemberImport).toHaveBeenCalled());
+    const options = clientMocks.createMemberImportSession.mock.calls[0]?.[1];
+    expect(options).toMatchObject({
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      operationId: expect.stringMatching(/^[0-9a-f-]{36}$/iu),
+    });
+    expect(clientMocks.previewMemberImport).toHaveBeenCalledWith(
+      session(options.operationId).sessionId,
+      options.operationId,
+    );
+    expect(screen.getByText("1 new adult")).toBeVisible();
+    expect(screen.getByText("1 existing match")).toBeVisible();
+    expect(screen.queryByText("Synthetic Adult")).toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm import" })).toBeEnabled();
+  });
+
+  it("keeps the operation UUID stable across preparation retries", async () => {
+    const user = userEvent.setup();
+    mockHappyFlow();
+    clientMocks.createMemberImportSession.mockRejectedValueOnce(new Error("private"));
+    render(<MemberImportPage />);
+
+    await chooseFiles(user);
+    await user.click(screen.getByRole("button", { name: "Preview import" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to prepare member import");
+    await user.click(screen.getByRole("button", { name: "Preview import" }));
+    await screen.findByText("Preview ready");
+
+    expect(clientMocks.createMemberImportSession).toHaveBeenCalledTimes(2);
+    expect(clientMocks.createMemberImportSession.mock.calls[0]?.[1].operationId).toBe(
+      clientMocks.createMemberImportSession.mock.calls[1]?.[1].operationId,
+    );
+  });
+
+  it("rotates the operation UUID when training defaults change between retries", async () => {
+    const user = userEvent.setup();
+    mockHappyFlow();
+    clientMocks.createMemberImportSession
+      .mockRejectedValueOnce(new Error("private"))
+      .mockRejectedValueOnce(new Error("private"));
+    render(<MemberImportPage />);
+
+    await chooseFiles(user);
+    await user.click(screen.getByRole("button", { name: "Preview import" }));
+    await screen.findByRole("alert");
+    const firstOperationId = clientMocks.createMemberImportSession.mock.calls[0]?.[1].operationId;
+
+    await user.selectOptions(screen.getByLabelText("Training center"), "West");
+    await user.click(screen.getByRole("button", { name: "Preview import" }));
+    await waitFor(() => expect(clientMocks.createMemberImportSession).toHaveBeenCalledTimes(2));
+    await screen.findByRole("alert");
+    const secondOperationId = clientMocks.createMemberImportSession.mock.calls[1]?.[1].operationId;
+
+    await user.click(screen.getByLabelText("Morning"));
+    await user.click(screen.getByRole("button", { name: "Preview import" }));
+    await screen.findByText("Preview ready");
+    const thirdCall = clientMocks.createMemberImportSession.mock.calls[2]?.[1];
+
+    expect(new Set([firstOperationId, secondOperationId, thirdCall.operationId])).toHaveProperty(
+      "size",
+      3,
+    );
+    expect(thirdCall).toMatchObject({
+      trainingCenter: "West",
+      trainingTimePreferences: ["evening", "morning"],
+    });
+  });
+
+  it("blocks every non-confirmable classification and never calls confirm", async () => {
+    const user = userEvent.setup();
+    mockHappyFlow();
+    clientMocks.previewMemberImport.mockImplementation(async (_sessionId, operationId) =>
+      preview(operationId, { confirmable: false }),
+    );
+    render(<MemberImportPage />);
+
+    await chooseFiles(user);
+    await user.click(screen.getByRole("button", { name: "Preview import" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("cannot be confirmed");
+    expect(screen.getByText("1 identity conflict")).toBeVisible();
     expect(screen.getByRole("button", { name: "Confirm import" })).toBeDisabled();
     expect(clientMocks.confirmMemberImport).not.toHaveBeenCalled();
   });
 
-  it("selects files, uploads with status, and renders preview counts", async () => {
+  it("requires an explicit complete match review before enabling confirmation", async () => {
     const user = userEvent.setup();
-    clientMocks.createMemberImportSession.mockResolvedValue(session());
-    clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-    clientMocks.previewMemberImport.mockResolvedValue(preview());
-    render(<MemberImportPage />);
-
-    await chooseFiles(user);
-    expect(screen.getByText("members.pdf")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Preview import" }));
-
-    await waitFor(() => expect(clientMocks.previewMemberImport).toHaveBeenCalledWith("session-1"));
-    expect(screen.getByText("1 addition")).toBeVisible();
-    expect(screen.getByText("1 update")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Confirm import" })).toBeEnabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Preview ready");
-  });
-
-  it("blocks conflicts and requires an explicit confirmation action", async () => {
-    const user = userEvent.setup();
-    clientMocks.createMemberImportSession.mockResolvedValue(session());
-    clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-    const conflictPreview = preview();
-    clientMocks.previewMemberImport.mockResolvedValue({
-      ...conflictPreview,
-      conflicts: [conflictPreview.updates[0]],
+    mockHappyFlow();
+    const pending = {
+      ...preview("41cbb1aa-7020-4bb5-88a4-dbc73c5f0123", { confirmable: false }),
+      reviewMatches: [
+        {
+          rowMac: "c".repeat(64),
+          sourceName: "Synthetic Adult",
+          candidate: {
+            studentId: "student-1",
+            fullName: "Synthetic Adult",
+            trainingCenter: "Town",
+            membershipReference: "****0001",
+          },
+          decision: "pending",
+        },
+      ],
+    };
+    clientMocks.previewMemberImport.mockResolvedValue(pending);
+    clientMocks.reviewMemberImportMatches.mockResolvedValue({
+      ...pending,
+      classifications: [
+        { rowMac: "a".repeat(64), classification: "createable-adult" },
+        { rowMac: "c".repeat(64), classification: "explicit-existing-student-match" },
+      ],
+      reviewMatches: [{ ...pending.reviewMatches[0], decision: "accepted" }],
+      confirmable: true,
     });
     render(<MemberImportPage />);
 
     await chooseFiles(user);
     await user.click(screen.getByRole("button", { name: "Preview import" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Resolve 1 conflict");
+    expect(await screen.findByRole("heading", { name: "Review existing matches" })).toBeVisible();
+    expect(screen.getByText("****0001")).toBeVisible();
     expect(screen.getByRole("button", { name: "Confirm import" })).toBeDisabled();
-    expect(clientMocks.confirmMemberImport).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Accept match for Synthetic Adult" }));
+    await user.click(screen.getByRole("button", { name: "Review matches" }));
+
+    const operationId = clientMocks.createMemberImportSession.mock.calls[0]?.[1].operationId;
+    await waitFor(() =>
+      expect(clientMocks.reviewMemberImportMatches).toHaveBeenCalledWith(
+        session(operationId).sessionId,
+        operationId,
+        [{ rowMac: "c".repeat(64), decision: "accept" }],
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Confirm import" })).toBeEnabled();
   });
 
-  it("confirms only after the user action and shows the server result", async () => {
+  it("confirms only with sessionId, operationId and the signed receipt", async () => {
     const user = userEvent.setup();
-    clientMocks.createMemberImportSession.mockResolvedValue(session());
-    clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-    clientMocks.previewMemberImport.mockResolvedValue(preview());
-    clientMocks.confirmMemberImport.mockResolvedValue({ imported: 1, updated: 2, conflicts: 0 });
+    mockHappyFlow();
+    clientMocks.confirmMemberImport.mockResolvedValue({ receiptId, created: 1, matched: 1 });
     render(<MemberImportPage />);
 
     await chooseFiles(user);
     await user.click(screen.getByRole("button", { name: "Preview import" }));
     await screen.findByText("Preview ready");
-    expect(clientMocks.confirmMemberImport).not.toHaveBeenCalled();
+    const operationId = clientMocks.createMemberImportSession.mock.calls[0]?.[1].operationId;
+    const preparedPreview = await clientMocks.previewMemberImport.mock.results[0]?.value;
     await user.click(screen.getByRole("button", { name: "Confirm import" }));
 
     await waitFor(() =>
-      expect(clientMocks.confirmMemberImport).toHaveBeenCalledWith("session-1", "preview-1"),
+      expect(clientMocks.confirmMemberImport).toHaveBeenCalledWith(
+        session(operationId).sessionId,
+        operationId,
+        preparedPreview.receipt,
+      ),
     );
     expect(screen.getByRole("status")).toHaveTextContent("Import complete");
-    expect(screen.getByText("1 imported")).toBeVisible();
-    expect(screen.getByText("2 updated")).toBeVisible();
+    expect(screen.getByText("1 created")).toBeVisible();
+    expect(screen.getByText("1 matched")).toBeVisible();
   });
 
-  it("uses real file validation and rejects invalid selections", async () => {
-    const user = userEvent.setup();
-    render(<MemberImportPage />);
+  it("disables confirmation when the signed receipt expires", async () => {
+    vi.useFakeTimers();
+    try {
+      const selected = new File(["synthetic pdf"], "members.pdf", { type: "application/pdf" });
+      clientMocks.createMemberImportSession.mockImplementation(async (_files, options) =>
+        session(options.operationId),
+      );
+      clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
+      clientMocks.previewMemberImport.mockImplementation(async (_sessionId, operationId) =>
+        preview(operationId, { expiresAt: new Date(Date.now() + 1_000).toISOString() }),
+      );
+      render(<MemberImportPage />);
 
-    await user.upload(screen.getByLabelText("Member report PDFs"), [
-      new File([], "empty.pdf", { type: "application/pdf" }),
-    ]);
-
-    expect(screen.getByRole("alert")).toHaveTextContent("Choose between one and five PDF files");
-    expect(screen.getByRole("button", { name: "Preview import" })).toBeDisabled();
-    expect(clientMocks.createMemberImportSession).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText("Member report PDFs"), {
+        target: { files: [selected] },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Preview import" }));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(screen.getByRole("button", { name: "Confirm import" })).toBeEnabled();
+      await act(async () => {
+        vi.advanceTimersByTime(1_001);
+      });
+      expect(screen.getByRole("button", { name: "Confirm import" })).toBeDisabled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("ignores a stale operation after a new invalid selection", async () => {
+  it("rejects invalid files and ignores stale preparation after a new selection", async () => {
     const user = userEvent.setup();
     let resolveSession: ((value: ReturnType<typeof session>) => void) | undefined;
-    clientMocks.createMemberImportSession.mockReturnValue(
-      new Promise((resolve) => {
-        resolveSession = resolve;
-      }),
+    clientMocks.createMemberImportSession.mockImplementation(
+      (_files, options) =>
+        new Promise((resolve) => {
+          resolveSession = resolve;
+          void options;
+        }),
     );
     render(<MemberImportPage />);
 
@@ -161,188 +329,12 @@ describe("member import page", () => {
     await user.upload(screen.getByLabelText("Member report PDFs"), [
       new File(["bad"], "members.txt", { type: "text/plain" }),
     ]);
-    resolveSession?.(session());
-
+    resolveSession?.(session("51cbb1aa-7020-4bb5-88a4-dbc73c5f0123"));
     await act(async () => {
       await Promise.resolve();
     });
+
     expect(screen.getByRole("alert")).toHaveTextContent("Choose between one and five PDF files");
     expect(screen.queryByText("Preview ready")).toBeNull();
-    expect(screen.getByRole("button", { name: "Confirm import" })).toBeDisabled();
-  });
-
-  it("disables confirmation automatically when the preview expires", async () => {
-    vi.useFakeTimers();
-    try {
-      const selected = new File(["synthetic pdf"], "members.pdf", { type: "application/pdf" });
-      const importSession = session();
-      const importPreview = preview(new Date(Date.now() + 1_000).toISOString());
-      clientMocks.createMemberImportSession.mockResolvedValue(importSession);
-      clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-      clientMocks.previewMemberImport.mockResolvedValue(importPreview);
-      render(<MemberImportPage />);
-
-      fireEvent.change(screen.getByLabelText("Member report PDFs"), {
-        target: { files: [selected] },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Preview import" }));
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(screen.getByText("Preview ready")).toBeVisible();
-      expect(screen.getByRole("button", { name: "Confirm import" })).toBeEnabled();
-      await act(async () => {
-        vi.advanceTimersByTime(1_001);
-      });
-      expect(screen.getByRole("button", { name: "Confirm import" })).toBeDisabled();
-      expect(clientMocks.confirmMemberImport).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("checks Date.now directly when the expiry timer is stale", async () => {
-    vi.useFakeTimers();
-    try {
-      const now = Date.now();
-      const selected = new File(["synthetic pdf"], "members.pdf", { type: "application/pdf" });
-      const importSession = session(new Date(now + 60_000).toISOString());
-      const importPreview = preview(new Date(now + 60_000).toISOString());
-      clientMocks.createMemberImportSession.mockResolvedValue(importSession);
-      clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-      clientMocks.previewMemberImport.mockResolvedValue(importPreview);
-      clientMocks.confirmMemberImport.mockResolvedValue({ imported: 1, updated: 0, conflicts: 0 });
-      render(<MemberImportPage />);
-
-      fireEvent.change(screen.getByLabelText("Member report PDFs"), {
-        target: { files: [selected] },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Preview import" }));
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(screen.getByText("Preview ready")).toBeVisible();
-      expect(screen.getByRole("button", { name: "Confirm import" })).toBeEnabled();
-
-      vi.setSystemTime(now + 61_000);
-      fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
-
-      expect(clientMocks.confirmMemberImport).not.toHaveBeenCalled();
-      expect(screen.getByRole("alert")).toHaveTextContent("expired");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it.each([
-    ["session", "createMemberImportSession"],
-    ["upload", "uploadMemberImportFiles"],
-    ["preview", "previewMemberImport"],
-  ] as const)("shows a safe %s error and allows retry", async (_label, operation) => {
-    const user = userEvent.setup();
-    clientMocks.createMemberImportSession.mockResolvedValue(session());
-    clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-    clientMocks.previewMemberImport.mockResolvedValue(preview());
-    if (operation === "createMemberImportSession") {
-      clientMocks.createMemberImportSession
-        .mockRejectedValueOnce(new Error("private detail"))
-        .mockResolvedValue(session());
-    } else if (operation === "uploadMemberImportFiles") {
-      clientMocks.uploadMemberImportFiles
-        .mockRejectedValueOnce(new Error("private detail"))
-        .mockResolvedValue(undefined);
-    } else {
-      clientMocks.previewMemberImport
-        .mockRejectedValueOnce(new Error("private detail"))
-        .mockResolvedValue(preview());
-    }
-    render(<MemberImportPage />);
-
-    await chooseFiles(user);
-    await user.click(screen.getByRole("button", { name: "Preview import" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to prepare member import");
-    expect(screen.getByRole("alert")).not.toHaveTextContent("private detail");
-    await user.click(screen.getByRole("button", { name: "Preview import" }));
-    await waitFor(() => expect(clientMocks.createMemberImportSession).toHaveBeenCalledTimes(2));
-  });
-
-  it("keeps controls disabled while loading and ignores duplicate confirm clicks", async () => {
-    const user = userEvent.setup();
-    let resolveConfirm:
-      ((value: { imported: number; updated: number; conflicts: number }) => void) | undefined;
-    clientMocks.createMemberImportSession.mockResolvedValue(session());
-    clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-    clientMocks.previewMemberImport.mockResolvedValue(preview());
-    clientMocks.confirmMemberImport.mockReturnValue(
-      new Promise((resolve) => {
-        resolveConfirm = resolve;
-      }),
-    );
-    render(<MemberImportPage />);
-
-    await chooseFiles(user);
-    await user.click(screen.getByRole("button", { name: "Preview import" }));
-    await screen.findByText("Preview ready");
-    const confirm = screen.getByRole("button", { name: "Confirm import" });
-    await user.click(confirm);
-    expect(confirm).toBeDisabled();
-    await user.click(confirm);
-    expect(clientMocks.confirmMemberImport).toHaveBeenCalledOnce();
-    resolveConfirm?.({ imported: 1, updated: 0, conflicts: 0 });
-    await waitFor(() => expect(screen.getByText("1 imported")).toBeVisible());
-  });
-
-  it("shows a safe confirmation error and allows confirmation retry", async () => {
-    const user = userEvent.setup();
-    clientMocks.createMemberImportSession.mockResolvedValue(session());
-    clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-    clientMocks.previewMemberImport.mockResolvedValue(preview());
-    clientMocks.confirmMemberImport
-      .mockRejectedValueOnce(new Error("private confirmation detail"))
-      .mockResolvedValue({ imported: 1, updated: 0, conflicts: 0 });
-    render(<MemberImportPage />);
-
-    await chooseFiles(user);
-    await user.click(screen.getByRole("button", { name: "Preview import" }));
-    await screen.findByText("Preview ready");
-    await user.click(screen.getByRole("button", { name: "Confirm import" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unable to confirm member import. Please try again.",
-    );
-    expect(screen.getByRole("alert")).not.toHaveTextContent("private confirmation detail");
-    await user.click(screen.getByRole("button", { name: "Confirm import" }));
-    await waitFor(() => expect(screen.getByText("1 imported")).toBeVisible());
-  });
-
-  it("does not restore a stale confirmation result after a new selection", async () => {
-    const user = userEvent.setup();
-    let resolveConfirm:
-      ((value: { imported: number; updated: number; conflicts: number }) => void) | undefined;
-    clientMocks.createMemberImportSession.mockResolvedValue(session());
-    clientMocks.uploadMemberImportFiles.mockResolvedValue(undefined);
-    clientMocks.previewMemberImport.mockResolvedValue(preview());
-    clientMocks.confirmMemberImport.mockReturnValue(
-      new Promise((resolve) => {
-        resolveConfirm = resolve;
-      }),
-    );
-    render(<MemberImportPage />);
-
-    await chooseFiles(user);
-    await user.click(screen.getByRole("button", { name: "Preview import" }));
-    await screen.findByText("Preview ready");
-    await user.click(screen.getByRole("button", { name: "Confirm import" }));
-    await user.upload(screen.getByLabelText("Member report PDFs"), [
-      new File(["new synthetic pdf"], "new-members.pdf", { type: "application/pdf" }),
-    ]);
-    resolveConfirm?.({ imported: 1, updated: 0, conflicts: 0 });
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(screen.queryByText("Import complete")).toBeNull();
-    expect(screen.getByText("new-members.pdf")).toBeVisible();
   });
 });

@@ -86,6 +86,12 @@ function isLessonPlanningRoute(pathname: string): boolean {
 function isWaitlistRoute(pathname: string): boolean {
   return pathname === "/admin/waitlists" || pathname.startsWith("/admin/waitlists/");
 }
+function isAttendanceRoute(pathname: string): boolean {
+  return pathname === "/admin/attendance" || pathname.startsWith("/admin/attendance/");
+}
+function isClassesRoute(pathname: string): boolean {
+  return pathname === "/admin/classes" || pathname.startsWith("/admin/classes/");
+}
 
 function isAdminTestRole(value: string | null): value is AdminTestRole {
   return (
@@ -139,9 +145,12 @@ function FirebaseAdminGate({ children }: { children: ReactNode }) {
   }
 
   if (
-    (isWaitlistRoute(pathname) || isLessonPlanningRoute(pathname)) &&
     staff.status === "signed-in" &&
-    staff.session
+    staff.session &&
+    (isWaitlistRoute(pathname) ||
+      isLessonPlanningRoute(pathname) ||
+      isAttendanceRoute(pathname) ||
+      (isClassesRoute(pathname) && staff.session.role === "headCoach"))
   ) {
     return (
       <AuthorizedStaffWaitlistContent onSignOut={staff.signOut} session={staff.session}>

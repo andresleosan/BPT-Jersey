@@ -211,6 +211,20 @@ export async function listPlansHandler(
   }
 }
 
+export async function listManagedPlansHandler(
+  request: CallableRequest<unknown>,
+  services: PlanCallableServices,
+): Promise<readonly PlanManagedProjection[]> {
+  const actor = requireCatalogAdministrator(request);
+  parseNoPayload(request.data);
+  try {
+    const plans = await services.store.listPlans(actor.academyId);
+    return Object.freeze(plans.map((plan) => managedPlan(assertTenant(plan, actor.academyId))));
+  } catch (error) {
+    return mapPlanError(error, "load");
+  }
+}
+
 export async function getPlanHandler(
   request: CallableRequest<unknown>,
   services: PlanCallableServices,
@@ -293,18 +307,28 @@ function planCallableServices(): PlanCallableServices {
   };
 }
 
-export const listPlans = onCall(async (request) =>
+export const planCallableOptions = { enforceAppCheck: true };
+
+export const listPlans = onCall(planCallableOptions, async (request) =>
   listPlansHandler(request, planCallableServices()),
 );
 
-export const getPlan = onCall(async (request) => getPlanHandler(request, planCallableServices()));
+export const listManagedPlans = onCall(planCallableOptions, async (request) =>
+  listManagedPlansHandler(request, planCallableServices()),
+);
 
-export const savePlan = onCall(async (request) => savePlanHandler(request, planCallableServices()));
+export const getPlan = onCall(planCallableOptions, async (request) =>
+  getPlanHandler(request, planCallableServices()),
+);
 
-export const activatePlan = onCall(async (request) =>
+export const savePlan = onCall(planCallableOptions, async (request) =>
+  savePlanHandler(request, planCallableServices()),
+);
+
+export const activatePlan = onCall(planCallableOptions, async (request) =>
   activatePlanHandler(request, planCallableServices()),
 );
 
-export const deactivatePlan = onCall(async (request) =>
+export const deactivatePlan = onCall(planCallableOptions, async (request) =>
   deactivatePlanHandler(request, planCallableServices()),
 );

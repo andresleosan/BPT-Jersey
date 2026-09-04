@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
+import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { LevelsBrowser } from "../../levels/levels-browser";
+import { PeerComparisonWidget } from "./peer-comparison";
 
 function ProgressContent() {
+  const { session } = useClientSession();
+
   return (
     <main className="client-destination" aria-labelledby="progress-title">
       <p className="account-eyebrow">
@@ -15,6 +18,12 @@ function ProgressContent() {
         Explore the official IBJJF belt graduation system, age brackets, minimum attendance, and
         technical requirements.
       </p>
+
+      {/* Peer Comparison / Competitors Section */}
+      <div style={{ marginBottom: "2rem" }}>
+        <PeerComparisonWidget currentStudentId={session?.uid ?? "current-user"} />
+      </div>
+
       <LevelsBrowser roleContext="client" />
     </main>
   );

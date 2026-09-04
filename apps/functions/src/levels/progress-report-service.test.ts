@@ -12,47 +12,70 @@ import type { GenericFirestore, LevelCatalogStore } from "./level-service";
 const catalog = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
 
 describe("Firestore progress report store", () => {
-  it("counts only active members from the requested academy", async () => {
+  it("counts only active canonical students and never reads members", async () => {
     const levelStore = {
       listPublished: async () => catalog,
       listStudentEvaluations: async () => [],
     } as unknown as LevelCatalogStore;
+    const paths: string[] = [];
+    const profile = (studentId: string, active: boolean) => ({
+      studentId,
+      academyId: "academy-1",
+      fullName: `Synthetic ${studentId}`,
+      dateOfBirth: "1990-01-01",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      participantType: "adult",
+      active,
+      status: active ? "active" : "inactive",
+      schemaVersion: "1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      createdBy: "owner-1",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      updatedBy: "owner-1",
+    });
     const firestore = {
       collection(path: string) {
-        if (path.endsWith("/members")) {
+        paths.push(path);
+        if (path.endsWith("/students")) {
           return {
             get: async () => ({
               docs: [
                 {
                   id: "student-1",
-                  data: () => ({ academyId: "academy-1", membershipStatus: "active" }),
+                  data: () => profile("student-1", true),
                   ref: { delete: async () => undefined },
                 },
                 {
                   id: "inactive-1",
-                  data: () => ({ academyId: "academy-1", membershipStatus: "inactive" }),
-                  ref: { delete: async () => undefined },
-                },
-                {
-                  id: "cross-1",
-                  data: () => ({ academyId: "academy-2", membershipStatus: "active" }),
+                  data: () => profile("inactive-1", false),
                   ref: { delete: async () => undefined },
                 },
               ],
             }),
           };
         }
+        if (path.endsWith("/studentLevelProgress")) {
+          return {
+            get: async () => ({ docs: [] }),
+          };
+        }
+        if (path.endsWith("/assessments")) {
+          return { get: async () => ({ docs: [] }) };
+        }
         return {
           get: async () => ({
             docs: [
               {
                 id: "attendance-1",
-                data: () => ({ studentId: "student-1", status: "attended" }),
-                ref: { delete: async () => undefined },
-              },
-              {
-                id: "attendance-cross",
-                data: () => ({ studentId: "cross-1", status: "attended" }),
+                data: () => ({
+                  attendanceId: "attendance-1",
+                  academyId: "academy-1",
+                  studentId: "student-1",
+                  state: "attended",
+                  correctionOf: null,
+                  occurredAt: "2026-08-20T12:00:00.000Z",
+                }),
                 ref: { delete: async () => undefined },
               },
             ],
@@ -70,6 +93,6 @@ describe("Firestore progress report store", () => {
     expect(report.activeStudentCount).toBe(1);
     expect(report.totalEvaluationCount).toBe(0);
     expect(report.assessmentCoveragePercentage).toBe(0);
-    expect(JSON.stringify(report)).not.toContain("cross-1");
+    expect(paths.some((path) => path.includes("/members"))).toBe(false);
   });
 });

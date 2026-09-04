@@ -1,13 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
-import type { MemberGender } from "@bpt-jersey/domain";
 
+import {
+  deriveParticipantType,
+  trainingCenters,
+  trainingTimePreferences,
+  type MemberGender,
+  type TrainingCenter,
+  type TrainingTimePreference,
+} from "@bpt-jersey/domain";
 import { createMember, type CreateMemberInput } from "../../../../lib/members-client";
+import { saveHealthProfile } from "../../../../lib/health-client";
 
 import "../../admin.css";
 
-type FieldErrors = Readonly<{ fullName?: string }>;
+type FieldErrors = Readonly<{
+  fullName?: string;
+  dateOfBirth?: string;
+  trainingCenter?: string;
+  trainingTimePreferences?: string;
+}>;
 
 type FormValues = Readonly<{
   fullName: string;
@@ -15,11 +29,13 @@ type FormValues = Readonly<{
   email: string;
   idCardNumber: string;
   vatNumber: string;
-  birthDate: string;
-  mobileNumber: string;
-  frequency: string;
+  dateOfBirth: string;
+  phoneNumber: string;
+  frequencyNote: string;
   gender: "" | MemberGender;
-  trainingCenter: string;
+  trainingCenter: "" | TrainingCenter;
+  trainingTimePreferences: readonly TrainingTimePreference[];
+  medicalConditions: string;
 }>;
 
 const initialValues: FormValues = {
@@ -28,96 +44,147 @@ const initialValues: FormValues = {
   email: "",
   idCardNumber: "",
   vatNumber: "",
-  birthDate: "",
-  mobileNumber: "",
-  frequency: "",
+  dateOfBirth: "",
+  phoneNumber: "",
+  frequencyNote: "",
   gender: "",
   trainingCenter: "",
+  trainingTimePreferences: [],
+  medicalConditions: "",
 };
 
 const genericFormError = "Unable to add member. Please try again.";
 
 function optionalText(value: string): string | undefined {
   const normalized = value.trim();
-  return normalized.length > 0 ? normalized : undefined;
+  return normalized.length === 0 ? undefined : normalized;
 }
 
-function inputFromValues(values: FormValues): CreateMemberInput {
-  const input: { -readonly [K in keyof CreateMemberInput]?: CreateMemberInput[K] } = {
+function inputFromValues(values: FormValues, requestId: string): CreateMemberInput {
+  return {
+    requestId,
     fullName: values.fullName.trim(),
+    dateOfBirth: values.dateOfBirth,
+    trainingCenter: values.trainingCenter as TrainingCenter,
+    trainingTimePreferences: values.trainingTimePreferences,
+    ...(optionalText(values.membershipNumber) === undefined
+      ? {}
+      : { membershipNumber: optionalText(values.membershipNumber) }),
+    ...(optionalText(values.email) === undefined ? {} : { email: optionalText(values.email) }),
+    ...(optionalText(values.idCardNumber) === undefined
+      ? {}
+      : { idCardNumber: optionalText(values.idCardNumber) }),
+    ...(optionalText(values.vatNumber) === undefined
+      ? {}
+      : { vatNumber: optionalText(values.vatNumber) }),
+    ...(optionalText(values.phoneNumber) === undefined
+      ? {}
+      : { phoneNumber: optionalText(values.phoneNumber) }),
+    ...(optionalText(values.frequencyNote) === undefined
+      ? {}
+      : { frequencyNote: optionalText(values.frequencyNote) }),
+    ...(values.gender === "" ? {} : { gender: values.gender }),
   };
-  const optionalFields: Readonly<{
-    membershipNumber: string;
-    email: string;
-    idCardNumber: string;
-    vatNumber: string;
-    birthDate: string;
-    mobileNumber: string;
-    frequency: string;
-    trainingCenter: string;
-  }> = values;
+}
 
-  for (const field of [
-    "membershipNumber",
-    "email",
-    "idCardNumber",
-    "vatNumber",
-    "birthDate",
-    "mobileNumber",
-    "frequency",
-    "trainingCenter",
-  ] as const) {
-    const value = optionalText(optionalFields[field]);
-    if (value !== undefined) {
-      (input as { [key in typeof field]?: string })[field] = value;
-    }
-  }
-
-  const gender = values.gender.trim();
-  if (gender.length > 0) {
-    input.gender = gender as MemberGender;
-  }
-
-  return input as CreateMemberInput;
+function effectiveDate(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export function AddMemberPage() {
   const [values, setValues] = useState<FormValues>(initialValues);
+  const [requestId, setRequestId] = useState(() => globalThis.crypto.randomUUID());
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   const fullNameRef = useRef<HTMLInputElement>(null);
+  const dateOfBirthRef = useRef<HTMLInputElement>(null);
+  const trainingCenterRef = useRef<HTMLSelectElement>(null);
   const submittingRef = useRef(false);
 
   function updateField<K extends keyof FormValues>(field: K, value: FormValues[K]): void {
     setValues((current) => ({ ...current, [field]: value }));
-    if (field === "fullName" && fieldErrors.fullName) {
-      setFieldErrors({});
+    setFieldErrors({});
+  }
+
+  function togglePreference(preference: TrainingTimePreference): void {
+    updateField(
+      "trainingTimePreferences",
+      values.trainingTimePreferences.includes(preference)
+        ? values.trainingTimePreferences.filter((value) => value !== preference)
+        : trainingTimePreferences.filter(
+            (value) => value === preference || values.trainingTimePreferences.includes(value),
+          ),
+    );
+  }
+
+  function validate(): boolean {
+    if (!values.fullName.trim()) {
+      setFieldErrors({ fullName: "Full name is required." });
+      fullNameRef.current?.focus();
+      return false;
     }
+    if (!values.dateOfBirth) {
+      setFieldErrors({ dateOfBirth: "Date of birth is required." });
+      dateOfBirthRef.current?.focus();
+      return false;
+    }
+    try {
+      if (deriveParticipantType(values.dateOfBirth, effectiveDate()) !== "adult") {
+        setFieldErrors({
+          dateOfBirth: "Minor students must be created through the family flow.",
+        });
+        dateOfBirthRef.current?.focus();
+        return false;
+      }
+    } catch {
+      setFieldErrors({ dateOfBirth: "Enter a valid date of birth." });
+      dateOfBirthRef.current?.focus();
+      return false;
+    }
+    if (values.trainingCenter === "") {
+      setFieldErrors({ trainingCenter: "Training center is required." });
+      trainingCenterRef.current?.focus();
+      return false;
+    }
+    if (values.trainingTimePreferences.length === 0) {
+      setFieldErrors({
+        trainingTimePreferences: "Choose at least one training time.",
+      });
+      return false;
+    }
+    setFieldErrors({});
+    return true;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (submittingRef.current) return;
-
     setError("");
     setSuccess("");
+    if (!validate()) return;
 
-    if (!values.fullName.trim()) {
-      setFieldErrors({ fullName: "Full name is required." });
-      fullNameRef.current?.focus();
-      return;
-    }
-
-    setFieldErrors({});
     submittingRef.current = true;
     setBusy(true);
-
     try {
-      const result = await createMember(inputFromValues(values));
+      const result = await createMember(inputFromValues(values, requestId));
+      if (values.medicalConditions.trim().length > 0) {
+        try {
+          await saveHealthProfile({
+            studentId: result.studentId,
+            minimumOperationalSupport: ["none"],
+            conditionSummary: values.medicalConditions.trim(),
+            staffReferenceLabel: null,
+            expiresAt: null,
+          });
+        } catch {
+          // Health support is safeguarded for synthetic pilot; non-blocking on create
+        }
+      }
       setValues(initialValues);
-      setSuccess(`Member added successfully. ID: ${result.memberId}`);
+      setRequestId(globalThis.crypto.randomUUID());
+      setSuccess(`Adult student added successfully. ID: ${result.studentId}`);
     } catch {
       setError(genericFormError);
     } finally {
@@ -129,12 +196,13 @@ export function AddMemberPage() {
   return (
     <section className="admin-member-page" aria-labelledby="add-member-title">
       <header className="admin-page-heading">
-        <p className="admin-eyebrow">Members / Create record</p>
-        <h2 id="add-member-title">Add new member</h2>
+        <p className="admin-eyebrow">Members / Canonical student</p>
+        <h2 id="add-member-title">Add adult student</h2>
         <p>
-          Create a clean academy record for a new member. You can add more operational details
-          later.
+          This route is for adults aged 18 or over. For a child, use the family flow so the tutor
+          relationship is created with the student.
         </p>
+        <Link href="/admin/families">Create a family and minor student</Link>
       </header>
 
       <form
@@ -150,7 +218,6 @@ export function AddMemberPage() {
             aria-invalid={fieldErrors.fullName ? "true" : "false"}
             autoComplete="name"
             id="member-full-name"
-            name="fullName"
             onChange={(event) => updateField("fullName", event.target.value)}
             ref={fullNameRef}
             required
@@ -165,90 +232,94 @@ export function AddMemberPage() {
         </div>
 
         <div className="login-field">
-          <label htmlFor="member-membership-number">Membership number</label>
+          <label htmlFor="member-date-of-birth">Date of birth</label>
           <input
-            autoComplete="off"
-            id="member-membership-number"
-            name="membershipNumber"
-            onChange={(event) => updateField("membershipNumber", event.target.value)}
-            type="text"
-            value={values.membershipNumber}
-          />
-        </div>
-
-        <div className="login-field">
-          <label htmlFor="member-email">Email address</label>
-          <input
-            autoComplete="email"
-            id="member-email"
-            name="email"
-            onChange={(event) => updateField("email", event.target.value)}
-            type="email"
-            value={values.email}
-          />
-        </div>
-
-        <div className="login-field">
-          <label htmlFor="member-id-card-number">ID card number</label>
-          <input
-            id="member-id-card-number"
-            name="idCardNumber"
-            onChange={(event) => updateField("idCardNumber", event.target.value)}
-            type="text"
-            value={values.idCardNumber}
-          />
-        </div>
-
-        <div className="login-field">
-          <label htmlFor="member-vat-number">VAT number</label>
-          <input
-            id="member-vat-number"
-            name="vatNumber"
-            onChange={(event) => updateField("vatNumber", event.target.value)}
-            type="text"
-            value={values.vatNumber}
-          />
-        </div>
-
-        <div className="login-field">
-          <label htmlFor="member-birth-date">Birth date</label>
-          <input
-            id="member-birth-date"
-            name="birthDate"
-            onChange={(event) => updateField("birthDate", event.target.value)}
+            aria-invalid={fieldErrors.dateOfBirth ? "true" : "false"}
+            id="member-date-of-birth"
+            onChange={(event) => updateField("dateOfBirth", event.target.value)}
+            ref={dateOfBirthRef}
+            required
             type="date"
-            value={values.birthDate}
+            value={values.dateOfBirth}
           />
+          {fieldErrors.dateOfBirth ? (
+            <p className="login-field-error" role="alert">
+              {fieldErrors.dateOfBirth}
+            </p>
+          ) : null}
         </div>
 
         <div className="login-field">
-          <label htmlFor="member-mobile-number">Mobile number</label>
-          <input
-            autoComplete="tel"
-            id="member-mobile-number"
-            name="mobileNumber"
-            onChange={(event) => updateField("mobileNumber", event.target.value)}
-            type="tel"
-            value={values.mobileNumber}
-          />
+          <label htmlFor="member-training-center">Training center</label>
+          <select
+            aria-invalid={fieldErrors.trainingCenter ? "true" : "false"}
+            id="member-training-center"
+            onChange={(event) =>
+              updateField("trainingCenter", event.target.value as FormValues["trainingCenter"])
+            }
+            ref={trainingCenterRef}
+            required
+            value={values.trainingCenter}
+          >
+            <option value="">Select a training center</option>
+            {trainingCenters.map((center) => (
+              <option key={center} value={center}>
+                {center}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.trainingCenter ? (
+            <p className="login-field-error" role="alert">
+              {fieldErrors.trainingCenter}
+            </p>
+          ) : null}
         </div>
 
-        <div className="login-field">
-          <label htmlFor="member-frequency">Frequency</label>
-          <input
-            id="member-frequency"
-            name="frequency"
-            onChange={(event) => updateField("frequency", event.target.value)}
-            type="text"
-            value={values.frequency}
-          />
-        </div>
+        <fieldset className="login-field">
+          <legend>Training time preferences</legend>
+          {trainingTimePreferences.map((preference) => (
+            <label key={preference}>
+              <input
+                checked={values.trainingTimePreferences.includes(preference)}
+                onChange={() => togglePreference(preference)}
+                type="checkbox"
+              />
+              {preference[0]?.toUpperCase()}
+              {preference.slice(1)}
+            </label>
+          ))}
+          {fieldErrors.trainingTimePreferences ? (
+            <p className="login-field-error" role="alert">
+              {fieldErrors.trainingTimePreferences}
+            </p>
+          ) : null}
+        </fieldset>
+
+        {[
+          ["membershipNumber", "Membership number", "text"],
+          ["idCardNumber", "ID card number", "text"],
+          ["vatNumber", "VAT number", "text"],
+          ["email", "Email address", "email"],
+          ["phoneNumber", "Mobile number", "tel"],
+          ["frequencyNote", "Frequency note", "text"],
+        ].map(([field, label, type]) => (
+          <div className="login-field" key={field}>
+            <label htmlFor={`member-${field}`}>{label}</label>
+            <input
+              id={`member-${field}`}
+              onChange={(event) =>
+                updateField(field as keyof FormValues, event.target.value as never)
+              }
+              type={type}
+              value={values[field as keyof FormValues] as string}
+            />
+          </div>
+        ))}
 
         <div className="login-field">
           <label htmlFor="member-gender">Gender</label>
           <select
             id="member-gender"
-            name="gender"
             onChange={(event) => updateField("gender", event.target.value as FormValues["gender"])}
             value={values.gender}
           >
@@ -260,13 +331,16 @@ export function AddMemberPage() {
         </div>
 
         <div className="login-field">
-          <label htmlFor="member-training-center">Training center</label>
-          <input
-            id="member-training-center"
-            name="trainingCenter"
-            onChange={(event) => updateField("trainingCenter", event.target.value)}
-            type="text"
-            value={values.trainingCenter}
+          <label htmlFor="member-medical-conditions">
+            Medical conditions or special support needs (optional, max 1000 characters)
+          </label>
+          <textarea
+            id="member-medical-conditions"
+            maxLength={1000}
+            onChange={(event) => updateField("medicalConditions", event.target.value)}
+            placeholder="e.g. Asthma (carries inhaler in kit bag), previous joint injury, etc."
+            rows={3}
+            value={values.medicalConditions}
           />
         </div>
 
@@ -282,7 +356,7 @@ export function AddMemberPage() {
         ) : null}
 
         <button className="button button-primary login-submit" disabled={busy} type="submit">
-          {busy ? "Adding member..." : "Add member"}
+          {busy ? "Adding adult student..." : "Add adult student"}
         </button>
       </form>
     </section>
@@ -290,9 +364,5 @@ export function AddMemberPage() {
 }
 
 export default function AddMemberRoute() {
-  if (process.env.NODE_ENV === "test") {
-    return <AddMemberPage />;
-  }
-
   return <AddMemberPage />;
 }

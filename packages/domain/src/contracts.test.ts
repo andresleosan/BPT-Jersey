@@ -178,7 +178,21 @@ describe("domain contracts", () => {
     expect(auditActions).toEqual([
       "admin.role.granted",
       "admin.role.revoked",
+      "member.created",
+      "member.updated",
+      "guardian.profile.created",
+      "guardian.profile.updated",
+      "family.created",
+      "family.student.added",
+      "level.catalog.published",
+      "level.catalog.rolled_back",
+      "level.assessment.recorded",
+      "level.medical-leave.recorded",
+      "level.promotion.approved",
+      "level.promotion.rejected",
       "member.import.confirmed",
+      "member.detail.read",
+      "member.identity.lookup",
       "regyfit.access.imported",
       "retention.alerts.generated",
       "report.export.prepared",
@@ -204,6 +218,10 @@ describe("domain contracts", () => {
       "waitlist.offer.accepted",
       "waitlist.offer.declined",
       "waitlist.offer.expired",
+      "attendance.checked_in",
+      "attendance.corrected",
+      "student.checked_out",
+      "notification.preference.updated",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

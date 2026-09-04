@@ -211,21 +211,23 @@ function callableServices(): HealthCallableServices {
     }),
   };
 }
-export const getHealthProfile = onCall((request) =>
+export const healthCallableOptions = { enforceAppCheck: true };
+
+export const getHealthProfile = onCall(healthCallableOptions, (request) =>
   getHealthProfileHandler(request, callableServices()),
 );
-export const saveHealthProfile = onCall((request) =>
+export const saveHealthProfile = onCall(healthCallableOptions, (request) =>
   saveHealthProfileHandler(request, callableServices()),
 );
-export const deactivateHealthProfile = onCall((request) =>
+export const deactivateHealthProfile = onCall(healthCallableOptions, (request) =>
   deactivateHealthProfileHandler(request, callableServices()),
 );
-export const createHealthProfileChangeRequest = onCall((request) =>
+export const createHealthProfileChangeRequest = onCall(healthCallableOptions, (request) =>
   createHealthProfileChangeRequestHandler(request, callableServices()),
 );
-export const cancelHealthProfileChangeRequest = onCall((request) =>
+export const cancelHealthProfileChangeRequest = onCall(healthCallableOptions, (request) =>
   cancelHealthProfileChangeRequestHandler(request, callableServices()),
 );
-export const reviewHealthProfileChangeRequest = onCall((request) =>
+export const reviewHealthProfileChangeRequest = onCall(healthCallableOptions, (request) =>
   reviewHealthProfileChangeRequestHandler(request, callableServices()),
 );

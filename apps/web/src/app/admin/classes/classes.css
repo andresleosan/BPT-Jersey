@@ -1,0 +1,325 @@
+.schedule-admin-page {
+  --schedule-danger: #982c36;
+  --schedule-success: #176b49;
+}
+
+.schedule-admin-section-heading,
+.schedule-admin-dialog-heading {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.schedule-admin-section-heading h3,
+.schedule-admin-dialog-heading h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 0.9;
+  margin: 0.35rem 0 0;
+  text-transform: uppercase;
+}
+
+.schedule-admin-section-heading > span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.schedule-admin-catalog {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.schedule-admin-location {
+  align-items: center;
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--bpt-purple);
+  display: grid;
+  gap: 0.45rem 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 1rem 1.1rem;
+}
+
+.schedule-admin-location div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.schedule-admin-location strong {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.65rem;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.schedule-admin-location span,
+.schedule-admin-location small,
+.schedule-admin-block,
+.schedule-admin-booking-list span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.schedule-admin-location small {
+  grid-column: 1 / -1;
+}
+
+.schedule-admin-block {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.schedule-admin-button {
+  align-items: center;
+  background: var(--bpt-purple);
+  border: 1px solid var(--bpt-purple);
+  border-radius: 0;
+  color: var(--gi-white);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+  justify-content: center;
+  letter-spacing: 0.06em;
+  min-height: 2.8rem;
+  padding: 0.65rem 0.9rem;
+  text-transform: uppercase;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.schedule-admin-button:hover {
+  background: var(--mat-ink);
+  border-color: var(--mat-ink);
+}
+
+.schedule-admin-button-secondary {
+  background: var(--gi-white);
+  border-color: var(--mat-ink);
+  color: var(--mat-ink);
+}
+
+.schedule-admin-button-danger {
+  background: var(--schedule-danger);
+  border-color: var(--schedule-danger);
+}
+
+.schedule-admin-button:disabled,
+.schedule-admin-text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.schedule-admin-button:focus-visible,
+.schedule-admin-text-button:focus-visible,
+.schedule-admin-close:focus-visible,
+.schedule-admin-field input:focus-visible,
+.schedule-admin-field select:focus-visible,
+.schedule-admin-field textarea:focus-visible,
+.schedule-admin-range input:focus-visible,
+.schedule-admin-booking-form select:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
+.schedule-admin-notice {
+  background: var(--gi-white);
+  border-left: 0.3rem solid currentColor;
+  margin: 0;
+  padding: 0.85rem 1rem;
+}
+
+.schedule-admin-notice-success {
+  color: var(--schedule-success);
+}
+
+.schedule-admin-notice-error {
+  color: var(--schedule-danger);
+}
+
+.schedule-admin-row-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.schedule-admin-text-button,
+.schedule-admin-close {
+  background: transparent;
+  border: 0;
+  color: var(--bpt-purple);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.3rem 0;
+  text-decoration: underline;
+  text-underline-offset: 0.22em;
+  text-transform: uppercase;
+}
+
+.schedule-admin-danger-text {
+  color: var(--schedule-danger);
+}
+
+.schedule-admin-range,
+.schedule-admin-booking-form {
+  align-items: end;
+  background: color-mix(in srgb, var(--canvas) 70%, var(--gi-white));
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(10rem, 1fr)) auto;
+  margin-bottom: 1rem;
+  padding: 0.8rem;
+}
+
+.schedule-admin-range label,
+.schedule-admin-booking-form label,
+.schedule-admin-field {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.7rem;
+  font-weight: 800;
+  gap: 0.35rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.schedule-admin-range input,
+.schedule-admin-booking-form select,
+.schedule-admin-field input,
+.schedule-admin-field select,
+.schedule-admin-field textarea {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  letter-spacing: normal;
+  min-height: 2.7rem;
+  padding: 0.55rem 0.65rem;
+  text-transform: none;
+  width: 100%;
+}
+
+.schedule-admin-booking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.schedule-admin-booking-list li {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 0.85rem 0;
+}
+
+.schedule-admin-booking-list li > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.schedule-admin-dialog-backdrop {
+  align-items: start;
+  background: rgb(16 14 20 / 76%);
+  display: grid;
+  inset: 0;
+  justify-items: center;
+  overflow-y: auto;
+  padding: clamp(1rem, 5vw, 4rem);
+  position: fixed;
+  z-index: 80;
+}
+
+.schedule-admin-dialog {
+  background: var(--gi-white);
+  border-top: 0.45rem solid var(--bpt-purple);
+  box-shadow: 0 1.4rem 4rem rgb(0 0 0 / 28%);
+  max-width: 50rem;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  width: min(100%, 50rem);
+}
+
+.schedule-admin-form {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1.4rem;
+}
+
+.schedule-admin-field-wide,
+.schedule-admin-form-note,
+.schedule-admin-dialog-actions {
+  grid-column: 1 / -1;
+}
+
+.schedule-admin-form-note {
+  border-left: 0.25rem solid var(--bpt-purple);
+  color: var(--muted);
+  margin: 0;
+  padding: 0.65rem 0.8rem;
+}
+
+.schedule-admin-check {
+  align-items: center;
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.55rem;
+}
+
+.schedule-admin-check input {
+  accent-color: var(--bpt-purple);
+  height: 1.1rem;
+  width: 1.1rem;
+}
+
+.schedule-admin-dialog-actions {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 0.7rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+}
+
+@media (max-width: 760px) {
+  .schedule-admin-catalog,
+  .schedule-admin-form,
+  .schedule-admin-range,
+  .schedule-admin-booking-form {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-admin-section-heading,
+  .schedule-admin-dialog-heading {
+    align-items: start;
+  }
+
+  .schedule-admin-booking-list li {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-admin-dialog-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-admin-button {
+    transition: none;
+  }
+}

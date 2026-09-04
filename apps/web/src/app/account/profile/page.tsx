@@ -2,10 +2,11 @@
 
 import { useRouter } from "next/navigation";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import {
+  createProfileRequestId,
   getClientProfile,
   saveClientProfile,
   type ProfileFormInput,
@@ -73,6 +74,7 @@ function ProfileContent() {
   const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [notice, setNotice] = useState("");
+  const pendingRequestId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
@@ -106,6 +108,7 @@ function ProfileContent() {
   }
 
   function updateField<K extends keyof ProfileFormInput>(field: K, value: ProfileFormInput[K]) {
+    pendingRequestId.current = undefined;
     setForm((current) => ({ ...current, [field]: value }));
     setErrors((current) => ({ ...current, [field]: undefined }));
     setNotice("");
@@ -130,13 +133,17 @@ function ProfileContent() {
     setSaveError("");
     if (Object.keys(nextErrors).length > 0) return;
 
+    const requestId = pendingRequestId.current ?? createProfileRequestId();
+    pendingRequestId.current = requestId;
     setSaving(true);
     try {
       const saved = await saveClientProfile({
+        requestId,
         ...form,
         fullName: form.fullName.trim(),
         phoneNumber: form.phoneNumber.trim(),
       });
+      pendingRequestId.current = undefined;
       setForm(formFromStudent(saved.student));
       router.push("/account/waiver");
       setNotice("Profile saved.");

@@ -30,6 +30,11 @@
       "import": "./src/members/member-contracts.ts",
       "default": "./lib/members/member-contracts.js"
     },
+    "./members/directory": {
+      "types": "./src/members/member-directory-contracts.ts",
+      "import": "./src/members/member-directory-contracts.ts",
+      "default": "./lib/members/member-directory-contracts.js"
+    },
     "./profiles": {
       "types": "./src/profiles/profile-contracts.ts",
       "import": "./src/profiles/profile-contracts.ts",
@@ -119,6 +124,11 @@
       "types": "./src/delivery/delivery-contracts.ts",
       "import": "./src/delivery/delivery-contracts.ts",
       "default": "./lib/delivery/delivery-contracts.js"
+    },
+    "./delivery/notification-policy": {
+      "types": "./src/delivery/notification-policy.ts",
+      "import": "./src/delivery/notification-policy.ts",
+      "default": "./lib/delivery/notification-policy.js"
     },
     "./documents": {
       "types": "./src/documents/document-contracts.ts",

@@ -1,7 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const firebaseApp = { name: "firebase-app" };
+const firebaseAppCheck = { name: "firebase-app-check" };
 const firebaseAuth = { name: "firebase-auth" };
+const firebaseFunctions = { name: "firebase-functions" };
+const firebaseAppCheckSdk = vi.hoisted(() => {
+  const initializeAppCheck = vi.fn(() => firebaseAppCheck);
+  const ReCaptchaEnterpriseProvider = vi.fn(function ReCaptchaEnterpriseProvider(
+    siteKey: string,
+  ) {
+    return { siteKey };
+  });
+
+  return {
+    initializeAppCheck,
+    ReCaptchaEnterpriseProvider,
+  };
+});
+const firebaseFunctionsSdk = vi.hoisted(() => ({
+  connectFunctionsEmulator: vi.fn(),
+  getFunctions: vi.fn(() => firebaseFunctions),
+}));
 const firebaseSdk = vi.hoisted(() => {
   const googleProvider = { providerId: "google.com" };
   const browserLocalPersistence = { type: "LOCAL" };
@@ -40,6 +59,11 @@ vi.mock("firebase/app", () => ({
   initializeApp: vi.fn(() => firebaseApp),
 }));
 
+vi.mock("firebase/app-check", () => ({
+  initializeAppCheck: firebaseAppCheckSdk.initializeAppCheck,
+  ReCaptchaEnterpriseProvider: firebaseAppCheckSdk.ReCaptchaEnterpriseProvider,
+}));
+
 vi.mock("firebase/auth", () => ({
   browserLocalPersistence: firebaseSdk.browserLocalPersistence,
   browserPopupRedirectResolver: firebaseSdk.browserPopupRedirectResolver,
@@ -64,8 +88,8 @@ vi.mock("firebase/firestore", () => ({
 }));
 
 vi.mock("firebase/functions", () => ({
-  connectFunctionsEmulator: vi.fn(),
-  getFunctions: vi.fn(),
+  connectFunctionsEmulator: firebaseFunctionsSdk.connectFunctionsEmulator,
+  getFunctions: firebaseFunctionsSdk.getFunctions,
 }));
 
 process.env.NEXT_PUBLIC_FIREBASE_API_KEY = "test-api-key";
@@ -90,6 +114,14 @@ describe("firebase-client", () => {
   afterEach(() => {
     delete process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS;
     delete process.env.NEXT_PUBLIC_FIREBASE_ENV;
+    delete process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN;
+    delete process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY;
+    delete (
+      globalThis as typeof globalThis & {
+        FIREBASE_APPCHECK_DEBUG_TOKEN?: string;
+      }
+    ).FIREBASE_APPCHECK_DEBUG_TOKEN;
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
@@ -136,6 +168,96 @@ describe("firebase-client", () => {
     expect(() => resolveLocalEmulatorPort("443", 9_099)).toThrow(/between 1024 and 65535/i);
     expect(() => resolveLocalEmulatorPort("65536", 9_099)).toThrow(/between 1024 and 65535/i);
     expect(() => resolveLocalEmulatorPort("9199.example", 9_099)).toThrow(/decimal integers/i);
+  });
+
+  it("initializes one Enterprise App Check instance before returning Functions", async () => {
+    process.env.NEXT_PUBLIC_FIREBASE_ENV = "staging";
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY = "enterprise-site-key";
+    vi.resetModules();
+    const { getFirebaseFunctions } = await import("./firebase-client");
+
+    expect(getFirebaseFunctions()).toBe(firebaseFunctions);
+    expect(getFirebaseFunctions()).toBe(firebaseFunctions);
+
+    expect(firebaseAppCheckSdk.ReCaptchaEnterpriseProvider).toHaveBeenCalledOnce();
+    expect(firebaseAppCheckSdk.ReCaptchaEnterpriseProvider).toHaveBeenCalledWith(
+      "enterprise-site-key",
+    );
+    expect(firebaseAppCheckSdk.initializeAppCheck).toHaveBeenCalledOnce();
+    expect(firebaseAppCheckSdk.initializeAppCheck).toHaveBeenCalledWith(firebaseApp, {
+      provider: { siteKey: "enterprise-site-key" },
+      isTokenAutoRefreshEnabled: true,
+    });
+    expect(firebaseFunctionsSdk.getFunctions).toHaveBeenCalledTimes(2);
+    expect(
+      firebaseAppCheckSdk.initializeAppCheck.mock.invocationCallOrder[0]!,
+    ).toBeLessThan(firebaseFunctionsSdk.getFunctions.mock.invocationCallOrder[0]!);
+  });
+
+  it("fails closed before creating Functions when App Check has no site key", async () => {
+    process.env.NEXT_PUBLIC_FIREBASE_ENV = "staging";
+    vi.resetModules();
+    const { getFirebaseFunctions } = await import("./firebase-client");
+
+    expect(() => getFirebaseFunctions()).toThrow(/App Check site key/i);
+    expect(firebaseAppCheckSdk.initializeAppCheck).not.toHaveBeenCalled();
+    expect(firebaseFunctionsSdk.getFunctions).not.toHaveBeenCalled();
+  });
+
+  it("keeps local Emulator Functions available without an App Check site key", async () => {
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS = "true";
+    process.env.NEXT_PUBLIC_FIREBASE_ENV = "local";
+    vi.resetModules();
+    const { getFirebaseFunctions } = await import("./firebase-client");
+
+    expect(getFirebaseFunctions()).toBe(firebaseFunctions);
+    expect(firebaseAppCheckSdk.initializeAppCheck).not.toHaveBeenCalled();
+  });
+
+  it("passes an explicit local Emulator debug token to App Check before initialization", async () => {
+    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS = "true";
+    process.env.NEXT_PUBLIC_FIREBASE_ENV = "local";
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY = "local-enterprise-site-key";
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN = "synthetic-debug-token";
+    let debugTokenDuringInitialization: string | undefined;
+    firebaseAppCheckSdk.initializeAppCheck.mockImplementationOnce(() => {
+      debugTokenDuringInitialization = (
+        globalThis as typeof globalThis & {
+          FIREBASE_APPCHECK_DEBUG_TOKEN?: string;
+        }
+      ).FIREBASE_APPCHECK_DEBUG_TOKEN;
+      return firebaseAppCheck;
+    });
+    vi.resetModules();
+    const { getFirebaseFunctions } = await import("./firebase-client");
+
+    expect(getFirebaseFunctions()).toBe(firebaseFunctions);
+    expect(debugTokenDuringInitialization).toBe("synthetic-debug-token");
+  });
+
+  it("rejects App Check debug tokens outside the local Emulator", async () => {
+    process.env.NEXT_PUBLIC_FIREBASE_ENV = "staging";
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY = "enterprise-site-key";
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN = "synthetic-debug-token";
+    vi.resetModules();
+    const { getFirebaseFunctions } = await import("./firebase-client");
+
+    expect(() => getFirebaseFunctions()).toThrow(/debug tokens are local Emulator-only/i);
+    expect(firebaseAppCheckSdk.initializeAppCheck).not.toHaveBeenCalled();
+    expect(firebaseFunctionsSdk.getFunctions).not.toHaveBeenCalled();
+  });
+
+  it("fails closed without touching browser-only App Check APIs during SSR", async () => {
+    process.env.NEXT_PUBLIC_FIREBASE_ENV = "staging";
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY = "enterprise-site-key";
+    vi.stubGlobal("window", undefined);
+    vi.resetModules();
+    const { getFirebaseFunctions } = await import("./firebase-client");
+
+    expect(() => getFirebaseFunctions()).toThrow(/browser-only/i);
+    expect(firebaseAppCheckSdk.ReCaptchaEnterpriseProvider).not.toHaveBeenCalled();
+    expect(firebaseAppCheckSdk.initializeAppCheck).not.toHaveBeenCalled();
+    expect(firebaseFunctionsSdk.getFunctions).not.toHaveBeenCalled();
   });
 
   it("keeps TOTP enrollment and challenge operations inside the Auth boundary", async () => {

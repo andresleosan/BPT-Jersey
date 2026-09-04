@@ -218,15 +218,17 @@ function callableServices(): DocumentCallableServices {
     }),
   } as DocumentCallableServices;
 }
-export const createPrivateWaiverUpload = onCall((request) =>
+export const privateDocumentCallableOptions = { enforceAppCheck: true };
+
+export const createPrivateWaiverUpload = onCall(privateDocumentCallableOptions, (request) =>
   createPrivateWaiverUploadHandler(request, callableServices()),
 );
-export const finalizePrivateWaiverUpload = onCall((request) =>
+export const finalizePrivateWaiverUpload = onCall(privateDocumentCallableOptions, (request) =>
   finalizePrivateWaiverUploadHandler(request, callableServices()),
 );
-export const getPrivateWaiverDownload = onCall((request) =>
+export const getPrivateWaiverDownload = onCall(privateDocumentCallableOptions, (request) =>
   getPrivateWaiverDownloadHandler(request, callableServices()),
 );
-export const revokePrivateWaiver = onCall((request) =>
+export const revokePrivateWaiver = onCall(privateDocumentCallableOptions, (request) =>
   revokePrivateWaiverHandler(request, callableServices()),
 );

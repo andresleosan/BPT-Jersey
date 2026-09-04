@@ -9,14 +9,15 @@ import {
 } from "@bpt-jersey/domain/schedule/advanced-booking";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
-  createFirestoreGuardianStudentScopeResolver,
-  type GuardianStudentScopeResolver,
-} from "./schedule-callables.js";
-import {
   createFirestoreWaitlistStore,
   WaitlistStoreError,
   type WaitlistStore,
 } from "./advanced-booking-service.js";
+import {
+  createFirestoreCanonicalClientStudentScopeResolver,
+  type CanonicalClientStudentScopeResolver,
+} from "./canonical-client-student-scope.js";
+import { scheduleCallableOptions } from "./schedule-callable-options.js";
 
 const staffRoles = new Set(["owner", "administrator", "headCoach", "coach"]);
 const offerIssuerRoles = new Set(["owner", "administrator"]);
@@ -37,10 +38,10 @@ export type StaffWaitlistItem = StudentWaitlistItem & Readonly<{ studentReferenc
 
 type ScopeOptions = Readonly<{
   waitlistStore: WaitlistStore;
-  isGuardianOfStudent?: GuardianStudentScopeResolver;
+  resolveClientStudentScope?: CanonicalClientStudentScopeResolver;
 }>;
 
-const defaultGuardianResolver = createFirestoreGuardianStudentScopeResolver();
+const defaultClientStudentScopeResolver = createFirestoreCanonicalClientStudentScopeResolver();
 
 function exactObject(value: unknown, fields: readonly string[]): value is Record<string, unknown> {
   try {
@@ -75,16 +76,16 @@ function exactObject(value: unknown, fields: readonly string[]): value is Record
 async function requireOfferResponseScope(
   request: CallableRequest<unknown>,
   studentId: string,
-  resolver: GuardianStudentScopeResolver = defaultGuardianResolver,
+  resolver: CanonicalClientStudentScopeResolver = defaultClientStudentScopeResolver,
 ): Promise<void> {
   const actor = requireUserActor(request);
-  if (actor.role === "adultStudent" && actor.userId === studentId) return;
   if (
-    actor.role === "guardian" &&
+    (actor.role === "guardian" || actor.role === "adultStudent") &&
     (await resolver({
       academyId: actor.academyId,
-      guardianUserId: actor.userId,
-      studentId,
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      requestedStudentId: studentId,
     }))
   ) {
     return;
@@ -102,17 +103,17 @@ function identifier(value: unknown, label: string): string {
 async function requireWaitlistStudentScope(
   request: CallableRequest<unknown>,
   studentId: string,
-  resolver: GuardianStudentScopeResolver = defaultGuardianResolver,
+  resolver: CanonicalClientStudentScopeResolver = defaultClientStudentScopeResolver,
 ): Promise<void> {
   const actor = requireUserActor(request);
   if (offerIssuerRoles.has(actor.role)) return;
-  if (actor.role === "adultStudent" && actor.userId === studentId) return;
   if (
-    actor.role === "guardian" &&
+    (actor.role === "guardian" || actor.role === "adultStudent") &&
     (await resolver({
       academyId: actor.academyId,
-      guardianUserId: actor.userId,
-      studentId,
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      requestedStudentId: studentId,
     }))
   ) {
     return;
@@ -158,7 +159,11 @@ export function createJoinWaitlistHandler(options: ScopeOptions) {
     const actor = requireUserActor(request);
     const parsed = parseJoinWaitlistInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", "Waitlist request is invalid");
-    await requireWaitlistStudentScope(request, parsed.value.studentId, options.isGuardianOfStudent);
+    await requireWaitlistStudentScope(
+      request,
+      parsed.value.studentId,
+      options.resolveClientStudentScope,
+    );
     try {
       const entry = await options.waitlistStore.joinWaitlist({
         academyId: actor.academyId,
@@ -180,7 +185,7 @@ export function createCancelWaitlistHandler(options: ScopeOptions) {
     }
     const sessionId = identifier(request.data.sessionId, "sessionId");
     const studentId = identifier(request.data.studentId, "studentId");
-    await requireWaitlistStudentScope(request, studentId, options.isGuardianOfStudent);
+    await requireWaitlistStudentScope(request, studentId, options.resolveClientStudentScope);
     try {
       const entry = await options.waitlistStore.cancelWaitlist({
         academyId: actor.academyId,
@@ -239,7 +244,11 @@ function createRespondToWaitlistOfferHandler(
     if (!parsed.ok) {
       throw new HttpsError("invalid-argument", "Waitlist offer response is invalid");
     }
-    await requireOfferResponseScope(request, parsed.value.studentId, options.isGuardianOfStudent);
+    await requireOfferResponseScope(
+      request,
+      parsed.value.studentId,
+      options.resolveClientStudentScope,
+    );
     try {
       const entry = await options.waitlistStore.respondToWaitlistOffer({
         academyId: actor.academyId,
@@ -272,7 +281,7 @@ export function createListStudentWaitlistHandler(options: ScopeOptions) {
       throw new HttpsError("invalid-argument", "Student waitlist query is invalid");
     }
     const studentId = identifier(request.data.studentId, "studentId");
-    await requireWaitlistStudentScope(request, studentId, options.isGuardianOfStudent);
+    await requireWaitlistStudentScope(request, studentId, options.resolveClientStudentScope);
     try {
       const entries = await options.waitlistStore.listStudentWaitlist(actor.academyId, studentId);
       return { entries: Object.freeze(entries.map(studentItem)) };
@@ -317,24 +326,31 @@ function getStore(): WaitlistStore {
   return defaultStore;
 }
 
-export const joinWaitlist = onCall(async (request) =>
-  createJoinWaitlistHandler({ waitlistStore: getStore() })(request),
+function scopeOptions(): ScopeOptions {
+  return {
+    waitlistStore: getStore(),
+    resolveClientStudentScope: defaultClientStudentScopeResolver,
+  };
+}
+
+export const joinWaitlist = onCall(scheduleCallableOptions, async (request) =>
+  createJoinWaitlistHandler(scopeOptions())(request),
 );
-export const cancelWaitlistEntry = onCall(async (request) =>
-  createCancelWaitlistHandler({ waitlistStore: getStore() })(request),
+export const cancelWaitlistEntry = onCall(scheduleCallableOptions, async (request) =>
+  createCancelWaitlistHandler(scopeOptions())(request),
 );
-export const issueNextWaitlistOffer = onCall(async (request) =>
+export const issueNextWaitlistOffer = onCall(scheduleCallableOptions, async (request) =>
   createIssueNextWaitlistOfferHandler({ waitlistStore: getStore() })(request),
 );
-export const acceptWaitlistOffer = onCall(async (request) =>
-  createAcceptWaitlistOfferHandler({ waitlistStore: getStore() })(request),
+export const acceptWaitlistOffer = onCall(scheduleCallableOptions, async (request) =>
+  createAcceptWaitlistOfferHandler(scopeOptions())(request),
 );
-export const declineWaitlistOffer = onCall(async (request) =>
-  createDeclineWaitlistOfferHandler({ waitlistStore: getStore() })(request),
+export const declineWaitlistOffer = onCall(scheduleCallableOptions, async (request) =>
+  createDeclineWaitlistOfferHandler(scopeOptions())(request),
 );
-export const listStudentWaitlist = onCall(async (request) =>
-  createListStudentWaitlistHandler({ waitlistStore: getStore() })(request),
+export const listStudentWaitlist = onCall(scheduleCallableOptions, async (request) =>
+  createListStudentWaitlistHandler(scopeOptions())(request),
 );
-export const listSessionWaitlist = onCall(async (request) =>
+export const listSessionWaitlist = onCall(scheduleCallableOptions, async (request) =>
   createListSessionWaitlistHandler({ waitlistStore: getStore() })(request),
 );

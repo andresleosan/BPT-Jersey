@@ -1,0 +1,173 @@
+.client-billing-page {
+  max-width: 66rem;
+}
+
+.client-billing-back {
+  color: var(--mat-ink);
+  display: inline-flex;
+  font-weight: 800;
+  gap: 0.45rem;
+  margin-bottom: 2rem;
+  text-decoration: none;
+}
+
+.client-billing-state,
+.client-billing-summary,
+.client-invoice-card {
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  margin-top: 2rem;
+  padding: 1.25rem;
+}
+
+.client-billing-error {
+  border-top-color: #8d1c2f;
+}
+
+.client-billing-state h2,
+.client-billing-heading h2,
+.client-invoice-card h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.client-billing-summary {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.client-billing-summary div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.client-billing-summary span,
+.client-invoice-card dt,
+.client-payment-list h4 {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.client-billing-summary strong {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.client-invoice-list {
+  margin-top: 3.5rem;
+}
+
+.client-billing-heading h2 {
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  margin: 0.65rem 0 0;
+}
+
+.client-invoice-card {
+  border-top-color: var(--mat-ink);
+}
+
+.client-invoice-card header {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.client-invoice-card header p {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.45rem;
+  text-transform: uppercase;
+}
+
+.client-invoice-card h3 {
+  font-size: clamp(1.7rem, 4vw, 2.7rem);
+  margin: 0;
+}
+
+.client-invoice-card header > span {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.45rem 0.65rem;
+  text-transform: uppercase;
+}
+
+.client-invoice-card header > span[data-status="paid"] {
+  background: var(--bpt-purple);
+}
+
+.client-invoice-card header > span[data-status="void"] {
+  background: var(--muted);
+}
+
+.client-invoice-card dl {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 1.5rem 0 0;
+}
+
+.client-invoice-card dl > div {
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+
+.client-invoice-card dd {
+  font-weight: 800;
+  margin: 0.3rem 0 0;
+}
+
+.client-payment-list {
+  border-top: 1px solid var(--line);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+}
+
+.client-payment-list ul {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.client-payment-list li {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr auto minmax(9rem, 1fr);
+  padding: 0.55rem 0;
+}
+
+.client-payment-list li span:last-child {
+  color: var(--muted);
+  text-align: right;
+}
+
+.client-payment-empty {
+  color: var(--muted);
+  margin: 1.5rem 0 0;
+}
+
+@media (max-width: 42rem) {
+  .client-billing-summary,
+  .client-invoice-card dl,
+  .client-payment-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .client-invoice-card header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .client-payment-list li span:last-child {
+    text-align: left;
+  }
+}

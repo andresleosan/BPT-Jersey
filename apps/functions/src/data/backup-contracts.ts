@@ -28,6 +28,7 @@ export const TENANT_BACKUP_COLLECTIONS = [
   "leads",
   "messages",
   "deliveryEvents",
+  "notificationPreferences",
   "healthProfiles",
   "safeguardingCases",
   "waiverVersions",
@@ -39,6 +40,7 @@ export const TENANT_BACKUP_COLLECTIONS = [
   "levelSystems",
   "levelDefinitions",
   "levelRequirements",
+  "levelCatalogManifests",
 ] as const;
 
 export type TenantBackupCollection = (typeof TENANT_BACKUP_COLLECTIONS)[number];

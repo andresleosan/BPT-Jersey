@@ -70,6 +70,8 @@ function getStore(): RetentionAlertStore {
   return defaultStore;
 }
 
-export const listRetentionAlerts = onCall(async (request) =>
+export const retentionAlertCallableOptions = { enforceAppCheck: true };
+
+export const listRetentionAlerts = onCall(retentionAlertCallableOptions, async (request) =>
   createListRetentionAlertsHandler({ store: getStore() })(request),
 );

@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable as firebaseHttpsCallable } from "firebase/functions";
 import type {
   AttendanceRecord,
   DailyOperationsDashboard,
@@ -18,9 +18,25 @@ import type {
   RequestBookingInput,
   SessionOperationalView,
   SessionRecord,
+  UpdateClassInput,
 } from "@bpt-jersey/domain/schedule";
 
 import { getFirebaseFunctions } from "./firebase-client";
+
+export const scheduleCallableClientOptions = Object.freeze({
+  limitedUseAppCheckTokens: true,
+});
+
+function httpsCallable<RequestData, ResponseData>(
+  functions: ReturnType<typeof getFirebaseFunctions>,
+  name: string,
+) {
+  return firebaseHttpsCallable<RequestData, ResponseData>(
+    functions,
+    name,
+    scheduleCallableClientOptions,
+  );
+}
 
 export type ScheduleCatalogResponse = Readonly<{
   locations: readonly LocationRecord[];
@@ -80,6 +96,17 @@ export async function saveClass(input: CreateClassInput): Promise<ClassRecord> {
   const callable = httpsCallable<CreateClassInput, { class: ClassRecord }>(
     functions,
     "saveClass",
+  );
+
+  const result = await callable(input);
+  return result.data.class;
+}
+
+export async function updateClass(input: UpdateClassInput): Promise<ClassRecord> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<UpdateClassInput, { class: ClassRecord }>(
+    functions,
+    "updateClass",
   );
 
   const result = await callable(input);
@@ -328,8 +355,6 @@ export async function getSessionOperationalView(
   const result = await callable({ sessionId });
   return result.data.view;
 }
-
-
 
 
 

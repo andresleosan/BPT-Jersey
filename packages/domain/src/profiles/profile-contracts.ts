@@ -236,7 +236,17 @@ export function parseUserProfile(value: unknown): Result<UserProfile, readonly V
 export function parseStudentProfile(
   value: unknown,
 ): Result<StudentProfile, readonly ValidationIssue[]> {
+  return parseStudentProfileAt(value, new Date().toISOString().slice(0, 10));
+}
+
+export function parseStudentProfileAt(
+  value: unknown,
+  effectiveDate: string,
+): Result<StudentProfile, readonly ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
+  if (!dateOnlyPattern.test(effectiveDate) || !isValidCalendarDate(effectiveDate)) {
+    return err([issue(["effectiveDate"], "invalid_date")]);
+  }
   if (!isPlainRecord(value)) return err([issue([], "invalid_type")]);
   validateCommonIdentity(value, studentRequiredProfileFields, issues, [
     "familyId",
@@ -245,12 +255,12 @@ export function parseStudentProfile(
     "email",
   ]);
   if (!isNonEmptyText(value.fullName, 160)) issues.push(issue(["fullName"], "invalid_text"));
-  if (
+  const invalidDateOfBirth =
     typeof value.dateOfBirth !== "string" ||
     !dateOnlyPattern.test(value.dateOfBirth) ||
     !isValidCalendarDate(value.dateOfBirth) ||
-    value.dateOfBirth > new Date().toISOString().slice(0, 10)
-  ) {
+    value.dateOfBirth > effectiveDate;
+  if (invalidDateOfBirth) {
     issues.push(issue(["dateOfBirth"], "invalid_date"));
   }
   parseOptionalText(value, "familyId", 128, issues);
@@ -272,6 +282,11 @@ export function parseStudentProfile(
   }
   if (!participantTypes.includes(value.participantType as ParticipantType)) {
     issues.push(issue(["participantType"], "unknown_enum"));
+  } else if (
+    !invalidDateOfBirth &&
+    deriveParticipantType(value.dateOfBirth as string, effectiveDate) !== value.participantType
+  ) {
+    issues.push(issue(["participantType"], "age_mismatch"));
   }
   const parsed = {
     ...(value as StudentProfile),

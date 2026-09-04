@@ -35,6 +35,7 @@ describe("deploy runtime import preparation", () => {
         'import "@bpt-jersey/domain/audit";',
         'import "@bpt-jersey/domain/levels/lesson-planning";',
         'import "@bpt-jersey/domain/members";',
+        'import "@bpt-jersey/domain/members/directory";',
         'import "@bpt-jersey/domain/memberships";',
         'import "@bpt-jersey/domain/memberships/lifecycle";',
         'import "@bpt-jersey/domain/auth/admin-contracts";',
@@ -57,6 +58,7 @@ describe("deploy runtime import preparation", () => {
     expect(prepared).toContain("../../domain/audit/audit-event.js");
     expect(prepared).toContain("../../domain/levels/lesson-planning-contracts.js");
     expect(prepared).toContain("../../domain/members/member-contracts.js");
+    expect(prepared).toContain("../../domain/members/member-directory-contracts.js");
     expect(prepared).toContain("../../domain/memberships/plan-contracts.js");
     expect(prepared).toContain("../../domain/memberships/membership-contracts.js");
     expect(prepared).toContain("../../domain/auth/admin-contracts.js");
@@ -129,12 +131,24 @@ describe("deploy runtime import preparation", () => {
     const indexSource = await readFile(indexPath, "utf8");
     expect(indexSource).not.toMatch(/@bpt-jersey\/domain/u);
     const callableSource = await readFile(
-      join(deployRoot, "lib", "src", "members", "member-callables.js"),
+      join(deployRoot, "lib", "src", "members", "member-directory-callables.js"),
       "utf8",
     );
-    expect(callableSource).toContain('defineSecret("MEMBER_PAGE_TOKEN_SECRET")');
-    expect(callableSource).toContain("secrets: [memberPageTokenSecret]");
+    expect(callableSource).toContain('defineSecret("MEMBER_DIRECTORY_IDENTITY_KEY_SECRET")');
+    expect(callableSource).toContain('defineSecret("MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET")');
+    expect(callableSource).toContain('defineSecret("MEMBER_DIRECTORY_CURSOR_SECRET")');
     const deployedFunctions = await import(pathToFileURL(indexPath).href);
+    expect(deployedFunctions["createMember"]).toBeTypeOf("function");
+    expect(deployedFunctions["listMembers"]).toBeTypeOf("function");
+    expect(deployedFunctions["getMemberDetail"]).toBeTypeOf("function");
+    expect(deployedFunctions["lookupMemberIdentity"]).toBeTypeOf("function");
+    expect(deployedFunctions["searchMembers"]).toBeUndefined();
+    expect(deployedFunctions["getMemberReport"]).toBeUndefined();
+    expect(deployedFunctions["getMemberReportPdf"]).toBeUndefined();
+    expect(deployedFunctions["getMemberReportSummary"]).toBeUndefined();
+    expect(deployedFunctions["createMemberPdfImportSession"]).toBeTypeOf("function");
+    expect(deployedFunctions["previewMemberPdfImport"]).toBeTypeOf("function");
+    expect(deployedFunctions["confirmMemberPdfImport"]).toBeTypeOf("function");
     expect(deployedFunctions["getDailyOperationsDashboard"]).toBeTypeOf("function");
     expect(deployedFunctions["getFinancialDashboard"]).toBeTypeOf("function");
     expect(deployedFunctions["getOperationalReport"]).toBeTypeOf("function");

@@ -79,4 +79,27 @@ describe("Account Progress Page", () => {
     ).toBeDefined();
     expect(await screen.findByRole("heading", { name: "JIU-JITSU - IBJJF" })).toBeDefined();
   });
+
+  it("renders peer progression widget with peers above and below", async () => {
+    levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+
+    render(<AccountProgressPage />);
+
+    // Peer comparison section
+    expect(
+      screen.getByRole("heading", { name: /Peer Progression & Competitors/ }),
+    ).toBeInTheDocument();
+
+    // Verify peers are displayed
+    expect(screen.getByText("Lucas Silva")).toBeInTheDocument();
+    expect(screen.getByText("Mateo Rossi")).toBeInTheDocument();
+    expect(screen.getByText("Chloe Martin")).toBeInTheDocument();
+    expect(screen.getByText("David De La Haye")).toBeInTheDocument();
+
+    // Verify technique comparison is present
+    expect(
+      screen.getByRole("heading", { name: "Curriculum Technique Comparison" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Closed Guard Fundamentals")).toBeInTheDocument();
+  });
 });

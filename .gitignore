@@ -56,6 +56,7 @@ test-results/
 # Estado local de herramientas de análisis y brainstorming
 .superpowers/
 graphify-out/
+.tmp/
 
 # Editor / sistema operativo
 .DS_Store

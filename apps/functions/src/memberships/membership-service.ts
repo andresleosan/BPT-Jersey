@@ -11,6 +11,7 @@ import {
 import {
   parsePlanRecord,
   planIds,
+  type ParticipantType as PlanParticipantType,
   type PlanId,
   type PlanRecord,
 } from "@bpt-jersey/domain/memberships";
@@ -20,13 +21,24 @@ import {
   type FamilyRecord,
   type FamilyRelationship,
 } from "@bpt-jersey/domain/families";
-import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
+import {
+  deriveParticipantType,
+  parseStudentProfile,
+  type StudentProfile,
+} from "@bpt-jersey/domain/profiles";
+import {
+  parseConsentRecord,
+  parseWaiverVersion,
+  type ConsentRecord,
+  type WaiverVersion,
+} from "@bpt-jersey/domain/consents";
 
 import {
   appendAuditEventInTransaction,
   type AuditCreateTransaction,
 } from "../audit/audit-writer.js";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+import { consentRecordId } from "../consents/consent-identifiers.js";
 
 export type MembershipDocumentData = Readonly<Record<string, unknown>>;
 export type MembershipDocumentReference = Readonly<{ id: string; path: string }>;
@@ -199,6 +211,17 @@ function planPath(academyId: string, planId: PlanId): string {
   return `academies/${pathSegment(academyId, "academy")}/plans/${pathSegment(planId, "plan")}`;
 }
 
+function waiverVersionsPath(academyId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/waiverVersions`;
+}
+
+function consentPath(academyId: string, consentId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/consents/${pathSegment(
+    consentId,
+    "consent",
+  )}`;
+}
+
 function relationshipPath(academyId: string, familyId: string, studentId: string): string {
   return `academies/${pathSegment(academyId, "academy")}/relationships/${pathSegment(
     `${familyId}--${studentId}`,
@@ -283,6 +306,60 @@ function storedPlan(snapshot: MembershipDocumentSnapshot, expectedPlanId: PlanId
   return parsed.value;
 }
 
+function storedPublishedWaiver(
+  snapshot: MembershipDocumentSnapshot,
+  academyId: string,
+  now: string,
+): WaiverVersion {
+  if (!snapshot.exists) {
+    throw new MembershipStoreError("precondition", "Current waiver is unavailable");
+  }
+  const parsed = parseWaiverVersion(snapshot.data());
+  if (
+    !parsed.ok ||
+    parsed.value.waiverVersionId !== snapshot.id ||
+    parsed.value.academyId !== academyId
+  ) {
+    throw new MembershipStoreError("invalid", "Stored waiver is invalid");
+  }
+  if (parsed.value.status !== "published" || parsed.value.effectiveAt > now) {
+    throw new MembershipStoreError("precondition", "Current waiver is unavailable");
+  }
+  return parsed.value;
+}
+
+function storedAcceptedConsent(
+  snapshot: MembershipDocumentSnapshot,
+  academyId: string,
+  student: StudentProfile,
+  waiver: WaiverVersion,
+  now: string,
+): ConsentRecord {
+  if (!snapshot.exists) {
+    throw new MembershipStoreError("precondition", "Current waiver has not been accepted");
+  }
+  const parsed = parseConsentRecord(snapshot.data());
+  if (
+    !parsed.ok ||
+    parsed.value.consentId !== snapshot.id ||
+    parsed.value.academyId !== academyId ||
+    parsed.value.subjectId !== student.studentId ||
+    parsed.value.subjectType !== student.participantType ||
+    parsed.value.waiverVersionId !== waiver.waiverVersionId ||
+    parsed.value.waiverContentHash !== waiver.contentHash
+  ) {
+    throw new MembershipStoreError("invalid", "Stored consent is invalid");
+  }
+  if (
+    parsed.value.status !== "accepted" ||
+    parsed.value.revokedAt !== null ||
+    parsed.value.signedAt > now
+  ) {
+    throw new MembershipStoreError("precondition", "Current waiver has not been accepted");
+  }
+  return parsed.value;
+}
+
 function storedMembership(
   snapshot: MembershipDocumentSnapshot,
   expectedMembershipId?: string,
@@ -349,6 +426,18 @@ function assertAllowed(
 
 function activeSource(record: FamilyRecord | StudentProfile | FamilyRelationship): boolean {
   return record.active && record.status === "active";
+}
+
+function planParticipantType(student: StudentProfile, effectiveAt: string): PlanParticipantType {
+  const effectiveDate = effectiveAt.slice(0, 10);
+  if (deriveParticipantType(student.dateOfBirth, effectiveDate) === "adult") return "adult";
+  const birth = student.dateOfBirth.split("-").map(Number);
+  const current = effectiveDate.split("-").map(Number);
+  let age = current[0]! - birth[0]!;
+  if (current[1]! < birth[1]! || (current[1] === birth[1] && current[2]! < birth[2]!)) {
+    age -= 1;
+  }
+  return age >= 12 ? "teens" : "kids";
 }
 
 function auditDraft(
@@ -497,6 +586,32 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
             `${familyId}--${studentId}`,
           );
 
+          const waiverVersions = querySnapshot(
+            await transaction.get(
+              dependencies.firestore
+                .collection(waiverVersionsPath(academyId))
+                .where("status", "==", "published")
+                .limit(2),
+            ),
+          );
+          if (waiverVersions.docs.length !== 1) {
+            throw new MembershipStoreError(
+              waiverVersions.docs.length > 1 ? "conflict" : "precondition",
+              "Current waiver is unavailable",
+            );
+          }
+          const waiver = storedPublishedWaiver(waiverVersions.docs[0]!, academyId, timestamp);
+          const consentId = consentRecordId(academyId, studentId, waiver.waiverVersionId);
+          storedAcceptedConsent(
+            documentSnapshot(
+              await transaction.get(dependencies.firestore.doc(consentPath(academyId, consentId))),
+            ),
+            academyId,
+            studentRecord,
+            waiver,
+            timestamp,
+          );
+
           if (familyRecord.academyId !== academyId || studentRecord.academyId !== academyId) {
             throw new MembershipStoreError("tenant", "Membership source tenant mismatch");
           }
@@ -518,6 +633,17 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
           }
           if (!planRecord.active) {
             throw new MembershipStoreError("precondition", "Membership plan is inactive");
+          }
+          if (
+            !planRecord.eligibleParticipantTypes.includes(
+              planParticipantType(studentRecord, timestamp),
+            ) ||
+            !planRecord.classSites.includes(studentRecord.trainingCenter)
+          ) {
+            throw new MembershipStoreError(
+              "precondition",
+              "Membership plan is not eligible for this student",
+            );
           }
 
           for (const snapshot of currentMemberships.docs) {

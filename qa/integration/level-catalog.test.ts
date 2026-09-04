@@ -45,7 +45,7 @@ afterAll(async () => {
   if (app) {
     if (store) {
       try {
-        await store.rollback({ academyId, systemId: "ibjjf-v1" });
+        await store.rollback({ academyId, systemId: "ibjjf-v1", normalized });
       } catch {
         // cleanup ignore
       }
@@ -93,6 +93,7 @@ describe("Level Catalog Emulator Integration", () => {
       const rollback = await store.rollback({
         academyId,
         systemId: "ibjjf-v1",
+        normalized,
       });
       expect(rollback.deletedDefinitions).toBe(171);
       expect(rollback.deletedRequirements).toBe(165);

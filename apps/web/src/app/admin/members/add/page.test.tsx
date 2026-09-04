@@ -8,121 +8,130 @@ vi.mock("../../../../lib/members-client", () => clientMocks);
 
 import AddMemberRoute, { AddMemberPage } from "./page";
 
-describe("Add new member page", () => {
+async function fillRequiredAdult(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.type(screen.getByLabelText("Full name"), "Synthetic Adult");
+  await user.type(screen.getByLabelText("Date of birth"), "1990-01-02");
+  await user.selectOptions(screen.getByLabelText("Training center"), "Town");
+  await user.click(screen.getByLabelText("Evening"));
+}
+
+describe("Add canonical adult member page", () => {
   afterEach(() => {
     cleanup();
     clientMocks.createMember.mockReset();
   });
 
-  it("renders member fields with labels, a required name, and no password field", () => {
+  it("requires identity and training fields and routes minors to the family flow", () => {
     render(<AddMemberPage />);
 
-    expect(screen.getByRole("heading", { name: "Add new member" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Add adult student" })).toBeVisible();
     expect(screen.getByLabelText("Full name")).toBeRequired();
-    expect(screen.getByLabelText("Membership number")).not.toBeRequired();
-    expect(screen.getByLabelText("Email address")).toBeVisible();
-    expect(screen.getByLabelText("ID card number")).toBeVisible();
-    expect(screen.getByLabelText("VAT number")).toBeVisible();
-    expect(screen.getByLabelText("Birth date")).toBeVisible();
-    expect(screen.getByLabelText("Mobile number")).toBeVisible();
-    expect(screen.getByLabelText("Frequency")).toBeVisible();
-    expect(screen.getByLabelText("Gender")).toBeVisible();
-    expect(screen.getByLabelText("Training center")).toBeVisible();
+    expect(screen.getByLabelText("Date of birth")).toBeRequired();
+    expect(screen.getByLabelText("Training center")).toBeRequired();
+    expect(screen.getByRole("group", { name: "Training time preferences" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Create a family and minor student" })).toHaveAttribute(
+      "href",
+      "/admin/families",
+    );
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
   });
 
-  it("validates the required name and announces the field error", async () => {
+  it("focuses the first missing field and makes no request", async () => {
     const user = userEvent.setup();
     render(<AddMemberPage />);
 
-    await user.click(screen.getByRole("button", { name: "Add member" }));
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
 
-    const fullName = screen.getByLabelText("Full name");
-    expect(fullName).toHaveAttribute("aria-invalid", "true");
-    expect(fullName).toHaveAttribute("aria-describedby", "member-full-name-error");
+    expect(screen.getByLabelText("Full name")).toHaveFocus();
+    expect(screen.getByLabelText("Full name")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("alert")).toHaveTextContent("Full name is required.");
     expect(clientMocks.createMember).not.toHaveBeenCalled();
   });
 
-  it("moves keyboard focus to the first invalid field", async () => {
+  it("sends one canonical adult payload with a generated idempotency request ID", async () => {
     const user = userEvent.setup();
+    clientMocks.createMember.mockResolvedValue({
+      memberId: "student-1",
+      studentId: "student-1",
+    });
     render(<AddMemberPage />);
+    await fillRequiredAdult(user);
+    await user.type(screen.getByLabelText("Membership number"), "BPT 00000001");
+    await user.type(screen.getByLabelText("Mobile number"), "+44 7000 000000");
 
-    await user.click(screen.getByRole("button", { name: "Add member" }));
-
-    expect(screen.getByLabelText("Full name")).toHaveFocus();
-  });
-
-  it("sends optional membership number and preserves a valid date-only value", async () => {
-    const user = userEvent.setup();
-    clientMocks.createMember.mockResolvedValue({ memberId: "member-123" });
-    render(<AddMemberPage />);
-
-    await user.type(screen.getByLabelText("Full name"), " Alex Johnson ");
-    await user.type(screen.getByLabelText("Membership number"), "BPT-123");
-    await user.type(screen.getByLabelText("Birth date"), "1990-01-02");
-    await user.click(screen.getByRole("button", { name: "Add member" }));
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
 
     await waitFor(() => expect(clientMocks.createMember).toHaveBeenCalledOnce());
     expect(clientMocks.createMember).toHaveBeenCalledWith({
-      fullName: "Alex Johnson",
-      membershipNumber: "BPT-123",
-      birthDate: "1990-01-02",
+      requestId: expect.stringMatching(/^[A-Za-z0-9][A-Za-z0-9._:-]+$/),
+      fullName: "Synthetic Adult",
+      dateOfBirth: "1990-01-02",
+      phoneNumber: "+44 7000 000000",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      membershipNumber: "BPT 00000001",
     });
   });
 
-  it("prevents duplicate submissions while the create request is pending", async () => {
+  it("keeps the request ID across a retry and resets it only after success", async () => {
     const user = userEvent.setup();
-    let resolveRequest: (value: { memberId: string }) => void = () => undefined;
+    clientMocks.createMember
+      .mockRejectedValueOnce(new Error("temporary"))
+      .mockResolvedValueOnce({ memberId: "student-1", studentId: "student-1" });
+    render(<AddMemberPage />);
+    await fillRequiredAdult(user);
+
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to add member. Please try again.",
+    );
+    const firstRequestId = clientMocks.createMember.mock.calls[0]?.[0]?.requestId;
+
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("student-1");
+    expect(clientMocks.createMember.mock.calls[1]?.[0]?.requestId).toBe(firstRequestId);
+    expect(screen.getByLabelText("Full name")).toHaveValue("");
+  });
+
+  it("prevents duplicate submissions while a create request is pending", async () => {
+    const user = userEvent.setup();
+    let resolveRequest: (value: { memberId: string; studentId: string }) => void = () => undefined;
     clientMocks.createMember.mockImplementation(
       () =>
-        new Promise<{ memberId: string }>((resolve) => {
+        new Promise<{ memberId: string; studentId: string }>((resolve) => {
           resolveRequest = resolve;
         }),
     );
     render(<AddMemberPage />);
+    await fillRequiredAdult(user);
 
-    await user.type(screen.getByLabelText("Full name"), "Alex Johnson");
-    const submit = screen.getByRole("button", { name: "Add member" });
+    const submit = screen.getByRole("button", { name: "Add adult student" });
     await user.click(submit);
     await user.click(submit);
-
     expect(clientMocks.createMember).toHaveBeenCalledOnce();
     expect(submit).toBeDisabled();
-    resolveRequest({ memberId: "member-123" });
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Member added"));
+    resolveRequest({ memberId: "student-1", studentId: "student-1" });
+    await waitFor(() => expect(screen.getByRole("status")).toBeVisible());
   });
 
-  it("shows a success confirmation and resets the form after creation", async () => {
+  it("rejects a minor date in this route without calling the backend", async () => {
     const user = userEvent.setup();
-    clientMocks.createMember.mockResolvedValue({ memberId: "member-123" });
     render(<AddMemberPage />);
+    await user.type(screen.getByLabelText("Full name"), "Synthetic Minor");
+    await user.type(screen.getByLabelText("Date of birth"), "2020-01-02");
+    await user.selectOptions(screen.getByLabelText("Training center"), "Town");
+    await user.click(screen.getByLabelText("Morning"));
 
-    await user.type(screen.getByLabelText("Full name"), "Alex Johnson");
-    await user.click(screen.getByRole("button", { name: "Add member" }));
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
 
-    const confirmation = await screen.findByRole("status");
-    expect(confirmation).toHaveTextContent("Member added successfully.");
-    expect(confirmation).toHaveTextContent("member-123");
-    expect(screen.getByLabelText("Full name")).toHaveValue("");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Minor students must be created through the family flow.",
+    );
+    expect(clientMocks.createMember).not.toHaveBeenCalled();
   });
 
-  it("shows only a generic error when the callable fails", async () => {
-    const user = userEvent.setup();
-    clientMocks.createMember.mockRejectedValue(new Error("private Firebase stack detail"));
-    render(<AddMemberPage />);
-
-    await user.type(screen.getByLabelText("Full name"), "Alex Johnson");
-    await user.click(screen.getByRole("button", { name: "Add member" }));
-
-    const error = await screen.findByRole("alert");
-    expect(error).toHaveTextContent("Unable to add member. Please try again.");
-    expect(error).not.toHaveTextContent("private Firebase stack detail");
-  });
-
-  it("keeps the direct route data-free and renders the form in test mode", () => {
+  it("keeps the direct route data-free in test mode", () => {
     render(<AddMemberRoute />);
-
-    expect(screen.getByRole("heading", { name: "Add new member" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Add adult student" })).toBeVisible();
   });
 });

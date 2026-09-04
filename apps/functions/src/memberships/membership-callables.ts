@@ -539,22 +539,24 @@ function membershipCallableServices(): MembershipCallableServices {
   };
 }
 
-export const listMemberships = onCall(async (request) =>
+export const membershipCallableOptions = { enforceAppCheck: true };
+
+export const listMemberships = onCall(membershipCallableOptions, async (request) =>
   listMembershipsHandler(request, membershipCallableServices()),
 );
 
-export const getMembership = onCall(async (request) =>
+export const getMembership = onCall(membershipCallableOptions, async (request) =>
   getMembershipHandler(request, membershipCallableServices()),
 );
 
-export const createMembership = onCall(async (request) =>
+export const createMembership = onCall(membershipCallableOptions, async (request) =>
   createMembershipHandler(request, membershipCallableServices()),
 );
 
-export const transitionMembership = onCall(async (request) =>
+export const transitionMembership = onCall(membershipCallableOptions, async (request) =>
   transitionMembershipHandler(request, membershipCallableServices()),
 );
 
-export const cancelMembership = onCall(async (request) =>
+export const cancelMembership = onCall(membershipCallableOptions, async (request) =>
   cancelMembershipHandler(request, membershipCallableServices()),
 );

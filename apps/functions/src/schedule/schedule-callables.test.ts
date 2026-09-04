@@ -27,6 +27,7 @@ import {
   createSaveSessionHandler,
 } from "./schedule-callables";
 import { BookingTransactionError } from "./booking-transaction-service";
+import { scheduleCallableOptions } from "./schedule-callable-options";
 import { createInMemoryScheduleStore } from "./schedule-service";
 
 function fakeRequest(
@@ -41,7 +42,24 @@ function fakeRequest(
   } as never;
 }
 
+const ownStudentScope = async ({
+  actorUserId,
+  requestedStudentId,
+}: {
+  actorUserId: string;
+  requestedStudentId: string;
+}) => actorUserId === requestedStudentId;
+
 describe("Schedule Callables", () => {
+  it("requires and consumes App Check for every shared schedule callable", () => {
+    expect(scheduleCallableOptions).toEqual({
+      cors: ["https://bptjersey.pages.dev"],
+      invoker: "public",
+      enforceAppCheck: true,
+      consumeAppCheckToken: true,
+    });
+  });
+
   it.each([
     {
       error: new BookingTransactionError("capacity", "internal capacity detail"),
@@ -68,7 +86,10 @@ describe("Schedule Callables", () => {
           throw error;
         },
       };
-      const handler = createRequestBookingHandler({ store });
+      const handler = createRequestBookingHandler({
+        store,
+        resolveClientStudentScope: ownStudentScope,
+      });
 
       await expect(
         handler(
@@ -304,9 +325,22 @@ describe("Schedule Callables", () => {
   describe("Booking & Roster Callables", () => {
     it("allows student to request and cancel their own booking", async () => {
       const store = createInMemoryScheduleStore();
-      const requestHandler = createRequestBookingHandler({ store });
-      const cancelHandler = createCancelBookingHandler({ store });
-      const listHandler = createListStudentBookingsHandler({ store });
+      const resolveClientStudentScope = vi.fn(
+        async ({ actorUserId, requestedStudentId }) =>
+          actorUserId === "adult-user-1" && requestedStudentId === "student-1",
+      );
+      const requestHandler = createRequestBookingHandler({
+        store,
+        resolveClientStudentScope,
+      });
+      const cancelHandler = createCancelBookingHandler({
+        store,
+        resolveClientStudentScope,
+      });
+      const listHandler = createListStudentBookingsHandler({
+        store,
+        resolveClientStudentScope,
+      });
 
       const session = await store.createSession(
         "demo-academy",
@@ -331,7 +365,7 @@ describe("Schedule Callables", () => {
             membershipId: "mem-1",
           },
           "adultStudent",
-          "student-1",
+          "adult-user-1",
           "demo-academy",
         ),
       );
@@ -341,14 +375,14 @@ describe("Schedule Callables", () => {
 
       // Student 1 queries their bookings
       const myList = await listHandler(
-        fakeRequest({ studentId: "student-1" }, "adultStudent", "student-1", "demo-academy"),
+        fakeRequest({ studentId: "student-1" }, "adultStudent", "adult-user-1", "demo-academy"),
       );
       expect(myList.bookings).toHaveLength(1);
 
       // Student 1 cannot query other students' bookings
       await expect(
         listHandler(
-          fakeRequest({ studentId: "student-2" }, "adultStudent", "student-1", "demo-academy"),
+          fakeRequest({ studentId: "student-2" }, "adultStudent", "adult-user-1", "demo-academy"),
         ),
       ).rejects.toThrow(/Access denied/);
 
@@ -361,7 +395,7 @@ describe("Schedule Callables", () => {
             reason: "Personal conflict",
           },
           "adultStudent",
-          "student-1",
+          "adult-user-1",
           "demo-academy",
         ),
       );
@@ -370,40 +404,40 @@ describe("Schedule Callables", () => {
 
     it("isolates guardian self-service to active linked minors", async () => {
       const store = createInMemoryScheduleStore();
-      const allowLinkedMinor = async ({ studentId }: { studentId: string }) =>
-        studentId === "minor-1";
+      const allowLinkedMinor = async ({ requestedStudentId }: { requestedStudentId: string }) =>
+        requestedStudentId === "minor-1";
       const denyUnlinkedStudent = async () => false;
       const requestHandler = createRequestBookingHandler({
         store,
-        isGuardianOfStudent: allowLinkedMinor,
+        resolveClientStudentScope: allowLinkedMinor,
       });
       const deniedRequestHandler = createRequestBookingHandler({
         store,
-        isGuardianOfStudent: denyUnlinkedStudent,
+        resolveClientStudentScope: denyUnlinkedStudent,
       });
       const deniedCancelHandler = createCancelBookingHandler({
         store,
-        isGuardianOfStudent: denyUnlinkedStudent,
+        resolveClientStudentScope: denyUnlinkedStudent,
       });
       const deniedListHandler = createListStudentBookingsHandler({
         store,
-        isGuardianOfStudent: denyUnlinkedStudent,
+        resolveClientStudentScope: denyUnlinkedStudent,
       });
       const deniedAttendanceHandler = createListStudentAttendanceHandler({
         store,
-        isGuardianOfStudent: denyUnlinkedStudent,
+        resolveClientStudentScope: denyUnlinkedStudent,
       });
       const deniedHistoryHandler = createListAttendanceHistoryHandler({
         store,
-        isGuardianOfStudent: denyUnlinkedStudent,
+        resolveClientStudentScope: denyUnlinkedStudent,
       });
       const deniedCheckoutHandler = createGetStudentCheckoutHandler({
         store,
-        isGuardianOfStudent: denyUnlinkedStudent,
+        resolveClientStudentScope: denyUnlinkedStudent,
       });
       const deniedRecordCheckoutHandler = createRecordCheckoutHandler({
         store,
-        isGuardianOfStudent: denyUnlinkedStudent,
+        resolveClientStudentScope: denyUnlinkedStudent,
       });
       const checkInHandler = createCheckInHandler({ store });
 
@@ -500,12 +534,15 @@ describe("Schedule Callables", () => {
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/student self check-in is required/);
+      ).rejects.toThrow(/Staff access is required for check-in/);
     });
 
     it("allows staff to view session roster and evaluate minimum quorum", async () => {
       const store = createInMemoryScheduleStore();
-      const requestHandler = createRequestBookingHandler({ store });
+      const requestHandler = createRequestBookingHandler({
+        store,
+        resolveClientStudentScope: ownStudentScope,
+      });
       const rosterHandler = createListSessionBookingsHandler({ store });
       const quorumHandler = createEvaluateSessionMinimumHandler({ store });
 
@@ -566,11 +603,14 @@ describe("Schedule Callables", () => {
   });
 
   describe("Check-In Callables", () => {
-    it("handles QR check-in for student and manual check-in for staff", async () => {
+    it("keeps self-service credentials closed and allows manual staff check-in", async () => {
       const store = createInMemoryScheduleStore();
       const checkInHandler = createCheckInHandler({ store });
       const sessionAttendanceHandler = createListSessionAttendanceHandler({ store });
-      const studentAttendanceHandler = createListStudentAttendanceHandler({ store });
+      const studentAttendanceHandler = createListStudentAttendanceHandler({
+        store,
+        resolveClientStudentScope: ownStudentScope,
+      });
 
       const session = await store.createSession(
         "demo-academy",
@@ -586,21 +626,21 @@ describe("Schedule Callables", () => {
         "owner-1",
       );
 
-      // Student checks in via QR
-      const qrRes = await checkInHandler(
-        fakeRequest(
-          {
-            sessionId: session.sessionId,
-            studentId: "student-1",
-            method: "qr",
-          },
-          "adultStudent",
-          "student-1",
-          "demo-academy",
+      // A QR label is not accepted without a verified academy credential.
+      await expect(
+        checkInHandler(
+          fakeRequest(
+            {
+              sessionId: session.sessionId,
+              studentId: "student-1",
+              method: "qr",
+            },
+            "adultStudent",
+            "auth-adult-1",
+            "demo-academy",
+          ),
         ),
-      );
-      expect(qrRes.attendance.method).toBe("qr");
-      expect(qrRes.attendance.studentId).toBe("student-1");
+      ).rejects.toThrow(/Staff access is required for check-in/);
 
       // Student cannot do manual check-in
       await expect(
@@ -616,7 +656,23 @@ describe("Schedule Callables", () => {
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/Staff access required for manual or nameSearch check-in/);
+      ).rejects.toThrow(/Staff access is required for check-in/);
+
+      // Coach performs manual check-in for student 1.
+      const firstManualRes = await checkInHandler(
+        fakeRequest(
+          {
+            sessionId: session.sessionId,
+            studentId: "student-1",
+            method: "manual",
+          },
+          "coach",
+          "coach-1",
+          "demo-academy",
+        ),
+      );
+      expect(firstManualRes.attendance.method).toBe("manual");
+      expect(firstManualRes.attendance.studentId).toBe("student-1");
 
       // Coach performs manual check-in for student 2
       const manualRes = await checkInHandler(
@@ -655,7 +711,10 @@ describe("Schedule Callables", () => {
       const checkInHandler = createCheckInHandler({ store });
       const correctHandler = createCorrectAttendanceHandler({ store });
       const reconcileHandler = createReconcileSessionNoShowsHandler({ store });
-      const historyHandler = createListAttendanceHistoryHandler({ store });
+      const historyHandler = createListAttendanceHistoryHandler({
+        store,
+        resolveClientStudentScope: ownStudentScope,
+      });
 
       const session = await store.createSession(
         "demo-academy",
@@ -671,12 +730,16 @@ describe("Schedule Callables", () => {
         "owner-1",
       );
 
-      // Student 1 checks in
+      // Coach checks student 1 in manually; self-service QR remains closed.
       await checkInHandler(
         fakeRequest(
-          { sessionId: session.sessionId, studentId: "student-1", method: "qr" },
-          "adultStudent",
-          "student-1",
+          {
+            sessionId: session.sessionId,
+            studentId: "student-1",
+            method: "manual",
+          },
+          "coach",
+          "coach-1",
           "demo-academy",
         ),
       );
@@ -745,7 +808,10 @@ describe("Schedule Callables", () => {
     it("keeps adult self checkout fail-closed until the policy is approved", async () => {
       const store = createInMemoryScheduleStore();
       const recordCheckout = vi.spyOn(store, "recordCheckout");
-      const handler = createRecordCheckoutHandler({ store });
+      const handler = createRecordCheckoutHandler({
+        store,
+        resolveClientStudentScope: ownStudentScope,
+      });
 
       await expect(
         handler(
@@ -760,22 +826,23 @@ describe("Schedule Callables", () => {
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/Adult student checkout is not enabled/);
+      ).rejects.toThrow(/Independent release requires verified policy evidence/);
       expect(recordCheckout).not.toHaveBeenCalled();
     });
 
     it("handles child check-out authorization, staff overrides, and queries", async () => {
       const store = createInMemoryScheduleStore();
       const checkInHandler = createCheckInHandler({ store });
-      const guardianScope = async ({ studentId }: { studentId: string }) => studentId === "minor-1";
+      const guardianScope = async ({ requestedStudentId }: { requestedStudentId: string }) =>
+        requestedStudentId === "minor-1";
       const recordCheckoutHandler = createRecordCheckoutHandler({
         store,
-        isGuardianOfStudent: guardianScope,
+        resolveClientStudentScope: guardianScope,
       });
       const listCheckoutsHandler = createListSessionCheckoutsHandler({ store });
       const getCheckoutHandler = createGetStudentCheckoutHandler({
         store,
-        isGuardianOfStudent: guardianScope,
+        resolveClientStudentScope: guardianScope,
       });
 
       const session = await store.createSession(
@@ -792,12 +859,16 @@ describe("Schedule Callables", () => {
         "owner-1",
       );
 
-      // Minor checks in
+      // Coach checks the minor in manually.
       await checkInHandler(
         fakeRequest(
-          { sessionId: session.sessionId, studentId: "minor-1", method: "pin" },
-          "adultStudent",
-          "minor-1",
+          {
+            sessionId: session.sessionId,
+            studentId: "minor-1",
+            method: "manual",
+          },
+          "coach",
+          "coach-1",
           "demo-academy",
         ),
       );

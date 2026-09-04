@@ -6,7 +6,21 @@ import { err, ok, type Result } from "../result";
 export const auditActions = Object.freeze([
   "admin.role.granted",
   "admin.role.revoked",
+  "member.created",
+  "member.updated",
+  "guardian.profile.created",
+  "guardian.profile.updated",
+  "family.created",
+  "family.student.added",
+  "level.catalog.published",
+  "level.catalog.rolled_back",
+  "level.assessment.recorded",
+  "level.medical-leave.recorded",
+  "level.promotion.approved",
+  "level.promotion.rejected",
   "member.import.confirmed",
+  "member.detail.read",
+  "member.identity.lookup",
   "regyfit.access.imported",
   "retention.alerts.generated",
   "report.export.prepared",
@@ -32,6 +46,10 @@ export const auditActions = Object.freeze([
   "waitlist.offer.accepted",
   "waitlist.offer.declined",
   "waitlist.offer.expired",
+  "attendance.checked_in",
+  "attendance.corrected",
+  "student.checked_out",
+  "notification.preference.updated",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -44,12 +62,54 @@ type CommonAuditEventDraft = Readonly<{
   correlationId: CorrelationId;
 }>;
 
+export const memberDetailReadAuditResults = Object.freeze([
+  "completed",
+  "not-found",
+  "unavailable",
+  "rate-limited",
+] as const);
+export const memberIdentityLookupAuditResults = Object.freeze([
+  "completed",
+  "no-match",
+  "unavailable",
+  "rate-limited",
+] as const);
+
+export type MemberDetailReadAuditResult = (typeof memberDetailReadAuditResults)[number];
+export type MemberIdentityLookupAuditResult = (typeof memberIdentityLookupAuditResults)[number];
+
+type RestrictedMemberReadAuditVariant =
+  | Readonly<{
+      action: "member.detail.read";
+      result: MemberDetailReadAuditResult;
+    }>
+  | Readonly<{
+      action: "member.identity.lookup";
+      result: MemberIdentityLookupAuditResult;
+    }>;
+
+export type RestrictedMemberReadAuditEventDraft = CommonAuditEventDraft &
+  RestrictedMemberReadAuditVariant;
+
 export type AuditEventDraft = CommonAuditEventDraft &
   (
+    | RestrictedMemberReadAuditVariant
     | Readonly<{
         action:
           | "admin.role.granted"
           | "admin.role.revoked"
+          | "member.created"
+          | "member.updated"
+          | "guardian.profile.created"
+          | "guardian.profile.updated"
+          | "family.created"
+          | "family.student.added"
+          | "level.catalog.published"
+          | "level.catalog.rolled_back"
+          | "level.assessment.recorded"
+          | "level.medical-leave.recorded"
+          | "level.promotion.approved"
+          | "level.promotion.rejected"
           | "membership.created"
           | "membership.status.changed"
           | "staff.created"
@@ -65,7 +125,11 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "waitlist.offer.issued"
           | "waitlist.offer.accepted"
           | "waitlist.offer.declined"
-          | "waitlist.offer.expired";
+          | "waitlist.offer.expired"
+          | "attendance.checked_in"
+          | "attendance.corrected"
+          | "student.checked_out"
+          | "notification.preference.updated";
       }>
     | Readonly<{
         action: "invoice.created" | "invoice.voided" | "invoice.status.changed";
@@ -140,9 +204,24 @@ const commonFields = Object.freeze([
   "purpose",
   "correlationId",
 ] as const);
+const restrictedMemberReadFields = Object.freeze([...commonFields, "result"]);
 const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.freeze({
   "admin.role.granted": commonFields,
   "admin.role.revoked": commonFields,
+  "member.created": commonFields,
+  "member.updated": commonFields,
+  "guardian.profile.created": commonFields,
+  "guardian.profile.updated": commonFields,
+  "family.created": commonFields,
+  "family.student.added": commonFields,
+  "level.catalog.published": commonFields,
+  "level.catalog.rolled_back": commonFields,
+  "level.assessment.recorded": commonFields,
+  "level.medical-leave.recorded": commonFields,
+  "level.promotion.approved": commonFields,
+  "level.promotion.rejected": commonFields,
+  "member.detail.read": restrictedMemberReadFields,
+  "member.identity.lookup": restrictedMemberReadFields,
   "membership.created": commonFields,
   "membership.status.changed": commonFields,
   "invoice.created": Object.freeze([...commonFields, "amountMinor", "currency"]),
@@ -163,6 +242,10 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "waitlist.offer.accepted": commonFields,
   "waitlist.offer.declined": commonFields,
   "waitlist.offer.expired": commonFields,
+  "attendance.checked_in": commonFields,
+  "attendance.corrected": commonFields,
+  "student.checked_out": commonFields,
+  "notification.preference.updated": commonFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
     "imported",
@@ -221,6 +304,8 @@ const sha256Pattern = /^[a-f0-9]{64}$/u;
 const moduleKeyPattern = /^[A-Za-z0-9._-]+$/u;
 const importRunIdPattern = /^[A-Za-z0-9._-]+$/u;
 const safeAuditIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+const safeLevelRecordIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,383}$/u;
+const safeAuditCorrelationPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
 const sourceRoutePattern = /^\/[A-Za-z0-9._/-]+$/u;
 const controlCharacterPattern = /[\u0000-\u001f\u007f]/u;
 const dateTimePattern =
@@ -360,6 +445,143 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
     }
     if (!isBoundedString(snapshot.correlationId, 256)) {
       issues.push(issue(["correlationId"], "AUDIT_CORRELATION_ID_INVALID"));
+    }
+
+    if (parsedAction === "member.detail.read" || parsedAction === "member.identity.lookup") {
+      const expectedPurpose =
+        parsedAction === "member.detail.read"
+          ? "member-record-maintenance"
+          : "member-identity-lookup";
+      const allowedResults: readonly string[] =
+        parsedAction === "member.detail.read"
+          ? memberDetailReadAuditResults
+          : memberIdentityLookupAuditResults;
+      const expectedTarget =
+        `academies/${snapshot.academyId as string}/studentRestrictedReadLimits/` +
+        (snapshot.actorId as string);
+      if (
+        typeof snapshot.academyId !== "string" ||
+        !safeAuditIdentifierPattern.test(snapshot.academyId) ||
+        typeof snapshot.actorId !== "string" ||
+        !safeAuditIdentifierPattern.test(snapshot.actorId) ||
+        snapshot.targetRef !== expectedTarget ||
+        snapshot.purpose !== expectedPurpose ||
+        typeof snapshot.correlationId !== "string" ||
+        !safeAuditCorrelationPattern.test(snapshot.correlationId)
+      ) {
+        issues.push(issue([], "AUDIT_MEMBER_READ_SCOPE_INVALID"));
+      }
+      if (!allowedResults.some((result) => result === snapshot.result)) {
+        issues.push(issue(["result"], "AUDIT_MEMBER_READ_RESULT_INVALID"));
+      }
+    }
+
+    if (parsedAction === "member.created" || parsedAction === "member.updated") {
+      const expectedStudentPrefix = `academies/${snapshot.academyId as string}/students/`;
+      const studentId =
+        typeof snapshot.targetRef === "string" &&
+        snapshot.targetRef.startsWith(expectedStudentPrefix)
+          ? snapshot.targetRef.slice(expectedStudentPrefix.length)
+          : "";
+      if (
+        !safeAuditIdentifierPattern.test(studentId) ||
+        snapshot.purpose !== "member-record-maintenance" ||
+        typeof snapshot.correlationId !== "string" ||
+        !/^write-[a-f0-9]{64}$/u.test(snapshot.correlationId)
+      ) {
+        issues.push(issue([], "AUDIT_MEMBER_CREATE_SCOPE_INVALID"));
+      }
+    }
+
+    if (
+      parsedAction === "guardian.profile.created" ||
+      parsedAction === "guardian.profile.updated"
+    ) {
+      const expectedTarget = `academies/${snapshot.academyId as string}/users/${snapshot.actorId as string}`;
+      if (
+        typeof snapshot.academyId !== "string" ||
+        !safeAuditIdentifierPattern.test(snapshot.academyId) ||
+        typeof snapshot.actorId !== "string" ||
+        !safeAuditIdentifierPattern.test(snapshot.actorId) ||
+        snapshot.targetRef !== expectedTarget ||
+        snapshot.purpose !== "guardian-profile-maintenance" ||
+        typeof snapshot.correlationId !== "string" ||
+        !/^guardian-write-[a-f0-9]{64}$/u.test(snapshot.correlationId)
+      ) {
+        issues.push(issue([], "AUDIT_GUARDIAN_PROFILE_SCOPE_INVALID"));
+      }
+    }
+
+    if (parsedAction === "family.created" || parsedAction === "family.student.added") {
+      const targetCollection = parsedAction === "family.created" ? "families" : "students";
+      const expectedTargetPrefix = `academies/${snapshot.academyId as string}/${targetCollection}/`;
+      const targetId =
+        typeof snapshot.targetRef === "string" &&
+        snapshot.targetRef.startsWith(expectedTargetPrefix)
+          ? snapshot.targetRef.slice(expectedTargetPrefix.length)
+          : "";
+      if (
+        !safeAuditIdentifierPattern.test(targetId) ||
+        snapshot.purpose !== "family-record-maintenance" ||
+        typeof snapshot.correlationId !== "string" ||
+        !/^family-write-[a-f0-9]{64}$/u.test(snapshot.correlationId)
+      ) {
+        issues.push(issue([], "AUDIT_FAMILY_WRITE_SCOPE_INVALID"));
+      }
+    }
+
+    if (
+      parsedAction === "level.catalog.published" ||
+      parsedAction === "level.catalog.rolled_back"
+    ) {
+      const expectedTargetPrefix = `academies/${snapshot.academyId as string}/levelSystems/`;
+      const systemId =
+        typeof snapshot.targetRef === "string" &&
+        snapshot.targetRef.startsWith(expectedTargetPrefix)
+          ? snapshot.targetRef.slice(expectedTargetPrefix.length)
+          : "";
+      if (
+        !safeAuditIdentifierPattern.test(systemId) ||
+        snapshot.purpose !== "level-catalog-maintenance" ||
+        typeof snapshot.correlationId !== "string" ||
+        !safeAuditCorrelationPattern.test(snapshot.correlationId)
+      ) {
+        issues.push(issue([], "AUDIT_LEVEL_CATALOG_SCOPE_INVALID"));
+      }
+    }
+
+    if (
+      parsedAction === "level.assessment.recorded" ||
+      parsedAction === "level.medical-leave.recorded" ||
+      parsedAction === "level.promotion.approved" ||
+      parsedAction === "level.promotion.rejected"
+    ) {
+      const targetCollection =
+        parsedAction === "level.assessment.recorded"
+          ? "assessments"
+          : parsedAction === "level.medical-leave.recorded"
+            ? "medicalLeaves"
+            : "levelPromotions";
+      const expectedPurpose =
+        parsedAction === "level.assessment.recorded"
+          ? "student-development-assessment"
+          : parsedAction === "level.medical-leave.recorded"
+            ? "student-medical-leave"
+            : "student-level-promotion";
+      const expectedTargetPrefix = `academies/${snapshot.academyId as string}/${targetCollection}/`;
+      const targetId =
+        typeof snapshot.targetRef === "string" &&
+        snapshot.targetRef.startsWith(expectedTargetPrefix)
+          ? snapshot.targetRef.slice(expectedTargetPrefix.length)
+          : "";
+      if (
+        !safeLevelRecordIdPattern.test(targetId) ||
+        snapshot.purpose !== expectedPurpose ||
+        typeof snapshot.correlationId !== "string" ||
+        !/^level-write-[a-f0-9]{64}$/u.test(snapshot.correlationId)
+      ) {
+        issues.push(issue([], "AUDIT_LEVEL_WRITE_SCOPE_INVALID"));
+      }
     }
 
     if (parsedAction === "member.import.confirmed") {
@@ -572,6 +794,24 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       purpose: snapshot.purpose as string,
       correlationId: snapshot.correlationId as CorrelationId,
     };
+    if (parsedAction === "member.detail.read") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          result: snapshot.result as MemberDetailReadAuditResult,
+        }),
+      );
+    }
+    if (parsedAction === "member.identity.lookup") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          result: snapshot.result as MemberIdentityLookupAuditResult,
+        }),
+      );
+    }
     if (
       parsedAction === "invoice.created" ||
       parsedAction === "invoice.voided" ||

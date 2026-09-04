@@ -5,6 +5,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { normalizeMemberImportPdfFileName } from "@bpt-jersey/domain/members";
 
 export const MAX_MEMBER_IMPORT_PDF_BYTES = 10 * 1024 * 1024;
 export const MEMBER_IMPORT_UPLOAD_URL_SECONDS = 600;
@@ -120,7 +121,8 @@ async function readLimitedObject(response: R2ObjectResponse): Promise<Uint8Array
 }
 
 export function validatePdfUpload(input: PdfUploadMetadata): PdfUploadMetadata {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.pdf$/i.test(input.fileName)) {
+  const fileName = normalizeMemberImportPdfFileName(input.fileName);
+  if (fileName === undefined) {
     throw new Error("Only PDF uploads are accepted");
   }
   if (input.contentType !== "application/pdf") {
@@ -132,7 +134,7 @@ export function validatePdfUpload(input: PdfUploadMetadata): PdfUploadMetadata {
   if (input.sizeBytes > MAX_MEMBER_IMPORT_PDF_BYTES) {
     throw new Error("PDF exceeds the maximum allowed size");
   }
-  return Object.freeze({ ...input });
+  return Object.freeze({ ...input, fileName });
 }
 
 export function createR2Client(options: R2ClientOptions): R2Client {

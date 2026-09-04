@@ -414,7 +414,7 @@ function getStore(): AnnouncementStore {
 
 export const createAnnouncement = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {
@@ -425,7 +425,7 @@ export const createAnnouncement = onCall(
 
 export const updateAnnouncement = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {
@@ -436,7 +436,7 @@ export const updateAnnouncement = onCall(
 
 export const publishAnnouncement = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {
@@ -447,7 +447,7 @@ export const publishAnnouncement = onCall(
 
 export const archiveAnnouncement = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {
@@ -458,7 +458,7 @@ export const archiveAnnouncement = onCall(
 
 export const markAnnouncementAsRead = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {
@@ -469,7 +469,7 @@ export const markAnnouncementAsRead = onCall(
 
 export const listAnnouncements = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {
@@ -480,7 +480,7 @@ export const listAnnouncements = onCall(
 
 export const sendMinorNotice = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {
@@ -491,7 +491,7 @@ export const sendMinorNotice = onCall(
 
 export const listGuardianNotices = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {
@@ -502,7 +502,7 @@ export const listGuardianNotices = onCall(
 
 export const markNoticeAsRead = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {

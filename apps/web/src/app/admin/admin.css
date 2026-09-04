@@ -2024,6 +2024,142 @@
   padding: 0.75rem 0;
 }
 
+.family-lookup-card {
+  border-top-color: var(--mat-ink);
+}
+
+.family-inline-form {
+  align-items: end;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(14rem, 1fr) auto;
+}
+
+.family-workspace-heading,
+.family-maintenance-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.family-workspace-heading h3 {
+  margin-bottom: 0;
+}
+
+.family-workspace-summary li {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 1rem;
+  justify-content: space-between;
+}
+
+.family-workspace-summary span,
+.family-relationship-row p,
+.family-maintenance-form p,
+.family-workspace-inactive {
+  color: var(--muted);
+}
+
+.family-relationship-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.family-relationship-row {
+  align-items: center;
+  border-left: 0.25rem solid var(--mat-ink);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+}
+
+.family-relationship-row h4,
+.family-maintenance-form h4 {
+  font-family: var(--font-display), Impact, sans-serif;
+  line-height: 0.95;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.family-relationship-row h4 {
+  font-size: 1.45rem;
+}
+
+.family-relationship-row p,
+.family-maintenance-form p {
+  margin: 0.25rem 0 0;
+}
+
+.family-maintenance-form {
+  background: var(--canvas);
+  border-left: 0.3rem solid var(--bpt-purple);
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: clamp(1rem, 2vw, 1.35rem);
+}
+
+.family-maintenance-form h4 {
+  font-size: clamp(1.45rem, 2.5vw, 2rem);
+  margin-top: 0.35rem;
+}
+
+.family-maintenance-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.family-maintenance-actions {
+  justify-content: flex-start;
+}
+
+.family-danger-button {
+  background: transparent;
+  border: 1px solid #9c1c1c;
+  color: #7b1717;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.family-danger-button:hover,
+.family-danger-button:focus-visible {
+  background: #7b1717;
+  color: var(--gi-white);
+}
+
+.family-danger-button:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.family-danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.family-deactivation-panel {
+  border-left-color: #9c1c1c;
+}
+
+.family-workspace-inactive {
+  border-left: 0.25rem solid #9c1c1c;
+  margin: 1rem 0 0;
+  padding: 0.65rem 0 0.65rem 0.8rem;
+}
+
 .family-achievement-admin-panel {
   background: var(--canvas);
   border: 1px solid var(--line);
@@ -2363,14 +2499,31 @@
 }
 
 @media (max-width: 42rem) {
+  .family-inline-form,
+  .family-maintenance-grid,
   .family-minor-row {
     grid-template-columns: 1fr;
+  }
+
+  .family-inline-form .family-text-button,
+  .family-maintenance-actions > button {
+    width: 100%;
+  }
+
+  .family-relationship-row {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .family-relationship-row .admin-status-badge {
+    justify-self: start;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .family-text-button,
-  .family-add-button {
+  .family-add-button,
+  .family-danger-button {
     transition: none;
   }
 }
@@ -2937,6 +3090,224 @@
   .finance-dashboard-page *,
   .finance-dashboard-page *::before,
   .finance-dashboard-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.membership-admin-page {
+  max-width: 86rem;
+}
+
+.membership-workspace-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.75fr);
+}
+
+.membership-card {
+  align-content: start;
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: clamp(1.15rem, 3vw, 2rem);
+}
+
+.membership-card h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  line-height: 0.9;
+  margin: 0.55rem 0 0;
+  text-transform: uppercase;
+}
+
+.membership-form-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.membership-field {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.4rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.membership-field input,
+.membership-field select {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  letter-spacing: normal;
+  min-height: 2.9rem;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  text-transform: none;
+  width: 100%;
+}
+
+.membership-choice-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.membership-choice-grid fieldset {
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0.85rem;
+}
+
+.membership-choice-grid legend {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0 0.25rem;
+  text-transform: uppercase;
+}
+
+.membership-choice-grid label {
+  align-items: center;
+  display: flex;
+  font-size: 0.86rem;
+  gap: 0.45rem;
+  text-transform: capitalize;
+}
+
+.membership-actions,
+.membership-row-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.membership-primary-button,
+.membership-secondary-button,
+.membership-table-button {
+  border: 1px solid var(--bpt-purple);
+  border-radius: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-height: 2.65rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.membership-primary-button {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+  justify-self: start;
+}
+
+.membership-secondary-button,
+.membership-table-button {
+  background: transparent;
+  color: var(--bpt-purple-dark);
+}
+
+.membership-table-button {
+  min-height: 2.2rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.membership-table-button-danger {
+  border-color: #9c1c1c;
+  color: #791616;
+}
+
+.membership-primary-button:hover,
+.membership-secondary-button:hover,
+.membership-table-button:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.membership-table-button-danger:hover {
+  background: #791616;
+}
+
+.membership-field input:focus-visible,
+.membership-field select:focus-visible,
+.membership-primary-button:focus-visible,
+.membership-secondary-button:focus-visible,
+.membership-table-button:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.membership-primary-button:disabled,
+.membership-secondary-button:disabled,
+.membership-table-button:disabled,
+.membership-field input:disabled,
+.membership-field select:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.membership-message {
+  background: var(--gi-white);
+  border-left: 0.3rem solid var(--bpt-lime);
+  margin: 0;
+  padding: 0.85rem 1rem;
+}
+
+.membership-message-error {
+  background: #fff3f3;
+  border-left-color: #9c1c1c;
+  color: #6f1111;
+}
+
+.membership-helper,
+.membership-secondary-text,
+.membership-count,
+.membership-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.membership-secondary-text {
+  display: block;
+  margin-top: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+.membership-count {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 70rem) {
+  .membership-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 44rem) {
+  .membership-form-grid,
+  .membership-choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .membership-admin-page *,
+  .membership-admin-page *::before,
+  .membership-admin-page *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }

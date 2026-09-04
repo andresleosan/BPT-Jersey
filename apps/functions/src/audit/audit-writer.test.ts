@@ -57,6 +57,16 @@ const paymentRecordedDraft = {
   method: "cash",
 } as unknown as AuditEventDraft;
 
+const restrictedLookupDraft = {
+  academyId: "academy-1",
+  actorId: "owner-1",
+  action: "member.identity.lookup",
+  targetRef: "academies/academy-1/studentRestrictedReadLimits/owner-1",
+  purpose: "member-identity-lookup",
+  correlationId: "restricted-audit-1",
+  result: "no-match",
+} as unknown as AuditEventDraft;
+
 function modernEvent(overrides: Readonly<Record<string, unknown>> = {}) {
   return {
     ...regyfitDraft,
@@ -118,6 +128,21 @@ describe("audit writer", () => {
     });
   });
 
+  it("preserves the closed result when creating restricted member read evidence", () => {
+    const create = vi.fn();
+    const ref = { id: "restricted-audit-1" };
+
+    appendAuditEventInTransaction({ create }, ref, restrictedLookupDraft);
+
+    expect(create).toHaveBeenCalledOnce();
+    expect(create).toHaveBeenCalledWith(ref, {
+      ...restrictedLookupDraft,
+      auditEventId: ref.id,
+      occurredAt: expect.anything(),
+      schemaVersion: 1,
+    });
+  });
+
   it("rejects an invalid draft before create", () => {
     const create = vi.fn();
 
@@ -134,6 +159,24 @@ describe("audit writer", () => {
     expect(
       matchesAuditEventReplay(modernEvent(), "regyfit-access-synthetic-run-1", regyfitDraft),
     ).toBe(true);
+  });
+
+  it("matches a restricted member read event only with its exact closed result", () => {
+    const stored = {
+      ...restrictedLookupDraft,
+      auditEventId: "restricted-audit-1",
+      occurredAt: { seconds: 1, nanoseconds: 0 },
+      schemaVersion: 1,
+    };
+
+    expect(matchesAuditEventReplay(stored, "restricted-audit-1", restrictedLookupDraft)).toBe(true);
+    expect(
+      matchesAuditEventReplay(
+        { ...stored, result: "completed" },
+        "restricted-audit-1",
+        restrictedLookupDraft,
+      ),
+    ).toBe(false);
   });
 
   it("allows exact legacy data only when explicitly requested", () => {

@@ -3,7 +3,11 @@ export type AuthDestination =
   | "/admin"
   | "/account"
   | "/account/profile"
+  | "/account/guardian-profile"
   | "/account/family"
+  | "/account/classes"
+  | "/account/billing"
+  | "/account/membership"
   | "/account/waiver"
   | "/account/progress"
   | "/account/waitlist"
@@ -14,7 +18,11 @@ const allowlistedDestinations = new Set<AuthDestination>([
   "/admin",
   "/account",
   "/account/profile",
+  "/account/guardian-profile",
   "/account/family",
+  "/account/classes",
+  "/account/billing",
+  "/account/membership",
   "/account/waiver",
   "/account/progress",
   "/account/waitlist",
@@ -44,7 +52,7 @@ export function defaultDestination(
 export type ClientSessionRequirement = Readonly<{
   status: "required";
   loginPath: string;
-  returnPath: "/account" | "/account/profile" | "/account/family" | "/account/waiver" | "/account/progress" | "/account/waitlist" | "/shop" | "/checkout";
+  returnPath: Exclude<AuthDestination, "/admin">;
 }>;
 
 export function requireClientSession(returnTo: string | null = null): ClientSessionRequirement {

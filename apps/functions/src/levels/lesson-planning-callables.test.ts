@@ -10,6 +10,7 @@ import {
   createGetLessonPlanHandler,
 } from "./lesson-planning-callables";
 import type { LessonPlanningStore } from "./lesson-planning-service";
+import type { LevelAuthorizationService } from "./level-authorization";
 
 const library: TechniqueLibraryVersion = {
   libraryId: "library-1",
@@ -49,9 +50,27 @@ const plan: LessonPlanRecord = {
 function request(data: unknown, role: string, uid = "staff-1") {
   return {
     auth: { uid, token: { academyId: "academy-1", role } },
+    app: { appId: "test-app" },
     data,
   } as never;
 }
+
+const authorization: LevelAuthorizationService = {
+  requireActor: async (call) => {
+    if (!call.auth) throw Object.assign(new Error("unauthenticated"), { code: "unauthenticated" });
+    return {
+      kind: "user",
+      userId: call.auth.uid as never,
+      academyId: "academy-1" as never,
+      role: call.auth.token.role as never,
+      staffId:
+        call.auth.token.role === "headCoach" || call.auth.token.role === "coach" ? "staff-1" : null,
+    };
+  },
+  resolveStudent: async () => {
+    throw new Error("unused");
+  },
+};
 
 function store(overrides: Partial<LessonPlanningStore> = {}): LessonPlanningStore {
   return {
@@ -69,7 +88,7 @@ describe("lesson planning callables", () => {
     "allows %s to read a plan",
     async (role) => {
       const current = store();
-      const response = await createGetLessonPlanHandler({ store: current })(
+      const response = await createGetLessonPlanHandler({ store: current, authorization })(
         request({ planId: "plan-1" }, role),
       );
       expect(response).toEqual({ plan, library });
@@ -79,7 +98,7 @@ describe("lesson planning callables", () => {
 
   it("allows only headCoach to approve and derives the staff identity from auth", async () => {
     const current = store();
-    const response = await createApproveLessonPlanHandler({ store: current })(
+    const response = await createApproveLessonPlanHandler({ store: current, authorization })(
       request({ planId: "plan-1" }, "headCoach", "head-coach-1"),
     );
 
@@ -88,7 +107,7 @@ describe("lesson planning callables", () => {
       academyId: "academy-1",
       planId: "plan-1",
       input: expect.objectContaining({
-        staffId: "head-coach-1",
+        staffId: "staff-1",
         staffRole: "head_coach",
         approvedAt: expect.any(String),
       }),
@@ -97,8 +116,8 @@ describe("lesson planning callables", () => {
 
   it("denies owner approval, malformed payloads and unauthenticated requests", async () => {
     const current = store();
-    const approve = createApproveLessonPlanHandler({ store: current });
-    const get = createGetLessonPlanHandler({ store: current });
+    const approve = createApproveLessonPlanHandler({ store: current, authorization });
+    const get = createGetLessonPlanHandler({ store: current, authorization });
 
     await expect(approve(request({ planId: "plan-1" }, "owner"))).rejects.toMatchObject({
       code: "permission-denied",

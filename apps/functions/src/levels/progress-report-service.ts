@@ -1,8 +1,10 @@
 import {
   buildProgressReport,
+  type EvaluationRecord,
   type ProgressReport,
   type ProgressReportStudent,
 } from "@bpt-jersey/domain/levels";
+import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { LevelCatalogStore, GenericFirestore } from "./level-service.js";
 
 export class ProgressReportStoreError extends Error {
@@ -20,6 +22,7 @@ export type ProgressReportStore = Readonly<{
 }>;
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+const MAX_PROGRESS_REPORT_RECORDS = 400;
 
 function assertAcademyId(academyId: string): void {
   if (!safeIdentifierPattern.test(academyId)) {
@@ -34,54 +37,104 @@ export function createFirestoreProgressReportStore(params: {
   return {
     async getProgressReport(academyId) {
       assertAcademyId(academyId);
-      const [catalog, membersSnapshot, attendanceSnapshot] = await Promise.all([
-        params.levelStore.listPublished(academyId),
-        params.firestore.collection(`academies/${academyId}/members`).get(),
-        params.firestore.collection(`academies/${academyId}/attendance`).get(),
-      ]);
-
-      const students: ProgressReportStudent[] = membersSnapshot.docs
-        .filter((document) => {
-          const data = document.data();
-          return (
-            document.id.match(safeIdentifierPattern) !== null &&
-            data["membershipStatus"] === "active" &&
-            (data["academyId"] === undefined || data["academyId"] === academyId)
+      const [catalog, studentsSnapshot, headsSnapshot, assessmentsSnapshot, attendanceSnapshot] =
+        await Promise.all([
+          params.levelStore.listPublished(academyId),
+          params.firestore.collection(`academies/${academyId}/students`).get(),
+          params.firestore.collection(`academies/${academyId}/studentLevelProgress`).get(),
+          params.firestore.collection(`academies/${academyId}/assessments`).get(),
+          params.firestore.collection(`academies/${academyId}/attendance`).get(),
+        ]);
+      for (const snapshot of [
+        studentsSnapshot,
+        headsSnapshot,
+        assessmentsSnapshot,
+        attendanceSnapshot,
+      ]) {
+        if (snapshot.docs.length > MAX_PROGRESS_REPORT_RECORDS) {
+          throw new ProgressReportStoreError(
+            "invalid",
+            "Progress report input exceeds safe limits",
           );
-        })
-        .map((document) => {
+        }
+      }
+      const heads = new Map(
+        headsSnapshot.docs.map((document) => {
           const data = document.data();
+          if (
+            data.academyId !== academyId ||
+            data.studentId !== document.id ||
+            data.state !== "initialized" ||
+            typeof data.currentDefinitionKey !== "string"
+          ) {
+            throw new ProgressReportStoreError("tenant", "Progress head tenant mismatch");
+          }
+          return [document.id, data] as const;
+        }),
+      );
+      const studentProfiles = studentsSnapshot.docs.map((document) => {
+        const parsed = parseStudentProfile(document.data());
+        if (
+          !parsed.ok ||
+          parsed.value.studentId !== document.id ||
+          parsed.value.academyId !== academyId
+        ) {
+          throw new ProgressReportStoreError("tenant", "Student tenant mismatch");
+        }
+        return parsed.value;
+      });
+      const allStudentIds = new Set(studentProfiles.map((student) => student.studentId));
+      if ([...heads.keys()].some((studentId) => !allStudentIds.has(studentId))) {
+        throw new ProgressReportStoreError("tenant", "Progress head student mismatch");
+      }
+      const students: ProgressReportStudent[] = studentProfiles
+        .filter((student) => student.active && student.status === "active")
+        .map((student) => {
+          const head = heads.get(student.studentId);
           return {
-            studentId: document.id,
+            studentId: student.studentId,
             currentDefinitionKey:
-              typeof data["currentLevel"] === "string" ? data["currentLevel"] : undefined,
+              typeof head?.currentDefinitionKey === "string"
+                ? head.currentDefinitionKey
+                : undefined,
             currentLevelStartedAt:
-              typeof data["currentLevelStartedAt"] === "string"
-                ? data["currentLevelStartedAt"]
-                : null,
+              typeof head?.currentLevelStartedAt === "string" ? head.currentLevelStartedAt : null,
           };
         });
 
       const activeStudentIds = new Set(students.map((student) => student.studentId));
-      const attendances = attendanceSnapshot.docs
-        .map((document) => document.data())
-        .filter(
-          (data) =>
-            (data["status"] === "attended" || data["status"] === "late") &&
-            typeof data["studentId"] === "string" &&
-            activeStudentIds.has(data["studentId"] as string),
-        )
-        .map((data) => ({
-          studentId: data["studentId"] as string,
-          attendedAt: String(data["attendedAt"] ?? data["sessionDate"] ?? ""),
-        }));
-
-      const evaluationGroups = await Promise.all(
-        students.map((student) =>
-          params.levelStore.listStudentEvaluations(academyId, student.studentId),
-        ),
-      );
-      const evaluations = evaluationGroups.flat();
+      const attendances = attendanceSnapshot.docs.flatMap((document) => {
+        const data = document.data();
+        if (
+          data.academyId !== academyId ||
+          data.attendanceId !== document.id ||
+          typeof data.studentId !== "string" ||
+          !allStudentIds.has(data.studentId) ||
+          typeof data.occurredAt !== "string"
+        ) {
+          throw new ProgressReportStoreError("tenant", "Attendance tenant mismatch");
+        }
+        if (
+          !activeStudentIds.has(data.studentId) ||
+          data.correctionOf !== null ||
+          (data.state !== "attended" && data.state !== "late")
+        ) {
+          return [];
+        }
+        return [{ studentId: data.studentId, attendedAt: data.occurredAt }];
+      });
+      const evaluations = assessmentsSnapshot.docs.flatMap((document) => {
+        const data = document.data();
+        if (
+          data.academyId !== academyId ||
+          data.assessmentId !== document.id ||
+          typeof data.studentId !== "string" ||
+          !allStudentIds.has(data.studentId)
+        ) {
+          throw new ProgressReportStoreError("tenant", "Assessment tenant mismatch");
+        }
+        return activeStudentIds.has(data.studentId) ? [data as unknown as EvaluationRecord] : [];
+      });
 
       return buildProgressReport({
         catalog,

@@ -6,6 +6,7 @@ import type { GuardianFamilyProjection } from "@bpt-jersey/domain/families";
 
 import {
   FinanceCallableError,
+  financeCallableOptions,
   getInvoiceHandler,
   issueManualInvoiceHandler,
   listFinancialAccountHandler,
@@ -86,6 +87,13 @@ function services(overrides: Partial<FinanceCallableServices> = {}): FinanceCall
 }
 
 describe("finance callables", () => {
+  it("requires App Check on every finance wrapper", () => {
+    expect(financeCallableOptions).toEqual({
+      enforceAppCheck: true,
+      consumeAppCheckToken: true,
+    });
+  });
+
   it("accepts the exact manual invoice payload for administrators", async () => {
     const finance = services();
     const store = finance.store as unknown as { issueManualInvoice: ReturnType<typeof vi.fn> };

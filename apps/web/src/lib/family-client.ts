@@ -15,6 +15,7 @@ import { getFirebaseFunctions } from "./firebase-client";
 export type { GuardianFamilyProjection, StaffFamilyProjection } from "@bpt-jersey/domain/families";
 
 export type CreateFamilyClientInput = Readonly<{
+  requestId: string;
   tutorUserId: string;
   students: readonly FamilyStudentDraft[];
 }>;
@@ -23,7 +24,7 @@ export type UpdateFamilyClientInput = Readonly<{
   familyId: string;
   operation:
     | Readonly<{ kind: "replaceTutor"; tutorUserId: string }>
-    | Readonly<{ kind: "addStudent"; student: FamilyStudentDraft }>
+    | Readonly<{ kind: "addStudent"; requestId: string; student: FamilyStudentDraft }>
     | Readonly<{ kind: "deactivateRelationship"; studentId: string }>
     | Readonly<{ kind: "deactivateFamily" }>;
 }>;
@@ -61,10 +62,16 @@ function cleanStudentDraft(value: unknown): FamilyStudentDraft {
 }
 
 function cleanCreateInput(input: CreateFamilyClientInput): CreateFamilyClientInput {
-  if (!isPlainRecord(input) || !isSafeId(input.tutorUserId) || !Array.isArray(input.students)) {
+  if (
+    !isPlainRecord(input) ||
+    !isSafeId(input.requestId) ||
+    !isSafeId(input.tutorUserId) ||
+    !Array.isArray(input.students)
+  ) {
     throw new Error(safeCreateError);
   }
   return Object.freeze({
+    requestId: input.requestId,
     tutorUserId: input.tutorUserId,
     students: Object.freeze(input.students.map(cleanStudentDraft)),
   });
@@ -81,10 +88,14 @@ function cleanUpdateInput(input: UpdateFamilyClientInput): UpdateFamilyClientInp
       operation: Object.freeze({ kind: "replaceTutor", tutorUserId: operation.tutorUserId }),
     });
   }
-  if (operation.kind === "addStudent") {
+  if (operation.kind === "addStudent" && isSafeId(operation.requestId)) {
     return Object.freeze({
       familyId: input.familyId,
-      operation: Object.freeze({ kind: "addStudent", student: cleanStudentDraft(operation.student) }),
+      operation: Object.freeze({
+        kind: "addStudent",
+        requestId: operation.requestId,
+        student: cleanStudentDraft(operation.student),
+      }),
     });
   }
   if (operation.kind === "deactivateRelationship" && isSafeId(operation.studentId)) {
@@ -198,6 +209,8 @@ export async function createFamily(input: CreateFamilyClientInput): Promise<Staf
   }
 }
 
+export function getFamily(): Promise<GuardianFamilyProjection | undefined>;
+export function getFamily(familyId: string): Promise<StaffFamilyProjection | undefined>;
 export async function getFamily(
   familyId?: string,
 ): Promise<StaffFamilyProjection | GuardianFamilyProjection | undefined> {
@@ -210,7 +223,15 @@ export async function getFamily(
     if (payload === undefined) throw new Error(safeLoadError);
     const result = await callable(payload);
     if (result.data === null || result.data === undefined) return undefined;
-    return parseResponse(result.data, safeLoadError);
+    const projection = parseResponse(result.data, safeLoadError);
+    if (familyId === undefined) {
+      if (!isGuardianProjection(projection)) throw new Error(safeLoadError);
+      return projection;
+    }
+    if (!isStaffProjection(projection) || projection.family.familyId !== familyId) {
+      throw new Error(safeLoadError);
+    }
+    return projection;
   } catch {
     throw new Error(safeLoadError);
   }

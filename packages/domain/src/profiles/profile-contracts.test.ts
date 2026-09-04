@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveParticipantType,
   parseStudentProfile,
+  parseStudentProfileAt,
   parseUserProfile,
   participantTypes,
   trainingCenters,
@@ -90,6 +91,29 @@ describe("profile contracts", () => {
     expect(deriveParticipantType("2008-08-18", "2026-08-18")).toBe("adult");
     expect(deriveParticipantType("2008-08-19", "2026-08-18")).toBe("minor");
     expect(deriveParticipantType("2008-08-17", "2026-08-18")).toBe("adult");
+  });
+
+  it("validates stored participant type against an explicit server effective date", () => {
+    expect(parseStudentProfileAt(studentProfile, "2026-09-03").ok).toBe(true);
+    expect(
+      parseStudentProfileAt(
+        { ...studentProfile, dateOfBirth: "2008-09-04", participantType: "minor" },
+        "2026-09-03",
+      ).ok,
+    ).toBe(true);
+    expect(
+      parseStudentProfileAt(
+        { ...studentProfile, dateOfBirth: "2008-09-04", participantType: "adult" },
+        "2026-09-03",
+      ),
+    ).toEqual({
+      ok: false,
+      error: expect.arrayContaining([{ path: ["participantType"], code: "age_mismatch" }]),
+    });
+    expect(parseStudentProfileAt(studentProfile, "2026-02-30")).toEqual({
+      ok: false,
+      error: [{ path: ["effectiveDate"], code: "invalid_date" }],
+    });
   });
 
   it("rejects impossible dates, future birth dates, and invalid enum values", () => {

@@ -257,6 +257,84 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
   );
 }
 
+export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, string> {
+  if (!isRecord(input)) {
+    return err("Class update input must be an object");
+  }
+
+  const { classId, name, instructorIds, capacity, minParticipants, active } = input;
+  if (typeof classId !== "string" || classId.trim().length === 0) {
+    return err("classId is required");
+  }
+  if (
+    name === undefined &&
+    instructorIds === undefined &&
+    capacity === undefined &&
+    minParticipants === undefined &&
+    active === undefined
+  ) {
+    return err("At least one class field must be updated");
+  }
+  if (
+    name !== undefined &&
+    (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100)
+  ) {
+    return err("name must be between 2 and 100 characters");
+  }
+  if (
+    instructorIds !== undefined &&
+    (!Array.isArray(instructorIds) ||
+      instructorIds.length === 0 ||
+      instructorIds.some((id) => typeof id !== "string" || id.trim().length === 0))
+  ) {
+    return err("instructorIds must be a non-empty array of strings");
+  }
+  if (
+    capacity !== undefined &&
+    (typeof capacity !== "number" || !Number.isInteger(capacity) || capacity < 1 || capacity > 200)
+  ) {
+    return err("capacity must be an integer between 1 and 200");
+  }
+  if (
+    minParticipants !== undefined &&
+    (typeof minParticipants !== "number" ||
+      !Number.isInteger(minParticipants) ||
+      minParticipants < 0 ||
+      minParticipants > 200)
+  ) {
+    return err("minParticipants must be an integer between 0 and 200");
+  }
+  if (
+    typeof capacity === "number" &&
+    typeof minParticipants === "number" &&
+    minParticipants > capacity
+  ) {
+    return err("minParticipants cannot exceed capacity");
+  }
+  if (active !== undefined && typeof active !== "boolean") {
+    return err("active must be a boolean");
+  }
+
+  const result: {
+    classId: string;
+    name?: string;
+    instructorIds?: readonly string[];
+    capacity?: number;
+    minParticipants?: number;
+    active?: boolean;
+  } = { classId: classId.trim() };
+  if (typeof name === "string") result.name = name.trim();
+  if (Array.isArray(instructorIds)) {
+    result.instructorIds = Object.freeze([
+      ...new Set(instructorIds.map((id) => (id as string).trim())),
+    ]);
+  }
+  if (typeof capacity === "number") result.capacity = capacity;
+  if (typeof minParticipants === "number") result.minParticipants = minParticipants;
+  if (typeof active === "boolean") result.active = active;
+  return ok(Object.freeze(result));
+}
+
 export function parseCreateSessionInput(input: unknown): Result<CreateSessionInput, string> {
   if (!isRecord(input)) {
     return err("Session input must be an object");

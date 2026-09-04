@@ -2629,3 +2629,316 @@ button:focus-visible {
     width: 100%;
   }
 }
+
+.classes-client-page {
+  margin: 0 auto;
+  max-width: 84rem;
+  min-height: 72vh;
+  padding: clamp(2rem, 6vw, 5.5rem) clamp(1rem, 4vw, 3rem);
+}
+
+.classes-client-loading h1,
+.classes-client-hero h1 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2.7rem, 7vw, 6.2rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+  line-height: 0.88;
+  margin: 0;
+  max-width: 11ch;
+  text-transform: uppercase;
+}
+
+.classes-client-hero {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 1.25rem;
+  padding-bottom: clamp(2rem, 5vw, 4rem);
+}
+
+.classes-client-hero > p:last-child {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin: 0;
+  max-width: 43rem;
+}
+
+.classes-client-controls {
+  align-items: end;
+  background: var(--mat-ink);
+  color: var(--gi-white);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(16rem, 1fr) minmax(11rem, 0.65fr) minmax(14rem, 0.8fr);
+  margin: 2rem 0;
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.classes-client-controls h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.35rem, 2.6vw, 2rem);
+  line-height: 1;
+  margin: 0.35rem 0 0;
+  text-transform: uppercase;
+}
+
+.classes-client-controls label,
+.classes-client-cancel-form label {
+  display: grid;
+  font-size: 0.78rem;
+  font-weight: 800;
+  gap: 0.45rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.classes-client-controls select,
+.classes-client-cancel-form input {
+  background: var(--gi-white);
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 2.85rem;
+  padding: 0.7rem 0.8rem;
+  text-transform: none;
+}
+
+.classes-client-controls select:focus-visible,
+.classes-client-cancel-form input:focus-visible,
+.classes-client-page .button:focus-visible,
+.classes-client-page a:focus-visible {
+  outline: 3px solid var(--bpt-lime);
+  outline-offset: 3px;
+}
+
+.classes-client-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.classes-client-card {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 1.15rem;
+  min-height: 21rem;
+  overflow: hidden;
+  padding: 1.4rem;
+  position: relative;
+}
+
+.classes-client-card::before {
+  background: var(--bpt-purple);
+  content: "";
+  height: 0.3rem;
+  inset: 0 0 auto;
+  position: absolute;
+}
+
+.classes-client-card-index {
+  color: color-mix(in srgb, var(--bpt-purple) 18%, var(--gi-white));
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 3.8rem;
+  font-weight: 800;
+  line-height: 0.8;
+  position: absolute;
+  right: 1rem;
+  top: 1.15rem;
+}
+
+.classes-client-card-heading {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-right: 3.5rem;
+}
+
+.classes-client-card h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.55rem, 3vw, 2.3rem);
+  line-height: 0.95;
+  margin: 0.35rem 0 0;
+  text-transform: uppercase;
+}
+
+.classes-client-time {
+  border-left: 0.25rem solid var(--bpt-lime);
+  font-size: 1.05rem;
+  font-weight: 750;
+  margin: 0;
+  padding-left: 0.8rem;
+}
+
+.classes-client-seminar,
+.classes-client-status {
+  align-self: start;
+  border: 1px solid currentColor;
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  margin: 0;
+  padding: 0.3rem 0.45rem;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.classes-client-status-confirmed {
+  color: #17643a;
+}
+
+.classes-client-status-requested {
+  color: #765400;
+}
+
+.classes-client-status-available {
+  color: #765400;
+  border-color: #c98b00;
+}
+
+.classes-client-status-cancelled {
+  color: #8d1c2f;
+}
+
+.classes-client-card-booked::before {
+  background: #17643a;
+}
+
+.classes-client-card-available::before {
+  background: #c98b00;
+}
+
+.classes-client-card-missed::before {
+  background: #8d1c2f;
+}
+
+.classes-client-disclaimer {
+  background: rgba(118, 84, 0, 0.08);
+  border-left: 0.3rem solid #c98b00;
+  padding: 0.8rem 1rem;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.classes-client-view-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.classes-client-card > .button,
+.classes-client-cancel-form {
+  align-self: end;
+  justify-self: start;
+}
+
+.classes-client-message,
+.classes-client-empty,
+.classes-client-membership-empty {
+  margin: 2rem 0;
+}
+
+.classes-client-message {
+  border-left: 0.3rem solid var(--bpt-purple);
+  padding: 0.8rem 0.9rem;
+}
+
+.classes-client-message p {
+  margin: 0;
+}
+
+.classes-client-message-error {
+  background: #fff0f2;
+  border-left-color: #8d1c2f;
+  color: #5f1020;
+}
+
+.classes-client-message-success {
+  background: color-mix(in srgb, var(--bpt-lime) 28%, var(--gi-white));
+}
+
+.classes-client-waitlist-link {
+  color: inherit;
+  display: inline-block;
+  font-weight: 800;
+  margin-top: 0.55rem;
+}
+
+.classes-client-membership-empty,
+.classes-client-empty {
+  border: 1px dashed var(--line);
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.classes-client-membership-empty h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.7rem, 4vw, 3rem);
+  line-height: 1;
+  max-width: 18ch;
+  text-transform: uppercase;
+}
+
+.classes-client-cancel-form {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.85rem;
+  padding-top: 1rem;
+  width: 100%;
+}
+
+.classes-client-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.classes-client-secondary,
+.classes-client-danger {
+  background: transparent;
+  border-color: var(--mat-ink);
+  color: var(--mat-ink);
+}
+
+.classes-client-danger {
+  border-color: #8d1c2f;
+  color: #721626;
+}
+
+.classes-client-participant-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 1.25rem 0 0;
+}
+
+@media (max-width: 54rem) {
+  .classes-client-controls {
+    align-items: stretch;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .classes-client-controls > div:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 40rem) {
+  .classes-client-controls,
+  .classes-client-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .classes-client-card-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .classes-client-card > .button,
+  .classes-client-actions .button {
+    width: 100%;
+  }
+}

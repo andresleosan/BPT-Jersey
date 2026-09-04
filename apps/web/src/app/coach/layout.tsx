@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { StaffAuthProvider, StaffAuthGate, useStaffSession } from "../../lib/staff-auth";
 import "../admin/admin.css";
@@ -14,7 +15,16 @@ function CoachHeader() {
       <div className="admin-brand">
         <span className="admin-brand-title">BPT Jersey / Coach Portal</span>
       </div>
-      <div className="admin-user-nav">
+      <div
+        className="admin-user-nav"
+        style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+      >
+        <Link href="/coach" className="button button-secondary text-sm">
+          Dashboard
+        </Link>
+        <Link href="/coach/levels" className="button button-secondary text-sm">
+          Levels
+        </Link>
         <span className="admin-user-name">
           {session.displayName || session.email} ({session.role})
         </span>
@@ -33,7 +43,7 @@ function CoachHeader() {
 export default function CoachLayout({ children }: { children: ReactNode }) {
   return (
     <StaffAuthProvider>
-      <StaffAuthGate returnPath="/coach/levels">
+      <StaffAuthGate returnPath="/coach">
         <div className="admin-shell">
           <CoachHeader />
           <main className="admin-content" role="main">

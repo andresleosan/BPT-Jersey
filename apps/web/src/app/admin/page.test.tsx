@@ -133,9 +133,10 @@ describe("administrative shell", () => {
     const labels = [
       "Overview",
       "Members",
+      "Memberships",
       "Families",
       "Waivers",
-      "Groups / Teams",
+      "Classes",
       "Activities",
       "Class waitlists",
       "Attendance",
@@ -143,15 +144,17 @@ describe("administrative shell", () => {
       "CRM",
       "Retention",
       "Finance",
+      "Billing",
       "Regyfit Access Records",
       "Staff",
       "Levels",
+      "Lesson plans",
     ];
 
     labels.forEach((label) => {
       expect(within(navigation).getByRole("link", { name: label })).toBeVisible();
     });
-    expect(within(navigation).queryAllByRole("link")).toHaveLength(16);
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(18);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
       "/admin",
@@ -210,7 +213,7 @@ describe("administrative shell", () => {
 
     expect(main).toHaveClass("admin-main");
     expect(main).toHaveClass("admin-main-content");
-    expect(navigationLinks).toHaveLength(16);
+    expect(navigationLinks).toHaveLength(18);
     navigationLinks.forEach((link) => {
       expect(link.tagName).toBe("A");
       expect(link).toHaveAttribute("href");

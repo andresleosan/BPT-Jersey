@@ -68,7 +68,7 @@ function callableServices(): FinancialDashboardCallableServices {
 export const getFinancialDashboard = onCall(
   {
     ...browserAdminCallableOptions,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => createGetFinancialDashboardHandler(callableServices())(request),

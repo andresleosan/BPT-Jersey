@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
   parseFamilyRecord,
@@ -10,6 +10,7 @@ import {
   type GuardianFamilyProjection,
   type StaffFamilyProjection,
 } from "@bpt-jersey/domain/families";
+import { parseAuditEventDraft, type AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
   deriveParticipantType,
   parseStudentProfile,
@@ -17,6 +18,25 @@ import {
   type StudentProfile,
   type UserProfile,
 } from "@bpt-jersey/domain/profiles";
+import type { MemberDirectoryState } from "@bpt-jersey/domain/members/directory";
+import { z } from "zod";
+
+import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
+import { matchesProvisionedMemberDirectoryActor } from "../members/member-directory-actor-authorization.js";
+import {
+  canonicalizeMemberDirectoryValue,
+  constantTimeMacEquals,
+  createMemberDirectoryIntegrityMac,
+  decodeMemberDirectorySecret,
+} from "../members/member-directory-crypto.js";
+import {
+  advanceMemberDirectoryControlPlane,
+  assertCanonicalMemberDirectoryWriterReady,
+  assertMemberDirectoryControlPlane,
+  memberDirectoryRestoreGuardSchema,
+  type MemberDirectoryGuardEvent,
+  type MemberDirectoryRestoreGuard,
+} from "../members/member-directory-state.js";
 
 export type FamilyDocumentData = Readonly<Record<string, unknown>>;
 export type FamilyDocumentReference = Readonly<{ id: string; path: string }>;
@@ -51,12 +71,20 @@ export type FamilyFirestore = Readonly<{
 }>;
 
 export type FamilyAuthService = Readonly<{
-  getUser: (userId: string) => Promise<Readonly<{ uid: string }>>;
+  getUser: (userId: string) => Promise<
+    Readonly<{
+      uid: string;
+      disabled?: boolean;
+      customClaims?: Readonly<Record<string, unknown>>;
+    }>
+  >;
 }>;
 
 export type CreateFamilyInput = Readonly<{
   academyId: string;
   actorId: string;
+  actorRole: "owner" | "administrator";
+  requestId: string;
   tutorUserId: string;
   students: readonly FamilyStudentDraft[];
   now: string;
@@ -65,13 +93,21 @@ export type CreateFamilyInput = Readonly<{
 export type UpdateFamilyInput = Readonly<{
   academyId: string;
   actorId: string;
+  actorRole: "owner" | "administrator";
   familyId: string;
   operation:
     | Readonly<{ kind: "replaceTutor"; tutorUserId: string }>
-    | Readonly<{ kind: "addStudent"; student: FamilyStudentDraft }>
+    | Readonly<{ kind: "addStudent"; requestId: string; student: FamilyStudentDraft }>
     | Readonly<{ kind: "deactivateRelationship"; studentId: string }>
     | Readonly<{ kind: "deactivateFamily" }>;
   now: string;
+}>;
+
+export type GetStaffFamilyInput = Readonly<{
+  academyId: string;
+  actorId: string;
+  actorRole: "owner" | "administrator";
+  familyId: string;
 }>;
 
 export type FamilyStore = Readonly<{
@@ -79,6 +115,9 @@ export type FamilyStore = Readonly<{
   getStaffFamily: (
     academyId: string,
     familyId: string,
+  ) => Promise<StaffFamilyProjection | undefined>;
+  getStaffFamilyForActor: (
+    input: GetStaffFamilyInput,
   ) => Promise<StaffFamilyProjection | undefined>;
   getGuardianFamily: (
     academyId: string,
@@ -90,8 +129,16 @@ export type FamilyStore = Readonly<{
 export type FamilyStoreDependencies = Readonly<{
   firestore: FamilyFirestore;
   auth: FamilyAuthService;
+  canonicalControl?: Readonly<{
+    projectId: string;
+    identitySecretMaterial: string;
+    identitySecretVersion: string;
+    integritySecretMaterial: string;
+    integritySecretVersion: string;
+  }>;
   generateFamilyId?: () => string;
   generateStudentId?: () => string;
+  generateAuditId?: () => string;
 }>;
 
 export class FamilyStoreError extends Error {
@@ -110,8 +157,38 @@ export class FamilyStoreError extends Error {
 
 const MAX_FAMILY_STUDENTS = 100;
 const safePathSegmentPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
-const dateTimePattern =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
+const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+const macPattern = /^[a-f0-9]{64}$/u;
+
+const familyWriteReceiptSchema = z.strictObject({
+  receiptId: z.string().regex(/^family-write-[a-f0-9]{64}$/u),
+  academyId: z.string().regex(safePathSegmentPattern),
+  actorId: z.string().regex(safePathSegmentPattern),
+  requestMac: z.string().regex(macPattern),
+  operation: z.enum(["family.create", "family.student.add"]),
+  familyId: z.string().regex(safePathSegmentPattern),
+  createdStudentIds: z
+    .array(z.string().regex(safePathSegmentPattern))
+    .min(1)
+    .max(MAX_FAMILY_STUDENTS)
+    .readonly(),
+  auditEventId: z.string().regex(safePathSegmentPattern),
+  stateRevisionBefore: z.number().int().nonnegative().safe(),
+  stateRevisionAfter: z.number().int().positive().safe(),
+  status: z.literal("completed"),
+  createdAt: z.string().regex(dateTimePattern),
+  schemaVersion: z.literal("1"),
+});
+
+type FamilyWriteReceipt = Readonly<z.infer<typeof familyWriteReceiptSchema>>;
+type FamilyCanonicalDependencies = NonNullable<FamilyStoreDependencies["canonicalControl"]>;
+type FamilyCanonicalControl = Readonly<{
+  state: MemberDirectoryState;
+  guard: MemberDirectoryRestoreGuard;
+  event: MemberDirectoryGuardEvent;
+  stateRef: FamilyDocumentReference;
+  guardRef: FamilyDocumentReference;
+}>;
 
 function pathSegment(value: string, label: string): string {
   if (!safePathSegmentPattern.test(value)) throw new FamilyStoreError("tenant", `Invalid ${label}`);
@@ -119,7 +196,12 @@ function pathSegment(value: string, label: string): string {
 }
 
 function validNow(value: string): string {
-  if (!dateTimePattern.test(value) || Number.isNaN(Date.parse(value))) {
+  const parsed = Date.parse(value);
+  if (
+    !dateTimePattern.test(value) ||
+    Number.isNaN(parsed) ||
+    new Date(parsed).toISOString() !== value
+  ) {
     throw new FamilyStoreError("invalid", "Invalid family timestamp");
   }
   return value;
@@ -151,6 +233,233 @@ function relationshipPath(academyId: string, relationshipId: string): string {
 
 function userPath(academyId: string, userId: string): string {
   return `academies/${pathSegment(academyId, "academy")}/users/${pathSegment(userId, "user")}`;
+}
+
+function adminRoleLockPath(academyId: string, userId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/adminRoleLocks/${pathSegment(userId, "user")}`;
+}
+
+function statePath(academyId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/memberDirectoryStates/current`;
+}
+
+function receiptPath(academyId: string, receiptId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/familyWriteReceipts/${pathSegment(receiptId, "receipt")}`;
+}
+
+function auditPath(academyId: string, auditEventId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/auditEvents/${pathSegment(auditEventId, "audit event")}`;
+}
+
+function guardPath(academyId: string): string {
+  return `memberDirectoryRestoreGuards/${pathSegment(academyId, "academy")}`;
+}
+
+function guardEventPath(academyId: string, eventId: string): string {
+  return `${guardPath(academyId)}/events/${pathSegment(eventId, "guard event")}`;
+}
+
+function validateCanonicalDependencies(
+  value: FamilyStoreDependencies["canonicalControl"],
+): FamilyCanonicalDependencies | undefined {
+  if (value === undefined) return undefined;
+  try {
+    if (
+      !safePathSegmentPattern.test(value.projectId) ||
+      !safePathSegmentPattern.test(value.identitySecretVersion) ||
+      !safePathSegmentPattern.test(value.integritySecretVersion)
+    ) {
+      throw new Error("Invalid canonical control binding");
+    }
+    const identity = decodeMemberDirectorySecret(value.identitySecretMaterial, "identity");
+    const integrity = decodeMemberDirectorySecret(value.integritySecretMaterial, "integrity");
+    if (identity.length === integrity.length && timingSafeEqual(identity, integrity)) {
+      throw new Error("Canonical purpose secrets must be distinct");
+    }
+    return Object.freeze({ ...value });
+  } catch {
+    throw new FamilyStoreError("invalid", "Canonical family writer configuration is invalid");
+  }
+}
+
+function requireCanonicalDependencies(
+  value: FamilyCanonicalDependencies | undefined,
+): FamilyCanonicalDependencies {
+  if (value === undefined) {
+    throw new FamilyStoreError("precondition", "Canonical family writer is unavailable");
+  }
+  return value;
+}
+
+function documentValue(snapshot: FamilyDocumentSnapshot, label: string): FamilyDocumentData {
+  if (!snapshot.exists || snapshot.data() === undefined) {
+    throw new FamilyStoreError("precondition", `${label} is unavailable`);
+  }
+  return snapshot.data() as FamilyDocumentData;
+}
+
+async function assertTransactionalAdministrativeActor(
+  transaction: FamilyTransaction,
+  firestore: FamilyFirestore,
+  input: Readonly<{
+    academyId: string;
+    actorId: string;
+    actorRole: "owner" | "administrator";
+  }>,
+): Promise<void> {
+  const [actorSnapshot, roleLockSnapshot] = await Promise.all([
+    transaction.get(firestore.doc(userPath(input.academyId, input.actorId))),
+    transaction.get(firestore.doc(adminRoleLockPath(input.academyId, input.actorId))),
+  ]);
+  const actorDocument = readDocumentSnapshot(actorSnapshot);
+  const roleLock = readDocumentSnapshot(roleLockSnapshot);
+  const actor = actorDocument.data();
+  if (
+    !actorDocument.exists ||
+    !matchesProvisionedMemberDirectoryActor(actor, {
+      actorId: input.actorId,
+      academyId: input.academyId,
+      role: input.actorRole,
+    }) ||
+    roleLock.exists
+  ) {
+    throw new FamilyStoreError("precondition", "Administrative actor is not active");
+  }
+}
+
+function familyRequestMac(
+  academyId: string,
+  actorId: string,
+  operation: FamilyWriteReceipt["operation"],
+  value: unknown,
+  secretMaterial: string,
+): string {
+  try {
+    return createMemberDirectoryIntegrityMac({
+      domain: "bpt-family-write-request-v1",
+      values: [academyId, actorId, operation, canonicalizeMemberDirectoryValue(value)],
+      secretMaterial,
+    });
+  } catch {
+    throw new FamilyStoreError("invalid", "Family request integrity binding is invalid");
+  }
+}
+
+function familyReceiptId(
+  academyId: string,
+  actorId: string,
+  operation: FamilyWriteReceipt["operation"],
+  requestId: string,
+  secretMaterial: string,
+): string {
+  try {
+    const digest = createMemberDirectoryIntegrityMac({
+      domain: "bpt-family-write-request-id-v1",
+      values: [academyId, actorId, operation, requestId],
+      secretMaterial,
+    });
+    return `family-write-${digest}`;
+  } catch {
+    throw new FamilyStoreError("invalid", "Family receipt identity is invalid");
+  }
+}
+
+async function readCanonicalControl(
+  transaction: FamilyTransaction,
+  firestore: FamilyFirestore,
+  academyId: string,
+  dependencies: FamilyCanonicalDependencies,
+): Promise<FamilyCanonicalControl> {
+  try {
+    const stateRef = firestore.doc(statePath(academyId));
+    const guardRef = firestore.doc(guardPath(academyId));
+    const [stateSnapshot, guardSnapshot] = await Promise.all([
+      transaction.get(stateRef),
+      transaction.get(guardRef),
+    ]);
+    const state = assertCanonicalMemberDirectoryWriterReady(
+      documentValue(readDocumentSnapshot(stateSnapshot), "Member directory state"),
+      {
+        academyId,
+        digestVersion: "hmac-sha256-v1",
+        secretVersion: dependencies.identitySecretVersion,
+      },
+    );
+    const parsedGuard = memberDirectoryRestoreGuardSchema.safeParse(
+      documentValue(readDocumentSnapshot(guardSnapshot), "Member directory restore guard"),
+    );
+    if (!parsedGuard.success) throw new Error("Invalid member directory restore guard");
+    const eventSnapshot = readDocumentSnapshot(
+      await transaction.get(firestore.doc(guardEventPath(academyId, parsedGuard.data.lastEventId))),
+    );
+    const control = assertMemberDirectoryControlPlane({
+      projectId: dependencies.projectId,
+      state,
+      guard: parsedGuard.data,
+      event: documentValue(eventSnapshot, "Member directory guard event"),
+      integritySecretMaterial: dependencies.integritySecretMaterial,
+      integritySecretVersion: dependencies.integritySecretVersion,
+    });
+    return Object.freeze({
+      ...control,
+      stateRef,
+      guardRef,
+    });
+  } catch (error) {
+    if (error instanceof FamilyStoreError) throw error;
+    throw new FamilyStoreError("precondition", "Canonical family writer is unavailable");
+  }
+}
+
+function advanceCanonicalControl(
+  firestore: FamilyFirestore,
+  control: FamilyCanonicalControl,
+  dependencies: FamilyCanonicalDependencies,
+  input: Readonly<{
+    academyId: string;
+    actorId: string;
+    operationId: string;
+    addedStudentCount: number;
+    now: string;
+  }>,
+) {
+  const nextCount = control.state.globalLegacyReadEliminated
+    ? control.state.rollbackEligibleStudentCount
+    : control.state.rollbackEligibleStudentCount + input.addedStudentCount;
+  if (nextCount > control.state.rollbackCapacityLimit) {
+    throw new FamilyStoreError("precondition", "Member directory rollback capacity is exhausted");
+  }
+  const nextState: MemberDirectoryState = {
+    ...control.state,
+    stateRevision: control.state.stateRevision + 1,
+    rollbackEligibleStudentCount: nextCount,
+    updatedAt: input.now,
+    updatedBy: input.actorId,
+  };
+  try {
+    const nextControl = advanceMemberDirectoryControlPlane({
+      projectId: dependencies.projectId,
+      state: control.state,
+      guard: control.guard,
+      event: control.event,
+      nextState,
+      operationId: input.operationId,
+      transitionKind: "family-minor-create",
+      integritySecretMaterial: dependencies.integritySecretMaterial,
+      integritySecretVersion: dependencies.integritySecretVersion,
+      now: input.now,
+      actorId: input.actorId,
+    });
+    return Object.freeze({
+      state: nextState,
+      guard: nextControl.guard,
+      event: nextControl.event,
+      eventRef: firestore.doc(guardEventPath(input.academyId, nextControl.event.eventId)),
+    });
+  } catch (error) {
+    if (error instanceof FamilyStoreError) throw error;
+    throw new FamilyStoreError("precondition", "Canonical family writer is unavailable");
+  }
 }
 
 function isQuerySnapshot(
@@ -228,11 +537,14 @@ async function readStudents(
   if (snapshot.docs.length > MAX_FAMILY_STUDENTS) {
     throw new FamilyStoreError("precondition", "Family has too many students");
   }
+  const students = snapshot.docs.map(parseStoredStudent);
+  if (
+    students.some((student) => student.academyId !== academyId || student.familyId !== familyId)
+  ) {
+    throw new FamilyStoreError("tenant", "Student family tenant mismatch");
+  }
   return Object.freeze(
-    snapshot.docs
-      .map(parseStoredStudent)
-      .filter((student) => student.academyId === academyId && student.familyId === familyId)
-      .sort((left, right) => left.studentId.localeCompare(right.studentId)),
+    students.sort((left, right) => left.studentId.localeCompare(right.studentId)),
   );
 }
 
@@ -253,14 +565,16 @@ async function readRelationships(
   if (snapshot.docs.length > MAX_FAMILY_STUDENTS) {
     throw new FamilyStoreError("precondition", "Family has too many relationships");
   }
+  const relationships = snapshot.docs.map(parseStoredRelationship);
+  if (
+    relationships.some(
+      (relationship) => relationship.academyId !== academyId || relationship.familyId !== familyId,
+    )
+  ) {
+    throw new FamilyStoreError("tenant", "Relationship family tenant mismatch");
+  }
   return Object.freeze(
-    snapshot.docs
-      .map(parseStoredRelationship)
-      .filter(
-        (relationship) =>
-          relationship.academyId === academyId && relationship.familyId === familyId,
-      )
-      .sort((left, right) => left.relationshipId.localeCompare(right.relationshipId)),
+    relationships.sort((left, right) => left.relationshipId.localeCompare(right.relationshipId)),
   );
 }
 
@@ -291,11 +605,19 @@ function validateDrafts(
   return Object.freeze(parsed);
 }
 
-async function verifyAuthUser(auth: FamilyAuthService, userId: string): Promise<void> {
+async function verifyAuthUser(
+  auth: FamilyAuthService,
+  userId: string,
+  academyId: string,
+): Promise<void> {
   try {
     const user = await auth.getUser(userId);
-    if (user.uid !== userId)
+    if (user.customClaims?.academyId !== academyId) {
+      throw new FamilyStoreError("tenant", "Tutor Auth tenant mismatch");
+    }
+    if (user.uid !== userId || user.disabled === true || user.customClaims?.role !== "guardian") {
       throw new FamilyStoreError("precondition", "Tutor Auth identity mismatch");
+    }
   } catch (error) {
     if (error instanceof FamilyStoreError) throw error;
     throw new FamilyStoreError("precondition", "Tutor Auth account is unavailable");
@@ -347,27 +669,246 @@ function guardianProjection(
   });
 }
 
+function buildMinorStudent(
+  student: FamilyStudentDraft,
+  academyId: string,
+  familyId: string,
+  studentId: string,
+  actorId: string,
+  now: string,
+): StudentProfile {
+  const record: StudentProfile = Object.freeze({
+    studentId,
+    academyId,
+    familyId,
+    fullName: student.fullName,
+    dateOfBirth: student.dateOfBirth,
+    ...(student.phoneNumber === undefined ? {} : { phoneNumber: student.phoneNumber }),
+    ...(student.email === undefined ? {} : { email: student.email }),
+    trainingCenter: student.trainingCenter,
+    trainingTimePreferences: Object.freeze([...student.trainingTimePreferences]),
+    participantType: "minor",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: now,
+    createdBy: actorId,
+    updatedAt: now,
+    updatedBy: actorId,
+  });
+  const parsed = parseStudentProfile(record);
+  if (!parsed.ok) throw new FamilyStoreError("invalid", "Student creation is invalid");
+  return parsed.value;
+}
+
+function buildGuardianRelationship(
+  academyId: string,
+  familyId: string,
+  studentId: string,
+  tutorUserId: string,
+  actorId: string,
+  now: string,
+): FamilyRelationship {
+  const relation: FamilyRelationship = Object.freeze({
+    relationshipId: relationshipId(familyId, studentId),
+    academyId,
+    familyId,
+    studentId,
+    adultUserId: tutorUserId,
+    relationshipType: "guardian",
+    permissions: Object.freeze(["readProfile"] as const),
+    validFrom: now,
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: now,
+    createdBy: actorId,
+    updatedAt: now,
+    updatedBy: actorId,
+  });
+  const parsed = parseFamilyRelationship(relation);
+  if (!parsed.ok) {
+    throw new FamilyStoreError("invalid", "Family relationship creation is invalid");
+  }
+  return parsed.value;
+}
+
+function familyAuditEvent(
+  academyId: string,
+  actorId: string,
+  receiptId: string,
+  operation: FamilyWriteReceipt["operation"],
+  targetRef: string,
+): AuditEventDraft {
+  const parsed = parseAuditEventDraft({
+    academyId,
+    actorId,
+    action: operation === "family.create" ? "family.created" : "family.student.added",
+    targetRef,
+    purpose: "family-record-maintenance",
+    correlationId: receiptId,
+  });
+  if (!parsed.ok) {
+    throw new FamilyStoreError("invalid", "Family audit event is invalid");
+  }
+  return parsed.value;
+}
+
+async function resolveFamilyWriteReplay(
+  transaction: FamilyTransaction,
+  dependencies: FamilyStoreDependencies,
+  receiptValue: unknown,
+  expected: Readonly<{
+    receiptId: string;
+    academyId: string;
+    actorId: string;
+    operation: FamilyWriteReceipt["operation"];
+    requestMac: string;
+    familyId?: string;
+  }>,
+): Promise<StaffFamilyProjection> {
+  const receipt = familyWriteReceiptSchema.safeParse(receiptValue);
+  if (
+    !receipt.success ||
+    receipt.data.receiptId !== expected.receiptId ||
+    receipt.data.academyId !== expected.academyId ||
+    receipt.data.actorId !== expected.actorId ||
+    receipt.data.operation !== expected.operation ||
+    (expected.familyId !== undefined && receipt.data.familyId !== expected.familyId) ||
+    receipt.data.stateRevisionAfter !== receipt.data.stateRevisionBefore + 1 ||
+    new Set(receipt.data.createdStudentIds).size !== receipt.data.createdStudentIds.length ||
+    !constantTimeMacEquals(receipt.data.requestMac, expected.requestMac)
+  ) {
+    throw new FamilyStoreError("conflict", "Divergent family write replay");
+  }
+  const family = parseStoredFamily(
+    readDocumentSnapshot(
+      await transaction.get(
+        dependencies.firestore.doc(familyPath(receipt.data.academyId, receipt.data.familyId)),
+      ),
+    ),
+  );
+  if (family.academyId !== receipt.data.academyId) {
+    throw new FamilyStoreError("conflict", "Family write replay tenant mismatch");
+  }
+  const [students, relationships, auditSnapshot] = await Promise.all([
+    readStudents(
+      transaction,
+      dependencies.firestore,
+      receipt.data.academyId,
+      receipt.data.familyId,
+    ),
+    readRelationships(
+      transaction,
+      dependencies.firestore,
+      receipt.data.academyId,
+      receipt.data.familyId,
+    ),
+    transaction.get(
+      dependencies.firestore.doc(auditPath(receipt.data.academyId, receipt.data.auditEventId)),
+    ),
+  ]);
+  const studentIds = new Set(students.map((student) => student.studentId));
+  const relatedStudentIds = new Set(relationships.map((relationship) => relationship.studentId));
+  if (
+    receipt.data.createdStudentIds.some(
+      (studentId) => !studentIds.has(studentId) || !relatedStudentIds.has(studentId),
+    )
+  ) {
+    throw new FamilyStoreError("conflict", "Completed family write replay is invalid");
+  }
+  const audit = documentValue(readDocumentSnapshot(auditSnapshot), "Family write audit event");
+  const auditTarget =
+    receipt.data.operation === "family.create"
+      ? familyPath(receipt.data.academyId, receipt.data.familyId)
+      : studentPath(receipt.data.academyId, receipt.data.createdStudentIds[0] ?? "invalid");
+  if (
+    (receipt.data.operation === "family.student.add" &&
+      receipt.data.createdStudentIds.length !== 1) ||
+    !matchesAuditEventReplay(
+      audit,
+      receipt.data.auditEventId,
+      familyAuditEvent(
+        receipt.data.academyId,
+        receipt.data.actorId,
+        receipt.data.receiptId,
+        receipt.data.operation,
+        auditTarget,
+      ),
+    )
+  ) {
+    throw new FamilyStoreError("conflict", "Family write audit replay is invalid");
+  }
+  return staffProjection(family, students, relationships);
+}
+
 export function createFamilyStore(dependencies: FamilyStoreDependencies): FamilyStore {
+  const canonicalDependencies = validateCanonicalDependencies(dependencies.canonicalControl);
   const generateFamilyId = dependencies.generateFamilyId ?? randomUUID;
   const generateStudentId = dependencies.generateStudentId ?? randomUUID;
+  const generateAuditId = dependencies.generateAuditId ?? randomUUID;
 
   return Object.freeze({
     async createFamily(input) {
+      const writer = requireCanonicalDependencies(canonicalDependencies);
       const academyId = pathSegment(input.academyId, "academy");
       const actorId = pathSegment(input.actorId, "actor");
+      const requestId = pathSegment(input.requestId, "request");
       const tutorUserId = pathSegment(input.tutorUserId, "tutor");
       const now = validNow(input.now);
       const students = validateDrafts(input.students, now.slice(0, 10));
-      await verifyAuthUser(dependencies.auth, tutorUserId);
+      const requestValue = Object.freeze({
+        requestId,
+        tutorUserId,
+        students,
+      });
+      const requestMac = familyRequestMac(
+        academyId,
+        actorId,
+        "family.create",
+        requestValue,
+        writer.integritySecretMaterial,
+      );
+      const receiptId = familyReceiptId(
+        academyId,
+        actorId,
+        "family.create",
+        requestId,
+        writer.integritySecretMaterial,
+      );
       const familyId = pathSegment(generateFamilyId(), "family");
+      const auditEventId = pathSegment(generateAuditId(), "audit event");
       const familyReference = dependencies.firestore.doc(familyPath(academyId, familyId));
       const tutorReference = dependencies.firestore.doc(userPath(academyId, tutorUserId));
+      const receiptReference = dependencies.firestore.doc(receiptPath(academyId, receiptId));
       const studentIds = students.map(() => pathSegment(generateStudentId(), "student"));
       if (new Set(studentIds).size !== studentIds.length) {
         throw new FamilyStoreError("duplicate", "Generated student identity collision");
       }
 
       return dependencies.firestore.runTransaction(async (transaction) => {
+        await assertTransactionalAdministrativeActor(transaction, dependencies.firestore, {
+          academyId,
+          actorId,
+          actorRole: input.actorRole,
+        });
+        const receiptSnapshot = readDocumentSnapshot(await transaction.get(receiptReference));
+        if (receiptSnapshot.exists) {
+          return resolveFamilyWriteReplay(transaction, dependencies, receiptSnapshot.data(), {
+            receiptId,
+            academyId,
+            actorId,
+            operation: "family.create",
+            requestMac,
+          });
+        }
+        await verifyAuthUser(dependencies.auth, tutorUserId, academyId);
+        const control = await readCanonicalControl(
+          transaction,
+          dependencies.firestore,
+          academyId,
+          writer,
+        );
         if (readDocumentSnapshot(await transaction.get(familyReference)).exists) {
           throw new FamilyStoreError("duplicate", "Family identity is already in use");
         }
@@ -429,54 +970,41 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           if (studentId === undefined || reference === undefined) {
             throw new FamilyStoreError("invalid", "Student identity is missing");
           }
-          const record: StudentProfile = Object.freeze({
-            studentId,
-            academyId,
-            familyId,
-            fullName: student.fullName,
-            dateOfBirth: student.dateOfBirth,
-            ...(student.phoneNumber === undefined ? {} : { phoneNumber: student.phoneNumber }),
-            ...(student.email === undefined ? {} : { email: student.email }),
-            trainingCenter: student.trainingCenter,
-            trainingTimePreferences: Object.freeze([...student.trainingTimePreferences]),
-            participantType: "minor",
-            active: true,
-            status: "active",
-            schemaVersion: "1",
-            createdAt: now,
-            createdBy: actorId,
-            updatedAt: now,
-            updatedBy: actorId,
-          });
-          const parsedStudent = parseStudentProfile(record);
-          if (!parsedStudent.ok)
-            throw new FamilyStoreError("invalid", "Student creation is invalid");
-          const relation: FamilyRelationship = Object.freeze({
-            relationshipId: relationshipId(familyId, studentId),
-            academyId,
-            familyId,
-            studentId,
-            adultUserId: tutor.userId,
-            relationshipType: "guardian",
-            permissions: Object.freeze(["readProfile"] as const),
-            validFrom: now,
-            active: true,
-            status: "active",
-            schemaVersion: "1",
-            createdAt: now,
-            createdBy: actorId,
-            updatedAt: now,
-            updatedBy: actorId,
-          });
-          const parsedRelationship = parseFamilyRelationship(relation);
-          if (!parsedRelationship.ok) {
-            throw new FamilyStoreError("invalid", "Family relationship creation is invalid");
-          }
           return {
             reference,
-            student: parsedStudent.value,
-            relationship: parsedRelationship.value,
+            student: buildMinorStudent(student, academyId, familyId, studentId, actorId, now),
+            relationship: buildGuardianRelationship(
+              academyId,
+              familyId,
+              studentId,
+              tutor.userId,
+              actorId,
+              now,
+            ),
           };
+        });
+        const nextControl = advanceCanonicalControl(dependencies.firestore, control, writer, {
+          academyId,
+          actorId,
+          operationId: receiptId,
+          addedStudentCount: records.length,
+          now,
+        });
+        const auditReference = dependencies.firestore.doc(auditPath(academyId, auditEventId));
+        const receipt = familyWriteReceiptSchema.parse({
+          receiptId,
+          academyId,
+          actorId,
+          requestMac,
+          operation: "family.create",
+          familyId,
+          createdStudentIds: studentIds,
+          auditEventId,
+          stateRevisionBefore: control.state.stateRevision,
+          stateRevisionAfter: nextControl.state.stateRevision,
+          status: "completed",
+          createdAt: now,
+          schemaVersion: "1",
         });
 
         transaction.create(familyReference, parsedFamily.value);
@@ -488,10 +1016,23 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           transaction.create(record.reference, record.student);
           transaction.create(relationshipReference, record.relationship);
         }
+        transaction.set(control.stateRef, nextControl.state);
+        transaction.set(control.guardRef, nextControl.guard);
+        transaction.create(nextControl.eventRef, nextControl.event);
+        appendAuditEventInTransaction(
+          transaction,
+          auditReference,
+          familyAuditEvent(academyId, actorId, receiptId, "family.create", familyReference.path),
+        );
+        transaction.create(receiptReference, receipt);
         return staffProjection(
           parsedFamily.value,
-          records.map((record) => record.student),
-          records.map((record) => record.relationship),
+          records
+            .map((record) => record.student)
+            .sort((left, right) => left.studentId.localeCompare(right.studentId)),
+          records
+            .map((record) => record.relationship)
+            .sort((left, right) => left.relationshipId.localeCompare(right.relationshipId)),
         );
       });
     },
@@ -507,6 +1048,40 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
         const family = parseStoredFamily(familySnapshot);
         if (family.academyId !== academyId)
           throw new FamilyStoreError("tenant", "Family tenant mismatch");
+        const students = await readStudents(
+          transaction,
+          dependencies.firestore,
+          academyId,
+          familyId,
+        );
+        const relationships = await readRelationships(
+          transaction,
+          dependencies.firestore,
+          academyId,
+          familyId,
+        );
+        return staffProjection(family, students, relationships);
+      });
+    },
+
+    async getStaffFamilyForActor(input) {
+      const academyId = pathSegment(input.academyId, "academy");
+      const actorId = pathSegment(input.actorId, "actor");
+      const familyId = pathSegment(input.familyId, "family");
+      return dependencies.firestore.runTransaction(async (transaction) => {
+        await assertTransactionalAdministrativeActor(transaction, dependencies.firestore, {
+          academyId,
+          actorId,
+          actorRole: input.actorRole,
+        });
+        const familySnapshot = readDocumentSnapshot(
+          await transaction.get(dependencies.firestore.doc(familyPath(academyId, familyId))),
+        );
+        if (!familySnapshot.exists) return undefined;
+        const family = parseStoredFamily(familySnapshot);
+        if (family.academyId !== academyId) {
+          throw new FamilyStoreError("tenant", "Family tenant mismatch");
+        }
         const students = await readStudents(
           transaction,
           dependencies.firestore,
@@ -592,11 +1167,72 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
     },
 
     async updateFamily(input) {
+      const writer = requireCanonicalDependencies(canonicalDependencies);
       const academyId = pathSegment(input.academyId, "academy");
       const actorId = pathSegment(input.actorId, "actor");
       const familyId = pathSegment(input.familyId, "family");
       const now = validNow(input.now);
+      const addPlan =
+        input.operation.kind === "addStudent"
+          ? (() => {
+              const requestId = pathSegment(input.operation.requestId, "request");
+              const student = validateDrafts([input.operation.student], now.slice(0, 10))[0];
+              if (student === undefined) {
+                throw new FamilyStoreError("invalid", "Student draft is missing");
+              }
+              const requestMac = familyRequestMac(
+                academyId,
+                actorId,
+                "family.student.add",
+                Object.freeze({ familyId, requestId, student }),
+                writer.integritySecretMaterial,
+              );
+              const receiptId = familyReceiptId(
+                academyId,
+                actorId,
+                "family.student.add",
+                requestId,
+                writer.integritySecretMaterial,
+              );
+              const studentId = pathSegment(generateStudentId(), "student");
+              const auditEventId = pathSegment(generateAuditId(), "audit event");
+              return Object.freeze({
+                student,
+                studentId,
+                auditEventId,
+                requestMac,
+                receiptId,
+                receiptReference: dependencies.firestore.doc(receiptPath(academyId, receiptId)),
+              });
+            })()
+          : undefined;
       return dependencies.firestore.runTransaction(async (transaction) => {
+        await assertTransactionalAdministrativeActor(transaction, dependencies.firestore, {
+          academyId,
+          actorId,
+          actorRole: input.actorRole,
+        });
+        if (addPlan !== undefined) {
+          const receiptSnapshot = readDocumentSnapshot(
+            await transaction.get(addPlan.receiptReference),
+          );
+          if (receiptSnapshot.exists) {
+            return resolveFamilyWriteReplay(transaction, dependencies, receiptSnapshot.data(), {
+              receiptId: addPlan.receiptId,
+              academyId,
+              actorId,
+              operation: "family.student.add",
+              requestMac: addPlan.requestMac,
+              familyId,
+            });
+          }
+        }
+        const control = await readCanonicalControl(
+          transaction,
+          dependencies.firestore,
+          academyId,
+          writer,
+        );
         const familyReference = dependencies.firestore.doc(familyPath(academyId, familyId));
         const family = parseStoredFamily(
           readDocumentSnapshot(await transaction.get(familyReference)),
@@ -612,7 +1248,7 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
 
         if (input.operation.kind === "replaceTutor") {
           const tutorUserId = pathSegment(input.operation.tutorUserId, "tutor");
-          await verifyAuthUser(dependencies.auth, tutorUserId);
+          await verifyAuthUser(dependencies.auth, tutorUserId, academyId);
           const tutor = parseStoredTutor(
             readDocumentSnapshot(
               await transaction.get(dependencies.firestore.doc(userPath(academyId, tutorUserId))),
@@ -670,14 +1306,25 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
         }
 
         if (input.operation.kind === "addStudent") {
+          if (addPlan === undefined) {
+            throw new FamilyStoreError("invalid", "Student write plan is missing");
+          }
           if (!family.active || family.status !== "active") {
             throw new FamilyStoreError("conflict", "Inactive family cannot receive students");
           }
-          const studentDrafts = validateDrafts([input.operation.student], now.slice(0, 10));
-          const student = studentDrafts[0];
-          if (student === undefined)
-            throw new FamilyStoreError("invalid", "Student draft is missing");
-          const studentId = pathSegment(generateStudentId(), "student");
+          if (students.length >= MAX_FAMILY_STUDENTS) {
+            throw new FamilyStoreError("precondition", "Family has too many students");
+          }
+          await verifyAuthUser(dependencies.auth, family.primaryContactUserId, academyId);
+          const tutor = parseStoredTutor(
+            readDocumentSnapshot(
+              await transaction.get(
+                dependencies.firestore.doc(userPath(academyId, family.primaryContactUserId)),
+              ),
+            ),
+            academyId,
+          );
+          const studentId = addPlan.studentId;
           const studentReference = dependencies.firestore.doc(studentPath(academyId, studentId));
           if (readDocumentSnapshot(await transaction.get(studentReference)).exists) {
             throw new FamilyStoreError("duplicate", "Student identity is already linked");
@@ -688,54 +1335,72 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           if (readDocumentSnapshot(await transaction.get(relationshipReference)).exists) {
             throw new FamilyStoreError("duplicate", "Relationship identity is already in use");
           }
-          const record: StudentProfile = Object.freeze({
-            studentId,
-            academyId,
-            familyId,
-            fullName: student.fullName,
-            dateOfBirth: student.dateOfBirth,
-            ...(student.phoneNumber === undefined ? {} : { phoneNumber: student.phoneNumber }),
-            ...(student.email === undefined ? {} : { email: student.email }),
-            trainingCenter: student.trainingCenter,
-            trainingTimePreferences: Object.freeze([...student.trainingTimePreferences]),
-            participantType: "minor",
-            active: true,
-            status: "active",
-            schemaVersion: "1",
-            createdAt: now,
-            createdBy: actorId,
-            updatedAt: now,
-            updatedBy: actorId,
-          });
-          const parsedStudent = parseStudentProfile(record);
-          if (!parsedStudent.ok)
-            throw new FamilyStoreError("invalid", "Student creation is invalid");
-          const relationship: FamilyRelationship = Object.freeze({
-            relationshipId: relationshipId(familyId, studentId),
+          const student = buildMinorStudent(
+            addPlan.student,
             academyId,
             familyId,
             studentId,
-            adultUserId: family.primaryContactUserId,
-            relationshipType: "guardian",
-            permissions: Object.freeze(["readProfile"] as const),
-            validFrom: now,
-            active: true,
-            status: "active",
-            schemaVersion: "1",
-            createdAt: now,
-            createdBy: actorId,
-            updatedAt: now,
-            updatedBy: actorId,
+            actorId,
+            now,
+          );
+          const relationship = buildGuardianRelationship(
+            academyId,
+            familyId,
+            studentId,
+            tutor.userId,
+            actorId,
+            now,
+          );
+          const nextControl = advanceCanonicalControl(dependencies.firestore, control, writer, {
+            academyId,
+            actorId,
+            operationId: addPlan.receiptId,
+            addedStudentCount: 1,
+            now,
           });
-          const parsedRelationship = parseFamilyRelationship(relationship);
-          if (!parsedRelationship.ok)
-            throw new FamilyStoreError("invalid", "Family relationship creation is invalid");
-          transaction.create(studentReference, parsedStudent.value);
-          transaction.create(relationshipReference, parsedRelationship.value);
+          const auditReference = dependencies.firestore.doc(
+            auditPath(academyId, addPlan.auditEventId),
+          );
+          const receipt = familyWriteReceiptSchema.parse({
+            receiptId: addPlan.receiptId,
+            academyId,
+            actorId,
+            requestMac: addPlan.requestMac,
+            operation: "family.student.add",
+            familyId,
+            createdStudentIds: [studentId],
+            auditEventId: addPlan.auditEventId,
+            stateRevisionBefore: control.state.stateRevision,
+            stateRevisionAfter: nextControl.state.stateRevision,
+            status: "completed",
+            createdAt: now,
+            schemaVersion: "1",
+          });
+          transaction.create(studentReference, student);
+          transaction.create(relationshipReference, relationship);
+          transaction.set(control.stateRef, nextControl.state);
+          transaction.set(control.guardRef, nextControl.guard);
+          transaction.create(nextControl.eventRef, nextControl.event);
+          appendAuditEventInTransaction(
+            transaction,
+            auditReference,
+            familyAuditEvent(
+              academyId,
+              actorId,
+              addPlan.receiptId,
+              "family.student.add",
+              studentReference.path,
+            ),
+          );
+          transaction.create(addPlan.receiptReference, receipt);
           return staffProjection(
             family,
-            [...students, parsedStudent.value],
-            [...relationships, parsedRelationship.value],
+            [...students, student].sort((left, right) =>
+              left.studentId.localeCompare(right.studentId),
+            ),
+            [...relationships, relationship].sort((left, right) =>
+              left.relationshipId.localeCompare(right.relationshipId),
+            ),
           );
         }
 

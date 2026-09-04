@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 const navigation = vi.hoisted(() => ({ push: vi.fn() }));
-const profileApi = vi.hoisted(() => ({ getClientProfile: vi.fn(), saveClientProfile: vi.fn() }));
+const profileApi = vi.hoisted(() => ({
+  createProfileRequestId: vi.fn(() => "profile-waiver-request-1"),
+  getClientProfile: vi.fn(),
+  saveClientProfile: vi.fn(),
+}));
 vi.mock("../../../lib/client-auth", () => ({
   ClientAuthGate: ({ children }: { children: React.ReactNode }) => children,
   ClientAuthProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -61,6 +65,11 @@ describe("profile registration transition", () => {
     render(<ProfilePage />);
     await screen.findByDisplayValue("Synthetic Adult");
     await user.click(screen.getByRole("button", { name: "Save profile" }));
+    await waitFor(() => expect(profileApi.saveClientProfile).toHaveBeenCalled());
+    expect(profileApi.createProfileRequestId).toHaveBeenCalledTimes(1);
+    expect(profileApi.saveClientProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: "profile-waiver-request-1" }),
+    );
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/account/waiver"));
   });
 });

@@ -11,9 +11,11 @@ describe("login-flow", () => {
   it("accepts only exact internal destinations", () => {
     expect(sanitizeReturnPath("/admin")).toBe("/admin");
     expect(sanitizeReturnPath("/account")).toBe("/account");
+    expect(sanitizeReturnPath("/account/guardian-profile")).toBe("/account/guardian-profile");
     expect(sanitizeReturnPath("/account/family")).toBe("/account/family");
     expect(sanitizeReturnPath("/account/waiver")).toBe("/account/waiver");
     expect(sanitizeReturnPath("/account/waitlist")).toBe("/account/waitlist");
+    expect(sanitizeReturnPath("/account/classes")).toBe("/account/classes");
     expect(sanitizeReturnPath("/shop")).toBe("/shop");
     expect(sanitizeReturnPath("/checkout")).toBe("/checkout");
     expect(sanitizeReturnPath("https://outside.example")).toBeUndefined();

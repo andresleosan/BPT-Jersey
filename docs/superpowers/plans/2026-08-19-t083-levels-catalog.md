@@ -218,18 +218,23 @@ Keep file reading outside the callable runtime. The adapter accepts parsed JSON 
 
 Use the existing adapter style from `membership-service.ts`. Validate every path segment, assert that document `academyId` matches the path, parse every document before returning it, and sort definitions by `sequence` and requirements by `skillKey`. Use one Firestore batch per seed because 337 catalog documents are below the 500-write batch limit. Do not delete an older immutable version when a new system is introduced.
 
+> Corrección posterior T101 (2026-09-03): la revisión de cierre comprobó que el store actual escribe de forma secuencial y puede declarar un replay idempotente después de un fallo parcial. Staging permanece bloqueado hasta implementar publicación atómica o por estados verificables, manifest de integridad y rollback con referencias comprobadas.
+
 The read projection must omit `source.url`, raw source payloads, cookies, tokens, actor IDs, and server timestamps. It may include sanitized `anomalyFlags` and the source-precedence labels required by the UI.
 
 - [x] **Step 5: Implement explicit seed and rollback guards**
 
-Accept only `target: "emulator" | "staging"` and reject `target: "production"` or an absent target before any Admin SDK call. Require `confirmation: "T083-LEVELS-SEED"` for staging. Rollback accepts only the same non-production targets and deletes documents belonging to the selected immutable `systemId`; it must reject an unknown system and leave other versions untouched.
+Accept only `target: "emulator" | "staging"` and reject `target: "production"` or an absent target before any Admin SDK call. `--target` and `--academy-id` are always explicit. Seed rejects `--system-id` because the approved source defines it; rollback requires `--rollback --system-id=ibjjf-v1`. Staging requires `confirmation: "T083-LEVELS-SEED"` for seed and `confirmation: "T083-LEVELS-ROLLBACK"` for rollback.
 
-The post-build command must accept only `--target`, `--academy-id`, `--system-id`, and `--confirmation`, reject unknown flags, and call the guarded module directly. The documented local invocation is:
+The post-build command must accept only `--target`, `--academy-id`, `--system-id`, `--confirmation`, and the boolean `--rollback` flag, reject unknown flags, and call the guarded module directly. The documented local invocation is:
 
 ```bash
-corepack pnpm --filter @bpt-jersey/functions build
-node apps/functions/scripts/seed-levels.mjs --target=emulator --academy-id=demo-academy --system-id=ibjjf-v1 --confirmation=T083-LEVELS-SEED
+node apps/functions/scripts/build-deploy-artifact.mjs
+node apps/functions/scripts/seed-levels.mjs --target=emulator --academy-id=demo-academy
+node apps/functions/scripts/seed-levels.mjs --target=emulator --academy-id=demo-academy --rollback --system-id=ibjjf-v1
 ```
+
+The runner consumes `.firebase-functions/lib`, so the deploy-artifact build is mandatory. It binds Emulator to `demo-bpt-jersey` plus `127.0.0.1:8080`, requires all discovered project IDs to agree, deny-lists the production project explicitly, and keeps staging closed until T099 adds one operator-approved project ID. No command in this plan authorizes production.
 
 The command must not be exported from `apps/functions/src/index.ts`, so Firebase cannot treat it as a deployed callable.
 

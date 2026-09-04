@@ -18,6 +18,12 @@ export type ProfileFormInput = Readonly<{
   trainingTimePreferences: readonly TrainingTimePreference[];
 }>;
 
+export type SaveClientProfileRequest = Readonly<
+  ProfileFormInput & {
+    requestId: string;
+  }
+>;
+
 const safeLoadError = "Unable to load your profile. Please try again.";
 const safeSaveError = "Unable to save your profile. Please try again.";
 
@@ -32,14 +38,22 @@ function isProjection(value: unknown): value is ClientProfileProjection {
   return parseUserProfile(value.user).ok && parseStudentProfile(value.student).ok;
 }
 
-function editablePayload(input: ProfileFormInput): ProfileFormInput {
+function editablePayload(input: SaveClientProfileRequest): SaveClientProfileRequest {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(input.requestId)) {
+    throw new Error(safeSaveError);
+  }
   return {
+    requestId: input.requestId,
     fullName: input.fullName,
     dateOfBirth: input.dateOfBirth,
     phoneNumber: input.phoneNumber,
     trainingCenter: input.trainingCenter,
     trainingTimePreferences: [...input.trainingTimePreferences],
   };
+}
+
+export function createProfileRequestId(): string {
+  return globalThis.crypto.randomUUID();
 }
 
 export async function getClientProfile(): Promise<ClientProfileProjection | undefined> {
@@ -54,9 +68,11 @@ export async function getClientProfile(): Promise<ClientProfileProjection | unde
   }
 }
 
-export async function saveClientProfile(input: ProfileFormInput): Promise<ClientProfileProjection> {
+export async function saveClientProfile(
+  input: SaveClientProfileRequest,
+): Promise<ClientProfileProjection> {
   try {
-    const callable = httpsCallable<ProfileFormInput, unknown>(
+    const callable = httpsCallable<SaveClientProfileRequest, unknown>(
       getFirebaseFunctions(),
       "saveClientProfile",
     );

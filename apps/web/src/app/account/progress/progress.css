@@ -1,0 +1,234 @@
+.progress-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.peer-comparison-container {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.peer-comparison-header {
+  margin-bottom: 1.25rem;
+}
+
+.peer-comparison-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0;
+  color: #111827;
+}
+
+.peer-comparison-subtitle {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0;
+}
+
+.peer-comparison-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.peer-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  transition: all 0.15s ease-in-out;
+}
+
+.peer-card-above {
+  border-left: 4px solid #3b82f6;
+}
+
+.peer-card-current {
+  background: #f0fdf4;
+  border: 2px solid #22c55e;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12);
+}
+
+.peer-card-below {
+  border-left: 4px solid #9ca3af;
+}
+
+.peer-info-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.peer-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 9999px;
+  background: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.peer-card-current .peer-avatar {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.peer-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.peer-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.peer-name {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #111827;
+}
+
+.peer-you-badge {
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.peer-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.peer-belt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+}
+
+.peer-stats-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .peer-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  .peer-stats-right {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e5e7eb;
+  }
+}
+
+.peer-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+@media (max-width: 640px) {
+  .peer-stat-box {
+    align-items: flex-start;
+  }
+}
+
+.peer-stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.peer-stat-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.peer-streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #ea580c;
+  background: #ffedd5;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.techniques-breakdown {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.techniques-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  color: #111827;
+}
+
+.techniques-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.technique-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background: #f9fafb;
+  border: 1px solid #f3f4f6;
+}
+
+.technique-item.mastered {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+  font-weight: 500;
+}
+
+.technique-item.pending {
+  color: #6b7280;
+}

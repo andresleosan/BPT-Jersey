@@ -3,191 +3,190 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const clientMocks = vi.hoisted(() => ({
-  getMemberReport: vi.fn(),
-  getMemberReportPdf: vi.fn(),
-  getMemberReportSummary: vi.fn(),
-  searchMembers: vi.fn(),
+  getMemberDetail: vi.fn(),
+  lookupMemberIdentity: vi.fn(),
+  updateMember: vi.fn(),
 }));
 
 vi.mock("../../../../lib/members-client", () => clientMocks);
 
 import { SearchMembersPage } from "./page";
 
-const member = {
-  memberId: "member-1",
-  membershipNumber: "M-001",
-  fullName: "Alex Johnson",
-  email: "alex@example.test",
-  idCardNumber: "ID-001",
-  vatNumber: "VAT-001",
-  birthDate: "1990-01-02",
-  mobileNumber: "+441234567890",
-  frequency: "twice-weekly",
-  paymentStatus: "regularized" as const,
-  gender: "unknown" as const,
-  trainingCenter: "Main Center",
-  membershipStatus: "active" as const,
-  createdAt: "2026-08-11T10:00:00.000Z",
-  updatedAt: "2026-08-11T10:00:00.000Z",
-  source: "admin",
-  schemaVersion: "1" as const,
+const row = {
+  studentId: "student-1",
+  fullName: "Synthetic Adult",
+  trainingCenter: "Town" as const,
+  participantType: "adult" as const,
+  active: true,
+  status: "active" as const,
+  membershipReference: "****0001",
 };
 
-describe("Search members page", () => {
+describe("Exact canonical member lookup page", () => {
   afterEach(() => {
     cleanup();
-    vi.restoreAllMocks();
-    clientMocks.getMemberReport.mockReset();
-    clientMocks.getMemberReportPdf.mockReset();
-    clientMocks.getMemberReportSummary.mockReset();
-    clientMocks.searchMembers.mockReset();
+    clientMocks.getMemberDetail.mockReset();
+    clientMocks.lookupMemberIdentity.mockReset();
+    clientMocks.updateMember.mockReset();
   });
 
-  it("renders all eleven filters, order selection, and eight report counters", () => {
+  it("offers only the three approved exact identifiers and no legacy filters or reports", () => {
     render(<SearchMembersPage />);
 
-    [
-      "Membership number",
-      "Name",
-      "Email",
-      "ID card number",
-      "VAT number",
-      "Mobile number",
-      "Frequency",
-      "Payment or status",
-      "Gender",
-      "Training center",
-      "Order by",
-    ].forEach((label) => expect(screen.getByLabelText(label)).toBeVisible());
-    expect(screen.getByRole("button", { name: "SEARCH" })).toBeVisible();
-    expect(screen.getAllByTestId("member-report-row")).toHaveLength(8);
-    expect(screen.getByTestId("member-report-row-total")).toHaveTextContent("-");
-    expect(screen.getByRole("button", { name: "Download total members report" })).toHaveTextContent(
-      "Download",
-    );
-    expect(screen.getAllByRole("button", { name: /Download .* report/ })).toHaveLength(8);
+    expect(screen.getByLabelText("Identifier type")).toBeVisible();
+    expect(screen.getByRole("option", { name: "Membership number" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "ID card number" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "VAT number" })).toBeVisible();
+    expect(screen.getByLabelText("Exact identifier")).toBeVisible();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Payment or status")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Download .* report/i)).not.toBeInTheDocument();
   });
 
-  it("renders loaded report counts in the compact rows", async () => {
+  it("sends an exact purpose-bound lookup and renders only the minimized row", async () => {
     const user = userEvent.setup();
-    clientMocks.searchMembers.mockResolvedValue({ members: [] });
-    clientMocks.getMemberReportSummary.mockImplementation((report: string) =>
-      Promise.resolve({ report, count: report === "total" ? 243 : 0 }),
-    );
-
+    clientMocks.lookupMemberIdentity.mockResolvedValue({ matched: true, row });
     render(<SearchMembersPage />);
-    await user.click(screen.getByRole("button", { name: "SEARCH" }));
+
+    await user.type(screen.getByLabelText("Exact identifier"), "BPT 00000001");
+    await user.click(screen.getByRole("button", { name: "Search exact identifier" }));
 
     await waitFor(() =>
-      expect(screen.getByTestId("member-report-row-total")).toHaveTextContent("243"),
+      expect(clientMocks.lookupMemberIdentity).toHaveBeenCalledWith(
+        "membership-number",
+        "BPT 00000001",
+      ),
     );
+    const results = screen.getByRole("region", { name: "Member lookup result" });
+    expect(within(results).getByText("Synthetic Adult")).toBeVisible();
+    expect(within(results).getByText("****0001")).toBeVisible();
+    expect(results).not.toHaveTextContent("BPT 00000001");
+    expect(results).not.toHaveTextContent(/email|vat|date of birth/i);
   });
 
-  it("defers the search and sends the exact approved filters", async () => {
+  it("uses the selected lookup kind and announces a non-match without echoing the value", async () => {
     const user = userEvent.setup();
-    clientMocks.searchMembers.mockResolvedValue({ members: [member] });
-    clientMocks.getMemberReportSummary.mockImplementation((report: string) =>
-      Promise.resolve({ report, count: 0 }),
-    );
+    clientMocks.lookupMemberIdentity.mockResolvedValue({ matched: false });
     render(<SearchMembersPage />);
+    await user.selectOptions(screen.getByLabelText("Identifier type"), "vat-number");
+    await user.type(screen.getByLabelText("Exact identifier"), "VAT-0001");
+    await user.click(screen.getByRole("button", { name: "Search exact identifier" }));
 
-    expect(clientMocks.searchMembers).not.toHaveBeenCalled();
-    await user.type(screen.getByLabelText("Membership number"), "M-001");
-    await user.type(screen.getByLabelText("Name"), "Alex");
-    await user.type(screen.getByLabelText("Email"), "alex@example.test");
-    await user.type(screen.getByLabelText("ID card number"), "ID-001");
-    await user.type(screen.getByLabelText("VAT number"), "VAT-001");
-    await user.type(screen.getByLabelText("Mobile number"), "+441234567890");
-    await user.type(screen.getByLabelText("Frequency"), "twice-weekly");
-    await user.selectOptions(screen.getByLabelText("Payment or status"), "active");
-    await user.selectOptions(screen.getByLabelText("Gender"), "unknown");
-    await user.type(screen.getByLabelText("Training center"), "Main Center");
-    await user.selectOptions(screen.getByLabelText("Order by"), "registrationDate");
-    await user.click(screen.getByRole("button", { name: "SEARCH" }));
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("No matching student was found.");
+    expect(status).not.toHaveTextContent("VAT-0001");
+    expect(clientMocks.lookupMemberIdentity).toHaveBeenCalledWith("vat-number", "VAT-0001");
+  });
 
-    await waitFor(() => expect(clientMocks.searchMembers).toHaveBeenCalledOnce());
-    expect(clientMocks.searchMembers).toHaveBeenCalledWith({
-      membershipNumber: "M-001",
-      name: "Alex",
-      email: "alex@example.test",
-      idCardNumber: "ID-001",
-      vatNumber: "VAT-001",
-      mobileNumber: "+441234567890",
-      frequency: "twice-weekly",
-      paymentOrStatus: "active",
+  it("loads restricted detail only after an explicit action", async () => {
+    const user = userEvent.setup();
+    clientMocks.lookupMemberIdentity.mockResolvedValue({ matched: true, row });
+    clientMocks.getMemberDetail.mockResolvedValue({
+      studentId: "student-1",
+      fullName: "Synthetic Adult",
+      dateOfBirth: "1990-01-02",
+      phoneNumber: "+44 7000 000000",
+      email: "adult@example.test",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      participantType: "adult",
+      active: true,
+      status: "active",
+      membershipNumber: "BPT 00000001",
+      idCardNumber: "ID-0001",
+      vatNumber: "VAT-0001",
       gender: "unknown",
-      trainingCenter: "Main Center",
-      orderBy: "registrationDate",
-    });
-    expect(await screen.findByRole("row", { name: /Alex Johnson/ })).toBeVisible();
-    expect(clientMocks.getMemberReport).not.toHaveBeenCalled();
-    expect(clientMocks.getMemberReportSummary).toHaveBeenCalledTimes(8);
-  }, 15000);
-
-  it("opens only the signed URL returned by the PDF callable", async () => {
-    const user = userEvent.setup();
-    const locationReplace = vi.fn();
-    const reportWindow = { location: { replace: locationReplace }, close: vi.fn() };
-    const open = vi.spyOn(window, "open").mockReturnValue(reportWindow as never);
-    clientMocks.getMemberReportPdf.mockResolvedValue({
-      downloadUrl: "https://signed.example/active.pdf",
-      expiresAt: "2026-08-11T12:05:00.000Z",
+      frequencyNote: "Twice weekly",
     });
     render(<SearchMembersPage />);
+    await user.type(screen.getByLabelText("Exact identifier"), "BPT 00000001");
+    await user.click(screen.getByRole("button", { name: "Search exact identifier" }));
 
-    await user.click(screen.getByRole("button", { name: "Download active members report" }));
+    expect(await screen.findByText("Synthetic Adult")).toBeVisible();
+    expect(clientMocks.getMemberDetail).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "View restricted details" }));
 
-    expect(open).toHaveBeenCalledWith("", "_blank", "noopener,noreferrer");
-    await waitFor(() => expect(clientMocks.getMemberReportPdf).toHaveBeenCalledWith("active"));
-    expect(locationReplace).toHaveBeenCalledWith("https://signed.example/active.pdf");
+    await waitFor(() => expect(clientMocks.getMemberDetail).toHaveBeenCalledWith("student-1"));
+    expect(await screen.findByText("adult@example.test")).toBeVisible();
+    expect(screen.queryByText("admin")).not.toBeInTheDocument();
   });
 
-  it("renders empty state and supports continuation pagination", async () => {
+  it("edits only a loaded detail and keeps the UUID stable for an exact retry", async () => {
     const user = userEvent.setup();
-    clientMocks.searchMembers
-      .mockResolvedValueOnce({ members: [], nextPageToken: "next-token" })
-      .mockResolvedValueOnce({ members: [member] });
-    clientMocks.getMemberReportSummary.mockImplementation((report: string) =>
-      Promise.resolve({ report, count: 0 }),
-    );
+    clientMocks.lookupMemberIdentity.mockResolvedValue({ matched: true, row });
+    clientMocks.getMemberDetail.mockResolvedValue({
+      studentId: "student-1",
+      fullName: "Synthetic Adult",
+      dateOfBirth: "1990-01-02",
+      phoneNumber: "+44 7000 000000",
+      email: "adult@example.test",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      participantType: "adult",
+      active: true,
+      status: "active",
+      membershipNumber: "BPT 00000001",
+      gender: "unknown",
+    });
+    clientMocks.updateMember
+      .mockRejectedValueOnce(new Error("private update failure"))
+      .mockResolvedValueOnce({ memberId: "student-1", studentId: "student-1" });
     render(<SearchMembersPage />);
 
-    await user.click(screen.getByRole("button", { name: "SEARCH" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("No members match these filters.");
-    await user.click(screen.getByRole("button", { name: "Next page" }));
-    await waitFor(() =>
-      expect(clientMocks.searchMembers).toHaveBeenLastCalledWith({}, "next-token"),
+    await user.type(screen.getByLabelText("Exact identifier"), "BPT 00000001");
+    await user.click(screen.getByRole("button", { name: "Search exact identifier" }));
+    expect(await screen.findByText("Synthetic Adult")).toBeVisible();
+    expect(screen.queryByRole("form", { name: "Edit member" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View restricted details" }));
+    await user.click(await screen.findByRole("button", { name: "Edit member" }));
+
+    const form = screen.getByRole("form", { name: "Edit member" });
+    await user.clear(within(form).getByLabelText("Full name"));
+    await user.type(within(form).getByLabelText("Full name"), "Updated Adult");
+    await user.clear(within(form).getByLabelText("Email"));
+    await user.type(within(form).getByLabelText("Email"), "updated@example.test");
+    await user.click(within(form).getByRole("button", { name: "Save changes" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Unable to update member. Please try again.");
+    expect(alert).not.toHaveTextContent("private update failure");
+    const firstRequest = clientMocks.updateMember.mock.calls[0]?.[0];
+    expect(firstRequest).toEqual(
+      expect.objectContaining({
+        studentId: "student-1",
+        requestId: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu,
+        ),
+        fullName: "Updated Adult",
+        email: "updated@example.test",
+      }),
     );
-    expect(await screen.findByRole("row", { name: /Alex Johnson/ })).toBeVisible();
-    expect(
-      within(screen.getByRole("region", { name: "Search results" })).getByText("Alex Johnson"),
-    ).toBeVisible();
+
+    await user.click(within(form).getByRole("button", { name: "Save changes" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Member updated.");
+    expect(clientMocks.updateMember.mock.calls[1]?.[0]?.requestId).toBe(firstRequest.requestId);
+    expect(screen.queryByRole("form", { name: "Edit member" })).not.toBeInTheDocument();
+    expect(screen.getByText("Updated Adult")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Edit member" }));
+    await user.click(
+      within(screen.getByRole("form", { name: "Edit member" })).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+    expect(screen.queryByRole("form", { name: "Edit member" })).not.toBeInTheDocument();
+    expect(clientMocks.updateMember).toHaveBeenCalledTimes(2);
   });
 
-  it("separates counter failures from the member table", async () => {
+  it("sanitizes lookup and detail failures", async () => {
     const user = userEvent.setup();
-    clientMocks.searchMembers.mockResolvedValue({ members: [member] });
-    clientMocks.getMemberReportSummary.mockRejectedValue(new Error("private report detail"));
+    clientMocks.lookupMemberIdentity.mockRejectedValue(new Error("private Firebase stack detail"));
     render(<SearchMembersPage />);
+    await user.type(screen.getByLabelText("Exact identifier"), "BPT 00000001");
+    await user.click(screen.getByRole("button", { name: "Search exact identifier" }));
 
-    await user.click(screen.getByRole("button", { name: "SEARCH" }));
-
-    expect(await screen.findByRole("row", { name: /Alex Johnson/ })).toBeVisible();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unable to load report counters. Please try again.",
-    );
-    expect(screen.getByRole("alert")).not.toHaveTextContent("private report detail");
-  });
-
-  it("announces a generic error without exposing callable details", async () => {
-    const user = userEvent.setup();
-    clientMocks.searchMembers.mockRejectedValue(new Error("private Firebase stack detail"));
-    render(<SearchMembersPage />);
-
-    await user.click(screen.getByRole("button", { name: "SEARCH" }));
-
-    const error = await screen.findByRole("alert");
-    expect(error).toHaveTextContent("Unable to load members. Please try again.");
-    expect(error).not.toHaveTextContent("private Firebase stack detail");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Unable to find member. Please try again.");
+    expect(alert).not.toHaveTextContent("private Firebase stack detail");
   });
 });

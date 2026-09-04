@@ -267,7 +267,7 @@ function getDefaultServices(): {
 
 export const prepareAggregateReportExport = onCall(
   {
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     consumeAppCheckToken: false,
   },
   async (request) => {

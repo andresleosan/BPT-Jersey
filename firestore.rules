@@ -10,6 +10,66 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/students/{studentId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/studentAdminProfiles/{studentId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/studentIdentityKeys/{keyId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/studentRestrictedReadLimits/{actorId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryCursorStates/{cursorId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryStates/{stateId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryMigrations/{operationId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryMigrationChunks/{chunkId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryApprovals/{approvalId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryApprovalConsumptions/{approvalId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryWriteReceipts/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/familyWriteReceipts/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/profileWriteReceipts/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryImportReceipts/{receiptId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryImportSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/staff/{staffId} {
       allow read, write: if false;
     }
@@ -35,6 +95,10 @@ service cloud.firestore {
     }
 
     match /academies/{academyId}/levelRequirements/{requirementKey} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/levelCatalogManifests/{manifestId} {
       allow read, write: if false;
     }
 
@@ -81,6 +145,10 @@ service cloud.firestore {
     match /academies/{academyId}/retentionAlerts/{alertId} {
       allow read, write: if false;
     }
+
+    match /academies/{academyId}/notificationPreferences/{preferenceId} {
+      allow read, write: if false;
+    }
     match /academies/{academyId}/techniqueLibraries/{libraryVersionId} {
       allow read, write: if false;
     }
@@ -113,6 +181,22 @@ service cloud.firestore {
     }
 
     match /academies/{academyId}/documents/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /memberDirectoryRestoreGuards/{academyId} {
+      allow read, write: if false;
+    }
+
+    match /memberDirectoryRestoreGuards/{academyId}/events/{stateRevision} {
+      allow read, write: if false;
+    }
+
+    match /memberDirectoryRestoreAttestations/{attestationId} {
+      allow read, write: if false;
+    }
+
+    match /memberDirectoryRestoreAttestationConsumptions/{attestationId} {
       allow read, write: if false;
     }
 

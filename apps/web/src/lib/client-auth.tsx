@@ -14,6 +14,7 @@ export type ClientSession = Readonly<{
   uid: string;
   email: string;
   displayName: string;
+  role?: "guardian" | "adultStudent";
 }>;
 
 export type ClientAuthStatus = "loading" | "signed-out" | "signed-in";
@@ -31,7 +32,7 @@ type ClientSessionContextValue = Readonly<{
 
 const ClientSessionContext = createContext<ClientSessionContextValue | undefined>(undefined);
 
-function sessionFromUser(user: User): ClientSession | undefined {
+async function sessionFromUser(user: User): Promise<ClientSession | undefined> {
   const uid = user.uid.trim();
   const email = user.email?.trim() ?? "";
 
@@ -39,11 +40,25 @@ function sessionFromUser(user: User): ClientSession | undefined {
     return undefined;
   }
 
-  return Object.freeze({
+  const baseSession = {
     uid,
     email,
     displayName: user.displayName?.trim() ?? "",
-  });
+  };
+  const tokenReader = Reflect.get(user, "getIdTokenResult");
+  if (typeof tokenReader !== "function") {
+    return Object.freeze(baseSession);
+  }
+  try {
+    const token = (await tokenReader.call(user)) as Readonly<{
+      claims?: Readonly<Record<string, unknown>>;
+    }>;
+    const role = token.claims?.role;
+    if (role !== "guardian" && role !== "adultStudent") return undefined;
+    return Object.freeze({ ...baseSession, role });
+  } catch {
+    return undefined;
+  }
 }
 
 export function ClientAuthProvider({
@@ -58,8 +73,7 @@ export function ClientAuthProvider({
 
     const handleUser = async (user: User | null) => {
       const currentVersion = ++eventVersion;
-      const session = user ? sessionFromUser(user) : undefined;
-      await Promise.resolve();
+      const session = user ? await sessionFromUser(user) : undefined;
 
       if (!active || currentVersion !== eventVersion) {
         return;

@@ -139,5 +139,86 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "memberDirectoryCursorStates",
+      "fieldPath": "afterLegacyDocumentId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "birthDate",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "email",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "frequency",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "fullName",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "idCardNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "importRunId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "membershipNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "mobileNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "source",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "vatNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "frequencyNote",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "idCardNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "legacyMemberId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "membershipNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "vatNumber",
+      "indexes": []
+    }
+  ]
 }

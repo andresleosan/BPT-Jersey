@@ -1,8 +1,11 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
-import { requireUserActor } from "../auth/user-authorization.js";
 import { createLevelCatalogStore } from "./level-service.js";
+import {
+  createFirebaseLevelAuthorization,
+  type LevelAuthorizationService,
+} from "./level-authorization.js";
 import {
   createFirestoreProgressReportStore,
   ProgressReportStoreError,
@@ -12,9 +15,15 @@ import type { ProgressReport } from "@bpt-jersey/domain/levels";
 
 const staffRoles = ["owner", "administrator", "headCoach", "coach"] as const;
 
-export function createGetProgressReportHandler({ store }: { store: ProgressReportStore }) {
+export function createGetProgressReportHandler({
+  store,
+  authorization,
+}: {
+  store: ProgressReportStore;
+  authorization: LevelAuthorizationService;
+}) {
   return async (request: CallableRequest<unknown>): Promise<{ report: ProgressReport }> => {
-    const actor = requireUserActor(request);
+    const actor = await authorization.requireActor(request);
     if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
       throw new HttpsError("permission-denied", "Staff role required to view progress reports");
     }
@@ -37,6 +46,7 @@ export function createGetProgressReportHandler({ store }: { store: ProgressRepor
 }
 
 let defaultStore: ProgressReportStore | undefined;
+let defaultAuthorization: LevelAuthorizationService | undefined;
 
 function getStore(): ProgressReportStore {
   if (!defaultStore) {
@@ -54,10 +64,18 @@ function getStore(): ProgressReportStore {
   return defaultStore;
 }
 
+function getAuthorization(): LevelAuthorizationService {
+  defaultAuthorization ??= createFirebaseLevelAuthorization();
+  return defaultAuthorization;
+}
+
 export const getProgressReport = onCall(
   {
-    enforceAppCheck: false,
-    consumeAppCheckToken: false,
+    enforceAppCheck: true,
   },
-  async (request) => createGetProgressReportHandler({ store: getStore() })(request),
+  async (request) =>
+    createGetProgressReportHandler({
+      store: getStore(),
+      authorization: getAuthorization(),
+    })(request),
 );

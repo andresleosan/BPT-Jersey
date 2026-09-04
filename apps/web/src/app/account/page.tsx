@@ -22,24 +22,42 @@ function AccountContent() {
       <p className="account-eyebrow">BPT Jersey / Client</p>
       <h1 id="account-title">Your account</h1>
       <p className="client-destination-intro">
-        Your authenticated client area is ready for account and progress features as they are added.
+        Complete each step with your authenticated account. The academy controls memberships,
+        billing and attendance; you control your profile, waivers and bookings.
       </p>
       <ClientRemindersPanel />
       <GuardianNoticesPanel />
-      <a className="button button-primary profile-account-link" href="/account/profile">
-        Complete your profile
-      </a>
-      <a className="button button-secondary profile-account-link" href="/account/family">
-        View your family
-      </a>
+      {session.role === "guardian" ? (
+        <a className="button button-primary profile-account-link" href="/account/guardian-profile">
+          Complete guardian profile
+        </a>
+      ) : (
+        <a className="button button-primary profile-account-link" href="/account/profile">
+          Complete adult student profile
+        </a>
+      )}
+      {session.role !== "adultStudent" ? (
+        <a className="button button-secondary profile-account-link" href="/account/family">
+          View linked students
+        </a>
+      ) : null}
       <a className="button button-secondary profile-account-link" href="/account/waiver">
-        Review your waiver
+        Review and sign waiver
       </a>
-      <a className="button button-secondary profile-account-link" href="/account/progress">
-        View IBJJF Levels & Progress
+      <a className="button button-secondary profile-account-link" href="/account/membership">
+        View membership and plans
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/classes">
+        Browse and book classes
       </a>
       <a className="button button-secondary profile-account-link" href="/account/waitlist">
         Manage class waitlists
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/billing">
+        View invoices and payments
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/progress">
+        View IBJJF Levels & Progress
       </a>
       <dl className="client-identity">
         <div>
