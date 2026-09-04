@@ -4005,4 +4005,26 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
   - `vitest run deploy-runtime.test.ts`: 3 de 3 pruebas aprobadas.
   - `vitest run page.test.tsx`: 10 de 10 pruebas unitarias aprobadas.
   - `next build`: 40 páginas estáticas prerenderizadas con Turbopack exitosamente.
-- Estado: Aprobada para despliegue.
+- Estado: Aprobada para despliegue. **Superseded por T104**: el dataset estático `real-members-data.ts` se eliminó porque embebía datos reales de menores en el bundle público y sus correos/estados eran sintéticos.
+
+### Evidencia T104 - registros reales de Regyfit detras de autenticacion y ficha completa de alumno - 2026-09-04
+
+- Captura real desde el admin de Regyfit (`regyfit.com/admin2`): 249 socios, 0 errores, con sesión iniciada por el operador en una ventana Playwright (perfil persistente fuera del repo). Endpoints por alumno: `dados_alunos.php` (ISO-8859-1: datos personales, clases, pagos), `perfil.php` (edad, asistencia 30d, app login/password, cinturón/graduación, entrenador, gestor de cuenta) y `plano.php` (plan, modo de pago, importe, vigencia). Roster vía `resultado_pesquisa.php?tot=249&pag=N`.
+- Dominio: `packages/domain/src/members/regyfit-member-record-contracts.ts` (registro verbatim + fila de directorio sin campos restringidos; export `@bpt-jersey/domain/members/regyfit-records`; añadido a `tsconfig.runtime.json` y al mapa de `deploy-runtime.ts`). Tests 5/5.
+- Functions: `apps/functions/src/regyfit/member-records.ts` con callables `listRegyfitMemberRecords` y `getRegyfitMemberRecord` (solo `requireAdminActor`, colección `academies/{academyId}/regyfitMemberRecords` bloqueada en `firestore.rules`). Tests 5/5.
+- Web: `/admin/members/search` carga el directorio desde el callable (loading/error/retry, filtros por estado y modo de pago, contadores reales 249/109/140/146) y abre la ficha completa estilo Regyfit (Profile, Details, Membership, Payments, Classes, Communication, Notes) en `member-profile-panel.tsx`. Tests 12/12. Bundle público verificado sin nombres de socios.
+- Pipeline reproducible: `qa/scripts/normalize-regyfit-capture.mjs` → `qa/scripts/import-regyfit-member-records.mjs` (emulador o producción con `GCLOUD_PROJECT=bptjersey-f5a25` + `REGYFIT_OPERATOR_CONFIRMATION=real-member-records-production-v1`; requiere `pnpm --filter @bpt-jersey/domain build:runtime`). La captura normalizada contiene PII y vive solo fuera del repo.
+- Compuertas: typecheck domain/functions/web 0 errores; lint 0 warnings; suite web+node 1611/1611; `next build` OK. Emulator e2e no ejecutado (Firestore Emulator exige Java 21; la máquina tiene Java 8).
+- Producción (`bptjersey-f5a25`, tenant `demo-academy`): funciones desplegadas (`--only functions:listRegyfitMemberRecords,functions:getRegyfitMemberRecord`, con `FUNCTIONS_DISCOVERY_TIMEOUT=300000`); import `written:249`; commit `872c398` en `main`.
+- Hallazgo de producción: el cliente web exige App Check (fail-closed) pero el build de Cloudflare no tenía `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` y reCAPTCHA Enterprise nunca se activó, por lo que ninguna llamada a Functions salía del navegador. Corregido en Google: APIs activadas, clave `6LfQnqktAAAAAMkmlrxnMUI8gbYVfHJKtQHVAMw1` (dominio `bptjersey.pages.dev`) creada y registrada en App Check para la app web `1:387764816359:web:d787d0078fcf4300e29542`.
+- Secretos de relleno: para pasar los prompts del deploy se crearon en Secret Manager valores `placeholder-not-configured` en `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `MEMBER_DIRECTORY_CURSOR_SECRET`, `MEMBER_DIRECTORY_IDENTITY_KEY_SECRET`, `MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET`. Sustituir con valores reales antes de desplegar exportaciones R2 o el directorio canónico.
+- Estado: `desplegada` en backend; **bloqueada en web hasta completar el checklist siguiente**.
+
+### Pendiente al retomar (T104)
+
+- [ ] Cloudflare Pages → `bptjersey` → Settings → Variables and Secrets → Production: `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY = 6LfQnqktAAAAAMkmlrxnMUI8gbYVfHJKtQHVAMw1` (Plaintext) → Deployments → Retry deployment.
+- [ ] Ctrl+F5 en `bptjersey.pages.dev/admin/members/search`: debe mostrar "Academy member directory (249 records)" y abrir fichas. Si sale error rojo, revisar logs (`npx firebase functions:log --project bptjersey-f5a25 --only listRegyfitMemberRecords`): posibles causas `app: MISSING` (App Check) o claims del admin sin `academyId=demo-academy`.
+- [ ] Verificar que el resto de pantallas admin que dependen de Functions empiezan a funcionar en producción con App Check activo (antes ninguna llamada salía del navegador).
+- [ ] Guardar `normalized-records.json` (scratchpad de la sesión del 2026-09-04) en una ruta privada fuera del repo si se quiere re-importar sin volver a capturar.
+- [ ] Reemplazar los 5 secretos placeholder cuando toque desplegar R2/directorio canónico.
+- [ ] Opcional: instalar JDK 21 para poder correr el import contra el Firestore Emulator.
