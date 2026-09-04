@@ -69,6 +69,17 @@ describe("club shop admin page", () => {
     expect(within(products).getByText("BPT competition gi")).toBeVisible();
     expect(within(products).getByText("£95.00")).toBeVisible();
     expect(within(products).getByText("Published")).toBeVisible();
+    expect(
+      within(products).getByRole("img", { name: "BPT competition gi product image" }),
+    ).toHaveAttribute("src", "/shop/gis.jpg");
+
+    await user.click(screen.getByRole("button", { name: "Edit BPT competition gi" }));
+    const editor = screen.getByRole("form", { name: "BPT competition gi" });
+    expect(
+      within(editor).getByRole("img", { name: "BPT competition gi product image" }),
+    ).toHaveAttribute("src", "/shop/gis.jpg");
+    await user.click(screen.getByRole("button", { name: "Discard and start new" }));
+    expect(screen.getByLabelText("New product: no image")).toBeVisible();
 
     await user.type(screen.getByLabelText("Name"), "BPT rashguard");
     await user.type(screen.getByLabelText("Price in pounds"), "45");

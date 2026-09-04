@@ -3727,3 +3727,44 @@
     grid-template-columns: 1fr;
   }
 }
+
+.shop-admin-thumbnail {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  display: block;
+  object-fit: cover;
+}
+
+.shop-admin-thumbnail-small {
+  height: 4.5rem;
+  width: 3.6rem;
+}
+
+.shop-admin-thumbnail-large {
+  height: 10rem;
+  width: 8rem;
+}
+
+.shop-admin-thumbnail-empty {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.62rem;
+  font-weight: 700;
+  justify-content: center;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.shop-admin-editor-preview {
+  align-items: center;
+  border: 1px solid var(--line);
+  display: flex;
+  gap: 1rem;
+  padding: 0.85rem;
+}
+
+.shop-admin-editor-preview .shop-admin-secondary {
+  margin-top: 0.4rem;
+}

@@ -83,6 +83,29 @@ const transitionLabels: Readonly<Record<ShopOrderStatus, string>> = {
   cancelled: "Cancel",
 };
 
+function ProductThumbnail({
+  imageUrl,
+  name,
+  size = "small",
+}: {
+  imageUrl: string | null;
+  name: string;
+  size?: "small" | "large";
+}) {
+  const className = `shop-admin-thumbnail shop-admin-thumbnail-${size}`;
+  if (!imageUrl) {
+    return (
+      <span aria-label={`${name}: no image`} className={`${className} shop-admin-thumbnail-empty`}>
+        No image
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- admin-managed catalog images are external URLs
+    <img alt={`${name} product image`} className={className} src={imageUrl} />
+  );
+}
+
 function slugify(value: string): string {
   return value
     .toLowerCase()
@@ -342,6 +365,7 @@ export function ShopAdminPage() {
                     <caption className="visually-hidden">Club shop products</caption>
                     <thead>
                       <tr>
+                        <th scope="col">Image</th>
                         <th scope="col">Product</th>
                         <th scope="col">Category</th>
                         <th scope="col">Price</th>
@@ -354,6 +378,9 @@ export function ShopAdminPage() {
                     <tbody>
                       {workspace.products.map((product) => (
                         <tr key={product.productId}>
+                          <td>
+                            <ProductThumbnail imageUrl={product.imageUrl} name={product.name} />
+                          </td>
                           <td>
                             <strong>{product.name}</strong>
                             <small className="shop-admin-secondary">{product.productId}</small>
@@ -405,6 +432,21 @@ export function ShopAdminPage() {
                 <h3 id="shop-editor-title">
                   {editingId ? editor.name || editingId : "Add product"}
                 </h3>
+              </div>
+              <div className="shop-admin-editor-preview" aria-live="polite">
+                <ProductThumbnail
+                  imageUrl={editor.imageUrl.trim() || null}
+                  name={editor.name.trim() || "New product"}
+                  size="large"
+                />
+                <div>
+                  <p className="admin-eyebrow">Image preview</p>
+                  <p className="shop-admin-secondary">
+                    {editor.imageUrl.trim()
+                      ? "This is the image clients will see for the product."
+                      : "No image yet. Use one of /shop/gis.jpg, /shop/rashguards.jpg, /shop/shorts.jpg, /shop/backpacks.jpg, /shop/casual.jpg or an https URL."}
+                  </p>
+                </div>
               </div>
               <div className="shop-admin-form-grid">
                 <label className="shop-admin-field" htmlFor="shop-product-name">
