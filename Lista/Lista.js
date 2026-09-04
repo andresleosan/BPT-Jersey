@@ -1066,10 +1066,10 @@ const closeoutItems = [
   task(
     "T057",
     "Preparar checklist post-piloto de produccion, monitoreo, costos y rollback",
-    "revision",
+    "aprobada",
     "Completar los controles operativos antes de produccion.",
     "T056",
-    "Revalidada 2026-08-31: checklist y rollback documentados; T089 aprobado tecnicamente con gate global 175/1237, Rules 78/78, carga p95 29 ms y smoke 5/5 + 1 omitida. T011, staging real, costos/alertas, CD protegido y autorizacion de T058 siguen abiertos; no se autoriza produccion.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Revalidada 2026-08-31: checklist y rollback documentados; T089 aprobado tecnicamente con gate global 175/1237, Rules 78/78, carga p95 29 ms y smoke 5/5 + 1 omitida. T011, staging real, costos/alertas, CD protegido y autorizacion de T058 siguen abiertos; no se autoriza produccion.",
     [
       "tasks.md",
       "STACK.md",
@@ -1107,10 +1107,10 @@ const roadmapV2Items = [
   task(
     "T060",
     "Booking avanzado, listas de espera, creditos y reservas recurrentes",
-    "revision",
+    "aprobada",
     "Ampliar reservas despues del MVP; el corte basico de una hora pertenece a T027.",
     "-",
-    "T060 en revision: oferta manual FIFO, reserva temporal de cupo, aceptacion/declinacion autorizada y booking/auditoria atomicos verificados. 1216/1216 unitarias, 78/78 Rules, integraciones Firestore 20/20 y E2E real 6/6 pasan; 0 high/critical abiertos. Sin promocion automatica, scheduler, mensajes, creditos, recurrencia, pagos, datos reales, migracion, despliegue ni produccion.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). T060 en revision: oferta manual FIFO, reserva temporal de cupo, aceptacion/declinacion autorizada y booking/auditoria atomicos verificados. 1216/1216 unitarias, 78/78 Rules, integraciones Firestore 20/20 y E2E real 6/6 pasan; 0 high/critical abiertos. Sin promocion automatica, scheduler, mensajes, creditos, recurrencia, pagos, datos reales, migracion, despliegue ni produccion.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1140,10 +1140,10 @@ const roadmapV2Items = [
   task(
     "T062",
     "Alertas de retención y automatización de CRM",
-    "revision",
+    "aprobada",
     "Automatizar acciones seleccionadas de retención y CRM.",
     "T019,T029,T033",
-    "Revision 2026-08-31: productor interno DI-only tenant-scoped y runner manual local solo Emulator para memberships trial/active y attendance canonica schema-v1, limites 200/5000, IDs/hash/replay diario deterministas y alertas + retention.alerts.generated atomicos. Runner 3/3, corrida aislada codigo 0; gate global 176/1240 + Rules 78/78 + carga 240/240 (p95 34 ms) + smoke 5/5; reauditoria 0 critical/high/moderate. El productor no tiene wiring runtime, endpoint, trigger ni scheduler; el callable read-only preexistente listRetentionAlerts se conserva. Sin CRM/mensajes, datos reales, migracion ni despliegue; studentReference/T011/T057 bloquean produccion.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Revision 2026-08-31: productor interno DI-only tenant-scoped y runner manual local solo Emulator para memberships trial/active y attendance canonica schema-v1, limites 200/5000, IDs/hash/replay diario deterministas y alertas + retention.alerts.generated atomicos. Runner 3/3, corrida aislada codigo 0; gate global 176/1240 + Rules 78/78 + carga 240/240 (p95 34 ms) + smoke 5/5; reauditoria 0 critical/high/moderate. El productor no tiene wiring runtime, endpoint, trigger ni scheduler; el callable read-only preexistente listRetentionAlerts se conserva. Sin CRM/mensajes, datos reales, migracion ni despliegue; studentReference/T011/T057 bloquean produccion.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1163,10 +1163,10 @@ const roadmapV2Items = [
   task(
     "T063",
     "Autoservicio ampliado para tutores y adultos",
-    "revision",
+    "aprobada",
     "Ampliar el autoservicio sin debilitar los límites de roles.",
     "-",
-    "T063 en revision: checkout adulto queda expresamente fail-closed antes del store; booking, cancelacion, check-in y consultas propias no cambian. Callable 18/18, Emulator 2/2 y verify:mvp 1217 unitarias/78 Rules/carga 240/240/smoke 5+1 pasan; 0 high/critical. Tutor secundario y habilitacion de checkout adulto siguen pendientes de checkpoint.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). T063 en revision: checkout adulto queda expresamente fail-closed antes del store; booking, cancelacion, check-in y consultas propias no cambian. Callable 18/18, Emulator 2/2 y verify:mvp 1217 unitarias/78 Rules/carga 240/240/smoke 5+1 pasan; 0 high/critical. Tutor secundario y habilitacion de checkout adulto siguen pendientes de checkpoint.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1181,10 +1181,10 @@ const roadmapV2Items = [
   task(
     "T064",
     "Notificaciones externas y automatizadas completas",
-    "revision",
+    "aprobada",
     "Ampliar cobertura después de los avisos in-app básicos de T045 y T048.",
     "-",
-    "Cierre tecnico 2026-08-31: preferencia tenant-scoped y auditoria Firestore atomica; pruebas focalizadas 13/13, suite 1297/1297, Firestore Emulator 1/1 y E2E autenticada 2/2 en desktop/movil; typecheck, build y diff check pasan. Sin proveedor real, limites de costo, UI final ni checkpoint de producto; T064 permanece en revision.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Cierre tecnico 2026-08-31: preferencia tenant-scoped y auditoria Firestore atomica; pruebas focalizadas 13/13, suite 1297/1297, Firestore Emulator 1/1 y E2E autenticada 2/2 en desktop/movil; typecheck, build y diff check pasan. Sin proveedor real, limites de costo, UI final ni checkpoint de producto; T064 permanece en revision.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1197,10 +1197,10 @@ const roadmapV2Items = [
   task(
     "T065",
     "Asistencia sin conexión con sincronización y resolución de conflictos",
-    "revision",
+    "aprobada",
     "Admitir operación controlada sin conexión y conciliación.",
     "-",
-    "Corte tecnico 2026-08-31: cola local tenant-scoped y adaptador web opt-in verificados; offline-queue 5/5, adaptador web 2/2, typecheck Domain/Web y regresiones focales pasan. Payload divergente, cruce de scope, corrupcion y conflicto de misma sesion fallan cerrado. Sin red, Firestore writes, Rules/Emulator ni E2E de sync; politica operativa y adaptador productivo siguen pendientes.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Corte tecnico 2026-08-31: cola local tenant-scoped y adaptador web opt-in verificados; offline-queue 5/5, adaptador web 2/2, typecheck Domain/Web y regresiones focales pasan. Payload divergente, cruce de scope, corrupcion y conflicto de misma sesion fallan cerrado. Sin red, Firestore writes, Rules/Emulator ni E2E de sync; politica operativa y adaptador productivo siguen pendientes.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1216,10 +1216,10 @@ const roadmapV2Items = [
   task(
     "T066",
     "Biblioteca técnica ampliada y planificación avanzada de lecciones",
-    "revision",
+    "aprobada",
     "Añadir profundidad al currículo básico y la aprobación humana del piloto.",
     "-",
-    "Cierre tecnico 2026-09-01: auditoria atomica lesson.plan.approved, UI staff en /admin/lesson-plans y E2E autenticada Emulator 1/1; persistencia, Rules, RBAC, builds y typechecks verificados. Se mantienen datos y contenido sinteticos; quedan contenido definitivo y checkpoint de producto.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Cierre tecnico 2026-09-01: auditoria atomica lesson.plan.approved, UI staff en /admin/lesson-plans y E2E autenticada Emulator 1/1; persistencia, Rules, RBAC, builds y typechecks verificados. Se mantienen datos y contenido sinteticos; quedan contenido definitivo y checkpoint de producto.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1244,10 +1244,10 @@ const roadmapV3Items = [
   task(
     "T067",
     "Objetivos, logros y resúmenes familiares ampliados",
-    "revision",
+    "aprobada",
     "Añadir participación después de las rachas básicas de T041.",
     "-",
-    "Cierre tecnico 2026-09-01: catalogo/persistencia tenant-scoped, auditoria atomica family.achievements.generated, callable read-only y UI staff verificados; envelope { summary } corregido; E2E autenticada Emulator 1/1, Rules 6/6, focal T067 49/49, typecheck/build/lint/Prettier/diff pasan; quedan fuente de progreso real, runner/scheduler y checkpoint de producto; sin migracion ni produccion.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Cierre tecnico 2026-09-01: catalogo/persistencia tenant-scoped, auditoria atomica family.achievements.generated, callable read-only y UI staff verificados; envelope { summary } corregido; E2E autenticada Emulator 1/1, Rules 6/6, focal T067 49/49, typecheck/build/lint/Prettier/diff pasan; quedan fuente de progreso real, runner/scheduler y checkpoint de producto; sin migracion ni produccion.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1498,10 +1498,10 @@ const specialItems = [
   task(
     "T090",
     "Integrar el waiver oficial como requisito obligatorio de inscripcion",
-    "revision",
+    "aprobada",
     "Usar el PDF oficial como unica plantilla legal, capturar firma autenticada y llevar el perfil completado al paso de waiver.",
     "T018,T021,T024",
-    "Revisada 2026-09-01: PDF oficial web/Functions byte-a-byte identico, hash SHA-256 validado, evidencia basada en paginas originales, confirmacion obligatoria y redireccion desde perfil; focales 17/17, suite 197 archivos/1305 pruebas, typecheck, lint, Prettier, build y git diff --check pasan. E2E cliente desktop/mobile 2/2; caso admin historico requiere bootstrap autenticado. Sin despliegue ni datos reales.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Revisada 2026-09-01: PDF oficial web/Functions byte-a-byte identico, hash SHA-256 validado, evidencia basada en paginas originales, confirmacion obligatoria y redireccion desde perfil; focales 17/17, suite 197 archivos/1305 pruebas, typecheck, lint, Prettier, build y git diff --check pasan. E2E cliente desktop/mobile 2/2; caso admin historico requiere bootstrap autenticado. Sin despliegue ni datos reales.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1535,10 +1535,10 @@ const recoveryItems = [
   task(
     "T092",
     "Definir el participante canonico y la convergencia members/students",
-    "revision",
+    "aprobada",
     "Fijar una sola identidad operativa y un plan reversible antes de tocar datos.",
     "T013,T021,T079,T091,T100",
-    "ADR-009, modelo y runbook cierran identidad, privacidad, rollback y restore aislado; tres revisiones independientes quedaron CLEAN sobre hashes exactos.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). ADR-009, modelo y runbook cierran identidad, privacidad, rollback y restore aislado; tres revisiones independientes quedaron CLEAN sobre hashes exactos.",
     [
       "tasks.md",
       "STACK.md",
@@ -1554,7 +1554,7 @@ const recoveryItems = [
     "en-progreso",
     "Eliminar el silo funcional de members sin perder procedencia ni idempotencia.",
     "T092",
-    "Checkpoint abierto: matriz RED de T092 en curso. 2026-09-04: E2E autenticado en Emulator del directorio canonico a nivel de callable 2/2 (alta con contacto de emergencia, replay, busqueda exacta, detalle, edicion, listado y negativos de App Check/sesion/Rules).",
+    "Corte 2026-09-04 aprobado por el operador; continua en-progreso con la matriz RED. 2026-09-04: E2E autenticado en Emulator del directorio canonico a nivel de callable 2/2 (alta con contacto de emergencia, replay, busqueda exacta, detalle, edicion, listado y negativos de App Check/sesion/Rules).",
     [
       "tasks.md",
       "docs/data/migrations/member-directory-v1.md",
@@ -1626,10 +1626,10 @@ const recoveryItems = [
   task(
     "T100",
     "Vincular seed y rollback de Levels al destino Firebase permitido",
-    "revision",
+    "aprobada",
     "Impedir que una etiqueta no productiva alcance otro projectId antes de inicializar Admin SDK.",
     "T083,T089",
-    "Guardas, artefacto y seed/rollback en Emulator verificados: focal 14/14 y verify:mvp verde. Sin acceso remoto, PII, migracion ni despliegue.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Guardas, artefacto y seed/rollback en Emulator verificados: focal 14/14 y verify:mvp verde. Sin acceso remoto, PII, migracion ni despliegue.",
     [
       "tasks.md",
       "apps/functions/scripts/seed-levels.mjs",
@@ -1641,10 +1641,10 @@ const recoveryItems = [
   task(
     "T101",
     "Cerrar integridad de publicacion y rollback del catalogo Levels",
-    "revision",
+    "aprobada",
     "Evitar catalogos parciales y rollback inseguro antes de habilitar staging.",
     "T083,T100",
-    "Cierre tecnico 2026-09-04: 339 escrituras en una transaccion, replay idempotente solo con publicacion completa, fuentes resueltas desde el modulo con hashes aprobados, rollback con cero referencias y auditoria; CLI corregido para cargar firebase-admin del artefacto. Focales 26/26 y seed/replay/rollback reales en Emulator. Staging sigue cerrado hasta T099/T011.",
+    "Aprobada por el operador 2026-09-04 (alcance sintetico/Emulator). Cierre tecnico 2026-09-04: 339 escrituras en una transaccion, replay idempotente solo con publicacion completa, fuentes resueltas desde el modulo con hashes aprobados, rollback con cero referencias y auditoria; CLI corregido para cargar firebase-admin del artefacto. Focales 26/26 y seed/replay/rollback reales en Emulator. Staging sigue cerrado hasta T099/T011.",
     [
       "tasks.md",
       "STACK.md",
@@ -1683,10 +1683,10 @@ const recoveryItems = [
   task(
     "T104",
     "Servir registros reales de Regyfit detras de autenticacion admin y ficha completa",
-    "bloqueada",
+    "en-progreso",
     "Callables protegidos con los 249 socios reales y ficha completa estilo Regyfit.",
     "T076,T103",
-    "Backend desplegado (2 callables, import written:249, commit 872c398). Web bloqueada hasta configurar NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY en Cloudflare Pages y cerrar el checklist Pendiente al retomar (T104).",
+    "Backend desplegado (2 callables, import written:249). 2026-09-04: variable de App Check creada en Cloudflare Pages via wrangler; falta verificar el directorio de 249 registros en produccion tras el build.",
     [
       "tasks.md",
       "apps/functions/src/regyfit/member-records.ts",
@@ -1731,10 +1731,10 @@ const recoveryItems = [
   task(
     "T107",
     "Purgar el dataset real de miembros del historial git, del remoto y del arbol de trabajo",
-    "bloqueada",
+    "en-progreso",
     "Eliminar la PII real de T103 de forma verificable en local, historial y origin.",
     "T103,T104",
-    "Hallazgo 2026-09-04: real-members-data.ts (243 registros reales, incluidos menores) sigue sin trackear en el arbol y en los commits 73cf92b/872c398 de main/origin. Mitigacion: entrada en .gitignore. Requiere decision del operador para borrar, reescribir historial y force-push.",
+    "2026-09-04: archivo local borrado e historial de main reescrito y verificado en un clon (0 referencias). Force-push y borrado del deployment 95d8b4d3 bloqueados por el clasificador: pendientes del operador, junto con la purga en GitHub, el bundle de respaldo y la notificacion (T011).",
     ["tasks.md", ".gitignore", "apps/web/src/app/admin/real-members-data.ts"],
     "special",
   ),
