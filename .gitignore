@@ -70,3 +70,6 @@ Thumbs.db
 
 # Backups que dejan los scripts de la agencia al actualizar
 *.bak-*
+
+# T103/T104: el dataset real de miembros nunca debe volver al repo (ver tasks.md T107)
+apps/web/src/app/admin/real-members-data.ts
