@@ -222,6 +222,10 @@ describe("domain contracts", () => {
       "attendance.corrected",
       "student.checked_out",
       "notification.preference.updated",
+      "shop.product.saved",
+      "shop.product.status.changed",
+      "shop.order.placed",
+      "shop.order.status.changed",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

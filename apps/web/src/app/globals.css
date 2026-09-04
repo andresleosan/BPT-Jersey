@@ -357,6 +357,7 @@ button:focus-visible {
 .classes-section,
 .programs-section,
 .fees-section,
+.merch-section,
 .platform-section {
   margin: 0 auto;
   max-width: var(--content-width);
@@ -596,6 +597,104 @@ button:focus-visible {
   max-width: 48rem;
 }
 
+.merch-section {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+  max-width: none;
+}
+
+.merch-section > * {
+  margin-inline: auto;
+  max-width: calc(var(--content-width) - 2 * clamp(1.25rem, 7vw, 7.5rem));
+}
+
+.merch-section .section-heading h2,
+.merch-section .section-kicker {
+  color: var(--gi-white);
+}
+
+.merch-section .section-heading > p:not(.section-kicker) {
+  color: #d9d8d2;
+}
+
+.merch-grid {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+  margin: 3rem auto 0;
+  padding: 0;
+}
+
+.merch-card {
+  background: #23231f;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 0 1.75rem;
+}
+
+.merch-figure {
+  aspect-ratio: 4 / 5;
+  background: var(--gi-white);
+  margin: 0;
+  overflow: hidden;
+}
+
+.merch-image {
+  height: 100%;
+  object-fit: cover;
+  transition: transform 220ms ease;
+  width: 100%;
+}
+
+.merch-card:hover .merch-image {
+  transform: scale(1.03);
+}
+
+.merch-card .card-label {
+  color: var(--bpt-lime);
+  margin: 1.25rem 1.25rem 0;
+}
+
+.merch-card h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.6rem, 2.2vw, 2.2rem);
+  line-height: 0.95;
+  margin: 0.75rem 1.25rem 0;
+  text-transform: uppercase;
+}
+
+.merch-card > p:last-child {
+  color: #d9d8d2;
+  font-size: 0.95rem;
+  margin: 0.85rem 1.25rem 0;
+}
+
+.merch-actions {
+  margin-top: 2.5rem;
+}
+
+.merch-section .button-secondary {
+  border-color: var(--gi-white);
+  color: var(--gi-white);
+}
+
+.merch-section .button-secondary:hover {
+  background: var(--gi-white);
+  color: var(--mat-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .merch-image {
+    transition: none;
+  }
+
+  .merch-card:hover .merch-image {
+    transform: none;
+  }
+}
+
 .platform-section {
   background: var(--gi-white);
 }
@@ -708,6 +807,10 @@ button:focus-visible {
   .program-card:nth-child(odd),
   .fee-card:not(:nth-child(3n)) {
     border-right: 0;
+  }
+
+  .merch-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .platform-preview {
@@ -1389,6 +1492,320 @@ button:focus-visible {
 
 .client-signout:hover {
   background: var(--bpt-purple-dark);
+}
+
+.visually-hidden {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.shop-page {
+  margin: 0 auto;
+  max-width: 76rem;
+  min-height: 100vh;
+  padding: clamp(3rem, 8vw, 6rem) clamp(1.25rem, 4vw, 4.5rem);
+}
+
+.shop-page h1 {
+  color: var(--mat-ink);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(3.2rem, 8vw, 6.5rem);
+  letter-spacing: -0.04em;
+  line-height: 0.8;
+  margin: 0.75rem 0 0;
+  text-transform: uppercase;
+}
+
+.shop-back-link {
+  color: var(--bpt-purple);
+  display: inline-block;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.shop-payment-note {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--bpt-lime);
+  margin: 1.75rem 0 0;
+  max-width: 40rem;
+  padding: 1rem 1.25rem;
+}
+
+.shop-section {
+  margin-top: 3rem;
+}
+
+.shop-section h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 0.9;
+  margin: 0.5rem 0 0;
+  text-transform: uppercase;
+}
+
+.shop-collection-form {
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+}
+
+.shop-field {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.4rem;
+  letter-spacing: 0.08em;
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.shop-field input,
+.shop-field select,
+.shop-field textarea {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  letter-spacing: normal;
+  min-height: 2.9rem;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  text-transform: none;
+  width: 100%;
+}
+
+.shop-field input:focus-visible,
+.shop-field select:focus-visible,
+.shop-field textarea:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
+.shop-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.shop-filter-button {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.55rem 0.9rem;
+  text-transform: uppercase;
+}
+
+.shop-filter-button[aria-pressed="true"] {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.shop-product-grid {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+
+.shop-product-card {
+  background: var(--gi-white);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  outline: 1px solid var(--line);
+}
+
+.shop-product-figure {
+  align-items: center;
+  aspect-ratio: 4 / 5;
+  background: var(--canvas);
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  overflow: hidden;
+}
+
+.shop-product-figure img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.shop-product-placeholder {
+  color: var(--muted);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 2rem;
+  text-transform: uppercase;
+}
+
+.shop-product-body {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.15rem 1.25rem 1.5rem;
+}
+
+.shop-product-body h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  line-height: 0.95;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.shop-product-price {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 2rem;
+  line-height: 1;
+  margin: 0;
+}
+
+.shop-product-description {
+  color: var(--muted);
+  margin: 0;
+}
+
+.shop-stock-badge {
+  border: 1px solid currentColor;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.45rem;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.shop-stock-in-stock {
+  color: #176b49;
+}
+
+.shop-stock-made-to-order {
+  color: var(--bpt-purple);
+}
+
+.shop-stock-sold-out {
+  color: #9b2c2c;
+}
+
+.shop-order-form {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.5rem;
+}
+
+.shop-order-form .button {
+  grid-column: 1 / -1;
+}
+
+.shop-message {
+  margin: 1.25rem 0 0;
+  padding: 0.9rem 1.1rem;
+}
+
+.shop-message-error {
+  background: #fbe9e9;
+  border-left: 0.35rem solid #9b2c2c;
+}
+
+.shop-message-success {
+  background: #e7f6ee;
+  border-left: 0.35rem solid #176b49;
+}
+
+.shop-empty {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--line);
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+}
+
+.shop-orders-table-wrap {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  margin-top: 1.5rem;
+  overflow-x: auto;
+}
+
+.shop-orders-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.shop-orders-table th,
+.shop-orders-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.8rem 1rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.shop-orders-table th {
+  background: var(--canvas);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shop-status-badge {
+  border: 1px solid currentColor;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.45rem;
+  text-transform: uppercase;
+}
+
+.shop-status-requested,
+.shop-status-unpaid {
+  color: #8a5a00;
+}
+
+.shop-status-confirmed,
+.shop-status-ready {
+  color: var(--bpt-purple);
+}
+
+.shop-status-collected,
+.shop-status-paid {
+  color: #176b49;
+}
+
+.shop-status-cancelled {
+  color: #9b2c2c;
+}
+
+@media (max-width: 50rem) {
+  .shop-collection-form,
+  .shop-product-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .client-future-state {

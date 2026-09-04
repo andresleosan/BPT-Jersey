@@ -3576,3 +3576,154 @@
     text-align: left;
   }
 }
+
+.shop-admin-page {
+  max-width: 86rem;
+}
+
+.shop-admin-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.8fr);
+}
+
+.shop-admin-editor {
+  align-content: start;
+  border-top-color: var(--bpt-purple);
+  display: grid;
+  gap: 1rem;
+}
+
+.shop-admin-form-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.shop-admin-field {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.4rem;
+  letter-spacing: 0.08em;
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.shop-admin-field-wide {
+  grid-column: 1 / -1;
+}
+
+.shop-admin-field input,
+.shop-admin-field select,
+.shop-admin-field textarea {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  letter-spacing: normal;
+  min-height: 2.9rem;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  text-transform: none;
+  width: 100%;
+}
+
+.shop-admin-field input:focus-visible,
+.shop-admin-field select:focus-visible,
+.shop-admin-field textarea:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
+.shop-admin-row-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.shop-admin-primary-button,
+.shop-admin-table-button {
+  border: 1px solid var(--bpt-purple);
+  border-radius: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.5rem 0.8rem;
+  text-transform: uppercase;
+}
+
+.shop-admin-primary-button {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+  min-height: 2.9rem;
+  padding-inline: 1.25rem;
+}
+
+.shop-admin-table-button {
+  background: var(--gi-white);
+  color: var(--bpt-purple);
+}
+
+.shop-admin-primary-button:hover,
+.shop-admin-table-button:hover {
+  background: var(--bpt-purple-dark);
+  border-color: var(--bpt-purple-dark);
+  color: var(--gi-white);
+}
+
+.shop-admin-primary-button:disabled,
+.shop-admin-table-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.shop-admin-secondary {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+}
+
+.shop-admin-notice {
+  margin: 0;
+}
+
+.shop-admin-notice-error {
+  border-top-color: #9b2c2c;
+}
+
+.shop-admin-notice-success {
+  border-top-color: #176b49;
+}
+
+.admin-status-published {
+  color: #176b49;
+}
+
+.admin-status-hidden,
+.admin-status-unpaid,
+.admin-status-requested {
+  color: #8a5a00;
+}
+
+.admin-status-confirmed,
+.admin-status-ready {
+  color: var(--bpt-purple);
+}
+
+.admin-status-collected {
+  color: #176b49;
+}
+
+@media (max-width: 64rem) {
+  .shop-admin-grid,
+  .shop-admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

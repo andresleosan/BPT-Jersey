@@ -23,12 +23,21 @@ export type Instructor = {
   credential: string;
 };
 
+export type MerchandiseCategory = {
+  key: "gi" | "rashguard" | "shorts" | "backpack" | "casual";
+  title: string;
+  description: string;
+  image: string;
+  imageAlt: string;
+};
+
 export const academyContent = {
   lastVerified: "2026-08-07",
   sources: [
     "https://bptjersey.com/",
     "https://bptjersey.com/classes",
     "https://bptjersey.com/contact-us",
+    "https://bptjersey.com/club-merchandise",
   ],
   identity: {
     title: "Brazilian Jiu-Jitsu, MMA & Self-Defence",
@@ -157,10 +166,49 @@ export const academyContent = {
     },
     { name: "Charlie Tromans", credential: "Black belt" },
   ] satisfies readonly Instructor[],
+  merchandise: [
+    {
+      key: "gi",
+      title: "GIs (kimonos)",
+      description: "Competition-ready BPT gis in blue, black and white with embroidered lettering.",
+      image: "/shop/gis.jpg",
+      imageAlt: "Blue BPT gi trousers hanging on a rail with Brazilian Power Team lettering.",
+    },
+    {
+      key: "rashguard",
+      title: "Rashguards",
+      description: "No-Gi rashguards with the BPT tiger, in team colours and limited runs.",
+      image: "/shop/rashguards.jpg",
+      imageAlt: "Pink and black BPT rashguard sleeve showing the tiger emblem.",
+    },
+    {
+      key: "shorts",
+      title: "Shorts",
+      description: "Lightweight grappling shorts for No-Gi classes and open mats.",
+      image: "/shop/shorts.jpg",
+      imageAlt: "Black BPT grappling shorts with Brazilian Power Team print.",
+    },
+    {
+      key: "backpack",
+      title: "Backpacks",
+      description: "Training backpacks with a separate gi compartment and ventilated base.",
+      image: "/shop/backpacks.jpg",
+      imageAlt: "Grey Brazilian Power Team training backpack hanging on a rail.",
+    },
+    {
+      key: "casual",
+      title: "Casual clothing",
+      description: "Joggers, hoodies and team wear for before and after training.",
+      image: "/shop/casual.jpg",
+      imageAlt: "Grey BPT joggers with the embroidered tiger patch.",
+    },
+  ] satisfies readonly MerchandiseCategory[],
   notes: {
     booking:
       "Timetables and fees are published information. Confirm eligibility and current term availability when booking.",
     contact:
       "Book a free class and the academy team will help you choose the right starting point.",
+    merchandise:
+      "Sign in to your client account to see current prices, sizes and place an order. Orders are paid at the academy on collection.",
   },
 } as const;

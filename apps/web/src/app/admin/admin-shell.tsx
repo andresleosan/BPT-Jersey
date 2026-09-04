@@ -27,6 +27,7 @@ const navigationItems = [
   { label: "Retention", href: "/admin/retention" },
   { label: "Finance", href: "/admin/finance" },
   { label: "Billing", href: "/admin/billing" },
+  { label: "Shop", href: "/admin/shop" },
   { label: "Regyfit Access Records", href: "/admin/regyfit-access-records" },
   { label: "Staff", href: "/admin/staff" },
   { label: "Levels", href: "/admin/levels" },

@@ -68,6 +68,7 @@ describe("public academy content", () => {
       "https://bptjersey.com/",
       "https://bptjersey.com/classes",
       "https://bptjersey.com/contact-us",
+      "https://bptjersey.com/club-merchandise",
     ]);
   });
 

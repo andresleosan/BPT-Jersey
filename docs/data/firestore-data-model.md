@@ -698,6 +698,29 @@ passwords, MFA secrets, provider secrets, R2 keys, or service-account keys.
 Provider-specific payment behavior remains behind `T010` and cannot alter the
 canonical history without verified, idempotent reconciliation.
 
+### T105 club shop catalog and collection orders
+
+The club shop replicates the public `bptjersey.com/club-merchandise` showcase
+(GIs, rashguards, shorts, backpacks, casual clothing) inside the platform. The
+landing page shows a static category showcase; prices, sizes and ordering live
+behind the authenticated client area, and the catalog is managed from
+`/admin/shop`. There is no online checkout: an order is a collection request
+paid at the academy, consistent with the manual finance boundary of `T037` and
+the blocked payment provider decision of `T010`. Shop orders do not create
+`invoices` or `payments`; if the academy needs a receipt it uses the manual
+finance flow.
+
+| Collection     | Required fields                                                                                                                                                                                                                                                                                                                                | References                                                                                                                                 | Classification                                              | Write authority                                                                                                                                                 | Deletion/history rule                                                                                                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shopProducts` | `productId` (slug, document ID), `academyId`, `name`, `category`, `description`, `priceMinor`, `currency`, `sizes`, `imageUrl`, `stockStatus`, `sortOrder`, `active`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy`                                                                                                     | None. `imageUrl` is an `https:` URL or a `/shop/...` path served by the web app; no R2 upload is involved.                                 | `Internal` (public marketing data)                          | `saveShopProduct` / `setShopProductActive`, owner or administrator only, App Check enforced.                                                                    | Products are never hard-deleted; `active: false` hides them from clients while past orders keep their product snapshot. Every save and visibility change writes `auditEvents`.        |
+| `shopOrders`   | `orderId` (`order-<requestId>`, document ID), `academyId`, `requestId`, `customerUserId`, `productId`, `productName`, `category`, `size`, `quantity`, `unitPriceMinor`, `totalMinor`, `currency`, `contactName`, `contactPhone`, `note`, `status`, `paymentStatus`, `staffNote`, `schemaVersion`, `createdAt`, `createdBy`, `updatedAt`, `updatedBy` | `customerUserId` -> `users` (Auth UID of the guardian or adult student), `productId` -> `shopProducts` (price and name are snapshotted). | `Confidential` (customer contact details and purchase data) | `placeShopOrder` for `guardian`/`adultStudent`; `updateShopOrder` for owner/administrator. Price, totals, tenant, customer and timestamps are server-owned.       | Append-only in effect: status moves `requested -> confirmed -> ready -> collected`, `cancelled` is terminal, and payment is toggled by staff. No hard delete; every change is audited. |
+
+Idempotency: `orderId` derives from the client `requestId`, so a replay by the
+same customer returns the stored order and a replay by another user is rejected.
+Queries are single-field equality (`academyId`, `customerUserId`) with bounded
+limits, so no new composite index is required. Firestore Rules deny direct
+client access to both collections.
+
 ### T037 manual finance boundary
 
 T037 uses `invoices` as the canonical charge source and `payments` as recorded

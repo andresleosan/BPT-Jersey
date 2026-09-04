@@ -188,6 +188,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/shopProducts/{productId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/shopOrders/{orderId} {
+      allow read, write: if false;
+    }
+
     match /memberDirectoryRestoreGuards/{academyId} {
       allow read, write: if false;
     }

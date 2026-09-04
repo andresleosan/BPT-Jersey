@@ -25,6 +25,7 @@ export default function HomePage() {
           <a href="#top">Home</a>
           <a href="#classes">Classes</a>
           <a href="#programs">Programs</a>
+          <a href="#shop">Shop</a>
           <a href="#locations">Locations</a>
           <a href="#contact">Contact</a>
           <a className="nav-cta" href="/login">
@@ -152,6 +153,41 @@ export default function HomePage() {
             ))}
           </ul>
           <p className="fee-note">{academyContent.notes.booking}</p>
+        </section>
+
+        <section className="merch-section" id="shop" aria-labelledby="shop-title">
+          <div className="section-heading">
+            <p className="section-kicker">Club merchandise</p>
+            <h2 id="shop-title">Wear the team</h2>
+            <p>{academyContent.notes.merchandise}</p>
+          </div>
+          <ul className="merch-grid" aria-label="Merchandise categories">
+            {academyContent.merchandise.map((category) => (
+              <li className="merch-card" key={category.key}>
+                <figure className="merch-figure">
+                  <Image
+                    alt={category.imageAlt}
+                    className="merch-image"
+                    height={1125}
+                    sizes="(max-width: 50rem) 100vw, 20vw"
+                    src={category.image}
+                    width={900}
+                  />
+                </figure>
+                <p className="card-label">Category</p>
+                <h3>{category.title}</h3>
+                <p>{category.description}</p>
+              </li>
+            ))}
+          </ul>
+          <div className="hero-actions merch-actions">
+            <a className="button button-primary" href="/login?role=client&returnTo=%2Fshop">
+              Sign in to order
+            </a>
+            <a className="button button-secondary" href="/shop">
+              Open the club shop
+            </a>
+          </div>
         </section>
 
         <section className="platform-section" id="platform" aria-labelledby="platform-title">

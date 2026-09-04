@@ -46,6 +46,7 @@
     "src/crm/crm-contracts.ts",
     "src/payments/payment-contracts.ts",
     "src/reports/operational-report.ts",
-    "src/exports/aggregate-report-export.ts"
+    "src/exports/aggregate-report-export.ts",
+    "src/shop/shop-contracts.ts"
   ]
 }
