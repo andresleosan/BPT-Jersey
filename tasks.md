@@ -4078,6 +4078,7 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas√
 - T102, T103 y T104 tenian secciones de evidencia pero ninguna fila en las tablas; se anadieron a la tabla de Recuperacion del MVP con su estado real (T102 y T103 desplegadas, T104 bloqueada en web).
 - T105 pasa de `revision` a `desplegada` conforme a su seccion de despliegue. T105, T106 y T107 faltaban en `Lista/Lista.js`; se sincronizaron junto con T101-T104 y la fecha de corte 2026-09-04.
 - Tests de sincronizacion `qa/unit/lista-progress.test.ts` y `qa/unit/lista-resolution-board.test.ts` actualizados al nuevo estado (12 tareas en revision, 34 no aprobadas, T093 y T106 en progreso); T104, T106 y T107 reciben requisitos de resolucion en `Lista.js`.
+- Commits en `main` (sin push): `cf9c2ba` T101, `bd549bc` T106 paso 1, `c4bf34d` E2E T093, `bb973f3` ledger y T107.
 - Plataforma de esta sesion: Claude Code (sin adaptador verificado en `.cronos/adapters`); se aplicaron las reglas de `AGENTS.md` y `.cronos/AGENCY.md` sin cambios de configuracion.
 
 ### Evidencia T106 paso 1 - contacto de emergencia y direccion en el alta administrativa - 2026-09-04
