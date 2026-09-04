@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+
 import {
   assertLevelSeedConfirmation,
   assertLevelSeedTargetEnvironment,
@@ -24,7 +26,13 @@ async function main() {
   };
   const targetBinding = assertLevelSeedTargetEnvironment(target, initialEnvironment);
   assertLevelSeedConfirmation(target, isRollback, confirmation);
-  const firebaseApp = await import("firebase-admin/app");
+  // Load the Admin SDK from the deploy artifact dependency tree, the same one the compiled
+  // level-service/audit-writer use. Mixing two firebase-admin copies breaks the publication:
+  // FieldValue.serverTimestamp() from one copy cannot be serialized by the other Firestore client.
+  const artifactRequire = createRequire(
+    new URL("../../../.firebase-functions/lib/src/levels/level-seed.js", import.meta.url),
+  );
+  const firebaseApp = artifactRequire("firebase-admin/app");
   const existingApp = firebaseApp.getApps()[0];
   const environment = {
     ...initialEnvironment,
@@ -36,8 +44,8 @@ async function main() {
     throw new Error("Level seed target is not safe.");
   }
   const app = existingApp ?? firebaseApp.initializeApp({ projectId: targetBinding.projectId });
-  const [firebaseFirestore, levelService, levelSeed] = await Promise.all([
-    import("firebase-admin/firestore"),
+  const firebaseFirestore = artifactRequire("firebase-admin/firestore");
+  const [levelService, levelSeed] = await Promise.all([
     import("../../../.firebase-functions/lib/src/levels/level-service.js"),
     import("../../../.firebase-functions/lib/src/levels/level-seed.js"),
   ]);

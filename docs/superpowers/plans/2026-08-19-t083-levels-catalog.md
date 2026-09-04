@@ -220,6 +220,8 @@ Use the existing adapter style from `membership-service.ts`. Validate every path
 
 > Corrección posterior T101 (2026-09-03): la revisión de cierre comprobó que el store actual escribe de forma secuencial y puede declarar un replay idempotente después de un fallo parcial. Staging permanece bloqueado hasta implementar publicación atómica o por estados verificables, manifest de integridad y rollback con referencias comprobadas.
 
+> Cierre T101 (2026-09-04): la publicación es una única transacción (337 documentos + manifest + auditoría), el replay solo es idempotente tras verificar sistema, hijos, manifest y auditoría, las fuentes se resuelven desde el módulo con hashes aprobados y el rollback exige manifest íntegro, cero referencias y auditoría. El CLI carga `firebase-admin` desde el artefacto `.firebase-functions` porque mezclar dos copias del SDK impedía serializar `FieldValue.serverTimestamp()`. Evidencia en `tasks.md`.
+
 The read projection must omit `source.url`, raw source payloads, cookies, tokens, actor IDs, and server timestamps. It may include sanitized `anomalyFlags` and the source-precedence labels required by the UI.
 
 - [x] **Step 5: Implement explicit seed and rollback guards**

@@ -1,12 +1,17 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   type LevelCatalogStore,
   type LevelRollbackResult,
   type LevelSeedResult,
 } from "./level-service.js";
-import { normalizeLevelCatalogSource } from "./level-source.js";
+import {
+  assertApprovedLevelCatalogSource,
+  normalizeLevelCatalogSource,
+  type NormalizedLevelCatalog,
+} from "./level-source.js";
 
 export type LevelSeedTarget = "emulator" | "staging";
 
@@ -43,29 +48,47 @@ export type RollbackLevelCatalogInput = Readonly<{
   store: LevelCatalogStore;
 }>;
 
+// The approved sources are resolved from this module, never from the working directory, so the
+// same artifact loads the same files regardless of where the CLI is launched. The repository root
+// is four directories above this module in every supported layout (apps/functions/src/levels,
+// apps/functions/lib/src/levels and .firebase-functions/lib/src/levels).
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+
+export const levelCatalogSourcePaths = Object.freeze({
+  observed: resolve(repositoryRoot, "docs/data/ibjjf-levels-observed.sanitized.json"),
+  businessCriteria: resolve(
+    repositoryRoot,
+    "docs/data/ibjjf-levels-business-criteria.sanitized.json",
+  ),
+});
+
+function readApprovedSourceFile(path: string): unknown {
+  return JSON.parse(readFileSync(path, "utf8")) as unknown;
+}
+
 function loadLevelCatalogSources(
   input: Readonly<{
     customObserved?: unknown;
     customBusiness?: unknown;
   }>,
 ): Readonly<{ observed: unknown; business: unknown }> {
-  const observed =
-    input.customObserved ??
-    JSON.parse(
-      readFileSync(
-        resolve(process.cwd(), "docs/data/ibjjf-levels-observed.sanitized.json"),
-        "utf8",
-      ),
-    );
+  const observed = input.customObserved ?? readApprovedSourceFile(levelCatalogSourcePaths.observed);
   const business =
-    input.customBusiness ??
-    JSON.parse(
-      readFileSync(
-        resolve(process.cwd(), "docs/data/ibjjf-levels-business-criteria.sanitized.json"),
-        "utf8",
-      ),
-    );
+    input.customBusiness ?? readApprovedSourceFile(levelCatalogSourcePaths.businessCriteria);
   return Object.freeze({ observed, business });
+}
+
+export function loadApprovedLevelCatalog(
+  input: Readonly<{
+    customObserved?: unknown;
+    customBusiness?: unknown;
+  }> = {},
+): NormalizedLevelCatalog {
+  const { observed, business } = loadLevelCatalogSources(input);
+  const normalized = normalizeLevelCatalogSource(observed, business);
+  // Fail before any store access when the sources are not the exact approved files.
+  assertApprovedLevelCatalogSource(normalized);
+  return normalized;
 }
 
 const demoProjectId = "demo-bpt-jersey";
@@ -165,8 +188,7 @@ export async function seedLevelCatalog(input: SeedLevelCatalogInput): Promise<Le
   }
   assertLevelSeedTargetEnvironment(input.target, input.environment);
 
-  const { observed, business } = loadLevelCatalogSources(input);
-  const normalized = normalizeLevelCatalogSource(observed, business);
+  const normalized = loadApprovedLevelCatalog(input);
   return input.store.seed({
     academyId: input.academyId,
     normalized,
@@ -184,8 +206,7 @@ export async function rollbackLevelCatalog(
   if (input.systemId !== "ibjjf-v1") {
     throw new Error("Unsupported level system rollback target.");
   }
-  const { observed, business } = loadLevelCatalogSources({});
-  const normalized = normalizeLevelCatalogSource(observed, business);
+  const normalized = loadApprovedLevelCatalog();
 
   return input.store.rollback({
     academyId: input.academyId,

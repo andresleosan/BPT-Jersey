@@ -210,9 +210,12 @@ evidencia fresca antes de pasar a revision. El gate local usa verify:mvp con bui
   ejecutará ninguna importación ni reconciliación productiva como parte de esta corrección.
 - T100 aplica la misma frontera al seed/rollback de Levels: target y academia explícitos, IDs de
   proyecto coincidentes, Emulator fijado a `demo-bpt-jersey` en `127.0.0.1:8080`, confirmaciones
-  distintas para seed y rollback, y staging con allowlist positiva vacía. T101 sigue abierto para
-  publicación atómica, hashes fuente vinculantes y rollback con integridad referencial; T099 no
-  puede habilitar staging antes de cerrarlo.
+  distintas para seed y rollback, y staging con allowlist positiva vacía. T101 cerró técnicamente el
+  2026-09-04 (en revisión): publicación de 339 escrituras en una transacción con manifest, replay
+  idempotente solo tras verificar la publicación completa, fuentes resueltas desde el módulo con
+  hashes aprobados y rollback con cero referencias y auditoría; el CLI carga `firebase-admin` desde
+  el artefacto para no mezclar dos copias del SDK. T099 sigue sin poder habilitar staging hasta la
+  aprobación de T101 y el cierre de T011.
 - La proyección legacy de Members todavía incluye ID card/VAT en listados y PDFs generales. T093
   debe eliminar esa exposición con pruebas negativas antes de cualquier dato real o cutover; hasta
   entonces esas superficies siguen bloqueadas para PII real.

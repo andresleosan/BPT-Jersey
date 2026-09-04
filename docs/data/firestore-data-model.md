@@ -1123,7 +1123,7 @@ widens the projection.
   `209a46d2c9e13404601248ec7cfd82868058e567d91bb95946676d4f5fe0d98d`
   (business criteria).
 
-The non-production seed (`apps/functions/scripts/seed-levels.mjs`) is the only writer. Its preflight requires explicit target and academy, exact agreement among every discovered Firebase project ID, and the exact Emulator project/host pair. The production project is deny-listed and staging remains closed until T099 supplies an operator-approved positive allowlist. Direct client reads and writes are denied by default. The callable `listLevelCatalog` provides authenticated read access.
+The non-production seed (`apps/functions/scripts/seed-levels.mjs`) is the only writer. It resolves the two approved source files relative to the compiled module (never the working directory), verifies both approved hashes before touching Firestore, and loads `firebase-admin` from the deploy artifact dependency tree so the transactional audit sentinel serializes correctly (T101). Its preflight requires explicit target and academy, exact agreement among every discovered Firebase project ID, and the exact Emulator project/host pair. The production project is deny-listed and staging remains closed until T099 supplies an operator-approved positive allowlist. Direct client reads and writes are denied by default. The callable `listLevelCatalog` provides authenticated read access.
 
 Publication uses one Firestore transaction with 339 writes: the 337 catalog documents
 (1 system + 171 definitions + 165 requirements), one manifest, and one standard

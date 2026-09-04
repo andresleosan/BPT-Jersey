@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
@@ -9,10 +11,12 @@ import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.
 import { createInMemoryLevelStore, type LevelCatalogStore } from "./level-service";
 import {
   assertLevelSeedTargetEnvironment,
+  levelCatalogSourcePaths,
   rollbackLevelCatalog,
   seedLevelCatalog,
   type LevelSeedTargetEnvironment,
 } from "./level-seed";
+import { approvedLevelCatalogSourceHashes } from "./level-source";
 
 const emulatorEnvironment = (): LevelSeedTargetEnvironment => ({
   gcloudProjectId: "demo-bpt-jersey",
@@ -133,12 +137,12 @@ describe("Level Seed Guard and Execution", () => {
     const guardPosition = runner.indexOf("const targetBinding = assertLevelSeedTargetEnvironment");
     const confirmationPosition = runner.indexOf("assertLevelSeedConfirmation(");
     const appModulePosition = runner.indexOf(
-      'const firebaseApp = await import("firebase-admin/app")',
+      'const firebaseApp = artifactRequire("firebase-admin/app")',
     );
     const verifiedBindingPosition = runner.indexOf(
       "const verifiedBinding = assertLevelSeedTargetEnvironment",
     );
-    const operationalRuntimePosition = runner.indexOf("const [firebaseFirestore");
+    const operationalRuntimePosition = runner.indexOf("const [levelService, levelSeed]");
     const initializePosition = runner.indexOf("const app =");
 
     expect(guardPosition).toBeGreaterThan(-1);
@@ -323,6 +327,64 @@ describe("Level Seed Guard and Execution", () => {
     ).rejects.toThrow(/Unsupported level system rollback target/);
     expect(seed).not.toHaveBeenCalled();
     expect(rollback).not.toHaveBeenCalled();
+  });
+
+  it("resolves the approved sources from the module, not from the working directory", async () => {
+    const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+    expect(levelCatalogSourcePaths.observed).toBe(
+      resolve(repositoryRoot, "docs/data/ibjjf-levels-observed.sanitized.json"),
+    );
+    expect(levelCatalogSourcePaths.businessCriteria).toBe(
+      resolve(repositoryRoot, "docs/data/ibjjf-levels-business-criteria.sanitized.json"),
+    );
+    expect(JSON.parse(readFileSync(levelCatalogSourcePaths.observed, "utf8"))).toEqual(
+      observedJson,
+    );
+
+    const cwd = vi.spyOn(process, "cwd").mockReturnValue(tmpdir());
+    try {
+      const store = createInMemoryLevelStore();
+      const result = await seedLevelCatalog({
+        target: "emulator",
+        academyId: "demo-academy",
+        environment: emulatorEnvironment(),
+        store,
+      });
+      expect(result.sourceHash).toBe(approvedLevelCatalogSourceHashes.combined);
+      const rollback = await rollbackLevelCatalog({
+        target: "emulator",
+        academyId: "demo-academy",
+        systemId: "ibjjf-v1",
+        environment: emulatorEnvironment(),
+        store,
+      });
+      expect(rollback.deletedDefinitions).toBe(171);
+    } finally {
+      cwd.mockRestore();
+    }
+  });
+
+  it("rejects sources that are valid but not the approved files before touching the store", async () => {
+    const seed = vi.fn();
+    const store = { seed } as unknown as LevelCatalogStore;
+    const tamperedObserved = structuredClone(observedJson) as {
+      levels: { name: string }[];
+    };
+    const firstLevel = tamperedObserved.levels[0];
+    if (firstLevel === undefined) throw new Error("Fixture level required.");
+    firstLevel.name = "Tampered level";
+
+    await expect(
+      seedLevelCatalog({
+        target: "emulator",
+        academyId: "demo-academy",
+        environment: emulatorEnvironment(),
+        store,
+        customObserved: tamperedObserved,
+        customBusiness: businessCriteriaJson,
+      }),
+    ).rejects.toThrow(/do not match the approved hashes|Invalid level catalog source data/);
+    expect(seed).not.toHaveBeenCalled();
   });
 
   it("seeds successfully to emulator target with valid sources", async () => {
