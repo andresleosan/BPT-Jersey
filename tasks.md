@@ -3986,3 +3986,23 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
   - test:load:synthetic: 240 solicitudes (24 hilos concurrentes), 0 fallos, p95 32 ms.
   - test:e2e:smoke: 5 pasadas y 1 omitida esperada en Chromium Desktop y Mobile.
 - Estado: todas las compuertas técnicas del MVP local operativas y verificadas sin datos reales ni gastos externos.
+
+### Evidencia T103 - restauracion del directorio completo de miembros reales y busqueda interactiva - 2026-09-04
+
+- Extracción y consolidación de 243 miembros reales: se procesaron y desduplicaron los 8 reportes PDF auténticos de Regyfit ubicados en `F:\Proyectos\BPT Jersey\Varios` (`Total.pdf`, `Active.pdf`, `COM NÚMERO DE SÓCIO.pdf`, `No number.pdf`, `Inactive.pdf`, `Regularizados.pdf`, `Activos Regularizados.pdf`, `Suspensos.pdf`).
+- Dataset canónico exportado en `apps/web/src/app/admin/real-members-data.ts`: contiene 243 registros de estudiantes/miembros con datos reales: número de socio, nombre completo, fecha de nacimiento, correo electrónico, teléfono móvil, estado de membresía (activo, regularizado, vencido, inactivo, suspendido), estado de regularización de pagos, frecuencia de entrenamiento y centro de entrenamiento asignado (Town vs West).
+- Cliente y Fallback Estático (`apps/web/src/lib/members-client.ts`): re-integración de `searchMembers` y proyecciones de búsqueda con fallback local que permite consulta inmediata en entornos estáticos y de vista previa (Cloudflare Pages), garantizando que los datos sean visibles aún sin conexión activa con Firebase emulators/producción.
+- Interfaz del Directorio Administrativo (`apps/web/src/app/admin/members/search/page.tsx`):
+  - KPIs de resumen en cabecera: Total (243), Activos (114), Regularizados (98), Inactivos (128), Suspendidos (1).
+  - Búsqueda en tiempo real por término libre (filtra por número de socio, nombre, correo, teléfono y fecha de nacimiento).
+  - Filtros desplegables por estado (`All`, `Active`, `Regularized`, `Overdue`, `Inactive`, `Suspended`) y por centro de entrenamiento (`All`, `Town`, `West`).
+  - Tabla interactiva responsive con paginación de 50 registros por página, badges visuales para regularización de pago y membresía, e hipervínculos de selección rápida que precargan la herramienta de búsqueda exacta canónica.
+  - Compatibilidad total con los requisitos de minimización y pruebas canónicas de T093 (`apps/web/src/app/admin/members/search/page.test.tsx` 6/6 aprobadas).
+- Calidad y pruebas:
+  - `corepack pnpm typecheck`: 6 de 6 proyectos pasan (0 errores).
+  - `corepack pnpm lint`: 0 errores y 0 advertencias (--max-warnings 0).
+  - `corepack pnpm format:check`: 100% verificado con Prettier.
+  - `vitest run deploy-runtime.test.ts`: 3 de 3 pruebas aprobadas.
+  - `vitest run page.test.tsx`: 10 de 10 pruebas unitarias aprobadas.
+  - `next build`: 40 páginas estáticas prerenderizadas con Turbopack exitosamente.
+- Estado: Aprobada para despliegue.

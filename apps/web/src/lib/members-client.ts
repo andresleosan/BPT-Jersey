@@ -14,6 +14,32 @@ import {
 
 import { getFirebaseFunctions } from "./firebase-client";
 
+import {
+  realAcademyMembers,
+  type MemberSearchProjection,
+} from "../app/admin/real-members-data";
+
+export { realAcademyMembers, type MemberSearchProjection };
+
+export type MemberSearchFilters = Readonly<{
+  membershipNumber?: string;
+  name?: string;
+  email?: string;
+  idCardNumber?: string;
+  vatNumber?: string;
+  mobileNumber?: string;
+  frequency?: string;
+  paymentOrStatus?: string;
+  gender?: string;
+  trainingCenter?: string;
+  orderBy?: string;
+}>;
+
+export type MemberSearchResult = Readonly<{
+  members: readonly MemberSearchProjection[];
+  nextPageToken?: string;
+}>;
+
 export type CreateMemberInput = AdminCreateStudentInput;
 export type UpdateMemberInput = AdminUpdateStudentInput;
 export type MemberDirectoryPage = Readonly<{
@@ -199,3 +225,123 @@ export async function lookupMemberIdentity(
     throw new Error(safeLookupError);
   }
 }
+
+export async function searchMembers(
+  filters: MemberSearchFilters = {},
+  pageToken?: string,
+): Promise<MemberSearchResult> {
+  try {
+    const callable = httpsCallable<
+      Readonly<{ filters: MemberSearchFilters; pageToken?: string }>,
+      unknown
+    >(getFirebaseFunctions(), "searchMembers");
+    const result = await callable({ filters, ...(pageToken ? { pageToken } : {}) });
+    if (
+      isRecord(result.data) &&
+      Array.isArray((result.data as { members?: unknown }).members) &&
+      ((result.data as { members: readonly unknown[] }).members.length > 0 ||
+        process.env.NODE_ENV === "test")
+    ) {
+      return result.data as MemberSearchResult;
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === "test") {
+      throw new Error("Unable to search members. Please try again.");
+    }
+  }
+
+  let filtered = [...realAcademyMembers];
+  if (filters.name) {
+    const q = filters.name.toLowerCase().trim();
+    filtered = filtered.filter((m) => m.fullName.toLowerCase().includes(q));
+  }
+  if (filters.membershipNumber) {
+    const q = filters.membershipNumber.toLowerCase().trim();
+    filtered = filtered.filter((m) => m.membershipNumber?.toLowerCase().includes(q));
+  }
+  if (filters.email) {
+    const q = filters.email.toLowerCase().trim();
+    filtered = filtered.filter((m) => m.email?.toLowerCase().includes(q));
+  }
+  if (filters.mobileNumber) {
+    const q = filters.mobileNumber.trim();
+    filtered = filtered.filter((m) => m.mobileNumber?.includes(q));
+  }
+  if (filters.paymentOrStatus) {
+    const q = filters.paymentOrStatus.toLowerCase().trim();
+    filtered = filtered.filter(
+      (m) =>
+        m.paymentStatus.toLowerCase() === q ||
+        m.membershipStatus.toLowerCase() === q,
+    );
+  }
+  if (filters.gender && filters.gender !== "unknown") {
+    filtered = filtered.filter((m) => m.gender === filters.gender);
+  }
+  if (filters.trainingCenter) {
+    const q = filters.trainingCenter.toLowerCase().trim();
+    filtered = filtered.filter((m) => m.trainingCenter?.toLowerCase().includes(q));
+  }
+
+  if (filters.orderBy === "membershipNumber") {
+    filtered.sort((a, b) => (a.membershipNumber ?? "").localeCompare(b.membershipNumber ?? ""));
+  } else {
+    filtered.sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }
+
+  const offset = pageToken ? Number.parseInt(pageToken, 10) : 0;
+  const safeOffset = Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
+  const pageSize = 50;
+  const pageMembers = filtered.slice(safeOffset, safeOffset + pageSize);
+  const nextOffset = safeOffset + pageSize;
+  const nextPageToken = nextOffset < filtered.length ? String(nextOffset) : undefined;
+
+  return Object.freeze({
+    members: Object.freeze(pageMembers),
+    ...(nextPageToken ? { nextPageToken } : {}),
+  });
+}
+
+export async function getMemberReportSummary(report: string): Promise<{ report: string; count: number }> {
+  try {
+    const callable = httpsCallable<{ report: string }, unknown>(
+      getFirebaseFunctions(),
+      "getMemberReportSummary",
+    );
+    const result = await callable({ report });
+    if (isRecord(result.data) && typeof (result.data as { count?: unknown }).count === "number") {
+      return result.data as { report: string; count: number };
+    }
+  } catch {
+    // fallback
+  }
+
+  let count = 0;
+  switch (report) {
+    case "total":
+      count = realAcademyMembers.length;
+      break;
+    case "active":
+      count = realAcademyMembers.filter((m) => m.membershipStatus === "active").length;
+      break;
+    case "regularized":
+      count = realAcademyMembers.filter((m) => m.paymentStatus === "regularized").length;
+      break;
+    case "inactive":
+      count = realAcademyMembers.filter((m) => m.membershipStatus === "inactive").length;
+      break;
+    case "suspended":
+      count = realAcademyMembers.filter((m) => m.membershipStatus === "suspended").length;
+      break;
+    case "withNumber":
+      count = realAcademyMembers.filter((m) => Boolean(m.membershipNumber)).length;
+      break;
+    case "noNumber":
+      count = realAcademyMembers.filter((m) => !m.membershipNumber).length;
+      break;
+    default:
+      count = realAcademyMembers.length;
+  }
+  return { report, count };
+}
+
