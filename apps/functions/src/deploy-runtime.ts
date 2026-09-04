@@ -8,6 +8,8 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/payments": "../../domain/payments/payment-contracts.js",
   "@bpt-jersey/domain/members": "../../domain/members/member-contracts.js",
   "@bpt-jersey/domain/members/directory": "../../domain/members/member-directory-contracts.js",
+  "@bpt-jersey/domain/members/regyfit-records":
+    "../../domain/members/regyfit-member-record-contracts.js",
   "@bpt-jersey/domain/memberships/lifecycle": "../../domain/memberships/membership-contracts.js",
   "@bpt-jersey/domain/memberships": "../../domain/memberships/plan-contracts.js",
   "@bpt-jersey/domain/profiles": "../../domain/profiles/profile-contracts.js",

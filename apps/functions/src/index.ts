@@ -10,6 +10,10 @@ export {
 export type { AdminActor } from "./auth/admin-authorization.js";
 export { bootstrapEmulatorOwner, provisionAdminRole } from "./auth/admin-provisioning.js";
 export { listRegyfitAccessRecords } from "./regyfit/access-records.js";
+export {
+  getRegyfitMemberRecord,
+  listRegyfitMemberRecords,
+} from "./regyfit/member-records.js";
 export { cleanupExpiredMemberImportSessionsSchedule } from "./members/member-callables.js";
 export {
   cleanupExpiredCanonicalMemberImportSessionsSchedule,

@@ -6,6 +6,10 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /academies/{academyId}/regyfitMemberRecords/{recordId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/members/{memberId} {
       allow read, write: if false;
     }

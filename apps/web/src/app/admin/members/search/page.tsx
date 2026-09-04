@@ -1,21 +1,28 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type {
   AdminDirectoryRow,
   MemberRecordMaintenanceDetail,
   PublicAdminIdentifierLookupKind,
 } from "@bpt-jersey/domain/members/directory";
 import { maskMembershipReference } from "@bpt-jersey/domain/members/directory";
+import type {
+  RegyfitMemberDirectoryPage,
+  RegyfitMemberDirectoryRow,
+  RegyfitMemberRecord,
+} from "@bpt-jersey/domain/members/regyfit-records";
 
 import {
   getMemberDetail,
+  getRegyfitMemberRecord,
+  listRegyfitMemberRecords,
   lookupMemberIdentity,
   updateMember,
   type UpdateMemberInput,
 } from "../../../../lib/members-client";
 import { AdminStatusBadge } from "../../admin-ui";
-import { realAcademyMembers } from "../../real-members-data";
+import { MemberProfilePanel } from "./member-profile-panel";
 
 import "../../admin.css";
 
@@ -31,6 +38,17 @@ type DetailState =
   | Readonly<{ status: "loading" }>
   | Readonly<{ status: "loaded"; detail: MemberRecordMaintenanceDetail }>
   | Readonly<{ status: "error" }>;
+
+type DirectoryState =
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "loaded"; page: RegyfitMemberDirectoryPage }>
+  | Readonly<{ status: "error" }>;
+
+type RecordState =
+  | Readonly<{ status: "idle" }>
+  | Readonly<{ status: "loading"; recordId: string }>
+  | Readonly<{ status: "loaded"; record: RegyfitMemberRecord }>
+  | Readonly<{ status: "error"; recordId: string }>;
 
 function displayOptional(value: string | undefined): string {
   return value === undefined || value.length === 0 ? "Not provided" : value;
@@ -338,58 +356,55 @@ function RestrictedDetail({
   );
 }
 
+function matchesQuery(row: RegyfitMemberDirectoryRow, query: string): boolean {
+  const haystacks = [row.fullName, row.memberNumber, row.email, row.mobile, row.birthDate];
+  return haystacks.some((value) => value !== undefined && value.toLowerCase().includes(query));
+}
+
 function AcademyMemberDirectorySection({
-  onSelectMemberNumber,
+  directory,
+  onRetry,
+  onSelectRecord,
+  selectedRecordId,
 }: {
-  onSelectMemberNumber: (membershipNumber: string) => void;
+  directory: DirectoryState;
+  onRetry: () => void;
+  onSelectRecord: (row: RegyfitMemberDirectoryRow) => void;
+  selectedRecordId: string | undefined;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [centerFilter, setCenterFilter] = useState("all");
+  const [stateFilter, setStateFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
-  const filteredMembers = useMemo(() => {
-    let list = realAcademyMembers;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (m) =>
-          m.fullName.toLowerCase().includes(q) ||
-          (m.membershipNumber && m.membershipNumber.toLowerCase().includes(q)) ||
-          m.memberId.toLowerCase().includes(q) ||
-          (m.email && m.email.toLowerCase().includes(q)) ||
-          (m.mobileNumber && m.mobileNumber.includes(q)) ||
-          (m.birthDate && m.birthDate.includes(q)),
-      );
-    }
-    if (statusFilter !== "all") {
-      if (statusFilter === "regularized") {
-        list = list.filter((m) => m.paymentStatus === "regularized");
-      } else if (statusFilter === "overdue") {
-        list = list.filter((m) => m.paymentStatus === "overdue");
-      } else {
-        list = list.filter((m) => m.membershipStatus === statusFilter);
-      }
-    }
-    if (centerFilter !== "all") {
-      list = list.filter((m) => m.trainingCenter?.includes(centerFilter));
-    }
-    return list;
-  }, [searchQuery, statusFilter, centerFilter]);
+  const rows = useMemo(
+    () => (directory.status === "loaded" ? directory.page.rows : []),
+    [directory],
+  );
+  const paymentModes = useMemo(
+    () =>
+      [...new Set(rows.map((row) => row.paymentMode).filter((mode) => mode !== undefined))].sort(),
+    [rows],
+  );
 
-  const totalPages = Math.ceil(filteredMembers.length / pageSize) || 1;
+  const filteredRows = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    return rows.filter(
+      (row) =>
+        (query.length === 0 || matchesQuery(row, query)) &&
+        (stateFilter === "all" || row.membershipState === stateFilter) &&
+        (paymentFilter === "all" || row.paymentMode === paymentFilter),
+    );
+  }, [rows, searchQuery, stateFilter, paymentFilter]);
+
+  const totalPages = Math.ceil(filteredRows.length / pageSize) || 1;
   const safePage = Math.min(page, totalPages - 1);
-  const currentMembers = filteredMembers.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  const currentRows = filteredRows.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
-  const activeCount = realAcademyMembers.filter((m) => m.membershipStatus === "active").length;
-  const regularizedCount = realAcademyMembers.filter(
-    (m) => m.paymentStatus === "regularized",
-  ).length;
-  const inactiveCount = realAcademyMembers.filter((m) => m.membershipStatus === "inactive").length;
-  const suspendedCount = realAcademyMembers.filter(
-    (m) => m.membershipStatus === "suspended",
-  ).length;
+  const activeCount = rows.filter((row) => row.membershipState === "active").length;
+  const inactiveCount = rows.length - activeCount;
+  const numberedCount = rows.filter((row) => row.memberNumber !== undefined).length;
 
   return (
     <section
@@ -399,179 +414,212 @@ function AcademyMemberDirectorySection({
     >
       <div className="admin-panel-card-heading">
         <div>
-          <p className="admin-eyebrow">Members / Authentic Academy Records</p>
-          <h3 id="directory-search-heading">Academy Member Directory (243 Records)</h3>
+          <p className="admin-eyebrow">Members / Regyfit academy records</p>
+          <h3 id="directory-search-heading">
+            Academy member directory{rows.length > 0 ? ` (${rows.length} records)` : ""}
+          </h3>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", margin: "1rem 0" }}>
-        <span className="admin-status-badge admin-status-active">
-          Total: {realAcademyMembers.length}
-        </span>
-        <span className="admin-status-badge admin-status-active">Active: {activeCount}</span>
-        <span className="admin-status-badge admin-status-active">
-          Regularized: {regularizedCount}
-        </span>
-        <span className="admin-status-badge admin-status-attention">Inactive: {inactiveCount}</span>
-        <span className="admin-status-badge admin-status-overdue">Suspended: {suspendedCount}</span>
-      </div>
+      {directory.status === "loaded" ? (
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", margin: "1rem 0" }}>
+          <span className="admin-status-badge admin-status-active">Total: {rows.length}</span>
+          <span className="admin-status-badge admin-status-active">Active: {activeCount}</span>
+          <span className="admin-status-badge admin-status-attention">
+            Inactive: {inactiveCount}
+          </span>
+          <span className="admin-status-badge admin-status-active">
+            With member Nº: {numberedCount}
+          </span>
+          <span className="admin-status-badge admin-status-attention">
+            No number: {rows.length - numberedCount}
+          </span>
+        </div>
+      ) : null}
 
       <p style={{ color: "#4b5563", fontSize: "0.95rem", marginBottom: "1.25rem" }}>
-        Search, filter and inspect full member records imported from Regyfit. Click any member
-        number to load exact canonical lookup.
+        Search, filter and inspect the member records captured from Regyfit
+        {directory.status === "loaded" && directory.page.capturedAt !== undefined
+          ? ` on ${directory.page.capturedAt.slice(0, 10)}`
+          : ""}
+        . Click any member number to open that student&apos;s full record.
       </p>
 
-      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
-        <div className="login-field" style={{ flex: "1 1 280px" }}>
-          <label htmlFor="member-search-input">Search members</label>
-          <input
-            id="member-search-input"
-            type="text"
-            placeholder="Filter by name, member Nº, email, or phone..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPage(0);
-            }}
-          />
+      {directory.status === "loading" ? <p role="status">Loading academy directory...</p> : null}
+      {directory.status === "error" ? (
+        <div>
+          <p aria-live="assertive" role="alert">
+            Unable to load the academy directory. Please try again.
+          </p>
+          <button className="admin-auth-button" onClick={onRetry} type="button">
+            Retry
+          </button>
         </div>
-        <div className="login-field" style={{ flex: "0 1 180px" }}>
-          <label htmlFor="member-status-filter">Status filter</label>
-          <select
-            id="member-status-filter"
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(0);
-            }}
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active ({activeCount})</option>
-            <option value="regularized">Regularized ({regularizedCount})</option>
-            <option value="overdue">Overdue payment</option>
-            <option value="inactive">Inactive ({inactiveCount})</option>
-            <option value="suspended">Suspended ({suspendedCount})</option>
-          </select>
-        </div>
-        <div className="login-field" style={{ flex: "0 1 180px" }}>
-          <label htmlFor="member-center-filter">Training center</label>
-          <select
-            id="member-center-filter"
-            value={centerFilter}
-            onChange={(e) => {
-              setCenterFilter(e.target.value);
-              setPage(0);
-            }}
-          >
-            <option value="all">All centers</option>
-            <option value="Town">Town (St Helier)</option>
-            <option value="West">West (St Peter)</option>
-          </select>
-        </div>
-      </div>
+      ) : null}
 
-      <div style={{ marginBottom: "0.75rem", fontSize: "0.875rem", color: "#6b7280" }}>
-        Showing {filteredMembers.length === 0 ? 0 : safePage * pageSize + 1} -{" "}
-        {Math.min((safePage + 1) * pageSize, filteredMembers.length)} of {filteredMembers.length}{" "}
-        members
-      </div>
-
-      <div style={{ overflowX: "auto" }}>
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Member Nº</th>
-              <th>Full Name</th>
-              <th>Birth Date</th>
-              <th>Email</th>
-              <th>Mobile</th>
-              <th>Frequency</th>
-              <th>Payment</th>
-              <th>Membership</th>
-              <th>Training Center</th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentMembers.length === 0 ? (
-              <tr>
-                <td colSpan={9} style={{ textAlign: "center", padding: "2rem" }}>
-                  No members match your search criteria.
-                </td>
-              </tr>
-            ) : (
-              currentMembers.map((m) => (
-                <tr key={m.memberId}>
-                  <td>
-                    <button
-                      type="button"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "#4f46e5",
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                        textDecoration: "underline",
-                      }}
-                      onClick={() => onSelectMemberNumber(m.membershipNumber || m.memberId)}
-                      title="Click to search canonical identifier"
-                    >
-                      {m.membershipNumber || m.memberId}
-                    </button>
-                  </td>
-                  <td>
-                    <strong>{m.fullName}</strong>
-                  </td>
-                  <td>{m.birthDate || "—"}</td>
-                  <td>{m.email || "—"}</td>
-                  <td>{m.mobileNumber || "—"}</td>
-                  <td>{m.frequency || "—"}</td>
-                  <td>
-                    <AdminStatusBadge status={m.paymentStatus} />
-                  </td>
-                  <td>
-                    <AdminStatusBadge status={m.membershipStatus} />
-                  </td>
-                  <td>{m.trainingCenter || "—"}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div
-          className="admin-filter-bar"
-          style={{
-            marginTop: "1rem",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span>
-            Page {safePage + 1} of {totalPages}
-          </span>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button
-              className="admin-auth-button"
-              type="button"
-              disabled={safePage === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              Previous
-            </button>
-            <button
-              className="admin-auth-button"
-              type="button"
-              disabled={safePage >= totalPages - 1}
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            >
-              Next
-            </button>
+      {directory.status === "loaded" ? (
+        <>
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
+            <div className="login-field" style={{ flex: "1 1 280px" }}>
+              <label htmlFor="member-search-input">Search members</label>
+              <input
+                id="member-search-input"
+                type="text"
+                placeholder="Filter by name, member Nº, email, mobile or birthdate..."
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setPage(0);
+                }}
+              />
+            </div>
+            <div className="login-field" style={{ flex: "0 1 180px" }}>
+              <label htmlFor="member-status-filter">Status filter</label>
+              <select
+                id="member-status-filter"
+                value={stateFilter}
+                onChange={(event) => {
+                  setStateFilter(event.target.value);
+                  setPage(0);
+                }}
+              >
+                <option value="all">All statuses</option>
+                <option value="active">Active ({activeCount})</option>
+                <option value="inactive">Inactive ({inactiveCount})</option>
+              </select>
+            </div>
+            <div className="login-field" style={{ flex: "0 1 200px" }}>
+              <label htmlFor="member-payment-filter">Payment</label>
+              <select
+                id="member-payment-filter"
+                value={paymentFilter}
+                onChange={(event) => {
+                  setPaymentFilter(event.target.value);
+                  setPage(0);
+                }}
+              >
+                <option value="all">All payment modes</option>
+                {paymentModes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div style={{ marginBottom: "0.75rem", fontSize: "0.875rem", color: "#6b7280" }}>
+            Showing {filteredRows.length === 0 ? 0 : safePage * pageSize + 1} -{" "}
+            {Math.min((safePage + 1) * pageSize, filteredRows.length)} of {filteredRows.length}{" "}
+            members
+          </div>
+
+          <div className="admin-data-table-wrap">
+            <table className="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Member Nº</th>
+                  <th>Name</th>
+                  <th>Birthdate</th>
+                  <th>E-mail</th>
+                  <th>Mobile Nº</th>
+                  <th>Payment</th>
+                  <th>Belt</th>
+                  <th>Membership</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: "center", padding: "2rem" }}>
+                      No members match your search criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  currentRows.map((row) => (
+                    <tr
+                      key={row.recordId}
+                      {...(row.recordId === selectedRecordId
+                        ? { "aria-current": "true" as const, style: { background: "#eef2ff" } }
+                        : {})}
+                    >
+                      <td>
+                        <button
+                          type="button"
+                          aria-label={`Open full record for ${row.fullName}`}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#4f46e5",
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                          }}
+                          onClick={() => onSelectRecord(row)}
+                          title="Click to open the full member record"
+                        >
+                          {row.memberNumber ?? `#${row.recordId}`}
+                        </button>
+                      </td>
+                      <td>
+                        <strong>{row.fullName}</strong>
+                      </td>
+                      <td>{row.birthDate ?? "—"}</td>
+                      <td>{row.email ?? "—"}</td>
+                      <td>{row.mobile ?? "—"}</td>
+                      <td>
+                        {row.paymentMode === undefined ? (
+                          "—"
+                        ) : (
+                          <AdminStatusBadge status={row.paymentMode} />
+                        )}
+                      </td>
+                      <td>{row.belt ?? "—"}</td>
+                      <td>
+                        <AdminStatusBadge status={row.membershipState} />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div
+              className="admin-filter-bar"
+              style={{
+                marginTop: "1rem",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>
+                Page {safePage + 1} of {totalPages}
+              </span>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  className="admin-auth-button"
+                  type="button"
+                  disabled={safePage === 0}
+                  onClick={() => setPage((current) => Math.max(0, current - 1))}
+                >
+                  Previous
+                </button>
+                <button
+                  className="admin-auth-button"
+                  type="button"
+                  disabled={safePage >= totalPages - 1}
+                  onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
     </section>
   );
 }
@@ -582,10 +630,33 @@ function SearchMembersContent() {
   const [identifier, setIdentifier] = useState("");
   const [lookup, setLookup] = useState<LookupState>({ status: "idle" });
   const [detail, setDetail] = useState<DetailState>({ status: "idle" });
+  const [directory, setDirectory] = useState<DirectoryState>({ status: "loading" });
+  const [directoryAttempt, setDirectoryAttempt] = useState(0);
+  const [selected, setSelected] = useState<RecordState>({ status: "idle" });
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const value = identifier.trim();
+  useEffect(() => {
+    let cancelled = false;
+    setDirectory({ status: "loading" });
+    async function loadDirectory(): Promise<void> {
+      try {
+        const page = await listRegyfitMemberRecords();
+        if (!Array.isArray(page?.rows)) throw new Error("directory unavailable");
+        if (!cancelled) setDirectory({ status: "loaded", page });
+      } catch {
+        if (!cancelled) setDirectory({ status: "error" });
+      }
+    }
+    void loadDirectory();
+    return () => {
+      cancelled = true;
+    };
+  }, [directoryAttempt]);
+
+  async function runLookup(
+    kind: PublicAdminIdentifierLookupKind,
+    rawIdentifier: string,
+  ): Promise<void> {
+    const value = rawIdentifier.trim();
     setDetail({ status: "idle" });
     if (value.length === 0) {
       setLookup({ status: "error" });
@@ -593,10 +664,43 @@ function SearchMembersContent() {
     }
     setLookup({ status: "loading" });
     try {
-      const result = await lookupMemberIdentity(lookupKind, value);
+      const result = await lookupMemberIdentity(kind, value);
       setLookup(result.matched ? { status: "match", row: result.row } : { status: "no-match" });
     } catch {
       setLookup({ status: "error" });
+    }
+  }
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runLookup(lookupKind, identifier);
+  }
+
+  function handleCanonicalLookup(membershipNumber: string): void {
+    setLookupKind("membership-number");
+    setIdentifier(membershipNumber);
+    void runLookup("membership-number", membershipNumber);
+  }
+
+  async function openRecord(row: RegyfitMemberDirectoryRow): Promise<void> {
+    setSelected({ status: "loading", recordId: row.recordId });
+    if (row.memberNumber !== undefined) {
+      setLookupKind("membership-number");
+      setIdentifier(row.memberNumber);
+    }
+    try {
+      const record = await getRegyfitMemberRecord(row.recordId);
+      setSelected((current) =>
+        current.status === "loading" && current.recordId === row.recordId
+          ? { status: "loaded", record }
+          : current,
+      );
+    } catch {
+      setSelected((current) =>
+        current.status === "loading" && current.recordId === row.recordId
+          ? { status: "error", recordId: row.recordId }
+          : current,
+      );
     }
   }
 
@@ -631,13 +735,34 @@ function SearchMembersContent() {
     });
   }
 
+  let selectedRecordId: string | undefined;
+  if (selected.status === "loaded") selectedRecordId = selected.record.recordId;
+  else if (selected.status !== "idle") selectedRecordId = selected.recordId;
+
   return (
     <>
+      {selected.status === "loading" ? (
+        <p className="admin-panel-card" role="status">
+          Loading member record...
+        </p>
+      ) : null}
+      {selected.status === "error" ? (
+        <p className="admin-panel-card" aria-live="assertive" role="alert">
+          Unable to load the member record. Please try again.
+        </p>
+      ) : null}
+      {selected.status === "loaded" ? (
+        <MemberProfilePanel
+          record={selected.record}
+          onCanonicalLookup={handleCanonicalLookup}
+          onClose={() => setSelected({ status: "idle" })}
+        />
+      ) : null}
       <AcademyMemberDirectorySection
-        onSelectMemberNumber={(num) => {
-          setLookupKind("membership-number");
-          setIdentifier(num);
-        }}
+        directory={directory}
+        onRetry={() => setDirectoryAttempt((attempt) => attempt + 1)}
+        onSelectRecord={(row) => void openRecord(row)}
+        selectedRecordId={selectedRecordId}
       />
       <section className="regyfit-access-panel" aria-labelledby="member-search-title">
         <header className="regyfit-access-heading">

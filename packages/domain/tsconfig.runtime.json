@@ -20,6 +20,7 @@
     "src/authorization/access-policy.ts",
     "src/members/member-contracts.ts",
     "src/members/member-directory-contracts.ts",
+    "src/members/regyfit-member-record-contracts.ts",
     "src/profiles/profile-contracts.ts",
     "src/families/family-contracts.ts",
     "src/memberships/plan-contracts.ts",

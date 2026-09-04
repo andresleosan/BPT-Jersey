@@ -35,6 +35,11 @@
       "import": "./src/members/member-directory-contracts.ts",
       "default": "./lib/members/member-directory-contracts.js"
     },
+    "./members/regyfit-records": {
+      "types": "./src/members/regyfit-member-record-contracts.ts",
+      "import": "./src/members/regyfit-member-record-contracts.ts",
+      "default": "./lib/members/regyfit-member-record-contracts.js"
+    },
     "./profiles": {
       "types": "./src/profiles/profile-contracts.ts",
       "import": "./src/profiles/profile-contracts.ts",
