@@ -197,6 +197,26 @@
     },
     {
       "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "emergencyContact.alternatePhoneNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "emergencyContact.fullName",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "emergencyContact.phoneNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "emergencyContact.relationship",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
       "fieldPath": "frequencyNote",
       "indexes": []
     },
@@ -213,6 +233,16 @@
     {
       "collectionGroup": "studentAdminProfiles",
       "fieldPath": "membershipNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "postalAddress.line",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "postalAddress.postCode",
       "indexes": []
     },
     {

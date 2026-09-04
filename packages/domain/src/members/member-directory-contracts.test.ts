@@ -171,6 +171,102 @@ describe("canonical member directory contracts", () => {
     );
   });
 
+  it("keeps the waiver contact and address out of general rows and inside the detail", () => {
+    const profileWithWaiverBlocks = {
+      ...adminProfile,
+      emergencyContact: {
+        fullName: "Synthetic Contact",
+        relationship: "Parent",
+        phoneNumber: "+441534000002",
+        alternatePhoneNumber: "+441534000003",
+      },
+      postalAddress: { line: "1 Synthetic Street, St Helier", postCode: "JE2 3AB" },
+    } as const;
+    expect(studentAdminProfileSchema.safeParse(profileWithWaiverBlocks).success).toBe(true);
+    expect(
+      studentAdminProfileSchema.safeParse({
+        ...profileWithWaiverBlocks,
+        emergencyContact: { ...profileWithWaiverBlocks.emergencyContact, email: "x@example.test" },
+      }).success,
+    ).toBe(false);
+    expect(
+      studentAdminProfileSchema.safeParse({
+        ...profileWithWaiverBlocks,
+        postalAddress: { line: "1 Synthetic Street" },
+      }).success,
+    ).toBe(false);
+
+    const row = toAdminDirectoryRow(student, profileWithWaiverBlocks);
+    expect(JSON.stringify(row)).not.toMatch(/emergency|postalAddress|postCode|Synthetic Contact/u);
+
+    const detail = toMemberRecordMaintenanceDetail(student, profileWithWaiverBlocks);
+    expect(memberRecordMaintenanceDetailSchema.safeParse(detail).success).toBe(true);
+    expect(detail.emergencyContact).toEqual(profileWithWaiverBlocks.emergencyContact);
+    expect(detail.postalAddress).toEqual(profileWithWaiverBlocks.postalAddress);
+    expect(Object.isFrozen(detail.emergencyContact)).toBe(true);
+    expect(Object.isFrozen(detail.postalAddress)).toBe(true);
+  });
+
+  it("parses optional complete waiver blocks in admin create and rejects partial ones", () => {
+    const base = {
+      requestId: "request-3",
+      fullName: "Synthetic Adult",
+      dateOfBirth: "2000-01-02",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+    } as const;
+    const complete = parseAdminCreateStudentInput(
+      {
+        ...base,
+        emergencyContact: {
+          fullName: "Synthetic Contact",
+          relationship: "Spouse",
+          phoneNumber: "+441534000002",
+        },
+        postalAddress: { line: "1 Synthetic Street", postCode: "JE2 3AB" },
+      },
+      "2026-09-04",
+    );
+    expect(complete.ok).toBe(true);
+    if (!complete.ok) return;
+    expect(complete.value.emergencyContact).toEqual({
+      fullName: "Synthetic Contact",
+      relationship: "Spouse",
+      phoneNumber: "+441534000002",
+    });
+    expect(complete.value.postalAddress).toEqual({
+      line: "1 Synthetic Street",
+      postCode: "JE2 3AB",
+    });
+
+    const invalid = [
+      { ...base, emergencyContact: { fullName: "Synthetic Contact", relationship: "Spouse" } },
+      {
+        ...base,
+        emergencyContact: { fullName: " padded ", relationship: "Spouse", phoneNumber: "1" },
+      },
+      {
+        ...base,
+        emergencyContact: {
+          fullName: "Synthetic Contact",
+          relationship: "Spouse",
+          phoneNumber: "+441534000002",
+          email: "contact@example.test",
+        },
+      },
+      { ...base, postalAddress: { line: "1 Synthetic Street" } },
+      {
+        ...base,
+        postalAddress: { line: "1 Synthetic Street", postCode: "JE2 3AB", country: "JE" },
+      },
+      { ...base, emergencyContactName: "Synthetic Contact" },
+      { ...base, address: "1 Synthetic Street" },
+    ];
+    for (const candidate of invalid) {
+      expect(parseAdminCreateStudentInput(candidate, "2026-09-04").ok).toBe(false);
+    }
+  });
+
   it("keeps purposes and public lookup kinds closed", () => {
     expect(adminDirectoryReadPurposes).toEqual([
       "member-identity-lookup",

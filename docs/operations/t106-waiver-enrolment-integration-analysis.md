@@ -2,6 +2,8 @@
 
 Fecha: 2026-09-04. Alcance: análisis y propuesta; no cambia código de consentimiento.
 
+> Estado 2026-09-04: el **paso 1 (datos)** de la sección 4 está implementado (bloques opcionales `emergencyContact` y `postalAddress` en `studentAdminProfiles`, alta y edición administrativa, detalle restringido, exenciones de índice). El **paso 2 (firma)** sigue bloqueado por T011 y el texto legal aprobado. Evidencia en `tasks.md`.
+
 ## 1. Qué contiene el formulario oficial
 
 Fuente: `F:\Proyectos\BPT Jersey\Varios\Brazilian Power Team Jersey Waiver and Release of Liability.pdf`

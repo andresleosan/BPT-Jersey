@@ -66,6 +66,12 @@ type MemberEditDraft = Readonly<{
   vatNumber: string;
   gender: "male" | "female" | "unknown";
   frequencyNote: string;
+  emergencyContactFullName: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhoneNumber: string;
+  emergencyContactAlternatePhoneNumber: string;
+  addressLine: string;
+  postCode: string;
 }>;
 
 function detailToDraft(detail: MemberRecordMaintenanceDetail): MemberEditDraft {
@@ -81,8 +87,60 @@ function detailToDraft(detail: MemberRecordMaintenanceDetail): MemberEditDraft {
     vatNumber: detail.vatNumber ?? "",
     gender: detail.gender,
     frequencyNote: detail.frequencyNote ?? "",
+    emergencyContactFullName: detail.emergencyContact?.fullName ?? "",
+    emergencyContactRelationship: detail.emergencyContact?.relationship ?? "",
+    emergencyContactPhoneNumber: detail.emergencyContact?.phoneNumber ?? "",
+    emergencyContactAlternatePhoneNumber: detail.emergencyContact?.alternatePhoneNumber ?? "",
+    addressLine: detail.postalAddress?.line ?? "",
+    postCode: detail.postalAddress?.postCode ?? "",
   });
 }
+
+// Optional blocks from the waiver form: absent when every field is empty, otherwise complete.
+function draftEmergencyContact(draft: MemberEditDraft): UpdateMemberInput["emergencyContact"] {
+  const fullName = optionalTrimmed(draft.emergencyContactFullName);
+  const relationship = optionalTrimmed(draft.emergencyContactRelationship);
+  const phoneNumber = optionalTrimmed(draft.emergencyContactPhoneNumber);
+  const alternatePhoneNumber = optionalTrimmed(draft.emergencyContactAlternatePhoneNumber);
+  if (
+    fullName === undefined &&
+    relationship === undefined &&
+    phoneNumber === undefined &&
+    alternatePhoneNumber === undefined
+  ) {
+    return undefined;
+  }
+  if (fullName === undefined || relationship === undefined || phoneNumber === undefined) {
+    throw new Error("incomplete emergency contact");
+  }
+  return Object.freeze({
+    fullName,
+    relationship,
+    phoneNumber,
+    ...(alternatePhoneNumber === undefined ? {} : { alternatePhoneNumber }),
+  });
+}
+
+function draftPostalAddress(draft: MemberEditDraft): UpdateMemberInput["postalAddress"] {
+  const line = optionalTrimmed(draft.addressLine);
+  const postCode = optionalTrimmed(draft.postCode);
+  if (line === undefined && postCode === undefined) return undefined;
+  if (line === undefined || postCode === undefined) throw new Error("incomplete postal address");
+  return Object.freeze({ line, postCode });
+}
+
+const editFieldMaxLength = Object.freeze({
+  membershipNumber: 64,
+  idCardNumber: 64,
+  vatNumber: 64,
+  frequencyNote: 256,
+  emergencyContactFullName: 160,
+  emergencyContactRelationship: 64,
+  emergencyContactPhoneNumber: 64,
+  emergencyContactAlternatePhoneNumber: 64,
+  addressLine: 240,
+  postCode: 16,
+} as const);
 
 function optionalTrimmed(value: string): string | undefined {
   const normalized = value.trim();
@@ -100,6 +158,8 @@ function updatePayload(
   const idCardNumber = optionalTrimmed(draft.idCardNumber);
   const vatNumber = optionalTrimmed(draft.vatNumber);
   const frequencyNote = optionalTrimmed(draft.frequencyNote);
+  const emergencyContact = draftEmergencyContact(draft);
+  const postalAddress = draftPostalAddress(draft);
   return Object.freeze({
     studentId: detail.studentId,
     requestId,
@@ -114,6 +174,8 @@ function updatePayload(
     ...(vatNumber === undefined ? {} : { vatNumber }),
     gender: draft.gender,
     ...(frequencyNote === undefined ? {} : { frequencyNote }),
+    ...(emergencyContact === undefined ? {} : { emergencyContact }),
+    ...(postalAddress === undefined ? {} : { postalAddress }),
   });
 }
 
@@ -137,6 +199,12 @@ function updatedDetail(
     ...(input.vatNumber === undefined ? {} : { vatNumber: input.vatNumber }),
     gender: input.gender,
     ...(input.frequencyNote === undefined ? {} : { frequencyNote: input.frequencyNote }),
+    ...(input.emergencyContact === undefined
+      ? {}
+      : { emergencyContact: Object.freeze({ ...input.emergencyContact }) }),
+    ...(input.postalAddress === undefined
+      ? {}
+      : { postalAddress: Object.freeze({ ...input.postalAddress }) }),
   });
 }
 
@@ -181,7 +249,13 @@ function RestrictedDetail({
       setSaveStatus("error");
       return;
     }
-    const payload = updatePayload(detail, draft, requestId);
+    let payload: UpdateMemberInput;
+    try {
+      payload = updatePayload(detail, draft, requestId);
+    } catch {
+      setSaveStatus("error");
+      return;
+    }
     setSaveStatus("saving");
     try {
       await updateMember(payload);
@@ -216,6 +290,22 @@ function RestrictedDetail({
         <dd>{detail.gender}</dd>
         <dt>Frequency note</dt>
         <dd>{displayOptional(detail.frequencyNote)}</dd>
+        <dt>Emergency contact</dt>
+        <dd>
+          {detail.emergencyContact === undefined
+            ? "Not provided"
+            : `${detail.emergencyContact.fullName} (${detail.emergencyContact.relationship}) ${detail.emergencyContact.phoneNumber}${
+                detail.emergencyContact.alternatePhoneNumber === undefined
+                  ? ""
+                  : ` / ${detail.emergencyContact.alternatePhoneNumber}`
+              }`}
+        </dd>
+        <dt>Postal address</dt>
+        <dd>
+          {detail.postalAddress === undefined
+            ? "Not provided"
+            : `${detail.postalAddress.line}, ${detail.postalAddress.postCode}`}
+        </dd>
       </dl>
       {editing ? (
         <form aria-label="Edit member" onSubmit={(event) => void save(event)}>
@@ -303,13 +393,31 @@ function RestrictedDetail({
               ["ID card number", "member-edit-id-card", "idCardNumber"],
               ["VAT number", "member-edit-vat", "vatNumber"],
               ["Frequency note", "member-edit-frequency", "frequencyNote"],
+              ["Emergency contact name", "member-edit-emergency-name", "emergencyContactFullName"],
+              [
+                "Emergency contact relationship",
+                "member-edit-emergency-relationship",
+                "emergencyContactRelationship",
+              ],
+              [
+                "Emergency contact phone",
+                "member-edit-emergency-phone",
+                "emergencyContactPhoneNumber",
+              ],
+              [
+                "Emergency contact alternate phone",
+                "member-edit-emergency-alternate-phone",
+                "emergencyContactAlternatePhoneNumber",
+              ],
+              ["Address", "member-edit-address-line", "addressLine"],
+              ["Post code", "member-edit-post-code", "postCode"],
             ] as const
           ).map(([label, id, field]) => (
             <div className="login-field" key={field}>
               <label htmlFor={id}>{label}</label>
               <input
                 id={id}
-                maxLength={field === "frequencyNote" ? 256 : 64}
+                maxLength={editFieldMaxLength[field]}
                 onChange={(event) => replaceDraft({ [field]: event.target.value })}
                 type="text"
                 value={draft[field]}

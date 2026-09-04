@@ -130,6 +130,59 @@ describe("Add canonical adult member page", () => {
     expect(clientMocks.createMember).not.toHaveBeenCalled();
   });
 
+  it("sends the waiver emergency contact and postal address only when complete", async () => {
+    const user = userEvent.setup();
+    clientMocks.createMember.mockResolvedValue({
+      memberId: "student-1",
+      studentId: "student-1",
+    });
+    render(<AddMemberPage />);
+    await fillRequiredAdult(user);
+    await user.type(screen.getByLabelText("Emergency contact name"), "Synthetic Contact");
+    await user.type(screen.getByLabelText("Relationship"), "Spouse");
+    await user.type(screen.getByLabelText("Emergency contact phone"), "+44 7000 000001");
+    await user.type(screen.getByLabelText("Address"), "1 Synthetic Street, St Helier");
+    await user.type(screen.getByLabelText("Post code"), "JE2 3AB");
+
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
+
+    await waitFor(() => expect(clientMocks.createMember).toHaveBeenCalledOnce());
+    expect(clientMocks.createMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emergencyContact: {
+          fullName: "Synthetic Contact",
+          relationship: "Spouse",
+          phoneNumber: "+44 7000 000001",
+        },
+        postalAddress: { line: "1 Synthetic Street, St Helier", postCode: "JE2 3AB" },
+      }),
+    );
+  });
+
+  it("rejects a partial emergency contact or address before calling the backend", async () => {
+    const user = userEvent.setup();
+    render(<AddMemberPage />);
+    await fillRequiredAdult(user);
+    await user.type(screen.getByLabelText("Emergency contact name"), "Synthetic Contact");
+
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
+
+    expect(
+      screen.getByText("Enter the emergency contact name, relationship and phone number."),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Emergency contact name")).toHaveFocus();
+    expect(clientMocks.createMember).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("Relationship"), "Spouse");
+    await user.type(screen.getByLabelText("Emergency contact phone"), "+44 7000 000001");
+    await user.type(screen.getByLabelText("Post code"), "JE2 3AB");
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
+
+    expect(screen.getByText("Enter both the address and the post code.")).toBeVisible();
+    expect(screen.getByLabelText("Address")).toHaveFocus();
+    expect(clientMocks.createMember).not.toHaveBeenCalled();
+  });
+
   it("keeps the direct route data-free in test mode", () => {
     render(<AddMemberRoute />);
     expect(screen.getByRole("heading", { name: "Add adult student" })).toBeVisible();

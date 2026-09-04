@@ -21,6 +21,8 @@ type FieldErrors = Readonly<{
   dateOfBirth?: string;
   trainingCenter?: string;
   trainingTimePreferences?: string;
+  emergencyContact?: string;
+  postalAddress?: string;
 }>;
 
 type FormValues = Readonly<{
@@ -36,6 +38,12 @@ type FormValues = Readonly<{
   trainingCenter: "" | TrainingCenter;
   trainingTimePreferences: readonly TrainingTimePreference[];
   medicalConditions: string;
+  emergencyContactFullName: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhoneNumber: string;
+  emergencyContactAlternatePhoneNumber: string;
+  addressLine: string;
+  postCode: string;
 }>;
 
 const initialValues: FormValues = {
@@ -51,6 +59,12 @@ const initialValues: FormValues = {
   trainingCenter: "",
   trainingTimePreferences: [],
   medicalConditions: "",
+  emergencyContactFullName: "",
+  emergencyContactRelationship: "",
+  emergencyContactPhoneNumber: "",
+  emergencyContactAlternatePhoneNumber: "",
+  addressLine: "",
+  postCode: "",
 };
 
 const genericFormError = "Unable to add member. Please try again.";
@@ -60,7 +74,43 @@ function optionalText(value: string): string | undefined {
   return normalized.length === 0 ? undefined : normalized;
 }
 
+// The official waiver form captures the emergency contact and the postal address at enrolment.
+// Both blocks are optional as a whole, but once started they must be complete.
+function emergencyContactFromValues(values: FormValues): CreateMemberInput["emergencyContact"] {
+  const fullName = optionalText(values.emergencyContactFullName);
+  const relationship = optionalText(values.emergencyContactRelationship);
+  const phoneNumber = optionalText(values.emergencyContactPhoneNumber);
+  const alternatePhoneNumber = optionalText(values.emergencyContactAlternatePhoneNumber);
+  if (
+    fullName === undefined &&
+    relationship === undefined &&
+    phoneNumber === undefined &&
+    alternatePhoneNumber === undefined
+  ) {
+    return undefined;
+  }
+  if (fullName === undefined || relationship === undefined || phoneNumber === undefined) {
+    throw new Error("incomplete emergency contact");
+  }
+  return {
+    fullName,
+    relationship,
+    phoneNumber,
+    ...(alternatePhoneNumber === undefined ? {} : { alternatePhoneNumber }),
+  };
+}
+
+function postalAddressFromValues(values: FormValues): CreateMemberInput["postalAddress"] {
+  const line = optionalText(values.addressLine);
+  const postCode = optionalText(values.postCode);
+  if (line === undefined && postCode === undefined) return undefined;
+  if (line === undefined || postCode === undefined) throw new Error("incomplete postal address");
+  return { line, postCode };
+}
+
 function inputFromValues(values: FormValues, requestId: string): CreateMemberInput {
+  const emergencyContact = emergencyContactFromValues(values);
+  const postalAddress = postalAddressFromValues(values);
   return {
     requestId,
     fullName: values.fullName.trim(),
@@ -84,6 +134,8 @@ function inputFromValues(values: FormValues, requestId: string): CreateMemberInp
       ? {}
       : { frequencyNote: optionalText(values.frequencyNote) }),
     ...(values.gender === "" ? {} : { gender: values.gender }),
+    ...(emergencyContact === undefined ? {} : { emergencyContact }),
+    ...(postalAddress === undefined ? {} : { postalAddress }),
   };
 }
 
@@ -101,6 +153,8 @@ export function AddMemberPage() {
   const fullNameRef = useRef<HTMLInputElement>(null);
   const dateOfBirthRef = useRef<HTMLInputElement>(null);
   const trainingCenterRef = useRef<HTMLSelectElement>(null);
+  const emergencyContactRef = useRef<HTMLInputElement>(null);
+  const addressLineRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
 
   function updateField<K extends keyof FormValues>(field: K, value: FormValues[K]): void {
@@ -152,6 +206,22 @@ export function AddMemberPage() {
       setFieldErrors({
         trainingTimePreferences: "Choose at least one training time.",
       });
+      return false;
+    }
+    try {
+      emergencyContactFromValues(values);
+    } catch {
+      setFieldErrors({
+        emergencyContact: "Enter the emergency contact name, relationship and phone number.",
+      });
+      emergencyContactRef.current?.focus();
+      return false;
+    }
+    try {
+      postalAddressFromValues(values);
+    } catch {
+      setFieldErrors({ postalAddress: "Enter both the address and the post code." });
+      addressLineRef.current?.focus();
       return false;
     }
     setFieldErrors({});
@@ -329,6 +399,98 @@ export function AddMemberPage() {
             <option value="unknown">Prefer not to say</option>
           </select>
         </div>
+
+        <fieldset className="login-field">
+          <legend>Emergency contact (from the waiver form, optional)</legend>
+          <div className="login-field">
+            <label htmlFor="member-emergency-contact-full-name">Emergency contact name</label>
+            <input
+              aria-invalid={fieldErrors.emergencyContact ? "true" : "false"}
+              autoComplete="off"
+              id="member-emergency-contact-full-name"
+              maxLength={160}
+              onChange={(event) => updateField("emergencyContactFullName", event.target.value)}
+              ref={emergencyContactRef}
+              type="text"
+              value={values.emergencyContactFullName}
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="member-emergency-contact-relationship">Relationship</label>
+            <input
+              autoComplete="off"
+              id="member-emergency-contact-relationship"
+              maxLength={64}
+              onChange={(event) => updateField("emergencyContactRelationship", event.target.value)}
+              type="text"
+              value={values.emergencyContactRelationship}
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="member-emergency-contact-phone">Emergency contact phone</label>
+            <input
+              autoComplete="off"
+              id="member-emergency-contact-phone"
+              maxLength={64}
+              onChange={(event) => updateField("emergencyContactPhoneNumber", event.target.value)}
+              type="tel"
+              value={values.emergencyContactPhoneNumber}
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="member-emergency-contact-alternate-phone">
+              Alternate phone (optional)
+            </label>
+            <input
+              autoComplete="off"
+              id="member-emergency-contact-alternate-phone"
+              maxLength={64}
+              onChange={(event) =>
+                updateField("emergencyContactAlternatePhoneNumber", event.target.value)
+              }
+              type="tel"
+              value={values.emergencyContactAlternatePhoneNumber}
+            />
+          </div>
+          {fieldErrors.emergencyContact ? (
+            <p className="login-field-error" role="alert">
+              {fieldErrors.emergencyContact}
+            </p>
+          ) : null}
+        </fieldset>
+
+        <fieldset className="login-field">
+          <legend>Postal address (optional)</legend>
+          <div className="login-field">
+            <label htmlFor="member-address-line">Address</label>
+            <input
+              aria-invalid={fieldErrors.postalAddress ? "true" : "false"}
+              autoComplete="off"
+              id="member-address-line"
+              maxLength={240}
+              onChange={(event) => updateField("addressLine", event.target.value)}
+              ref={addressLineRef}
+              type="text"
+              value={values.addressLine}
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="member-post-code">Post code</label>
+            <input
+              autoComplete="off"
+              id="member-post-code"
+              maxLength={16}
+              onChange={(event) => updateField("postCode", event.target.value)}
+              type="text"
+              value={values.postCode}
+            />
+          </div>
+          {fieldErrors.postalAddress ? (
+            <p className="login-field-error" role="alert">
+              {fieldErrors.postalAddress}
+            </p>
+          ) : null}
+        </fieldset>
 
         <div className="login-field">
           <label htmlFor="member-medical-conditions">

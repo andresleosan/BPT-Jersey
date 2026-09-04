@@ -142,6 +142,12 @@ function input(requestId = "request-1") {
     idCardNumber: "id-1234",
     vatNumber: "vat-1234",
     frequencyNote: "Twice weekly",
+    emergencyContact: {
+      fullName: "Synthetic Contact",
+      relationship: "Spouse",
+      phoneNumber: "+441534000002",
+    },
+    postalAddress: { line: "1 Synthetic Street, St Helier", postCode: "JE2 3AB" },
   } as const;
 }
 
@@ -444,6 +450,12 @@ describe("canonical administrative member writer", () => {
         vatNumber: "VAT-1234",
         gender: "unknown",
         frequencyNote: "Twice weekly",
+        emergencyContact: {
+          fullName: "Synthetic Contact",
+          relationship: "Spouse",
+          phoneNumber: "+441534000002",
+        },
+        postalAddress: { line: "1 Synthetic Street, St Helier", postCode: "JE2 3AB" },
         source: "admin",
       }),
     );

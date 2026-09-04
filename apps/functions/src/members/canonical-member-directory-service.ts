@@ -315,6 +315,10 @@ function buildAdminProfile(
     ...(input.vatNumber === undefined ? {} : { vatNumber: input.vatNumber }),
     gender: input.gender ?? "unknown",
     ...(input.frequencyNote === undefined ? {} : { frequencyNote: input.frequencyNote }),
+    ...(input.emergencyContact === undefined
+      ? {}
+      : { emergencyContact: { ...input.emergencyContact } }),
+    ...(input.postalAddress === undefined ? {} : { postalAddress: { ...input.postalAddress } }),
     source: "admin",
     schemaVersion: "1",
     createdAt: now,
@@ -426,6 +430,10 @@ function buildUpdatedAdminProfile(
     ...(input.vatNumber === undefined ? {} : { vatNumber: input.vatNumber }),
     gender: input.gender,
     ...(input.frequencyNote === undefined ? {} : { frequencyNote: input.frequencyNote }),
+    ...(input.emergencyContact === undefined
+      ? {}
+      : { emergencyContact: { ...input.emergencyContact } }),
+    ...(input.postalAddress === undefined ? {} : { postalAddress: { ...input.postalAddress } }),
     ...profileProvenance(existing),
     schemaVersion: existing.schemaVersion,
     createdAt: existing.createdAt,

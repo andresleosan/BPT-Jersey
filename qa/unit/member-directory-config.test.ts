@@ -58,7 +58,7 @@ describe("T092 member-directory Firebase configuration", () => {
     }
   });
 
-  it("disables single-field indexes for the exact 16 restricted directory fields", () => {
+  it("disables single-field indexes for the exact 22 restricted directory fields", () => {
     const config = readProjectJson<{
       fieldOverrides: Array<{
         collectionGroup: string;
@@ -85,10 +85,16 @@ describe("T092 member-directory Firebase configuration", () => {
       { key: "members.mobileNumber", indexes: [] },
       { key: "members.source", indexes: [] },
       { key: "members.vatNumber", indexes: [] },
+      { key: "studentAdminProfiles.emergencyContact.alternatePhoneNumber", indexes: [] },
+      { key: "studentAdminProfiles.emergencyContact.fullName", indexes: [] },
+      { key: "studentAdminProfiles.emergencyContact.phoneNumber", indexes: [] },
+      { key: "studentAdminProfiles.emergencyContact.relationship", indexes: [] },
       { key: "studentAdminProfiles.frequencyNote", indexes: [] },
       { key: "studentAdminProfiles.idCardNumber", indexes: [] },
       { key: "studentAdminProfiles.legacyMemberId", indexes: [] },
       { key: "studentAdminProfiles.membershipNumber", indexes: [] },
+      { key: "studentAdminProfiles.postalAddress.line", indexes: [] },
+      { key: "studentAdminProfiles.postalAddress.postCode", indexes: [] },
       { key: "studentAdminProfiles.vatNumber", indexes: [] },
     ]);
   });

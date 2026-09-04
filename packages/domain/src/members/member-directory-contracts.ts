@@ -92,6 +92,29 @@ const auditDateTimeSchema = z
   .string()
   .refine(isUtcMillisecondDateTime, { message: "Invalid UTC millisecond timestamp" });
 
+// T106 step 1: the official waiver form captures an emergency contact and a postal address at
+// enrolment. Both are Confidential, optional, live only in the Restricted admin profile and are
+// projected exclusively through the purpose-bound maintenance detail (never in general rows).
+export const emergencyContactSchema = z
+  .strictObject({
+    fullName: canonicalText(160),
+    relationship: canonicalText(64),
+    phoneNumber: canonicalText(64),
+    alternatePhoneNumber: canonicalText(64).optional(),
+  })
+  .readonly();
+
+export type EmergencyContact = Readonly<z.infer<typeof emergencyContactSchema>>;
+
+export const postalAddressSchema = z
+  .strictObject({
+    line: canonicalText(240),
+    postCode: canonicalText(16),
+  })
+  .readonly();
+
+export type PostalAddress = Readonly<z.infer<typeof postalAddressSchema>>;
+
 const studentAdminProfileBaseShape = {
   studentId: opaqueIdentifierSchema,
   academyId: opaqueIdentifierSchema,
@@ -100,6 +123,8 @@ const studentAdminProfileBaseShape = {
   vatNumber: administrativeIdentifierSchema.optional(),
   gender: z.enum(memberGenders),
   frequencyNote: canonicalText(256).optional(),
+  emergencyContact: emergencyContactSchema.optional(),
+  postalAddress: postalAddressSchema.optional(),
   schemaVersion: z.literal("1"),
   createdAt: auditDateTimeSchema,
   createdBy: opaqueIdentifierSchema,
@@ -309,6 +334,8 @@ export const memberRecordMaintenanceDetailSchema = z.strictObject({
   vatNumber: administrativeIdentifierSchema.optional(),
   gender: z.enum(memberGenders),
   frequencyNote: canonicalText(256).optional(),
+  emergencyContact: emergencyContactSchema.optional(),
+  postalAddress: postalAddressSchema.optional(),
 });
 
 export type MemberRecordMaintenanceDetail = Readonly<
@@ -376,6 +403,8 @@ export const adminCreateStudentInputSchema = z
     vatNumber: administrativeIdentifierInputSchema.optional(),
     gender: z.enum(memberGenders).optional(),
     frequencyNote: canonicalText(256).optional(),
+    emergencyContact: emergencyContactSchema.optional(),
+    postalAddress: postalAddressSchema.optional(),
   })
   .readonly();
 
@@ -396,6 +425,8 @@ export const adminUpdateStudentInputSchema = z
     vatNumber: administrativeIdentifierInputSchema.optional(),
     gender: z.enum(memberGenders),
     frequencyNote: canonicalText(256).optional(),
+    emergencyContact: emergencyContactSchema.optional(),
+    postalAddress: postalAddressSchema.optional(),
   })
   .readonly();
 
@@ -565,5 +596,11 @@ export function toMemberRecordMaintenanceDetail(
     ...(profile.vatNumber === undefined ? {} : { vatNumber: profile.vatNumber }),
     gender: profile.gender,
     ...(profile.frequencyNote === undefined ? {} : { frequencyNote: profile.frequencyNote }),
+    ...(profile.emergencyContact === undefined
+      ? {}
+      : { emergencyContact: Object.freeze({ ...profile.emergencyContact }) }),
+    ...(profile.postalAddress === undefined
+      ? {}
+      : { postalAddress: Object.freeze({ ...profile.postalAddress }) }),
   });
 }
