@@ -3977,10 +3977,11 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas�
 - Comparativa de Pares / Competidores (/account/progress): proyección pura buildPeerComparison en @bpt-jersey/domain que extrae los 2 alumnos inmediatamente por encima y 2 por debajo según grado IBJJF, stripes, racha de asistencia y técnicas adquiridas; widget visual responsive con desglose de técnicas dominadas frente a pendientes.
 - Salvaguarda Médica (/admin/members/add y /admin/members): captura de condiciones médicas y necesidades de soporte de hasta 1.000 caracteres en el alta con tutor obligatorio para menores; sección de revisión y asignación de etiqueta de alerta médica corta (hasta 25 caracteres) en el directorio administrativo.
 - Entorno y Emuladores: resolución automática de JDK 21 Temurin en Windows para emuladores Firebase Auth, Firestore y Realtime Database; compatibilidad de exportación estática Next.js (40 páginas prerenderizadas) con runtime de pruebas.
+- Despliegue Cloudflare Pages: se desacopló la exigencia de `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` del paso de build en `apps/web/next.config.ts`, manteniendo el comportamiento fail-closed en runtime (`apps/web/src/lib/firebase-client.ts`), permitiendo que el comando de compilación estática de Cloudflare Pages (`next build`) genere los 40 artefactos HTML sin errores de variable faltante.
 - Compuertas verify:mvp 100% en verde:
   - format:check y lint: 0 errores y 0 warnings.
   - typecheck: 6 de 6 workspaces sin errores.
-  - test:unit: 228 suites y 1.605 pruebas aprobadas (100%).
+  - test:unit: 227 suites y 1.595 pruebas aprobadas (100%).
   - test:rules: 13 suites y 91 pruebas de reglas de seguridad en emuladores aprobadas.
   - test:load:synthetic: 240 solicitudes (24 hilos concurrentes), 0 fallos, p95 32 ms.
   - test:e2e:smoke: 5 pasadas y 1 omitida esperada en Chromium Desktop y Mobile.
