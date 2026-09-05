@@ -4386,3 +4386,19 @@ Trabajo tecnico que el asistente puede continuar sin decision humana:
 - Gate: `pnpm verify:mvp` reparado el 2026-09-04 y en verde en cada corte de esta sesion (ultima corrida 237 archivos / 1696 unitarias, Rules 13/91, carga 240/240, smoke 5 pasados y 1 omitido en desktop y movil). Receta en `docs/development/firebase-emulators.md`; `qa/run-e2e.mjs` ya reenvia todas las variables `T094_*`-`T097_*`.
 - Limite registrado: el golden path es a nivel de callable porque el cliente web es App Check fail-closed y el SDK solo adjunta la cabecera tras un intercambio real de token; el recorrido de navegador exige staging (T099, bloqueado por T011). T098 pasa a `revision`.
 
+### Pendiente al retomar (cierre de sesion 2026-09-05)
+
+Sustituye al checklist anterior de esta misma fecha. Arbol limpio tras `93e60c8` (aprobaciones y decisiones), `2f0f4e6` (T097) y `b752d10` (T098). La cadena T094 -> T098 esta cerrada a nivel de callable en Emulator; el golden path completo corre con `qa/scripts/run-golden-path-e2e.mjs`.
+
+Decisiones que solo puede cerrar el operador:
+
+- [ ] Revisar y aprobar o devolver T097 y T098, en `revision` con evidencia en Emulator.
+- [ ] Puntos 4 y 5 del listado presentado: lagunas del DOCX como filas nuevas (geocerca, cancelacion por quorum con aviso, penalizacion de 15 GBP, cumpleanos reales, reglas de stripes por edad, interfaz preclase, etiqueta de condiciones, permisos de admin a coaches, gestion de disclaimers) y aprobacion de T104 y T107.
+- [ ] T010 y T011 siguen bloqueando T035/T036/T061, T099, T058 y el paso 2 de T106; sin T099 no hay recorrido de navegador ni datos reales.
+
+Trabajo tecnico que el asistente puede continuar sin decision humana:
+
+- [ ] T097 restante: progreso familiar desde la cuenta del tutor y reinicio de la barra de progresion al promover (DOCX), ambos sin cambiar la regla de aprobacion humana.
+- [ ] Selector de alumnos de `/admin/memberships`: busqueda o paginacion mas alla de la primera pagina del directorio.
+- [ ] Gate periodico: incorporar el golden path a un workflow bajo demanda como se hizo con `qa/integration`, con los secretos sinteticos generados en el propio job.
+
