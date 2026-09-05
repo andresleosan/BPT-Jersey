@@ -95,10 +95,21 @@ function emulatorV1Client(projectId: string): InstanceType<typeof v1.FirestoreCl
       ) {
         return unsafe("v1 REST transport attempted a non-Emulator endpoint");
       }
-      return fetch(parsed, init as RequestInit);
+      // The Firestore Emulator applies Security Rules to any request without the owner bearer that
+      // the Admin SDK sends on its behalf. This client speaks raw v1 REST, so it must send the same
+      // token or every inventory read is denied. The endpoint is already pinned to the loopback
+      // Emulator above, so the token never leaves the local process.
+      const request = (init ?? {}) as RequestInit;
+      const headers = new Headers(request.headers);
+      headers.set("Authorization", "Bearer owner");
+      return fetch(parsed, { ...request, headers });
     },
   };
+  // google-gax reads the transport from `auth.fetch` in its fallback (REST) stub, and older
+  // versions read it from `auth.getClient()`. Expose both so the pinned transport is used either
+  // way; anything else would leave the request on the default global fetch, unpinned.
   const localAuth = {
+    ...localTransport,
     useJWTAccessWithScope: false,
     defaultServicePath: "",
     defaultScopes: [] as string[],
@@ -328,6 +339,13 @@ export function createBackupV3FirestoreRehearsalEndpoint(
     createPayloadDocuments: async (request) => {
       if (input.role !== "target") unsafe("only the target app may materialize payload");
       await writeBackupV3FirestorePayloadExact({ client: commitClient, ...request });
+    },
+    getMetadataDocument: async (path: string) => {
+      if (input.role !== "source") unsafe("only the source app may read an attestation");
+      if (!attestationPathPattern.test(path)) unsafe("attestation path is invalid");
+      const snapshot = await firestore.doc(path).get();
+      if (!snapshot.exists) return undefined;
+      return Object.freeze(canonicalDocumentData(snapshot.data()));
     },
     putMetadataDocument: async (path: string, data: Readonly<Record<string, unknown>>) => {
       if (input.role !== "source") unsafe("only the source app may attest");

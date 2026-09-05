@@ -26,6 +26,13 @@ import {
   createPlanStore,
   type PlanFirestore,
 } from "../../apps/functions/src/memberships/plan-service.js";
+import {
+  createConsentStore,
+  type ConsentFirestore,
+} from "../../apps/functions/src/consents/consent-service.js";
+import type { R2Client } from "../../apps/functions/src/storage/r2-client.js";
+import { appendAuditEventInTransaction } from "../../apps/functions/src/audit/audit-writer.js";
+import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 
 const runId = `memberships-${process.pid}-${randomUUID().slice(0, 8)}`;
 const academyA = `${runId}-academy-a`;
@@ -45,6 +52,93 @@ const app = initializeApp({ projectId: "demo-bpt-jersey" }, runId);
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 const planStore = createPlanStore({ firestore: firestore as unknown as PlanFirestore });
+
+const waiverObjects = new Map<string, Uint8Array>();
+const waiverR2: R2Client = {
+  createPdfUploadUrl: async () => "https://r2.example.test/upload",
+  createPdfDownloadUrl: async () => "https://r2.example.test/download",
+  putObject: async (key, body) => {
+    waiverObjects.set(key, body);
+  },
+  readObject: async (key) => waiverObjects.get(key) ?? new Uint8Array(),
+  deleteObject: async (key) => {
+    waiverObjects.delete(key);
+  },
+};
+const consentStore = createConsentStore({
+  firestore: firestore as unknown as ConsentFirestore,
+  r2: waiverR2,
+  createEvidencePdf: async () => new TextEncoder().encode("%PDF synthetic membership waiver"),
+  appendAudit: (transaction, reference, draft) =>
+    appendAuditEventInTransaction(transaction, reference, draft as AuditEventDraft),
+});
+
+/**
+ * `createMembership` requires exactly one published waiver per academy and an accepted consent for
+ * the student (T018/T090). Publish once per academy and accept per student, through the real
+ * consent store so the stored shapes stay exactly what the membership store parses.
+ */
+async function seedAcceptedWaiver(
+  academyId: string,
+  acceptances: readonly Readonly<{
+    studentId: string;
+    actorId: string;
+    role: "guardian" | "adultStudent";
+    typedName: string;
+  }>[],
+): Promise<void> {
+  const version = await consentStore.publishWaiverVersion({
+    academyId,
+    actorId: academyId === academyA ? ownerA : ownerB,
+    now,
+    publication: {
+      versionLabel: "membership-emulator",
+      title: "Synthetic membership waiver",
+      introduction: "Synthetic content only.",
+      effectiveAt: now,
+      confirmReviewed: true,
+      clauses: [
+        {
+          key: "photoVideo",
+          heading: "Photo and video",
+          body: "Synthetic media clause.",
+          required: false,
+        },
+        {
+          key: "medicalTreatment",
+          heading: "Medical treatment",
+          body: "Synthetic medical clause.",
+          required: true,
+        },
+        { key: "hygiene", heading: "Hygiene", body: "Synthetic hygiene clause.", required: true },
+        {
+          key: "dataProtection",
+          heading: "Data protection",
+          body: "Synthetic data clause.",
+          required: true,
+        },
+      ],
+    },
+  });
+  for (const acceptance of acceptances) {
+    await consentStore.acceptWaiver({
+      academyId,
+      actorId: acceptance.actorId,
+      role: acceptance.role,
+      now,
+      studentId: acceptance.studentId,
+      waiverVersionId: version.waiverVersionId,
+      contentHash: version.contentHash,
+      typedName: acceptance.typedName,
+      clauseResponses: {
+        photoVideo: "declined",
+        medicalTreatment: "accepted",
+        hygiene: "accepted",
+        dataProtection: "accepted",
+      },
+    });
+  }
+}
 
 const userSeeds = [
   { userId: ownerA, academyId: academyA, role: "owner" },
@@ -68,6 +162,11 @@ const academyCollections = [
   "balances",
   "debts",
   "paygDebts",
+  // A membership may only be created for a student who accepted the current published waiver
+  // (T018/T090), so the seed publishes one and accepts it per student.
+  "waiverVersions",
+  "consents",
+  "documents",
 ] as const;
 
 function userProfile(userId: string, academyId: string) {
@@ -218,6 +317,22 @@ async function seedBaseData(): Promise<void> {
       [academyB, ownerB],
     ].map(([academyId, actorId]) => planStore.seedPlanCatalog({ academyId, actorId, now })),
   );
+
+  // The typed signature must match the authenticated signer's display name exactly.
+  await seedAcceptedWaiver(academyA, [
+    {
+      studentId: minorStudentA,
+      actorId: guardianA,
+      role: "guardian",
+      typedName: `Synthetic ${guardianA}`,
+    },
+    {
+      studentId: adultStudentRecordA,
+      actorId: adultStudentA,
+      role: "adultStudent",
+      typedName: `Synthetic ${adultStudentA}`,
+    },
+  ]);
 }
 
 async function requestFor(userId: string, data: unknown): Promise<CallableRequest<unknown>> {
@@ -270,6 +385,15 @@ function services(): MembershipCallableServices {
   };
 }
 
+/**
+ * The catalogue is age- and site-bound: the seeded minor is a teen training in Town, and the seeded
+ * adult trains in Town too. Picking the plan from the student keeps every call eligible without
+ * repeating the plan at each call site.
+ */
+function planForStudent(studentId: string): string {
+  return studentId === adultStudentRecordA ? "bpt-jersey-adult" : "town-teens";
+}
+
 async function createMembership(
   actorId: string,
   familyId: string,
@@ -280,7 +404,7 @@ async function createMembership(
     await requestFor(actorId, {
       familyId,
       studentId,
-      planId: "bpt-jersey-adult",
+      planId: planForStudent(studentId),
       status,
     }),
     services(),
@@ -296,6 +420,13 @@ async function transition(actorId: string, membershipId: string, targetStatus: s
 
 async function auditDocuments(academyId = academyA) {
   return (await firestore.collection(`academies/${academyId}/auditEvents`).get()).docs;
+}
+
+/** Audit events written by this suite's own membership calls, not by the waiver seed. */
+async function membershipAuditDocuments(academyId = academyA) {
+  return (await auditDocuments(academyId)).filter((document) =>
+    String(document.data().action).startsWith("membership."),
+  );
 }
 
 beforeAll(createAuthUsers);
@@ -477,7 +608,7 @@ describe("membership adapters against Auth/Firestore emulators", () => {
   it("writes exact safe audit fields and no financial documents", async () => {
     const created = await createMembership(ownerA, familyA, minorStudentA, "active");
     await transition(administratorA, created.membershipId, "paused");
-    const audits = await auditDocuments();
+    const audits = await membershipAuditDocuments();
     expect(audits).toHaveLength(2);
 
     for (const document of audits) {

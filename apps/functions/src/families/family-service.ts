@@ -18,7 +18,11 @@ import {
   type StudentProfile,
   type UserProfile,
 } from "@bpt-jersey/domain/profiles";
-import type { MemberDirectoryState } from "@bpt-jersey/domain/members/directory";
+import {
+  studentAdminProfileSchema,
+  type MemberDirectoryState,
+  type StudentAdminProfile,
+} from "@bpt-jersey/domain/members/directory";
 import { z } from "zod";
 
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
@@ -221,6 +225,10 @@ function studentsPath(academyId: string): string {
 
 function studentPath(academyId: string, studentId: string): string {
   return `${studentsPath(academyId)}/${pathSegment(studentId, "student")}`;
+}
+
+function studentAdminProfilePath(academyId: string, studentId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/studentAdminProfiles/${pathSegment(studentId, "student")}`;
 }
 
 function relationshipsPath(academyId: string): string {
@@ -669,6 +677,42 @@ function guardianProjection(
   });
 }
 
+/**
+ * A minor only gets an administrative profile when the enrolment carried one of the optional waiver
+ * blocks. The profile holds no administrative identifier: minors are not issued a membership,
+ * ID card or VAT number here, so nothing is reserved in `studentIdentityKeys`.
+ */
+function buildMinorAdminProfile(
+  student: FamilyStudentDraft,
+  academyId: string,
+  studentId: string,
+  actorId: string,
+  now: string,
+): StudentAdminProfile | undefined {
+  if (student.emergencyContact === undefined && student.postalAddress === undefined) {
+    return undefined;
+  }
+  const parsed = studentAdminProfileSchema.safeParse({
+    studentId,
+    academyId,
+    gender: "unknown",
+    ...(student.emergencyContact === undefined
+      ? {}
+      : { emergencyContact: { ...student.emergencyContact } }),
+    ...(student.postalAddress === undefined ? {} : { postalAddress: { ...student.postalAddress } }),
+    source: "admin",
+    schemaVersion: "1",
+    createdAt: now,
+    createdBy: actorId,
+    updatedAt: now,
+    updatedBy: actorId,
+  });
+  if (!parsed.success) {
+    throw new FamilyStoreError("invalid", "Student administrative profile is invalid");
+  }
+  return parsed.data;
+}
+
 function buildMinorStudent(
   student: FamilyStudentDraft,
   academyId: string,
@@ -935,15 +979,22 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
             relationshipPath(academyId, relationshipId(familyId, studentId)),
           ),
         );
+        const adminProfileReferences = studentIds.map((studentId) =>
+          dependencies.firestore.doc(studentAdminProfilePath(academyId, studentId)),
+        );
         const studentSnapshots = await Promise.all(
           studentReferences.map((reference) => transaction.get(reference)),
         );
         const relationshipSnapshots = await Promise.all(
           relationshipReferences.map((reference) => transaction.get(reference)),
         );
+        const adminProfileSnapshots = await Promise.all(
+          adminProfileReferences.map((reference) => transaction.get(reference)),
+        );
         if (
           studentSnapshots.some((snapshot) => readDocumentSnapshot(snapshot).exists) ||
-          relationshipSnapshots.some((snapshot) => readDocumentSnapshot(snapshot).exists)
+          relationshipSnapshots.some((snapshot) => readDocumentSnapshot(snapshot).exists) ||
+          adminProfileSnapshots.some((snapshot) => readDocumentSnapshot(snapshot).exists)
         ) {
           throw new FamilyStoreError("duplicate", "Student identity is already linked");
         }
@@ -973,6 +1024,7 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           return {
             reference,
             student: buildMinorStudent(student, academyId, familyId, studentId, actorId, now),
+            adminProfile: buildMinorAdminProfile(student, academyId, studentId, actorId, now),
             relationship: buildGuardianRelationship(
               academyId,
               familyId,
@@ -1015,6 +1067,13 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           }
           transaction.create(record.reference, record.student);
           transaction.create(relationshipReference, record.relationship);
+          const adminProfileReference = adminProfileReferences[index];
+          if (record.adminProfile !== undefined) {
+            if (adminProfileReference === undefined) {
+              throw new FamilyStoreError("invalid", "Student profile identity is missing");
+            }
+            transaction.create(adminProfileReference, record.adminProfile);
+          }
         }
         transaction.set(control.stateRef, nextControl.state);
         transaction.set(control.guardRef, nextControl.guard);
@@ -1335,6 +1394,19 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           if (readDocumentSnapshot(await transaction.get(relationshipReference)).exists) {
             throw new FamilyStoreError("duplicate", "Relationship identity is already in use");
           }
+          const adminProfileReference = dependencies.firestore.doc(
+            studentAdminProfilePath(academyId, studentId),
+          );
+          if (readDocumentSnapshot(await transaction.get(adminProfileReference)).exists) {
+            throw new FamilyStoreError("duplicate", "Student identity is already linked");
+          }
+          const adminProfile = buildMinorAdminProfile(
+            addPlan.student,
+            academyId,
+            studentId,
+            actorId,
+            now,
+          );
           const student = buildMinorStudent(
             addPlan.student,
             academyId,
@@ -1378,6 +1450,9 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           });
           transaction.create(studentReference, student);
           transaction.create(relationshipReference, relationship);
+          if (adminProfile !== undefined) {
+            transaction.create(adminProfileReference, adminProfile);
+          }
           transaction.set(control.stateRef, nextControl.state);
           transaction.set(control.guardRef, nextControl.guard);
           transaction.create(nextControl.eventRef, nextControl.event);

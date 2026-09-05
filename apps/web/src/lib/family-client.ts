@@ -12,7 +12,11 @@ import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 
 import { getFirebaseFunctions } from "./firebase-client";
 
-export type { GuardianFamilyProjection, StaffFamilyProjection } from "@bpt-jersey/domain/families";
+export type {
+  FamilyStudentDraft,
+  GuardianFamilyProjection,
+  StaffFamilyProjection,
+} from "@bpt-jersey/domain/families";
 
 export type CreateFamilyClientInput = Readonly<{
   requestId: string;

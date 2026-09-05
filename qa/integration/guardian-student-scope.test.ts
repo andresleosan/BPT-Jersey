@@ -92,7 +92,7 @@ afterAll(async () => {
 });
 
 describe("guardian student scope against the Firestore emulator", () => {
-  it("allows only a current active primary guardian relationship and fails closed otherwise", async () => {
+  it("allows every current active authorized guardian relationship and fails closed otherwise", async () => {
     const current = await seedScope({ suffix: "current" });
     const secondary = await seedScope({
       suffix: "secondary",
@@ -122,9 +122,26 @@ describe("guardian student scope against the Firestore emulator", () => {
         studentId: current.studentId,
       }),
     ).resolves.toBe(false);
-    for (const denied of [secondary, future, expired, inactive]) {
+    // T022 authorizes by relationship, not by family primary contact: a second authorized adult
+    // (the other parent) holds an active guardian relationship with readProfile and is allowed,
+    // even though the family's primary contact is someone else.
+    await expect(
+      resolver({
+        academyId,
+        guardianUserId: secondary.guardianId,
+        studentId: secondary.studentId,
+      }),
+      "secondary authorized adult",
+    ).resolves.toBe(true);
+
+    for (const [label, denied] of [
+      ["future", future],
+      ["expired", expired],
+      ["inactive", inactive],
+    ] as const) {
       await expect(
         resolver({ academyId, guardianUserId: denied.guardianId, studentId: denied.studentId }),
+        label,
       ).resolves.toBe(false);
     }
   });

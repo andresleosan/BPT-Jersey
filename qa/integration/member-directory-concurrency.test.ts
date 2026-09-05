@@ -21,12 +21,18 @@ import {
   advanceMemberDirectoryControlPlane,
   buildInitialMemberDirectoryControlPlane,
 } from "../../apps/functions/src/members/member-directory-state.js";
+import {
+  createProfileStore,
+  type ProfileFirestore,
+} from "../../apps/functions/src/profiles/profile-service.js";
 
 const projectId = "demo-bpt-jersey";
 const runId = "member-directory-concurrency-" + process.pid + "-" + randomUUID().slice(0, 8);
 const lookupAcademyId = runId + "-lookup";
 const createAcademyId = runId + "-create";
 const freezeAcademyId = runId + "-freeze";
+const crossWriterAcademyId = runId + "-cross-writer";
+const clientUserId = runId + "-client";
 const actorId = runId + "-owner";
 const lookupStudentId = runId + "-student";
 const lookupRawValue = "BPT 99000001";
@@ -75,6 +81,8 @@ const academyCollections = Object.freeze([
   "studentIdentityKeys",
   "studentRestrictedReadLimits",
   "memberDirectoryWriteReceipts",
+  "families",
+  "profileWriteReceipts",
   "auditEvents",
 ] as const);
 
@@ -364,6 +372,39 @@ async function cleanupAcademy(academyId: string): Promise<void> {
   await currentFirestore.doc("memberDirectoryRestoreGuards/" + academyId).delete();
 }
 
+function clientAuthBinding(academyId: string): Readonly<Record<string, unknown>> {
+  return {
+    userId: clientUserId,
+    academyId,
+    accountType: "client",
+    displayName: "Synthetic Cross Writer Adult",
+    email: clientUserId + "@example.test",
+    phoneNumber: "+441534000777",
+    active: true,
+    status: "active",
+    schemaVersion: "1",
+    createdAt: "2026-09-03T20:00:00.000Z",
+    createdBy: clientUserId,
+    updatedAt: "2026-09-03T20:00:00.000Z",
+    updatedBy: clientUserId,
+  };
+}
+
+function createProfileWriter(academyId: string) {
+  let studentSequence = 0;
+  let auditSequence = 0;
+  return createProfileStore({
+    firestore: requireFirestore() as unknown as ProfileFirestore,
+    projectId,
+    identitySecretMaterial: identitySecret,
+    identitySecretVersion: "identity-v1",
+    integritySecretMaterial: integritySecret,
+    integritySecretVersion: "integrity-v1",
+    generateStudentId: () => academyId + "-profile-student-" + ++studentSequence,
+    generateAuditId: () => academyId + "-profile-audit-" + ++auditSequence,
+  });
+}
+
 function deferred(): Readonly<{ promise: Promise<void>; resolve: () => void }> {
   let resolve = (): void => undefined;
   const promise = new Promise<void>((currentResolve) => {
@@ -376,7 +417,7 @@ afterAll(async () => {
   if (firestore === undefined || app === undefined) return;
   try {
     await Promise.all(
-      [lookupAcademyId, createAcademyId, freezeAcademyId].map((academyId) =>
+      [lookupAcademyId, createAcademyId, freezeAcademyId, crossWriterAcademyId].map((academyId) =>
         cleanupAcademy(academyId),
       ),
     );
@@ -448,9 +489,17 @@ describeLocal("canonical member-directory concurrency against Firestore Emulator
     auditData.forEach((data) => assertSafeRestrictedAudit(data, lookupKeyId));
     const auditIdsBefore = auditsBefore.docs.map((document) => document.id).sort();
 
-    const overLimitWave = await Promise.allSettled(
-      Array.from({ length: 40 }, () => reader.lookup(lookupCommand(lookupAcademyId))),
-    );
+    // RED matrix R15: the over-limit path must stay O(1) in writes and perform no blind key or
+    // profile read, no matter how many requests arrive inside the same window.
+    const overLimitWave: PromiseSettledResult<ExactMemberLookupResult>[] = [];
+    for (let batch = 0; batch < 20; batch += 1) {
+      overLimitWave.push(
+        ...(await Promise.allSettled(
+          Array.from({ length: 100 }, () => reader.lookup(lookupCommand(lookupAcademyId))),
+        )),
+      );
+    }
+    expect(overLimitWave).toHaveLength(2_000);
     expect(overLimitWave.every((result) => result.status === "rejected")).toBe(true);
     for (const result of overLimitWave) {
       if (result.status !== "rejected") continue;
@@ -677,5 +726,128 @@ describeLocal("canonical member-directory concurrency against Firestore Emulator
       currentStateRevision: 1,
       transitionKind: "identity-key-reconcile",
     });
+  }, 60_000);
+
+  /**
+   * RED matrix R28 for T093: race two different writer kinds for one participant.
+   *
+   * Identity-key collision across writer kinds is impossible by construction - the kind is part of
+   * both the HMAC input and the key ID - so the real contention is the shared control plane: the
+   * directory state, its revision, the monotonic guard event and the rollback capacity counter.
+   * Whatever interleaving Firestore picks, the committed result must be serializable: one revision
+   * and one guard event per successful create, capacity matching the successes, and no partial
+   * document from a writer that failed.
+   */
+  it("serializes the administrative and adult-profile writers over one control plane", async () => {
+    await seedAcademy(crossWriterAcademyId, 0, false);
+    const currentFirestore = requireFirestore();
+    await currentFirestore
+      .doc("academies/" + crossWriterAcademyId + "/users/" + clientUserId)
+      .set(clientAuthBinding(crossWriterAcademyId));
+
+    const adminInput = createInput("x");
+    const administrative = createWriter();
+    const profiles = createProfileWriter(crossWriterAcademyId);
+
+    // The same raw value under two kinds must never resolve to the same reservation.
+    const sharedRawValue = "BPT-99000042";
+    expect(
+      buildStudentIdentityKey({
+        academyId: crossWriterAcademyId,
+        kind: "membership-number",
+        value: sharedRawValue,
+        ownerStudentId: "student-a",
+        secretMaterial: identitySecret,
+        secretVersion: "identity-v1",
+        now,
+        actorId,
+      }).keyId,
+    ).not.toBe(
+      buildStudentIdentityKey({
+        academyId: crossWriterAcademyId,
+        kind: "auth-user-id",
+        value: sharedRawValue,
+        ownerStudentId: "student-b",
+        secretMaterial: identitySecret,
+        secretVersion: "identity-v1",
+        now,
+        actorId,
+      }).keyId,
+    );
+
+    const results = await Promise.allSettled([
+      administrative.createAdminAdult({
+        actor: actor(crossWriterAcademyId),
+        value: adminInput,
+        now,
+      }),
+      profiles.saveClientProfile({
+        academyId: crossWriterAcademyId,
+        userId: clientUserId,
+        email: clientUserId + "@example.test",
+        displayName: "Synthetic Cross Writer Adult",
+        requestId: runId + "-cross-writer-request",
+        fullName: "Synthetic Cross Writer Adult",
+        dateOfBirth: "1990-03-14",
+        phoneNumber: "+441534000777",
+        trainingCenter: "Town",
+        trainingTimePreferences: ["evening"],
+        now,
+      }),
+    ]);
+
+    const succeeded = results.filter((result) => result.status === "fulfilled").length;
+    expect(succeeded).toBeGreaterThanOrEqual(1);
+
+    const [stateSnapshot, guardSnapshot, students, identityKeys, guardEvents] = await Promise.all([
+      currentFirestore
+        .doc("academies/" + crossWriterAcademyId + "/memberDirectoryStates/current")
+        .get(),
+      currentFirestore.doc("memberDirectoryRestoreGuards/" + crossWriterAcademyId).get(),
+      currentFirestore.collection("academies/" + crossWriterAcademyId + "/students").get(),
+      currentFirestore
+        .collection("academies/" + crossWriterAcademyId + "/studentIdentityKeys")
+        .get(),
+      currentFirestore
+        .collection("memberDirectoryRestoreGuards/" + crossWriterAcademyId + "/events")
+        .get(),
+    ]);
+
+    // One revision and one create-only guard event per successful create, never a shared revision.
+    expect(stateSnapshot.data()).toMatchObject({
+      stateRevision: succeeded,
+      rollbackEligibleStudentCount: succeeded,
+    });
+    expect(guardSnapshot.data()).toMatchObject({
+      highestStateRevision: succeeded,
+      lastEventId: String(succeeded),
+    });
+    expect(guardEvents.docs.map((document) => document.id).sort()).toEqual(
+      Array.from({ length: succeeded + 1 }, (_unused, index) => String(index)).sort(),
+    );
+    expect(students.docs).toHaveLength(succeeded);
+
+    // Each writer reserves its own kinds: three administrative keys, one auth-user-id key.
+    const keyKinds = identityKeys.docs.map((document) => String(document.data().kind)).sort();
+    const adminSucceeded = results[0]?.status === "fulfilled";
+    const profileSucceeded = results[1]?.status === "fulfilled";
+    const expectedKinds = [
+      ...(adminSucceeded ? ["id-card-number", "membership-number", "vat-number"] : []),
+      ...(profileSucceeded ? ["auth-user-id"] : []),
+    ].sort();
+    expect(keyKinds).toEqual(expectedKinds);
+
+    // A writer that lost leaves nothing behind.
+    const persisted = JSON.stringify([
+      ...students.docs.map((document) => document.data()),
+      ...identityKeys.docs.map((document) => document.data()),
+    ]);
+    if (!adminSucceeded) {
+      expect(persisted).not.toContain(adminInput.fullName);
+      expect(persisted).not.toContain(adminInput.email);
+    }
+    if (!profileSucceeded) {
+      expect(persisted).not.toContain(clientUserId);
+    }
   }, 60_000);
 });

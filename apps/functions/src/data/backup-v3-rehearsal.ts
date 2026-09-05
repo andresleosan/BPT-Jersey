@@ -108,6 +108,7 @@ export type BackupV3RehearsalEndpoint = Readonly<{
     input: BackupV3TargetCheckpointWrite,
   ) => Promise<"created" | "existing">;
   createPayloadDocuments: (request: BackupV3PayloadWriteRequest) => Promise<void>;
+  getMetadataDocument: (path: string) => Promise<Readonly<Record<string, unknown>> | undefined>;
   putMetadataDocument: (path: string, data: Readonly<Record<string, unknown>>) => Promise<void>;
 }>;
 
@@ -184,6 +185,15 @@ export type BackupV3RestoreResult = Readonly<{
   authorityMode: typeof authorityMode;
   targetAuthUserCount: 0;
   attestation: BackupV3RestoreAttestation;
+  /**
+   * Proof of the verification performed by this call. It binds the read time of this run, so it
+   * differs legitimately between the original commit and any later re-verification, and it is never
+   * part of the attestation document or of the attestation ID.
+   */
+  verificationReadTime: string;
+  verificationTargetInventoryMac: string;
+  /** True when this call discovered an attestation a previous run had already committed. */
+  discovered: boolean;
 }>;
 
 export type BackupV3TargetPreparationResult = Readonly<{
@@ -1428,6 +1438,11 @@ export async function restoreBackupV3RehearsalSnapshot(
   ) {
     fail("target-verification", "Backup v3 target summary diverged");
   }
+  /**
+   * The attested inventory MAC binds *what* the target holds, never *when* it was read, so the
+   * attestation ID stays stable across a retry that re-reads the target at a later read time. The
+   * read time is bound separately below, as verification-only evidence that is expected to differ.
+   */
   const attestedTargetInventoryMac = integrityMac(
     "bpt-backup-v3-rehearsal-target-inventory-v1",
     [
@@ -1436,10 +1451,22 @@ export async function restoreBackupV3RehearsalSnapshot(
       input.academyId,
       targetOperationId,
       authorityMode,
-      finalTarget.readTime,
       String(verifiedTargetRows.length),
       String(targetDecodedBytes),
       ...verifiedTargetRows.map(canonicalRow),
+    ],
+    input.targetIntegrity,
+  );
+  const verificationTargetInventoryMac = integrityMac(
+    "bpt-backup-v3-rehearsal-verification-inventory-v1",
+    [
+      BACKUP_V3_INVENTORY_VERSION,
+      targetProjectId,
+      input.academyId,
+      targetOperationId,
+      authorityMode,
+      finalTarget.readTime,
+      attestedTargetInventoryMac,
     ],
     input.targetIntegrity,
   );
@@ -1497,11 +1524,83 @@ export async function restoreBackupV3RehearsalSnapshot(
   if (!attestationSchema.safeParse(attestation).success) {
     fail("attestation-conflict", "Backup v3 attestation is not metadata-only");
   }
+
+  const attestationPath = `memberDirectoryRestoreAttestations/${attestationId}`;
+
+  /**
+   * A crash after the attestation commit must converge, not duplicate. The ID is derived from stable
+   * evidence only, so a retry recomputes the same ID and discovers the committed document. The
+   * discovered attestation is accepted when every stable field matches what this run computed;
+   * `attestedReadTime` and `createdAt` legitimately belong to the first run and are preserved.
+   */
+  let existing: Readonly<Record<string, unknown>> | undefined;
   try {
-    await input.source.putMetadataDocument(
-      `memberDirectoryRestoreAttestations/${attestationId}`,
-      attestation,
+    existing = await input.source.getMetadataDocument(attestationPath);
+  } catch {
+    fail("attestation-conflict", "Backup v3 attestation could not be read exactly");
+  }
+
+  if (existing !== undefined) {
+    const parsed = attestationSchema.safeParse(existing);
+    if (!parsed.success) {
+      fail("attestation-conflict", "Backup v3 attestation already exists and is not exact");
+    }
+    const committed = parsed.data as BackupV3RestoreAttestation;
+    const stableFields = [
+      "attestationId",
+      "schemaVersion",
+      "sourceProjectId",
+      "targetProjectId",
+      "academyId",
+      "targetOperationId",
+      "authorityMode",
+      "artifactDispositionVersion",
+      "inventoryVersion",
+      "firestoreValueCodecVersion",
+      "snapshotReadTime",
+      "backupDocumentCount",
+      "payloadDocumentCount",
+      "payloadDecodedBytes",
+      "targetDocumentCount",
+      "targetAuthUserCount",
+      "payloadRootMac",
+      "backupRootMac",
+      "sourceStateEvidenceMac",
+      "attestedTargetInventoryMac",
+      "sourceIntegritySecretVersion",
+      "targetIntegritySecretVersion",
+      "createdBy",
+    ] as const;
+    for (const field of stableFields) {
+      if (committed[field] !== attestation[field]) {
+        fail("attestation-conflict", "Backup v3 attestation diverges from the committed one");
+      }
+    }
+    const committedWithoutMac = Object.fromEntries(
+      Object.entries(committed).filter(([key]) => key !== "sourceAttestationMac"),
+    ) as Omit<BackupV3RestoreAttestation, "sourceAttestationMac">;
+    const recomputed = integrityMac(
+      "bpt-backup-v3-rehearsal-attestation-v1",
+      [attestationMacInput(committedWithoutMac)],
+      input.sourceIntegrity,
     );
+    if (!constantTimeMacEquals(recomputed, committed.sourceAttestationMac)) {
+      fail("attestation-conflict", "Backup v3 attestation MAC does not verify");
+    }
+    return Object.freeze({
+      attestationId,
+      restoredDocumentCount: verifiedTargetRows.length,
+      authorityMode,
+      targetAuthUserCount: 0,
+      attestation: committed,
+      verificationReadTime: finalTarget.readTime,
+      verificationTargetInventoryMac,
+      discovered: true,
+    });
+  }
+
+  try {
+    await input.source.putMetadataDocument(attestationPath, attestation);
   } catch {
     fail("attestation-conflict", "Backup v3 attestation could not be created exactly");
   }
@@ -1511,5 +1610,8 @@ export async function restoreBackupV3RehearsalSnapshot(
     authorityMode,
     targetAuthUserCount: 0,
     attestation,
+    verificationReadTime: finalTarget.readTime,
+    verificationTargetInventoryMac,
+    discovered: false,
   });
 }

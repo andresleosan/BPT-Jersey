@@ -23,9 +23,38 @@ import {
   buildInitialMemberDirectoryControlPlane,
 } from "../../apps/functions/src/members/member-directory-state.js";
 
-const enabled =
+const emulatorsBound =
   process.env["FIRESTORE_EMULATOR_HOST"] === "127.0.0.1:8080" &&
   process.env["FIREBASE_AUTH_EMULATOR_HOST"] === "127.0.0.1:9099";
+
+/**
+ * The namespace inventory pins every read to one `readTime`, which is a point-in-time read. The
+ * Firestore Emulator answers those with `400 INVALID_ARGUMENT: Only timestamps past epoch are
+ * supported`, so this rehearsal cannot run there and must be exercised against a real project.
+ * The capability is probed rather than assumed, so the suite starts running by itself the day the
+ * Emulator supports it.
+ */
+async function supportsPointInTimeReads(): Promise<boolean> {
+  const readTime = new Date(Date.now() - 5_000).toISOString();
+  const url =
+    "http://127.0.0.1:8080/v1/projects/demo-bpt-jersey/databases/(default)/documents/academies" +
+    `?showMissing=true&readTime=${encodeURIComponent(readTime)}`;
+  try {
+    const response = await fetch(url, { headers: { Authorization: "Bearer owner" } });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+const pointInTimeReads = emulatorsBound ? await supportsPointInTimeReads() : false;
+const enabled = emulatorsBound && pointInTimeReads;
+if (emulatorsBound && !pointInTimeReads) {
+  console.warn(
+    "SKIP backup v3 rehearsal integration: the Firestore Emulator rejects point-in-time readTime " +
+      "reads, which the namespace inventory requires. Run this against a real project (T099).",
+  );
+}
 const suite = enabled ? describe : describe.skip;
 const runId = randomUUID().replaceAll("-", "");
 const academyId = `backup-v3-${runId}`;

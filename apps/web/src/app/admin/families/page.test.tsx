@@ -219,6 +219,54 @@ describe("admin family page", () => {
     expect(screen.queryByText(/academy-1|family-1|student-1|createdBy/i)).not.toBeInTheDocument();
   });
 
+  it("sends complete waiver blocks for a minor and blocks a partial one", async () => {
+    const user = userEvent.setup();
+    familyApi.createFamily.mockResolvedValue(staffProjection);
+    render(<FamilyAdminPage />);
+
+    await user.type(screen.getByLabelText("Tutor user ID"), "user-1");
+    await user.type(screen.getByLabelText("Minor full name"), "Synthetic Minor");
+    await user.type(screen.getByLabelText("Date of birth"), "2015-08-19");
+    await user.click(screen.getByRole("checkbox", { name: "Afternoon" }));
+
+    // A block that is started but incomplete never reaches the callable.
+    await user.type(screen.getByLabelText("Minor 1 contact full name"), "Synthetic Tutor");
+    await user.click(screen.getByRole("button", { name: "Create family" }));
+    expect(familyApi.createFamily).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter the emergency contact name, relationship and phone number.",
+    );
+
+    await user.type(screen.getByLabelText("Minor 1 relationship to the minor"), "Mother");
+    await user.type(screen.getByLabelText("Minor 1 contact phone number"), "+441534000111");
+    await user.type(screen.getByLabelText("Minor 1 address"), "1 Synthetic Lane");
+    await user.click(screen.getByRole("button", { name: "Create family" }));
+    expect(familyApi.createFamily).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter both the address and the post code.",
+    );
+
+    await user.type(screen.getByLabelText("Minor 1 post code"), "JE2 3AB");
+    await user.click(screen.getByRole("button", { name: "Create family" }));
+
+    await waitFor(() => expect(familyApi.createFamily).toHaveBeenCalledOnce());
+    expect(familyApi.createFamily).toHaveBeenCalledWith(
+      expect.objectContaining({
+        students: [
+          expect.objectContaining({
+            fullName: "Synthetic Minor",
+            emergencyContact: {
+              fullName: "Synthetic Tutor",
+              relationship: "Mother",
+              phoneNumber: "+441534000111",
+            },
+            postalAddress: { line: "1 Synthetic Lane", postCode: "JE2 3AB" },
+          }),
+        ],
+      }),
+    );
+  });
+
   it("shows only a generic error when the callable fails", async () => {
     const user = userEvent.setup();
     familyApi.createFamily.mockRejectedValue(new Error("private callable details"));

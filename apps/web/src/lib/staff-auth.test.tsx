@@ -3,10 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import { StaffAuthGate, StaffAuthProvider } from "./staff-auth";
 
-let mockUser: any = null;
+type SyntheticUser = {
+  uid: string;
+  email: string;
+  displayName: string;
+  getIdTokenResult: () => Promise<{ claims: Record<string, unknown> }>;
+};
+
+let mockUser: SyntheticUser | null = null;
 
 vi.mock("./auth-client", () => ({
-  subscribeToIdTokenChanges: (callback: (user: any) => void) => {
+  subscribeToIdTokenChanges: (callback: (user: SyntheticUser | null) => void) => {
     callback(mockUser);
     return () => {};
   },

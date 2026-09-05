@@ -58,6 +58,23 @@ export type FamilyRelationship = Readonly<{
     updatedBy: string;
   }>;
 
+/**
+ * Emergency contact and postal address as printed on the official waiver form. Both blocks are
+ * optional, but a block that is started must be complete. They are Confidential and are projected
+ * only into the restricted directory detail, never into a general row.
+ */
+export type FamilyStudentEmergencyContact = Readonly<{
+  fullName: string;
+  relationship: string;
+  phoneNumber: string;
+  alternatePhoneNumber?: string;
+}>;
+
+export type FamilyStudentPostalAddress = Readonly<{
+  line: string;
+  postCode: string;
+}>;
+
 export type FamilyStudentDraft = Readonly<{
   fullName: string;
   dateOfBirth: string;
@@ -65,6 +82,8 @@ export type FamilyStudentDraft = Readonly<{
   email?: string;
   trainingCenter: TrainingCenter;
   trainingTimePreferences: readonly TrainingTimePreference[];
+  emergencyContact?: FamilyStudentEmergencyContact;
+  postalAddress?: FamilyStudentPostalAddress;
 }>;
 
 export type StaffFamilyProjection = Readonly<{
@@ -131,10 +150,24 @@ const studentDraftFields = Object.freeze([
   "email",
   "trainingCenter",
   "trainingTimePreferences",
+  "emergencyContact",
+  "postalAddress",
+] as const);
+const studentDraftOptionalFields = Object.freeze([
+  "phoneNumber",
+  "email",
+  "emergencyContact",
+  "postalAddress",
 ] as const);
 const studentDraftRequiredFields = studentDraftFields.filter(
-  (field) => field !== "phoneNumber" && field !== "email",
+  (field) => !(studentDraftOptionalFields as readonly string[]).includes(field),
 );
+const emergencyContactRequiredFields = Object.freeze([
+  "fullName",
+  "relationship",
+  "phoneNumber",
+] as const);
+const postalAddressFields = Object.freeze(["line", "postCode"] as const);
 
 const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/u;
 const dateTimePattern =
@@ -314,7 +347,7 @@ export function parseFamilyStudentDraft(
 ): Result<FamilyStudentDraft, readonly ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   if (!isPlainRecord(value)) return err([issue([], "invalid_type")]);
-  if (!hasExactFields(value, studentDraftRequiredFields, ["phoneNumber", "email"])) {
+  if (!hasExactFields(value, studentDraftRequiredFields, studentDraftOptionalFields)) {
     issues.push(issue([], "unexpected_property"));
   }
   if (!isNonEmptyText(value.fullName, 160)) issues.push(issue(["fullName"], "invalid_text"));
@@ -345,11 +378,43 @@ export function parseFamilyStudentDraft(
     const valid = field === "email" ? isEmail(value[field]) : isNonEmptyText(value[field], 64);
     if (!valid) issues.push(issue([field], field === "email" ? "invalid_email" : "invalid_text"));
   }
+  // A waiver block is optional as a whole, but complete and closed once started.
+  if (Object.hasOwn(value, "emergencyContact")) {
+    const contact = value.emergencyContact;
+    if (
+      !isPlainRecord(contact) ||
+      !hasExactFields(contact, emergencyContactRequiredFields, ["alternatePhoneNumber"]) ||
+      !isNonEmptyText(contact.fullName, 160) ||
+      !isNonEmptyText(contact.relationship, 64) ||
+      !isNonEmptyText(contact.phoneNumber, 64) ||
+      (Object.hasOwn(contact, "alternatePhoneNumber") &&
+        !isNonEmptyText(contact.alternatePhoneNumber, 64))
+    ) {
+      issues.push(issue(["emergencyContact"], "invalid_text"));
+    }
+  }
+  if (Object.hasOwn(value, "postalAddress")) {
+    const address = value.postalAddress;
+    if (
+      !isPlainRecord(address) ||
+      !hasExactFields(address, postalAddressFields) ||
+      !isNonEmptyText(address.line, 240) ||
+      !isNonEmptyText(address.postCode, 16)
+    ) {
+      issues.push(issue(["postalAddress"], "invalid_text"));
+    }
+  }
   const parsed = {
     ...(value as FamilyStudentDraft),
     trainingTimePreferences: Array.isArray(value.trainingTimePreferences)
       ? Object.freeze([...value.trainingTimePreferences] as TrainingTimePreference[])
       : value.trainingTimePreferences,
+    ...(isPlainRecord(value.emergencyContact)
+      ? { emergencyContact: Object.freeze({ ...value.emergencyContact }) }
+      : {}),
+    ...(isPlainRecord(value.postalAddress)
+      ? { postalAddress: Object.freeze({ ...value.postalAddress }) }
+      : {}),
   } as FamilyStudentDraft;
   return parseResult(parsed, issues);
 }

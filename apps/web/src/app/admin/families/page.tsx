@@ -8,6 +8,7 @@ import {
   getFamily,
   updateFamily,
   type CreateFamilyClientInput,
+  type FamilyStudentDraft,
   type StaffFamilyProjection,
   type UpdateFamilyClientInput,
 } from "../../../lib/family-client";
@@ -22,6 +23,12 @@ type MinorRow = Readonly<{
   dateOfBirth: string;
   trainingCenter: "Town" | "West";
   trainingTimePreferences: readonly Preference[];
+  emergencyContactFullName: string;
+  emergencyContactRelationship: string;
+  emergencyContactPhoneNumber: string;
+  emergencyContactAlternatePhoneNumber: string;
+  addressLine: string;
+  postCode: string;
 }>;
 type RequestAttempt = Readonly<{ fingerprint: string; requestId: string }>;
 type MaintenancePanel = "replaceTutor" | "addStudent" | "deactivateFamily" | null;
@@ -46,6 +53,66 @@ function newMinor(id: number): MinorRow {
     dateOfBirth: "",
     trainingCenter: "Town",
     trainingTimePreferences: [],
+    emergencyContactFullName: "",
+    emergencyContactRelationship: "",
+    emergencyContactPhoneNumber: "",
+    emergencyContactAlternatePhoneNumber: "",
+    addressLine: "",
+    postCode: "",
+  };
+}
+
+function optionalText(value: string): string | undefined {
+  const normalized = value.trim();
+  return normalized.length === 0 ? undefined : normalized;
+}
+
+// The official waiver form captures the emergency contact and the postal address at enrolment.
+// Both blocks are optional as a whole, but once started they must be complete.
+function emergencyContactFromRow(
+  row: MinorRow,
+): FamilyStudentDraft["emergencyContact"] | undefined {
+  const fullName = optionalText(row.emergencyContactFullName);
+  const relationship = optionalText(row.emergencyContactRelationship);
+  const phoneNumber = optionalText(row.emergencyContactPhoneNumber);
+  const alternatePhoneNumber = optionalText(row.emergencyContactAlternatePhoneNumber);
+  if (
+    fullName === undefined &&
+    relationship === undefined &&
+    phoneNumber === undefined &&
+    alternatePhoneNumber === undefined
+  ) {
+    return undefined;
+  }
+  if (fullName === undefined || relationship === undefined || phoneNumber === undefined) {
+    throw new Error("incomplete emergency contact");
+  }
+  return {
+    fullName,
+    relationship,
+    phoneNumber,
+    ...(alternatePhoneNumber === undefined ? {} : { alternatePhoneNumber }),
+  };
+}
+
+function postalAddressFromRow(row: MinorRow): FamilyStudentDraft["postalAddress"] | undefined {
+  const line = optionalText(row.addressLine);
+  const postCode = optionalText(row.postCode);
+  if (line === undefined && postCode === undefined) return undefined;
+  if (line === undefined || postCode === undefined) throw new Error("incomplete postal address");
+  return { line, postCode };
+}
+
+function minorDraftFromRow(row: MinorRow): FamilyStudentDraft {
+  const emergencyContact = emergencyContactFromRow(row);
+  const postalAddress = postalAddressFromRow(row);
+  return {
+    fullName: row.fullName.trim(),
+    dateOfBirth: row.dateOfBirth,
+    trainingCenter: row.trainingCenter,
+    trainingTimePreferences: row.trainingTimePreferences,
+    ...(emergencyContact === undefined ? {} : { emergencyContact }),
+    ...(postalAddress === undefined ? {} : { postalAddress }),
   };
 }
 
@@ -66,7 +133,93 @@ function minorDraftError(row: MinorRow): string | undefined {
   if (!row.fullName.trim()) return "Minor full name is required.";
   if (!row.dateOfBirth) return "Date of birth is required.";
   if (row.trainingTimePreferences.length === 0) return "Choose at least one training time.";
+  try {
+    emergencyContactFromRow(row);
+  } catch {
+    return "Enter the emergency contact name, relationship and phone number.";
+  }
+  try {
+    postalAddressFromRow(row);
+  } catch {
+    return "Enter both the address and the post code.";
+  }
   return undefined;
+}
+
+/**
+ * Emergency contact and postal address for one minor, as printed on the official waiver form. Both
+ * blocks are optional; the enclosing form rejects a block that is started but incomplete.
+ */
+function MinorWaiverFields({
+  idPrefix,
+  labelPrefix,
+  row,
+  onChange,
+}: Readonly<{
+  idPrefix: string;
+  labelPrefix: string;
+  row: MinorRow;
+  onChange: (patch: Partial<MinorRow>) => void;
+}>) {
+  const fields = [
+    {
+      key: "emergencyContactFullName" as const,
+      id: `${idPrefix}-emergency-name`,
+      label: "Contact full name",
+    },
+    {
+      key: "emergencyContactRelationship" as const,
+      id: `${idPrefix}-emergency-relationship`,
+      label: "Relationship to the minor",
+    },
+    {
+      key: "emergencyContactPhoneNumber" as const,
+      id: `${idPrefix}-emergency-phone`,
+      label: "Contact phone number",
+    },
+    {
+      key: "emergencyContactAlternatePhoneNumber" as const,
+      id: `${idPrefix}-emergency-alternate-phone`,
+      label: "Alternate phone number (optional)",
+    },
+  ];
+  const addressFields = [
+    { key: "addressLine" as const, id: `${idPrefix}-address-line`, label: "Address" },
+    { key: "postCode" as const, id: `${idPrefix}-post-code`, label: "Post code" },
+  ];
+
+  return (
+    <>
+      <fieldset className="family-preferences">
+        <legend>{labelPrefix} emergency contact (optional)</legend>
+        {fields.map((field) => (
+          <label className="family-field" htmlFor={field.id} key={field.id}>
+            {field.label}
+            <input
+              aria-label={`${labelPrefix} ${field.label.toLowerCase()}`}
+              id={field.id}
+              onChange={(event) => onChange({ [field.key]: event.target.value })}
+              value={row[field.key]}
+            />
+          </label>
+        ))}
+      </fieldset>
+      <fieldset className="family-preferences">
+        <legend>{labelPrefix} postal address (optional)</legend>
+        {addressFields.map((field) => (
+          <label className="family-field" htmlFor={field.id} key={field.id}>
+            {field.label}
+            <input
+              aria-label={`${labelPrefix} ${field.label.toLowerCase()}`}
+              id={field.id}
+              onChange={(event) => onChange({ [field.key]: event.target.value })}
+              value={row[field.key]}
+            />
+          </label>
+        ))}
+      </fieldset>
+    </>
+  );
 }
 
 export function FamilyAdminPage() {
@@ -152,12 +305,7 @@ export function FamilyAdminPage() {
     if (busy || !validateCreate()) return;
     const draft = {
       tutorUserId: tutorUserId.trim(),
-      students: rows.map((row) => ({
-        fullName: row.fullName.trim(),
-        dateOfBirth: row.dateOfBirth,
-        trainingCenter: row.trainingCenter,
-        trainingTimePreferences: row.trainingTimePreferences,
-      })),
+      students: rows.map(minorDraftFromRow),
     } as const;
     try {
       const attempt = requestAttempt(createRequestAttempt.current, JSON.stringify(draft));
@@ -275,12 +423,7 @@ export function FamilyAdminPage() {
       setNewStudentError(validationError);
       return;
     }
-    const student = {
-      fullName: newStudent.fullName.trim(),
-      dateOfBirth: newStudent.dateOfBirth,
-      trainingCenter: newStudent.trainingCenter,
-      trainingTimePreferences: newStudent.trainingTimePreferences,
-    } as const;
+    const student = minorDraftFromRow(newStudent);
     let attempt: RequestAttempt;
     try {
       attempt = requestAttempt(
@@ -516,6 +659,12 @@ export function FamilyAdminPage() {
                     ))}
                   </div>
                 </fieldset>
+                <MinorWaiverFields
+                  idPrefix={`minor-${row.id}`}
+                  labelPrefix={`Minor ${index + 1}`}
+                  onChange={(patch) => updateRow(row.id, patch)}
+                  row={row}
+                />
               </article>
             ))}
           </div>
@@ -741,6 +890,12 @@ export function FamilyAdminPage() {
                   ))}
                 </div>
               </fieldset>
+              <MinorWaiverFields
+                idPrefix="family-new-student"
+                labelPrefix="New minor"
+                onChange={(patch) => setNewStudent((current) => ({ ...current, ...patch }))}
+                row={newStudent}
+              />
               {newStudentError ? (
                 <p className="family-field-error" role="alert">
                   {newStudentError}

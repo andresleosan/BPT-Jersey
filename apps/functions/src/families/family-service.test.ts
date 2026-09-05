@@ -288,6 +288,113 @@ describe("family Firestore store", () => {
     expect([...records.keys()].some((path) => /(?:^|\/)members(?:\/|$)/u.test(path))).toBe(false);
   });
 
+  it("creates a minor administrative profile only when the waiver blocks are enrolled", async () => {
+    const { store, records } = createServices({
+      "academies/academy-1/users/user-1": tutorUser(),
+    });
+    const emergencyContact = {
+      fullName: "Synthetic Tutor",
+      relationship: "Mother",
+      phoneNumber: "+441534000111",
+    } as const;
+    const postalAddress = { line: "1 Synthetic Lane", postCode: "JE2 3AB" } as const;
+
+    await store.createFamily({
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator",
+      requestId: "request-create-waiver",
+      tutorUserId: "user-1",
+      students: [
+        { ...draft("Synthetic Minor With Contact"), emergencyContact, postalAddress },
+        draft("Synthetic Minor Without Contact"),
+      ],
+      now: "2026-08-19T10:00:00.000Z",
+    });
+
+    // Only the enrolled minor gets a profile, and it carries no administrative identifier.
+    const profilePaths = [...records.keys()].filter((path) =>
+      path.includes("/studentAdminProfiles/"),
+    );
+    expect(profilePaths).toEqual(["academies/academy-1/studentAdminProfiles/student-1"]);
+    const profile = records.get(profilePaths[0] ?? "");
+    expect(profile).toMatchObject({
+      studentId: "student-1",
+      academyId: "academy-1",
+      gender: "unknown",
+      source: "admin",
+      emergencyContact,
+      postalAddress,
+      createdBy: "admin-1",
+    });
+    expect(Reflect.ownKeys(profile as object)).not.toContain("membershipNumber");
+    expect(Reflect.ownKeys(profile as object)).not.toContain("idCardNumber");
+    expect(Reflect.ownKeys(profile as object)).not.toContain("vatNumber");
+
+    // No identity key is reserved: a minor is issued no administrative identifier here.
+    expect([...records.keys()].some((path) => path.includes("/studentIdentityKeys/"))).toBe(false);
+
+    // The blocks never leak into the student record, the receipt or the audit event.
+    const student = records.get("academies/academy-1/students/student-1");
+    expect(Reflect.ownKeys(student as object)).not.toContain("emergencyContact");
+    expect(Reflect.ownKeys(student as object)).not.toContain("postalAddress");
+    const receipt = [...records.entries()].find(([path]) =>
+      path.includes("/familyWriteReceipts/"),
+    )?.[1];
+    const audit = [...records.entries()].find(([path]) => path.includes("/auditEvents/"))?.[1];
+    expect(JSON.stringify({ receipt, audit })).not.toMatch(
+      /Synthetic Tutor|441534000111|Synthetic Lane|JE2 3AB/u,
+    );
+  });
+
+  it("adds a minor with waiver blocks through the same control transaction", async () => {
+    const { store, records } = createServices({
+      "academies/academy-1/users/user-1": tutorUser(),
+    });
+    await store.createFamily({
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator",
+      requestId: "request-create-base",
+      tutorUserId: "user-1",
+      students: [draft("Synthetic Minor One")],
+      now: "2026-08-19T10:00:00.000Z",
+    });
+
+    await store.updateFamily({
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator",
+      familyId: "family-1",
+      operation: {
+        kind: "addStudent" as const,
+        requestId: "request-add-waiver",
+        student: {
+          ...draft("Synthetic Minor Two"),
+          emergencyContact: {
+            fullName: "Synthetic Tutor",
+            relationship: "Father",
+            phoneNumber: "+441534000333",
+            alternatePhoneNumber: "+441534000444",
+          },
+        },
+      },
+      now: "2026-08-19T11:00:00.000Z",
+    });
+
+    expect(records.get("academies/academy-1/studentAdminProfiles/student-2")).toMatchObject({
+      studentId: "student-2",
+      gender: "unknown",
+      source: "admin",
+      emergencyContact: { relationship: "Father", alternatePhoneNumber: "+441534000444" },
+    });
+    expect(records.has("academies/academy-1/studentAdminProfiles/student-1")).toBe(false);
+    expect(records.get("academies/academy-1/memberDirectoryStates/current")).toMatchObject({
+      stateRevision: 2,
+      rollbackEligibleStudentCount: 2,
+    });
+  });
+
   it("returns an empty guardian lookup and a same-tenant staff projection", async () => {
     const { store } = createServices({
       "academies/academy-1/users/user-1": tutorUser(),

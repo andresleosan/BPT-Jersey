@@ -197,6 +197,16 @@ function endpoint(input: {
     records: Map<string, Readonly<Record<string, unknown>> | BackupV3CanonicalFirestoreDocument>,
     attempt: number,
   ) => void;
+  /** Runs once the payload is committed, between I2 and the I4 verification read. */
+  afterPayload?: (
+    records: Map<string, Readonly<Record<string, unknown>> | BackupV3CanonicalFirestoreDocument>,
+  ) => void;
+  /** Read times handed out by successive namespace inventory reads. */
+  namespaceReadTimes?: readonly string[];
+  /** Throws on the attestation write, simulating a crash before its commit. */
+  failAttestationWrite?: boolean;
+  /** Shared attestation store, so a second run sees what the first one committed. */
+  metadataStore?: Map<string, Readonly<Record<string, unknown>>>;
 }) {
   let sourceReads = 0;
   let namespaceReads = 0;
@@ -210,7 +220,7 @@ function endpoint(input: {
       .filter((entry) => entry.exists)
       .map((entry) => [entry.path, entry.data!]),
   );
-  const metadata = new Map<string, Readonly<Record<string, unknown>>>();
+  const metadata = input.metadataStore ?? new Map<string, Readonly<Record<string, unknown>>>();
   const writes: BackupV3ExactPayloadDocument[][] = [];
   const controlWrites: BackupV3WriteDocument[][] = [];
   const api: BackupV3RehearsalEndpoint = {
@@ -221,10 +231,15 @@ function endpoint(input: {
     },
     readNamespaceInventory: async () => {
       namespaceReads += 1;
-      return inventory(input.projectId, [
-        { path: `academies/${academyId}`, exists: false },
-        ...[...records].map(([path, data]) => ({ path, exists: true as const, data })),
-      ]);
+      const readTime = input.namespaceReadTimes?.[namespaceReads - 1];
+      return inventory(
+        input.projectId,
+        [
+          { path: `academies/${academyId}`, exists: false },
+          ...[...records].map(([path, data]) => ({ path, exists: true as const, data })),
+        ],
+        readTime,
+      );
     },
     hasAnyAuthUser: async () => {
       authReads += 1;
@@ -259,8 +274,11 @@ function endpoint(input: {
         if (records.has(document.path)) throw new Error("document exists");
         records.set(document.path, document.data);
       }
+      input.afterPayload?.(records);
     },
+    getMetadataDocument: async (path) => metadata.get(path),
     putMetadataDocument: async (path, data) => {
+      if (input.failAttestationWrite) throw new Error("synthetic crash before attestation commit");
       const previous = metadata.get(path);
       if (previous && JSON.stringify(previous) !== JSON.stringify(data)) {
         throw new Error("metadata conflict");
@@ -792,6 +810,211 @@ describe("backup v3 isolated rehearsal core", () => {
     expect(serialized).not.toContain("user-1");
     expect(serialized).not.toContain(sourceSecret);
     expect(serialized).not.toContain(targetSecret);
+  });
+
+  /**
+   * RED matrix R40 for T093: nothing that happens between I2 and I4 may produce the terminal
+   * attestation. Content drift on an allowed path, a nested write and the removal of an expected
+   * document must each fail the final verification before any attestation is created.
+   */
+  it("never attests when content drifts, a nested write lands or a document is removed between I2 and I4", async () => {
+    const studentPath = `academies/${academyId}/students/student-1`;
+
+    const drifts: readonly (readonly [
+      string,
+      (
+        records: Map<
+          string,
+          Readonly<Record<string, unknown>> | BackupV3CanonicalFirestoreDocument
+        >,
+      ) => void,
+    ])[] = [
+      [
+        "content drift on an allowed path",
+        (records) => {
+          records.set(
+            studentPath,
+            encodedDocument(
+              { academyId, studentId: "student-1", fullName: "Drifted Student" },
+              "demo-bpt-jersey-restore",
+            ),
+          );
+        },
+      ],
+      [
+        "a nested write under a restored document",
+        (records) => {
+          records.set(
+            `${studentPath}/evaluations/e1`,
+            encodedDocument({ academyId, evaluationId: "e1" }, "demo-bpt-jersey-restore"),
+          );
+        },
+      ],
+      [
+        "removal of an expected document",
+        (records) => {
+          records.delete(studentPath);
+        },
+      ],
+    ];
+
+    for (const [label, drift] of drifts) {
+      const artifact = await makeSnapshot();
+      const source = endpoint({ projectId: "demo-bpt-jersey" });
+      let applied = false;
+      const target = endpoint({
+        projectId: "demo-bpt-jersey-restore",
+        afterPayload: (records) => {
+          if (applied) return;
+          applied = true;
+          drift(records);
+        },
+      });
+
+      await expect(
+        restoreBackupV3RehearsalSnapshot({
+          academyId,
+          artifact,
+          binding,
+          source: source.api,
+          target: target.api,
+          sourceIntegrity: { version: "source-integrity-v1", material: sourceSecret },
+          targetIntegrity: { version: "target-integrity-v1", material: targetSecret },
+          now: () => new Date("2026-09-03T12:10:00.000Z"),
+        }),
+        label,
+      ).rejects.toSatisfy((error: unknown) => expectCode(error, "target-verification"));
+
+      // The terminal attestation is the only thing the caller may rely on, and it never exists.
+      expect(source.metadata, label).toHaveLength(0);
+      expect(applied, label).toBe(true);
+    }
+  });
+
+  /**
+   * RED matrix R44 for T093: the attestation ID is derived from stable evidence only, so a later
+   * verification that re-reads the target at a fresh read time derives the same ID and discovers the
+   * committed document instead of creating a second one. A crash before the commit leaves nothing.
+   */
+  it("keeps the attestation ID stable across read times and discovers a committed attestation", async () => {
+    const restoreInput = (
+      source: BackupV3RehearsalEndpoint,
+      target: BackupV3RehearsalEndpoint,
+      artifact: Awaited<ReturnType<typeof makeSnapshot>>,
+    ) =>
+      ({
+        academyId,
+        artifact,
+        binding,
+        source,
+        target,
+        sourceIntegrity: { version: "source-integrity-v1", material: sourceSecret },
+        targetIntegrity: { version: "target-integrity-v1", material: targetSecret },
+        now: () => new Date("2026-09-03T12:10:00.000Z"),
+      }) as const;
+
+    // A crash before the attestation commit leaves no attestation behind.
+    const crashedStore = new Map<string, Readonly<Record<string, unknown>>>();
+    const crashedSource = endpoint({
+      projectId: "demo-bpt-jersey",
+      failAttestationWrite: true,
+      metadataStore: crashedStore,
+    });
+    await expect(
+      restoreBackupV3RehearsalSnapshot(
+        restoreInput(
+          crashedSource.api,
+          endpoint({ projectId: "demo-bpt-jersey-restore" }).api,
+          await makeSnapshot(),
+        ),
+      ),
+    ).rejects.toSatisfy((error: unknown) => expectCode(error, "attestation-conflict"));
+    expect(crashedStore.size).toBe(0);
+
+    // One shared source store, two runs whose targets are read at different times.
+    const sharedStore = new Map<string, Readonly<Record<string, unknown>>>();
+    const first = await restoreBackupV3RehearsalSnapshot(
+      restoreInput(
+        endpoint({ projectId: "demo-bpt-jersey", metadataStore: sharedStore }).api,
+        endpoint({
+          projectId: "demo-bpt-jersey-restore",
+          namespaceReadTimes: Array.from(
+            { length: 8 },
+            (_unused, index) => `2026-09-03T12:0${index}:00.000Z`,
+          ),
+        }).api,
+        await makeSnapshot(),
+      ),
+    );
+    const second = await restoreBackupV3RehearsalSnapshot(
+      restoreInput(
+        endpoint({ projectId: "demo-bpt-jersey", metadataStore: sharedStore }).api,
+        endpoint({
+          projectId: "demo-bpt-jersey-restore",
+          namespaceReadTimes: Array.from(
+            { length: 8 },
+            (_unused, index) => `2026-09-03T13:0${index}:00.000Z`,
+          ),
+        }).api,
+        await makeSnapshot(),
+      ),
+    );
+
+    // Same stable ID and the same committed document; exactly one attestation exists.
+    expect(second.attestationId).toBe(first.attestationId);
+    expect(second.discovered).toBe(true);
+    expect(first.discovered).toBe(false);
+    expect(sharedStore.size).toBe(1);
+    expect(second.attestation).toEqual(first.attestation);
+
+    // The attested evidence belongs to the first run and is never rewritten.
+    expect(second.attestation.attestedReadTime).toBe(first.attestation.attestedReadTime);
+    expect(second.attestation.attestedTargetInventoryMac).toBe(
+      first.attestation.attestedTargetInventoryMac,
+    );
+
+    // The verification proof is fresh on each run and is never part of the document.
+    expect(second.verificationReadTime).not.toBe(first.verificationReadTime);
+    expect(second.verificationTargetInventoryMac).not.toBe(first.verificationTargetInventoryMac);
+    expect(Reflect.ownKeys(first.attestation)).not.toContain("verificationTargetInventoryMac");
+    expect(Reflect.ownKeys(first.attestation)).not.toContain("verificationReadTime");
+  });
+
+  it("rejects a committed attestation whose stable evidence or MAC diverges", async () => {
+    const artifact = await makeSnapshot();
+    const restore = (store: Map<string, Readonly<Record<string, unknown>>>) =>
+      restoreBackupV3RehearsalSnapshot({
+        academyId,
+        artifact,
+        binding,
+        source: endpoint({ projectId: "demo-bpt-jersey", metadataStore: store }).api,
+        target: endpoint({ projectId: "demo-bpt-jersey-restore" }).api,
+        sourceIntegrity: { version: "source-integrity-v1", material: sourceSecret },
+        targetIntegrity: { version: "target-integrity-v1", material: targetSecret },
+        now: () => new Date("2026-09-03T12:10:00.000Z"),
+      });
+
+    const store = new Map<string, Readonly<Record<string, unknown>>>();
+    const committed = await restore(store);
+    const path = `memberDirectoryRestoreAttestations/${committed.attestationId}`;
+
+    // A tampered stable field is rejected even though the ID still resolves.
+    store.set(path, { ...committed.attestation, targetDocumentCount: 99 });
+    await expect(restore(store)).rejects.toSatisfy((error: unknown) =>
+      expectCode(error, "attestation-conflict"),
+    );
+
+    // A tampered MAC is rejected too.
+    store.set(path, { ...committed.attestation, sourceAttestationMac: "a".repeat(64) });
+    await expect(restore(store)).rejects.toSatisfy((error: unknown) =>
+      expectCode(error, "attestation-conflict"),
+    );
+
+    // A document that is not an exact attestation is rejected before any comparison.
+    store.set(path, { attestationId: committed.attestationId });
+    await expect(restore(store)).rejects.toSatisfy((error: unknown) =>
+      expectCode(error, "attestation-conflict"),
+    );
   });
 
   it("rejects Auth, a nonempty target or the wrong project pair before any write", async () => {
