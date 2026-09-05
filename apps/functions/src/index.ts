@@ -101,6 +101,7 @@ export {
   recordCheckout,
   requestBooking,
   saveClass,
+  saveLocationGeofence,
   saveProgram,
   saveSession,
   updateClass,

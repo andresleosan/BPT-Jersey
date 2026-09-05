@@ -23,6 +23,16 @@ export type SessionStatus = (typeof sessionStatuses)[number];
 export const daysOfWeek = Object.freeze([1, 2, 3, 4, 5, 6, 7] as const);
 export type DayOfWeek = (typeof daysOfWeek)[number];
 
+/**
+ * Coordinates of an academy site, used only to judge whether a check-in was measured at the venue.
+ * These are the academy's own premises, never a person's location, and no member coordinate is ever
+ * accepted or stored (BRIEF decision 5).
+ */
+export type LocationGeofence = Readonly<{
+  latitude: number;
+  longitude: number;
+}>;
+
 export type LocationRecord = Readonly<{
   locationId: LocationId;
   academyId: string;
@@ -30,8 +40,92 @@ export type LocationRecord = Readonly<{
   address: string;
   timezone: string;
   active: boolean;
+  /** Absent or null until an administrator records the site coordinates. */
+  geofence?: LocationGeofence | null;
   schemaVersion: "1";
 }>;
+
+/** The check-in eligibility radius fixed by BRIEF decision 5. It is not configurable per site. */
+export const checkInProximityRadiusMeters = 50;
+
+/** How stale a device measurement may be and still be considered for the signal. */
+export const checkInProximityMaxAgeMs = 10 * 60 * 1000;
+
+export type SaveLocationGeofenceInput = Readonly<{
+  locationId: LocationId;
+  /** Null clears the site coordinates and returns every later check-in to `unavailable`. */
+  geofence: LocationGeofence | null;
+}>;
+
+const coordinateDecimals = 6;
+
+function finiteCoordinate(value: unknown, limit: number): boolean {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Math.abs(value) <= limit &&
+    Number(value.toFixed(coordinateDecimals)) === value
+  );
+}
+
+export function parseSaveLocationGeofenceInput(
+  input: unknown,
+): Result<SaveLocationGeofenceInput, string> {
+  if (!isRecord(input)) {
+    return err("Geofence input must be an object");
+  }
+  const keys = Object.keys(input);
+  if (keys.length !== 2 || !keys.includes("locationId") || !keys.includes("geofence")) {
+    return err("Geofence input accepts exactly locationId and geofence");
+  }
+  const { locationId, geofence } = input;
+  if (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId)) {
+    return err("Invalid locationId (must be 'town' or 'west')");
+  }
+  if (geofence === null) {
+    return ok(Object.freeze({ locationId: locationId as LocationId, geofence: null }));
+  }
+  if (!isRecord(geofence)) {
+    return err("geofence must be an object or null");
+  }
+  const geofenceKeys = Object.keys(geofence);
+  if (
+    geofenceKeys.length !== 2 ||
+    !geofenceKeys.includes("latitude") ||
+    !geofenceKeys.includes("longitude")
+  ) {
+    return err("geofence accepts exactly latitude and longitude");
+  }
+  if (!finiteCoordinate(geofence.latitude, 90) || !finiteCoordinate(geofence.longitude, 180)) {
+    return err("geofence coordinates must be finite with at most six decimals");
+  }
+  return ok(
+    Object.freeze({
+      locationId: locationId as LocationId,
+      geofence: Object.freeze({
+        latitude: geofence.latitude as number,
+        longitude: geofence.longitude as number,
+      }),
+    }),
+  );
+}
+
+/**
+ * Great-circle distance in metres. Used by the client to turn its own position and the site
+ * coordinates into a single distance, so no member coordinate ever leaves the device.
+ */
+export function distanceInMetres(from: LocationGeofence, to: LocationGeofence): number {
+  const earthRadiusMetres = 6_371_008.8;
+  const toRadians = (degrees: number): number => (degrees * Math.PI) / 180;
+  const deltaLatitude = toRadians(to.latitude - from.latitude);
+  const deltaLongitude = toRadians(to.longitude - from.longitude);
+  const halfChord =
+    Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(toRadians(from.latitude)) *
+      Math.cos(toRadians(to.latitude)) *
+      Math.sin(deltaLongitude / 2) ** 2;
+  return 2 * earthRadiusMetres * Math.asin(Math.min(1, Math.sqrt(halfChord)));
+}
 
 export type ProgramRecord = Readonly<{
   programId: string;
@@ -872,6 +966,28 @@ export const attendanceStates = Object.freeze([
 ] as const);
 export type AttendanceState = (typeof attendanceStates)[number];
 
+export const checkInProximitySignals = Object.freeze(["within", "outside", "unavailable"] as const);
+export type CheckInProximitySignal = (typeof checkInProximitySignals)[number];
+
+/**
+ * What the device measured, reduced to a distance before it leaves the browser. Coordinates are
+ * never sent or stored: only how far the measurement was from the site and how precise it was.
+ */
+export type CheckInProximityMeasurement = Readonly<{
+  distanceMeters: number;
+  accuracyMeters: number;
+  measuredAt: string;
+}>;
+
+/** The signal as recorded with the attendance. `unavailable` is a state, not a failure. */
+export type AttendanceProximity = Readonly<{
+  signal: CheckInProximitySignal;
+  distanceMeters: number | null;
+  accuracyMeters: number | null;
+  /** Required, and only allowed, when the measurement placed the check-in outside the radius. */
+  overrideReason: string | null;
+}>;
+
 export type AttendanceRecord = Readonly<{
   attendanceId: string; // deterministic: `${sessionId}__${studentId}` or correction `corr_...`
   academyId: string;
@@ -882,6 +998,11 @@ export type AttendanceRecord = Readonly<{
   occurredAt: string;
   notes: string | null;
   correctionOf: string | null;
+  /**
+   * Present only on a check-in. Corrections and no-shows never measured anything, so they carry no
+   * proximity at all rather than a fabricated `unavailable`.
+   */
+  proximity?: AttendanceProximity;
   schemaVersion: "1";
   createdAt: string;
   createdBy: string;
@@ -895,7 +1016,86 @@ export type CheckInInput = Readonly<{
   method: CheckInMethod;
   pin?: string;
   notes?: string;
+  proximity?: CheckInProximityMeasurement;
+  overrideReason?: string;
 }>;
+
+export const checkInOverrideReasonMinLength = 10;
+export const checkInOverrideReasonMaxLength = 280;
+
+/** True while a device reading is recent enough to say something about `nowMs`. */
+export function isCheckInProximityMeasurementFresh(
+  measurement: CheckInProximityMeasurement,
+  nowMs: number,
+): boolean {
+  const measuredMs = Date.parse(measurement.measuredAt);
+  return !Number.isNaN(measuredMs) && Math.abs(nowMs - measuredMs) <= checkInProximityMaxAgeMs;
+}
+
+/**
+ * Turns a device measurement into the recorded signal. The radius never blocks a check-in on its
+ * own (BRIEF decision 5): it decides whether staff must justify the check-in.
+ *
+ * A measurement is only usable when the site has coordinates, the reading is fresh and its accuracy
+ * is finer than the radius itself; anything else is honestly `unavailable`, which needs no reason.
+ * A reason supplied when none is needed (the reading expired, or turned out to be inside) is not
+ * recorded and never refused: refusing it would let the radius block a check-in after all.
+ */
+export function resolveCheckInProximity(
+  input: Readonly<{
+    measurement?: CheckInProximityMeasurement;
+    siteHasGeofence: boolean;
+    overrideReason?: string;
+    nowMs: number;
+  }>,
+): Result<AttendanceProximity, string> {
+  const reason = input.overrideReason?.trim() ?? "";
+  const measurement = input.measurement;
+  const usable =
+    measurement !== undefined &&
+    input.siteHasGeofence &&
+    isCheckInProximityMeasurementFresh(measurement, input.nowMs) &&
+    measurement.accuracyMeters <= checkInProximityRadiusMeters;
+
+  if (!usable) {
+    return ok(
+      Object.freeze({
+        signal: "unavailable" as const,
+        distanceMeters: null,
+        accuracyMeters: null,
+        overrideReason: null,
+      }),
+    );
+  }
+
+  const distanceMeters = Math.round(measurement.distanceMeters);
+  const accuracyMeters = Math.round(measurement.accuracyMeters);
+  if (distanceMeters <= checkInProximityRadiusMeters) {
+    return ok(
+      Object.freeze({
+        signal: "within" as const,
+        distanceMeters,
+        accuracyMeters,
+        overrideReason: null,
+      }),
+    );
+  }
+
+  if (
+    reason.length < checkInOverrideReasonMinLength ||
+    reason.length > checkInOverrideReasonMaxLength
+  ) {
+    return err("A check-in outside the radius requires an override reason from staff");
+  }
+  return ok(
+    Object.freeze({
+      signal: "outside" as const,
+      distanceMeters,
+      accuracyMeters,
+      overrideReason: reason,
+    }),
+  );
+}
 
 export type CorrectAttendanceInput = Readonly<{
   sessionId: string;
@@ -945,7 +1145,7 @@ export function parseCheckInInput(input: unknown): Result<CheckInInput, string> 
     return err("Check-in input must be an object");
   }
 
-  const { sessionId, studentId, method, pin, notes } = input;
+  const { sessionId, studentId, method, pin, notes, proximity, overrideReason } = input;
 
   if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
     return err("sessionId is required");
@@ -965,6 +1165,8 @@ export function parseCheckInInput(input: unknown): Result<CheckInInput, string> 
     method: CheckInMethod;
     pin?: string;
     notes?: string;
+    proximity?: CheckInProximityMeasurement;
+    overrideReason?: string;
   } = {
     sessionId: sessionId.trim(),
     studentId: studentId.trim(),
@@ -979,7 +1181,78 @@ export function parseCheckInInput(input: unknown): Result<CheckInInput, string> 
     result.notes = notes.trim();
   }
 
+  if (proximity !== undefined) {
+    const parsedProximity = parseCheckInProximityMeasurement(proximity);
+    if (!parsedProximity.ok) return parsedProximity;
+    result.proximity = parsedProximity.value;
+  }
+
+  if (overrideReason !== undefined) {
+    if (typeof overrideReason !== "string") {
+      return err("overrideReason must be a string");
+    }
+    const trimmed = overrideReason.trim();
+    if (
+      trimmed.length < checkInOverrideReasonMinLength ||
+      trimmed.length > checkInOverrideReasonMaxLength
+    ) {
+      return err("overrideReason length is out of range");
+    }
+    result.overrideReason = trimmed;
+  }
+
   return ok(Object.freeze(result));
+}
+
+/**
+ * Sanity bound for a device distance. Anything further is still simply "outside"; the client clamps
+ * to this value so a measurement taken far away is refused for its reason, never for its size.
+ */
+export const maxCheckInProximityMeters = 100_000;
+const maxProximityMeters = maxCheckInProximityMeters;
+
+export function parseCheckInProximityMeasurement(
+  input: unknown,
+): Result<CheckInProximityMeasurement, string> {
+  if (!isRecord(input)) {
+    return err("proximity must be an object");
+  }
+  const keys = Object.keys(input);
+  const expected = ["distanceMeters", "accuracyMeters", "measuredAt"];
+  if (keys.length !== expected.length || !expected.every((key) => keys.includes(key))) {
+    return err("proximity accepts exactly distanceMeters, accuracyMeters and measuredAt");
+  }
+  const { distanceMeters, accuracyMeters, measuredAt } = input;
+  if (
+    typeof distanceMeters !== "number" ||
+    !Number.isFinite(distanceMeters) ||
+    distanceMeters < 0 ||
+    distanceMeters > maxProximityMeters
+  ) {
+    return err("proximity.distanceMeters must be a finite non-negative distance");
+  }
+  if (
+    typeof accuracyMeters !== "number" ||
+    !Number.isFinite(accuracyMeters) ||
+    accuracyMeters < 0 ||
+    accuracyMeters > maxProximityMeters
+  ) {
+    return err("proximity.accuracyMeters must be a finite non-negative distance");
+  }
+  if (
+    typeof measuredAt !== "string" ||
+    measuredAt.trim().length === 0 ||
+    Number.isNaN(Date.parse(measuredAt))
+  ) {
+    return err("proximity.measuredAt must be an ISO timestamp");
+  }
+  return ok(
+    Object.freeze({
+      distanceMeters,
+      accuracyMeters,
+      measuredAt: measuredAt.trim(),
+    }),
+  );
 }
 
 export function parseCorrectAttendanceInput(

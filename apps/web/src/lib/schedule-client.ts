@@ -16,6 +16,7 @@ import type {
   ProgramRecord,
   RecordCheckoutInput,
   RequestBookingInput,
+  SaveLocationGeofenceInput,
   SessionOperationalView,
   SessionRecord,
   UpdateClassInput,
@@ -122,6 +123,23 @@ export async function saveSession(input: CreateSessionInput): Promise<SessionRec
 
   const result = await callable(input);
   return result.data.session;
+}
+
+/**
+ * Administration only: records or clears the coordinates of one academy site, which is what makes
+ * the 50 m check-in eligibility signal answerable. No member coordinate is involved (T109).
+ */
+export async function saveLocationGeofence(
+  input: SaveLocationGeofenceInput,
+): Promise<LocationRecord> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<SaveLocationGeofenceInput, { location: LocationRecord }>(
+    functions,
+    "saveLocationGeofence",
+  );
+
+  const result = await callable(input);
+  return result.data.location;
 }
 
 export async function saveProgram(input: CreateProgramInput): Promise<ProgramRecord> {

@@ -148,15 +148,45 @@ const scheduleClientMock = vi.hoisted(() => ({
   listSessions: vi.fn(),
   getSessionOperationalView: vi.fn(),
   recordCheckIn: vi.fn(),
+  getScheduleCatalog: vi.fn(),
 }));
 
 vi.mock("../../lib/schedule-client", () => scheduleClientMock);
+
+// The reduction from device position to distance has its own tests; here only the panel's use of
+// the reading matters (T109).
+const proximityMock = vi.hoisted(() => ({ measureCheckInProximity: vi.fn() }));
+
+vi.mock("../../lib/check-in-proximity", () => proximityMock);
+
+const townGeofence = { latitude: 49.186, longitude: -2.106 };
+
+function townCatalog() {
+  return {
+    locations: [
+      {
+        locationId: "town" as const,
+        academyId: "bpt-jersey",
+        name: "BPT Town",
+        address: "St Helier, Jersey",
+        timezone: "Europe/Jersey",
+        active: true,
+        geofence: townGeofence,
+        schemaVersion: "1" as const,
+      },
+    ],
+    programs: [],
+  };
+}
 
 import CoachDashboardPage from "./page";
 
 describe("CoachDashboardPage", () => {
   beforeEach(() => {
     scheduleClientMock.listSessions.mockResolvedValue([mockTownSession, mockWestSession]);
+    // No site coordinates recorded by default, which is the honest starting state (T109).
+    scheduleClientMock.getScheduleCatalog.mockResolvedValue({ locations: [], programs: [] });
+    proximityMock.measureCheckInProximity.mockReset();
     scheduleClientMock.getSessionOperationalView.mockImplementation(async (sessionId: string) => {
       if (sessionId === "session-west-1") {
         return {
@@ -319,6 +349,199 @@ describe("CoachDashboardPage", () => {
           "Manual check-in recorded for student student-walkin-99. Record the cash payment in Billing to issue the receipt.",
         ),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("check-in location signal (T109)", () => {
+    async function openRoster() {
+      render(<CoachDashboardPage />);
+      await waitFor(() => {
+        expect(screen.getByRole("table", { name: "Class attendees roster" })).toBeInTheDocument();
+      });
+    }
+
+    it("says so, and sends no signal, when the site has no coordinates", async () => {
+      await openRoster();
+
+      expect(screen.getByTestId("coach-proximity-status").textContent).toContain(
+        "No coordinates are recorded for this site",
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+      await waitFor(() => {
+        expect(scheduleClientMock.recordCheckIn).toHaveBeenCalledWith({
+          sessionId: "session-town-1",
+          studentId: "student-1",
+          method: "manual",
+        });
+      });
+      expect(proximityMock.measureCheckInProximity).not.toHaveBeenCalled();
+    });
+
+    it("sends the measured distance when the device is inside the radius", async () => {
+      scheduleClientMock.getScheduleCatalog.mockResolvedValue(townCatalog());
+      const measurement = {
+        distanceMeters: 18,
+        accuracyMeters: 9,
+        measuredAt: new Date().toISOString(),
+      };
+      proximityMock.measureCheckInProximity.mockResolvedValue({
+        status: "measured",
+        signal: "within",
+        measurement,
+      });
+      await openRoster();
+
+      fireEvent.click(screen.getByRole("button", { name: "Measure this device" }));
+      await waitFor(() => {
+        expect(screen.getByTestId("coach-proximity-status").textContent).toContain(
+          "Measured 18 m from this site, inside the radius.",
+        );
+      });
+      expect(proximityMock.measureCheckInProximity).toHaveBeenCalledWith({ site: townGeofence });
+      expect(screen.queryByLabelText(/Why are you checking students in/u)).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+      await waitFor(() => {
+        expect(scheduleClientMock.recordCheckIn).toHaveBeenCalledWith({
+          sessionId: "session-town-1",
+          studentId: "student-1",
+          method: "manual",
+          proximity: measurement,
+        });
+      });
+    });
+
+    it("requires a reason outside the radius before it will check anyone in", async () => {
+      scheduleClientMock.getScheduleCatalog.mockResolvedValue(townCatalog());
+      const measurement = {
+        distanceMeters: 320,
+        accuracyMeters: 11,
+        measuredAt: new Date().toISOString(),
+      };
+      proximityMock.measureCheckInProximity.mockResolvedValue({
+        status: "measured",
+        signal: "outside",
+        measurement,
+      });
+      await openRoster();
+
+      fireEvent.click(screen.getByRole("button", { name: "Measure this device" }));
+      await waitFor(() => {
+        expect(screen.getByTestId("coach-proximity-status").textContent).toContain(
+          "outside the 50 m radius",
+        );
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Record why you are checking this student in/u),
+        ).toBeInTheDocument();
+      });
+      expect(scheduleClientMock.recordCheckIn).not.toHaveBeenCalled();
+
+      const reason = "Signal drifted indoors; the student is on the mat.";
+      fireEvent.change(screen.getByLabelText(/Why are you checking students in/u), {
+        target: { value: reason },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+      await waitFor(() => {
+        expect(scheduleClientMock.recordCheckIn).toHaveBeenCalledWith({
+          sessionId: "session-town-1",
+          studentId: "student-1",
+          method: "manual",
+          proximity: measurement,
+          overrideReason: reason,
+        });
+      });
+    });
+
+    it("gates the cash PAYG check-in behind the same override reason", async () => {
+      scheduleClientMock.getScheduleCatalog.mockResolvedValue(townCatalog());
+      proximityMock.measureCheckInProximity.mockResolvedValue({
+        status: "measured",
+        signal: "outside",
+        measurement: {
+          distanceMeters: 320,
+          accuracyMeters: 11,
+          measuredAt: new Date().toISOString(),
+        },
+      });
+      await openRoster();
+
+      fireEvent.click(screen.getByRole("button", { name: "Measure this device" }));
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Why are you checking students in/u)).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByPlaceholderText("Student or Member ID (e.g. stu_walkin_01)"), {
+        target: { value: "student-walkin-99" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Record Cash PAYG & Check In" }));
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Record why you are checking this student in/u),
+        ).toBeInTheDocument();
+      });
+      expect(scheduleClientMock.recordCheckIn).not.toHaveBeenCalled();
+    });
+
+    it("stops using a measurement once it is older than ten minutes", async () => {
+      scheduleClientMock.getScheduleCatalog.mockResolvedValue(townCatalog());
+      proximityMock.measureCheckInProximity.mockResolvedValue({
+        status: "measured",
+        signal: "outside",
+        measurement: {
+          distanceMeters: 320,
+          accuracyMeters: 11,
+          // Measured a quarter of an hour ago: the server would call this unavailable.
+          measuredAt: new Date(Date.now() - 15 * 60_000).toISOString(),
+        },
+      });
+      await openRoster();
+
+      fireEvent.click(screen.getByRole("button", { name: "Measure this device" }));
+      await waitFor(() => {
+        expect(screen.getByTestId("coach-proximity-status").textContent).toContain(
+          "older than ten minutes",
+        );
+      });
+      expect(screen.queryByLabelText(/Why are you checking students in/u)).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+      await waitFor(() => {
+        expect(scheduleClientMock.recordCheckIn).toHaveBeenCalledWith({
+          sessionId: "session-town-1",
+          studentId: "student-1",
+          method: "manual",
+        });
+      });
+    });
+
+    it("records the check-in without a signal when the device cannot be measured", async () => {
+      scheduleClientMock.getScheduleCatalog.mockResolvedValue(townCatalog());
+      proximityMock.measureCheckInProximity.mockResolvedValue({
+        status: "unavailable",
+        reason: "The device did not share a position.",
+      });
+      await openRoster();
+
+      fireEvent.click(screen.getByRole("button", { name: "Measure this device" }));
+      await waitFor(() => {
+        expect(screen.getByTestId("coach-proximity-status").textContent).toContain(
+          "The device did not share a position. The check-in is recorded without a location signal.",
+        );
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Check In" }));
+      await waitFor(() => {
+        expect(scheduleClientMock.recordCheckIn).toHaveBeenCalledWith({
+          sessionId: "session-town-1",
+          studentId: "student-1",
+          method: "manual",
+        });
+      });
     });
   });
 });

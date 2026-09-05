@@ -8,8 +8,12 @@ import {
   buildCheckoutId,
   buildCorrectionAttendanceId,
   determinePunctuality,
+  locationIds,
+  resolveCheckInProximity,
+  type AttendanceProximity,
   type AttendanceRecord,
   type CheckInInput,
+  type LocationId,
   type CheckoutRecord,
   type CorrectAttendanceInput,
   type RecordCheckoutInput,
@@ -112,7 +116,11 @@ function path(academyId: string, collection: string, id: string): string {
 function auditDraft(
   academyId: string,
   actorId: string,
-  action: "attendance.checked_in" | "attendance.corrected" | "student.checked_out",
+  action:
+    | "attendance.checked_in"
+    | "attendance.corrected"
+    | "attendance.proximity_override"
+    | "student.checked_out",
   targetRef: string,
   correlationId: string,
 ): AuditEventDraft {
@@ -126,12 +134,47 @@ function auditDraft(
   } as AuditEventDraft;
 }
 
+/**
+ * Reads the site coordinates recorded for the session location. A site without coordinates is not
+ * an error: it simply means no proximity question can be answered (T109, BRIEF decision 5).
+ */
+function siteHasGeofence(snapshot: BookingDocumentSnapshot): boolean {
+  const value = data(snapshot);
+  if (value === undefined) return false;
+  const geofence = value.geofence;
+  if (typeof geofence !== "object" || geofence === null) return false;
+  const candidate = geofence as Readonly<{ latitude?: unknown; longitude?: unknown }>;
+  return (
+    typeof candidate.latitude === "number" &&
+    Number.isFinite(candidate.latitude) &&
+    typeof candidate.longitude === "number" &&
+    Number.isFinite(candidate.longitude)
+  );
+}
+
+/**
+ * A replay must carry the same fact as the stored record. Records written before the signal
+ * existed carry no proximity at all, which is the same fact as an `unavailable` retry.
+ */
+function sameProximity(
+  stored: AttendanceRecord["proximity"],
+  resolved: AttendanceProximity,
+): boolean {
+  if (stored === undefined) return resolved.signal === "unavailable";
+  return (
+    stored.signal === resolved.signal &&
+    stored.distanceMeters === resolved.distanceMeters &&
+    stored.accuracyMeters === resolved.accuracyMeters &&
+    stored.overrideReason === resolved.overrideReason
+  );
+}
+
 function requireSession(
   snapshot: BookingDocumentSnapshot,
   academyId: string,
   sessionId: string,
   allowCompleted: boolean,
-): Readonly<{ startAt: string; status: string }> {
+): Readonly<{ startAt: string; status: string; locationId: LocationId | null }> {
   const value = data(snapshot);
   if (value === undefined) return fail("not-found", "Session is unavailable");
   if (snapshot.id !== sessionId || value.sessionId !== sessionId || value.academyId !== academyId) {
@@ -146,7 +189,10 @@ function requireSession(
   if (!permittedStatuses.includes(String(value.status))) {
     return fail("ineligible", "Session is not open for this operation");
   }
-  return { startAt: value.startAt, status: String(value.status) };
+  const locationId = locationIds.includes(value.locationId as LocationId)
+    ? (value.locationId as LocationId)
+    : null;
+  return { startAt: value.startAt, status: String(value.status), locationId };
 }
 
 function requireStudent(
@@ -315,10 +361,20 @@ export function createTransactionalAttendanceService(
       const auditRef = options.firestore.doc(
         path(academyId, "auditEvents", `attendance-check-in-${attendanceId}`),
       );
+      const overrideAuditRef = options.firestore.doc(
+        path(academyId, "auditEvents", `attendance-proximity-override-${attendanceId}`),
+      );
       const draft = auditDraft(
         academyId,
         actorId,
         "attendance.checked_in",
+        path(academyId, "attendance", attendanceId),
+        attendanceId,
+      );
+      const overrideDraft = auditDraft(
+        academyId,
+        actorId,
+        "attendance.proximity_override",
         path(academyId, "attendance", attendanceId),
         attendanceId,
       );
@@ -336,11 +392,37 @@ export function createTransactionalAttendanceService(
         requireStudent(studentSnapshot, academyId, studentId);
         requireConfirmedBooking(bookings, academyId, sessionId, studentId);
         const existing = storedAttendance(attendanceSnapshot, academyId, sessionId, studentId);
+
+        // The proximity signal is judged against the session's own site, and only when that site
+        // has coordinates. It never blocks the check-in by itself: an out-of-radius measurement
+        // demands a reasoned, separately audited staff override. A retry is judged at the original
+        // check-in time, so an identical replay keeps its verdict however long the retry took.
+        const locationSnapshot =
+          session.locationId === null
+            ? undefined
+            : await transaction.get(
+                options.firestore.doc(path(academyId, "locations", session.locationId)),
+              );
+        const proximityResult = resolveCheckInProximity({
+          ...(context.input.proximity === undefined
+            ? {}
+            : { measurement: context.input.proximity }),
+          siteHasGeofence:
+            locationSnapshot === undefined ? false : siteHasGeofence(locationSnapshot),
+          ...(context.input.overrideReason === undefined
+            ? {}
+            : { overrideReason: context.input.overrideReason }),
+          nowMs: Date.parse(existing?.occurredAt ?? occurredAt),
+        });
+        if (!proximityResult.ok) return fail("invalid", proximityResult.error);
+        const proximity = proximityResult.value;
+
         if (existing !== undefined) {
           if (
             existing.method !== "manual" ||
             existing.notes !== (context.input.notes ?? null) ||
             existing.createdBy !== actorId ||
+            !sameProximity(existing.proximity, proximity) ||
             !auditSnapshot.exists ||
             !matchesAuditEventReplay(auditSnapshot.data(), auditRef.id, draft)
           ) {
@@ -360,6 +442,7 @@ export function createTransactionalAttendanceService(
           occurredAt,
           notes: context.input.notes ?? null,
           correctionOf: null,
+          proximity,
           schemaVersion: "1",
           createdAt: occurredAt,
           createdBy: actorId,
@@ -368,6 +451,9 @@ export function createTransactionalAttendanceService(
         });
         transaction.create(attendanceRef, record as unknown as BookingDocumentData);
         appendAuditEventInTransaction(transaction, auditRef, draft);
+        if (proximity.signal === "outside") {
+          appendAuditEventInTransaction(transaction, overrideAuditRef, overrideDraft);
+        }
         return record;
       });
     },

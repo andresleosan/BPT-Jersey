@@ -4,6 +4,7 @@ import {
   ScheduleAttendanceError,
   createTransactionalAttendanceService,
 } from "./attendance-transaction-service";
+import { createFirestoreScheduleStore } from "./schedule-service";
 
 const now = "2026-09-03T18:05:00.000Z";
 const academyId = "academy-1";
@@ -257,5 +258,286 @@ describe("transactional schedule security boundary", () => {
       }),
     ).rejects.toBeInstanceOf(ScheduleAttendanceError);
     expect(fixture.documents.size).toBe(noRelationshipSize);
+  });
+});
+
+describe("check-in proximity signal at the transaction boundary (T109)", () => {
+  const sessionId = "session-2";
+  const studentId = "adult-1";
+  const attendanceId = `${sessionId}__${studentId}`;
+  const attendancePath = `academies/${academyId}/attendance/${attendanceId}`;
+  const overrideAuditPath = `academies/${academyId}/auditEvents/attendance-proximity-override-${attendanceId}`;
+
+  function fixtureFor(geofence: Readonly<{ latitude: number; longitude: number }> | undefined) {
+    const seed = new Map<string, Data>([
+      [
+        `academies/${academyId}/sessions/${sessionId}`,
+        {
+          sessionId,
+          academyId,
+          locationId: "town",
+          startAt: "2026-09-03T18:00:00.000Z",
+          status: "active",
+        },
+      ],
+      [
+        `academies/${academyId}/students/${studentId}`,
+        {
+          studentId,
+          academyId,
+          userId: "adult-user-1",
+          fullName: "Synthetic Adult",
+          dateOfBirth: "1993-01-01",
+          trainingCenter: "Town",
+          trainingTimePreferences: ["evening"],
+          participantType: "adult",
+          ...auditFields(),
+        },
+      ],
+      [
+        `academies/${academyId}/bookings/v2:9:session-2:7:adult-1`,
+        {
+          bookingId: "v2:9:session-2:7:adult-1",
+          academyId,
+          sessionId,
+          studentId,
+          membershipId: "membership-1",
+          status: "confirmed",
+        },
+      ],
+    ]);
+    if (geofence !== undefined) {
+      seed.set(`academies/${academyId}/locations/town`, {
+        locationId: "town",
+        academyId,
+        name: "BPT Town",
+        address: "St Helier, Jersey",
+        timezone: "Europe/Jersey",
+        active: true,
+        geofence,
+        schemaVersion: "1",
+      });
+    }
+    const fixture = transactionalFirestore(seed);
+    return {
+      fixture,
+      service: createTransactionalAttendanceService({
+        firestore: fixture.firestore as never,
+        now: () => now,
+        correctionId: () => "corr-fixed-2",
+      }),
+    };
+  }
+
+  const measurement = (distanceMeters: number, accuracyMeters = 9) => ({
+    distanceMeters,
+    accuracyMeters,
+    measuredAt: now,
+  });
+
+  it("records a measurement inside the radius without an override event", async () => {
+    const { fixture, service } = fixtureFor({ latitude: 49.186, longitude: -2.106 });
+
+    await expect(
+      service.recordCheckIn({
+        academyId,
+        input: { sessionId, studentId, method: "manual", proximity: measurement(18) },
+        actorId: "coach-user-1",
+        actorRole: "coach",
+      }),
+    ).resolves.toMatchObject({
+      proximity: {
+        signal: "within",
+        distanceMeters: 18,
+        accuracyMeters: 9,
+        overrideReason: null,
+      },
+    });
+    expect(fixture.documents.has(overrideAuditPath)).toBe(false);
+  });
+
+  it("refuses a measurement outside the radius with no reason and writes nothing", async () => {
+    const { fixture, service } = fixtureFor({ latitude: 49.186, longitude: -2.106 });
+
+    await expect(
+      service.recordCheckIn({
+        academyId,
+        input: { sessionId, studentId, method: "manual", proximity: measurement(320) },
+        actorId: "coach-user-1",
+        actorRole: "coach",
+      }),
+    ).rejects.toMatchObject({ code: "invalid" });
+    expect(fixture.documents.has(attendancePath)).toBe(false);
+    expect(
+      fixture.documents.has(
+        `academies/${academyId}/auditEvents/attendance-check-in-${attendanceId}`,
+      ),
+    ).toBe(false);
+  });
+
+  it("records a reasoned override as its own audited event", async () => {
+    const { fixture, service } = fixtureFor({ latitude: 49.186, longitude: -2.106 });
+    const overrideReason = "Signal drifted indoors; the student is on the mat.";
+
+    await expect(
+      service.recordCheckIn({
+        academyId,
+        input: {
+          sessionId,
+          studentId,
+          method: "manual",
+          proximity: measurement(320),
+          overrideReason,
+        },
+        actorId: "coach-user-1",
+        actorRole: "coach",
+      }),
+    ).resolves.toMatchObject({
+      proximity: { signal: "outside", distanceMeters: 320, overrideReason },
+    });
+    expect(fixture.documents.get(overrideAuditPath)).toMatchObject({
+      action: "attendance.proximity_override",
+      actorId: "coach-user-1",
+    });
+    expect(fixture.documents.get(attendancePath)).toMatchObject({
+      proximity: { signal: "outside", overrideReason },
+    });
+  });
+
+  it("is unavailable, and needs no reason, when the site has no coordinates", async () => {
+    const { fixture, service } = fixtureFor(undefined);
+
+    await expect(
+      service.recordCheckIn({
+        academyId,
+        input: { sessionId, studentId, method: "manual", proximity: measurement(320) },
+        actorId: "coach-user-1",
+        actorRole: "coach",
+      }),
+    ).resolves.toMatchObject({
+      proximity: {
+        signal: "unavailable",
+        distanceMeters: null,
+        accuracyMeters: null,
+        overrideReason: null,
+      },
+    });
+    expect(fixture.documents.has(overrideAuditPath)).toBe(false);
+  });
+
+  it("replays an identical check-in even after the measurement has aged past ten minutes", async () => {
+    const { fixture } = fixtureFor({ latitude: 49.186, longitude: -2.106 });
+    let clock = now;
+    const service = createTransactionalAttendanceService({
+      firestore: fixture.firestore as never,
+      now: () => clock,
+      correctionId: () => "corr-fixed-3",
+    });
+    const input = { sessionId, studentId, method: "manual" as const, proximity: measurement(18) };
+    const first = await service.recordCheckIn({
+      academyId,
+      input,
+      actorId: "coach-user-1",
+      actorRole: "coach",
+    });
+    expect(first.proximity?.signal).toBe("within");
+
+    // Fifteen minutes later the same retry is judged at the original time, not at retry time.
+    clock = "2026-09-03T18:20:00.000Z";
+    await expect(
+      service.recordCheckIn({ academyId, input, actorId: "coach-user-1", actorRole: "coach" }),
+    ).resolves.toEqual(first);
+  });
+
+  it("replays a record written before the signal existed as an unavailable check-in", async () => {
+    const { fixture, service } = fixtureFor({ latitude: 49.186, longitude: -2.106 });
+    const input = { sessionId, studentId, method: "manual" as const };
+    const first = await service.recordCheckIn({
+      academyId,
+      input,
+      actorId: "coach-user-1",
+      actorRole: "coach",
+    });
+
+    // A pre-T109 record has no proximity field at all; its audit event is unchanged.
+    const stored = { ...(fixture.documents.get(attendancePath) as Data) };
+    delete stored.proximity;
+    fixture.documents.set(attendancePath, stored);
+
+    await expect(
+      service.recordCheckIn({ academyId, input, actorId: "coach-user-1", actorRole: "coach" }),
+    ).resolves.toMatchObject({ attendanceId: first.attendanceId, method: "manual" });
+  });
+
+  it("replays a check-in only when the recorded signal matches", async () => {
+    const { service } = fixtureFor({ latitude: 49.186, longitude: -2.106 });
+    const input = {
+      sessionId,
+      studentId,
+      method: "manual" as const,
+      proximity: measurement(18),
+    };
+    const first = await service.recordCheckIn({
+      academyId,
+      input,
+      actorId: "coach-user-1",
+      actorRole: "coach",
+    });
+
+    await expect(
+      service.recordCheckIn({ academyId, input, actorId: "coach-user-1", actorRole: "coach" }),
+    ).resolves.toEqual(first);
+
+    // A different measurement is a different fact, so the replay is refused instead of overwritten.
+    await expect(
+      service.recordCheckIn({
+        academyId,
+        input: { ...input, proximity: measurement(44) },
+        actorId: "coach-user-1",
+        actorRole: "coach",
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+  });
+});
+
+describe("site geofence writer at the transaction boundary (T109)", () => {
+  it("stores the site coordinates and its audit event together, then clears them", async () => {
+    const fixture = transactionalFirestore(new Map<string, Data>());
+    const store = createFirestoreScheduleStore({ firestore: fixture.firestore as never });
+
+    const saved = await store.saveLocationGeofence(
+      academyId,
+      { locationId: "town", geofence: { latitude: 49.186, longitude: -2.106 } },
+      "owner-1",
+    );
+    expect(saved).toMatchObject({
+      locationId: "town",
+      academyId,
+      name: "BPT Town",
+      geofence: { latitude: 49.186, longitude: -2.106 },
+    });
+    expect(fixture.documents.get(`academies/${academyId}/locations/town`)).toMatchObject({
+      geofence: { latitude: 49.186, longitude: -2.106 },
+    });
+    const audits = [...fixture.documents.entries()].filter(([path]) =>
+      path.startsWith(`academies/${academyId}/auditEvents/location-geofence-town-`),
+    );
+    expect(audits).toHaveLength(1);
+    expect(audits[0]?.[1]).toMatchObject({
+      action: "location.geofence.saved",
+      actorId: "owner-1",
+      targetRef: `academies/${academyId}/locations/town`,
+    });
+
+    const cleared = await store.saveLocationGeofence(
+      academyId,
+      { locationId: "town", geofence: null },
+      "owner-1",
+    );
+    expect(cleared.geofence).toBeNull();
+    expect(fixture.documents.get(`academies/${academyId}/locations/town`)).toMatchObject({
+      geofence: null,
+      name: "BPT Town",
+    });
   });
 });

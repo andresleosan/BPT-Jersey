@@ -112,6 +112,14 @@ one-hour cutoff, site eligibility), `listStudentBookings`, `evaluateSessionMinim
 `getSessionOperationalView`, `cancelBooking`, `cancelSession`, `reconcileSessionNoShows`, plus the
 role, App Check, session, payload and Rules negatives. Same secrets, pilot flag and JDK requirements.
 
+The same run covers the 50 m check-in eligibility signal (T109): administration records the Town
+site coordinates with `saveLocationGeofence` (clients 403, malformed coordinates 400), the catalog
+returns them, a check-in measured inside the radius records `proximity.signal = "within"`, one
+measured outside is refused without a staff reason and recorded with the reason and its own audit
+event when given, a reason is refused inside the radius, and `locations`, `attendance` and the
+override audit document stay closed to direct reads by Rules. Only a distance and an accuracy ever
+travel to the backend; no coordinate of a person is sent or stored.
+
 ```bash
 BPT_SYNTHETIC_PILOT=true T096_SCHEDULE_EMULATOR_E2E=true GCLOUD_PROJECT=demo-bpt-jersey \
 T096_E2E_ACADEMY_ID=t096-e2e-academy T096_OWNER_EMAIL=t096-owner@example.test \

@@ -10,7 +10,9 @@ import {
   parseListSessionsQuery,
   parseRecordCheckoutInput,
   parseRequestBookingInput,
+  parseSaveLocationGeofenceInput,
   parseUpdateClassInput,
+  type AttendanceRecord,
 } from "@bpt-jersey/domain/schedule";
 
 import { requireUserActor } from "../auth/user-authorization.js";
@@ -141,6 +143,32 @@ export function createListScheduleCatalogHandler(options: { store: ScheduleStore
     return {
       locations,
       programs,
+    };
+  };
+}
+
+/**
+ * Records or clears the coordinates of one academy site. Administration only: these coordinates are
+ * what makes the 50 m check-in eligibility signal answerable, and no member coordinate is involved
+ * at any point (T109, BRIEF decision 5).
+ */
+export function createSaveLocationGeofenceHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!adminRoles.includes(actor.role as (typeof adminRoles)[number])) {
+      throw new HttpsError(
+        "permission-denied",
+        "Administrator access required to manage site coordinates",
+      );
+    }
+    const parsed = parseSaveLocationGeofenceInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.error);
+    }
+    return {
+      location: await store.saveLocationGeofence(actor.academyId, parsed.value, actor.userId),
     };
   };
 }
@@ -535,6 +563,24 @@ export function createListSessionAttendanceHandler(options: { store: ScheduleSto
   };
 }
 
+/**
+ * The proximity signal describes the staff device that recorded the check-in and may carry the
+ * coach's free-text override reason. Members and guardians see the attendance, never the signal.
+ */
+function attendanceForActor(
+  actor: Readonly<{ role: string }>,
+  records: readonly AttendanceRecord[],
+): readonly AttendanceRecord[] {
+  if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) return records;
+  return records.map((record) =>
+    Object.freeze(
+      Object.fromEntries(
+        Object.entries(record).filter(([key]) => key !== "proximity"),
+      ) as AttendanceRecord,
+    ),
+  );
+}
+
 export function createListStudentAttendanceHandler(options: StudentScopeOptions) {
   const { store } = options;
 
@@ -550,7 +596,7 @@ export function createListStudentAttendanceHandler(options: StudentScopeOptions)
 
     const attendance = await store.listStudentAttendance(actor.academyId, studentId);
     return {
-      attendance,
+      attendance: attendanceForActor(actor, attendance),
     };
   };
 }
@@ -638,7 +684,7 @@ export function createListAttendanceHistoryHandler(options: StudentScopeOptions)
     );
 
     return {
-      history,
+      history: attendanceForActor(actor, history),
     };
   };
 }
@@ -799,6 +845,10 @@ function getStudentScopeOptions(): StudentScopeOptions {
 
 export const listScheduleCatalog = onCall(scheduleCallableOptions, async (request) =>
   createListScheduleCatalogHandler({ store: getStore() })(request),
+);
+
+export const saveLocationGeofence = onCall(scheduleCallableOptions, async (request) =>
+  createSaveLocationGeofenceHandler({ store: getStore() })(request),
 );
 
 export const saveProgram = onCall(scheduleCallableOptions, async (request) =>

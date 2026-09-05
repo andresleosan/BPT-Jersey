@@ -29,6 +29,7 @@ import {
 } from "../../../lib/schedule-client";
 import { listStaffProfiles, type StaffProfileProjection } from "../../../lib/staff-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { SiteGeofencePanel } from "./site-geofence-panel";
 import {
   ScheduleDialog,
   type ClassDraft,
@@ -547,6 +548,23 @@ export function ClassesPage() {
             </article>
           ))}
         </div>
+        <SiteGeofencePanel
+          locations={catalog.locations}
+          onSaved={(saved) =>
+            setCatalog((current) =>
+              current === undefined
+                ? current
+                : {
+                    ...current,
+                    locations: replaceById(
+                      current.locations,
+                      saved,
+                      (location) => location.locationId,
+                    ),
+                  },
+            )
+          }
+        />
       </section>
 
       <section className="admin-panel-card" aria-labelledby="class-list-title">

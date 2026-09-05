@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildBookingId } from "@bpt-jersey/domain/schedule";
 
-import { createInMemoryScheduleStore } from "./schedule-service";
+import { createFirestoreScheduleStore, createInMemoryScheduleStore } from "./schedule-service";
 
 describe("Schedule Service (In-Memory Store)", () => {
   it("returns default locations and programs when none seeded", async () => {
@@ -833,5 +833,51 @@ describe("Schedule Service (In-Memory Store)", () => {
       const student3 = view.roster.find((r) => r.studentId === "std-3");
       expect(student3?.computedStatus).toBe("booked_not_arrived");
     });
+  });
+});
+
+describe("Schedule Service (Firestore store) locations", () => {
+  it("keeps every canonical site when only one has recorded coordinates (T109)", async () => {
+    // Nothing seeds academies/{id}/locations; saveLocationGeofence writes the first document. The
+    // catalog must still list both sites, with the stored one overriding its default.
+    const townGeofence = { latitude: 49.186, longitude: -2.106 };
+    const firestore = {
+      collection: (path: string) => ({
+        doc: () => {
+          throw new Error(`unexpected doc() on ${path}`);
+        },
+        get: async () => ({
+          docs:
+            path === "academies/academy-1/locations"
+              ? [
+                  {
+                    id: "town",
+                    data: () => ({
+                      locationId: "town",
+                      academyId: "academy-1",
+                      name: "BPT Town",
+                      address: "St Helier, Jersey",
+                      timezone: "Europe/Jersey",
+                      active: true,
+                      geofence: townGeofence,
+                      schemaVersion: "1",
+                    }),
+                  },
+                ]
+              : [],
+        }),
+        where: () => {
+          throw new Error(`unexpected where() on ${path}`);
+        },
+      }),
+    };
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+
+    const locations = await store.listLocations("academy-1");
+
+    expect(locations.map((location) => location.locationId)).toEqual(["town", "west"]);
+    expect(locations[0]?.geofence).toEqual(townGeofence);
+    expect(locations[1]).toMatchObject({ locationId: "west", academyId: "academy-1" });
+    expect(locations[1]?.geofence).toBeUndefined();
   });
 });

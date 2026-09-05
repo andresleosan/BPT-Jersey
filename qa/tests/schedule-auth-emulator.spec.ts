@@ -44,6 +44,16 @@ type Attendance = Readonly<{
   studentId: string;
   method: string;
   state: string;
+  proximity?: Readonly<{
+    signal: string;
+    distanceMeters: number | null;
+    accuracyMeters: number | null;
+    overrideReason: string | null;
+  }>;
+}>;
+type CatalogLocation = Readonly<{
+  locationId: string;
+  geofence?: Readonly<{ latitude: number; longitude: number }> | null;
 }>;
 
 const hour = 3_600_000;
@@ -264,7 +274,7 @@ test.describe("T096 class operations with Firebase Emulators", () => {
     const { studentId, membershipId } = await enrolAdult(request, owner, adult, suffix);
 
     // Catalog: locations are the two canonical sites; the program is created by staff only.
-    const catalog = await ok<{ locations: readonly { locationId: string }[] }>(
+    const catalog = await ok<{ locations: readonly CatalogLocation[] }>(
       request,
       "listScheduleCatalog",
       null,
@@ -274,6 +284,54 @@ test.describe("T096 class operations with Firebase Emulators", () => {
       "town",
       "west",
     ]);
+
+    // T109: administration records the Town site coordinates (the academy's premises, never a
+    // person). Clients cannot, and malformed coordinates are refused before any write.
+    const townGeofence = { latitude: 49.186, longitude: -2.106 };
+    await denied(
+      request,
+      "saveLocationGeofence",
+      { locationId: "town", geofence: townGeofence },
+      adult,
+      403,
+      "PERMISSION_DENIED",
+    );
+    await denied(
+      request,
+      "saveLocationGeofence",
+      { locationId: "town", geofence: { latitude: 91, longitude: -2.106 } },
+      owner,
+      400,
+      "INVALID_ARGUMENT",
+    );
+    await denied(
+      request,
+      "saveLocationGeofence",
+      { locationId: "town", geofence: townGeofence, radiusMeters: 500 },
+      owner,
+      400,
+      "INVALID_ARGUMENT",
+    );
+    const savedSite = await ok<{ location: CatalogLocation }>(
+      request,
+      "saveLocationGeofence",
+      { locationId: "town", geofence: townGeofence },
+      owner,
+    );
+    expect(savedSite.location).toMatchObject({ locationId: "town", geofence: townGeofence });
+    const catalogWithSite = await ok<{ locations: readonly CatalogLocation[] }>(
+      request,
+      "listScheduleCatalog",
+      null,
+      owner,
+    );
+    expect(
+      catalogWithSite.locations.find((location) => location.locationId === "town")?.geofence,
+    ).toEqual(townGeofence);
+    expect(
+      catalogWithSite.locations.find((location) => location.locationId === "west")?.geofence ??
+        null,
+    ).toBeNull();
     const programInput = {
       name: `T096 Adults ${suffix}`,
       ageBand: "adult",
@@ -395,11 +453,41 @@ test.describe("T096 class operations with Firebase Emulators", () => {
       400,
       "FAILED_PRECONDITION",
     );
+    // T109: a measurement outside the 50 m radius needs a staff reason; without one nothing is
+    // written, and the check-in below still succeeds. Inside the radius a reason typed by mistake
+    // is ignored rather than refused: the radius never blocks a check-in.
+    const measuredAt = new Date().toISOString();
+    await denied(
+      request,
+      "checkIn",
+      {
+        ...checkInInput,
+        proximity: { distanceMeters: 320, accuracyMeters: 11, measuredAt },
+      },
+      owner,
+      400,
+      "INVALID_ARGUMENT",
+    );
     const attendance = (
-      await ok<{ attendance: Attendance }>(request, "checkIn", checkInInput, owner)
+      await ok<{ attendance: Attendance }>(
+        request,
+        "checkIn",
+        {
+          ...checkInInput,
+          proximity: { distanceMeters: 18, accuracyMeters: 9, measuredAt },
+          overrideReason: "No override is needed inside the radius.",
+        },
+        owner,
+      )
     ).attendance;
     expect(attendance.method).toBe("manual");
     expect(attendance.studentId).toBe(studentId);
+    expect(attendance.proximity).toEqual({
+      signal: "within",
+      distanceMeters: 18,
+      accuracyMeters: 9,
+      overrideReason: null,
+    });
     const roster = await ok<{ attendance: readonly Attendance[] }>(
       request,
       "listSessionAttendance",
@@ -440,6 +528,105 @@ test.describe("T096 class operations with Firebase Emulators", () => {
       403,
       "PERMISSION_DENIED",
     );
+
+    // T109: staff may still check a student in from outside the radius with a recorded reason,
+    // which is kept on the attendance and audited as its own event; a site without coordinates
+    // records an honest `unavailable` signal and asks for no reason.
+    const overrideSession = (
+      await ok<{ session: ScheduleSession }>(
+        request,
+        "saveSession",
+        sessionInput(program.programId, owner.uid, "town", 4 * hour, `T096 Override ${suffix}`),
+        owner,
+      )
+    ).session;
+    await ok(
+      request,
+      "requestBooking",
+      { ...bookingInput, sessionId: overrideSession.sessionId },
+      adult,
+    );
+    const overrideReason = "Signal drifted indoors; the student is on the mat.";
+    const overridden = (
+      await ok<{ attendance: Attendance }>(
+        request,
+        "checkIn",
+        {
+          sessionId: overrideSession.sessionId,
+          studentId,
+          method: "manual",
+          proximity: { distanceMeters: 320, accuracyMeters: 11, measuredAt },
+          overrideReason,
+        },
+        owner,
+      )
+    ).attendance;
+    expect(overridden.proximity).toEqual({
+      signal: "outside",
+      distanceMeters: 320,
+      accuracyMeters: 11,
+      overrideReason,
+    });
+    for (const path of [
+      `academies/${academyId}/attendance/${overridden.attendanceId}`,
+      `academies/${academyId}/auditEvents/attendance-proximity-override-${overridden.attendanceId}`,
+      `academies/${academyId}/locations/town`,
+    ]) {
+      const direct = await request.get(`${firestoreRestBase}/${path}`);
+      expect(direct.status(), path).toBe(403);
+    }
+    // The signal describes the staff device and carries the coach's reason: the member sees the
+    // attendance itself, never the signal.
+    const ownAttendance = await ok<{ attendance: readonly Record<string, unknown>[] }>(
+      request,
+      "listStudentAttendance",
+      { studentId },
+      adult,
+    );
+    expect(ownAttendance.attendance.length).toBeGreaterThanOrEqual(2);
+    expect(ownAttendance.attendance.every((record) => !("proximity" in record))).toBe(true);
+    expect(JSON.stringify(ownAttendance)).not.toContain(overrideReason);
+
+    // A reading older than ten minutes says nothing about now: it is recorded as unavailable and
+    // a reason typed against it is ignored rather than refused.
+    const staleSession = (
+      await ok<{ session: ScheduleSession }>(
+        request,
+        "saveSession",
+        sessionInput(program.programId, owner.uid, "town", 6 * hour, `T096 Stale ${suffix}`),
+        owner,
+      )
+    ).session;
+    await ok(
+      request,
+      "requestBooking",
+      { ...bookingInput, sessionId: staleSession.sessionId },
+      adult,
+    );
+    const stale = (
+      await ok<{ attendance: Attendance }>(
+        request,
+        "checkIn",
+        {
+          sessionId: staleSession.sessionId,
+          studentId,
+          method: "manual",
+          proximity: {
+            distanceMeters: 320,
+            accuracyMeters: 11,
+            measuredAt: new Date(Date.now() - 15 * 60_000).toISOString(),
+          },
+          overrideReason,
+        },
+        owner,
+      )
+    ).attendance;
+    expect(stale.proximity).toEqual({
+      signal: "unavailable",
+      distanceMeters: null,
+      accuracyMeters: null,
+      overrideReason: null,
+    });
 
     // Cancellation: the adult cancels their own booking well before the cutoff; staff cancels a
     // session with a reason and nobody can book it afterwards.

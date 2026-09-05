@@ -23,6 +23,7 @@ import {
   createRecordCheckoutHandler,
   createRequestBookingHandler,
   createSaveClassHandler,
+  createSaveLocationGeofenceHandler,
   createSaveProgramHandler,
   createSaveSessionHandler,
 } from "./schedule-callables";
@@ -1046,5 +1047,209 @@ describe("Schedule Callables", () => {
         handler(fakeRequest({ from: "2026-09-01T00:00:00Z", to: "2026-09-03T00:00:00Z" }, "coach")),
       ).rejects.toThrow(/cannot exceed 24 hours/);
     });
+  });
+});
+
+describe("saveLocationGeofence (T109)", () => {
+  const geofence = { latitude: 49.186, longitude: -2.106 };
+
+  it("records the coordinates of a site for administration only", async () => {
+    const store = createInMemoryScheduleStore();
+    const handler = createSaveLocationGeofenceHandler({ store });
+
+    const saved = (await handler(fakeRequest({ locationId: "town", geofence }))) as {
+      location: { locationId: string; geofence: unknown };
+    };
+    expect(saved.location).toMatchObject({ locationId: "town", geofence });
+
+    const locations = await store.listLocations("demo-academy");
+    expect(locations.find((location) => location.locationId === "town")?.geofence).toEqual(
+      geofence,
+    );
+    // The other site is untouched, so one site can be configured before the other.
+    expect(locations.find((location) => location.locationId === "west")?.geofence).toBeUndefined();
+  });
+
+  it("clears the coordinates when the geofence is null", async () => {
+    const store = createInMemoryScheduleStore();
+    const handler = createSaveLocationGeofenceHandler({ store });
+    await handler(fakeRequest({ locationId: "west", geofence }));
+
+    const cleared = (await handler(fakeRequest({ locationId: "west", geofence: null }))) as {
+      location: { geofence: unknown };
+    };
+    expect(cleared.location.geofence).toBeNull();
+  });
+
+  it.each(["headCoach", "coach", "guardian", "adultStudent"])(
+    "refuses %s, because site coordinates are an administrative setting",
+    async (role) => {
+      const handler = createSaveLocationGeofenceHandler({ store: createInMemoryScheduleStore() });
+      await expect(
+        handler(fakeRequest({ locationId: "town", geofence }, role)),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+    },
+  );
+
+  it("refuses an unknown site, a coarse coordinate and an extra key", async () => {
+    const handler = createSaveLocationGeofenceHandler({ store: createInMemoryScheduleStore() });
+    for (const payload of [
+      { locationId: "harbour", geofence },
+      { locationId: "town", geofence: { latitude: 49.1234567, longitude: -2.1 } },
+      { locationId: "town", geofence, radiusMeters: 500 },
+      { locationId: "town" },
+    ]) {
+      await expect(handler(fakeRequest(payload))).rejects.toMatchObject({
+        code: "invalid-argument",
+      });
+    }
+  });
+});
+
+describe("check-in proximity signal through the callables (T109)", () => {
+  const geofence = { latitude: 49.186, longitude: -2.106 };
+
+  async function sessionAt(
+    store: ReturnType<typeof createInMemoryScheduleStore>,
+    locationId: "town" | "west",
+  ) {
+    const startAt = new Date(Date.now() + 3 * 3_600_000);
+    const created = (await createSaveSessionHandler({ store })(
+      fakeRequest({
+        classId: null,
+        programId: "adult-fundamentals",
+        locationId,
+        instructorId: "coach-1",
+        title: `Proximity ${locationId}`,
+        startAt: startAt.toISOString(),
+        endAt: new Date(startAt.getTime() + 3_600_000).toISOString(),
+        capacity: 10,
+        minParticipants: 4,
+      }),
+    )) as { session: { sessionId: string } };
+    return created.session.sessionId;
+  }
+
+  function measurement(distanceMeters: number) {
+    return { distanceMeters, accuracyMeters: 9, measuredAt: new Date().toISOString() };
+  }
+
+  it("refuses an outside measurement without a reason and records one with it", async () => {
+    const store = createInMemoryScheduleStore();
+    await createSaveLocationGeofenceHandler({ store })(
+      fakeRequest({ locationId: "town", geofence }),
+    );
+    const sessionId = await sessionAt(store, "town");
+    const checkIn = createCheckInHandler({ store });
+
+    await expect(
+      checkIn(
+        fakeRequest(
+          { sessionId, studentId: "student-1", method: "manual", proximity: measurement(320) },
+          "coach",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+
+    const recorded = (await checkIn(
+      fakeRequest(
+        {
+          sessionId,
+          studentId: "student-1",
+          method: "manual",
+          proximity: measurement(320),
+          overrideReason: "Signal drifted indoors; the student is on the mat.",
+        },
+        "coach",
+      ),
+    )) as { attendance: { proximity?: { signal: string; overrideReason: string | null } } };
+    expect(recorded.attendance.proximity).toMatchObject({
+      signal: "outside",
+      overrideReason: "Signal drifted indoors; the student is on the mat.",
+    });
+  });
+
+  it("records an unavailable signal at a site without coordinates and asks for no reason", async () => {
+    const store = createInMemoryScheduleStore();
+    const sessionId = await sessionAt(store, "west");
+
+    const recorded = (await createCheckInHandler({ store })(
+      fakeRequest(
+        { sessionId, studentId: "student-1", method: "manual", proximity: measurement(320) },
+        "coach",
+      ),
+    )) as { attendance: { proximity?: { signal: string } } };
+    expect(recorded.attendance.proximity).toEqual({
+      signal: "unavailable",
+      distanceMeters: null,
+      accuracyMeters: null,
+      overrideReason: null,
+    });
+  });
+
+  it("hides the staff-device signal and override reason from members and guardians", async () => {
+    const store = createInMemoryScheduleStore();
+    await createSaveLocationGeofenceHandler({ store })(
+      fakeRequest({ locationId: "town", geofence }),
+    );
+    const sessionId = await sessionAt(store, "town");
+    await createCheckInHandler({ store })(
+      fakeRequest(
+        {
+          sessionId,
+          studentId: "student-1",
+          method: "manual",
+          proximity: measurement(320),
+          overrideReason: "Signal drifted indoors; the student is on the mat.",
+        },
+        "coach",
+      ),
+    );
+    const scope = { store, resolveClientStudentScope: ownStudentScope };
+
+    const own = (await createListStudentAttendanceHandler(scope)(
+      fakeRequest({}, "adultStudent", "student-1"),
+    )) as { attendance: readonly Record<string, unknown>[] };
+    expect(own.attendance).toHaveLength(1);
+    expect(own.attendance[0]).not.toHaveProperty("proximity");
+    expect(JSON.stringify(own.attendance)).not.toContain("drifted");
+
+    const history = (await createListAttendanceHistoryHandler(scope)(
+      fakeRequest({ sessionId }, "adultStudent", "student-1"),
+    )) as { history: readonly Record<string, unknown>[] };
+    expect(history.history.every((record) => !("proximity" in record))).toBe(true);
+
+    // Staff keep the full record, including the audited reason.
+    const staff = (await createListStudentAttendanceHandler(scope)(
+      fakeRequest({ studentId: "student-1" }, "coach", "coach-1"),
+    )) as { attendance: readonly { proximity?: { signal: string } }[] };
+    expect(staff.attendance[0]?.proximity?.signal).toBe("outside");
+  });
+
+  it("never attaches a proximity signal to corrections or no-shows", async () => {
+    const store = createInMemoryScheduleStore();
+    await createSaveLocationGeofenceHandler({ store })(
+      fakeRequest({ locationId: "town", geofence }),
+    );
+    const sessionId = await sessionAt(store, "town");
+    await createCheckInHandler({ store })(
+      fakeRequest(
+        { sessionId, studentId: "student-1", method: "manual", proximity: measurement(18) },
+        "coach",
+      ),
+    );
+
+    const corrected = (await createCorrectAttendanceHandler({ store })(
+      fakeRequest(
+        { sessionId, studentId: "student-1", newState: "late", reason: "Arrived late" },
+        "coach",
+      ),
+    )) as { correction: Record<string, unknown>; canonical: Record<string, unknown> };
+    expect(corrected.correction).not.toHaveProperty("proximity");
+
+    const reconciled = (await createReconcileSessionNoShowsHandler({ store })(
+      fakeRequest({ sessionId }, "owner"),
+    )) as { records: readonly Record<string, unknown>[] };
+    expect(reconciled.records.every((record) => !("proximity" in record))).toBe(true);
   });
 });

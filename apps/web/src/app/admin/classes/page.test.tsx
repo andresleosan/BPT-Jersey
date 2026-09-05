@@ -169,7 +169,11 @@ describe("classes administration", () => {
     render(<ClassesPage />);
 
     expect((await screen.findAllByText("BPT Town")).length).toBeGreaterThan(0);
-    expect(screen.getByText("BPT West")).toBeVisible();
+    expect(screen.getAllByText("BPT West").length).toBeGreaterThan(0);
+    // T109: the site coordinates editor is part of the catalog section, one form per site.
+    expect(screen.getByTestId("site-geofence-panel")).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "BPT Town coordinates" })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "BPT West coordinates" })).toBeInTheDocument();
     expect(screen.getByText("Adult Fundamentals")).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Adult Fundamentals" }));

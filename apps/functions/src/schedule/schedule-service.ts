@@ -9,6 +9,7 @@ import {
   determinePunctuality,
   generateSessionsFromClass,
   isWithinBookingCutoff,
+  resolveCheckInProximity,
   type AttendanceRecord,
   type DailyOperationsDashboard,
   type BookingRecord,
@@ -22,6 +23,7 @@ import {
   type CreateSessionInput,
   type ListSessionsQuery,
   type LocationRecord,
+  type SaveLocationGeofenceInput,
   type ProgramRecord,
   type RecordCheckoutInput,
   type RequestBookingInput,
@@ -34,6 +36,9 @@ import {
   createBookingTransactionService,
   type BookingFirestore,
 } from "./booking-transaction-service.js";
+import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+
+import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import {
   createTransactionalAttendanceService,
   ScheduleAttendanceError,
@@ -137,6 +142,11 @@ export const defaultPrograms: readonly ProgramRecord[] = Object.freeze([
 
 export type ScheduleStore = Readonly<{
   listLocations: (academyId: string) => Promise<readonly LocationRecord[]>;
+  saveLocationGeofence: (
+    academyId: string,
+    input: SaveLocationGeofenceInput,
+    actorId: string,
+  ) => Promise<LocationRecord>;
   listPrograms: (academyId: string) => Promise<readonly ProgramRecord[]>;
   createProgram: (academyId: string, input: CreateProgramInput) => Promise<ProgramRecord>;
   updateProgram: (
@@ -305,11 +315,65 @@ export function createFirestoreScheduleStore(options: {
     async listLocations(academyId: string): Promise<readonly LocationRecord[]> {
       const snapshot = await firestore.collection(`academies/${academyId}/locations`).get();
 
-      if (snapshot.docs.length === 0) {
-        return defaultLocations.map((loc) => ({ ...loc, academyId }));
+      // Stored documents override the canonical defaults site by site. Nothing else seeds this
+      // collection, so recording one site's coordinates (T109) must not make the other vanish.
+      const stored = new Map(
+        snapshot.docs.map((doc) => {
+          const record = doc.data() as LocationRecord;
+          return [record.locationId, record] as const;
+        }),
+      );
+      return defaultLocations.map(
+        (location) => stored.get(location.locationId) ?? { ...location, academyId },
+      );
+    },
+
+    /**
+     * Records or clears the coordinates of one academy site, which is what makes the 50 m check-in
+     * eligibility signal answerable at all (T109). The write and its audit event commit together,
+     * and clearing the coordinates returns later check-ins to an honest `unavailable`.
+     */
+    async saveLocationGeofence(
+      academyId: string,
+      input: SaveLocationGeofenceInput,
+      actorId: string,
+    ): Promise<LocationRecord> {
+      const transactional = firestore as unknown as AttendanceFirestore;
+      const locationRef = transactional.doc(`academies/${academyId}/locations/${input.locationId}`);
+      const occurredAt = new Date().toISOString();
+      const auditRef = transactional.doc(
+        `academies/${academyId}/auditEvents/location-geofence-${input.locationId}-` +
+          occurredAt.replaceAll(/[^0-9]/gu, ""),
+      );
+      const fallback = defaultLocations.find(
+        (location) => location.locationId === input.locationId,
+      );
+      if (fallback === undefined) {
+        throw new Error(`Location ${input.locationId} is not an academy site`);
       }
 
-      return snapshot.docs.map((doc) => doc.data() as LocationRecord);
+      return transactional.runTransaction(async (transaction) => {
+        const existing = await transaction.get(locationRef);
+        const current = (existing.exists ? existing.data() : undefined) as
+          LocationRecord | undefined;
+        const record: LocationRecord = Object.freeze({
+          ...(current ?? { ...fallback, academyId }),
+          locationId: input.locationId,
+          academyId,
+          geofence: input.geofence,
+          schemaVersion: "1",
+        });
+        transaction.set(locationRef, record as unknown as Record<string, unknown>);
+        appendAuditEventInTransaction(transaction, auditRef, {
+          academyId,
+          actorId,
+          action: "location.geofence.saved",
+          targetRef: `academies/${academyId}/locations/${input.locationId}`,
+          purpose: "schedule-location-geofence",
+          correlationId: `geofence-${input.locationId}`,
+        } as AuditEventDraft);
+        return record;
+      });
     },
 
     async listPrograms(academyId: string): Promise<readonly ProgramRecord[]> {
@@ -930,6 +994,36 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       return custom;
     },
 
+    // The in-memory store keeps no audit trail, so the actor is not needed here.
+    async saveLocationGeofence(
+      academyId: string,
+      input: SaveLocationGeofenceInput,
+    ): Promise<LocationRecord> {
+      const fallback = defaultLocations.find(
+        (location) => location.locationId === input.locationId,
+      );
+      if (fallback === undefined) {
+        throw new Error(`Location ${input.locationId} is not an academy site`);
+      }
+      const current =
+        locationsMap.get(academyId) ?? defaultLocations.map((loc) => ({ ...loc, academyId }));
+      const record: LocationRecord = Object.freeze({
+        ...(current.find((location) => location.locationId === input.locationId) ?? {
+          ...fallback,
+          academyId,
+        }),
+        locationId: input.locationId,
+        academyId,
+        geofence: input.geofence,
+        schemaVersion: "1",
+      });
+      locationsMap.set(
+        academyId,
+        current.map((location) => (location.locationId === input.locationId ? record : location)),
+      );
+      return record;
+    },
+
     async listPrograms(academyId: string): Promise<readonly ProgramRecord[]> {
       const custom = programsMap.get(academyId);
       if (!custom || custom.length === 0) {
@@ -1361,12 +1455,30 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       const attendanceId = buildAttendanceId(input.sessionId, input.studentId);
 
       const existing = aMap.get(attendanceId);
+      const checkInTime = occurredAt ?? new Date().toISOString();
+      const state = determinePunctuality(session.startAt, checkInTime);
+
+      // Same rule as the Firestore path: a retry is judged at the original check-in time, so an
+      // identical replay never changes its verdict because the measurement aged in between.
+      const site = (
+        locationsMap.get(academyId) ?? defaultLocations.map((loc) => ({ ...loc, academyId }))
+      ).find((location) => location.locationId === session.locationId);
+      const proximityResult = resolveCheckInProximity({
+        ...(input.proximity === undefined ? {} : { measurement: input.proximity }),
+        siteHasGeofence:
+          site?.geofence !== undefined &&
+          site.geofence !== null &&
+          Number.isFinite(site.geofence.latitude) &&
+          Number.isFinite(site.geofence.longitude),
+        ...(input.overrideReason === undefined ? {} : { overrideReason: input.overrideReason }),
+        nowMs: Date.parse(existing?.occurredAt ?? checkInTime),
+      });
+      if (!proximityResult.ok) {
+        throw new ScheduleAttendanceError("invalid", proximityResult.error);
+      }
       if (existing) {
         return existing;
       }
-
-      const checkInTime = occurredAt ?? new Date().toISOString();
-      const state = determinePunctuality(session.startAt, checkInTime);
 
       const record: AttendanceRecord = Object.freeze({
         attendanceId,
@@ -1378,6 +1490,7 @@ export function createInMemoryScheduleStore(): ScheduleStore {
         occurredAt: checkInTime,
         notes: input.notes ?? null,
         correctionOf: null,
+        proximity: proximityResult.value,
         schemaVersion: "1",
         createdAt: checkInTime,
         createdBy: actorId,

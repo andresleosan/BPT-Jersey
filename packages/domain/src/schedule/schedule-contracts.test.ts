@@ -16,6 +16,7 @@ import {
   isWithinBookingCutoff,
   parseCancelBookingInput,
   parseCheckInInput,
+  parseCheckInProximityMeasurement,
   parseCorrectAttendanceInput,
   parseCreateClassInput,
   parseCreateProgramInput,
@@ -24,6 +25,10 @@ import {
   parseRecordCheckoutInput,
   parseRecurrenceRule,
   parseRequestBookingInput,
+  parseSaveLocationGeofenceInput,
+  resolveCheckInProximity,
+  checkInProximityRadiusMeters,
+  distanceInMetres,
   type ClassRecord,
   type SessionOperationalView,
 } from "./schedule-contracts";
@@ -1096,6 +1101,243 @@ describe("Schedule Domain Contracts", () => {
       expect(dashboard.sessions[0]).not.toHaveProperty("roster");
       expect(dashboard.query.from).toBe("2026-09-01T00:00:00Z");
       expect(dashboard.refreshedAt).toBe("2026-09-01T20:01:00Z");
+    });
+  });
+});
+
+describe("check-in proximity signal (T109)", () => {
+  const measuredAt = "2026-09-05T18:00:00.000Z";
+  const nowMs = Date.parse(measuredAt);
+
+  describe("parseSaveLocationGeofenceInput", () => {
+    it("accepts a site coordinate pair and a null that clears it", () => {
+      const saved = parseSaveLocationGeofenceInput({
+        locationId: "town",
+        geofence: { latitude: 49.186, longitude: -2.106 },
+      });
+      expect(saved.ok && saved.value.geofence).toEqual({ latitude: 49.186, longitude: -2.106 });
+
+      const cleared = parseSaveLocationGeofenceInput({ locationId: "west", geofence: null });
+      expect(cleared.ok && cleared.value).toEqual({ locationId: "west", geofence: null });
+    });
+
+    it("refuses unknown sites, extra keys, coarse precision and out-of-range coordinates", () => {
+      expect(parseSaveLocationGeofenceInput({ locationId: "harbour", geofence: null }).ok).toBe(
+        false,
+      );
+      expect(
+        parseSaveLocationGeofenceInput({
+          locationId: "town",
+          geofence: { latitude: 49.1, longitude: -2.1 },
+          radiusMeters: 500,
+        }).ok,
+      ).toBe(false);
+      expect(
+        parseSaveLocationGeofenceInput({
+          locationId: "town",
+          geofence: { latitude: 49.1234567, longitude: -2.1 },
+        }).ok,
+      ).toBe(false);
+      expect(
+        parseSaveLocationGeofenceInput({
+          locationId: "town",
+          geofence: { latitude: 91, longitude: -2.1 },
+        }).ok,
+      ).toBe(false);
+      expect(
+        parseSaveLocationGeofenceInput({
+          locationId: "town",
+          geofence: { latitude: 49.1, longitude: -2.1, altitude: 3 },
+        }).ok,
+      ).toBe(false);
+    });
+  });
+
+  describe("distanceInMetres", () => {
+    it("is zero for the same point and grows with separation", () => {
+      const site = { latitude: 49.186, longitude: -2.106 };
+      expect(Math.round(distanceInMetres(site, site))).toBe(0);
+      // Roughly 0.0009 degrees of latitude is about 100 m.
+      const hundredMetresNorth = { latitude: 49.186 + 0.0009, longitude: -2.106 };
+      expect(Math.round(distanceInMetres(site, hundredMetresNorth))).toBeGreaterThan(90);
+      expect(Math.round(distanceInMetres(site, hundredMetresNorth))).toBeLessThan(110);
+    });
+  });
+
+  describe("parseCheckInProximityMeasurement", () => {
+    it("accepts exactly a distance, an accuracy and a timestamp", () => {
+      const parsed = parseCheckInProximityMeasurement({
+        distanceMeters: 12.4,
+        accuracyMeters: 8,
+        measuredAt,
+      });
+      expect(parsed.ok && parsed.value).toEqual({
+        distanceMeters: 12.4,
+        accuracyMeters: 8,
+        measuredAt,
+      });
+    });
+
+    it("refuses coordinates, negative or non-finite values and a bad timestamp", () => {
+      expect(
+        parseCheckInProximityMeasurement({
+          distanceMeters: 10,
+          accuracyMeters: 5,
+          measuredAt,
+          latitude: 49.1,
+        }).ok,
+      ).toBe(false);
+      expect(
+        parseCheckInProximityMeasurement({ distanceMeters: -1, accuracyMeters: 5, measuredAt }).ok,
+      ).toBe(false);
+      expect(
+        parseCheckInProximityMeasurement({
+          distanceMeters: Number.POSITIVE_INFINITY,
+          accuracyMeters: 5,
+          measuredAt,
+        }).ok,
+      ).toBe(false);
+      expect(
+        parseCheckInProximityMeasurement({
+          distanceMeters: 10,
+          accuracyMeters: 5,
+          measuredAt: "not-a-time",
+        }).ok,
+      ).toBe(false);
+    });
+  });
+
+  describe("parseCheckInInput with a measurement", () => {
+    it("keeps the measurement and the override reason", () => {
+      const parsed = parseCheckInInput({
+        sessionId: "session-1",
+        studentId: "student-1",
+        method: "manual",
+        proximity: { distanceMeters: 400, accuracyMeters: 10, measuredAt },
+        overrideReason: "Student trains at the other site today.",
+      });
+      expect(parsed.ok && parsed.value.proximity?.distanceMeters).toBe(400);
+      expect(parsed.ok && parsed.value.overrideReason).toBe(
+        "Student trains at the other site today.",
+      );
+    });
+
+    it("still accepts a check-in with no measurement at all", () => {
+      const parsed = parseCheckInInput({
+        sessionId: "session-1",
+        studentId: "student-1",
+        method: "manual",
+      });
+      expect(parsed.ok && parsed.value.proximity).toBeUndefined();
+      expect(parsed.ok && parsed.value.overrideReason).toBeUndefined();
+    });
+
+    it("refuses a too-short override reason and a malformed measurement", () => {
+      expect(
+        parseCheckInInput({
+          sessionId: "session-1",
+          studentId: "student-1",
+          method: "manual",
+          overrideReason: "late",
+        }).ok,
+      ).toBe(false);
+      expect(
+        parseCheckInInput({
+          sessionId: "session-1",
+          studentId: "student-1",
+          method: "manual",
+          proximity: { distanceMeters: 10 },
+        }).ok,
+      ).toBe(false);
+    });
+  });
+
+  describe("resolveCheckInProximity", () => {
+    const measurement = (distanceMeters: number, accuracyMeters = 8) => ({
+      distanceMeters,
+      accuracyMeters,
+      measuredAt,
+    });
+
+    it("reports within the radius without asking for a reason", () => {
+      const resolved = resolveCheckInProximity({
+        measurement: measurement(checkInProximityRadiusMeters),
+        siteHasGeofence: true,
+        nowMs,
+      });
+      expect(resolved.ok && resolved.value).toEqual({
+        signal: "within",
+        distanceMeters: 50,
+        accuracyMeters: 8,
+        overrideReason: null,
+      });
+    });
+
+    it("requires a staff reason outside the radius and records it", () => {
+      const refused = resolveCheckInProximity({
+        measurement: measurement(51),
+        siteHasGeofence: true,
+        nowMs,
+      });
+      expect(refused.ok).toBe(false);
+
+      const resolved = resolveCheckInProximity({
+        measurement: measurement(51),
+        siteHasGeofence: true,
+        overrideReason: "Signal drifted indoors; the student is on the mat.",
+        nowMs,
+      });
+      expect(resolved.ok && resolved.value).toEqual({
+        signal: "outside",
+        distanceMeters: 51,
+        accuracyMeters: 8,
+        overrideReason: "Signal drifted indoors; the student is on the mat.",
+      });
+    });
+
+    it("is unavailable, and needs no reason, when nothing can be judged", () => {
+      const cases = [
+        { siteHasGeofence: true, nowMs },
+        { measurement: measurement(10), siteHasGeofence: false, nowMs },
+        // Accuracy coarser than the radius cannot decide a 50 m question.
+        { measurement: measurement(10, 120), siteHasGeofence: true, nowMs },
+        // A reading from an hour ago says nothing about now.
+        { measurement: measurement(10), siteHasGeofence: true, nowMs: nowMs + 3_600_000 },
+      ];
+      for (const input of cases) {
+        const resolved = resolveCheckInProximity(input);
+        expect(resolved.ok && resolved.value).toEqual({
+          signal: "unavailable",
+          distanceMeters: null,
+          accuracyMeters: null,
+          overrideReason: null,
+        });
+      }
+    });
+
+    it("ignores a reason when there is nothing to override, so the radius never blocks", () => {
+      const reason = "Nothing to override here at all.";
+      const inside = resolveCheckInProximity({
+        measurement: measurement(10),
+        siteHasGeofence: true,
+        overrideReason: reason,
+        nowMs,
+      });
+      expect(inside.ok && inside.value).toEqual({
+        signal: "within",
+        distanceMeters: 10,
+        accuracyMeters: 8,
+        overrideReason: null,
+      });
+      // An expired reading with a reason typed against it is unavailable, not an error.
+      const expired = resolveCheckInProximity({
+        measurement: measurement(320),
+        siteHasGeofence: true,
+        overrideReason: reason,
+        nowMs: nowMs + 3_600_000,
+      });
+      expect(expired.ok && expired.value.signal).toBe("unavailable");
+      expect(expired.ok && expired.value.overrideReason).toBeNull();
     });
   });
 });

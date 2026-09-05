@@ -1,14 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type {
-  LocationId,
-  SessionOperationalView,
-  SessionRecord,
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  checkInOverrideReasonMaxLength,
+  checkInOverrideReasonMinLength,
+  checkInProximityRadiusMeters,
+  isCheckInProximityMeasurementFresh,
+  type LocationGeofence,
+  type LocationId,
+  type SessionOperationalView,
+  type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
-import { getSessionOperationalView, listSessions, recordCheckIn } from "../../lib/schedule-client";
+import { measureCheckInProximity, type ProximityReading } from "../../lib/check-in-proximity";
+import {
+  getScheduleCatalog,
+  getSessionOperationalView,
+  listSessions,
+  recordCheckIn,
+} from "../../lib/schedule-client";
 import { useStaffSession } from "../../lib/staff-auth";
 import { OpenLevelPanel } from "./open-level-panel";
 import "./coach.css";
@@ -71,6 +82,27 @@ export default function CoachDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyStudentId, setBusyStudentId] = useState<string | null>(null);
+  // T109: the 50 m check-in eligibility signal. The device position is reduced to a distance here
+  // and never sent; an out-of-radius reading needs a reason, it does not block the check-in.
+  const [siteGeofence, setSiteGeofence] = useState<
+    | Readonly<{ status: "loading" }>
+    | Readonly<{ status: "ready"; geofence: LocationGeofence | null }>
+    | Readonly<{ status: "error" }>
+  >({ status: "loading" });
+  const [proximity, setProximity] = useState<ProximityReading | null>(null);
+  const [measuring, setMeasuring] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+  // Bumped on every premises change so a measurement still in flight for the previous site is
+  // discarded instead of being attributed to the new one.
+  const measurementEpoch = useRef(0);
+  // Render-time clock for the freshness of the last reading; ticking here keeps render pure.
+  const [clockMs, setClockMs] = useState(0);
+
+  useEffect(() => {
+    setClockMs(Date.now());
+    const timer = setInterval(() => setClockMs(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Cash PAYG Form state
   const [paygStudentId, setPaygStudentId] = useState("");
@@ -140,8 +172,87 @@ export default function CoachDashboardPage() {
     };
   }, [effectiveSessionId]);
 
+  useEffect(() => {
+    let active = true;
+    measurementEpoch.current += 1;
+    setProximity(null);
+    setOverrideReason("");
+    setSiteGeofence({ status: "loading" });
+
+    void getScheduleCatalog()
+      .then((catalog) => {
+        if (!active) return;
+        const site = catalog.locations.find((location) => location.locationId === premises);
+        setSiteGeofence({ status: "ready", geofence: site?.geofence ?? null });
+      })
+      .catch(() => {
+        if (active) setSiteGeofence({ status: "error" });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [premises]);
+
+  /**
+   * A reading older than the server's freshness window would be recorded as unavailable while the
+   * panel still showed a distance, so the panel stops using it and asks for a new measurement.
+   */
+  function freshMeasurement(nowMs: number) {
+    return proximity?.status === "measured" &&
+      isCheckInProximityMeasurementFresh(proximity.measurement, nowMs)
+      ? proximity
+      : null;
+  }
+  const measurementExpired = proximity?.status === "measured" && freshMeasurement(clockMs) === null;
+  const overrideRequired = freshMeasurement(clockMs)?.signal === "outside";
+  const overrideReady = overrideReason.trim().length >= checkInOverrideReasonMinLength;
+
+  async function handleMeasureProximity() {
+    if (siteGeofence.status !== "ready") return;
+    const epoch = measurementEpoch.current;
+    setMeasuring(true);
+    setOverrideReason("");
+    try {
+      const reading = await measureCheckInProximity({ site: siteGeofence.geofence });
+      // The premises changed while the device was answering: that reading belongs to another site.
+      if (epoch === measurementEpoch.current) {
+        setClockMs(Date.now());
+        setProximity(reading);
+      }
+    } finally {
+      if (epoch === measurementEpoch.current) setMeasuring(false);
+    }
+  }
+
+  /**
+   * The measurement to send, if any. An unusable or expired reading is simply omitted. Freshness is
+   * judged on the ticking clock (at most thirty seconds behind); the backend re-derives it anyway.
+   */
+  function proximityPayload() {
+    const fresh = freshMeasurement(clockMs);
+    if (fresh === null) return {};
+    return {
+      proximity: fresh.measurement,
+      ...(fresh.signal === "outside" ? { overrideReason: overrideReason.trim() } : {}),
+    };
+  }
+
+  /** Both check-in paths share the same gate: outside the radius, staff must say why. */
+  function requireOverrideReason(): boolean {
+    if (overrideRequired && !overrideReady) {
+      setError(
+        `The measured position is outside the ${checkInProximityRadiusMeters} m radius. Record why ` +
+          "you are checking this student in.",
+      );
+      return false;
+    }
+    return true;
+  }
+
   async function handleCheckIn(studentId: string) {
     if (!effectiveSessionId) return;
+    if (!requireOverrideReason()) return;
     setBusyStudentId(studentId);
     setError(null);
     setNotice(null);
@@ -151,6 +262,7 @@ export default function CoachDashboardPage() {
         sessionId: effectiveSessionId,
         studentId,
         method: "manual",
+        ...proximityPayload(),
       });
       const updatedView = await getSessionOperationalView(effectiveSessionId);
       setOperationalView(updatedView);
@@ -166,6 +278,7 @@ export default function CoachDashboardPage() {
     e.preventDefault();
     const studentId = paygStudentId.trim();
     if (!studentId || !effectiveSessionId) return;
+    if (!requireOverrideReason()) return;
 
     setPaygBusy(true);
     setError(null);
@@ -176,6 +289,7 @@ export default function CoachDashboardPage() {
         sessionId: effectiveSessionId,
         studentId,
         method: "manual",
+        ...proximityPayload(),
       });
       const updatedView = await getSessionOperationalView(effectiveSessionId);
       setOperationalView(updatedView);
@@ -353,6 +467,86 @@ export default function CoachDashboardPage() {
                   Double-check clocked-in students 5 minutes before start. Manual check-ins update
                   the live register immediately.
                 </p>
+
+                <section
+                  aria-labelledby="coach-proximity-title"
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    padding: "0.75rem",
+                    marginBottom: "0.75rem",
+                  }}
+                >
+                  <p
+                    id="coach-proximity-title"
+                    style={{ fontWeight: 600, fontSize: "0.9rem", margin: 0 }}
+                  >
+                    Check-in location signal
+                  </p>
+                  <p style={{ fontSize: "0.85rem", color: "#4b5563", margin: "0.25rem 0 0.5rem" }}>
+                    A measurement inside {checkInProximityRadiusMeters} m of this site is a signal,
+                    never proof. Coordinates are never stored: only the distance is recorded.
+                  </p>
+                  <button
+                    className="button button-secondary text-sm"
+                    disabled={measuring || siteGeofence.status !== "ready"}
+                    onClick={() => void handleMeasureProximity()}
+                    type="button"
+                  >
+                    {measuring ? "Measuring..." : "Measure this device"}
+                  </button>
+                  <p
+                    aria-live="polite"
+                    data-testid="coach-proximity-status"
+                    style={{ fontSize: "0.85rem", color: "#4b5563", margin: "0.5rem 0 0" }}
+                  >
+                    {siteGeofence.status === "loading"
+                      ? "Loading this site's coordinates..."
+                      : siteGeofence.status === "error"
+                        ? "Site coordinates could not be loaded. Check-ins are recorded without a location signal."
+                        : proximity === null
+                          ? siteGeofence.geofence === null
+                            ? "No coordinates are recorded for this site, so check-ins are recorded without a location signal."
+                            : "Not measured yet. Check-ins are recorded without a location signal."
+                          : proximity.status === "unavailable"
+                            ? `${proximity.reason} The check-in is recorded without a location signal.`
+                            : measurementExpired
+                              ? "The last measurement is older than ten minutes. Measure again; until then check-ins are recorded without a location signal."
+                              : proximity.signal === "within"
+                                ? `Measured ${proximity.measurement.distanceMeters} m from this site, inside the radius.`
+                                : `Measured ${proximity.measurement.distanceMeters} m from this site, outside the ${checkInProximityRadiusMeters} m radius.`}
+                  </p>
+                  {overrideRequired ? (
+                    <label
+                      htmlFor="coach-proximity-override"
+                      style={{
+                        display: "block",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        marginTop: "0.5rem",
+                      }}
+                    >
+                      Why are you checking students in from outside the radius?
+                      <textarea
+                        aria-describedby="coach-proximity-override-help"
+                        aria-required="true"
+                        id="coach-proximity-override"
+                        maxLength={checkInOverrideReasonMaxLength}
+                        onChange={(event) => setOverrideReason(event.target.value)}
+                        required
+                        rows={2}
+                        style={{ display: "block", width: "100%", marginTop: "0.25rem" }}
+                        value={overrideReason}
+                      />
+                      <span
+                        id="coach-proximity-override-help"
+                        style={{ fontWeight: 400, color: "#4b5563" }}
+                      >
+                        {`At least ${checkInOverrideReasonMinLength} characters. The reason is kept with the attendance and audited.`}
+                      </span>
+                    </label>
+                  ) : null}
+                </section>
 
                 {operationalView.roster.length === 0 ? (
                   <p style={{ color: "#6b7280", fontStyle: "italic", margin: "1rem 0" }}>
