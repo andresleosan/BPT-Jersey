@@ -7,7 +7,12 @@ export default defineConfig({
       reporter: ["text", "html"],
       reportsDirectory: "coverage",
     },
-    projects: ["apps/web/vitest.config.ts", "vitest.node.config.ts", "vitest.rules.config.ts"],
+    projects: [
+      "apps/web/vitest.config.ts",
+      "vitest.node.config.ts",
+      "vitest.rules.config.ts",
+      "qa/integration/vitest.config.ts",
+    ],
     reporters: ["default"],
   },
 });

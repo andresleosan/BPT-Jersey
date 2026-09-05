@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 
+import { withEmulatorJavaEnv } from "./emulator-java-env.mjs";
+
 const isWindows = process.platform === "win32";
 const runner = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "corepack";
 const steps = [
@@ -25,17 +27,7 @@ const steps = [
     env: { NEXT_PUBLIC_ADMIN_E2E: "true" },
   },
 ];
-const env = { ...process.env, BPT_VERIFY_MVP: "true" };
-// Firebase CLI can log the complete child environment when DEBUG is inherited.
-delete env.DEBUG;
-
-if (isWindows) {
-  const jdk21Candidate =
-    (process.env.JAVA_HOME ? process.env.JAVA_HOME.replace(/\\$/, "") : "") ||
-    "C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.12.8-hotspot";
-  env.JAVA_HOME = jdk21Candidate;
-  env.PATH = `${jdk21Candidate}\\bin;${process.env.PATH ?? ""}`;
-}
+const env = { ...withEmulatorJavaEnv(), BPT_VERIFY_MVP: "true" };
 
 console.log(
   "verify:mvp: local synthetic-pilot gate; no deploy, migration, live load, or external payment.",

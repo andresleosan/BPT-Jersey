@@ -10,8 +10,8 @@
   },
   "scripts": {
     "build": "corepack pnpm -r --if-present build",
-    "format": "prettier --write \"{apps,packages,qa}/**/*.{ts,tsx,js,mjs,json,css}\" \".github/**/*.{yaml,yml}\" \"*.{json,mjs,ts,yaml,yml}\"",
-    "format:check": "prettier --check \"{apps,packages,qa}/**/*.{ts,tsx,js,mjs,json,css}\" \".github/**/*.{yaml,yml}\" \"*.{json,mjs,ts,yaml,yml}\"",
+    "format": "prettier --write \"{apps,packages,qa,scripts}/**/*.{ts,tsx,js,mjs,json,css}\" \".github/**/*.{yaml,yml}\" \"*.{json,mjs,ts,yaml,yml}\"",
+    "format:check": "prettier --check \"{apps,packages,qa,scripts}/**/*.{ts,tsx,js,mjs,json,css}\" \".github/**/*.{yaml,yml}\" \"*.{json,mjs,ts,yaml,yml}\"",
     "firebase:emulators": "firebase emulators:start --project demo-bpt-jersey --only auth,firestore,database,functions",
     "firebase:emulators:data": "firebase emulators:start --project demo-bpt-jersey --only auth,firestore,database",
     "lint": "eslint . --max-warnings 0",
@@ -22,6 +22,7 @@
     "test:e2e": "corepack pnpm --dir qa test:e2e",
     "test:e2e:smoke": "corepack pnpm --dir qa test:e2e:smoke",
     "test:e2e:repeat": "corepack pnpm --dir qa test:e2e:repeat",
+    "test:integration": "node scripts/run-integration.mjs",
     "test:load:synthetic": "node scripts/load-smoke.mjs",
     "typecheck": "corepack pnpm -r --if-present typecheck",
     "verify:mvp": "node scripts/verify-mvp.mjs"

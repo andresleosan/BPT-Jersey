@@ -4262,7 +4262,7 @@ Decisiones que solo puede cerrar el operador:
 
 Trabajo tecnico que el asistente puede continuar sin decision humana:
 
-- [ ] Incorporar `qa/integration` a un gate periodico. Es la recomendacion principal de esta sesion: hoy esas 26 suites pueden degradarse sin que nada lo detecte, y se encontraron 11 fallos acumulados que nadie veia.
+- [x] Incorporar `qa/integration` a un gate periodico. Hecho el 2026-09-04: `pnpm test:integration` y el workflow semanal `.github/workflows/integration.yml`; evidencia al final del ledger.
 - [ ] T098: falta el E2E autenticado del golden path completo; `verify:mvp` ya corre entero y en verde, pero no cubre ese recorrido.
 - [ ] R30 y R43 de la matriz RED quedan bloqueados fuera del repositorio: exigen un proyecto real y dependen de T099, que depende de T011.
 - [ ] Diagnosticar por que el Emulator de Firestore rechaza las lecturas point-in-time no es viable desde aqui; si alguna version futura las soporta, `qa/integration/backup-v3-rehearsal.test.ts` volvera a ejecutarse sola gracias a la sonda de capacidad.
@@ -4285,3 +4285,14 @@ Recetas registradas hoy: consolidacion de una matriz RED contra las pruebas real
 - Verificacion de que la compuerta muerde: con una seccion sintetica `### Evidencia T093 ... 2026-09-05` la prueba falla con `T093: ledger 2026-09-05 > board 2026-09-04`; con una seccion de una tarea inexistente en el tablero falla senalando que falta su entrada. El ledger se restauro intacto en ambos casos.
 - Al actualizar la evidencia de una tarea en `Lista/Lista.js` hay que mover su fecha en `evidenceSyncDates` en la misma edicion; el mensaje de fallo lo indica.
 - Compuertas: Prettier, eslint sin avisos, typecheck de `qa` y las tres pruebas de Lista 8/8 en verde.
+
+### Compuerta nueva - la bateria de integracion entra en un gate periodico - 2026-09-04
+
+- Motivo: `qa/integration` acumulo 11 fallos sin que nada los detectara porque no formaba parte de ninguna compuerta. Reparada la bateria en la seccion anterior, faltaba la pieza que impide que vuelva a degradarse.
+- Hallazgo al conectarla: el proyecto `firestore-integration` nunca habia estado registrado en `vitest.config.ts`, y su `include` era `qa/integration/**/*.test.ts` relativo al propio archivo de configuracion, es decir `qa/integration/qa/integration/**`. Al registrarlo Vitest respondia `No test files found` con exit 1. Corregido a `**/*.test.ts`, que resuelve igual desde la raiz y en solitario.
+- Pieza nueva 1: `pnpm test:integration` (`scripts/run-integration.mjs`) arranca los emuladores auth/firestore/database contra `demo-bpt-jersey` y ejecuta el proyecto. Invoca el binario de `firebase-tools` con `spawnSync` sin shell, porque pasando el comando interno por `cmd.exe` el emulador lo recibia troceado y respondia `Too many arguments`.
+- Pieza nueva 2: `scripts/emulator-java-env.mjs`, extraido de `verify-mvp.mjs`, que fija el JDK 21 desde `JAVA_HOME` en Windows. La version anterior vivia solo dentro de `verify:mvp`, asi que cualquier gate de emuladores lanzado por separado caia en el JRE 8 del PATH. Usa `path.win32.resolve`, de modo que un `JAVA_HOME` con separador final tambien produce un `bin` valido.
+- Pieza nueva 3: `.github/workflows/integration.yml`, semanal (lunes 05:00 UTC) y bajo demanda, con JDK 21 y el runtime de dominio construido. No toca despliegues ni proyectos reales.
+- Hallazgo lateral corregido: `format:check` solo cubria `{apps,packages,qa}` y la raiz, de modo que `scripts/*.mjs` nunca se verificaba. Anadido `scripts` al patron; los cuatro archivos ya estaban limpios.
+- Compuertas: `pnpm test:integration` en verde con exit 0, 25 archivos pasados, 1 omitido con motivo y 75 pruebas, 0 fallos, 128 s. `pnpm verify:mvp` completo en verde tras el refactor de `verify-mvp.mjs`: `format:check`, `lint` sin avisos, `typecheck`, `build`, `test:unit`, `test:rules`, `build:e2e-synthetic`, `test:load:synthetic` 240/240 sin fallos (p50 32 ms, p95 44 ms, p99 52 ms) y `test:e2e:smoke` 5 pasados con 1 omitido.
+- Convencion registrada en `qa/README.md`: una suite que necesita una capacidad ausente del Emulator se omite con motivo explicito y nunca falla de forma opaca; y las pruebas del artefacto desplegado inspeccionan `.firebase-functions/`, no `apps/functions/lib`.
