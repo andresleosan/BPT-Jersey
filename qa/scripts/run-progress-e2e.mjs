@@ -45,11 +45,12 @@ const academyId = required("T097_E2E_ACADEMY_ID");
 const ownerEmail = required("T097_OWNER_EMAIL");
 const adultEmail = required("T097_ADULT_EMAIL");
 const headCoachEmail = required("T097_HEAD_COACH_EMAIL");
+const guardianEmail = required("T097_GUARDIAN_EMAIL");
 const password = required("T097_E2E_PASSWORD");
 if (password.length < 12) {
   throw new Error("T097 runner requires a synthetic password of 12+ characters.");
 }
-for (const email of [ownerEmail, adultEmail, headCoachEmail]) {
+for (const email of [ownerEmail, adultEmail, headCoachEmail, guardianEmail]) {
   if (!email.endsWith("@example.test")) throw new Error("T097 runner requires synthetic users.");
 }
 for (const name of [
@@ -87,13 +88,14 @@ const ownerEnvironment = {
 };
 run(["qa/scripts/seed-auth-emulator.mjs"], ownerEnvironment);
 run(["qa/scripts/seed-member-directory-emulator.mjs"], ownerEnvironment);
-// Adult client: Auth user and claims only, reusing the T094 seed. Its profile, family, waiver
-// consent, membership, bookings and attendance are created by the callables under test.
+// Client identities: Auth users and claims only, reusing the T094 seed. The adult drives the own
+// progress path and the guardian the family one; their profiles, families, waiver consents,
+// memberships, bookings and attendance are created by the callables under test.
 run(["qa/scripts/seed-onboarding-emulator.mjs"], {
   T094_E2E_ACADEMY_ID: academyId,
   T094_E2E_PASSWORD: password,
   T094_ADULT_EMAIL: adultEmail,
-  T094_GUARDIAN_EMAIL: `t097-unused-guardian@example.test`,
+  T094_GUARDIAN_EMAIL: guardianEmail,
 });
 // Head coach: Auth user, claims, staff user document and canonical staff profile.
 run(["qa/scripts/seed-staff-emulator.mjs"]);

@@ -57,11 +57,39 @@ type DirectoryStudent = Readonly<{
 }>;
 type DirectoryState =
   | Readonly<{ status: "loading" }>
-  | Readonly<{ status: "ready"; students: readonly DirectoryStudent[] }>
+  | Readonly<{
+      status: "ready";
+      students: readonly DirectoryStudent[];
+      /** True when the directory has more pages than `directoryPageLimit` allows loading. */
+      truncated: boolean;
+    }>
   | Readonly<{ status: "error" }>;
+
+/** The callable caps a page at 50 rows, so the selector follows the cursor up to this many pages. */
+const directoryPageSize = 50;
+const directoryPageLimit = 20;
 
 function studentLabel(student: DirectoryStudent): string {
   return `${student.fullName} (${student.participantType}, ${student.trainingCenter})`;
+}
+
+/** Case- and accent-insensitive contains, so "jose" finds "José". */
+function normalizeSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function matchesSearch(student: DirectoryStudent, query: string): boolean {
+  if (query === "") return true;
+  const haystack = normalizeSearch(
+    `${student.fullName} ${student.participantType} ${student.trainingCenter}`,
+  );
+  return normalizeSearch(query)
+    .split(/\s+/u)
+    .every((term) => haystack.includes(term));
 }
 
 const initialPlanId = planIds[0]!;
@@ -184,6 +212,7 @@ export function MembershipsAdminPage() {
   const [planDraft, setPlanDraft] = useState<PlanDraft>(() => copyPlan(initialPlan));
   const [directory, setDirectory] = useState<DirectoryState>({ status: "loading" });
   const [studentId, setStudentId] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
   const [membershipPlanId, setMembershipPlanId] = useState<PlanId | "">("");
   const [initialStatus, setInitialStatus] = useState<"trial" | "active">("trial");
   const [busy, setBusy] = useState<string>();
@@ -199,15 +228,26 @@ export function MembershipsAdminPage() {
 
   useEffect(() => {
     let mounted = true;
-    void listMembers(50)
-      .then((page) => {
+
+    // The directory is paged; the selector needs every active student, not just the first page.
+    const loadDirectory = async (): Promise<DirectoryState> => {
+      const students: DirectoryStudent[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < directoryPageLimit; page += 1) {
+        const result = await listMembers(directoryPageSize, cursor);
+        students.push(...result.rows.filter((row) => row.active && row.status === "active"));
+        cursor = result.nextCursor;
+        if (cursor === undefined) {
+          return { status: "ready", students: Object.freeze(students), truncated: false };
+        }
+      }
+      return { status: "ready", students: Object.freeze(students), truncated: true };
+    };
+
+    void loadDirectory()
+      .then((next) => {
         if (!mounted) return;
-        startTransition(() => {
-          setDirectory({
-            status: "ready",
-            students: page.rows.filter((row) => row.active && row.status === "active"),
-          });
-        });
+        startTransition(() => setDirectory(next));
       })
       .catch(() => {
         if (mounted) setDirectory({ status: "error" });
@@ -247,6 +287,13 @@ export function MembershipsAdminPage() {
   const activePlans = useMemo(
     () => (workspace.status === "ready" ? workspace.plans.filter((plan) => plan.active) : []),
     [workspace],
+  );
+  const matchingStudents = useMemo(
+    () =>
+      directory.status === "ready"
+        ? directory.students.filter((student) => matchesSearch(student, studentSearch))
+        : [],
+    [directory, studentSearch],
   );
 
   function updateWorkspacePlan(plan: ManagedMembershipPlan): void {
@@ -632,6 +679,18 @@ export function MembershipsAdminPage() {
                   resolved from that record.
                 </p>
               </div>
+              <label className="membership-field" htmlFor="membership-student-search">
+                Search students
+                <input
+                  autoComplete="off"
+                  disabled={busy !== undefined || directory.status !== "ready"}
+                  id="membership-student-search"
+                  onChange={(event) => setStudentSearch(event.target.value)}
+                  placeholder="Name, participant type or training center"
+                  type="search"
+                  value={studentSearch}
+                />
+              </label>
               <label className="membership-field" htmlFor="membership-student">
                 Student
                 <select
@@ -646,22 +705,34 @@ export function MembershipsAdminPage() {
                       ? "Loading member directory..."
                       : directory.status === "error"
                         ? "Member directory unavailable"
-                        : "Select a student"}
+                        : matchingStudents.length === 0
+                          ? "No student matches this search"
+                          : "Select a student"}
                   </option>
-                  {directory.status === "ready"
-                    ? directory.students.map((student) => (
-                        <option key={student.studentId} value={student.studentId}>
-                          {studentLabel(student)}
-                        </option>
-                      ))
-                    : null}
+                  {matchingStudents.map((student) => (
+                    <option key={student.studentId} value={student.studentId}>
+                      {studentLabel(student)}
+                    </option>
+                  ))}
                   {directory.status === "ready" &&
                   studentId !== "" &&
-                  !directory.students.some((student) => student.studentId === studentId) ? (
-                    <option value={studentId}>Preselected student (not in the first page)</option>
+                  !matchingStudents.some((student) => student.studentId === studentId) ? (
+                    <option value={studentId}>
+                      {directory.students.some((student) => student.studentId === studentId)
+                        ? "Selected student (hidden by the search)"
+                        : "Preselected student (not in the loaded directory)"}
+                    </option>
                   ) : null}
                 </select>
               </label>
+              {directory.status === "ready" ? (
+                <p className="membership-helper" data-testid="membership-directory-count">
+                  {`Showing ${matchingStudents.length} of ${directory.students.length} active students.`}
+                  {directory.truncated
+                    ? " Only the first pages of the directory are loaded; narrow the search if a student is missing."
+                    : ""}
+                </p>
+              ) : null}
               {directory.status === "error" ? (
                 <p className="membership-message membership-message-error" role="alert">
                   Unable to load the member directory. Refresh before creating memberships.

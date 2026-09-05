@@ -51,13 +51,27 @@ const levelsApi = vi.hoisted(() => ({
   getStudentProgressSummary: vi.fn(),
 }));
 
+const familyApi = vi.hoisted(() => ({ getFamily: vi.fn() }));
+
+const authState = vi.hoisted(() => ({
+  role: undefined as "guardian" | "adultStudent" | undefined,
+}));
+
 vi.mock("../../../lib/levels-client", () => levelsApi);
+
+vi.mock("../../../lib/family-client", () => familyApi);
 
 vi.mock("../../../lib/client-auth", () => ({
   ClientAuthProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   ClientAuthGate: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   useClientSession: () => ({
-    session: { uid: "user-1", email: "client@example.test", displayName: "Student" },
+    status: "signed-in",
+    session: {
+      uid: "user-1",
+      email: "client@example.test",
+      displayName: "Student",
+      ...(authState.role === undefined ? {} : { role: authState.role }),
+    },
     signOut: vi.fn(),
   }),
 }));
@@ -68,6 +82,8 @@ describe("Account Progress Page", () => {
   afterEach(() => {
     cleanup();
     Object.values(levelsApi).forEach((mock) => mock.mockReset());
+    familyApi.getFamily.mockReset();
+    authState.role = undefined;
   });
 
   it("renders progression header and levels browser for client", async () => {
@@ -118,6 +134,107 @@ describe("Account Progress Page", () => {
     expect(screen.queryByText(/Competitors/u)).toBeNull();
     expect(screen.queryByText("Lucas Silva")).toBeNull();
     expect(screen.queryByText("Curriculum Technique Comparison")).toBeNull();
+  });
+
+  it("shows a guardian the progress of every linked child instead of an own-progress panel", async () => {
+    authState.role = "guardian";
+    levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+    familyApi.getFamily.mockResolvedValue({
+      family: { familyId: "family-1", active: true, status: "active" },
+      tutor: {
+        userId: "user-1",
+        displayName: "Tutor",
+        email: "tutor@example.test",
+        phoneNumber: "+441534000000",
+      },
+      students: [
+        {
+          studentId: "student-1",
+          fullName: "Child One",
+          dateOfBirth: "2016-01-01",
+          trainingCenter: "town",
+          trainingTimePreferences: ["evening"],
+          active: true,
+          status: "active",
+        },
+        {
+          studentId: "student-2",
+          fullName: "Child Two",
+          dateOfBirth: "2018-01-01",
+          trainingCenter: "west",
+          trainingTimePreferences: ["evening"],
+          active: true,
+          status: "active",
+        },
+        {
+          studentId: "student-3",
+          fullName: "Former Child",
+          dateOfBirth: "2014-01-01",
+          trainingCenter: "town",
+          trainingTimePreferences: ["evening"],
+          active: false,
+          status: "inactive",
+        },
+      ],
+    });
+    levelsApi.getStudentProgressSummary.mockImplementation(async (studentId: string) =>
+      studentId === "student-1"
+        ? {
+            state: "initialized",
+            studentId: "student-1",
+            currentDefinition: mockProjection.definitions[0],
+            targetDefinition: { ...mockProjection.definitions[0], name: "WHITE BELT 1 STRIPE" },
+            skillChecklist: [],
+            criteria: {
+              classes: { required: 10, completed: 4, met: false },
+              time: { requiredDays: 90, elapsedDays: 12, met: false },
+              skills: { total: 3, completed: 1, met: false },
+            },
+            totalAttendedClasses: 4,
+            totalHours: 6,
+            currentLevelStartedAt: "2026-08-01T00:00:00.000Z",
+            calculatedAt: "2026-09-05T00:00:00.000Z",
+          }
+        : {
+            state: "uninitialized",
+            studentId: "student-2",
+            calculatedAt: "2026-09-05T00:00:00.000Z",
+          },
+    );
+
+    render(<AccountProgressPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Your family's progress" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your progress" })).toBeNull();
+
+    const first = within(await screen.findByTestId("family-progress-stats-student-1"));
+    expect(first.getByText("4 / 10 towards the next level")).toBeInTheDocument();
+    expect(first.getByText("6 h")).toBeInTheDocument();
+    expect(first.getByText("1 / 3")).toBeInTheDocument();
+    expect(screen.getByText("Child One")).toBeInTheDocument();
+    expect(screen.getByText("Child Two")).toBeInTheDocument();
+    expect(screen.getByText(/Level record not opened yet/u)).toBeInTheDocument();
+
+    // Inactive children are not listed, and each child is read by its own identifier.
+    expect(screen.queryByText("Former Child")).toBeNull();
+    expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledTimes(2);
+    expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledWith("student-1");
+    expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledWith("student-2");
+  });
+
+  it("tells a guardian with no linked child that nothing is connected yet", async () => {
+    authState.role = "guardian";
+    levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+    familyApi.getFamily.mockResolvedValue(undefined);
+
+    render(<AccountProgressPage />);
+
+    expect(
+      await screen.findByText("No active child is linked to your account yet."),
+    ).toBeInTheDocument();
+    expect(levelsApi.getStudentProgressSummary).not.toHaveBeenCalled();
   });
 
   it("explains an unopened level record without inventing data", async () => {

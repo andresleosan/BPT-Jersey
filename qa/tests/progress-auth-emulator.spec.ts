@@ -45,6 +45,7 @@ type Progress =
 
 const hour = 3_600_000;
 const adultAge = 33;
+const minorAge = 10;
 
 function base64Url(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -160,16 +161,19 @@ const townAdultPlan = {
   openMatFeeMinor: null,
 };
 
-/** The first belt of the catalog an adult of `adultAge` may hold, and the definition after it. */
-function adultStartingLevel(catalog: Catalog): Readonly<{ belt: Definition; next: Definition }> {
+/** The first belt of the catalog a student of `age` may hold, and the definition after it. */
+function startingLevel(
+  catalog: Catalog,
+  age: number,
+): Readonly<{ belt: Definition; next: Definition }> {
   const ordered = [...catalog.definitions].sort((left, right) => left.sequence - right.sequence);
   const belt = ordered.find(
     (definition) =>
       definition.kind === "belt" &&
-      (definition.criteria.minAge === null || definition.criteria.minAge <= adultAge) &&
-      (definition.criteria.maxAge === null || definition.criteria.maxAge >= adultAge),
+      (definition.criteria.minAge === null || definition.criteria.minAge <= age) &&
+      (definition.criteria.maxAge === null || definition.criteria.maxAge >= age),
   );
-  expect(belt, "an adult belt exists in the catalog").toBeDefined();
+  expect(belt, `a belt exists in the catalog for age ${age}`).toBeDefined();
   const next = ordered.find(
     (definition) =>
       definition.systemId === belt!.systemId && definition.sequence === belt!.sequence + 1,
@@ -196,7 +200,7 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
     // Canonical catalog seeded by the runner; the head coach reads it like any staff member.
     const catalog = await ok<Catalog>(request, "listLevelCatalog", null, headCoach);
     expect(catalog.definitions.length).toBeGreaterThan(100);
-    const { belt, next } = adultStartingLevel(catalog);
+    const { belt, next } = startingLevel(catalog, adultAge);
     const skillKey = catalog.system.skillCatalog[0]?.key;
     expect(typeof skillKey).toBe("string");
 
@@ -410,6 +414,130 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
       const direct = await request.get(`${firestoreRestBase}/${path}`);
       expect(direct.status(), path).toBe(403);
     }
+  });
+
+  test("gives a guardian the progress of each linked child and nobody else's @critical", async ({
+    request,
+  }) => {
+    test.setTimeout(180_000);
+    const owner = await signIn(request, process.env.T097_OWNER_EMAIL);
+    const headCoach = await signIn(request, process.env.T097_HEAD_COACH_EMAIL);
+    const guardian = await signIn(request, process.env.T097_GUARDIAN_EMAIL);
+    const adult = await signIn(request, process.env.T097_ADULT_EMAIL);
+    const suffix = randomUUID().replace(/-/gu, "").slice(0, 8).toLowerCase();
+
+    const catalog = await ok<Catalog>(request, "listLevelCatalog", null, headCoach);
+    const { belt } = startingLevel(catalog, minorAge);
+
+    // A guardian without a client record yet is refused before any payload is even parsed.
+    await denied(request, "getStudentProgressSummary", {}, guardian, 403, "PERMISSION_DENIED");
+
+    // Guardian profile first: the family writer requires the client users/{uid} document.
+    const guardianName = `Synthetic T097 Guardian ${suffix}`;
+    await ok(
+      request,
+      "saveGuardianProfile",
+      {
+        requestId: `t097-guardian-${suffix}`,
+        displayName: guardianName,
+        phoneNumber: "+441534000972",
+      },
+      guardian,
+    );
+    const family = await ok<{
+      familyId: string;
+      students: readonly { studentId: string; participantType: string }[];
+    }>(
+      request,
+      "createFamily",
+      {
+        requestId: `t097-family-${suffix}`,
+        tutorUserId: guardian.uid,
+        students: [
+          {
+            fullName: `Synthetic T097 Minor ${suffix}`,
+            dateOfBirth: `${new Date().getUTCFullYear() - minorAge}-04-11`,
+            trainingCenter: "Town",
+            trainingTimePreferences: ["afternoon"],
+            emergencyContact: {
+              fullName: guardianName,
+              relationship: "Parent",
+              phoneNumber: "+441534000972",
+            },
+          },
+        ],
+      },
+      owner,
+    );
+    const minorId = family.students[0]!.studentId;
+    expect(family.students[0]!.participantType).toBe("minor");
+
+    // The guardian account is never a student itself, so it must always name a child.
+    await denied(request, "getStudentProgressSummary", {}, guardian, 400, "INVALID_ARGUMENT");
+
+    // The roster the family progress panel reads comes from the guardian family projection.
+    const projection = await ok<{
+      students: readonly { studentId: string; fullName: string; active: boolean; status: string }[];
+    }>(request, "getFamily", null, guardian);
+    const listed = projection.students.find((student) => student.studentId === minorId);
+    expect(listed).toMatchObject({ active: true, status: "active" });
+
+    // Before the head coach opens the level the child is honestly uninitialized, not an error.
+    const before = await ok<{ progress: Progress }>(
+      request,
+      "getStudentProgressSummary",
+      { studentId: minorId },
+      guardian,
+    );
+    expect(before.progress.state).toBe("uninitialized");
+
+    await ok(
+      request,
+      "openStudentLevel",
+      {
+        studentId: minorId,
+        definitionKey: belt.definitionKey,
+        decisionNotes: "Starts at the first kids belt of the catalog.",
+      },
+      headCoach,
+    );
+
+    const after = await ok<{ progress: Progress }>(
+      request,
+      "getStudentProgressSummary",
+      { studentId: minorId },
+      guardian,
+    );
+    expect(after.progress.state).toBe("initialized");
+    if (after.progress.state === "initialized") {
+      expect(after.progress.currentDefinition.definitionKey).toBe(belt.definitionKey);
+      expect(after.progress.studentId).toBe(minorId);
+    }
+
+    // Nobody else reaches that child. An adult may never name a student at all, so its attempt is
+    // refused at the payload; a guardian naming a child it is not linked to is refused on authority.
+    await denied(
+      request,
+      "getStudentProgressSummary",
+      { studentId: minorId },
+      adult,
+      400,
+      "INVALID_ARGUMENT",
+    );
+    await denied(
+      request,
+      "getStudentProgressSummary",
+      { studentId: `t097-absent-${suffix}` },
+      guardian,
+      403,
+      "PERMISSION_DENIED",
+    );
+
+    // Reading the child's level head directly is still denied by Rules.
+    const direct = await request.get(
+      `${firestoreRestBase}/academies/${academyId}/studentLevelProgress/${minorId}`,
+    );
+    expect(direct.status()).toBe(403);
   });
 
   test("fails closed without App Check, without a session and on malformed level payloads @critical", async ({

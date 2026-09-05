@@ -49,6 +49,8 @@ if (password.length < 12)
 const ownerEmail = required("GOLDEN_PATH_OWNER_EMAIL");
 const headCoachEmail = required("GOLDEN_PATH_HEAD_COACH_EMAIL");
 const guardianEmail = required("GOLDEN_PATH_GUARDIAN_EMAIL");
+// A second guardian, because each suite enrols its own family and a tutor holds one family.
+const progressGuardianEmail = required("GOLDEN_PATH_GUARDIAN_PROGRESS_EMAIL");
 // One adult per suite: each suite creates that adult's membership and a second current
 // membership for the same student is (correctly) refused.
 const adults = {
@@ -57,8 +59,17 @@ const adults = {
   schedule: required("GOLDEN_PATH_ADULT_SCHEDULE_EMAIL"),
   progress: required("GOLDEN_PATH_ADULT_PROGRESS_EMAIL"),
 };
-for (const email of [ownerEmail, headCoachEmail, guardianEmail, ...Object.values(adults)]) {
+for (const email of [
+  ownerEmail,
+  headCoachEmail,
+  guardianEmail,
+  progressGuardianEmail,
+  ...Object.values(adults),
+]) {
   if (!email.endsWith("@example.test")) throw new Error("Golden path requires synthetic users.");
+}
+if (guardianEmail === progressGuardianEmail) {
+  throw new Error("Golden path requires two distinct guardian users.");
 }
 if (new Set(Object.values(adults)).size !== 4) {
   throw new Error("Golden path requires four distinct adult users.");
@@ -94,13 +105,13 @@ const ownerEnvironment = {
 };
 run(["qa/scripts/seed-auth-emulator.mjs"], ownerEnvironment);
 run(["qa/scripts/seed-member-directory-emulator.mjs"], ownerEnvironment);
-// Clients: one guardian and four adults (Auth users and claims only).
-for (const adultEmail of Object.values(adults)) {
+// Clients: two guardians and four adults (Auth users and claims only).
+for (const [index, adultEmail] of Object.values(adults).entries()) {
   run(["qa/scripts/seed-onboarding-emulator.mjs"], {
     T094_E2E_ACADEMY_ID: academyId,
     T094_E2E_PASSWORD: password,
     T094_ADULT_EMAIL: adultEmail,
-    T094_GUARDIAN_EMAIL: guardianEmail,
+    T094_GUARDIAN_EMAIL: index === 0 ? guardianEmail : progressGuardianEmail,
   });
 }
 // Head coach with staff profile, empty canonical directory and the Levels catalog.
@@ -156,6 +167,7 @@ run(
     T097_OWNER_EMAIL: ownerEmail,
     T097_HEAD_COACH_EMAIL: headCoachEmail,
     T097_ADULT_EMAIL: adults.progress,
+    T097_GUARDIAN_EMAIL: progressGuardianEmail,
     T097_E2E_PASSWORD: password,
   },
 );

@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
+import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
 import { LevelsBrowser } from "../../levels/levels-browser";
+import { FamilyProgressPanel } from "./family-progress";
 import { OwnProgressPanel } from "./own-progress";
 
 function ProgressContent() {
+  const { session } = useClientSession();
+
   return (
     <main className="client-destination" aria-labelledby="progress-title">
       <p className="account-eyebrow">
@@ -17,9 +20,12 @@ function ProgressContent() {
         technical requirements.
       </p>
 
-      {/* Connected own progress; no synthetic peers, no minor comparison. */}
+      {/*
+        Connected progress; no synthetic peers, no minor comparison. A guardian account has no
+        student record of its own, so it sees each linked child instead of an own-progress panel.
+      */}
       <div style={{ marginBottom: "2rem" }}>
-        <OwnProgressPanel />
+        {session?.role === "guardian" ? <FamilyProgressPanel /> : <OwnProgressPanel />}
       </div>
 
       <LevelsBrowser roleContext="client" />

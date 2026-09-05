@@ -1,0 +1,99 @@
+name: Golden path E2E
+
+# The authenticated golden path (T098) is not part of verify:mvp and nothing else runs it, so it
+# can rot silently like qa/integration did. This gate runs it on demand and on a weekly schedule
+# against the demo project only, with synthetic secrets generated inside the job.
+on:
+  schedule:
+    - cron: "30 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: golden-path-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  GCLOUD_PROJECT: demo-bpt-jersey
+  BPT_SYNTHETIC_PILOT: "true"
+  GOLDEN_PATH_EMULATOR_E2E: "true"
+  GOLDEN_PATH_ACADEMY_ID: golden-ci-academy
+  GOLDEN_PATH_OWNER_EMAIL: golden-owner@example.test
+  GOLDEN_PATH_HEAD_COACH_EMAIL: golden-headcoach@example.test
+  GOLDEN_PATH_GUARDIAN_EMAIL: golden-guardian@example.test
+  GOLDEN_PATH_GUARDIAN_PROGRESS_EMAIL: golden-guardian-progress@example.test
+  GOLDEN_PATH_ADULT_ONBOARDING_EMAIL: golden-adult-onboarding@example.test
+  GOLDEN_PATH_ADULT_BILLING_EMAIL: golden-adult-billing@example.test
+  GOLDEN_PATH_ADULT_SCHEDULE_EMAIL: golden-adult-schedule@example.test
+  GOLDEN_PATH_ADULT_PROGRESS_EMAIL: golden-adult-progress@example.test
+
+jobs:
+  golden-path:
+    name: Authenticated golden path in the Emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Java for Firebase emulators
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build domain runtime
+        run: pnpm --filter @bpt-jersey/domain build:runtime
+
+      - name: Build the Functions deploy artifact
+        run: node apps/functions/scripts/build-deploy-artifact.mjs
+
+      # Generated after the artifact build, which recreates .firebase-functions/ from scratch.
+      # Values are synthetic, live only for this job and are never printed.
+      - name: Generate synthetic emulator secrets
+        run: |
+          node qa/scripts/generate-synthetic-emulator-secrets.mjs \
+            --confirmation=SYNTHETIC-EMULATOR-SECRETS \
+            --env-file="$GITHUB_ENV"
+
+      - name: Generate a synthetic session password
+        run: |
+          printf 'GOLDEN_PATH_PASSWORD=%s\n' \
+            "$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")" \
+            >> "$GITHUB_ENV"
+
+      - name: Install Playwright Chromium
+        run: pnpm --dir qa exec playwright install --with-deps chromium
+
+      - name: Run the golden path in the Firebase Emulator
+        run: pnpm test:e2e:golden-path
+
+      - name: Upload golden-path diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: golden-path-diagnostics
+          path: |
+            qa/reports
+            qa/test-results
+          if-no-files-found: warn
+          retention-days: 14

@@ -22,6 +22,7 @@
     "test:e2e": "corepack pnpm --dir qa test:e2e",
     "test:e2e:smoke": "corepack pnpm --dir qa test:e2e:smoke",
     "test:e2e:repeat": "corepack pnpm --dir qa test:e2e:repeat",
+    "test:e2e:golden-path": "firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions \"node qa/scripts/run-golden-path-e2e.mjs\"",
     "test:integration": "node scripts/run-integration.mjs",
     "test:load:synthetic": "node scripts/load-smoke.mjs",
     "typecheck": "corepack pnpm -r --if-present typecheck",

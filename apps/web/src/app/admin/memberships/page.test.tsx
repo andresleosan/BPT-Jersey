@@ -183,4 +183,71 @@ describe("memberships admin page", () => {
       expect(membershipApi.cancelMembership).toHaveBeenCalledWith("membership-1"),
     );
   });
+
+  it("follows the directory cursor and narrows the selector with a search", async () => {
+    const user = userEvent.setup();
+    membershipApi.listManagedPlans.mockResolvedValue([activePlan]);
+    membershipApi.listMemberships.mockResolvedValue([]);
+    const secondPage = [
+      {
+        studentId: "student-4",
+        fullName: "Jose Ramirez",
+        participantType: "adult",
+        trainingCenter: "West",
+        active: true,
+        status: "active",
+      },
+      {
+        studentId: "student-5",
+        fullName: "Marta Silva",
+        participantType: "minor",
+        trainingCenter: "West",
+        active: true,
+        status: "active",
+      },
+    ];
+    membersApi.listMembers.mockImplementation(async (pageSize: number, cursor?: string) => {
+      expect(pageSize).toBe(50);
+      return cursor === undefined
+        ? { rows: directoryRows, nextCursor: "cursor-2" }
+        : { rows: secondPage };
+    });
+
+    render(<MembershipsAdminPage />);
+
+    // Every page of the directory is loaded, not just the first, and inactive rows stay out.
+    const studentSelect = await screen.findByLabelText("Student");
+    await waitFor(() =>
+      expect(within(studentSelect).getByRole("option", { name: /Jose Ramirez/u })).toBeDefined(),
+    );
+    expect(membersApi.listMembers).toHaveBeenCalledTimes(2);
+    expect(membersApi.listMembers).toHaveBeenLastCalledWith(50, "cursor-2");
+    expect(within(studentSelect).queryByRole("option", { name: /Synthetic Inactive/u })).toBeNull();
+    expect(screen.getByTestId("membership-directory-count").textContent).toContain(
+      "Showing 4 of 4 active students.",
+    );
+
+    // The search narrows the options, ignoring accents and case, and reports the count.
+    await user.type(screen.getByLabelText("Search students"), "josé");
+    await waitFor(() =>
+      expect(within(studentSelect).queryByRole("option", { name: /Synthetic One/u })).toBeNull(),
+    );
+    expect(within(studentSelect).getByRole("option", { name: /Jose Ramirez/u })).toBeDefined();
+    expect(screen.getByTestId("membership-directory-count").textContent).toContain(
+      "Showing 1 of 4 active students.",
+    );
+
+    // A student selected before the search stays selectable instead of silently disappearing.
+    await user.selectOptions(studentSelect, "student-4");
+    await user.clear(screen.getByLabelText("Search students"));
+    await user.type(screen.getByLabelText("Search students"), "marta");
+    await waitFor(() =>
+      expect(
+        within(studentSelect).getByRole("option", {
+          name: "Selected student (hidden by the search)",
+        }),
+      ).toBeDefined(),
+    );
+    expect((studentSelect as HTMLSelectElement).value).toBe("student-4");
+  });
 });
