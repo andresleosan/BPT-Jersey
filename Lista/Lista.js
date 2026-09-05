@@ -1683,10 +1683,10 @@ const recoveryItems = [
   task(
     "T104",
     "Servir registros reales de Regyfit detras de autenticacion admin y ficha completa",
-    "en-progreso",
+    "revision",
     "Callables protegidos con los 249 socios reales y ficha completa estilo Regyfit.",
     "T076,T103",
-    "Backend desplegado (2 callables, import written:249). 2026-09-04: variable de App Check creada en Cloudflare Pages via wrangler; falta verificar el directorio de 249 registros en produccion tras el build.",
+    "Backend desplegado (2 callables, import written:249). 2026-09-04: App Check configurado y verificado en produccion con sesion admin real: directorio de 249 registros cargado, callables 200, 0 errores. Apertura de ficha pendiente de comprobacion manual.",
     [
       "tasks.md",
       "apps/functions/src/regyfit/member-records.ts",
