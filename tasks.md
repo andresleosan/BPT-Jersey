@@ -4565,6 +4565,16 @@ Decisiones que solo puede cerrar el operador:
 - [ ] T010 y T011 siguen bloqueando T035/T036/T061, T099, T058 y el paso 2 de T106; sin T099 no hay
       recorrido de navegador ni datos reales. T117 depende ademas del texto legal.
 
+Grafo del proyecto (`graphify-out/`, ignorado por git, raiz `apps/`): actualizado al cierre con
+extraccion AST incremental sobre los 37 archivos cambiados. Pasa de 4866 a 5017 nodos y de 10563 a
+10808 aristas, con 189 comunidades y salud OK (sin aristas colgantes, ausentes ni colapsadas). 151
+nodos nuevos, entre ellos `NoShowPenaltyService`, `createQuorumSweepService`, `decideQuorumSweep`,
+`parseQuorumSweepRunnerArgs`, `SiteGeofencePanel`, `FamilyProgressPanel` y `measureCheckInProximity`;
+178 comunidades conservan su nombre anterior y 11 se renombraron a mano (entre ellas `No-Show Penalty
+Callables`, `Quorum Sweep Service`, `Quorum Sweep Runner` y `Site Geofence Panel`). Cero coste de LLM:
+el corpus cambiado es solo codigo, asi que la extraccion fue puramente AST. `packages/` y `qa/` siguen
+fuera de ese grafo.
+
 Trabajo tecnico que el asistente puede continuar sin decision humana:
 
 - [ ] T111 (en `en-progreso`): falta el E2E autenticado en Emulator del ciclo completo de la
