@@ -12,7 +12,10 @@ const membershipApi = vi.hoisted(() => ({
   transitionMembership: vi.fn(),
 }));
 
+const membersApi = vi.hoisted(() => ({ listMembers: vi.fn() }));
+
 vi.mock("../../../lib/membership-admin-client", () => membershipApi);
+vi.mock("../../../lib/members-client", () => membersApi);
 
 import { MembershipsAdminPage } from "./page";
 
@@ -51,16 +54,45 @@ const activeMembership = {
   nextBillingAt: null,
 };
 
+const directoryRows = [
+  {
+    studentId: "student-1",
+    fullName: "Synthetic One",
+    participantType: "adult",
+    trainingCenter: "Town",
+    active: true,
+    status: "active",
+  },
+  {
+    studentId: "student-2",
+    fullName: "Synthetic Two",
+    participantType: "adult",
+    trainingCenter: "Town",
+    active: true,
+    status: "active",
+  },
+  {
+    studentId: "student-3",
+    fullName: "Synthetic Inactive",
+    participantType: "adult",
+    trainingCenter: "West",
+    active: false,
+    status: "inactive",
+  },
+];
+
 describe("memberships admin page", () => {
   afterEach(() => {
     cleanup();
     Object.values(membershipApi).forEach((mock) => mock.mockReset());
+    membersApi.listMembers.mockReset();
   });
 
   it("manages connected plans and only valid membership operations", async () => {
     const user = userEvent.setup();
     membershipApi.listManagedPlans.mockResolvedValue([activePlan, inactivePlan]);
     membershipApi.listMemberships.mockResolvedValue([activeMembership]);
+    membersApi.listMembers.mockResolvedValue({ rows: directoryRows });
     membershipApi.saveMembershipPlan.mockImplementation(async (plan) => ({
       ...plan,
       active: false,
@@ -117,14 +149,18 @@ describe("memberships admin page", () => {
       expect(membershipApi.setMembershipPlanActive).toHaveBeenCalledWith("west-adult", true),
     );
 
-    await user.type(screen.getByLabelText("Family ID"), "family-2");
-    await user.type(screen.getByLabelText("Student ID"), "student-2");
+    // Students come from the canonical directory; inactive rows are never offered and no free-text
+    // identifier is accepted.
+    const studentSelect = await screen.findByLabelText("Student");
+    expect(within(studentSelect).queryByRole("option", { name: /Synthetic Inactive/u })).toBeNull();
+    expect(screen.queryByLabelText("Family ID")).toBeNull();
+    expect(screen.queryByLabelText("Student ID")).toBeNull();
+    await user.selectOptions(studentSelect, "student-2");
     await user.selectOptions(screen.getByLabelText("Membership plan"), "town-adult");
     await user.selectOptions(screen.getByLabelText("Initial status"), "trial");
     await user.click(screen.getByRole("button", { name: "Create membership" }));
     await waitFor(() =>
       expect(membershipApi.createMembership).toHaveBeenCalledWith({
-        familyId: "family-2",
         studentId: "student-2",
         planId: "town-adult",
         status: "trial",

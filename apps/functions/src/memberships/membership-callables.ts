@@ -54,7 +54,8 @@ export type MembershipProjection = Readonly<{
 }>;
 
 const safeIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
-const createFields = ["familyId", "studentId", "planId", "status"] as const;
+const createFields = ["studentId", "planId", "status"] as const;
+const createFieldsWithFamily = ["familyId", ...createFields] as const;
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   try {
@@ -149,19 +150,23 @@ function parseTransitionPayload(value: unknown): Readonly<{
 }
 
 function parseCreatePayload(value: unknown): Readonly<{
-  familyId: string;
+  familyId?: string;
   studentId: string;
   planId: PlanId;
   status: "trial" | "active";
 }> {
-  if (!isPlainRecord(value) || !exactFields(value, createFields)) return invalidPayload();
-  const familyId = parseId(descriptorValue(value, "familyId"));
+  if (!isPlainRecord(value)) return invalidPayload();
+  // The family is optional: the store derives it from the canonical student record. A caller that
+  // names one (for example the family workspace link) must still match that record.
+  const withFamily = exactFields(value, createFieldsWithFamily);
+  if (!withFamily && !exactFields(value, createFields)) return invalidPayload();
+  const familyId = withFamily ? parseId(descriptorValue(value, "familyId")) : undefined;
   const studentId = parseId(descriptorValue(value, "studentId"));
   const planId = parsePlanId(descriptorValue(value, "planId"));
   const status = descriptorValue(value, "status");
   if (status !== "trial" && status !== "active") return invalidPayload();
   return Object.freeze({
-    familyId,
+    ...(familyId === undefined ? {} : { familyId }),
     studentId,
     planId,
     status,
@@ -402,7 +407,9 @@ export async function createMembershipHandler(
       actor.role === "owner" || actor.role === "administrator"
         ? Object.freeze({
             academyId: actor.academyId,
-            familyIds: Object.freeze([payload.familyId]),
+            ...(payload.familyId === undefined
+              ? {}
+              : { familyIds: Object.freeze([payload.familyId]) }),
             studentIds: Object.freeze([payload.studentId]),
           })
         : await readerScope(actor, services, payload.familyId, payload.studentId);
@@ -413,7 +420,7 @@ export async function createMembershipHandler(
       academyId: actor.academyId,
       actorId: actor.userId,
       now: services.now?.() ?? new Date().toISOString(),
-      familyId: payload.familyId,
+      ...(payload.familyId === undefined ? {} : { familyId: payload.familyId }),
       studentId: payload.studentId,
       planId: payload.planId,
       status: payload.status,

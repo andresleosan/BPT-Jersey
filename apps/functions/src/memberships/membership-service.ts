@@ -90,7 +90,8 @@ export type CreateMembershipStoreInput = Readonly<{
   academyId: string;
   actorId: string;
   now: string;
-  familyId: string;
+  /** Optional: when omitted the family is derived from the canonical student record. */
+  familyId?: string;
   studentId: string;
   planId: PlanId;
   status: "trial" | "active";
@@ -528,7 +529,8 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
       return safely(async () => {
         const academyId = pathSegment(input.academyId, "academy");
         const actorId = pathSegment(input.actorId, "actor");
-        const familyId = pathSegment(input.familyId, "family");
+        const requestedFamilyId =
+          input.familyId === undefined ? undefined : pathSegment(input.familyId, "family");
         const studentId = pathSegment(input.studentId, "student");
         const planId = validPlanId(input.planId);
         const status =
@@ -538,34 +540,44 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
         const timestamp = validNow(input.now);
         const scope = normalizeScope(input.scope);
         assertAcademy(scope, academyId);
-        assertAllowed(scope, "familyIds", familyId);
+        if (requestedFamilyId !== undefined) assertAllowed(scope, "familyIds", requestedFamilyId);
         assertAllowed(scope, "studentIds", studentId);
 
         const membershipId = pathSegment(generateMembershipId(), "membership");
         const membershipReference = dependencies.firestore.doc(
           membershipPath(academyId, membershipId),
         );
-        const familyReference = dependencies.firestore.doc(familyPath(academyId, familyId));
         const studentReference = dependencies.firestore.doc(studentPath(academyId, studentId));
         const planReference = dependencies.firestore.doc(planPath(academyId, planId));
-        const relationshipReference = dependencies.firestore.doc(
-          relationshipPath(academyId, familyId, studentId),
-        );
         const auditReference = dependencies.firestore.collection(auditEventsPath(academyId)).doc();
 
         return dependencies.firestore.runTransaction(async (transaction) => {
-          const [
-            membershipSnapshot,
-            familySnapshot,
-            studentSnapshot,
-            planSnapshot,
-            relationshipSnapshot,
-          ] = await Promise.all([
+          const [membershipSnapshot, studentSnapshot, planSnapshot] = await Promise.all([
             transaction.get(membershipReference),
-            transaction.get(familyReference),
             transaction.get(studentReference),
             transaction.get(planReference),
-            transaction.get(relationshipReference),
+          ]);
+          if (documentSnapshot(membershipSnapshot).exists) {
+            throw new MembershipStoreError("duplicate", "Membership identity is already in use");
+          }
+          const studentRecord = storedStudent(documentSnapshot(studentSnapshot), studentId);
+          // The billing family is the student's own canonical family unless the caller named one;
+          // a named family must still match the student record (checked below).
+          const familyId = requestedFamilyId ?? studentRecord.familyId;
+          if (familyId === undefined) {
+            throw new MembershipStoreError("precondition", "Student has no family reference");
+          }
+          assertAllowed(scope, "familyIds", familyId);
+          // Minors are billed through a guardian relationship; adults are their own family's
+          // primary contact and carry no relationship document.
+          const isMinor = studentRecord.participantType === "minor";
+          const familyReference = dependencies.firestore.doc(familyPath(academyId, familyId));
+          const relationshipReference = dependencies.firestore.doc(
+            relationshipPath(academyId, familyId, studentId),
+          );
+          const [familySnapshot, relationshipSnapshot] = await Promise.all([
+            transaction.get(familyReference),
+            isMinor ? transaction.get(relationshipReference) : Promise.resolve(undefined),
           ]);
           const currentMemberships = querySnapshot(
             await transaction.get(
@@ -575,16 +587,15 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
             ),
           );
 
-          if (documentSnapshot(membershipSnapshot).exists) {
-            throw new MembershipStoreError("duplicate", "Membership identity is already in use");
-          }
           const familyRecord = storedFamily(documentSnapshot(familySnapshot), familyId);
-          const studentRecord = storedStudent(documentSnapshot(studentSnapshot), studentId);
           const planRecord = storedPlan(documentSnapshot(planSnapshot), planId);
-          const relationshipRecord = storedRelationship(
-            documentSnapshot(relationshipSnapshot),
-            `${familyId}--${studentId}`,
-          );
+          const relationshipRecord =
+            relationshipSnapshot === undefined
+              ? undefined
+              : storedRelationship(
+                  documentSnapshot(relationshipSnapshot),
+                  `${familyId}--${studentId}`,
+                );
 
           const waiverVersions = querySnapshot(
             await transaction.get(
@@ -615,18 +626,31 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
           if (familyRecord.academyId !== academyId || studentRecord.academyId !== academyId) {
             throw new MembershipStoreError("tenant", "Membership source tenant mismatch");
           }
-          if (planRecord.academyId !== academyId || relationshipRecord.academyId !== academyId) {
+          if (
+            planRecord.academyId !== academyId ||
+            (relationshipRecord !== undefined && relationshipRecord.academyId !== academyId)
+          ) {
             throw new MembershipStoreError("tenant", "Membership source tenant mismatch");
           }
           if (studentRecord.familyId !== familyId) {
             throw new MembershipStoreError("conflict", "Student family reference is invalid");
           }
-          if (
-            relationshipRecord.familyId !== familyId ||
-            relationshipRecord.studentId !== studentId ||
-            !activeSource(relationshipRecord)
-          ) {
-            throw new MembershipStoreError("conflict", "Student relationship is not active");
+          if (isMinor) {
+            if (
+              relationshipRecord === undefined ||
+              relationshipRecord.familyId !== familyId ||
+              relationshipRecord.studentId !== studentId ||
+              !activeSource(relationshipRecord)
+            ) {
+              throw new MembershipStoreError("conflict", "Student relationship is not active");
+            }
+          } else {
+            if (studentRecord.userId === undefined) {
+              throw new MembershipStoreError("precondition", "Adult student has no linked account");
+            }
+            if (familyRecord.primaryContactUserId !== studentRecord.userId) {
+              throw new MembershipStoreError("conflict", "Adult family reference is invalid");
+            }
           }
           if (!activeSource(familyRecord) || !activeSource(studentRecord)) {
             throw new MembershipStoreError("precondition", "Membership source is not active");

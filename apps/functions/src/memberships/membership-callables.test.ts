@@ -228,7 +228,7 @@ function services(overrides: Partial<MembershipCallableServices> = {}): Membersh
       createMembership: vi.fn(async (input) =>
         membership({
           membershipId: "membership-created",
-          familyId: input.familyId,
+          familyId: input.familyId ?? input.scope.familyIds?.[0] ?? familyId,
           studentId: input.studentId,
           status: input.status,
           createdBy: input.actorId,
@@ -299,6 +299,53 @@ describe("membership callables", () => {
         expect.objectContaining({ status: "active" }),
       );
     }
+  });
+
+  it("accepts a create payload without familyId and lets the store derive the family", async () => {
+    const current = services();
+    const withoutFamily: Record<string, unknown> = { ...createPayload };
+    delete withoutFamily.familyId;
+    await expect(
+      createMembershipHandler(request(withoutFamily, "owner"), current),
+    ).resolves.toEqual(
+      expect.objectContaining({ membershipId: "membership-created", status: "trial" }),
+    );
+    expect(current.store.createMembership).toHaveBeenCalledWith({
+      academyId,
+      actorId: "admin-1",
+      now,
+      studentId: minorStudentId,
+      planId: "bpt-jersey-adult",
+      status: "trial",
+      scope: { academyId, studentIds: [minorStudentId] },
+    });
+
+    // Self-service adults resolve to their own linked family without naming it.
+    vi.mocked(current.familyStore!.getStaffFamily).mockResolvedValue(
+      staffFamilyProjection("adult-family-1"),
+    );
+    await expect(
+      createMembershipHandler(
+        request({ ...withoutFamily, studentId: adultStudentId }, "adultStudent", "adult-user-1"),
+        current,
+      ),
+    ).resolves.toEqual(expect.objectContaining({ status: "trial" }));
+    const lastInput = vi.mocked(current.store.createMembership).mock.lastCall?.[0];
+    expect(lastInput).toMatchObject({
+      studentId: adultStudentId,
+      scope: { academyId, familyIds: ["adult-family-1"], studentIds: [adultStudentId] },
+    });
+    expect(lastInput).not.toHaveProperty("familyId");
+
+    // The payload stays closed: unknown keys and a missing student are still rejected.
+    await expect(
+      createMembershipHandler(request({ ...withoutFamily, extra: true }, "owner"), current),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    const withoutStudent: Record<string, unknown> = { ...withoutFamily };
+    delete withoutStudent.studentId;
+    await expect(
+      createMembershipHandler(request(withoutStudent, "owner"), current),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
   });
 
   it("resolves a guardian to one active family and its related minors", async () => {

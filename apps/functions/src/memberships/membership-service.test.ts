@@ -293,6 +293,54 @@ function services(extra: Record<string, MembershipDocumentData> = {}) {
 }
 
 const unrestrictedScope: MembershipScope = { academyId };
+const adultFamilyId = "adult-family-1";
+const adultStudentId = "adult-student-1";
+const adultUserId = "adult-user-1";
+const adultConsentId = consentRecordId(academyId, adultStudentId, waiverVersionId);
+
+// An adult onboarded through self-service: own family (primary contact = own account), no
+// guardian relationship, accepted consent for the current waiver and an adult Town plan.
+function adultRecords(
+  overrides: Readonly<{ student?: Partial<StudentProfile>; family?: Partial<FamilyRecord> }> = {},
+): Record<string, MembershipDocumentData> {
+  return {
+    [`academies/${academyId}/families/${adultFamilyId}`]: family({
+      familyId: adultFamilyId,
+      primaryContactUserId: adultUserId,
+      billingContactUserId: adultUserId,
+      ...overrides.family,
+    }),
+    [`academies/${academyId}/students/${adultStudentId}`]: student({
+      studentId: adultStudentId,
+      familyId: adultFamilyId,
+      userId: adultUserId,
+      fullName: "Synthetic Adult",
+      dateOfBirth: "1990-01-01",
+      participantType: "adult",
+      ...overrides.student,
+    }),
+    [`academies/${academyId}/plans/town-adult`]: plan({
+      ...PLAN_CATALOG.find((candidate) => candidate.planId === "town-adult")!,
+    }),
+    [`academies/${academyId}/consents/${adultConsentId}`]: consent({
+      consentId: adultConsentId,
+      subjectType: "adult",
+      subjectId: adultStudentId,
+      signedBy: adultUserId,
+      createdBy: adultUserId,
+      updatedBy: adultUserId,
+    }),
+  };
+}
+const adultCreateInput = {
+  academyId,
+  actorId: "actor-1",
+  now,
+  studentId: adultStudentId,
+  planId: "town-adult" as const,
+  status: "active" as const,
+  scope: unrestrictedScope,
+};
 const baseCreateInput = {
   academyId,
   actorId: "actor-1",
@@ -364,6 +412,93 @@ describe("membership Firestore store", () => {
       actorId: "actor-2",
     });
     expect(active.status).toBe("active");
+  });
+
+  it("creates an adult membership through the adult's own family without a relationship", async () => {
+    const { store, writes, audits } = services(adultRecords());
+    const created = await store.createMembership(adultCreateInput);
+    expect(created).toMatchObject({
+      familyId: adultFamilyId,
+      studentId: adultStudentId,
+      planId: "town-adult",
+      status: "active",
+    });
+    expect(writes).toEqual([
+      `create:academies/${academyId}/memberships/membership-generated`,
+      `create:academies/${academyId}/auditEvents/audit-generated`,
+    ]);
+    expect(audits).toHaveLength(1);
+
+    // Naming the matching family is accepted; naming another existing family is not.
+    await expect(
+      services(adultRecords()).store.createMembership({
+        ...adultCreateInput,
+        familyId: adultFamilyId,
+      }),
+    ).resolves.toMatchObject({ familyId: adultFamilyId });
+    await expect(
+      services(adultRecords()).store.createMembership({ ...adultCreateInput, familyId }),
+    ).rejects.toMatchObject({ code: "conflict" });
+
+    // The derived family is still subject to the caller's authorization scope.
+    await expect(
+      services(adultRecords()).store.createMembership({
+        ...adultCreateInput,
+        scope: { academyId, familyIds: ["other-family"], studentIds: [adultStudentId] },
+      }),
+    ).rejects.toMatchObject({ code: "tenant" });
+  });
+
+  it("rejects adults without a linked account or outside their own family, and minors without a relationship", async () => {
+    const withoutAccount: Record<string, unknown> = {
+      ...student({
+        studentId: adultStudentId,
+        familyId: adultFamilyId,
+        userId: adultUserId,
+        dateOfBirth: "1990-01-01",
+        participantType: "adult",
+      }),
+    };
+    delete withoutAccount.userId;
+    await expect(
+      services({
+        ...adultRecords(),
+        [`academies/${academyId}/students/${adultStudentId}`]: withoutAccount,
+      }).store.createMembership(adultCreateInput),
+    ).rejects.toMatchObject({ code: "precondition" });
+
+    await expect(
+      services(
+        adultRecords({
+          family: { primaryContactUserId: "guardian-9", billingContactUserId: "guardian-9" },
+        }),
+      ).store.createMembership(adultCreateInput),
+    ).rejects.toMatchObject({ code: "conflict" });
+
+    const withoutFamily: Record<string, unknown> = {
+      ...student({
+        studentId: adultStudentId,
+        userId: adultUserId,
+        dateOfBirth: "1990-01-01",
+        participantType: "adult",
+      }),
+    };
+    delete withoutFamily.familyId;
+    await expect(
+      services({
+        ...adultRecords(),
+        [`academies/${academyId}/students/${adultStudentId}`]: withoutFamily,
+      }).store.createMembership(adultCreateInput),
+    ).rejects.toMatchObject({ code: "precondition" });
+
+    const minorWithoutRelationship = services();
+    minorWithoutRelationship.records.delete(
+      `academies/${academyId}/relationships/${familyId}--${studentId}`,
+    );
+    await expect(
+      minorWithoutRelationship.store.createMembership(baseCreateInput),
+    ).rejects.toMatchObject({ code: "invalid" });
+    expect(minorWithoutRelationship.writes).toEqual([]);
   });
 
   it("lists and gets only memberships inside the authorization scope", async () => {

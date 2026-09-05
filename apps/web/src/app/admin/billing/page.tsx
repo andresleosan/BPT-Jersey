@@ -11,12 +11,24 @@ import {
   type FinancialAccount,
   type InvoiceView,
 } from "../../../lib/billing-client";
+import { listMemberships, type AdminMembership } from "../../../lib/membership-admin-client";
+import { listMembers } from "../../../lib/members-client";
 import { AdminDataTable } from "../admin-data-table";
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 
 import "../admin.css";
 
 type RequestState = "loading" | "ready" | "error";
+type MembershipOptions = Readonly<{
+  state: RequestState;
+  memberships: readonly AdminMembership[];
+  studentNames: ReadonlyMap<string, string>;
+}>;
+
+function membershipLabel(membership: AdminMembership, studentNames: ReadonlyMap<string, string>) {
+  const student = studentNames.get(membership.studentId) ?? membership.studentId;
+  return `${student} · ${membership.planId} · ${membership.status}`;
+}
 
 const moneyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -102,8 +114,12 @@ export function BillingPage() {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Readonly<{ kind: "success" | "error"; text: string }>>();
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceView>();
+  const [options, setOptions] = useState<MembershipOptions>({
+    state: "loading",
+    memberships: [],
+    studentNames: new Map(),
+  });
   const [invoiceForm, setInvoiceForm] = useState({
-    familyId: "",
     membershipId: "",
     amount: "",
     dueAt: "",
@@ -119,11 +135,29 @@ export function BillingPage() {
   });
 
   useEffect(() => {
-    const parameters = new URLSearchParams(window.location.search);
-    const familyId = parameters.get("familyId");
-    const membershipId = parameters.get("membershipId");
-    if (!isOpaqueId(familyId) || !isOpaqueId(membershipId)) return;
-    setInvoiceForm((current) => ({ ...current, familyId, membershipId }));
+    // The memberships link preselects the membership; its family comes from the connected record.
+    const membershipId = new URLSearchParams(window.location.search).get("membershipId");
+    if (!isOpaqueId(membershipId)) return;
+    setInvoiceForm((current) => ({ ...current, membershipId }));
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void Promise.all([listMemberships(), listMembers(50).catch(() => undefined)])
+      .then(([memberships, page]) => {
+        if (!mounted) return;
+        setOptions({
+          state: "ready",
+          memberships,
+          studentNames: new Map((page?.rows ?? []).map((row) => [row.studentId, row.fullName])),
+        });
+      })
+      .catch(() => {
+        if (mounted) setOptions({ state: "error", memberships: [], studentNames: new Map() });
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const loadAccount = useCallback(async () => {
@@ -147,11 +181,25 @@ export function BillingPage() {
       label: "Invoice",
       render: (view: InvoiceView) => <strong>{view.invoice.invoiceReference}</strong>,
     },
-    { key: "family", label: "Family", render: (view: InvoiceView) => view.invoice.familyId },
+    {
+      key: "student",
+      label: "Student",
+      render: (view: InvoiceView) => {
+        const membership = options.memberships.find(
+          (candidate) => candidate.membershipId === view.invoice.membershipId,
+        );
+        return membership
+          ? (options.studentNames.get(membership.studentId) ?? membership.studentId)
+          : view.invoice.membershipId;
+      },
+    },
     {
       key: "membership",
-      label: "Membership",
-      render: (view: InvoiceView) => view.invoice.membershipId,
+      label: "Plan",
+      render: (view: InvoiceView) =>
+        options.memberships.find(
+          (candidate) => candidate.membershipId === view.invoice.membershipId,
+        )?.planId ?? view.invoice.membershipId,
     },
     { key: "due", label: "Due", render: (view: InvoiceView) => formatDate(view.invoice.dueAt) },
     {
@@ -194,6 +242,13 @@ export function BillingPage() {
     event.preventDefault();
     const totalMinor = parseMoney(invoiceForm.amount);
     const dueAt = toUtcDateTime(invoiceForm.dueAt);
+    const membership = options.memberships.find(
+      (candidate) => candidate.membershipId === invoiceForm.membershipId,
+    );
+    if (membership === undefined) {
+      setFeedback({ kind: "error", text: "Select a connected membership." });
+      return;
+    }
     if (totalMinor === undefined || dueAt === undefined) {
       setFeedback({ kind: "error", text: "Enter a valid positive amount and due date." });
       return;
@@ -202,8 +257,8 @@ export function BillingPage() {
     setFeedback(undefined);
     try {
       await issueManualInvoice({
-        familyId: invoiceForm.familyId.trim(),
-        membershipId: invoiceForm.membershipId.trim(),
+        familyId: membership.familyId,
+        membershipId: membership.membershipId,
         totalMinor,
         dueAt,
         chargeKind: invoiceForm.chargeKind,
@@ -383,27 +438,35 @@ export function BillingPage() {
             </div>
           </div>
           <label className="family-field">
-            Family ID
-            <input
-              aria-label="Family ID"
-              autoComplete="off"
-              onChange={(event) => setInvoiceForm({ ...invoiceForm, familyId: event.target.value })}
-              required
-              value={invoiceForm.familyId}
-            />
-          </label>
-          <label className="family-field">
-            Membership ID
-            <input
-              aria-label="Membership ID"
-              autoComplete="off"
+            Membership
+            <select
+              aria-label="Membership"
+              disabled={options.state !== "ready"}
               onChange={(event) =>
                 setInvoiceForm({ ...invoiceForm, membershipId: event.target.value })
               }
               required
               value={invoiceForm.membershipId}
-            />
+            >
+              <option value="">
+                {options.state === "loading"
+                  ? "Loading memberships..."
+                  : options.state === "error"
+                    ? "Memberships unavailable"
+                    : "Select a membership"}
+              </option>
+              {options.memberships.map((membership) => (
+                <option key={membership.membershipId} value={membership.membershipId}>
+                  {membershipLabel(membership, options.studentNames)}
+                </option>
+              ))}
+            </select>
           </label>
+          {options.state === "error" ? (
+            <p className="family-error" role="alert">
+              Unable to load memberships. Refresh before issuing invoices.
+            </p>
+          ) : null}
           <label className="family-field">
             Invoice amount (GBP)
             <input

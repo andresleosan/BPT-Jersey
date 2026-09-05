@@ -79,3 +79,25 @@ client identities with `qa/scripts/seed-onboarding-emulator.mjs` (Auth users and
 `users`, `students`, family and relationship documents are created by the callables under test),
 initializes the empty canonical directory and runs the spec. Only `@example.test` users, loopback
 emulators and the demo project are accepted.
+
+## Authenticated callable E2E for the manual billing cycle (T095)
+
+`qa/tests/manual-billing-auth-emulator.spec.ts` drives the manual billing cycle on canonical data:
+`publishWaiverVersion` and `saveClientProfile` as prerequisites, `savePlan`/`activatePlan`,
+`createMembership` (staff, without naming a family: the backend derives the adult's own family),
+`issueManualInvoice`, `recordManualPayment`, `listFinancialAccount` for the adult and staff,
+`getFinancialDashboard` and `listMemberships`, plus the fail-closed negatives (membership before the
+waiver is accepted, self-service active membership, duplicate current membership, mismatched family,
+client-issued invoices, payment above balance, App Check, session, payload shape, Rules on direct
+reads). Same secrets, pilot flag and JDK requirements as T094.
+
+```bash
+BPT_SYNTHETIC_PILOT=true T095_MANUAL_BILLING_EMULATOR_E2E=true GCLOUD_PROJECT=demo-bpt-jersey \
+T095_E2E_ACADEMY_ID=t095-e2e-academy T095_OWNER_EMAIL=t095-owner@example.test \
+T095_ADULT_EMAIL=t095-adult@example.test T095_E2E_PASSWORD=<12+ chars> \
+npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions \
+  "node qa/scripts/run-manual-billing-e2e.mjs"
+```
+
+The Functions Emulator serves `.firebase-functions/`, so rebuild the artifact after any backend
+change before running these specs; a stale artifact fails with the previous callable contract.

@@ -30,6 +30,7 @@ import {
   type AdminMembership,
   type ManagedMembershipPlan,
 } from "../../../lib/membership-admin-client";
+import { listMembers } from "../../../lib/members-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 
 import "../admin.css";
@@ -44,6 +45,24 @@ type WorkspaceState =
   | Readonly<{ status: "error" }>;
 
 type Notice = Readonly<{ tone: "error" | "success"; text: string }>;
+
+/** Minimized directory row: the general canonical row carries no identifiers or contact data. */
+type DirectoryStudent = Readonly<{
+  studentId: string;
+  fullName: string;
+  participantType: string;
+  trainingCenter: string;
+  active: boolean;
+  status: string;
+}>;
+type DirectoryState =
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "ready"; students: readonly DirectoryStudent[] }>
+  | Readonly<{ status: "error" }>;
+
+function studentLabel(student: DirectoryStudent): string {
+  return `${student.fullName} (${student.participantType}, ${student.trainingCenter})`;
+}
 
 const initialPlanId = planIds[0]!;
 const initialPlan = PLAN_CATALOG.find((plan) => plan.planId === initialPlanId)!;
@@ -163,7 +182,7 @@ export function MembershipsAdminPage() {
   const [workspace, setWorkspace] = useState<WorkspaceState>({ status: "loading" });
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId>(initialPlanId);
   const [planDraft, setPlanDraft] = useState<PlanDraft>(() => copyPlan(initialPlan));
-  const [familyId, setFamilyId] = useState("");
+  const [directory, setDirectory] = useState<DirectoryState>({ status: "loading" });
   const [studentId, setStudentId] = useState("");
   const [membershipPlanId, setMembershipPlanId] = useState<PlanId | "">("");
   const [initialStatus, setInitialStatus] = useState<"trial" | "active">("trial");
@@ -171,19 +190,31 @@ export function MembershipsAdminPage() {
   const [notice, setNotice] = useState<Notice>();
 
   useEffect(() => {
-    const parameters = new URLSearchParams(window.location.search);
-    const requestedFamilyId = parameters.get("familyId");
-    const requestedStudentId = parameters.get("studentId");
-    if (
-      requestedFamilyId === null ||
-      requestedStudentId === null ||
-      !opaqueIdPattern.test(requestedFamilyId) ||
-      !opaqueIdPattern.test(requestedStudentId)
-    ) {
-      return;
-    }
-    setFamilyId(requestedFamilyId);
+    // Entry links (family workspace, member record) preselect the student; the billing family is
+    // derived by the backend from the canonical record, so a familyId parameter is ignored.
+    const requestedStudentId = new URLSearchParams(window.location.search).get("studentId");
+    if (requestedStudentId === null || !opaqueIdPattern.test(requestedStudentId)) return;
     setStudentId(requestedStudentId);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void listMembers(50)
+      .then((page) => {
+        if (!mounted) return;
+        startTransition(() => {
+          setDirectory({
+            status: "ready",
+            students: page.rows.filter((row) => row.active && row.status === "active"),
+          });
+        });
+      })
+      .catch(() => {
+        if (mounted) setDirectory({ status: "error" });
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -291,6 +322,10 @@ export function MembershipsAdminPage() {
 
   async function handleCreateMembership(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (studentId === "") {
+      setNotice({ tone: "error", text: "Select a student from the member directory." });
+      return;
+    }
     if (membershipPlanId === "") {
       setNotice({ tone: "error", text: "Select an active membership plan." });
       return;
@@ -299,13 +334,11 @@ export function MembershipsAdminPage() {
     setNotice(undefined);
     try {
       const created = await createMembership({
-        familyId: familyId.trim(),
-        studentId: studentId.trim(),
+        studentId,
         planId: membershipPlanId,
         status: initialStatus,
       });
       updateWorkspaceMembership(created);
-      setFamilyId("");
       setStudentId("");
       setNotice({ tone: "success", text: "Membership created." });
     } catch {
@@ -595,31 +628,45 @@ export function MembershipsAdminPage() {
                 <p className="admin-eyebrow">Canonical enrolment</p>
                 <h3>Create membership</h3>
                 <p className="membership-helper">
-                  Use the family and student IDs already present in the canonical directory.
+                  Pick the student from the canonical member directory. The billing family is
+                  resolved from that record.
                 </p>
               </div>
-              <label className="membership-field" htmlFor="membership-family-id">
-                Family ID
-                <input
-                  autoComplete="off"
-                  disabled={busy !== undefined}
-                  id="membership-family-id"
-                  onChange={(event) => setFamilyId(event.target.value)}
-                  required
-                  value={familyId}
-                />
-              </label>
-              <label className="membership-field" htmlFor="membership-student-id">
-                Student ID
-                <input
-                  autoComplete="off"
-                  disabled={busy !== undefined}
-                  id="membership-student-id"
+              <label className="membership-field" htmlFor="membership-student">
+                Student
+                <select
+                  disabled={busy !== undefined || directory.status !== "ready"}
+                  id="membership-student"
                   onChange={(event) => setStudentId(event.target.value)}
                   required
                   value={studentId}
-                />
+                >
+                  <option value="">
+                    {directory.status === "loading"
+                      ? "Loading member directory..."
+                      : directory.status === "error"
+                        ? "Member directory unavailable"
+                        : "Select a student"}
+                  </option>
+                  {directory.status === "ready"
+                    ? directory.students.map((student) => (
+                        <option key={student.studentId} value={student.studentId}>
+                          {studentLabel(student)}
+                        </option>
+                      ))
+                    : null}
+                  {directory.status === "ready" &&
+                  studentId !== "" &&
+                  !directory.students.some((student) => student.studentId === studentId) ? (
+                    <option value={studentId}>Preselected student (not in the first page)</option>
+                  ) : null}
+                </select>
               </label>
+              {directory.status === "error" ? (
+                <p className="membership-message membership-message-error" role="alert">
+                  Unable to load the member directory. Refresh before creating memberships.
+                </p>
+              ) : null}
               <label className="membership-field" htmlFor="membership-create-plan">
                 Membership plan
                 <select
@@ -679,7 +726,6 @@ export function MembershipsAdminPage() {
                     <tr>
                       <th scope="col">Membership</th>
                       <th scope="col">Student</th>
-                      <th scope="col">Family</th>
                       <th scope="col">Plan</th>
                       <th scope="col">Status</th>
                       <th scope="col">Allowed actions</th>
@@ -695,8 +741,13 @@ export function MembershipsAdminPage() {
                           <td>
                             <strong>{membership.membershipId}</strong>
                           </td>
-                          <td>{membership.studentId}</td>
-                          <td>{membership.familyId}</td>
+                          <td>
+                            {directory.status === "ready"
+                              ? (directory.students.find(
+                                  (student) => student.studentId === membership.studentId,
+                                )?.fullName ?? membership.studentId)
+                              : membership.studentId}
+                          </td>
                           <td>{membership.planId}</td>
                           <td>
                             <AdminStatusBadge status={membership.status} />

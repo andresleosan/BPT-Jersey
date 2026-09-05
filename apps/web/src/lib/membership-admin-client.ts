@@ -28,7 +28,8 @@ export type AdminMembership = Readonly<{
   nextBillingAt: string | null;
 }>;
 export type CreateMembershipInput = Readonly<{
-  familyId: string;
+  /** Optional: the backend derives the billing family from the canonical student record. */
+  familyId?: string;
   studentId: string;
   planId: PlanId;
   status: "trial" | "active";
@@ -104,7 +105,7 @@ const membershipSchema = z
   .strict();
 const createMembershipSchema = z
   .object({
-    familyId: identifierSchema,
+    familyId: identifierSchema.optional(),
     studentId: identifierSchema,
     planId: planIdSchema,
     status: z.enum(["trial", "active"]),
@@ -201,7 +202,9 @@ export async function createMembership(
   input: CreateMembershipInput,
 ): Promise<AdminMembership> {
   try {
-    const payload = createMembershipSchema.parse(input);
+    const { familyId, ...parsed } = createMembershipSchema.parse(input);
+    // The callable payload is closed: the family key is sent only when one was named.
+    const payload: CreateMembershipInput = familyId === undefined ? parsed : { familyId, ...parsed };
     const callable = httpsCallable<CreateMembershipInput, unknown>(
       getFirebaseFunctions(),
       "createMembership",
@@ -209,7 +212,7 @@ export async function createMembership(
     const result = await callable(payload);
     const membership = parseMembership(result.data, createMembershipError);
     if (
-      membership.familyId !== payload.familyId ||
+      (payload.familyId !== undefined && membership.familyId !== payload.familyId) ||
       membership.studentId !== payload.studentId ||
       membership.planId !== payload.planId ||
       membership.status !== payload.status

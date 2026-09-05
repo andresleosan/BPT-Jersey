@@ -8,7 +8,12 @@ const api = vi.hoisted(() => ({
   voidManualInvoice: vi.fn(),
 }));
 
+const membershipApi = vi.hoisted(() => ({ listMemberships: vi.fn() }));
+const membersApi = vi.hoisted(() => ({ listMembers: vi.fn() }));
+
 vi.mock("../../../lib/billing-client", () => api);
+vi.mock("../../../lib/membership-admin-client", () => membershipApi);
+vi.mock("../../../lib/members-client", () => membersApi);
 
 import { BillingPage } from "./page";
 
@@ -56,16 +61,43 @@ describe("billing page", () => {
     api.issueManualInvoice.mockResolvedValue(account.invoices[0]!.invoice);
     api.recordManualPayment.mockResolvedValue({ paymentId: "payment-1" });
     api.voidManualInvoice.mockResolvedValue({ ...account.invoices[0]!.invoice, status: "void" });
+    membershipApi.listMemberships.mockResolvedValue([
+      {
+        membershipId: "membership-1",
+        familyId: "family-1",
+        studentId: "student-1",
+        planId: "town-adult",
+        status: "active",
+        startsAt: "2026-09-01T00:00:00.000Z",
+        endsAt: null,
+        nextBillingAt: null,
+      },
+    ]);
+    membersApi.listMembers.mockResolvedValue({
+      rows: [
+        {
+          studentId: "student-1",
+          fullName: "Synthetic One",
+          participantType: "adult",
+          trainingCenter: "Town",
+          active: true,
+          status: "active",
+        },
+      ],
+    });
   });
 
   it("operates invoice, payment and void actions against the connected account", async () => {
     render(<BillingPage />);
 
     expect(await screen.findByText("INV-001")).toBeVisible();
-    fireEvent.change(screen.getByLabelText("Family ID"), { target: { value: "family-1" } });
-    fireEvent.change(screen.getByLabelText("Membership ID"), {
-      target: { value: "membership-1" },
-    });
+    // The membership is chosen from connected records; the family is derived, never typed.
+    expect(
+      await screen.findByRole("option", { name: "Synthetic One · town-adult · active" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Family ID")).toBeNull();
+    expect(screen.queryByLabelText("Membership ID")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Membership"), { target: { value: "membership-1" } });
     fireEvent.change(screen.getByLabelText("Invoice amount (GBP)"), {
       target: { value: "75.00" },
     });
@@ -80,7 +112,12 @@ describe("billing page", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Issue invoice" }));
     expect(api.issueManualInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({ totalMinor: 7_500, invoiceReference: "INV-002" }),
+      expect.objectContaining({
+        familyId: "family-1",
+        membershipId: "membership-1",
+        totalMinor: 7_500,
+        invoiceReference: "INV-002",
+      }),
     );
     expect(await screen.findByText("Invoice issued and added to the ledger.")).toBeVisible();
 
