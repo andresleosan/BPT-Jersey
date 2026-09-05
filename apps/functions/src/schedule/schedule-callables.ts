@@ -17,6 +17,7 @@ import {
 
 import { requireUserActor } from "../auth/user-authorization.js";
 import { BookingTransactionError } from "./booking-transaction-service.js";
+import { SessionQuorumSweepError } from "./quorum-sweep-service.js";
 import {
   ScheduleAttendanceError,
   type ScheduleMutationActorRole,
@@ -109,6 +110,25 @@ function mapBookingError(error: unknown): never {
     });
   }
   throw new HttpsError("internal", "Booking operation failed");
+}
+
+function mapQuorumSweepError(error: unknown): never {
+  if (error instanceof HttpsError) throw error;
+  if (error instanceof SessionQuorumSweepError) {
+    if (error.code === "invalid") {
+      throw new HttpsError("invalid-argument", "Quorum sweep request is invalid");
+    }
+    if (error.code === "tenant") {
+      throw new HttpsError("permission-denied", "Quorum sweep is not permitted");
+    }
+    if (error.code === "not-found") {
+      throw new HttpsError("not-found", "Session is not available");
+    }
+    throw new HttpsError("failed-precondition", "Quorum sweep is not available", {
+      reason: error.code,
+    });
+  }
+  throw new HttpsError("internal", "Quorum sweep failed");
 }
 
 function mapAttendanceError(error: unknown): never {
@@ -542,6 +562,44 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
   };
 }
 
+/**
+ * T110: applies the quorum rule to one session. Staff only, and safe to repeat: the sweep writes only
+ * while the session is still `scheduled`, so a second call reports the earlier cancellation instead
+ * of touching anything (BRIEF decision 3).
+ */
+export function createReconcileSessionQuorumHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff access required to reconcile quorum");
+    }
+    const data = request.data as { sessionId?: unknown } | null;
+    if (
+      data === null ||
+      typeof data !== "object" ||
+      Object.keys(data).length !== 1 ||
+      typeof data.sessionId !== "string" ||
+      data.sessionId.trim().length === 0
+    ) {
+      throw new HttpsError("invalid-argument", "sessionId is required");
+    }
+
+    try {
+      return {
+        result: await store.reconcileSessionQuorum(
+          actor.academyId,
+          data.sessionId.trim(),
+          actor.userId,
+        ),
+      };
+    } catch (error) {
+      return mapQuorumSweepError(error);
+    }
+  };
+}
+
 export function createListSessionAttendanceHandler(options: { store: ScheduleStore }) {
   const { store } = options;
 
@@ -909,6 +967,10 @@ export const evaluateSessionMinimum = onCall(scheduleCallableOptions, async (req
 
 export const checkIn = onCall(scheduleCallableOptions, async (request) =>
   createCheckInHandler({ store: getStore() })(request),
+);
+
+export const reconcileSessionQuorum = onCall(scheduleCallableOptions, async (request) =>
+  createReconcileSessionQuorumHandler({ store: getStore() })(request),
 );
 
 export const listSessionAttendance = onCall(scheduleCallableOptions, async (request) =>

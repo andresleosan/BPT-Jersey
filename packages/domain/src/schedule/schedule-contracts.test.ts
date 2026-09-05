@@ -26,6 +26,8 @@ import {
   parseRecurrenceRule,
   parseRequestBookingInput,
   parseSaveLocationGeofenceInput,
+  decideQuorumSweep,
+  quorumCancellationReason,
   resolveCheckInProximity,
   checkInProximityRadiusMeters,
   distanceInMetres,
@@ -1339,5 +1341,89 @@ describe("check-in proximity signal (T109)", () => {
       expect(expired.ok && expired.value.signal).toBe("unavailable");
       expect(expired.ok && expired.value.overrideReason).toBeNull();
     });
+  });
+});
+
+describe("quorum sweep decision (T110)", () => {
+  const now = "2026-09-04T17:30:00.000Z";
+  // Half an hour ahead: the one-hour booking cutoff has passed.
+  const afterCutoff = "2026-09-04T18:00:00.000Z";
+  // Three hours ahead: still open for booking.
+  const beforeCutoff = "2026-09-04T20:30:00.000Z";
+
+  function decide(
+    session: Readonly<{
+      startAt?: string;
+      status?: string;
+      minParticipants?: number;
+      cancellationReason?: string | null;
+    }>,
+    confirmedCount: number,
+  ) {
+    return decideQuorumSweep({
+      session: {
+        startAt: session.startAt ?? afterCutoff,
+        status: session.status ?? "scheduled",
+        minParticipants: session.minParticipants ?? 4,
+        ...(session.cancellationReason === undefined
+          ? {}
+          : { cancellationReason: session.cancellationReason }),
+      },
+      confirmedCount,
+      now,
+    });
+  }
+
+  it("cancels only after the cutoff and only below the minimum", () => {
+    expect(decide({}, 3)).toEqual({
+      outcome: "cancelled",
+      confirmedCount: 3,
+      minParticipants: 4,
+      cancels: true,
+    });
+    expect(decide({}, 4).outcome).toBe("quorumMet");
+    expect(decide({}, 9).outcome).toBe("quorumMet");
+    expect(decide({ startAt: beforeCutoff }, 0).outcome).toBe("beforeCutoff");
+  });
+
+  it("respects a minimum raised by owner or head coach", () => {
+    expect(decide({ minParticipants: 8 }, 6)).toMatchObject({
+      outcome: "cancelled",
+      minParticipants: 8,
+    });
+    expect(decide({ minParticipants: 0 }, 0).outcome).toBe("quorumMet");
+  });
+
+  it("distinguishes its own earlier cancellation from any other status", () => {
+    expect(
+      decide({ status: "cancelled", cancellationReason: quorumCancellationReason }, 0).outcome,
+    ).toBe("alreadyCancelledForQuorum");
+    expect(
+      decide({ status: "cancelled", cancellationReason: "Instructor unavailable" }, 0).outcome,
+    ).toBe("notScheduled");
+    for (const status of ["active", "completed", "draft"]) {
+      expect(decide({ status }, 0).outcome).toBe("notScheduled");
+    }
+  });
+
+  it("never asks for a write on any outcome but cancellation", () => {
+    const outcomes = [
+      decide({}, 4),
+      decide({ startAt: beforeCutoff }, 0),
+      decide({ status: "completed" }, 0),
+      decide({ status: "cancelled", cancellationReason: quorumCancellationReason }, 0),
+    ];
+    expect(outcomes.every((decision) => !decision.cancels)).toBe(true);
+  });
+
+  it("treats a malformed minimum or count as zero rather than trusting it", () => {
+    expect(decide({ minParticipants: Number.NaN }, 0).minParticipants).toBe(0);
+    expect(
+      decideQuorumSweep({
+        session: { startAt: afterCutoff, status: "scheduled", minParticipants: 4 },
+        confirmedCount: -3,
+        now,
+      }),
+    ).toMatchObject({ confirmedCount: 0, outcome: "cancelled" });
   });
 });

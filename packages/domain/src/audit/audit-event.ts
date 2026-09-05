@@ -50,6 +50,7 @@ export const auditActions = Object.freeze([
   "attendance.checked_in",
   "attendance.corrected",
   "attendance.proximity_override",
+  "session.quorum.cancelled",
   "student.checked_out",
   "location.geofence.saved",
   "notification.preference.updated",
@@ -137,6 +138,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "attendance.checked_in"
           | "attendance.corrected"
           | "attendance.proximity_override"
+          | "session.quorum.cancelled"
           | "student.checked_out"
           | "location.geofence.saved"
           | "notification.preference.updated"
@@ -260,6 +262,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "attendance.checked_in": commonFields,
   "attendance.corrected": commonFields,
   "attendance.proximity_override": commonFields,
+  "session.quorum.cancelled": commonFields,
   "student.checked_out": commonFields,
   "location.geofence.saved": commonFields,
   "notification.preference.updated": commonFields,

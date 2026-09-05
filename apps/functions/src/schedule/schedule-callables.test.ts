@@ -20,6 +20,7 @@ import {
   createListStudentAttendanceHandler,
   createListStudentBookingsHandler,
   createReconcileSessionNoShowsHandler,
+  createReconcileSessionQuorumHandler,
   createRecordCheckoutHandler,
   createRequestBookingHandler,
   createSaveClassHandler,
@@ -1253,3 +1254,86 @@ describe("check-in proximity signal through the callables (T109)", () => {
     expect(reconciled.records.every((record) => !("proximity" in record))).toBe(true);
   });
 });
+
+describe("reconcileSessionQuorum (T110)", () => {
+  async function sessionStartingIn(
+    store: ReturnType<typeof createInMemoryScheduleStore>,
+    milliseconds: number,
+    minParticipants = 4,
+  ) {
+    const startAt = new Date(Date.now() + milliseconds);
+    const created = (await createSaveSessionHandler({ store })(
+      fakeRequest({
+        classId: null,
+        programId: "adult-fundamentals",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Quorum Town",
+        startAt: startAt.toISOString(),
+        endAt: new Date(startAt.getTime() + 3_600_000).toISOString(),
+        capacity: 10,
+        minParticipants,
+      }),
+    )) as { session: { sessionId: string } };
+    return created.session.sessionId;
+  }
+
+  it("cancels a session below its minimum once the cutoff has passed, and repeats safely", async () => {
+    const store = createInMemoryScheduleStore();
+    // Thirty minutes ahead: inside the one-hour cutoff.
+    const sessionId = await sessionStartingIn(store, 30 * 60_000);
+    const handler = createReconcileSessionQuorumHandler({ store });
+
+    const first = (await handler(fakeRequest({ sessionId }))) as {
+      result: { outcome: string; releasedBookings: number };
+    };
+    expect(first.result).toMatchObject({ outcome: "cancelled", releasedBookings: 0 });
+
+    const repeat = (await handler(fakeRequest({ sessionId }))) as { result: { outcome: string } };
+    expect(repeat.result.outcome).toBe("alreadyCancelledForQuorum");
+  });
+
+  it("leaves a session alone while it is still open for booking", async () => {
+    const store = createInMemoryScheduleStore();
+    const sessionId = await sessionStartingIn(store, 3 * 3_600_000);
+
+    const result = (await handlerFor(store)(fakeRequest({ sessionId }))) as {
+      result: { outcome: string };
+    };
+    expect(result.result.outcome).toBe("beforeCutoff");
+  });
+
+  it("leaves a session alone when its minimum is zero", async () => {
+    const store = createInMemoryScheduleStore();
+    const sessionId = await sessionStartingIn(store, 30 * 60_000, 0);
+
+    const result = (await handlerFor(store)(fakeRequest({ sessionId }))) as {
+      result: { outcome: string };
+    };
+    expect(result.result.outcome).toBe("quorumMet");
+  });
+
+  it.each(["guardian", "adultStudent"])("refuses %s", async (role) => {
+    const store = createInMemoryScheduleStore();
+    const sessionId = await sessionStartingIn(store, 30 * 60_000);
+    await expect(handlerFor(store)(fakeRequest({ sessionId }, role))).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+  });
+
+  it("refuses a malformed payload and an unknown session", async () => {
+    const store = createInMemoryScheduleStore();
+    for (const payload of [null, {}, { sessionId: "" }, { sessionId: "s-1", extra: true }]) {
+      await expect(handlerFor(store)(fakeRequest(payload))).rejects.toMatchObject({
+        code: "invalid-argument",
+      });
+    }
+    await expect(
+      handlerFor(store)(fakeRequest({ sessionId: "session-absent" })),
+    ).rejects.toMatchObject({ code: "not-found" });
+  });
+});
+
+function handlerFor(store: ReturnType<typeof createInMemoryScheduleStore>) {
+  return createReconcileSessionQuorumHandler({ store });
+}

@@ -47,11 +47,67 @@ function services(overrides: Partial<ReminderCallableServices> = {}): ReminderCa
         updatedBy: "coach-1",
       },
     ]),
+    listCancelledSessionsForStudent: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
 
 describe("Reminder Callables (T048)", () => {
+  it("tells a guardian which child's class was cancelled and why (T110)", async () => {
+    const service = services({
+      listCancelledSessionsForStudent: vi.fn().mockResolvedValue([
+        {
+          title: "Kids BJJ - West",
+          startAt: "2026-09-10T17:30:00.000Z",
+          reason:
+            "Cancelled automatically: the minimum number of bookings was not reached one hour before the start.",
+        },
+      ]),
+    });
+    const handler = createListClientRemindersHandler({ services: service });
+
+    const result = await handler(fakeRequest(null, "guardian", "guardian-1"));
+
+    const cancelled = result.reminders.filter((reminder) => reminder.kind === "sessionCancelled");
+    expect(cancelled).toHaveLength(1);
+    expect(cancelled[0]?.title).toBe("Class cancelled");
+    expect(cancelled[0]?.message).toContain("Jordan was booked into Kids BJJ - West");
+    expect(cancelled[0]?.message).toContain("minimum number of bookings was not reached");
+    expect(service.listCancelledSessionsForStudent).toHaveBeenCalledWith("academy-1", "student-1");
+    // The notice carries no identifier of the student, the booking or the session: its own
+    // reminderId is an index, and the class is named by its title and time.
+    expect(JSON.stringify(cancelled)).not.toContain("student-1");
+    expect(cancelled[0]?.reminderId).toBe("session-cancelled-0");
+    expect(Object.keys(cancelled[0] ?? {})).toEqual([
+      "reminderId",
+      "kind",
+      "severity",
+      "title",
+      "message",
+      "amountMinor",
+      "count",
+      "createdAt",
+      "schemaVersion",
+    ]);
+  });
+
+  it("addresses an adult about their own cancelled class (T110)", async () => {
+    const handler = createListClientRemindersHandler({
+      services: services({
+        listCancelledSessionsForStudent: vi
+          .fn()
+          .mockResolvedValue([
+            { title: "Adults Gi - Town", startAt: "2026-09-11T18:00:00.000Z", reason: "Off." },
+          ]),
+      }),
+    });
+
+    const result = await handler(fakeRequest(null, "adultStudent", "adult-1"));
+
+    const cancelled = result.reminders.filter((reminder) => reminder.kind === "sessionCancelled");
+    expect(cancelled[0]?.message).toContain("You were booked into Adults Gi - Town");
+  });
+
   it("resolves guardian reminders to the family scope", async () => {
     const service = services();
     const handler = createListClientRemindersHandler({ services: service });

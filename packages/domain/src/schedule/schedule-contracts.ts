@@ -952,6 +952,84 @@ export function evaluateBookingEligibility(
   return { eligible: true };
 }
 
+// ── Quorum Sweep Contracts (T110) ──
+
+/**
+ * The reason recorded on a session cancelled because it never reached its minimum. It is a fixed
+ * sentence so members, staff and the audit trail all read the same cause (BRIEF decision 3).
+ */
+export const quorumCancellationReason =
+  "Cancelled automatically: the minimum number of bookings was not reached one hour before the start.";
+
+export const quorumSweepOutcomes = Object.freeze([
+  "cancelled",
+  "quorumMet",
+  "beforeCutoff",
+  "notScheduled",
+  "alreadyCancelledForQuorum",
+] as const);
+export type QuorumSweepOutcome = (typeof quorumSweepOutcomes)[number];
+
+export type QuorumSweepDecision = Readonly<{
+  outcome: QuorumSweepOutcome;
+  confirmedCount: number;
+  minParticipants: number;
+  /** True only for the outcome that must write: cancel the session and its bookings. */
+  cancels: boolean;
+}>;
+
+/**
+ * Decides what a quorum sweep must do with one session, without touching any store.
+ *
+ * A session is cancelled only once the booking cutoff has passed (one hour before the start, the
+ * same cutoff that closes booking and cancellation) and the confirmed bookings are still below the
+ * minimum. The minimum is the session's own `minParticipants`, so a minimum raised by an owner or
+ * head coach when the session was created is respected. Sessions that already reached quorum, that
+ * are not `scheduled`, or that were already cancelled for this very reason are left untouched, which
+ * is what makes a repeated sweep idempotent.
+ */
+export function decideQuorumSweep(
+  input: Readonly<{
+    session: Readonly<{
+      startAt: string;
+      status: string;
+      minParticipants: number;
+      cancellationReason?: string | null;
+    }>;
+    confirmedCount: number;
+    now?: string;
+  }>,
+): QuorumSweepDecision {
+  const minParticipants = Number.isSafeInteger(input.session.minParticipants)
+    ? input.session.minParticipants
+    : 0;
+  const confirmedCount = Number.isSafeInteger(input.confirmedCount)
+    ? Math.max(0, input.confirmedCount)
+    : 0;
+  const base = { confirmedCount, minParticipants };
+
+  if (input.session.status === "cancelled") {
+    return Object.freeze({
+      ...base,
+      outcome:
+        input.session.cancellationReason === quorumCancellationReason
+          ? ("alreadyCancelledForQuorum" as const)
+          : ("notScheduled" as const),
+      cancels: false,
+    });
+  }
+  if (input.session.status !== "scheduled") {
+    return Object.freeze({ ...base, outcome: "notScheduled" as const, cancels: false });
+  }
+  if (isWithinBookingCutoff(input.session.startAt, input.now)) {
+    return Object.freeze({ ...base, outcome: "beforeCutoff" as const, cancels: false });
+  }
+  if (confirmedCount >= minParticipants) {
+    return Object.freeze({ ...base, outcome: "quorumMet" as const, cancels: false });
+  }
+  return Object.freeze({ ...base, outcome: "cancelled" as const, cancels: true });
+}
+
 // ── Attendance & Check-In Contracts ──
 
 export const checkInMethods = Object.freeze(["qr", "pin", "nameSearch", "manual"] as const);

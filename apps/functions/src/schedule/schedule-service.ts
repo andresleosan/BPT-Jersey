@@ -8,7 +8,9 @@ import {
   buildSessionOperationalView,
   determinePunctuality,
   generateSessionsFromClass,
+  decideQuorumSweep,
   isWithinBookingCutoff,
+  quorumCancellationReason,
   resolveCheckInProximity,
   type AttendanceRecord,
   type DailyOperationsDashboard,
@@ -39,6 +41,11 @@ import {
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
+import {
+  createQuorumSweepService,
+  SessionQuorumSweepError,
+  type SessionQuorumSweepResult,
+} from "./quorum-sweep-service.js";
 import {
   createTransactionalAttendanceService,
   ScheduleAttendanceError,
@@ -147,6 +154,17 @@ export type ScheduleStore = Readonly<{
     input: SaveLocationGeofenceInput,
     actorId: string,
   ) => Promise<LocationRecord>;
+  reconcileSessionQuorum: (
+    academyId: string,
+    sessionId: string,
+    actorId: string,
+    now?: string,
+  ) => Promise<SessionQuorumSweepResult>;
+  listCancelledSessionsForStudent: (
+    academyId: string,
+    studentId: string,
+    now?: string,
+  ) => Promise<readonly Readonly<{ title: string; startAt: string; reason: string }>[]>;
   listPrograms: (academyId: string) => Promise<readonly ProgramRecord[]>;
   createProgram: (academyId: string, input: CreateProgramInput) => Promise<ProgramRecord>;
   updateProgram: (
@@ -291,6 +309,71 @@ type GenericFirestore = {
   };
 };
 
+/**
+ * How far back and forward a member is told about a cancelled class of theirs. A class that was off
+ * last week is no longer news; one that has not happened yet is (T110).
+ */
+const cancelledSessionNoticeWindowMs = Object.freeze({
+  past: 2 * 86_400_000,
+  ahead: 30 * 86_400_000,
+});
+
+/**
+ * A member is told about a class of theirs that the academy called off: their booking is still
+ * confirmed, or it was released by the same cancellation. A member who cancelled their own booking
+ * for their own reasons is not told, because for them nothing changed.
+ */
+function cancelledSessionNotices(
+  sessions: readonly SessionRecord[],
+  bookings: readonly Readonly<{
+    sessionId: string;
+    status: string;
+    cancellationReason: string | null;
+  }>[],
+  nowMs: number,
+): readonly Readonly<{ title: string; startAt: string; reason: string }>[] {
+  const bookingsBySession = new Map<string, (typeof bookings)[number]>();
+  for (const booking of bookings) {
+    const current = bookingsBySession.get(booking.sessionId);
+    // A confirmed booking outranks a cancelled one for the same class.
+    if (
+      current === undefined ||
+      (current.status !== "confirmed" && booking.status === "confirmed")
+    ) {
+      bookingsBySession.set(booking.sessionId, booking);
+    }
+  }
+
+  return Object.freeze(
+    sessions
+      .filter((session) => {
+        if (session.status !== "cancelled") return false;
+        const booking = bookingsBySession.get(session.sessionId);
+        if (booking === undefined) return false;
+        if (
+          booking.status !== "confirmed" &&
+          booking.cancellationReason !== session.cancellationReason
+        ) {
+          return false;
+        }
+        const startMs = Date.parse(session.startAt);
+        if (Number.isNaN(startMs)) return false;
+        return (
+          startMs >= nowMs - cancelledSessionNoticeWindowMs.past &&
+          startMs <= nowMs + cancelledSessionNoticeWindowMs.ahead
+        );
+      })
+      .sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt))
+      .map((session) =>
+        Object.freeze({
+          title: session.title,
+          startAt: session.startAt,
+          reason: session.cancellationReason ?? "The class was cancelled by the academy.",
+        }),
+      ),
+  );
+}
+
 export function createFirestoreScheduleStore(options: {
   firestore: GenericFirestore;
 }): ScheduleStore {
@@ -300,6 +383,9 @@ export function createFirestoreScheduleStore(options: {
   });
   const attendanceTransactions = createTransactionalAttendanceService({
     firestore: firestore as unknown as AttendanceFirestore,
+  });
+  const quorumSweep = createQuorumSweepService({
+    firestore: firestore as unknown as BookingFirestore,
   });
 
   const requireAttendanceActorRole = (
@@ -374,6 +460,47 @@ export function createFirestoreScheduleStore(options: {
         } as AuditEventDraft);
         return record;
       });
+    },
+
+    /** T110: cancels one session that never reached its minimum and releases its bookings. */
+    reconcileSessionQuorum(
+      academyId: string,
+      sessionId: string,
+      actorId: string,
+      now?: string,
+    ): Promise<SessionQuorumSweepResult> {
+      return quorumSweep.reconcileSessionQuorum({
+        academyId,
+        sessionId,
+        actorId,
+        ...(now === undefined ? {} : { now }),
+      });
+    },
+
+    /**
+     * T110: the classes this student had booked and that are cancelled, in the notice window. The
+     * in-app notice is derived from the canonical session, not from a queue of messages.
+     */
+    async listCancelledSessionsForStudent(
+      academyId: string,
+      studentId: string,
+      now?: string,
+    ): Promise<readonly Readonly<{ title: string; startAt: string; reason: string }>[]> {
+      const bookings = await firestore
+        .collection(`academies/${academyId}/bookings`)
+        .where("studentId", "==", studentId)
+        .get();
+      const studentBookings = bookings.docs
+        .map((document) => document.data() as BookingRecord)
+        .filter((booking) => typeof booking.sessionId === "string");
+      if (studentBookings.length === 0) return Object.freeze([]);
+
+      const sessions = await firestore.collection(`academies/${academyId}/sessions`).get();
+      return cancelledSessionNotices(
+        sessions.docs.map((document) => document.data() as SessionRecord),
+        studentBookings,
+        Date.parse(now ?? new Date().toISOString()),
+      );
     },
 
     async listPrograms(academyId: string): Promise<readonly ProgramRecord[]> {
@@ -995,6 +1122,79 @@ export function createInMemoryScheduleStore(): ScheduleStore {
     },
 
     // The in-memory store keeps no audit trail, so the actor is not needed here.
+    /**
+     * T110 in the in-memory store: the same decision and the same outcomes as the Firestore path,
+     * without an audit trail because this store keeps none.
+     */
+    async reconcileSessionQuorum(
+      academyId: string,
+      sessionId: string,
+      actorId: string,
+      now?: string,
+    ): Promise<SessionQuorumSweepResult> {
+      const session = sessionsMap.get(academyId)?.get(sessionId);
+      if (!session) {
+        throw new SessionQuorumSweepError("not-found", "Session is unavailable");
+      }
+      const at = now ?? new Date().toISOString();
+      const bookings = [...(bookingsMap.get(academyId)?.values() ?? [])].filter(
+        (booking) => booking.sessionId === sessionId,
+      );
+      const confirmed = bookings.filter((booking) => booking.status === "confirmed");
+      const decision = decideQuorumSweep({
+        session: {
+          startAt: session.startAt,
+          status: session.status,
+          minParticipants: session.minParticipants,
+          cancellationReason: session.cancellationReason,
+        },
+        confirmedCount: confirmed.length,
+        now: at,
+      });
+      if (!decision.cancels) {
+        return Object.freeze({ ...decision, sessionId, releasedBookings: 0 });
+      }
+
+      sessionsMap.get(academyId)?.set(
+        sessionId,
+        Object.freeze({
+          ...session,
+          status: "cancelled",
+          cancellationReason: quorumCancellationReason,
+          updatedAt: at,
+          updatedBy: actorId,
+        }),
+      );
+      for (const booking of confirmed) {
+        bookingsMap.get(academyId)?.set(
+          booking.bookingId,
+          Object.freeze({
+            ...booking,
+            status: "cancelled",
+            cancelledAt: at,
+            cancellationReason: quorumCancellationReason,
+            updatedAt: at,
+            updatedBy: actorId,
+          }),
+        );
+      }
+      return Object.freeze({ ...decision, sessionId, releasedBookings: confirmed.length });
+    },
+
+    async listCancelledSessionsForStudent(
+      academyId: string,
+      studentId: string,
+      now?: string,
+    ): Promise<readonly Readonly<{ title: string; startAt: string; reason: string }>[]> {
+      return cancelledSessionNotices(
+        [...(sessionsMap.get(academyId)?.values() ?? [])],
+        [...(bookingsMap.get(academyId)?.values() ?? [])].filter(
+          (booking) => booking.studentId === studentId,
+        ),
+        Date.parse(now ?? new Date().toISOString()),
+      );
+    },
+
     async saveLocationGeofence(
       academyId: string,
       input: SaveLocationGeofenceInput,

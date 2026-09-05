@@ -98,6 +98,7 @@ export {
   listStudentAttendance,
   listStudentBookings,
   reconcileSessionNoShows,
+  reconcileSessionQuorum,
   recordCheckout,
   requestBooking,
   saveClass,

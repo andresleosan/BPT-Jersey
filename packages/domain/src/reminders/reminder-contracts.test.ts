@@ -81,3 +81,85 @@ describe("In-app reminders (T048)", () => {
     expect(invalid).toEqual([]);
   });
 });
+
+describe("cancelled-class notices (T110)", () => {
+  const base = {
+    now: "2026-09-05T12:00:00.000Z",
+    financialAccount: { balanceMinor: 0, paygDebtMinor: 0 },
+    attendance: [],
+  };
+
+  it("names the class and the reason without any identifier", () => {
+    const reminders = buildInAppReminders({
+      ...base,
+      cancelledSessions: [
+        {
+          label: "Jordan",
+          title: "Kids BJJ - West",
+          startAt: "2026-09-10T17:30:00.000Z",
+          reason: "Cancelled automatically: the minimum was not reached.",
+        },
+      ],
+    });
+
+    expect(reminders).toHaveLength(1);
+    expect(reminders[0]).toMatchObject({
+      reminderId: "session-cancelled-0",
+      kind: "sessionCancelled",
+      severity: "warning",
+      title: "Class cancelled",
+      amountMinor: null,
+      count: null,
+    });
+    expect(reminders[0]?.message).toContain("Jordan was booked into Kids BJJ - West");
+    expect(reminders[0]?.message).toContain("Thursday");
+    expect(reminders[0]?.message).toContain("Cancelled automatically");
+  });
+
+  it("addresses the member directly when no child is named", () => {
+    const reminders = buildInAppReminders({
+      ...base,
+      cancelledSessions: [
+        {
+          label: "  ",
+          title: "Adults Gi - Town",
+          startAt: "2026-09-11T18:00:00.000Z",
+          reason: "Off.",
+        },
+      ],
+    });
+    expect(reminders[0]?.message).toContain("You were booked into Adults Gi - Town");
+  });
+
+  it("skips a notice with no class name or an unusable time", () => {
+    const reminders = buildInAppReminders({
+      ...base,
+      cancelledSessions: [
+        { label: "Jordan", title: "   ", startAt: "2026-09-11T18:00:00.000Z", reason: "Off." },
+        { label: "Jordan", title: "Kids BJJ", startAt: "not-a-time", reason: "Off." },
+      ],
+    });
+    expect(reminders).toEqual([]);
+  });
+
+  it("keeps payment and attendance reminders ahead of the class notices", () => {
+    const reminders = buildInAppReminders({
+      now: "2026-09-05T12:00:00.000Z",
+      financialAccount: { balanceMinor: 1000, paygDebtMinor: 0 },
+      attendance: [
+        {
+          label: "Jordan",
+          records: [{ state: "no_show", occurredAt: "2026-09-03T18:00:00.000Z" }],
+        },
+      ],
+      cancelledSessions: [
+        { label: "Jordan", title: "Kids BJJ", startAt: "2026-09-10T17:30:00.000Z", reason: "Off." },
+      ],
+    });
+    expect(reminders.map((reminder) => reminder.kind)).toEqual([
+      "payment",
+      "attendance",
+      "sessionCancelled",
+    ]);
+  });
+});

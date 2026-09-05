@@ -51,6 +51,14 @@ type Attendance = Readonly<{
     overrideReason: string | null;
   }>;
 }>;
+type QuorumSweep = Readonly<{
+  sessionId: string;
+  outcome: string;
+  confirmedCount: number;
+  minParticipants: number;
+  cancels: boolean;
+  releasedBookings: number;
+}>;
 type CatalogLocation = Readonly<{
   locationId: string;
   geofence?: Readonly<{ latitude: number; longitude: number }> | null;
@@ -681,11 +689,177 @@ test.describe("T096 class operations with Firebase Emulators", () => {
     );
     expect(reconciled.noShowsMarked).toBe(0);
 
-    // Direct Firestore access to sessions, bookings and attendance is denied by Rules.
+    // T110: the quorum sweep. A session still open for booking is left alone even below its
+    // minimum, because the rule waits for the one-hour cutoff.
+    const openSession = (
+      await ok<{ session: ScheduleSession }>(
+        request,
+        "saveSession",
+        sessionInput(program.programId, owner.uid, "town", 7 * hour, `T110 Open ${suffix}`),
+        owner,
+      )
+    ).session;
+    await ok(
+      request,
+      "requestBooking",
+      { ...bookingInput, sessionId: openSession.sessionId },
+      adult,
+    );
+    expect(
+      (
+        await ok<{ result: QuorumSweep }>(
+          request,
+          "reconcileSessionQuorum",
+          { sessionId: openSession.sessionId },
+          owner,
+        )
+      ).result,
+    ).toMatchObject({ outcome: "beforeCutoff", cancels: false, releasedBookings: 0 });
+
+    // A session inside the cutoff that meets its minimum is left alone too.
+    const quorumSession = (
+      await ok<{ session: ScheduleSession }>(
+        request,
+        "saveSession",
+        {
+          ...sessionInput(program.programId, owner.uid, "town", 30 * 60_000, `T110 Full ${suffix}`),
+          minParticipants: 0,
+        },
+        owner,
+      )
+    ).session;
+    expect(
+      (
+        await ok<{ result: QuorumSweep }>(
+          request,
+          "reconcileSessionQuorum",
+          { sessionId: quorumSession.sessionId },
+          owner,
+        )
+      ).result,
+    ).toMatchObject({ outcome: "quorumMet", cancels: false, confirmedCount: 0 });
+
+    // The real case: half an hour away and never four bookings. Clients cannot run the sweep, and
+    // repeating it changes nothing.
+    const doomed = (
+      await ok<{ session: ScheduleSession }>(
+        request,
+        "saveSession",
+        sessionInput(program.programId, owner.uid, "town", 30 * 60_000, `T110 Doomed ${suffix}`),
+        owner,
+      )
+    ).session;
+    await denied(
+      request,
+      "reconcileSessionQuorum",
+      { sessionId: doomed.sessionId },
+      adult,
+      403,
+      "PERMISSION_DENIED",
+    );
+    expect(
+      (
+        await ok<{ result: QuorumSweep }>(
+          request,
+          "reconcileSessionQuorum",
+          { sessionId: doomed.sessionId },
+          owner,
+        )
+      ).result,
+    ).toMatchObject({
+      sessionId: doomed.sessionId,
+      outcome: "cancelled",
+      cancels: true,
+      confirmedCount: 0,
+      minParticipants: 4,
+      releasedBookings: 0,
+    });
+    expect(
+      (
+        await ok<{ result: QuorumSweep }>(
+          request,
+          "reconcileSessionQuorum",
+          { sessionId: doomed.sessionId },
+          owner,
+        )
+      ).result,
+    ).toMatchObject({ outcome: "alreadyCancelledForQuorum", cancels: false });
+    await denied(
+      request,
+      "requestBooking",
+      { ...bookingInput, sessionId: doomed.sessionId },
+      adult,
+      400,
+      "FAILED_PRECONDITION",
+    );
+
+    // A session cancelled for another reason is never swept.
+    const staffCancelled = (
+      await ok<{ session: ScheduleSession }>(
+        request,
+        "saveSession",
+        sessionInput(program.programId, owner.uid, "town", 40 * 60_000, `T110 Staff ${suffix}`),
+        owner,
+      )
+    ).session;
+    await ok(
+      request,
+      "cancelSession",
+      { sessionId: staffCancelled.sessionId, reason: "Instructor unavailable" },
+      owner,
+    );
+    expect(
+      (
+        await ok<{ result: QuorumSweep }>(
+          request,
+          "reconcileSessionQuorum",
+          { sessionId: staffCancelled.sessionId },
+          owner,
+        )
+      ).result,
+    ).toMatchObject({ outcome: "notScheduled", cancels: false });
+
+    // The in-app notice is derived from the cancelled class the member had booked: no queue, no
+    // email, no SMS, no identifiers.
+    const noticeSession = (
+      await ok<{ session: ScheduleSession }>(
+        request,
+        "saveSession",
+        sessionInput(program.programId, owner.uid, "town", 8 * hour, `T110 Notice ${suffix}`),
+        owner,
+      )
+    ).session;
+    await ok(
+      request,
+      "requestBooking",
+      { ...bookingInput, sessionId: noticeSession.sessionId },
+      adult,
+    );
+    await ok(
+      request,
+      "cancelSession",
+      { sessionId: noticeSession.sessionId, reason: "Mat unavailable this evening" },
+      owner,
+    );
+    const reminders = await ok<{
+      reminders: readonly Readonly<{ kind: string; title: string; message: string }>[];
+    }>(request, "listClientReminders", null, adult);
+    const notices = reminders.reminders.filter((reminder) => reminder.kind === "sessionCancelled");
+    const notice = notices.find((entry) => entry.message.includes(`T110 Notice ${suffix}`));
+    expect(notice?.title).toBe("Class cancelled");
+    expect(notice?.message).toContain("You were booked into");
+    expect(notice?.message).toContain("Mat unavailable this evening");
+    // Nobody is told about a class they never booked, and no identifier travels in a reminder.
+    expect(JSON.stringify(notices)).not.toContain(`T110 Doomed ${suffix}`);
+    expect(JSON.stringify(reminders)).not.toContain(noticeSession.sessionId);
+    expect(JSON.stringify(reminders)).not.toContain(studentId);
+
+    // Direct Firestore access to sessions, bookings, attendance and the sweep evidence is denied.
     for (const path of [
       `academies/${academyId}/sessions/${far.sessionId}`,
       `academies/${academyId}/bookings/${booking.bookingId}`,
       `academies/${academyId}/attendance/${attendance.attendanceId}`,
+      `academies/${academyId}/auditEvents/session-quorum-cancelled-${doomed.sessionId}`,
     ]) {
       const direct = await request.get(`${firestoreRestBase}/${path}`);
       expect(direct.status(), path).toBe(403);
@@ -697,7 +871,7 @@ test.describe("T096 class operations with Firebase Emulators", () => {
   }) => {
     const owner = await signIn(request, process.env.T096_OWNER_EMAIL);
 
-    for (const name of ["saveSession", "requestBooking", "checkIn"]) {
+    for (const name of ["saveSession", "requestBooking", "checkIn", "reconcileSessionQuorum"]) {
       const noAppCheck = await call(request, name, null, { session: owner, appCheck: false });
       expect(noAppCheck.status, name).toBe(401);
       expect(noAppCheck.body.error?.status).toBe("UNAUTHENTICATED");

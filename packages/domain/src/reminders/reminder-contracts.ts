@@ -1,6 +1,6 @@
 import type { AttendanceRecord } from "../schedule/schedule-contracts";
 
-export const reminderKinds = Object.freeze(["payment", "attendance"] as const);
+export const reminderKinds = Object.freeze(["payment", "attendance", "sessionCancelled"] as const);
 export type ReminderKind = (typeof reminderKinds)[number];
 
 export type InAppReminderRecord = Readonly<{
@@ -24,10 +24,22 @@ export type ReminderAttendanceEntry = Readonly<{
   records: readonly Pick<AttendanceRecord, "state" | "occurredAt">[];
 }>;
 
+/**
+ * A class the member had booked and that was cancelled. Carries no identifier: the reminder tells a
+ * member which class of theirs is off and why, and nothing more (T110, BRIEF decisions 3 and 9).
+ */
+export type ReminderCancelledSession = Readonly<{
+  label: string;
+  title: string;
+  startAt: string;
+  reason: string;
+}>;
+
 export type BuildInAppRemindersInput = Readonly<{
   now: string;
   financialAccount: FinancialAccountSummary;
   attendance: readonly ReminderAttendanceEntry[];
+  cancelledSessions?: readonly ReminderCancelledSession[];
   lookbackDays?: number;
 }>;
 
@@ -43,6 +55,19 @@ function validIsoDate(value: unknown): value is string {
 
 function formatGbp(amountMinor: number): string {
   return `£${(amountMinor / 100).toFixed(2)}`;
+}
+
+/** Jersey-local day and time of a session, for a member-facing sentence. */
+function formatSessionMoment(startAtIso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Jersey",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(startAtIso));
 }
 
 /**
@@ -109,6 +134,28 @@ export function buildInAppReminders(
         count,
         createdAt: input.now,
         schemaVersion: "1",
+      }),
+    );
+  }
+
+  let cancelledIndex = 0;
+  for (const session of input.cancelledSessions ?? []) {
+    if (!validIsoDate(session.startAt)) continue;
+    const label = session.label.trim();
+    const title = session.title.trim();
+    if (title.length === 0) continue;
+    const who = label.length === 0 ? "You were" : `${label} was`;
+    reminders.push(
+      Object.freeze({
+        reminderId: `session-cancelled-${cancelledIndex++}`,
+        kind: "sessionCancelled" as const,
+        severity: "warning" as const,
+        title: "Class cancelled",
+        message: `${who} booked into ${title} on ${formatSessionMoment(session.startAt)}. ${session.reason.trim()}`,
+        amountMinor: null,
+        count: null,
+        createdAt: input.now,
+        schemaVersion: "1" as const,
       }),
     );
   }

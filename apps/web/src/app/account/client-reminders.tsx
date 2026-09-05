@@ -52,7 +52,11 @@ export function ClientRemindersPanel() {
                 <p>{reminder.message}</p>
               </div>
               <span className="account-reminder-kind">
-                {reminder.kind === "payment" ? "Payment" : "Attendance"}
+                {reminder.kind === "payment"
+                  ? "Payment"
+                  : reminder.kind === "attendance"
+                    ? "Attendance"
+                    : "Class cancelled"}
               </span>
             </li>
           ))}

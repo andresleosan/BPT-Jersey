@@ -112,6 +112,21 @@ one-hour cutoff, site eligibility), `listStudentBookings`, `evaluateSessionMinim
 `getSessionOperationalView`, `cancelBooking`, `cancelSession`, `reconcileSessionNoShows`, plus the
 role, App Check, session, payload and Rules negatives. Same secrets, pilot flag and JDK requirements.
 
+The same run also covers the quorum sweep (T110): a session still open for booking is left alone
+even below its minimum, a session inside the one-hour cutoff that meets its minimum is left alone,
+one that never reached four bookings is cancelled with the canonical reason and reports
+`alreadyCancelledForQuorum` when the sweep repeats, clients cannot run it (403), a session cancelled
+for another reason is never swept, the member who had booked a cancelled class gets the derived
+in-app notice through `listClientReminders` (no queue, no email, no SMS, no identifiers), and the
+cancellation audit event stays closed to direct reads. The Emulator cannot fast-forward the clock, so
+a booking released by the sweep itself is proven at unit level in
+`apps/functions/src/schedule/quorum-sweep-service.test.ts`.
+
+`apps/functions/src/schedule/quorum-sweep-runner.ts` is the manual window sweep, deliberately not
+exported from `index.ts` and deliberately not a scheduled function: it requires `--academy-id`,
+`--window-hours` and `--actor-id` and refuses any target but the demo Firestore Emulator. Enabling it
+automatically is a separate operator checkpoint, as recorded for the T062 producer.
+
 The same run covers the 50 m check-in eligibility signal (T109): administration records the Town
 site coordinates with `saveLocationGeofence` (clients 403, malformed coordinates 400), the catalog
 returns them, a check-in measured inside the radius records `proximity.signal = "within"`, one

@@ -39,6 +39,11 @@ export type ReminderCallableServices = Readonly<{
     academyId: string,
     studentId: string,
   ) => Promise<readonly AttendanceRecord[]>;
+  /** T110: classes this student had booked that are cancelled, for the in-app notice. */
+  listCancelledSessionsForStudent: (
+    academyId: string,
+    studentId: string,
+  ) => Promise<readonly Readonly<{ title: string; startAt: string; reason: string }>[]>;
 }>;
 
 function parseNoPayload(value: unknown): void {
@@ -76,7 +81,7 @@ export function createListClientRemindersHandler({
           : await services.resolveAdultStudentAudience(actor.academyId, actor.userId);
       if (audience === undefined) permissionDenied();
 
-      const [financialAccount, attendance] = await Promise.all([
+      const [financialAccount, attendance, cancelledPerStudent] = await Promise.all([
         services.listFinancialAccount({
           academyId: actor.academyId,
           familyIds: audience.familyIds,
@@ -88,6 +93,17 @@ export function createListClientRemindersHandler({
             records: await services.listStudentAttendance(actor.academyId, student.studentId),
           })),
         ),
+        Promise.all(
+          audience.students.map(async (student) => {
+            const sessions = await services.listCancelledSessionsForStudent(
+              actor.academyId,
+              student.studentId,
+            );
+            // A guardian is told which child, an adult is told about their own class.
+            const label = actor.role === "guardian" ? student.label : "";
+            return sessions.map((session) => ({ ...session, label }));
+          }),
+        ),
       ]);
 
       return {
@@ -95,6 +111,7 @@ export function createListClientRemindersHandler({
           now: new Date().toISOString(),
           financialAccount,
           attendance,
+          cancelledSessions: cancelledPerStudent.flat(),
         }),
       };
     } catch (error) {
@@ -179,6 +196,8 @@ function createDefaultReminderServices(): ReminderCallableServices {
     listFinancialAccount: (scope) => financeStore.listFinancialAccount(scope),
     listStudentAttendance: (academyId, studentId) =>
       scheduleStore.listStudentAttendance(academyId, studentId),
+    listCancelledSessionsForStudent: (academyId, studentId) =>
+      scheduleStore.listCancelledSessionsForStudent(academyId, studentId),
   };
 }
 
