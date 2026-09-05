@@ -1623,8 +1623,12 @@ const recoveryItems = [
     "pendiente",
     "Cerrar progreso propio/familiar y reportes sin fallback sintetico.",
     "T039,T040,T041,T042,T047,T048,T049,T050,T051,T052,T093",
-    statusEvidence.pending,
-    ["tasks.md"],
+    "2026-09-05: la pagina de progreso de la cuenta ya no muestra competidores ni tecnicas sinteticas y conecta el progreso propio real (getStudentProgressSummary), sin comparacion hasta que exista el opt-in de adultos. Condicion de entrada detectada: ningun escritor crea la cabecera studentLevelProgress, asi que todo alumno queda uninitialized, no hay candidatos a reconocimiento y approvePromotion no puede operar; requiere decidir la apertura del nivel inicial por el head coach.",
+    [
+      "tasks.md",
+      "apps/web/src/app/account/progress/own-progress.tsx",
+      "apps/functions/src/levels/level-service.ts",
+    ],
     "mvp",
   ),
   task(
@@ -1858,6 +1862,7 @@ const projectData = {
     T094: "2026-09-05",
     T095: "2026-09-05",
     T096: "2026-09-05",
+    T097: "2026-09-05",
     T100: "2026-09-03",
     T101: "2026-09-04",
     T102: "2026-09-04",

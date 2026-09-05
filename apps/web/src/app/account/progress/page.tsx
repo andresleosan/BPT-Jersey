@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
+import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
 import { LevelsBrowser } from "../../levels/levels-browser";
-import { PeerComparisonWidget } from "./peer-comparison";
+import { OwnProgressPanel } from "./own-progress";
 
 function ProgressContent() {
-  const { session } = useClientSession();
-
   return (
     <main className="client-destination" aria-labelledby="progress-title">
       <p className="account-eyebrow">
@@ -19,9 +17,9 @@ function ProgressContent() {
         technical requirements.
       </p>
 
-      {/* Peer Comparison / Competitors Section */}
+      {/* Connected own progress; no synthetic peers, no minor comparison. */}
       <div style={{ marginBottom: "2rem" }}>
-        <PeerComparisonWidget currentStudentId={session?.uid ?? "current-user"} />
+        <OwnProgressPanel />
       </div>
 
       <LevelsBrowser roleContext="client" />

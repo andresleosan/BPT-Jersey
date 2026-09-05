@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LevelCatalogProjection } from "@bpt-jersey/domain/levels";
@@ -48,6 +48,7 @@ const mockProjection: LevelCatalogProjection = {
 
 const levelsApi = vi.hoisted(() => ({
   getLevelCatalog: vi.fn(),
+  getStudentProgressSummary: vi.fn(),
 }));
 
 vi.mock("../../../lib/levels-client", () => levelsApi);
@@ -71,6 +72,11 @@ describe("Account Progress Page", () => {
 
   it("renders progression header and levels browser for client", async () => {
     levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+    levelsApi.getStudentProgressSummary.mockResolvedValue({
+      state: "uninitialized",
+      studentId: "student-1",
+      calculatedAt: "2026-09-05T00:00:00.000Z",
+    });
 
     render(<AccountProgressPage />);
 
@@ -80,26 +86,53 @@ describe("Account Progress Page", () => {
     expect(await screen.findByRole("heading", { name: "JIU-JITSU - IBJJF" })).toBeDefined();
   });
 
-  it("renders peer progression widget with peers above and below", async () => {
+  it("shows the connected own progress and never a synthetic peer cohort", async () => {
     levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+    levelsApi.getStudentProgressSummary.mockResolvedValue({
+      state: "initialized",
+      studentId: "student-1",
+      currentDefinition: mockProjection.definitions[0],
+      targetDefinition: { ...mockProjection.definitions[0], name: "WHITE BELT 1 STRIPE" },
+      skillChecklist: [],
+      criteria: {
+        classes: { required: 10, completed: 4, met: false },
+        time: { requiredDays: 90, elapsedDays: 12, met: false },
+        skills: { total: 3, completed: 1, met: false },
+      },
+      totalAttendedClasses: 4,
+      totalHours: 6,
+      currentLevelStartedAt: "2026-08-01T00:00:00.000Z",
+      calculatedAt: "2026-09-05T00:00:00.000Z",
+    });
 
     render(<AccountProgressPage />);
 
-    // Peer comparison section
-    expect(
-      screen.getByRole("heading", { name: /Peer Progression & Competitors/ }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your progress" })).toBeInTheDocument();
+    expect(levelsApi.getStudentProgressSummary).toHaveBeenCalledWith();
+    const stats = within(await screen.findByTestId("own-progress-stats"));
+    expect(stats.getByText("WHITE BELT")).toBeInTheDocument();
+    expect(stats.getByText("WHITE BELT 1 STRIPE")).toBeInTheDocument();
+    expect(stats.getByText("4 / 10 towards the next level")).toBeInTheDocument();
+    expect(stats.getByText("6 h")).toBeInTheDocument();
+    expect(stats.getByText("1 / 3")).toBeInTheDocument();
+    expect(screen.queryByText(/Competitors/u)).toBeNull();
+    expect(screen.queryByText("Lucas Silva")).toBeNull();
+    expect(screen.queryByText("Curriculum Technique Comparison")).toBeNull();
+  });
 
-    // Verify peers are displayed
-    expect(screen.getByText("Lucas Silva")).toBeInTheDocument();
-    expect(screen.getByText("Mateo Rossi")).toBeInTheDocument();
-    expect(screen.getByText("Chloe Martin")).toBeInTheDocument();
-    expect(screen.getByText("David De La Haye")).toBeInTheDocument();
+  it("explains an unopened level record without inventing data", async () => {
+    levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+    levelsApi.getStudentProgressSummary.mockResolvedValue({
+      state: "uninitialized",
+      studentId: "student-1",
+      calculatedAt: "2026-09-05T00:00:00.000Z",
+    });
 
-    // Verify technique comparison is present
+    render(<AccountProgressPage />);
+
     expect(
-      screen.getByRole("heading", { name: "Curriculum Technique Comparison" }),
+      await screen.findByText(/Your level record has not been opened yet/u),
     ).toBeInTheDocument();
-    expect(screen.getByText("Closed Guard Fundamentals")).toBeInTheDocument();
+    expect(screen.queryByTestId("own-progress-stats")).toBeNull();
   });
 });
