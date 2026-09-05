@@ -4140,3 +4140,25 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pasÃ
 - Resultado: tras el login, `/admin/members/search` mostro `Academy member directory (249 records)` con contadores Total 249 / Active 109 / Inactive 140 / With member number 146 / No number 103 en 8,1 s; `listRegyfitMemberRecords` respondio 200; en `/admin/overview`, `getDailyOperationsDashboard` y `getOperationalReport` respondieron 200; 0 errores de consola. App Check queda operativo en produccion para las llamadas del navegador.
 - No verificado: la apertura de una ficha individual (el intento automatizado fue bloqueado por el clasificador del asistente por implicar capturar datos reales). El operador puede comprobarlo pulsando un numero de socio.
 - Limpieza: capturas de pantalla con datos reales y perfil del navegador con la sesion eliminados del scratchpad al terminar. T104 pasa a `revision`.
+
+### Pendiente al retomar (sesion 2026-09-04)
+
+Estado publicado en `origin/main` (historial reescrito el 2026-09-04; los hashes anteriores a `73cf92b` no cambian, el mapa antiguo -> nuevo esta en la evidencia de T107). Arbol limpio. El grafo `graphify-out/` se actualizo al final de la sesion.
+
+Decisiones y acciones que solo puede cerrar el operador:
+
+- [ ] T107: solicitar a GitHub Support la purga de los commits colgantes (`73cf92b`, `872c398` y descendientes antiguos siguen accesibles por SHA hasta su GC) y decidir la notificacion de la exposicion conforme a T011. Despues aprobar T107.
+- [ ] T104: pulsar un numero de socio en `bptjersey.pages.dev/admin/members/search` y confirmar que la ficha abre; despues aprobar T104. Sustituir los cinco secretos placeholder de Secret Manager antes de desplegar R2 o el directorio canonico a produccion.
+- [ ] Revisar y aprobar o devolver: T093 (corte del E2E autenticado), T106 paso 1 (datos del waiver en el alta).
+- [ ] T010 (proveedor de pagos) y T011 (politica legal): siguen bloqueando T035/T036/T061, T099, T058 y T106 paso 2.
+- [ ] Permisos: `.claude/settings.local.json` conserva `Bash(git push:*)` y `Bash(npx wrangler pages deployment delete:*)` anadidas hoy; retirarlas si no se quieren permanentes.
+- [ ] `apps/web/.env.local` apunta `NEXT_PUBLIC_FIREBASE_PROJECT_ID` al proyecto productivo con emuladores activados; revisar si debe ser `demo-bpt-jersey` para el desarrollo local.
+
+Trabajo tecnico que el asistente puede continuar sin decision humana:
+
+- [ ] T093: seguir la matriz RED de `docs/data/migrations/member-directory-v1.md` (import dry-run/forward/rollback y backup v3 ya tienen unitarias/integration; falta consolidar la evidencia por RED y decidir con el operador el corte final antes de T094-T097).
+- [ ] T098: `pnpm verify:mvp` vuelve a ser ejecutable (el archivo que rompia lint/typecheck ya no existe); correrlo completo y registrar la evidencia.
+- [ ] T106 paso 1 en UI de familias: los bloques `emergencyContact`/`postalAddress` existen en el alta de adultos; valorar anadirlos al flujo de menores (familias) en la misma linea.
+- [ ] Hallazgo menor: `apps/web/src/lib` esta ignorado por eslint por el patron `**/lib/**` en `eslint.config.mjs`.
+
+Recetas registradas hoy: E2E autenticado del directorio canonico (`docs/development/firebase-emulators.md`), seed/rollback de Levels con SDK del artefacto (evidencia T101), verificacion en produccion con navegador controlado y sesion del operador (evidencia T104).
