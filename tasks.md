@@ -4388,7 +4388,7 @@ Trabajo tecnico que el asistente puede continuar sin decision humana:
 
 ### Pendiente al retomar (cierre de sesion 2026-09-05)
 
-Sustituye al checklist anterior de esta misma fecha. Arbol limpio tras `93e60c8` (aprobaciones y decisiones), `2f0f4e6` (T097) y `b752d10` (T098). La cadena T094 -> T098 esta cerrada a nivel de callable en Emulator; el golden path completo corre con `qa/scripts/run-golden-path-e2e.mjs`.
+Sustituye al checklist anterior de esta misma fecha. Arbol limpio tras `93e60c8` (aprobaciones y decisiones), `2f0f4e6` (T097) y `b752d10` (T098). La cadena T094 -> T098 esta cerrada a nivel de callable en Emulator; el golden path completo corre con `qa/scripts/run-golden-path-e2e.mjs`. El grafo `graphify-out/` (ignorado por git, raiz `apps/`) se actualizo al cierre con extraccion AST: 4866 nodos, 10563 aristas, 193 comunidades, salud OK, 37 nodos nuevos (entre ellos `createPrivateStorageR2Client`, `createEmulatorR2Client`, `openStudentLevel`, `OpenLevelPanel`, `OwnProgressPanel`) y 8 retirados (`peer-comparison.tsx`); `packages/` y `qa/` no forman parte de ese grafo.
 
 Decisiones que solo puede cerrar el operador:
 
