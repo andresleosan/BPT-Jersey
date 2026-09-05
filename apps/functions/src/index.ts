@@ -68,6 +68,7 @@ export {
   listMedicalLeaves,
   listRecognitionCandidates,
   listStudentEvaluations,
+  openStudentLevel,
   recordEvaluation,
   recordMedicalLeave,
   rejectPromotion,

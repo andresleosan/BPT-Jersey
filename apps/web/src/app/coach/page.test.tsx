@@ -18,6 +18,10 @@ const mockStaffSession = {
 vi.mock("../../lib/staff-auth", () => ({
   useStaffSession: () => mockStaffSession,
 }));
+vi.mock("../../lib/levels-client", () => ({
+  getLevelCatalog: vi.fn(async () => ({ definitions: [] })),
+  openStudentLevel: vi.fn(),
+}));
 
 const mockTownSession: SessionRecord = {
   sessionId: "session-town-1",

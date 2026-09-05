@@ -10,6 +10,7 @@ import type {
 
 import { getSessionOperationalView, listSessions, recordCheckIn } from "../../lib/schedule-client";
 import { useStaffSession } from "../../lib/staff-auth";
+import { OpenLevelPanel } from "./open-level-panel";
 import "./coach.css";
 
 type PremisesChoice = LocationId; // "town" | "west"
@@ -417,6 +418,12 @@ export default function CoachDashboardPage() {
                     </tbody>
                   </table>
                 )}
+
+                {session?.role === "headCoach" && operationalView ? (
+                  <OpenLevelPanel
+                    studentIds={operationalView.roster.map((student) => student.studentId)}
+                  />
+                ) : null}
 
                 {/* Cash PAYG Registration & Clock-in */}
                 <div className="coach-payg-box">

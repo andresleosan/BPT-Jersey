@@ -509,4 +509,139 @@ describe("canonical Levels security boundary", () => {
       (store as { approvePromotion: ReturnType<typeof vi.fn> }).approvePromotion,
     ).toHaveBeenCalledWith(expect.objectContaining({ decidedByRole: "headCoach" }));
   });
+
+  it("opens a student level atomically with its audit and never a stripe or a second head", async () => {
+    const headCoachUser = {
+      userId: "head-user-1",
+      academyId: "academy-1",
+      accountType: "staff",
+      active: true,
+      status: "active",
+    };
+    const headCoachStaff = {
+      staffId: "staff-head-1",
+      academyId: "academy-1",
+      userId: "head-user-1",
+      role: "headCoach",
+      active: true,
+      status: "active",
+      schemaVersion: "1",
+      createdAt: timestamp,
+      createdBy: "owner-1",
+      updatedAt: timestamp,
+      updatedBy: "owner-1",
+    };
+    function fixture() {
+      const records = new Map<string, Record<string, unknown>>([
+        ["academies/academy-1/users/head-user-1", headCoachUser],
+        ["academies/academy-1/staff/staff-head-1", headCoachStaff],
+        ["academies/academy-1/students/student-opaque-1", student()],
+        [
+          "academies/academy-1/levelDefinitions/white-0",
+          { definitionKey: "white-0", academyId: "academy-1", systemId: "system-1", kind: "belt" },
+        ],
+        [
+          "academies/academy-1/levelDefinitions/white-1",
+          {
+            definitionKey: "white-1",
+            academyId: "academy-1",
+            systemId: "system-1",
+            kind: "stripe",
+          },
+        ],
+      ]);
+      const creates: { path: string; data: Record<string, unknown> }[] = [];
+      const reference = (path: string) => ({
+        id: path.split("/").at(-1) ?? "",
+        path,
+        get: async () => ({ exists: records.has(path), data: () => records.get(path) }),
+        set: async () => undefined,
+        delete: async () => undefined,
+      });
+      const firestore = {
+        doc: reference,
+        collection: vi.fn(() => ({ get: async () => ({ docs: [] }) })),
+        batch: vi.fn(() => {
+          throw new Error("level opening must use a transaction");
+        }),
+        runTransaction: async <T>(
+          update: (transaction: {
+            get: (ref: ReturnType<typeof reference>) => Promise<{
+              exists: boolean;
+              data: () => Record<string, unknown> | undefined;
+            }>;
+            create: (ref: ReturnType<typeof reference>, data: Record<string, unknown>) => void;
+            set: (ref: ReturnType<typeof reference>, data: Record<string, unknown>) => void;
+          }) => Promise<T>,
+        ) =>
+          update({
+            get: async (ref) => ({
+              exists: records.has(ref.path),
+              data: () => records.get(ref.path),
+            }),
+            create: (ref, data) => {
+              if (records.has(ref.path)) throw new Error("create collision");
+              creates.push({ path: ref.path, data });
+              records.set(ref.path, data);
+            },
+            set: (ref, data) => records.set(ref.path, data),
+          }),
+      };
+      return {
+        records,
+        creates,
+        store: createLevelCatalogStore({ firestore: firestore as never }),
+      };
+    }
+    const open = (definitionKey: string, notes = "Holds a white belt already.") => ({
+      academyId: "academy-1",
+      input: { studentId: "student-opaque-1", definitionKey, decisionNotes: notes },
+      openedBy: "head-user-1",
+      openedByStaffId: "staff-head-1",
+      openedByRole: "headCoach" as const,
+      openedAt: timestamp,
+    });
+
+    const first = fixture();
+    const head = await first.store.openStudentLevel(open("white-0"));
+    expect(head).toMatchObject({
+      studentId: "student-opaque-1",
+      systemId: "system-1",
+      currentDefinitionKey: "white-0",
+      currentLevelStartedAt: timestamp,
+      lastApprovedPromotionId: null,
+      state: "initialized",
+    });
+    expect(first.creates).toHaveLength(2);
+    expect(first.creates[0]).toMatchObject({
+      path: "academies/academy-1/studentLevelProgress/student-opaque-1",
+      data: {
+        state: "initialized",
+        currentDefinitionKey: "white-0",
+        openedByStaffId: "staff-head-1",
+      },
+    });
+    expect(first.creates[1]).toMatchObject({
+      path: expect.stringMatching(/^academies\/academy-1\/auditEvents\/audit-level-write-/u),
+      data: {
+        action: "level.opened",
+        targetRef: "academies/academy-1/studentLevelProgress/student-opaque-1",
+        purpose: "student-level-opening",
+      },
+    });
+    await expect(first.store.openStudentLevel(open("white-0"))).rejects.toMatchObject({
+      code: "conflict",
+    });
+
+    await expect(fixture().store.openStudentLevel(open("white-1"))).rejects.toMatchObject({
+      code: "conflict",
+    });
+    await expect(fixture().store.openStudentLevel(open("blue-0"))).rejects.toMatchObject({
+      code: "conflict",
+    });
+    await expect(
+      fixture().store.openStudentLevel({ ...open("white-0"), openedByStaffId: "staff-other" }),
+    ).rejects.toMatchObject({ code: "tenant" });
+    expect(fixture().creates).toHaveLength(0);
+  });
 });

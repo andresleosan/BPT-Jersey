@@ -190,6 +190,7 @@ describe("domain contracts", () => {
       "level.medical-leave.recorded",
       "level.promotion.approved",
       "level.promotion.rejected",
+      "level.opened",
       "member.import.confirmed",
       "member.detail.read",
       "member.identity.lookup",

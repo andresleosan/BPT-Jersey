@@ -1421,6 +1421,54 @@ export function parseApprovePromotionInput(
   );
 }
 
+/**
+ * Opens a student's level record at a belt chosen by the head coach. Stripes are never opened
+ * directly and nothing is granted automatically: the head coach states the belt the student holds.
+ */
+export type OpenStudentLevelInput = Readonly<{
+  studentId: string;
+  definitionKey: string;
+  decisionNotes: string;
+}>;
+
+export function parseOpenStudentLevelInput(
+  raw: unknown,
+): Result<OpenStudentLevelInput, readonly ValidationIssue[]> {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return err(Object.freeze([issue(["input"], "expected_object")]));
+  }
+  const record = raw as Record<string, unknown>;
+  const issues: ValidationIssue[] = [];
+  const allowed = new Set(["studentId", "definitionKey", "decisionNotes"]);
+  for (const key of Object.keys(record)) {
+    if (!allowed.has(key)) issues.push(issue(["input", key], "unexpected_field"));
+  }
+  const studentId = record["studentId"];
+  const definitionKey = record["definitionKey"];
+  const decisionNotes = record["decisionNotes"];
+  if (typeof studentId !== "string" || !safeIdPattern.test(studentId)) {
+    issues.push(issue(["input", "studentId"], "invalid_student_id"));
+  }
+  if (typeof definitionKey !== "string" || !safeIdPattern.test(definitionKey)) {
+    issues.push(issue(["input", "definitionKey"], "invalid_definition_key"));
+  }
+  if (
+    typeof decisionNotes !== "string" ||
+    decisionNotes.trim().length < 3 ||
+    decisionNotes.trim().length > 1000
+  ) {
+    issues.push(issue(["input", "decisionNotes"], "decision_notes_length_3_to_1000"));
+  }
+  if (issues.length > 0) return err(Object.freeze(issues));
+  return ok(
+    Object.freeze({
+      studentId: (studentId as string).trim(),
+      definitionKey: (definitionKey as string).trim(),
+      decisionNotes: (decisionNotes as string).trim(),
+    }),
+  );
+}
+
 export type RejectPromotionInput = Readonly<{
   studentId: string;
   targetDefinitionKey: string;

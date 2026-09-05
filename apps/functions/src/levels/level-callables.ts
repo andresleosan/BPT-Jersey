@@ -3,6 +3,7 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 
 import {
   parseApprovePromotionInput,
+  parseOpenStudentLevelInput,
   parseRecordEvaluationInput,
   parseRecordMedicalLeaveInput,
   parseRejectPromotionInput,
@@ -313,6 +314,36 @@ export function createApprovePromotionHandler(dependencies: HandlerDependencies)
   };
 }
 
+export function createOpenStudentLevelHandler(dependencies: HandlerDependencies) {
+  return async (request: CallableRequest<unknown>) => {
+    const actor = await dependencies.authorization.requireActor(request);
+    if (actor.role !== "headCoach" || actor.staffId === null) {
+      throw new HttpsError("permission-denied", "The current head coach is required");
+    }
+    const parsed = parseOpenStudentLevelInput(request.data);
+    if (!parsed.ok) invalidPayload();
+    try {
+      const head = await dependencies.store.openStudentLevel({
+        academyId: actor.academyId,
+        input: parsed.value,
+        openedBy: actor.userId,
+        openedByStaffId: actor.staffId,
+        openedByRole: "headCoach",
+      });
+      return {
+        head: {
+          studentId: head.studentId,
+          currentDefinitionKey: head.currentDefinitionKey,
+          currentLevelStartedAt: head.currentLevelStartedAt,
+          state: head.state,
+        },
+      };
+    } catch (error) {
+      return mapStoreError(error, "open student level");
+    }
+  };
+}
+
 export function createRejectPromotionHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<{ graduation: GraduationRecord }> => {
     const actor = await dependencies.authorization.requireActor(request);
@@ -412,6 +443,9 @@ export const listRecognitionCandidates = onCall(levelCallableOptions, (request) 
 );
 export const approvePromotion = onCall(levelCallableOptions, (request) =>
   createApprovePromotionHandler(dependencies())(request),
+);
+export const openStudentLevel = onCall(levelCallableOptions, (request) =>
+  createOpenStudentLevelHandler(dependencies())(request),
 );
 export const rejectPromotion = onCall(levelCallableOptions, (request) =>
   createRejectPromotionHandler(dependencies())(request),

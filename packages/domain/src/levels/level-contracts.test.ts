@@ -10,6 +10,7 @@ import {
   calculateAttendanceStreak,
   generateRecognitionCandidates,
   parseApprovePromotionInput,
+  parseOpenStudentLevelInput,
   parseLevelCatalogProjection,
   parseLevelCatalogSource,
   parseRecordEvaluationInput,
@@ -669,6 +670,37 @@ describe("Level Contracts", () => {
         students,
       });
       expect(result).toBeNull();
+    });
+  });
+
+  describe("parseOpenStudentLevelInput", () => {
+    it("accepts a closed belt opening payload and trims text", () => {
+      const result = parseOpenStudentLevelInput({
+        studentId: "student-1",
+        definitionKey: "white-0",
+        decisionNotes: "  Holds a white belt from a previous academy.  ",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toEqual({
+          studentId: "student-1",
+          definitionKey: "white-0",
+          decisionNotes: "Holds a white belt from a previous academy.",
+        });
+      }
+    });
+
+    it("rejects unknown fields, unsafe identifiers and short notes", () => {
+      for (const raw of [
+        null,
+        [],
+        { studentId: "student-1", definitionKey: "white-0", decisionNotes: "ok", state: "x" },
+        { studentId: "../x", definitionKey: "white-0", decisionNotes: "Valid notes" },
+        { studentId: "student-1", definitionKey: "", decisionNotes: "Valid notes" },
+        { studentId: "student-1", definitionKey: "white-0", decisionNotes: "no" },
+      ]) {
+        expect(parseOpenStudentLevelInput(raw).ok).toBe(false);
+      }
     });
   });
 });

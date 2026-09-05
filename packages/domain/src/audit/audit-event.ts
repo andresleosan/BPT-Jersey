@@ -18,6 +18,7 @@ export const auditActions = Object.freeze([
   "level.medical-leave.recorded",
   "level.promotion.approved",
   "level.promotion.rejected",
+  "level.opened",
   "member.import.confirmed",
   "member.detail.read",
   "member.identity.lookup",
@@ -114,6 +115,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "level.medical-leave.recorded"
           | "level.promotion.approved"
           | "level.promotion.rejected"
+          | "level.opened"
           | "membership.created"
           | "membership.status.changed"
           | "staff.created"
@@ -228,6 +230,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "level.medical-leave.recorded": commonFields,
   "level.promotion.approved": commonFields,
   "level.promotion.rejected": commonFields,
+  "level.opened": commonFields,
   "member.detail.read": restrictedMemberReadFields,
   "member.identity.lookup": restrictedMemberReadFields,
   "membership.created": commonFields,
@@ -566,20 +569,25 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       parsedAction === "level.assessment.recorded" ||
       parsedAction === "level.medical-leave.recorded" ||
       parsedAction === "level.promotion.approved" ||
-      parsedAction === "level.promotion.rejected"
+      parsedAction === "level.promotion.rejected" ||
+      parsedAction === "level.opened"
     ) {
       const targetCollection =
         parsedAction === "level.assessment.recorded"
           ? "assessments"
           : parsedAction === "level.medical-leave.recorded"
             ? "medicalLeaves"
-            : "levelPromotions";
+            : parsedAction === "level.opened"
+              ? "studentLevelProgress"
+              : "levelPromotions";
       const expectedPurpose =
         parsedAction === "level.assessment.recorded"
           ? "student-development-assessment"
           : parsedAction === "level.medical-leave.recorded"
             ? "student-medical-leave"
-            : "student-level-promotion";
+            : parsedAction === "level.opened"
+              ? "student-level-opening"
+              : "student-level-promotion";
       const expectedTargetPrefix = `academies/${snapshot.academyId as string}/${targetCollection}/`;
       const targetId =
         typeof snapshot.targetRef === "string" &&

@@ -276,4 +276,74 @@ describe("Level Service & Store", () => {
       expect(allGrads).toHaveLength(2);
     });
   });
+
+  describe("Student level opening (T097)", () => {
+    it("opens a belt once per student and refuses stripes and unknown definitions", async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId: "demo-academy", normalized });
+      const catalog = await store.listPublished("demo-academy");
+      const belts = [...catalog.definitions]
+        .filter((definition) => definition.kind === "belt")
+        .sort((left, right) => left.sequence - right.sequence);
+      const stripe = catalog.definitions.find((definition) => definition.kind === "stripe");
+      const belt = belts[0]!;
+
+      const head = await store.openStudentLevel({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          definitionKey: belt.definitionKey,
+          decisionNotes: "Opened.",
+        },
+        openedBy: "headcoach-1",
+        openedByStaffId: "staff-head-1",
+        openedByRole: "headCoach",
+        openedAt: "2026-09-05T10:00:00.000Z",
+      });
+      expect(head).toMatchObject({
+        studentId: "student-1",
+        currentDefinitionKey: belt.definitionKey,
+        systemId: belt.systemId,
+        currentLevelStartedAt: "2026-09-05T10:00:00.000Z",
+        lastApprovedPromotionId: null,
+        state: "initialized",
+      });
+
+      await expect(
+        store.openStudentLevel({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-1",
+            definitionKey: belt.definitionKey,
+            decisionNotes: "Twice.",
+          },
+          openedBy: "headcoach-1",
+          openedByStaffId: "staff-head-1",
+          openedByRole: "headCoach",
+        }),
+      ).rejects.toMatchObject({ code: "conflict" });
+      await expect(
+        store.openStudentLevel({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-2",
+            definitionKey: stripe!.definitionKey,
+            decisionNotes: "Stripes are earned.",
+          },
+          openedBy: "headcoach-1",
+          openedByStaffId: "staff-head-1",
+          openedByRole: "headCoach",
+        }),
+      ).rejects.toMatchObject({ code: "conflict" });
+      await expect(
+        store.openStudentLevel({
+          academyId: "demo-academy",
+          input: { studentId: "student-3", definitionKey: "unknown-belt", decisionNotes: "Nope." },
+          openedBy: "headcoach-1",
+          openedByStaffId: "staff-head-1",
+          openedByRole: "headCoach",
+        }),
+      ).rejects.toMatchObject({ code: "conflict" });
+    });
+  });
 });

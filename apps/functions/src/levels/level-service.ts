@@ -7,6 +7,7 @@ import {
   buildUninitializedStudentProgressSummary,
   generateRecognitionCandidates,
   type ApprovePromotionInput,
+  type OpenStudentLevelInput,
   type EvaluationRecord,
   type GraduationRecord,
   type LevelCatalogProjection,
@@ -129,6 +130,32 @@ export type LevelCatalogStore = Readonly<{
     decidedAt?: string;
   }) => Promise<GraduationRecord>;
   listGraduations: (academyId: string, studentId?: string) => Promise<readonly GraduationRecord[]>;
+  openStudentLevel: (params: {
+    academyId: string;
+    input: OpenStudentLevelInput;
+    openedBy: string;
+    openedByStaffId: string;
+    openedByRole: "headCoach";
+    openedAt?: string;
+  }) => Promise<StudentLevelHead>;
+}>;
+
+/** The canonical progress head a head coach opens; promotions move `currentDefinitionKey`. */
+export type StudentLevelHead = Readonly<{
+  academyId: string;
+  studentId: string;
+  systemId: string;
+  currentDefinitionKey: string;
+  currentLevelStartedAt: string;
+  lastApprovedPromotionId: string | null;
+  openedByStaffId: string;
+  openingNotes: string;
+  state: "initialized";
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
 }>;
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
@@ -348,10 +375,15 @@ function levelAuditDraft(
       | "level.assessment.recorded"
       | "level.medical-leave.recorded"
       | "level.promotion.approved"
-      | "level.promotion.rejected";
-    targetCollection: "assessments" | "medicalLeaves" | "levelPromotions";
+      | "level.promotion.rejected"
+      | "level.opened";
+    targetCollection: "assessments" | "medicalLeaves" | "levelPromotions" | "studentLevelProgress";
     targetId: string;
-    purpose: "student-development-assessment" | "student-medical-leave" | "student-level-promotion";
+    purpose:
+      | "student-development-assessment"
+      | "student-medical-leave"
+      | "student-level-promotion"
+      | "student-level-opening";
   }>,
 ): AuditEventDraft {
   const parsed = parseAuditEventDraft({
@@ -1323,6 +1355,88 @@ export function createLevelCatalogStore({
       });
     },
 
+    async openStudentLevel(params): Promise<StudentLevelHead> {
+      const { academyId, input, openedBy, openedByStaffId, openedByRole } = params;
+      assertValidAcademyId(academyId);
+      if (openedByRole !== "headCoach") {
+        throw new LevelStoreError("tenant", "Level opening role is invalid");
+      }
+      const now = params.openedAt ?? new Date().toISOString();
+      const headRef = firestore.doc(
+        `academies/${academyId}/studentLevelProgress/${input.studentId}`,
+      );
+      const audit = levelAuditDraft({
+        academyId,
+        actorId: openedBy,
+        action: "level.opened",
+        targetCollection: "studentLevelProgress",
+        targetId: input.studentId,
+        purpose: "student-level-opening",
+      });
+      const auditRef = firestore.doc(`academies/${academyId}/auditEvents/${auditEventId(audit)}`);
+      return firestore.runTransaction(async (transaction) => {
+        await assertTransactionalActor(transaction, firestore, {
+          academyId,
+          actorId: openedBy,
+          actorRole: "headCoach",
+          actorStaffId: openedByStaffId,
+        });
+        const student = storedStudent(
+          await transaction.get(
+            firestore.doc(`academies/${academyId}/students/${input.studentId}`),
+          ),
+          academyId,
+          input.studentId,
+        );
+        assertActiveStudent(student);
+        const [head, definition, existingAudit] = await Promise.all([
+          transaction.get(headRef),
+          transaction.get(
+            firestore.doc(`academies/${academyId}/levelDefinitions/${input.definitionKey}`),
+          ),
+          transaction.get(auditRef),
+        ]);
+        if (head.exists) {
+          throw new LevelStoreError("conflict", "Student level is already open");
+        }
+        const definitionData = definition.data();
+        if (
+          !definition.exists ||
+          definitionData?.academyId !== academyId ||
+          definitionData.definitionKey !== input.definitionKey ||
+          typeof definitionData.systemId !== "string"
+        ) {
+          throw new LevelStoreError("conflict", "Level definition is not current");
+        }
+        // Only belts open a record: stripes are earned through approved promotions.
+        if (definitionData.kind !== "belt") {
+          throw new LevelStoreError("conflict", "Only a belt can open a student level");
+        }
+        if (existingAudit.exists) {
+          throw new LevelStoreError("conflict", "Level opening evidence already exists");
+        }
+        const record: StudentLevelHead = Object.freeze({
+          academyId,
+          studentId: input.studentId,
+          systemId: definitionData.systemId,
+          currentDefinitionKey: input.definitionKey,
+          currentLevelStartedAt: now,
+          lastApprovedPromotionId: null,
+          openedByStaffId,
+          openingNotes: input.decisionNotes,
+          state: "initialized",
+          schemaVersion: "1",
+          createdAt: now,
+          createdBy: openedBy,
+          updatedAt: now,
+          updatedBy: openedBy,
+        });
+        transaction.create(headRef, { ...record });
+        appendAuditEventInTransaction(transaction, auditRef, audit);
+        return record;
+      });
+    },
+
     async rejectPromotion(params): Promise<GraduationRecord> {
       const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
       assertValidAcademyId(academyId);
@@ -1452,6 +1566,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
   const evaluations = new Map<string, EvaluationRecord>();
   const medicalLeaves = new Map<string, MedicalLeaveRecord>();
   const graduations = new Map<string, GraduationRecord>();
+  const heads = new Map<string, StudentLevelHead>();
 
   return {
     async listPublished(academyId: string): Promise<LevelCatalogProjection> {
@@ -1903,6 +2018,46 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       });
 
       graduations.set(`${academyId}_${input.studentId}_${graduationId}`, record);
+      return record;
+    },
+
+    async openStudentLevel(params): Promise<StudentLevelHead> {
+      const { academyId, input, openedBy, openedByStaffId, openedByRole } = params;
+      assertValidAcademyId(academyId);
+      if (openedByRole !== "headCoach") {
+        throw new LevelStoreError("tenant", "Level opening role is invalid");
+      }
+      const key = `${academyId}_${input.studentId}`;
+      if (heads.has(key)) throw new LevelStoreError("conflict", "Student level is already open");
+      const definition = Array.from(definitions.values()).find(
+        (candidate) =>
+          candidate["academyId"] === academyId &&
+          candidate["definitionKey"] === input.definitionKey,
+      );
+      if (definition === undefined) {
+        throw new LevelStoreError("conflict", "Level definition is not current");
+      }
+      if (definition["kind"] !== "belt") {
+        throw new LevelStoreError("conflict", "Only a belt can open a student level");
+      }
+      const now = params.openedAt ?? new Date().toISOString();
+      const record: StudentLevelHead = Object.freeze({
+        academyId,
+        studentId: input.studentId,
+        systemId: String(definition["systemId"]),
+        currentDefinitionKey: input.definitionKey,
+        currentLevelStartedAt: now,
+        lastApprovedPromotionId: null,
+        openedByStaffId,
+        openingNotes: input.decisionNotes,
+        state: "initialized",
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: openedBy,
+        updatedAt: now,
+        updatedBy: openedBy,
+      });
+      heads.set(key, record);
       return record;
     },
 

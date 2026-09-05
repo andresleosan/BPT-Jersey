@@ -272,6 +272,10 @@ export function AddMemberPage() {
           This route is for adults aged 18 or over. For a child, use the family flow so the tutor
           relationship is created with the student.
         </p>
+        <p>
+          An adult can only receive a membership or an invoice once they have signed in and linked
+          their own account; staff-created records without an account stay directory-only.
+        </p>
         <Link href="/admin/families">Create a family and minor student</Link>
       </header>
 

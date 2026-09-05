@@ -5,6 +5,7 @@ import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.
 import {
   parseApprovePromotionInput,
   parseLevelCatalogProjection,
+  parseOpenStudentLevelInput,
   parseLevelCatalogSource,
   parseRecordEvaluationInput,
   parseRecordMedicalLeaveInput,
@@ -14,6 +15,7 @@ import {
   type GraduationRecord,
   type LevelCatalogProjection,
   type MedicalLeaveRecord,
+  type OpenStudentLevelInput,
   type ProgressReport,
   type RecognitionCandidate,
   type RecordEvaluationInput,
@@ -32,6 +34,7 @@ const safeListMedicalLeavesError = "Unable to load medical leaves. Please try ag
 const safeListCandidatesError = "Unable to load recognition candidates. Please try again.";
 const safeApprovePromotionError = "Unable to approve promotion. Please try again.";
 const safeRejectPromotionError = "Unable to reject promotion. Please try again.";
+const safeOpenLevelError = "Unable to open the student level. Please try again.";
 const safeListGraduationsError = "Unable to load graduation history. Please try again.";
 const safeProgressReportError = "Unable to load progress report. Please try again.";
 
@@ -334,6 +337,37 @@ export async function approvePromotion(
       throw error;
     }
     throw new Error(safeApprovePromotionError);
+  }
+}
+
+export type OpenedStudentLevel = Readonly<{
+  studentId: string;
+  currentDefinitionKey: string;
+  currentLevelStartedAt: string;
+  state: "initialized";
+}>;
+
+/** Head coach only: opens a student's level record at the belt they hold. */
+export async function openStudentLevel(input: OpenStudentLevelInput): Promise<OpenedStudentLevel> {
+  const parsed = parseOpenStudentLevelInput(input);
+  if (!parsed.ok) throw new Error(safeOpenLevelError);
+  const callable = httpsCallable<OpenStudentLevelInput, { head: OpenedStudentLevel }>(
+    getFirebaseFunctions(),
+    "openStudentLevel",
+  );
+  try {
+    const response = await callable(parsed.value);
+    const head = response.data.head;
+    if (
+      head.studentId !== parsed.value.studentId ||
+      head.currentDefinitionKey !== parsed.value.definitionKey ||
+      head.state !== "initialized"
+    ) {
+      throw new Error(safeOpenLevelError);
+    }
+    return head;
+  } catch {
+    throw new Error(safeOpenLevelError);
   }
 }
 

@@ -13,6 +13,7 @@ import {
   createListMedicalLeavesHandler,
   createListRecognitionCandidatesHandler,
   createListStudentEvaluationsHandler,
+  createOpenStudentLevelHandler,
   createRecordEvaluationHandler,
   createRecordMedicalLeaveHandler,
   createRejectPromotionHandler,
@@ -443,6 +444,72 @@ describe("Level Callables", () => {
           ),
         ),
       ).rejects.toThrow(/current head coach is required/);
+    });
+  });
+
+  describe("openStudentLevel", () => {
+    async function firstBeltKey(store: ReturnType<typeof createTestStore>): Promise<string> {
+      const catalog = await store.listPublished("demo-academy");
+      const belt = [...catalog.definitions]
+        .filter((definition) => definition.kind === "belt")
+        .sort((left, right) => left.sequence - right.sequence)[0];
+      if (!belt) throw new Error("catalog has no belt");
+      return belt.definitionKey;
+    }
+
+    it("lets the current head coach open a belt once and closes the payload", async () => {
+      const store = createTestStore();
+      const handler = createOpenStudentLevelHandler({ store, authorization });
+      const definitionKey = await firstBeltKey(store);
+      const payload = {
+        studentId: "student-1",
+        definitionKey,
+        decisionNotes: "Starts as a white belt after the trial classes.",
+      };
+
+      const opened = await handler(
+        fakeRequest(payload, "headCoach", "headcoach-1", "demo-academy"),
+      );
+      expect(opened.head).toEqual({
+        studentId: "student-1",
+        currentDefinitionKey: definitionKey,
+        currentLevelStartedAt: expect.any(String),
+        state: "initialized",
+      });
+      expect(JSON.stringify(opened)).not.toMatch(/staff-1|headcoach-1|openingNotes/u);
+
+      await expect(
+        handler(fakeRequest(payload, "headCoach", "headcoach-1", "demo-academy")),
+      ).rejects.toMatchObject({ code: "failed-precondition" });
+      await expect(
+        handler(
+          fakeRequest(
+            { ...payload, state: "initialized" },
+            "headCoach",
+            "headcoach-1",
+            "demo-academy",
+          ),
+        ),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+    });
+
+    it("denies coaches, administrators and students", async () => {
+      const store = createTestStore();
+      const handler = createOpenStudentLevelHandler({ store, authorization });
+      const payload = {
+        studentId: "student-1",
+        definitionKey: await firstBeltKey(store),
+        decisionNotes: "Not allowed for this role.",
+      };
+      for (const [role, uid] of [
+        ["coach", "coach-1"],
+        ["owner", "owner-1"],
+        ["adultStudent", "student-1"],
+      ] as const) {
+        await expect(handler(fakeRequest(payload, role, uid, "demo-academy"))).rejects.toThrow(
+          /current head coach is required/u,
+        );
+      }
     });
   });
 });

@@ -119,3 +119,22 @@ T096_ADULT_EMAIL=t096-adult@example.test T096_E2E_PASSWORD=<12+ chars> \
 npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions \
   "node qa/scripts/run-schedule-e2e.mjs"
 ```
+
+## Authenticated callable E2E for progress and promotions (T097)
+
+`qa/tests/progress-auth-emulator.spec.ts` seeds a head coach (`qa/scripts/seed-staff-emulator.mjs`:
+Auth user, `headCoach` claims, staff `users/{uid}` document and `staff/{staffId}` profile) and the
+canonical Levels catalog (`apps/functions/scripts/seed-levels.mjs --target=emulator`), then drives
+`listLevelCatalog`, the onboarding prerequisites, `openStudentLevel` (head coach only, once, belts
+only), a head-coach session with booking and manual check-in, `getStudentProgressSummary` for the
+adult and staff, `recordEvaluation`, `listRecognitionCandidates`, `approvePromotion` to the next
+definition, `getProgressReport` and the App Check, session, payload and Rules negatives.
+
+```bash
+BPT_SYNTHETIC_PILOT=true T097_PROGRESS_EMULATOR_E2E=true GCLOUD_PROJECT=demo-bpt-jersey \
+T097_E2E_ACADEMY_ID=t097-e2e-academy T097_OWNER_EMAIL=t097-owner@example.test \
+T097_HEAD_COACH_EMAIL=t097-headcoach@example.test T097_ADULT_EMAIL=t097-adult@example.test \
+T097_E2E_PASSWORD=<12+ chars> \
+npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions \
+  "node qa/scripts/run-progress-e2e.mjs"
+```
