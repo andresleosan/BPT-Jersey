@@ -165,17 +165,18 @@ npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,func
   "node qa/scripts/run-progress-e2e.mjs"
 ```
 
-## Golden path: the four suites in one emulator run (T098)
+## Golden path: the five suites in one emulator run (T098)
 
 `qa/scripts/run-golden-path-e2e.mjs` seeds one synthetic academy once (owner, head coach with
-staff profile, two guardians, four adults, empty canonical directory, Levels catalog) and runs the
-T094, T095, T096 and T097 suites in sequence with one worker: adult and guardian onboarding with
-waiver evidence, plan, membership, manual invoice and payment, program, sessions, booking, quorum,
-check-in, attendance correction, cancellations, level opening, evaluation, recognition candidates,
-promotion, family progress and progress report. Each suite gets its own adult because a student can
-hold only one current membership, and the progress suite gets its own guardian because a tutor
-holds one family.
+staff profile, two guardians, five adults, empty canonical directory, Levels catalog) and runs the
+T094, T095, T096, T111 and T097 suites in sequence with one worker: adult and guardian onboarding
+with waiver evidence, plan, membership, manual invoice and payment, program, sessions, booking,
+quorum, check-in with the proximity signal, attendance correction, cancellations, the quorum sweep,
+the Town no-show penalty proposed and resolved by office, level opening, evaluation, recognition
+candidates, promotion, family progress and progress report. Each suite gets its own adult because a
+student can hold only one current membership, and the progress suite gets its own guardian because
+a tutor holds one family.
 
 ```bash
-BPT_SYNTHETIC_PILOT=true GOLDEN_PATH_EMULATOR_E2E=true GCLOUD_PROJECT=demo-bpt-jersey GOLDEN_PATH_ACADEMY_ID=golden-e2e-academy GOLDEN_PATH_PASSWORD=<12+ chars> GOLDEN_PATH_OWNER_EMAIL=golden-owner@example.test GOLDEN_PATH_HEAD_COACH_EMAIL=golden-headcoach@example.test GOLDEN_PATH_GUARDIAN_EMAIL=golden-guardian@example.test GOLDEN_PATH_GUARDIAN_PROGRESS_EMAIL=golden-guardian-progress@example.test GOLDEN_PATH_ADULT_ONBOARDING_EMAIL=golden-adult-onboarding@example.test GOLDEN_PATH_ADULT_BILLING_EMAIL=golden-adult-billing@example.test GOLDEN_PATH_ADULT_SCHEDULE_EMAIL=golden-adult-schedule@example.test GOLDEN_PATH_ADULT_PROGRESS_EMAIL=golden-adult-progress@example.test npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions   "node qa/scripts/run-golden-path-e2e.mjs"
+BPT_SYNTHETIC_PILOT=true GOLDEN_PATH_EMULATOR_E2E=true GCLOUD_PROJECT=demo-bpt-jersey GOLDEN_PATH_ACADEMY_ID=golden-e2e-academy GOLDEN_PATH_PASSWORD=<12+ chars> GOLDEN_PATH_OWNER_EMAIL=golden-owner@example.test GOLDEN_PATH_HEAD_COACH_EMAIL=golden-headcoach@example.test GOLDEN_PATH_GUARDIAN_EMAIL=golden-guardian@example.test GOLDEN_PATH_GUARDIAN_PROGRESS_EMAIL=golden-guardian-progress@example.test GOLDEN_PATH_ADULT_ONBOARDING_EMAIL=golden-adult-onboarding@example.test GOLDEN_PATH_ADULT_BILLING_EMAIL=golden-adult-billing@example.test GOLDEN_PATH_ADULT_SCHEDULE_EMAIL=golden-adult-schedule@example.test GOLDEN_PATH_ADULT_PENALTY_EMAIL=golden-adult-penalty@example.test GOLDEN_PATH_ADULT_PROGRESS_EMAIL=golden-adult-progress@example.test npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions   "node qa/scripts/run-golden-path-e2e.mjs"
 ```

@@ -1,10 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
-// T098 golden path: the four authenticated callable-level suites (T094 onboarding, T095 manual
-// billing, T096 class operations, T097 progress) chained in ONE emulator run over ONE synthetic
-// academy: family/adult -> waiver -> membership -> class -> booking -> attendance -> invoice and
-// payment -> progress -> report. Run inside `firebase emulators:exec --only auth,firestore,functions`.
+// T098 golden path: the authenticated callable-level suites (T094 onboarding, T095 manual
+// billing, T096 class operations with T109/T110, T111 no-show penalty, T097 progress) chained in
+// ONE emulator run over ONE synthetic academy: family/adult -> waiver -> membership -> class ->
+// booking -> attendance -> no-show penalty -> invoice and payment -> progress -> report.
+// Run inside `firebase emulators:exec --only auth,firestore,functions`.
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const projectId = "demo-bpt-jersey";
 
@@ -57,6 +58,7 @@ const adults = {
   onboarding: required("GOLDEN_PATH_ADULT_ONBOARDING_EMAIL"),
   billing: required("GOLDEN_PATH_ADULT_BILLING_EMAIL"),
   schedule: required("GOLDEN_PATH_ADULT_SCHEDULE_EMAIL"),
+  penalty: required("GOLDEN_PATH_ADULT_PENALTY_EMAIL"),
   progress: required("GOLDEN_PATH_ADULT_PROGRESS_EMAIL"),
 };
 for (const email of [
@@ -71,8 +73,8 @@ for (const email of [
 if (guardianEmail === progressGuardianEmail) {
   throw new Error("Golden path requires two distinct guardian users.");
 }
-if (new Set(Object.values(adults)).size !== 4) {
-  throw new Error("Golden path requires four distinct adult users.");
+if (new Set(Object.values(adults)).size !== 5) {
+  throw new Error("Golden path requires five distinct adult users.");
 }
 for (const name of [
   "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
@@ -127,13 +129,14 @@ run([
 ]);
 run(["apps/functions/scripts/seed-levels.mjs", "--target=emulator", `--academy-id=${academyId}`]);
 
-// The four suites in order, one worker, no retries, no static web server.
+// The five suites in order, one worker, no retries, no static web server.
 run(
   [
     "qa/run-e2e.mjs",
     "tests/onboarding-auth-emulator.spec.ts",
     "tests/manual-billing-auth-emulator.spec.ts",
     "tests/schedule-auth-emulator.spec.ts",
+    "tests/no-show-penalty-auth-emulator.spec.ts",
     "tests/progress-auth-emulator.spec.ts",
     "--project=desktop-chromium",
     "--workers=1",
@@ -161,6 +164,13 @@ run(
     T096_OWNER_EMAIL: ownerEmail,
     T096_ADULT_EMAIL: adults.schedule,
     T096_E2E_PASSWORD: password,
+    T111_NO_SHOW_PENALTY_EMULATOR_E2E: "true",
+    T111_E2E_ACADEMY_ID: academyId,
+    T111_FUNCTIONS_EMULATOR_PORT: functionsPort,
+    T111_OWNER_EMAIL: ownerEmail,
+    T111_HEAD_COACH_EMAIL: headCoachEmail,
+    T111_ADULT_EMAIL: adults.penalty,
+    T111_E2E_PASSWORD: password,
     T097_PROGRESS_EMULATOR_E2E: "true",
     T097_E2E_ACADEMY_ID: academyId,
     T097_FUNCTIONS_EMULATOR_PORT: functionsPort,

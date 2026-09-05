@@ -1887,10 +1887,10 @@ const recoveryItems = [
   task(
     "T111",
     "Penalizacion manual de 15 GBP por no-show de Town",
-    "en-progreso",
+    "revision",
     "Registrar el cargo por no-show y su resolucion por office con auditoria.",
     "T095,T096",
-    "Alta 2026-09-05 y backend, web y unitarias el mismo dia. Decision 2 del BRIEF implementada como propuesta, nunca cargo automatico: un no-show de Town crea una entrada de cola de GBP 15 con identificador determinista y auditoria penalty.no_show.proposed, y office la resuelve una sola vez cobrandola (enlazando la factura manual de T095) o eximiendola, siempre con motivo y auditoria penalty.no_show.resolved. Una baja medica activa nunca genera propuesta. Cola en /admin/billing, Rules cerradas y modelo de datos documentado. Falta el E2E autenticado en Emulator, por eso sigue en-progreso.",
+    "Alta 2026-09-05 y backend, web y unitarias el mismo dia. Decision 2 del BRIEF implementada como propuesta, nunca cargo automatico: un no-show de Town crea una entrada de cola de GBP 15 con identificador determinista y auditoria penalty.no_show.proposed, y office la resuelve una sola vez cobrandola (enlazando la factura manual de T095) o eximiendola, siempre con motivo y auditoria penalty.no_show.resolved. Una baja medica activa nunca genera propuesta. Cola en /admin/billing, Rules cerradas y modelo de datos documentado. E2E autenticado en Emulator cerrado el mismo dia con la suite nueva no-show-penalty-auth-emulator.spec.ts encadenada al golden path: ciclo completo (no-show, propuesta, cola, cobro con factura manual enlazada, exencion), negativos de rol, App Check, payloads y Rules. Golden path 12/12 en 1.9 min y verify:mvp verde con 1806 unitarias y 91 Rules. Pasa a revision.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1898,6 +1898,8 @@ const recoveryItems = [
       "apps/functions/src/penalties/no-show-penalty-service.ts",
       "apps/functions/src/penalties/no-show-penalty-callables.ts",
       "apps/web/src/app/admin/billing/no-show-penalty-queue.tsx",
+      "qa/tests/no-show-penalty-auth-emulator.spec.ts",
+      "qa/scripts/run-golden-path-e2e.mjs",
     ],
     "special",
   ),
