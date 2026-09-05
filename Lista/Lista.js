@@ -218,6 +218,12 @@ const RESOLUTION_REQUIREMENTS = {
     "Verificar que origin ya no contiene el blob y registrar la evidencia en tasks.md.",
     "Valorar la notificacion de la exposicion conforme a la politica de T011.",
   ],
+  T108: [
+    "Cerrar T099 y T011 para disponer de un proyecto aislado donde ensayar la migracion.",
+    "Implementar los ejecutores de bootstrap, forward, compensacion, rollback e identity-reconcile del runbook member-directory-v1.",
+    "Acunar y consumir aprobaciones con lease, deadline y handoff de source; sin dual-write silencioso.",
+    "Reabrir y poner en verde los 18 requisitos RED heredados de T093 con dry-run, cuarentena y rollback en Emulator.",
+  ],
   T104: [
     "Configurar NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY en Cloudflare Pages y relanzar el despliegue.",
     "Verificar en produccion que /admin/members/search carga los 249 registros y abre fichas.",
@@ -1551,10 +1557,10 @@ const recoveryItems = [
   task(
     "T093",
     "Conectar administracion de miembros con estudiantes y familias canonicos",
-    "en-progreso",
+    "aprobada",
     "Eliminar el silo funcional de members sin perder procedencia ni idempotencia.",
     "T092",
-    "Corte 2026-09-04 aprobado por el operador; continua en-progreso a la espera de revision. E2E autenticado en Emulator a nivel de callable 2/2. Matriz RED consolidada: los 45 requisitos mapeados a pruebas exactas, 25 covered, 9 partial y 11 out-of-cut; sin huecos accionables en el camino implementado. Se cerraron R09 (frontera de exports), R15 (2.000 peticiones over-limit), R28 (carrera entre dos tipos de escritor), R40 (deriva entre I2 e I4) y R44, este ultimo un defecto real del attestation de backup v3 ya corregido. R30 y R43 quedan bloqueados por T099/T011.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Corte aceptado: directorio canonico inicializado vacio y alimentado solo por escritores administrativos auditados, sin migrar la coleccion legacy members. E2E autenticado en Emulator a nivel de callable 2/2. Matriz RED consolidada: 25 covered, 9 partial y 11 out-of-cut, sin huecos accionables en el camino implementado; R44 fue un defecto real del attestation de backup v3 ya corregido. Los 11 out-of-cut y los 7 partial de migracion pasan a T108; R30 y R43 quedan bloqueados por T099/T011.",
     [
       "tasks.md",
       "docs/data/migrations/member-directory-v1.md",
@@ -1752,6 +1758,21 @@ const recoveryItems = [
     ["tasks.md", ".gitignore", "apps/web/src/app/admin/real-members-data.ts"],
     "special",
   ),
+  task(
+    "T108",
+    "Migrar la coleccion legacy members al directorio canonico",
+    "pendiente",
+    "Ejecutar la migracion legacy diferida por el corte de T093 con aprobacion, chunks y rollback probados.",
+    "T093,T099",
+    "Alta 2026-09-05 al aprobar el corte de T093. Hereda los 11 requisitos out-of-cut (R06, R20-R22, R25, R26, R32-R34, R36, R45) y la clausula de migracion de los 7 partial (R07, R11, R12, R18, R23, R27, R31) de la matriz RED. Hoy no existe ningun ejecutor: no hay escritor de memberDirectoryMigrationChunks ni acunacion o consumo de aprobaciones. Bloqueada en la practica por T099 y T011; no forma parte del piloto sintetico.",
+    [
+      "tasks.md",
+      "docs/data/migrations/member-directory-v1.md",
+      "docs/data/migrations/member-directory-v1-red-evidence.md",
+      "docs/adr/ADR-009-students-canonical-member-directory.md",
+    ],
+    "special",
+  ),
 ];
 
 const projectData = {
@@ -1819,7 +1840,7 @@ const projectData = {
     T090: "2026-09-01",
     T091: "2026-09-01",
     T092: "2026-09-03",
-    T093: "2026-09-04",
+    T093: "2026-09-05",
     T100: "2026-09-03",
     T101: "2026-09-04",
     T102: "2026-09-04",
@@ -1828,8 +1849,9 @@ const projectData = {
     T105: "2026-09-04",
     T106: "2026-09-04",
     T107: "2026-09-04",
+    T108: "2026-09-05",
   },
-  cutoffDate: "2026-09-04",
+  cutoffDate: "2026-09-05",
   sourceLedger: "tasks.md",
   ledgerCutoffDate: "2026-09-04",
   sourceFiles: [

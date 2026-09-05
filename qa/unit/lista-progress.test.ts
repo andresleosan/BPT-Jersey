@@ -19,7 +19,6 @@ describe("Lista project progress", () => {
 
     expect(counts.revision).toBe(2);
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
-      expect.objectContaining({ id: "T093" }),
       expect.objectContaining({ id: "T106" }),
     ]);
     expect(countedItems).toBe(items.length);
