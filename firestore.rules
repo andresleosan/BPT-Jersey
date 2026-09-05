@@ -196,6 +196,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/noShowPenalties/{penaltyId} {
+      allow read, write: if false;
+    }
+
     match /memberDirectoryRestoreGuards/{academyId} {
       allow read, write: if false;
     }

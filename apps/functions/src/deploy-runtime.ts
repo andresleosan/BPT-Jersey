@@ -37,6 +37,7 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/reports": "../../domain/reports/operational-report.js",
   "@bpt-jersey/domain/exports": "../../domain/exports/aggregate-report-export.js",
   "@bpt-jersey/domain/shop": "../../domain/shop/shop-contracts.js",
+  "@bpt-jersey/domain/penalties": "../../domain/penalties/no-show-penalty-contracts.js",
 });
 
 // `pnpm deploy --prod` first synchronizes the source workspace in production mode.

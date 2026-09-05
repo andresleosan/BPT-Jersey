@@ -51,6 +51,8 @@ export const auditActions = Object.freeze([
   "attendance.corrected",
   "attendance.proximity_override",
   "session.quorum.cancelled",
+  "penalty.no_show.proposed",
+  "penalty.no_show.resolved",
   "student.checked_out",
   "location.geofence.saved",
   "notification.preference.updated",
@@ -139,6 +141,8 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "attendance.corrected"
           | "attendance.proximity_override"
           | "session.quorum.cancelled"
+          | "penalty.no_show.proposed"
+          | "penalty.no_show.resolved"
           | "student.checked_out"
           | "location.geofence.saved"
           | "notification.preference.updated"
@@ -263,6 +267,8 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "attendance.corrected": commonFields,
   "attendance.proximity_override": commonFields,
   "session.quorum.cancelled": commonFields,
+  "penalty.no_show.proposed": commonFields,
+  "penalty.no_show.resolved": commonFields,
   "student.checked_out": commonFields,
   "location.geofence.saved": commonFields,
   "notification.preference.updated": commonFields,

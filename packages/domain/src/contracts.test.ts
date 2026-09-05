@@ -223,6 +223,8 @@ describe("domain contracts", () => {
       "attendance.corrected",
       "attendance.proximity_override",
       "session.quorum.cancelled",
+      "penalty.no_show.proposed",
+      "penalty.no_show.resolved",
       "student.checked_out",
       "location.geofence.saved",
       "notification.preference.updated",

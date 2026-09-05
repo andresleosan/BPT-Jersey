@@ -108,6 +108,11 @@ export {
   updateClass,
 } from "./schedule/schedule-callables.js";
 export {
+  listNoShowPenalties,
+  proposeNoShowPenalties,
+  resolveNoShowPenalty,
+} from "./penalties/no-show-penalty-callables.js";
+export {
   acceptWaitlistOffer,
   cancelWaitlistEntry,
   declineWaitlistOffer,
