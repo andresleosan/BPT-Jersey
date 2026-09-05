@@ -12,7 +12,7 @@ import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { requireUserActor } from "../auth/user-authorization.js";
-import { createR2ClientFromEnvironment, type R2Client } from "../storage/r2-client.js";
+import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import {
   createConsentStore,
   ConsentStoreError,
@@ -213,30 +213,7 @@ export async function getWaiverEvidenceDownloadHandler(
   }
 }
 
-const disabledR2: R2Client = {
-  createPdfUploadUrl: async () => {
-    throw new Error("R2 disabled");
-  },
-  createPdfDownloadUrl: async () => {
-    throw new Error("R2 disabled");
-  },
-  putObject: async () => {
-    throw new Error("R2 disabled");
-  },
-  readObject: async () => {
-    throw new Error("R2 disabled");
-  },
-  deleteObject: async () => {
-    throw new Error("R2 disabled");
-  },
-};
 function callableServices(): ConsentCallableServices {
-  const hasR2 = Boolean(
-    process.env.R2_ACCOUNT_ID &&
-    process.env.R2_BUCKET_NAME &&
-    process.env.R2_ACCESS_KEY_ID &&
-    process.env.R2_SECRET_ACCESS_KEY,
-  );
   const firestore = getFirestore() as unknown as Parameters<
     typeof createConsentStore
   >[0]["firestore"];
@@ -244,7 +221,7 @@ function callableServices(): ConsentCallableServices {
     pilotEnabled: process.env.BPT_SYNTHETIC_PILOT === "true",
     store: createConsentStore({
       firestore,
-      r2: hasR2 ? createR2ClientFromEnvironment() : disabledR2,
+      r2: createPrivateStorageR2Client(),
       createEvidencePdf: createWaiverEvidencePdf,
       appendAudit: (transaction, reference, draft) =>
         appendAuditEventInTransaction(transaction, reference, draft as AuditEventDraft),

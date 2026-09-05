@@ -6,7 +6,7 @@ import {
   type PrivateDocumentUploadInput,
 } from "@bpt-jersey/domain/documents";
 import { requireUserActor } from "../auth/user-authorization.js";
-import { createR2ClientFromEnvironment, type R2Client } from "../storage/r2-client.js";
+import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import {
   createDocumentStore,
   DocumentStoreError,
@@ -183,38 +183,15 @@ export async function revokePrivateWaiverHandler(
     return mapError(error, "write");
   }
 }
-const disabledR2: R2Client = {
-  createPdfUploadUrl: async () => {
-    throw new Error("R2 disabled");
-  },
-  createPdfDownloadUrl: async () => {
-    throw new Error("R2 disabled");
-  },
-  putObject: async () => {
-    throw new Error("R2 disabled");
-  },
-  readObject: async () => {
-    throw new Error("R2 disabled");
-  },
-  deleteObject: async () => {
-    throw new Error("R2 disabled");
-  },
-};
 function callableServices(): DocumentCallableServices {
   const pilotEnabled = process.env.BPT_SYNTHETIC_PILOT === "true";
-  const hasR2 = Boolean(
-    process.env.R2_ACCOUNT_ID &&
-    process.env.R2_BUCKET_NAME &&
-    process.env.R2_ACCESS_KEY_ID &&
-    process.env.R2_SECRET_ACCESS_KEY,
-  );
   return {
     pilotEnabled,
     store: createDocumentStore({
       firestore: getFirestore() as unknown as Parameters<
         typeof createDocumentStore
       >[0]["firestore"],
-      r2: hasR2 ? createR2ClientFromEnvironment() : disabledR2,
+      r2: createPrivateStorageR2Client(),
     }),
   } as DocumentCallableServices;
 }

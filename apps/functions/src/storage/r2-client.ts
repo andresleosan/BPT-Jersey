@@ -258,3 +258,113 @@ export function createR2ClientFromEnvironment(): R2Client {
     credentials: { accessKeyId, secretAccessKey },
   });
 }
+
+function isLoopbackEmulatorHost(host: string | undefined): boolean {
+  const prefix = "127.0.0.1:";
+  if (host === undefined || !host.startsWith(prefix)) return false;
+  const port = Number(host.slice(prefix.length));
+  return Number.isInteger(port) && port >= 1_024 && port <= 65_535;
+}
+
+/**
+ * Private storage is R2 and nothing else outside the emulator.
+ *
+ * Accepting a waiver writes its evidence PDF before the consent commits, so with no binding at all
+ * the authenticated onboarding path cannot be exercised offline: every acceptance fails on storage
+ * long before the flow under test is reached. The Functions Emulator therefore gets an in-process
+ * store, reachable only when this process is the Functions Emulator itself, talking to a loopback
+ * Firestore Emulator on a demo project. Anywhere else an unconfigured R2 stays fail-closed.
+ */
+export function isEmulatorPrivateStorageAllowed(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  const projectId = environment.GCLOUD_PROJECT ?? environment.FIREBASE_PROJECT_ID ?? "";
+  return (
+    environment.FUNCTIONS_EMULATOR === "true" &&
+    isLoopbackEmulatorHost(environment.FIRESTORE_EMULATOR_HOST) &&
+    projectId.startsWith("demo-") &&
+    projectId.length > "demo-".length
+  );
+}
+
+export function createDisabledR2Client(): R2Client {
+  const disabled = async (): Promise<never> => {
+    throw new Error("Private file storage is not configured");
+  };
+  return Object.freeze({
+    createPdfUploadUrl: disabled,
+    createPdfDownloadUrl: disabled,
+    putObject: disabled,
+    readObject: disabled,
+    deleteObject: disabled,
+  });
+}
+
+/**
+ * Emulator-only in-process object store. It keeps the same key, content-type and size rules as the
+ * R2 client so a suite cannot pass here on a payload production would reject, and its signed URLs
+ * point at a reserved `.invalid` host that resolves nowhere.
+ */
+export function createEmulatorR2Client(
+  objects: Map<string, Uint8Array> = new Map<string, Uint8Array>(),
+): R2Client {
+  const signedUrl = (objectKey: string, intent: string): string =>
+    `https://private-storage.emulator.invalid/${encodeURIComponent(objectKey)}?intent=${intent}`;
+  const assertExpiry = (expiresInSeconds: number): void => {
+    if (!Number.isInteger(expiresInSeconds) || expiresInSeconds < 60 || expiresInSeconds > 600) {
+      throw new Error("Signed URL expiry is invalid");
+    }
+  };
+  return Object.freeze({
+    createPdfUploadUrl: async (input) => {
+      assertObjectKey(input.objectKey);
+      assertExpiry(input.expiresInSeconds);
+      return assertHttpsAbsoluteUrl(signedUrl(input.objectKey, "upload"));
+    },
+    createPdfDownloadUrl: async (input) => {
+      assertObjectKey(input.objectKey);
+      assertExpiry(input.expiresInSeconds);
+      return assertHttpsAbsoluteUrl(signedUrl(input.objectKey, "download"));
+    },
+    putObject: async (objectKey, body, contentType) => {
+      assertObjectKey(objectKey);
+      if (contentType !== "application/pdf") throw new Error("Only PDF objects are accepted");
+      if (body.byteLength > MAX_MEMBER_IMPORT_PDF_BYTES) {
+        throw new Error("Private object exceeds the maximum allowed size");
+      }
+      objects.set(objectKey, Uint8Array.from(body));
+    },
+    readObject: async (objectKey) => {
+      assertObjectKey(objectKey);
+      const stored = objects.get(objectKey);
+      if (stored === undefined) throw new Error("Private object was not found");
+      return Uint8Array.from(stored);
+    },
+    deleteObject: async (objectKey) => {
+      assertObjectKey(objectKey);
+      objects.delete(objectKey);
+    },
+  });
+}
+
+let emulatorPrivateStorage: R2Client | undefined;
+
+/**
+ * The single private-storage seam for the callables that persist PDF evidence. Configured R2 wins;
+ * the emulator store is used only where `isEmulatorPrivateStorageAllowed` holds; everything else
+ * fails closed.
+ */
+export function createPrivateStorageR2Client(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): R2Client {
+  const configured = Boolean(
+    environment.R2_ACCOUNT_ID &&
+    environment.R2_BUCKET_NAME &&
+    environment.R2_ACCESS_KEY_ID &&
+    environment.R2_SECRET_ACCESS_KEY,
+  );
+  if (configured) return createR2ClientFromEnvironment();
+  if (!isEmulatorPrivateStorageAllowed(environment)) return createDisabledR2Client();
+  emulatorPrivateStorage ??= createEmulatorR2Client();
+  return emulatorPrivateStorage;
+}
