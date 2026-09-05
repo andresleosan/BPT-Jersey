@@ -1731,10 +1731,10 @@ const recoveryItems = [
   task(
     "T107",
     "Purgar el dataset real de miembros del historial git, del remoto y del arbol de trabajo",
-    "en-progreso",
+    "revision",
     "Eliminar la PII real de T103 de forma verificable en local, historial y origin.",
     "T103,T104",
-    "2026-09-04: archivo local borrado e historial de main reescrito y verificado en un clon (0 referencias). Force-push y borrado del deployment 95d8b4d3 bloqueados por el clasificador: pendientes del operador, junto con la purga en GitHub, el bundle de respaldo y la notificacion (T011).",
+    "2026-09-04: archivo local borrado, historial de main reescrito y publicado con force-push (origin/main 88 commits, 0 referencias), deployment 95d8b4d3 borrado, objetos locales purgados y bundle eliminado. Pendientes: purga de objetos colgantes en GitHub y notificacion (T011).",
     ["tasks.md", ".gitignore", "apps/web/src/app/admin/real-members-data.ts"],
     "special",
   ),
