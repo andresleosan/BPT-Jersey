@@ -1576,10 +1576,10 @@ const recoveryItems = [
   task(
     "T094",
     "Completar onboarding de perfil, tutor y waiver por entorno",
-    "revision",
+    "aprobada",
     "Cerrar el alta autenticada en Emulator/staging manteniendo datos reales bloqueados por T011.",
     "T090,T092,T093",
-    "2026-09-05: onboarding autenticado de cliente cerrado en Emulator a nivel de callable, 3/3 y repetible: adulto (perfil canonico, replay, waiver con PDF de evidencia, descarga firmada, revocacion), tutor (perfil, familia con menor, aceptacion por el menor, evidencia denegada a adultos ajenos) y negativos fail-closed. Almacenamiento privado: R2 configurado gana, almacen en proceso solo en el Functions Emulator loopback con proyecto demo-, cerrado en cualquier otro entorno (28 unitarias). Datos reales, staging y produccion siguen bloqueados por T011; pendiente de aprobacion del operador.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). 2026-09-05: onboarding autenticado de cliente cerrado en Emulator a nivel de callable, 3/3 y repetible: adulto (perfil canonico, replay, waiver con PDF de evidencia, descarga firmada, revocacion), tutor (perfil, familia con menor, aceptacion por el menor, evidencia denegada a adultos ajenos) y negativos fail-closed. Almacenamiento privado: R2 configurado gana, almacen en proceso solo en el Functions Emulator loopback con proyecto demo-, cerrado en cualquier otro entorno (28 unitarias). Datos reales, staging y produccion siguen bloqueados por T011; pendiente de aprobacion del operador.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1594,20 +1594,20 @@ const recoveryItems = [
   task(
     "T095",
     "Completar memberships, deuda PAYG y finanzas manuales desde UI",
-    "revision",
+    "aprobada",
     "Hacer operable el ciclo financiero manual del MVP sin proveedor online.",
     "T032,T033,T037,T038,T093",
-    "2026-09-05: ciclo manual cerrado en Emulator a nivel de callable, 2/2: plan, membresia de adulto autoservicio creada por staff sin nombrar familia (derivada del registro canonico), factura manual, pago en efectivo, cuenta del adulto y del staff, dashboard y negativos fail-closed. Defecto real corregido: el store exigia relacion tutor-alumno tambien a adultos, que nunca podian recibir membresia; ahora solo a menores. UI de membresias y facturacion con selectores canonicos en vez de IDs tipeados (web 171/171, memberships 52/52). Decision pendiente: adultos sin cuenta vinculada siguen sin poder recibir membresia.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). 2026-09-05: ciclo manual cerrado en Emulator a nivel de callable, 2/2: plan, membresia de adulto autoservicio creada por staff sin nombrar familia (derivada del registro canonico), factura manual, pago en efectivo, cuenta del adulto y del staff, dashboard y negativos fail-closed. Defecto real corregido: el store exigia relacion tutor-alumno tambien a adultos, que nunca podian recibir membresia; ahora solo a menores. UI de membresias y facturacion con selectores canonicos en vez de IDs tipeados (web 171/171, memberships 52/52). Decision del operador (opcion A): los adultos sin cuenta vinculada necesitan cuenta antes de recibir membresia o factura.",
     ["tasks.md"],
     "mvp",
   ),
   task(
     "T096",
     "Completar clases, bookings y asistencia desde UI",
-    "revision",
+    "aprobada",
     "Operar calendario, reserva, cancelacion y check-in/out con entidades canonicas.",
     "T026,T027,T028,T029,T030,T031,T093,T095",
-    "2026-09-05: ciclo de operacion de clases cerrado en Emulator a nivel de callable, 2/2 sin cambios de backend: catalogo Town/West, programa, sesiones, reserva idempotente con corte de una hora y elegibilidad de sede, quorum, check-in manual por staff, asistencia, correccion, roster en vivo, cancelacion de reserva y de sesion, no-shows y negativos de rol, App Check, sesion, payload y Rules. QR/PIN siguen cerrados en el piloto. Aviso enganoso de PAYG en efectivo del panel del coach corregido.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). 2026-09-05: ciclo de operacion de clases cerrado en Emulator a nivel de callable, 2/2 sin cambios de backend: catalogo Town/West, programa, sesiones, reserva idempotente con corte de una hora y elegibilidad de sede, quorum, check-in manual por staff, asistencia, correccion, roster en vivo, cancelacion de reserva y de sesion, no-shows y negativos de rol, App Check, sesion, payload y Rules. QR/PIN siguen cerrados en el piloto. Aviso enganoso de PAYG en efectivo del panel del coach corregido.",
     [
       "tasks.md",
       "qa/tests/schedule-auth-emulator.spec.ts",
@@ -1623,7 +1623,7 @@ const recoveryItems = [
     "pendiente",
     "Cerrar progreso propio/familiar y reportes sin fallback sintetico.",
     "T039,T040,T041,T042,T047,T048,T049,T050,T051,T052,T093",
-    "2026-09-05: la pagina de progreso de la cuenta ya no muestra competidores ni tecnicas sinteticas y conecta el progreso propio real (getStudentProgressSummary), sin comparacion hasta que exista el opt-in de adultos. Condicion de entrada detectada: ningun escritor crea la cabecera studentLevelProgress, asi que todo alumno queda uninitialized, no hay candidatos a reconocimiento y approvePromotion no puede operar; requiere decidir la apertura del nivel inicial por el head coach.",
+    "2026-09-05: la pagina de progreso de la cuenta ya no muestra competidores ni tecnicas sinteticas y conecta el progreso propio real (getStudentProgressSummary), sin comparacion hasta que exista el opt-in de adultos. Condicion de entrada detectada: ningun escritor crea la cabecera studentLevelProgress, asi que todo alumno queda uninitialized, no hay candidatos a reconocimiento y approvePromotion no puede operar; decision del operador (opcion A): el head coach abre el nivel inicial con un callable auditado; implementacion en curso.",
     [
       "tasks.md",
       "apps/web/src/app/account/progress/own-progress.tsx",
