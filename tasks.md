@@ -4123,6 +4123,7 @@ apps/web/src/app/admin/page.test.tsx apps/web/src/lib/staff-client.test.ts` pas√
 ### Evidencia T104 - variable de App Check en Cloudflare Pages - 2026-09-04
 
 - `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` creada como secreto cifrado del entorno production del proyecto `bptjersey` con `wrangler pages secret put` (la clave de sitio es publica; el checklist pedia Plaintext y el secreto es funcionalmente equivalente para `next build`). El proximo push de `main` dispara el build con la variable presente.
+- Verificado 2026-09-04 tras el push: el deployment de production `2c8575b4` (build de `2ea48ea`) sirve `/admin/members/search` con la clave de sitio embebida en 1 de 15 chunks JS, es decir, la variable llego al build. El deployment `a8f0ad57` (`ab2e20e`) y el siguiente (`a1889f6`) la incluyen igualmente.
 - Verificacion en produccion pendiente del operador: `bptjersey.pages.dev/admin/members/search` debe mostrar el directorio de 249 registros y abrir fichas; revisar `firebase functions:log` si aparece `app: MISSING`. T104 pasa a `en-progreso`.
 
 ### Cierre tecnico T107 - force-push y limpieza - 2026-09-04
