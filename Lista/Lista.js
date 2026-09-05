@@ -1604,11 +1604,17 @@ const recoveryItems = [
   task(
     "T096",
     "Completar clases, bookings y asistencia desde UI",
-    "pendiente",
+    "revision",
     "Operar calendario, reserva, cancelacion y check-in/out con entidades canonicas.",
     "T026,T027,T028,T029,T030,T031,T093,T095",
-    statusEvidence.pending,
-    ["tasks.md"],
+    "2026-09-05: ciclo de operacion de clases cerrado en Emulator a nivel de callable, 2/2 sin cambios de backend: catalogo Town/West, programa, sesiones, reserva idempotente con corte de una hora y elegibilidad de sede, quorum, check-in manual por staff, asistencia, correccion, roster en vivo, cancelacion de reserva y de sesion, no-shows y negativos de rol, App Check, sesion, payload y Rules. QR/PIN siguen cerrados en el piloto. Aviso enganoso de PAYG en efectivo del panel del coach corregido.",
+    [
+      "tasks.md",
+      "qa/tests/schedule-auth-emulator.spec.ts",
+      "qa/scripts/run-schedule-e2e.mjs",
+      "apps/web/src/app/coach/page.tsx",
+      "docs/development/firebase-emulators.md",
+    ],
     "mvp",
   ),
   task(
@@ -1851,6 +1857,7 @@ const projectData = {
     T093: "2026-09-05",
     T094: "2026-09-05",
     T095: "2026-09-05",
+    T096: "2026-09-05",
     T100: "2026-09-03",
     T101: "2026-09-04",
     T102: "2026-09-04",

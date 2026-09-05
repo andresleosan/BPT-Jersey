@@ -312,7 +312,7 @@ describe("CoachDashboardPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Cash PAYG attendance recorded for student student-walkin-99 (£10 received). Receipt generated.",
+          "Manual check-in recorded for student student-walkin-99. Record the cash payment in Billing to issue the receipt.",
         ),
       ).toBeInTheDocument();
     });

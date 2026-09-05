@@ -17,7 +17,7 @@ describe("Lista project progress", () => {
     const counts = project.countStatuses(items);
     const countedItems = Object.values(counts).reduce((total, count) => total + count, 0);
 
-    expect(counts.revision).toBe(4);
+    expect(counts.revision).toBe(5);
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
       expect.objectContaining({ id: "T106" }),
     ]);

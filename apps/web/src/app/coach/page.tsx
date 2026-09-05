@@ -179,7 +179,7 @@ export default function CoachDashboardPage() {
       const updatedView = await getSessionOperationalView(effectiveSessionId);
       setOperationalView(updatedView);
       setNotice(
-        `Cash PAYG attendance recorded for student ${studentId} (£10 received). Receipt generated.`,
+        `Manual check-in recorded for student ${studentId}. Record the cash payment in Billing to issue the receipt.`,
       );
       setPaygStudentId("");
     } catch (err) {

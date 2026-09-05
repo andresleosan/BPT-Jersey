@@ -101,3 +101,21 @@ npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,func
 
 The Functions Emulator serves `.firebase-functions/`, so rebuild the artifact after any backend
 change before running these specs; a stale artifact fails with the previous callable contract.
+
+## Authenticated callable E2E for class operations (T096)
+
+`qa/tests/schedule-auth-emulator.spec.ts` drives the class operations cycle on canonical data after
+the T095 prerequisites (waiver, adult profile, plan, active membership): `listScheduleCatalog`,
+`saveProgram`, `saveSession` at Town and West, `listSessions`, `requestBooking` (idempotent replay,
+one-hour cutoff, site eligibility), `listStudentBookings`, `evaluateSessionMinimum`, `checkIn`
+(staff, manual only in the pilot), `listSessionAttendance`, `correctAttendance`,
+`getSessionOperationalView`, `cancelBooking`, `cancelSession`, `reconcileSessionNoShows`, plus the
+role, App Check, session, payload and Rules negatives. Same secrets, pilot flag and JDK requirements.
+
+```bash
+BPT_SYNTHETIC_PILOT=true T096_SCHEDULE_EMULATOR_E2E=true GCLOUD_PROJECT=demo-bpt-jersey \
+T096_E2E_ACADEMY_ID=t096-e2e-academy T096_OWNER_EMAIL=t096-owner@example.test \
+T096_ADULT_EMAIL=t096-adult@example.test T096_E2E_PASSWORD=<12+ chars> \
+npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions \
+  "node qa/scripts/run-schedule-e2e.mjs"
+```
