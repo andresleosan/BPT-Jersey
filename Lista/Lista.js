@@ -1638,10 +1638,10 @@ const recoveryItems = [
   task(
     "T098",
     "Ejecutar el golden path autenticado completo en Firebase Emulator",
-    "pendiente",
+    "revision",
     "Reparar el gate y demostrar el flujo completo con Auth, Functions y Firestore Emulator.",
     "T094,T095,T096,T097",
-    "Gate reparado 2026-09-04: verify:mvp vuelve a encadenarse entero y en verde (235 archivos / 1664 unitarias, Rules 13/91, carga 240/240, smoke 5+1). La bateria qa/integration se midio por primera vez y se reparo de 11 fallos preexistentes a 0 (25 archivos pasados, 1 omitido con motivo). Falta el E2E autenticado del golden path completo, que depende de T094-T097.",
+    "2026-09-05: golden path autenticado en una sola corrida de Emulator (run-golden-path-e2e.mjs): suites de T094-T097 encadenadas sobre una academia sintetica, 9/9 en 1.4 min, de familia/adulto a reporte con Rules y negativos. verify:mvp reparado el 2026-09-04 y en verde en cada corte (1696 unitarias, 91 Rules, carga, smoke desktop/movil). Limite: golden path a nivel de callable por App Check; el navegador exige staging.",
     [
       "tasks.md",
       "scripts/verify-mvp.mjs",
@@ -1867,6 +1867,7 @@ const projectData = {
     T095: "2026-09-05",
     T096: "2026-09-05",
     T097: "2026-09-05",
+    T098: "2026-09-05",
     T100: "2026-09-03",
     T101: "2026-09-04",
     T102: "2026-09-04",
