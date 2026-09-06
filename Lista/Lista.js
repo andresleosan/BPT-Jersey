@@ -1670,10 +1670,10 @@ const recoveryItems = [
   task(
     "T097",
     "Conectar progreso, promociones revisadas y reportes",
-    "revision",
+    "aprobada",
     "Cerrar progreso propio/familiar y reportes sin fallback sintetico.",
     "T039,T040,T041,T042,T047,T048,T049,T050,T051,T052,T093",
-    "2026-09-05: apertura del nivel inicial por el head coach implementada (openStudentLevel, opcion A): callable auditado, una vez por alumno y solo cinturones, con UI en el panel del coach. E2E en Emulator 2/2 sobre el catalogo canonico: nivel abierto, asistencia y evaluacion en el resumen, candidatos a reconocimiento, primera promocion aprobada por el head coach y reporte de progreso; negativos de rol, App Check, sesion, payload y Rules. Progreso propio real en la cuenta sin competidores sinteticos. Segundo corte del 2026-09-05: progreso familiar del tutor conectado (FamilyProgressPanel lee el roster del tutor y un resumen canonico por hijo), pruebas de pagina 5/5 y tercer caso E2E de tutor en Emulator dentro del golden path 10/10. Pendiente: comparacion opt-in de adultos y reinicio de la barra al promover.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: el resto de la fila -comparacion opt-in de adultos, que hoy no tiene modelo de opt-in, y reinicio de la barra de progresion al promover- se retoma despues de T116 y T117. 2026-09-05: apertura del nivel inicial por el head coach implementada (openStudentLevel, opcion A): callable auditado, una vez por alumno y solo cinturones, con UI en el panel del coach. E2E en Emulator 2/2 sobre el catalogo canonico: nivel abierto, asistencia y evaluacion en el resumen, candidatos a reconocimiento, primera promocion aprobada por el head coach y reporte de progreso; negativos de rol, App Check, sesion, payload y Rules. Progreso propio real en la cuenta sin competidores sinteticos. Segundo corte del 2026-09-05: progreso familiar del tutor conectado (FamilyProgressPanel lee el roster del tutor y un resumen canonico por hijo), pruebas de pagina 5/5 y tercer caso E2E de tutor en Emulator dentro del golden path 10/10. Pendiente: comparacion opt-in de adultos y reinicio de la barra al promover.",
     [
       "tasks.md",
       "apps/web/src/app/account/progress/own-progress.tsx",
@@ -1689,10 +1689,10 @@ const recoveryItems = [
   task(
     "T098",
     "Ejecutar el golden path autenticado completo en Firebase Emulator",
-    "revision",
+    "aprobada",
     "Reparar el gate y demostrar el flujo completo con Auth, Functions y Firestore Emulator.",
     "T094,T095,T096,T097",
-    "2026-09-05: golden path autenticado en una sola corrida de Emulator (run-golden-path-e2e.mjs): suites de T094-T097 encadenadas sobre una academia sintetica, 9/9 en 1.4 min, de familia/adulto a reporte con Rules y negativos. verify:mvp reparado el 2026-09-04 y en verde en cada corte (1696 unitarias, 91 Rules, carga, smoke desktop/movil). Segundo corte del 2026-09-05: gate bajo demanda y semanal en .github/workflows/golden-path.yml con pnpm test:e2e:golden-path y secretos sinteticos generados en el propio job; corrida local 10/10 en 1.5 min y verify:mvp completo verde (1699 unitarias, 91 Rules, carga 240/240, smoke 5+1). Limite: golden path a nivel de callable por App Check; el navegador exige staging.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: cada laguna nueva encadena su suite al golden path en la misma entrega, como se hizo con T109 a T115; el recorrido de navegador de callables con App Check sigue esperando a T099. 2026-09-05: golden path autenticado en una sola corrida de Emulator (run-golden-path-e2e.mjs): suites de T094-T097 encadenadas sobre una academia sintetica, 9/9 en 1.4 min, de familia/adulto a reporte con Rules y negativos. verify:mvp reparado el 2026-09-04 y en verde en cada corte (1696 unitarias, 91 Rules, carga, smoke desktop/movil). Segundo corte del 2026-09-05: gate bajo demanda y semanal en .github/workflows/golden-path.yml con pnpm test:e2e:golden-path y secretos sinteticos generados en el propio job; corrida local 10/10 en 1.5 min y verify:mvp completo verde (1699 unitarias, 91 Rules, carga 240/240, smoke 5+1). Limite: golden path a nivel de callable por App Check; el navegador exige staging.",
     [
       "tasks.md",
       "scripts/verify-mvp.mjs",
@@ -1775,10 +1775,10 @@ const recoveryItems = [
   task(
     "T104",
     "Servir registros reales de Regyfit detras de autenticacion admin y ficha completa",
-    "revision",
+    "aprobada",
     "Callables protegidos con los 249 socios reales y ficha completa estilo Regyfit.",
     "T076,T103",
-    "Backend desplegado (2 callables, import written:249). 2026-09-04: App Check configurado y verificado en produccion con sesion admin real: directorio de 249 registros cargado, callables 200, 0 errores. Apertura de ficha pendiente de comprobacion manual.",
+    "Aprobada por el operador 2026-09-05. Recomendacion vigente: abrir una ficha en produccion con sesion admin real es la unica comprobacion que falta, es manual del operador y no bloquea ninguna otra fila. Backend desplegado (2 callables, import written:249). 2026-09-04: App Check configurado y verificado en produccion con sesion admin real: directorio de 249 registros cargado, callables 200, 0 errores. Apertura de ficha pendiente de comprobacion manual.",
     [
       "tasks.md",
       "apps/functions/src/regyfit/member-records.ts",
@@ -1826,10 +1826,10 @@ const recoveryItems = [
   task(
     "T107",
     "Purgar el dataset real de miembros del historial git, del remoto y del arbol de trabajo",
-    "revision",
+    "aprobada",
     "Eliminar la PII real de T103 de forma verificable en local, historial y origin.",
     "T103,T104",
-    "2026-09-04: archivo local borrado, historial de main reescrito y publicado con force-push (origin/main 88 commits, 0 referencias), deployment 95d8b4d3 borrado, objetos locales purgados y bundle eliminado. Pendientes: purga de objetos colgantes en GitHub y notificacion (T011).",
+    "Aprobada por el operador 2026-09-05. Recomendacion vigente: quedan dos acciones del operador fuera del repositorio, pedir a GitHub la purga de objetos colgantes y valorar la notificacion conforme a T011. 2026-09-04: archivo local borrado, historial de main reescrito y publicado con force-push (origin/main 88 commits, 0 referencias), deployment 95d8b4d3 borrado, objetos locales purgados y bundle eliminado. Pendientes: purga de objetos colgantes en GitHub y notificacion (T011).",
     ["tasks.md", ".gitignore", "apps/web/src/app/admin/real-members-data.ts"],
     "special",
   ),
@@ -1851,10 +1851,10 @@ const recoveryItems = [
   task(
     "T109",
     "Senal de elegibilidad de 50 metros para el check-in",
-    "revision",
+    "aprobada",
     "Convertir el radio de 50 m en senal de check-in con override auditado.",
     "T028,T096",
-    "Alta y cierre tecnico el 2026-09-05. Decision 5 del BRIEF implementada como senal, nunca como prueba: coordenadas de sede guardadas por un callable auditado solo de administracion (radio fijo de 50 m), el navegador reduce su posicion a una distancia y solo envia distancia, precision y hora, la asistencia guarda within/outside/unavailable, un outside exige motivo de staff y anade el evento attendance.proximity_override, y la senal se oculta a adultos y tutores. Corregido de paso que guardar la primera geocerca hacia desaparecer la otra sede del catalogo. Golden path 10/10 en Emulator y gate completo verde. El auto check-in del alumno sigue cerrado por T028.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: sin las coordenadas reales de Town y West en /admin/classes la senal queda en unavailable para todo check-in; es el fail-closed correcto, no un fallo. Alta y cierre tecnico el 2026-09-05. Decision 5 del BRIEF implementada como senal, nunca como prueba: coordenadas de sede guardadas por un callable auditado solo de administracion (radio fijo de 50 m), el navegador reduce su posicion a una distancia y solo envia distancia, precision y hora, la asistencia guarda within/outside/unavailable, un outside exige motivo de staff y anade el evento attendance.proximity_override, y la senal se oculta a adultos y tutores. Corregido de paso que guardar la primera geocerca hacia desaparecer la otra sede del catalogo. Golden path 10/10 en Emulator y gate completo verde. El auto check-in del alumno sigue cerrado por T028.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1870,10 +1870,10 @@ const recoveryItems = [
   task(
     "T110",
     "Cancelacion automatica de la sesion sin quorum con aviso",
-    "revision",
+    "aprobada",
     "Encadenar quorum, cancelacion idempotente y avisos in-app a los reservados.",
     "T096,T062",
-    "Alta y cierre tecnico el 2026-09-05. Decision 3 del BRIEF implementada: decideQuorumSweep decide (antes del corte, quorum alcanzado, no programada, ya cancelada por quorum, cancelar), el servicio transaccional cancela la sesion con motivo canonico, libera todas las reservas confirmadas, mueve la revision de capacidad y audita session.quorum.cancelled con id determinista, de modo que repetir el barrido no cambia nada. Callable reconcileSessionQuorum solo staff y runner manual de ventana; no se habilita ninguna funcion programada (checkpoint aparte, como en T062). El aviso in-app es derivado, no encolado: la clase cancelada que el miembro habia reservado se convierte en un recordatorio sessionCancelled sin identificadores. Golden path 10/10 en Emulator y gate completo verde.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: el barrido es hoy un callable de staff y un runner manual, ambos idempotentes; ejecutarlo solo con una funcion programada es un checkpoint aparte. Alta y cierre tecnico el 2026-09-05. Decision 3 del BRIEF implementada: decideQuorumSweep decide (antes del corte, quorum alcanzado, no programada, ya cancelada por quorum, cancelar), el servicio transaccional cancela la sesion con motivo canonico, libera todas las reservas confirmadas, mueve la revision de capacidad y audita session.quorum.cancelled con id determinista, de modo que repetir el barrido no cambia nada. Callable reconcileSessionQuorum solo staff y runner manual de ventana; no se habilita ninguna funcion programada (checkpoint aparte, como en T062). El aviso in-app es derivado, no encolado: la clase cancelada que el miembro habia reservado se convierte en un recordatorio sessionCancelled sin identificadores. Golden path 10/10 en Emulator y gate completo verde.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1887,10 +1887,10 @@ const recoveryItems = [
   task(
     "T111",
     "Penalizacion manual de 15 GBP por no-show de Town",
-    "revision",
+    "aprobada",
     "Registrar el cargo por no-show y su resolucion por office con auditoria.",
     "T095,T096",
-    "Alta 2026-09-05 y backend, web y unitarias el mismo dia. Decision 2 del BRIEF implementada como propuesta, nunca cargo automatico: un no-show de Town crea una entrada de cola de GBP 15 con identificador determinista y auditoria penalty.no_show.proposed, y office la resuelve una sola vez cobrandola (enlazando la factura manual de T095) o eximiendola, siempre con motivo y auditoria penalty.no_show.resolved. Una baja medica activa nunca genera propuesta. Cola en /admin/billing, Rules cerradas y modelo de datos documentado. E2E autenticado en Emulator cerrado el mismo dia con la suite nueva no-show-penalty-auth-emulator.spec.ts encadenada al golden path: ciclo completo (no-show, propuesta, cola, cobro con factura manual enlazada, exencion), negativos de rol, App Check, payloads y Rules. Golden path 12/12 en 1.9 min y verify:mvp verde con 1806 unitarias y 91 Rules. Pasa a revision.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: proponer las penalizaciones sigue siendo manual; automatizarlo es el mismo checkpoint que T110 y conviene decidirlos juntos. Alta 2026-09-05 y backend, web y unitarias el mismo dia. Decision 2 del BRIEF implementada como propuesta, nunca cargo automatico: un no-show de Town crea una entrada de cola de GBP 15 con identificador determinista y auditoria penalty.no_show.proposed, y office la resuelve una sola vez cobrandola (enlazando la factura manual de T095) o eximiendola, siempre con motivo y auditoria penalty.no_show.resolved. Una baja medica activa nunca genera propuesta. Cola en /admin/billing, Rules cerradas y modelo de datos documentado. E2E autenticado en Emulator cerrado el mismo dia con la suite nueva no-show-penalty-auth-emulator.spec.ts encadenada al golden path: ciclo completo (no-show, propuesta, cola, cobro con factura manual enlazada, exencion), negativos de rol, App Check, payloads y Rules. Golden path 12/12 en 1.9 min y verify:mvp verde con 1806 unitarias y 91 Rules. Pasa a revision.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1906,10 +1906,10 @@ const recoveryItems = [
   task(
     "T112",
     "Cumpleanos reales en el panel del coach",
-    "revision",
+    "aprobada",
     "Derivar los cumpleanos del directorio canonico en vez de anunciarlos sin datos.",
     "T093,T102",
-    "Alta 2026-09-05 e implementada el mismo dia. La constante sampleBirthdays desaparece: el panel lee listUpcomingBirthdays, que deriva la ventana de siete dias de los alumnos canonicos activos del sitio elegido. El ano de nacimiento nunca sale del backend: la proyeccion lleva nombre, cuantos dias faltan y si es adulto o menor, y office que necesite la fecha real la lee en el registro canonico. Solo staff puede llamarla; el cliente recibe 403. Un nacido el 29 de febrero se felicita el 28 en un ano comun. Dominio 16, servicio 8, callable 9, cliente web 3 y panel 15; E2E autenticado en Emulator dentro del golden path (14/14) con un alumno de Town y otro de West.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: el panel no muestra la edad que se cumple, por alcance minimo; anadirla es una linea en la proyeccion y una decision de producto del operador. Alta 2026-09-05 e implementada el mismo dia. La constante sampleBirthdays desaparece: el panel lee listUpcomingBirthdays, que deriva la ventana de siete dias de los alumnos canonicos activos del sitio elegido. El ano de nacimiento nunca sale del backend: la proyeccion lleva nombre, cuantos dias faltan y si es adulto o menor, y office que necesite la fecha real la lee en el registro canonico. Solo staff puede llamarla; el cliente recibe 403. Un nacido el 29 de febrero se felicita el 28 en un ano comun. Dominio 16, servicio 8, callable 9, cliente web 3 y panel 15; E2E autenticado en Emulator dentro del golden path (14/14) con un alumno de Town y otro de West.",
     [
       "tasks.md",
       "packages/domain/src/birthdays/upcoming-birthday-contracts.ts",
@@ -1924,10 +1924,10 @@ const recoveryItems = [
   task(
     "T113",
     "Reglas de stripes por franja de edad",
-    "revision",
+    "aprobada",
     "Aplicar las franjas de edad del catalogo al proponer stripes.",
     "T083,T097",
-    "Alta 2026-09-05 e implementada el mismo dia. Las 171 definiciones del catalogo llevan franja de edad y ninguna se leia: minAge y maxAge se parseaban y se guardaban sin usarse nunca. Ahora evaluateAgeBand decide la franja del rango de destino, buildStudentProgressSummary la publica como criterio propio y overallEligible la exige, de modo que la propuesta de reconocimiento nombra la franja cuando es lo que frena al alumno. Ambos extremos son inclusivos porque las franjas del catalogo comparten frontera (4-7 y 7-10). Sin fecha de nacimiento y con franja declarada la regla falla cerrada. La readiness sigue midiendo entrenamiento, no cumpleanos. Belts y stripes se siguen sin otorgar automaticamente y el head coach puede abrir un nivel fuera de franja. Dominio 19 casos nuevos; E2E autenticado en Emulator con dos hermanos del mismo cinturon dentro del golden path (15/15).",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: la franja filtra candidatos y propuestas, pero openStudentLevel y approvePromotion siguen sin consultarla; extenderla a esos dos callables es decision del operador. Alta 2026-09-05 e implementada el mismo dia. Las 171 definiciones del catalogo llevan franja de edad y ninguna se leia: minAge y maxAge se parseaban y se guardaban sin usarse nunca. Ahora evaluateAgeBand decide la franja del rango de destino, buildStudentProgressSummary la publica como criterio propio y overallEligible la exige, de modo que la propuesta de reconocimiento nombra la franja cuando es lo que frena al alumno. Ambos extremos son inclusivos porque las franjas del catalogo comparten frontera (4-7 y 7-10). Sin fecha de nacimiento y con franja declarada la regla falla cerrada. La readiness sigue midiendo entrenamiento, no cumpleanos. Belts y stripes se siguen sin otorgar automaticamente y el head coach puede abrir un nivel fuera de franja. Dominio 19 casos nuevos; E2E autenticado en Emulator con dos hermanos del mismo cinturon dentro del golden path (15/15).",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1942,10 +1942,10 @@ const recoveryItems = [
   task(
     "T114",
     "Interfaz preclase del coach con sugerencias de asistentes",
-    "revision",
+    "aprobada",
     "Publicar la vista previa a la clase con los asistentes probables.",
     "T096,T066",
-    "Alta 2026-09-05 e implementada el mismo dia. Callable nueva getPreClassView solo para staff: junta a los reservados de la sesion con los habituales de la misma clase (mismo programa, misma sede, mismo dia de la semana y misma franja mas o menos media hora) durante las ultimas ocho semanas, exigiendo dos asistencias canonicas para considerarlo habito. Cada sugerencia viaja con su evidencia (cuantas de cuantas y la ultima), no con una racha inventada. No se sugiere a quien cancelo su reserva, a quien ya esta en el tatami ni a quien ya no esta activo, y una clase cancelada o terminada deja de sugerir. Nada se escribe: el coach sigue registrando cada check-in. Dominio 16, servicio 6, callable 11 y panel del coach 19; E2E dentro del golden path (15/15) con la asistencia corregida como estado vivo.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: los 56 dias, las dos asistencias y la media hora son valores elegidos, no dictados por el DOCX; conviene revisarlos con datos reales (T099). Alta 2026-09-05 e implementada el mismo dia. Callable nueva getPreClassView solo para staff: junta a los reservados de la sesion con los habituales de la misma clase (mismo programa, misma sede, mismo dia de la semana y misma franja mas o menos media hora) durante las ultimas ocho semanas, exigiendo dos asistencias canonicas para considerarlo habito. Cada sugerencia viaja con su evidencia (cuantas de cuantas y la ultima), no con una racha inventada. No se sugiere a quien cancelo su reserva, a quien ya esta en el tatami ni a quien ya no esta activo, y una clase cancelada o terminada deja de sugerir. Nada se escribe: el coach sigue registrando cada check-in. Dominio 16, servicio 6, callable 11 y panel del coach 19; E2E dentro del golden path (15/15) con la asistencia corregida como estado vivo.",
     [
       "tasks.md",
       "packages/domain/src/schedule/pre-class-contracts.ts",
@@ -1960,10 +1960,10 @@ const recoveryItems = [
   task(
     "T115",
     "Etiqueta de 25 caracteres para condiciones de salud",
-    "revision",
+    "aprobada",
     "Separar la etiqueta corta del detalle clinico y validar su limite.",
     "T035,T093",
-    "Alta 2026-09-05 y cerrada el mismo dia, con una correccion de la premisa: el limite de 25 caracteres y la separacion entre staffReferenceLabel y conditionSummary YA existian en el contrato de salud y estaban probados, y los dos formularios de administracion ya traian maxLength 25. Lo que faltaba era la consecuencia: la proyeccion de staff seguia llevando la nota clinica completa de hasta 1000 caracteres, asi que la separacion no significaba nada para un coach. Ahora la proyeccion de staff lleva la etiqueta corta y nunca la nota; el tutor sigue leyendo la nota que el mismo escribio y nunca la etiqueta; administracion conserva ambas. Dominio 8 y servicio 7, incluida la guarda de asignacion vigente del coach. Gate completo verde y golden path 15/15.",
+    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: el coach deja de ver la nota clinica; si alguna practica real dependia de que la viera, es una decision de producto del operador y no un fallo tecnico. Alta 2026-09-05 y cerrada el mismo dia, con una correccion de la premisa: el limite de 25 caracteres y la separacion entre staffReferenceLabel y conditionSummary YA existian en el contrato de salud y estaban probados, y los dos formularios de administracion ya traian maxLength 25. Lo que faltaba era la consecuencia: la proyeccion de staff seguia llevando la nota clinica completa de hasta 1000 caracteres, asi que la separacion no significaba nada para un coach. Ahora la proyeccion de staff lleva la etiqueta corta y nunca la nota; el tutor sigue leyendo la nota que el mismo escribio y nunca la etiqueta; administracion conserva ambas. Dominio 8 y servicio 7, incluida la guarda de asignacion vigente del coach. Gate completo verde y golden path 15/15.",
     [
       "tasks.md",
       "packages/domain/src/health/health-contracts.ts",
@@ -2068,10 +2068,10 @@ const projectData = {
     T101: "2026-09-04",
     T102: "2026-09-04",
     T103: "2026-09-04",
-    T104: "2026-09-04",
+    T104: "2026-09-05",
     T105: "2026-09-04",
     T106: "2026-09-04",
-    T107: "2026-09-04",
+    T107: "2026-09-05",
     T108: "2026-09-05",
     T109: "2026-09-05",
     T110: "2026-09-05",
