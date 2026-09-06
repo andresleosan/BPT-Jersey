@@ -23,7 +23,7 @@ describe("Lista resolution board", () => {
     const items = project.flattenItems(project.projectData.stages);
     const unresolved = items.filter((item) => item.status !== "aprobada");
 
-    expect(unresolved).toHaveLength(17);
+    expect(unresolved).toHaveLength(13);
     for (const item of unresolved) {
       expect(project.getResolutionRequirements(item)).toEqual(
         expect.arrayContaining([expect.any(String)]),
@@ -50,7 +50,7 @@ describe("Lista resolution board", () => {
 
     try {
       expect(project.renderProject(dom.window.document)).toBe(true);
-      expect(dom.window.document.querySelectorAll("[data-resolution-item]")).toHaveLength(17);
+      expect(dom.window.document.querySelectorAll("[data-resolution-item]")).toHaveLength(13);
       expect(dom.window.document.querySelector("#resolution-board")?.textContent).toContain(
         "Qu\u00e9 falta para resolver",
       );

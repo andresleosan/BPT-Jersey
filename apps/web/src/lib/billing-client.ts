@@ -17,10 +17,21 @@ export type InvoiceView = Readonly<{
   balanceMinor: number;
 }>;
 
+/** T010/T035: how to pay, as office configured it. Null until they do. */
+export type PaymentInstructions = Readonly<{
+  accountName: string;
+  sortCode: string;
+  accountNumber: string;
+  bankName: string | null;
+  referenceHint: string;
+  acceptsCash: boolean;
+}>;
+
 export type FinancialAccount = Readonly<{
   invoices: readonly InvoiceView[];
   balanceMinor: number;
   paygDebtMinor: number;
+  paymentInstructions: PaymentInstructions | null;
 }>;
 
 export type IssueManualInvoiceInput = Readonly<{
@@ -50,6 +61,7 @@ const safeReadError = "Unable to load the billing account. Please try again.";
 const safeInvoiceError = "Unable to save the invoice. Check the details and try again.";
 const safePaymentError = "Unable to record the payment. Check the details and try again.";
 const safeVoidError = "Unable to void the invoice. Refresh the account and try again.";
+const safeInstructionsError = "Unable to save the payment instructions. Check the details and try again.";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return (
@@ -128,10 +140,37 @@ function parseInvoiceView(value: unknown, message = safeReadError): InvoiceView 
   });
 }
 
+function parsePaymentInstructions(value: unknown): PaymentInstructions | null {
+  if (value === null) return null;
+  // The stored record also carries academyId/schemaVersion/updatedAt/updatedBy; the page needs
+  // only the six fields a payer reads, so anything else is dropped rather than rendered.
+  if (
+    !isPlainRecord(value) ||
+    typeof value.accountName !== "string" ||
+    typeof value.sortCode !== "string" ||
+    !/^\d{6}$/u.test(value.sortCode) ||
+    typeof value.accountNumber !== "string" ||
+    !/^\d{8}$/u.test(value.accountNumber) ||
+    (value.bankName !== null && typeof value.bankName !== "string") ||
+    typeof value.referenceHint !== "string" ||
+    typeof value.acceptsCash !== "boolean"
+  ) {
+    throw new Error(safeReadError);
+  }
+  return Object.freeze({
+    accountName: value.accountName,
+    sortCode: value.sortCode,
+    accountNumber: value.accountNumber,
+    bankName: value.bankName,
+    referenceHint: value.referenceHint,
+    acceptsCash: value.acceptsCash,
+  });
+}
+
 function parseFinancialAccount(value: unknown): FinancialAccount {
   if (
     !isPlainRecord(value) ||
-    !hasExactKeys(value, ["invoices", "balanceMinor", "paygDebtMinor"]) ||
+    !hasExactKeys(value, ["invoices", "balanceMinor", "paygDebtMinor", "paymentInstructions"]) ||
     !Array.isArray(value.invoices) ||
     !isBalance(value.balanceMinor) ||
     !isBalance(value.paygDebtMinor)
@@ -146,6 +185,7 @@ function parseFinancialAccount(value: unknown): FinancialAccount {
     invoices: Object.freeze(invoices),
     balanceMinor: value.balanceMinor,
     paygDebtMinor: value.paygDebtMinor,
+    paymentInstructions: parsePaymentInstructions(value.paymentInstructions),
   });
 }
 
@@ -263,5 +303,28 @@ export async function getInvoice(invoiceId: string): Promise<InvoiceView> {
     return view;
   } catch {
     throw new Error(safeReadError);
+  }
+}
+
+/** "12-34-56", the way a member expects to read a sort code. */
+export function formatSortCode(sortCode: string): string {
+  return `${sortCode.slice(0, 2)}-${sortCode.slice(2, 4)}-${sortCode.slice(4, 6)}`;
+}
+
+export async function savePaymentInstructions(
+  input: PaymentInstructions,
+): Promise<PaymentInstructions> {
+  try {
+    const callable = httpsCallable<PaymentInstructions, unknown>(
+      getFirebaseFunctions(),
+      "savePaymentInstructions",
+      callableOptions,
+    );
+    const response = await callable(input);
+    const parsed = parsePaymentInstructions(response.data);
+    if (parsed === null) throw new Error(safeInstructionsError);
+    return parsed;
+  } catch {
+    throw new Error(safeInstructionsError);
   }
 }

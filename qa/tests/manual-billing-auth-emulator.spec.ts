@@ -39,6 +39,7 @@ type Invoice = Readonly<{
   invoiceReference: string;
 }>;
 type Account = Readonly<{
+  paymentInstructions: Readonly<Record<string, unknown>> | null;
   invoices: readonly Readonly<{
     invoice: Invoice;
     payments: readonly Readonly<{ paymentId: string; amountMinor: number }>[];
@@ -275,7 +276,59 @@ test.describe("T095 manual billing cycle with Firebase Emulators", () => {
     expect(invoice.totalMinor).toBe(townAdultPlan.priceMinor);
 
     // The adult sees the open invoice on their own account before paying.
+    // T010/T035 re-scope: no gateway, so office publishes where to transfer and the member reads
+    // it with their balance. The adult may not write it, and a bad account number never lands.
+    await denied(
+      request,
+      "savePaymentInstructions",
+      {
+        accountName: "BPT Jersey",
+        sortCode: "40-25-30",
+        accountNumber: "12345678",
+        bankName: null,
+        referenceHint: "Quote your invoice reference",
+        acceptsCash: true,
+      },
+      adult,
+      403,
+      "PERMISSION_DENIED",
+    );
+    await denied(
+      request,
+      "savePaymentInstructions",
+      {
+        accountName: "BPT Jersey",
+        sortCode: "40-25-30",
+        accountNumber: "1234",
+        bankName: null,
+        referenceHint: "Quote your invoice reference",
+        acceptsCash: true,
+      },
+      owner,
+      400,
+      "INVALID_ARGUMENT",
+    );
+    const instructions = await ok<{ sortCode: string; accountNumber: string }>(
+      request,
+      "savePaymentInstructions",
+      {
+        accountName: "BPT Jersey",
+        sortCode: "40-25-30",
+        accountNumber: "12345678",
+        bankName: "Synthetic Bank",
+        referenceHint: "Quote your invoice reference",
+        acceptsCash: true,
+      },
+      owner,
+    );
+    expect(instructions.sortCode).toBe("402530");
+
     const open = await ok<Account>(request, "listFinancialAccount", null, adult);
+    expect(open.paymentInstructions).toMatchObject({
+      sortCode: "402530",
+      accountNumber: "12345678",
+      referenceHint: "Quote your invoice reference",
+    });
     const openView = open.invoices.find((view) => view.invoice.invoiceId === invoice.invoiceId);
     expect(openView?.balanceMinor).toBe(townAdultPlan.priceMinor);
     expect(open.paygDebtMinor).toBe(0);
@@ -336,7 +389,12 @@ test.describe("T095 manual billing cycle with Firebase Emulators", () => {
   }) => {
     const owner = await signIn(request, process.env.T095_OWNER_EMAIL);
 
-    for (const name of ["createMembership", "issueManualInvoice", "recordManualPayment"]) {
+    for (const name of [
+      "createMembership",
+      "issueManualInvoice",
+      "recordManualPayment",
+      "savePaymentInstructions",
+    ]) {
       const noAppCheck = await call(request, name, null, { session: owner, appCheck: false });
       expect(noAppCheck.status, name).toBe(401);
       expect(noAppCheck.body.error?.status).toBe("UNAUTHENTICATED");

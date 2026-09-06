@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { UserActorContext } from "@bpt-jersey/domain";
+import { parsePaymentInstructionsInput } from "@bpt-jersey/domain/finance";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
@@ -319,6 +320,30 @@ export async function voidManualInvoiceHandler(
   }
 }
 
+/**
+ * T010/T035: office writes the academy's bank transfer details. Administrator-only, closed payload,
+ * and the store audits every save. Members read the result through listFinancialAccount.
+ */
+export async function savePaymentInstructionsHandler(
+  request: CallableRequest<unknown>,
+  services: FinanceCallableServices,
+) {
+  const actor = await requireAdministrator(request, services);
+  const parsed = parsePaymentInstructionsInput(request.data);
+  if (!parsed.ok) {
+    throw new HttpsError("invalid-argument", "Payment instructions payload is invalid");
+  }
+  try {
+    return await services.store.savePaymentInstructions({
+      academyId: actor.academyId,
+      actorId: actor.userId,
+      instructions: parsed.value,
+    });
+  } catch (error) {
+    return mapStoreError(error, "write");
+  }
+}
+
 export async function listFinancialAccountHandler(
   request: CallableRequest<unknown>,
   services: FinanceCallableServices,
@@ -407,6 +432,10 @@ export const recordManualPayment = onCall(financeCallableOptions, async (request
 export const voidManualInvoice = onCall(financeCallableOptions, async (request) =>
   voidManualInvoiceHandler(request, financeCallableServices()),
 );
+export const savePaymentInstructions = onCall(financeCallableOptions, async (request) =>
+  savePaymentInstructionsHandler(request, financeCallableServices()),
+);
+
 export const listFinancialAccount = onCall(financeCallableOptions, async (request) =>
   listFinancialAccountHandler(request, financeCallableServices()),
 );

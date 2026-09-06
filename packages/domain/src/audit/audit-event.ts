@@ -61,6 +61,7 @@ export const auditActions = Object.freeze([
   "disclaimer.acceptance.withdrawn",
   "student.checked_out",
   "location.geofence.saved",
+  "academy.payment_instructions.saved",
   "notification.preference.updated",
   "shop.product.saved",
   "shop.product.status.changed",
@@ -157,6 +158,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "disclaimer.acceptance.withdrawn"
           | "student.checked_out"
           | "location.geofence.saved"
+          | "academy.payment_instructions.saved"
           | "notification.preference.updated"
           | "shop.product.saved"
           | "shop.product.status.changed"
@@ -289,6 +291,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "disclaimer.acceptance.withdrawn": commonFields,
   "student.checked_out": commonFields,
   "location.geofence.saved": commonFields,
+  "academy.payment_instructions.saved": commonFields,
   "notification.preference.updated": commonFields,
   "shop.product.saved": commonFields,
   "shop.product.status.changed": commonFields,

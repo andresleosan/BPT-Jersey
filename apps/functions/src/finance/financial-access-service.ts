@@ -123,7 +123,9 @@ function financialAccount(value: unknown): FinancialAccountView {
     throw new FinancialAccessServiceError("invalid", invalidDataMessage);
   }
 
-  const fields = ["invoices", "balanceMinor", "paygDebtMinor"] as const;
+  // T010/T035 added paymentInstructions to the account view; access derives nothing from it, but
+  // the view is validated field-for-field, so it must be known here to be ignored.
+  const fields = ["invoices", "balanceMinor", "paygDebtMinor", "paymentInstructions"] as const;
   for (const key of Reflect.ownKeys(value)) {
     const descriptor =
       typeof key === "string" ? Object.getOwnPropertyDescriptor(value, key) : undefined;

@@ -10,6 +10,7 @@ import {
   getInvoiceHandler,
   issueManualInvoiceHandler,
   listFinancialAccountHandler,
+  savePaymentInstructionsHandler,
   recordManualPaymentHandler,
   voidManualInvoiceHandler,
   type FinanceCallableServices,
@@ -64,10 +65,14 @@ function services(overrides: Partial<FinanceCallableServices> = {}): FinanceCall
     issuePaygInvoice: vi.fn(),
     recordManualPayment: vi.fn(),
     voidManualInvoice: vi.fn(),
-    listFinancialAccount: vi
-      .fn()
-      .mockResolvedValue({ invoices: [], balanceMinor: 0, paygDebtMinor: 0 }),
+    listFinancialAccount: vi.fn().mockResolvedValue({
+      invoices: [],
+      balanceMinor: 0,
+      paygDebtMinor: 0,
+      paymentInstructions: null,
+    }),
     getInvoice: vi.fn(),
+    savePaymentInstructions: vi.fn().mockResolvedValue({ accountNumber: "12345678" }),
   } as unknown as FinanceStore;
   return {
     store,
@@ -253,5 +258,54 @@ describe("finance callables", () => {
       code: "internal",
       message: expect.not.stringContaining("Firestore"),
     });
+  });
+});
+
+describe("savePaymentInstructions (T010/T035 re-scope)", () => {
+  const payload = {
+    accountName: "BPT Jersey",
+    sortCode: "40-25-30",
+    accountNumber: "12345678",
+    bankName: null,
+    referenceHint: "Quote your invoice reference",
+    acceptsCash: true,
+  };
+
+  it("lets office save the normalised details with the actor attached", async () => {
+    const finance = services();
+    const store = finance.store as unknown as {
+      savePaymentInstructions: ReturnType<typeof vi.fn>;
+    };
+    await savePaymentInstructionsHandler(request(payload, actor("owner", "owner-1")), finance);
+    expect(store.savePaymentInstructions).toHaveBeenCalledWith({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      instructions: { ...payload, sortCode: "402530" },
+    });
+  });
+
+  it("refuses every role that is not office", async () => {
+    for (const role of ["headCoach", "coach", "guardian", "adultStudent"] as const) {
+      await expect(
+        savePaymentInstructionsHandler(request(payload, actor(role, "user-1")), services()),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+    }
+  });
+
+  it("refuses a malformed payload before touching the store", async () => {
+    const finance = services();
+    for (const bad of [
+      null,
+      {},
+      { ...payload, accountNumber: "1234" },
+      { ...payload, iban: "GB00" },
+      { ...payload, acceptsCash: "yes" },
+    ]) {
+      await expect(
+        savePaymentInstructionsHandler(request(bad, actor("owner", "owner-1")), finance),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+    }
+    const store = finance.store as unknown as { savePaymentInstructions: ReturnType<typeof vi.fn> };
+    expect(store.savePaymentInstructions).not.toHaveBeenCalled();
   });
 });

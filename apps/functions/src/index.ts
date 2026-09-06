@@ -56,6 +56,7 @@ export {
   getInvoice,
   issueManualInvoice,
   listFinancialAccount,
+  savePaymentInstructions,
   recordManualPayment,
   voidManualInvoice,
 } from "./finance/finance-callables.js";

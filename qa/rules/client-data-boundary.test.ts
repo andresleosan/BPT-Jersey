@@ -66,6 +66,8 @@ const academyBackendOnlyCollections = Object.freeze([
   // T117: a client reading these directly would see every other participant's acceptances.
   "disclaimers",
   "disclaimerAcceptances",
+  // T010/T035: bank transfer instructions live here and reach members only via callables.
+  "settings",
   "sessionCapacityStates",
   "bookingQuotaStates",
   "waitlistPositionStates",

@@ -294,3 +294,142 @@ export function calculatePaygDebt(
     .filter((invoice) => invoice.chargeKind === "payg_session")
     .reduce((total, invoice) => total + calculateInvoiceBalance(invoice, payments), 0);
 }
+
+/**
+ * T010/T035 (re-scoped 2026-09-06): the pilot has no payment gateway. Members pay by cash or bank
+ * transfer, staff record the payment by hand (T095), and what was missing was the piece in between:
+ * telling a member WHERE to transfer. Office types the academy's own account details once; every
+ * open invoice then shows them next to the reference the member should quote.
+ *
+ * These are the academy's details, meant to be shown to payers, so the projection is the record.
+ * Nothing here is a card, a token or a provider credential.
+ */
+export const paymentInstructionsSettingId = "paymentInstructions";
+
+export type PaymentInstructionsInput = Readonly<{
+  accountName: string;
+  /** Normalised to six digits with no separators. */
+  sortCode: string;
+  /** Eight digits, the UK/Jersey account number format. */
+  accountNumber: string;
+  bankName: string | null;
+  /** What the member should put as the transfer reference, e.g. "your invoice reference". */
+  referenceHint: string;
+  acceptsCash: boolean;
+}>;
+
+export type PaymentInstructionsRecord = PaymentInstructionsInput &
+  Readonly<{
+    academyId: string;
+    schemaVersion: 1;
+    updatedAt: string;
+    updatedBy: string;
+  }>;
+
+const paymentInstructionsInputFields = Object.freeze([
+  "accountName",
+  "sortCode",
+  "accountNumber",
+  "bankName",
+  "referenceHint",
+  "acceptsCash",
+] as const);
+
+function boundedPlainText(value: unknown, minimum: number, maximum: number): value is string {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed !== value || trimmed.length < minimum || trimmed.length > maximum) return false;
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) return false;
+  }
+  return true;
+}
+
+/** Accepts "12-34-56", "12 34 56" or "123456" and returns the six digits. */
+export function normaliseSortCode(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const digits = value.replaceAll(/[\s-]/gu, "");
+  return /^\d{6}$/u.test(digits) ? digits : undefined;
+}
+
+export function parsePaymentInstructionsInput(
+  value: unknown,
+): Result<PaymentInstructionsInput, readonly ValidationIssue[]> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return err([issue([], "invalid_type")]);
+  }
+  const record = value as Record<string, unknown>;
+  const issues: ValidationIssue[] = [];
+  const keys = Object.keys(record);
+  if (
+    keys.length !== paymentInstructionsInputFields.length ||
+    paymentInstructionsInputFields.some((field) => !keys.includes(field))
+  ) {
+    issues.push(issue([], "unexpected_fields"));
+  }
+  if (!boundedPlainText(record.accountName, 3, 80)) issues.push(issue(["accountName"], "invalid"));
+  const sortCode = normaliseSortCode(record.sortCode);
+  if (sortCode === undefined) issues.push(issue(["sortCode"], "invalid"));
+  if (typeof record.accountNumber !== "string" || !/^\d{8}$/u.test(record.accountNumber)) {
+    issues.push(issue(["accountNumber"], "invalid"));
+  }
+  if (record.bankName !== null && !boundedPlainText(record.bankName, 1, 80)) {
+    issues.push(issue(["bankName"], "invalid"));
+  }
+  if (!boundedPlainText(record.referenceHint, 3, 120)) {
+    issues.push(issue(["referenceHint"], "invalid"));
+  }
+  if (typeof record.acceptsCash !== "boolean") issues.push(issue(["acceptsCash"], "invalid"));
+  if (issues.length > 0) return err(issues);
+  return ok(
+    Object.freeze({
+      accountName: record.accountName as string,
+      sortCode: sortCode as string,
+      accountNumber: record.accountNumber as string,
+      bankName: record.bankName as string | null,
+      referenceHint: record.referenceHint as string,
+      acceptsCash: record.acceptsCash as boolean,
+    }),
+  );
+}
+
+export function parsePaymentInstructionsRecord(
+  value: unknown,
+): Result<PaymentInstructionsRecord, readonly ValidationIssue[]> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return err([issue([], "invalid_type")]);
+  }
+  const { academyId, schemaVersion, updatedAt, updatedBy, ...rest } = value as Record<
+    string,
+    unknown
+  >;
+  const input = parsePaymentInstructionsInput(rest);
+  if (!input.ok) return input;
+  const issues: ValidationIssue[] = [];
+  if (typeof academyId !== "string" || academyId.length === 0) {
+    issues.push(issue(["academyId"], "invalid"));
+  }
+  if (schemaVersion !== 1) issues.push(issue(["schemaVersion"], "invalid"));
+  if (typeof updatedAt !== "string" || Number.isNaN(Date.parse(updatedAt))) {
+    issues.push(issue(["updatedAt"], "invalid"));
+  }
+  if (typeof updatedBy !== "string" || updatedBy.length === 0) {
+    issues.push(issue(["updatedBy"], "invalid"));
+  }
+  if (issues.length > 0) return err(issues);
+  return ok(
+    Object.freeze({
+      ...input.value,
+      academyId: academyId as string,
+      schemaVersion: 1 as const,
+      updatedAt: updatedAt as string,
+      updatedBy: updatedBy as string,
+    }),
+  );
+}
+
+/** "12-34-56", the way a member expects to read a sort code. */
+export function formatSortCode(sortCode: string): string {
+  return `${sortCode.slice(0, 2)}-${sortCode.slice(2, 4)}-${sortCode.slice(4, 6)}`;
+}

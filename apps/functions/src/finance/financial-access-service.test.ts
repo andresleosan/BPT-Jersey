@@ -39,7 +39,7 @@ function membership(
 }
 
 function account(paygDebtMinor: number): FinancialAccountView {
-  return { invoices: [], balanceMinor: paygDebtMinor, paygDebtMinor };
+  return { invoices: [], balanceMinor: paygDebtMinor, paygDebtMinor, paymentInstructions: null };
 }
 
 function doubles(
@@ -247,9 +247,9 @@ describe("financial access service", () => {
 
   it("rejects malformed financial results without treating debt as zero", async () => {
     for (const malformedAccount of [
-      { invoices: [], balanceMinor: 0, paygDebtMinor: -1 },
-      { invoices: [], balanceMinor: 0, paygDebtMinor: Number.NaN },
-      { invoices: [], balanceMinor: 0 },
+      { invoices: [], balanceMinor: 0, paygDebtMinor: -1, paymentInstructions: null },
+      { invoices: [], balanceMinor: 0, paygDebtMinor: Number.NaN, paymentInstructions: null },
+      { invoices: [], balanceMinor: 0, paymentInstructions: null },
     ]) {
       const testDoubles = doubles(membership(), malformedAccount as FinancialAccountView);
       const service = createFinancialAccessService(testDoubles.dependencies);

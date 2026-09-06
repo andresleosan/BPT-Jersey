@@ -233,6 +233,7 @@ describe("domain contracts", () => {
       "disclaimer.acceptance.withdrawn",
       "student.checked_out",
       "location.geofence.saved",
+      "academy.payment_instructions.saved",
       "notification.preference.updated",
       "shop.product.saved",
       "shop.product.status.changed",

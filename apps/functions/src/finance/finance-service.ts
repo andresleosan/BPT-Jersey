@@ -6,9 +6,13 @@ import {
   calculatePaygDebt,
   parseInvoiceRecord,
   parseManualPaymentRecord,
+  parsePaymentInstructionsRecord,
+  paymentInstructionsSettingId,
   type InvoiceRecord,
   type ManualPaymentMethod,
   type ManualPaymentRecord,
+  type PaymentInstructionsInput,
+  type PaymentInstructionsRecord,
 } from "@bpt-jersey/domain/finance";
 
 export type FinanceDocumentData = Readonly<Record<string, unknown>>;
@@ -45,7 +49,11 @@ export type FinanceFirestore = Readonly<{
 }>;
 
 export type FinanceAuditAction =
-  "invoice.created" | "invoice.voided" | "payment.recorded" | "invoice.status.changed";
+  | "invoice.created"
+  | "invoice.voided"
+  | "payment.recorded"
+  | "invoice.status.changed"
+  | "academy.payment_instructions.saved";
 export type FinanceAuditDraft = Readonly<{
   academyId: string;
   actorId: string;
@@ -120,6 +128,8 @@ export type FinancialAccountView = Readonly<{
   invoices: readonly InvoiceView[];
   balanceMinor: number;
   paygDebtMinor: number;
+  /** How to pay, as office configured it; null until they do. Shown to every reader of the account. */
+  paymentInstructions: PaymentInstructionsRecord | null;
 }>;
 
 export type FinanceStore = Readonly<{
@@ -129,6 +139,15 @@ export type FinanceStore = Readonly<{
   voidManualInvoice: (input: VoidManualInvoiceInput) => Promise<InvoiceRecord>;
   listFinancialAccount: (scope: FinanceReadScope) => Promise<FinancialAccountView>;
   getInvoice: (scope: FinanceReadScope, invoiceId: string) => Promise<InvoiceView>;
+  savePaymentInstructions: (
+    input: SavePaymentInstructionsInput,
+  ) => Promise<PaymentInstructionsRecord>;
+}>;
+
+export type SavePaymentInstructionsInput = Readonly<{
+  academyId: string;
+  actorId: string;
+  instructions: PaymentInstructionsInput;
 }>;
 
 export type FinanceStoreDependencies = Readonly<{
@@ -225,6 +244,10 @@ function membershipPath(academyId: string, membershipId: string): string {
     membershipId,
     "membership",
   )}`;
+}
+
+function paymentInstructionsPath(academyId: string): string {
+  return `academies/${pathSegment(academyId, "academy")}/settings/${paymentInstructionsSettingId}`;
 }
 
 function auditPath(academyId: string, auditId: string): string {
@@ -464,17 +487,40 @@ async function matchesStudentScopeInTransaction(
   return scope.studentIds.includes(data.studentId);
 }
 
+/** Null until office has configured how to pay; a malformed document is treated the same way. */
+async function readPaymentInstructionsInTransaction(
+  firestore: FinanceFirestore,
+  transaction: FinanceTransaction,
+  academyId: string,
+): Promise<PaymentInstructionsRecord | null> {
+  const snapshot = documentSnapshot(
+    await transaction.get(firestore.doc(paymentInstructionsPath(academyId))),
+  );
+  if (!snapshot.exists) return null;
+  const parsed = parsePaymentInstructionsRecord(snapshot.data());
+  if (!parsed.ok || parsed.value.academyId !== academyId) return null;
+  return parsed.value;
+}
+
 export async function readFinancialAccountInTransaction(input: {
   firestore: FinanceFirestore;
   transaction: FinanceTransaction;
   scope: FinanceReadScope;
 }): Promise<FinancialAccountView> {
   const academy = pathSegment(input.scope.academyId, "academy");
+  // Read first: the transaction must not read after it has written elsewhere, and the
+  // instructions are the same for every scope.
+  const paymentInstructions = await readPaymentInstructionsInTransaction(
+    input.firestore,
+    input.transaction,
+    academy,
+  );
   if (input.scope.familyIds?.length === 0 || input.scope.studentIds?.length === 0) {
     return Object.freeze({
       invoices: Object.freeze([]),
       balanceMinor: 0,
       paygDebtMinor: 0,
+      paymentInstructions,
     });
   }
   const familyId = input.scope.familyIds?.length === 1 ? input.scope.familyIds[0] : undefined;
@@ -524,6 +570,7 @@ export async function readFinancialAccountInTransaction(input: {
   );
   return Object.freeze({
     invoices: Object.freeze(views),
+    paymentInstructions,
     balanceMinor: calculateAccountBalance(scopedInvoices, scopedPayments),
     paygDebtMinor: calculatePaygDebt(scopedInvoices, scopedPayments),
   });
@@ -823,6 +870,43 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     });
   }
 
+  /**
+   * T010/T035: office records the academy's own bank details once. One document, overwritten in
+   * place and audited each time, because there is exactly one answer to "where do I transfer".
+   */
+  async function savePaymentInstructions(
+    input: SavePaymentInstructionsInput,
+  ): Promise<PaymentInstructionsRecord> {
+    const academy = pathSegment(input.academyId, "academy");
+    const actorId = pathSegment(input.actorId, "actor");
+    const record: PaymentInstructionsRecord = Object.freeze({
+      ...input.instructions,
+      academyId: academy,
+      schemaVersion: 1 as const,
+      updatedAt: now(),
+      updatedBy: actorId,
+    });
+    const validated = parsePaymentInstructionsRecord(record);
+    if (!validated.ok) throw new FinanceStoreError("invalid", "Invalid payment instructions");
+    return dependencies.firestore.runTransaction(async (transaction) => {
+      const ref = dependencies.firestore.doc(paymentInstructionsPath(academy));
+      transaction.set(ref, record as unknown as FinanceDocumentData);
+      dependencies.appendAudit(
+        transaction,
+        dependencies.firestore.doc(auditPath(academy, generateAuditId())),
+        {
+          academyId: academy,
+          actorId,
+          action: "academy.payment_instructions.saved",
+          targetRef: ref.path,
+          purpose: "finance-payment-instructions",
+          correlationId: `payment-instructions-${academy}`,
+        },
+      );
+      return record;
+    });
+  }
+
   async function listFinancialAccount(scope: FinanceReadScope): Promise<FinancialAccountView> {
     return dependencies.firestore.runTransaction((transaction) =>
       readFinancialAccountInTransaction({
@@ -840,5 +924,6 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     voidManualInvoice,
     listFinancialAccount,
     getInvoice,
+    savePaymentInstructions,
   });
 }

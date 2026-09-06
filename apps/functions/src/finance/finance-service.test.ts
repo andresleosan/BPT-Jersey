@@ -465,3 +465,92 @@ describe("finance store", () => {
     ).rejects.toBeInstanceOf(FinanceStoreError);
   });
 });
+
+describe("payment instructions (T010/T035 re-scope)", () => {
+  const instructions = {
+    accountName: "BPT Jersey",
+    sortCode: "402530",
+    accountNumber: "12345678",
+    bankName: "Synthetic Bank",
+    referenceHint: "Quote your invoice reference",
+    acceptsCash: true,
+  };
+
+  it("stores the academy's details in one audited document and serves them with the account", async () => {
+    const { service, records, audits } = store(seedSources());
+    const saved = await service.savePaymentInstructions({
+      academyId,
+      actorId: "owner-1",
+      instructions,
+    });
+    expect(saved).toMatchObject({ ...instructions, academyId, updatedBy: "owner-1" });
+    expect(records.get(`academies/${academyId}/settings/paymentInstructions`)).toMatchObject({
+      sortCode: "402530",
+      schemaVersion: 1,
+    });
+    expect(audits.at(-1)).toMatchObject({
+      action: "academy.payment_instructions.saved",
+      actorId: "owner-1",
+      targetRef: `academies/${academyId}/settings/paymentInstructions`,
+    });
+
+    const account = await service.listFinancialAccount({ academyId, familyIds: [familyId] });
+    expect(account.paymentInstructions).toMatchObject({ accountNumber: "12345678" });
+  });
+
+  it("overwrites in place: there is exactly one answer to where to transfer", async () => {
+    const { service, records } = store(seedSources());
+    await service.savePaymentInstructions({ academyId, actorId: "owner-1", instructions });
+    await service.savePaymentInstructions({
+      academyId,
+      actorId: "admin-1",
+      instructions: { ...instructions, accountNumber: "87654321" },
+    });
+    const stored = [...records.keys()].filter((key) => key.includes("/settings/"));
+    expect(stored).toEqual([`academies/${academyId}/settings/paymentInstructions`]);
+    expect(records.get(stored[0]!)).toMatchObject({
+      accountNumber: "87654321",
+      updatedBy: "admin-1",
+    });
+  });
+
+  it("answers null before office has configured anything, and for a malformed document", async () => {
+    const { service, records } = store(seedSources());
+    await expect(
+      service.listFinancialAccount({ academyId, familyIds: [familyId] }),
+    ).resolves.toMatchObject({ paymentInstructions: null });
+
+    records.set(`academies/${academyId}/settings/paymentInstructions`, {
+      accountName: "Broken",
+      academyId,
+    });
+    await expect(
+      service.listFinancialAccount({ academyId, familyIds: [familyId] }),
+    ).resolves.toMatchObject({ paymentInstructions: null });
+  });
+
+  it("never serves another academy's instructions", async () => {
+    const { service, records } = store(seedSources());
+    records.set(`academies/${academyId}/settings/paymentInstructions`, {
+      ...instructions,
+      academyId: "academy-2",
+      schemaVersion: 1,
+      updatedAt: now,
+      updatedBy: "owner-2",
+    });
+    await expect(
+      service.listFinancialAccount({ academyId, familyIds: [familyId] }),
+    ).resolves.toMatchObject({ paymentInstructions: null });
+  });
+
+  it("refuses an invalid tenant or actor before writing", async () => {
+    const { service, records } = store(seedSources());
+    await expect(
+      service.savePaymentInstructions({ academyId: "../x", actorId: "owner-1", instructions }),
+    ).rejects.toThrow(FinanceStoreError);
+    await expect(
+      service.savePaymentInstructions({ academyId, actorId: "", instructions }),
+    ).rejects.toThrow(FinanceStoreError);
+    expect([...records.keys()].some((key) => key.includes("/settings/"))).toBe(false);
+  });
+});

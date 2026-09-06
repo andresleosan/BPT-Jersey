@@ -2,6 +2,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
+  // The page now mounts the T010/T035 payment instructions panel, which imports these two.
+  savePaymentInstructions: vi.fn(),
+  formatSortCode: (sortCode: string) =>
+    `${sortCode.slice(0, 2)}-${sortCode.slice(2, 4)}-${sortCode.slice(4, 6)}`,
   issueManualInvoice: vi.fn(),
   listFinancialAccount: vi.fn(),
   recordManualPayment: vi.fn(),
@@ -20,6 +24,7 @@ import { BillingPage } from "./page";
 const account = {
   balanceMinor: 7_500,
   paygDebtMinor: 1_500,
+  paymentInstructions: null,
   invoices: [
     {
       balanceMinor: 7_500,

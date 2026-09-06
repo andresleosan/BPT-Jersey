@@ -127,6 +127,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // T010/T035: academy-level settings such as the bank transfer instructions. Members receive
+    // them through the finance callables; nobody reads or writes the document directly.
+    match /academies/{academyId}/settings/{settingId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/programs/{programId} {
       allow read, write: if false;
     }

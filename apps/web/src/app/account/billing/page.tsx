@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
 import {
+  formatSortCode,
   listFinancialAccount,
   type FinancialAccount,
   type InvoiceView,
@@ -101,6 +102,49 @@ function BillingContent() {
               <strong>{formatMoney(account.paygDebtMinor)}</strong>
             </div>
           </section>
+
+          {/* T010/T035: the pilot has no card gateway; this is how a member settles a balance. */}
+          {account.balanceMinor > 0 ? (
+            <section className="client-billing-summary" aria-labelledby="how-to-pay-title">
+              <h2 id="how-to-pay-title">How to pay</h2>
+              {account.paymentInstructions === null ? (
+                <p>The academy has not published bank details yet. Ask at reception.</p>
+              ) : (
+                <dl>
+                  <div>
+                    <dt>Account name</dt>
+                    <dd>{account.paymentInstructions.accountName}</dd>
+                  </div>
+                  <div>
+                    <dt>Sort code</dt>
+                    <dd>{formatSortCode(account.paymentInstructions.sortCode)}</dd>
+                  </div>
+                  <div>
+                    <dt>Account number</dt>
+                    <dd>{account.paymentInstructions.accountNumber}</dd>
+                  </div>
+                  {account.paymentInstructions.bankName ? (
+                    <div>
+                      <dt>Bank</dt>
+                      <dd>{account.paymentInstructions.bankName}</dd>
+                    </div>
+                  ) : null}
+                  <div>
+                    <dt>Reference</dt>
+                    <dd>{account.paymentInstructions.referenceHint}</dd>
+                  </div>
+                  <div>
+                    <dt>Cash</dt>
+                    <dd>
+                      {account.paymentInstructions.acceptsCash
+                        ? "Accepted at reception"
+                        : "Not accepted"}
+                    </dd>
+                  </div>
+                </dl>
+              )}
+            </section>
+          ) : null}
 
           {account.invoices.length === 0 ? (
             <section className="client-billing-state">

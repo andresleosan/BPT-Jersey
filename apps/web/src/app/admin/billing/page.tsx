@@ -16,6 +16,7 @@ import { listMembers } from "../../../lib/members-client";
 import { AdminDataTable } from "../admin-data-table";
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { NoShowPenaltyQueue } from "./no-show-penalty-queue";
+import { PaymentInstructionsPanel } from "./payment-instructions-panel";
 
 import "../admin.css";
 
@@ -427,6 +428,13 @@ export function BillingPage() {
             ) : null}
           </section>
         </>
+      ) : null}
+
+      {state === "ready" ? (
+        <PaymentInstructionsPanel
+          current={account?.paymentInstructions ?? null}
+          onSaved={loadAccount}
+        />
       ) : null}
 
       <div className="finance-horizon-grid">
