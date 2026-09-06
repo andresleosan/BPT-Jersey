@@ -11,21 +11,12 @@ import {
 } from "firebase/auth";
 
 import {
-  beginTotpEnrollment as beginTotpEnrollmentFromFirebase,
-  completeTotpEnrollment as completeTotpEnrollmentFromFirebase,
   getFirebaseAuth,
-  hasTotpEnrollment as hasTotpEnrollmentFromFirebase,
   refreshAuthToken as refreshAuthTokenFromFirebase,
-  resolveTotpChallenge as resolveTotpChallengeFromFirebase,
   signInWithGoogle as signInWithGoogleFromFirebase,
   signOutFromFirebase,
-  type MfaEnrollment,
 } from "./firebase-client";
-import type { IdTokenResult, MultiFactorError } from "firebase/auth";
-
-export type { MfaEnrollment } from "./firebase-client";
-
-let pendingMfaError: MultiFactorError | undefined;
+import type { IdTokenResult } from "firebase/auth";
 
 function requiredEmail(email: string): string {
   const trimmedEmail = email.trim();
@@ -78,39 +69,8 @@ export function signOutFromAuth(): Promise<void> {
   return signOutFromFirebase();
 }
 
-export function beginTotpEnrollment(user: User, accountName: string): Promise<MfaEnrollment> {
-  return beginTotpEnrollmentFromFirebase(user, accountName);
-}
-
-export function completeTotpEnrollment(enrollment: MfaEnrollment, code: string): Promise<void> {
-  return completeTotpEnrollmentFromFirebase(enrollment, code);
-}
-
-export function hasTotpEnrollment(user: User): boolean {
-  return hasTotpEnrollmentFromFirebase(user);
-}
-
 export function refreshAuthToken(user: User): Promise<IdTokenResult> {
   return refreshAuthTokenFromFirebase(user);
-}
-
-export function resolveTotpChallenge(
-  error: MultiFactorError,
-  code: string,
-): Promise<UserCredential> {
-  return resolveTotpChallengeFromFirebase(error, code);
-}
-
-export function rememberMfaError(error: MultiFactorError): void {
-  pendingMfaError = error;
-}
-
-export function getPendingMfaError(): MultiFactorError | undefined {
-  return pendingMfaError;
-}
-
-export function clearPendingMfaError(): void {
-  pendingMfaError = undefined;
 }
 
 export { signOutFromFirebase } from "./firebase-client";

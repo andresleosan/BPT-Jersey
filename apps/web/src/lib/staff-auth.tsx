@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { User } from "firebase/auth";
 
 import { signOutFromAuth, subscribeToIdTokenChanges } from "./auth-client";
+import { requireStaffSession } from "./login-flow";
 
 export type StaffRole = "headCoach" | "coach";
 
@@ -128,7 +129,7 @@ export function StaffAuthGate({
       <main className="auth-required" role="alert">
         <h2>Staff Access Required</h2>
         <p>You must be signed in as a coach to access this area.</p>
-        <a className="button button-primary" href={`/login?role=administrator&returnPath=${encodeURIComponent(returnPath)}`}>
+        <a className="button button-primary" href={requireStaffSession(returnPath).loginPath}>
           Sign in
         </a>
       </main>

@@ -69,6 +69,13 @@ async function mockAdminWaiverCallables(page: Page): Promise<void> {
         body: JSON.stringify({ data: version }),
         status: 200,
       });
+    // T117: the disclaimer panel on the same page lists its catalog on mount.
+    if (request.url().includes("listDisclaimers"))
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+        status: 200,
+      });
     return route.continue();
   });
 }
@@ -112,7 +119,7 @@ test.describe("versioned waiver registration", () => {
     await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
-      "/login?role=client&returnTo=%2Faccount%2Fwaiver",
+      "/login?returnTo=%2Faccount%2Fwaiver",
     );
     expect(errors).toEqual([]);
   });

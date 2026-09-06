@@ -1,9 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const adminPaths = ["/admin", "/admin/regyfit-access-records"] as const;
+const adminPaths = ["/admin", "/admin/reports"] as const;
 const deniedRoles = ["coach", "guardian", "adultStudent"] as const;
 
 type AdminTestRole = "owner" | "administrator" | (typeof deniedRoles)[number];
+
+function staffLoginFor(pathname: string): string {
+  return `/staff/login?returnTo=${encodeURIComponent(pathname)}`;
+}
 
 function trackBrowserHealth(page: Page): string[] {
   const errors: string[] = [];
@@ -80,11 +84,10 @@ test.describe("admin authentication boundary", () => {
       await expect(page.getByRole("heading", { name: "Admin access required" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute(
         "href",
-        "/login?role=administrator",
+        staffLoginFor(pathname),
       );
       await expect(page.getByTestId("admin-shell")).toHaveCount(0);
-      await expect(page.getByTestId("regyfit-access-records-panel")).toHaveCount(0);
-      await expect(page.locator("body")).not.toContainText("203.0.113.10");
+      await expect(page.locator("body")).not.toContainText(/role=administrator|203\.0\.113\.10/);
       await expectNoBrowserHealthProblems(page, errors);
     });
   }
@@ -102,8 +105,8 @@ test.describe("admin authentication boundary", () => {
         await expect(
           page.getByText(`Authenticated shell - ${roleLabel}`, { exact: true }),
         ).toBeVisible();
-        if (pathname === "/admin/regyfit-access-records") {
-          await expect(page.getByTestId("regyfit-access-records-panel")).toBeVisible();
+        if (pathname === "/admin/reports") {
+          await expect(page.getByRole("heading", { name: "Reports", level: 2 })).toBeVisible();
         }
       }
 
@@ -123,8 +126,7 @@ test.describe("admin authentication boundary", () => {
           page.getByRole("heading", { name: "Administrative access not authorized" }),
         ).toBeVisible();
         await expect(page.getByTestId("admin-shell")).toHaveCount(0);
-        await expect(page.getByTestId("regyfit-access-records-panel")).toHaveCount(0);
-        await expect(page.locator("body")).not.toContainText("203.0.113.10");
+        await expect(page.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
       }
 
       await expectNoBrowserHealthProblems(page, errors);

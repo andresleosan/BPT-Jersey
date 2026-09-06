@@ -1,14 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("../../../lib/reports-client", () => ({
+vi.mock("../../lib/reports-client", () => ({
   getOperationalReport: vi.fn().mockRejectedValue(new Error("unavailable")),
 }));
-vi.mock("../../../lib/schedule-client", () => ({
+vi.mock("../../lib/schedule-client", () => ({
   getDailyOperationsDashboard: vi.fn().mockRejectedValue(new Error("unavailable")),
 }));
 
-import { OverviewPage } from "./page";
+import { OverviewPage } from "./overview-page";
 
 describe("admin overview", () => {
   it("does not render synthetic metrics when connected sources are unavailable", async () => {

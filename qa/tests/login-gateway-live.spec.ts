@@ -26,7 +26,7 @@ test.describe("unified login gateway live auth", () => {
     const administratorEmail = requiredCredential("UNIFIED_LOGIN_ADMIN_EMAIL");
     const administratorPassword = requiredCredential("UNIFIED_LOGIN_ADMIN_PASSWORD");
 
-    await page.goto("/login?role=client");
+    await page.goto("/login");
     await page.getByLabel("Email address").fill(clientEmail);
     await page.getByLabel("Password").fill(clientPassword);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -43,7 +43,7 @@ test.describe("unified login gateway live auth", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
 
-    await page.goto("/login?role=administrator");
+    await page.goto("/staff/login");
     await page.getByLabel("Email address").fill(administratorEmail);
     await page.getByLabel("Password").fill(administratorPassword);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();

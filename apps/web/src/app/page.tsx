@@ -181,7 +181,7 @@ export default function HomePage() {
             ))}
           </ul>
           <div className="hero-actions merch-actions">
-            <a className="button button-primary" href="/login?role=client&returnTo=%2Fshop">
+            <a className="button button-primary" href="/login?returnTo=%2Fshop">
               Sign in to order
             </a>
             <a className="button button-secondary" href="/shop">

@@ -52,7 +52,7 @@ describe("account destination", () => {
 
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
-      "/login?role=client&returnTo=%2Faccount",
+      "/login?returnTo=%2Faccount",
     );
     expect(screen.queryByRole("heading", { name: "Your account" })).not.toBeInTheDocument();
   });
@@ -84,6 +84,6 @@ describe("account destination", () => {
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));
     expect(authState.signOut).toHaveBeenCalledOnce();
-    expect(locationAssign).toHaveBeenCalledWith("/login?role=client&returnTo=%2Faccount");
+    expect(locationAssign).toHaveBeenCalledWith("/login?returnTo=%2Faccount");
   });
 });

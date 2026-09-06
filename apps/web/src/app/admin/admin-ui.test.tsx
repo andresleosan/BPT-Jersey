@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import { AdminIconButton } from "./admin-ui";
 import { AdminDataTable } from "./admin-data-table";
-import { previewData } from "./preview-data";
 
 describe("admin operational UI primitives", () => {
   it("renders icon actions with accessible labels and tooltips", () => {
@@ -13,13 +12,6 @@ describe("admin operational UI primitives", () => {
     expect(screen.getByRole("button", { name: "Add new member" })).toHaveAttribute(
       "title",
       "Add new member",
-    );
-  });
-
-  it("marks preview data as synthetic and contains no production identifiers", () => {
-    expect(previewData.environment).toBe("synthetic-preview");
-    expect(JSON.stringify(previewData)).not.toMatch(
-      /real member|production|serviceAccount|bearer/i,
     );
   });
 

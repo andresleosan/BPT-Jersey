@@ -125,6 +125,13 @@ despliegues productivos, cobros online ni mensajería externa.
 
 - Servicio: Cloudflare Pages para el frontend estático/PWA (`https://bptjersey.pages.dev`); Firebase Cloud Functions para backend.
 - Build de Pages: ejecutar `next build` desde `apps/web` y publicar `apps/web/out`.
+- Entradas (T118): `/login` es la entrada de miembros y familias, enlazada desde la landing.
+  `/staff/login` es la entrada de owner, administrator, headCoach y coach: sin enlaces publicos,
+  `robots noindex` en la pagina y `X-Robots-Tag` para `/staff/*`, `/admin*` y `/coach*` en
+  `apps/web/public/_headers` (Cloudflare Pages lo aplica; el servidor de QA y Firebase Hosting lo
+  ignoran). El destino tras iniciar sesion lo deciden los claims del ID token: office -> `/admin`,
+  coaches -> `/coach`; una cuenta sin claim de staff se cierra en el acto. Esconder la entrada no
+  es un control de seguridad: la proteccion real siguen siendo claims, callables y Rules.
 - Variables de Pages: configurar los seis `NEXT_PUBLIC_FIREBASE_*` públicos por entorno, `NEXT_PUBLIC_FIREBASE_ENV=staging` (o `production`) y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false`; nunca configurar material de Admin SDK en el frontend. La guardia de build/runtime rechaza emuladores fuera de `local`.
 - CI actual: GitHub Actions ejecuta calidad, Rules, build y smoke sintético. No existe todavía CD,
   GitHub Environments, aprobación automatizada por entorno ni rollback reproducible; completarlos
@@ -168,7 +175,7 @@ evidencia fresca antes de pasar a revision. El gate local usa verify:mvp con bui
 
 - Firebase Authentication: email/password y Google; Email/Password y Google deben estar habilitados en cada proyecto. Los dominios autorizados deben incluir `bptjersey.pages.dev` y el origen local de QA. MFA queda fuera del rediseño aprobado del panel administrativo. Phone Auth queda pendiente de justificación.
 - Firebase Emulator Suite: uso exclusivamente local. Un `.env.local` no versionado puede declarar `NEXT_PUBLIC_FIREBASE_ENV=local` y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`; los builds de Cloudflare Pages, staging y producción deben declarar el entorno correspondiente y `false`. No se acepta un flag de emulador verdadero en esos entornos.
-- Autorización de Auth: la selección Administrator/Client es solo contexto de UX. Las cuentas administrativas se provisionan fuera del registro público y Functions/Rules validan `academyId` más el acceso administrativo. Los administradores aprobados operan el panel, pero solo el claim `owner` puede conceder o revocar accesos administrativos. Cliente y administrador quedan sin MFA en este rediseño aprobado.
+- Autorización de Auth: no existe selector de rol; `/login` y `/staff/login` son páginas distintas y el claim decide el destino. Las cuentas administrativas se provisionan fuera del registro público y Functions/Rules validan `academyId` más el acceso administrativo. Los administradores aprobados operan el panel, pero solo el claim `owner` puede conceder o revocar accesos administrativos. Cliente y administrador quedan sin MFA en este rediseño aprobado.
 - MFA TOTP: queda fuera del alcance del panel administrativo aprobado. No se implementan enrolamiento, desafíos ni secretos MFA en estos flujos; Phone/SMS Auth queda deliberadamente fuera.
 - Pagos del piloto: registros manuales/cash auditables, invoices y receipts internos. El proveedor
   para Jersey, hosted checkout y webhooks firmados quedan para una fase productiva posterior.

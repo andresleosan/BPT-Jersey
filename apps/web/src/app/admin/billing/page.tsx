@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { ChargeKind, ManualPaymentMethod } from "@bpt-jersey/domain/finance";
 
@@ -355,14 +356,19 @@ export function BillingPage() {
     <section className="admin-module-page finance-dashboard-page" aria-labelledby="billing-title">
       <AdminSectionHeader
         actions={
-          <button
-            className="admin-home-link"
-            disabled={busy || state === "loading"}
-            onClick={() => void loadAccount()}
-            type="button"
-          >
-            Refresh account
-          </button>
+          <>
+            <Link className="admin-home-link" href="/admin/finance">
+              Finance dashboard
+            </Link>
+            <button
+              className="admin-home-link"
+              disabled={busy || state === "loading"}
+              onClick={() => void loadAccount()}
+              type="button"
+            >
+              Refresh account
+            </button>
+          </>
         }
         description="Issue GBP invoices and record manual receipts. No card details or online checkout are stored here."
         eyebrow="Finance / Operations"

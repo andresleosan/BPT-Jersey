@@ -5,12 +5,12 @@ import { useEffect, useState } from "react";
 import type { DailyOperationsDashboard } from "@bpt-jersey/domain/schedule";
 import type { OperationalReport } from "@bpt-jersey/domain/reports";
 
-import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
-import { AdminDataTable } from "../admin-data-table";
-import { getOperationalReport } from "../../../lib/reports-client";
-import { getDailyOperationsDashboard } from "../../../lib/schedule-client";
+import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "./admin-ui";
+import { AdminDataTable } from "./admin-data-table";
+import { getOperationalReport } from "../../lib/reports-client";
+import { getDailyOperationsDashboard } from "../../lib/schedule-client";
 
-import "../admin.css";
+import "./admin.css";
 
 type OverviewClass = Readonly<{
   name: string;
@@ -50,10 +50,9 @@ const classColumns = [
 const quickActions = [
   { label: "Add new member", href: "/admin/members/add" },
   { label: "Search members", href: "/admin/members/search" },
-  { label: "Classes", href: "/admin/classes" },
-  { label: "Create / manage activities", href: "/admin/activities" },
+  { label: "Classes and sessions", href: "/admin/classes" },
   { label: "Attendance", href: "/admin/attendance" },
-  { label: "Finance", href: "/admin/finance" },
+  { label: "Billing", href: "/admin/billing" },
   { label: "Reports", href: "/admin/reports" },
 ] as const;
 
@@ -194,8 +193,8 @@ export function OverviewPage() {
               <p className="admin-eyebrow">Connected schedule</p>
               <h3 id="today-classes-title">Today&apos;s classes</h3>
             </div>
-            <Link className="admin-text-link" href="/admin/activities">
-              View activities
+            <Link className="admin-text-link" href="/admin/classes">
+              Manage classes and sessions
             </Link>
           </div>
           {classes.length === 0 ? (
@@ -232,8 +231,4 @@ export function OverviewPage() {
       </div>
     </section>
   );
-}
-
-export default function OverviewRoute() {
-  return <OverviewPage />;
 }

@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 
-import { LoginForm } from "./login-form";
+import { LoginForm } from "../../login/login-form";
 
-import "../admin/admin.css";
+import "../../admin/admin.css";
 
+// The staff entrance is reached by URL only: nothing on the public site links here and search
+// engines are told not to index it. Access itself is still decided by the account's claims.
 export const metadata: Metadata = {
-  title: "Member sign-in",
-  description: "Sign in to your BPT Jersey member or family account.",
+  title: "Staff sign-in",
+  description: "Sign in for BPT Jersey coaches and office staff.",
+  robots: { index: false, follow: false, nocache: true },
 };
 
-export default function LoginPage() {
+export default function StaffLoginPage() {
   return (
-    <main className="login-page" id="main-content">
+    <main className="login-page login-page-staff" id="main-content">
       <a className="skip-link login-skip-link" href="#login-form">
         Skip to login form
       </a>
@@ -28,16 +31,16 @@ export default function LoginPage() {
             />
             <p className="login-mark">BPT / Jersey</p>
           </div>
-          <p className="login-intro-label">One academy. One clear system.</p>
+          <p className="login-intro-label">Academy team workspace</p>
           <p className="login-intro-note">
-            Sign in to manage your membership, classes, family and payments.
+            For BPT Jersey coaches and office staff. Members sign in from the home page.
           </p>
         </div>
         <div className="login-panel">
           <a className="login-home-link" href="/">
             Home
           </a>
-          <LoginForm audience="member" />
+          <LoginForm audience="staff" />
         </div>
       </div>
     </main>

@@ -37,24 +37,19 @@ async function expectNoBrowserHealthProblems(page: Page, errors: string[]): Prom
   expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.bodyClientWidth);
 }
 
-test.describe("unified login gateway", () => {
-  test("renders the selector-first client login surface", async ({ page }) => {
+test.describe("member and staff sign-in surfaces", () => {
+  test("renders the member sign-in with no staff context", async ({ page }) => {
     const errors = trackBrowserHealth(page);
     await installStaticRoute(page, "/login");
     await page.goto("/login");
 
     await expect(page.getByRole("heading", { name: "Client account" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Administrator" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    await expect(page.getByRole("button", { name: "Client", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await expect(page.getByRole("button", { name: "Administrator" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Create client account" })).toBeVisible();
     await expect(page.getByLabel("Email address")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.locator("body")).not.toContainText(/administrator|staff sign-in|coach/i);
+    await expect(page.locator('a[href^="/staff"]')).toHaveCount(0);
 
     const loginForm = page.locator("#login-form");
     await page.getByRole("link", { name: "Skip to login form" }).focus();
@@ -65,10 +60,6 @@ test.describe("unified login gateway", () => {
     await expect(page.getByRole("link", { name: "Skip to login form" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Home" })).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Administrator" })).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Client", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByLabel("Email address")).toBeFocused();
     await page.keyboard.press("Tab");
@@ -87,25 +78,52 @@ test.describe("unified login gateway", () => {
     await expect(page.getByLabel("Email address")).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByLabel("Password")).toHaveAttribute("aria-invalid", "true");
 
-    await page.getByRole("button", { name: "Administrator" }).click();
-    await expect(page.getByRole("heading", { name: "Team access" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create client account" })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Back to client access" })).toBeVisible();
-
-    await page.getByRole("button", { name: "Client", exact: true }).focus();
-    await expect(page.getByRole("button", { name: "Client", exact: true })).toBeFocused();
-
+    // The retired role parameter no longer flips the member page into a staff context.
     await page.goto("/login?role=administrator");
-    await expect(page.getByRole("heading", { name: "Team access" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Client account" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create client account" })).toBeVisible();
+    await expectNoBrowserHealthProblems(page, errors);
+  });
+
+  test("renders the unlinked, unindexed staff sign-in", async ({ page }) => {
+    const errors = trackBrowserHealth(page);
+    await installStaticRoute(page, "/staff/login");
+    await page.goto("/staff/login");
+
+    await expect(page.getByRole("heading", { name: "Staff sign-in" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Create client account" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Administrator" })).toHaveCount(0);
+    await expect(page.getByLabel("Email address")).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /member sign-in/i })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    await expectNoBrowserHealthProblems(page, errors);
+  });
+
+  test("keeps the public home free of staff and admin links", async ({ page }) => {
+    const errors = trackBrowserHealth(page);
+    await page.goto("/");
+
+    await expect(page.getByRole("link", { name: "Sign in", exact: true })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+    await expect(page.locator('a[href^="/staff"]')).toHaveCount(0);
+    await expect(page.locator('a[href^="/admin"]')).toHaveCount(0);
+    await expect(page.locator('a[href^="/coach"]')).toHaveCount(0);
+    await expect(page.locator('a[href*="role="]')).toHaveCount(0);
     await expectNoBrowserHealthProblems(page, errors);
   });
 
   for (const [pathname, returnPath] of [
-    ["/account", "/login?role=client&returnTo=%2Faccount"],
-    ["/shop", "/login?role=client&returnTo=%2Fshop"],
+    ["/account", "/login?returnTo=%2Faccount"],
+    ["/shop", "/login?returnTo=%2Fshop"],
   ] as const) {
-    test(`keeps ${pathname} behind the client session gate`, async ({ page }) => {
+    test(`keeps ${pathname} behind the member session gate`, async ({ page }) => {
       const errors = trackBrowserHealth(page);
       await installStaticRoute(page, pathname);
       await page.goto(pathname);
@@ -117,7 +135,7 @@ test.describe("unified login gateway", () => {
     });
   }
 
-  test("keeps signed-out administrator access out of the admin shell", async ({ page }) => {
+  test("sends signed-out administrator access to the staff sign-in", async ({ page }) => {
     const errors = trackBrowserHealth(page);
     await installStaticRoute(page, "/admin");
     await page.goto("/admin");
@@ -125,9 +143,22 @@ test.describe("unified login gateway", () => {
     await expect(page.getByRole("heading", { name: "Admin access required" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
-      "/login?role=administrator",
+      "/staff/login?returnTo=%2Fadmin",
     );
     await expect(page.getByTestId("admin-shell")).toHaveCount(0);
+    await expectNoBrowserHealthProblems(page, errors);
+  });
+
+  test("sends signed-out coach access to the staff sign-in", async ({ page }) => {
+    const errors = trackBrowserHealth(page);
+    await installStaticRoute(page, "/coach");
+    await page.goto("/coach");
+
+    await expect(page.getByRole("heading", { name: "Staff Access Required" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/staff/login?returnTo=%2Fcoach",
+    );
     await expectNoBrowserHealthProblems(page, errors);
   });
 });

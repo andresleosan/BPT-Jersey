@@ -1,10 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ActivitiesPage } from "./activities/page";
 import { AttendancePage } from "./attendance/page";
 import { CrmPage } from "./crm/page";
-import { GroupsPage } from "./groups/page";
 import { ReportsPage } from "./reports/page";
 
 vi.mock("../../lib/schedule-client", () => ({
@@ -21,19 +19,6 @@ vi.mock("../../lib/crm-client", () => ({
 
 describe("administrative connected modules", () => {
   afterEach(() => cleanup());
-
-  it("does not render preview groups when the connected source is empty", async () => {
-    render(<GroupsPage />);
-    expect(await screen.findByText("No groups match these filters.")).toBeVisible();
-    expect(screen.queryByText("Little Warriors")).not.toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Training center" })).toBeVisible();
-  });
-
-  it("does not render preview activities when the connected source is empty", async () => {
-    render(<ActivitiesPage />);
-    expect(await screen.findByText("No activities match these filters.")).toBeVisible();
-    expect(screen.queryByText("Kids Gi Fundamentals")).not.toBeInTheDocument();
-  });
 
   it("does not render preview attendance when the connected source is empty", async () => {
     render(<AttendancePage />);

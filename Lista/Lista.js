@@ -32,6 +32,16 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 };
 
 const RESOLUTION_REQUIREMENTS = {
+  T118: [
+    "Probar en el Emulator que un coach real aterriza en /coach y un owner en /admin tras entrar por /staff/login.",
+    "Comunicar la URL /staff/login a office y coaches: /login?role=administrator ya no abre el acceso de staff.",
+    "Aprobar la fila entendiendo que esconder la entrada no es un control de seguridad; claims, callables y Rules lo siguen siendo.",
+  ],
+  T119: [
+    "Confirmar que Class waitlists, CRM, Retention y Lesson plans quedan fuera del piloto (rutas y callables intactos, solo fuera del nav).",
+    "Decidir si se retiran tambien el callable listRegyfitAccessRecords y su coleccion en produccion; el panel web ya no existe.",
+    "Aprobar la fila con la compuerta verde registrada en tasks.md.",
+  ],
   T010: [
     "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
     "Completar onboarding, t\u00e9rminos, tarifas, monedas, disponibilidad regional y revisi\u00f3n legal.",
@@ -1991,6 +2001,26 @@ const recoveryItems = [
     ["tasks.md", "apps/functions/src/consents", "apps/functions/src/documents"],
     "special",
   ),
+  task(
+    "T118",
+    "Separar el acceso de miembros (/login) del acceso de staff (/staff/login)",
+    "revision",
+    "Miembros entran desde la landing; staff entra por una URL sin enlaces y el claim decide el destino.",
+    "T014,T015,T077,T102",
+    "Implementada el 2026-09-06 por instruccion del operador. /login sin selector de rol; /staff/login con robots noindex y X-Robots-Tag, sin enlaces publicos. Tras iniciar sesion, los claims deciden: office -> /admin, coaches -> /coach; una cuenta sin claim de staff se cierra en el acto. Corrige el callejon sin salida de los coaches (returnPath/returnTo y /coach no permitido). Gates de /admin y /coach enlazan a /staff/login?returnTo=. Unitarias web 409, node 1631, E2E estatico 43 + 1 omitida, lint, typecheck y prettier en verde.",
+    ["tasks.md", "STACK.md", "apps/web/src/lib/login-flow.ts", "apps/web/src/app/staff/login/page.tsx"],
+    "mvp",
+  ),
+  task(
+    "T119",
+    "Reducir el panel administrativo al alcance del piloto y retirar codigo muerto",
+    "revision",
+    "Nav de 19 a 11 entradas en cinco grupos; fuera lo duplicado, lo v2 sin productor y lo que el BRIEF excluye.",
+    "T078,T081,T091,T102",
+    "Implementada el 2026-09-06 tras una auditoria de 16 grupos de paneles con verificacion adversarial. Borrados Groups y Activities (duplicados que escribian coach-1 y horas UTC), la vista web de Regyfit Access Records, la ruta duplicada /admin/overview, preview-data, el adaptador offline de T065, el componente y helpers MFA de T017 y peer-comparison.tsx con alumnos ficticios. Fuera del nav pero intactos: Class waitlists, CRM, Retention y Lesson plans. Families desde Members, dashboard financiero desde Billing. Coaches: /coach como inicio y en /admin solo Attendance (+ Classes para headCoach). Mismas compuertas que T118.",
+    ["tasks.md", "apps/web/src/app/admin/admin-shell.tsx"],
+    "mvp",
+  ),
 ];
 
 const projectData = {
@@ -2085,6 +2115,8 @@ const projectData = {
     T061: "2026-09-06",
     T036: "2026-09-06",
     T035: "2026-09-06",
+    T118: "2026-09-06",
+    T119: "2026-09-06",
   },
   cutoffDate: "2026-09-05",
   sourceLedger: "tasks.md",

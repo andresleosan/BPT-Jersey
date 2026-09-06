@@ -12,27 +12,64 @@ import { AdminIcon } from "./admin-icons";
 
 import "./admin.css";
 
-const navigationItems = [
-  { label: "Overview", href: "/admin" },
-  { label: "Members", href: "/admin/members" },
-  { label: "Memberships", href: "/admin/memberships" },
-  { label: "Families", href: "/admin/families" },
-  { label: "Waivers", href: "/admin/waivers" },
-  { label: "Classes", href: "/admin/classes" },
-  { label: "Activities", href: "/admin/activities" },
-  { label: "Class waitlists", href: "/admin/waitlists" },
-  { label: "Attendance", href: "/admin/attendance" },
-  { label: "Reports", href: "/admin/reports" },
-  { label: "CRM", href: "/admin/crm" },
-  { label: "Retention", href: "/admin/retention" },
-  { label: "Finance", href: "/admin/finance" },
-  { label: "Billing", href: "/admin/billing" },
-  { label: "Shop", href: "/admin/shop" },
-  { label: "Regyfit Access Records", href: "/admin/regyfit-access-records" },
-  { label: "Staff", href: "/admin/staff" },
-  { label: "Levels", href: "/admin/levels" },
-  { label: "Lesson plans", href: "/admin/lesson-plans" },
-] as const;
+type NavigationItem = Readonly<{ label: string; href: string }>;
+type NavigationGroup = Readonly<{ label: string; items: readonly NavigationItem[] }>;
+
+/**
+ * The pilot navigation: what the office and the coaches use in a normal day, grouped by job.
+ * Working modules outside the pilot scope (class waitlists, CRM, retention, lesson plans) keep
+ * their routes, callables and tests but are not listed here; Families is reached from Members and
+ * the finance dashboard from Billing.
+ */
+const navigationGroups: readonly NavigationGroup[] = [
+  {
+    label: "Today",
+    items: [
+      { label: "Overview", href: "/admin" },
+      { label: "Attendance", href: "/admin/attendance" },
+    ],
+  },
+  {
+    label: "People",
+    items: [
+      { label: "Members", href: "/admin/members" },
+      { label: "Memberships", href: "/admin/memberships" },
+      { label: "Waivers", href: "/admin/waivers" },
+    ],
+  },
+  {
+    label: "Mat",
+    items: [
+      { label: "Classes", href: "/admin/classes" },
+      { label: "Levels", href: "/admin/levels" },
+    ],
+  },
+  {
+    label: "Money",
+    items: [
+      { label: "Billing", href: "/admin/billing" },
+      { label: "Shop", href: "/admin/shop" },
+    ],
+  },
+  {
+    label: "Setup",
+    items: [
+      { label: "Staff", href: "/admin/staff" },
+      { label: "Reports", href: "/admin/reports" },
+    ],
+  },
+];
+
+const coachRoutes: Readonly<Record<StaffSession["role"], readonly string[]>> = {
+  headCoach: ["/admin/attendance", "/admin/classes"],
+  coach: ["/admin/attendance"],
+};
+
+function isStaffRole(
+  role: AdminSession["role"] | StaffSession["role"],
+): role is StaffSession["role"] {
+  return role === "headCoach" || role === "coach";
+}
 
 export function AdminShell({
   children,
@@ -52,23 +89,16 @@ export function AdminShell({
         : session.role === "headCoach"
           ? "Head coach operational access"
           : "Coach attendance access";
-  const visibleNavigationItems =
-    session.role === "headCoach"
-      ? navigationItems.filter(
-          (item) =>
-            item.href === "/admin/classes" ||
-            item.href === "/admin/attendance" ||
-            item.href === "/admin/waitlists" ||
-            item.href === "/admin/lesson-plans",
-        )
-      : session.role === "coach"
-        ? navigationItems.filter(
-            (item) =>
-              item.href === "/admin/attendance" ||
-              item.href === "/admin/waitlists" ||
-              item.href === "/admin/lesson-plans",
-          )
-        : navigationItems;
+  const allowedRoutes = isStaffRole(session.role) ? coachRoutes[session.role] : undefined;
+  const visibleGroups = navigationGroups
+    .map((group) => ({
+      ...group,
+      items: allowedRoutes
+        ? group.items.filter((item) => allowedRoutes.includes(item.href))
+        : group.items,
+    }))
+    .filter((group) => group.items.length > 0);
+  const visibleNavigationItems = visibleGroups.flatMap((group) => group.items);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -148,20 +178,27 @@ export function AdminShell({
   function renderNavigation(className: string) {
     return (
       <nav aria-label="Admin navigation" className={className}>
-        <ul className="admin-nav-list">
-          {visibleNavigationItems.map((item) => (
-            <li key={item.label}>
-              <Link
-                aria-current={isCurrentRoute(item.href) ? "page" : undefined}
-                href={item.href}
-                onClick={closeNavigation}
-              >
-                <span aria-hidden="true">-&gt;</span>
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        {visibleGroups.map((group) => (
+          <div className="admin-nav-group" key={group.label}>
+            <p aria-hidden="true" className="admin-nav-group-label">
+              {group.label}
+            </p>
+            <ul aria-label={group.label} className="admin-nav-list">
+              {group.items.map((item) => (
+                <li key={item.label}>
+                  <Link
+                    aria-current={isCurrentRoute(item.href) ? "page" : undefined}
+                    href={item.href}
+                    onClick={closeNavigation}
+                  >
+                    <span aria-hidden="true">-&gt;</span>
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
     );
   }
@@ -196,7 +233,9 @@ export function AdminShell({
           <div className="admin-sidebar-footer">
             <p className="admin-sidebar-kicker">Current access</p>
             <p className="admin-role">{roleLabel}</p>
-            <p className="admin-sidebar-note">Synthetic preview / connected sources protected.</p>
+            <p className="admin-sidebar-note">
+              Every change here is recorded with who made it and when.
+            </p>
           </div>
         </aside>
 
@@ -226,6 +265,11 @@ export function AdminShell({
                 <span className="admin-status-dot" aria-hidden="true" />
                 Authenticated shell - {roleLabel}
               </p>
+              {allowedRoutes ? (
+                <Link className="admin-home-link" href="/coach">
+                  Coach portal
+                </Link>
+              ) : null}
               <Link className="admin-home-link" href="/">
                 Home
               </Link>

@@ -165,7 +165,7 @@ describe("ClientAuthGate", () => {
     expect(screen.queryByText("Protected shop")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute(
       "href",
-      "/login?role=client&returnTo=%2Fshop",
+      "/login?returnTo=%2Fshop",
     );
   });
 

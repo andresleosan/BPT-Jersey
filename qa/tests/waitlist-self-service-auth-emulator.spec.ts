@@ -61,7 +61,7 @@ test.describe("T060 waitlist self-service with Firebase Emulators", () => {
 
     const health = trackBrowserHealth(page);
     await page.setViewportSize({ width: 1280, height: 820 });
-    await page.goto("/login?role=client");
+    await page.goto("/login");
     await page.getByLabel("Email address").fill(process.env.AUTH_EMULATOR_E2E_EMAIL!);
     await page.getByLabel("Password").fill(process.env.AUTH_EMULATOR_E2E_PASSWORD!);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();

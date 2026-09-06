@@ -8,11 +8,7 @@ const firebaseAuth = vi.hoisted(() => ({
   signInWithEmailAndPassword: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutFromFirebase: vi.fn(),
-  beginTotpEnrollment: vi.fn(),
-  completeTotpEnrollment: vi.fn(),
-  hasTotpEnrollment: vi.fn(),
   refreshAuthToken: vi.fn(),
-  resolveTotpChallenge: vi.fn(),
 }));
 
 vi.mock("firebase/auth", () => ({
@@ -26,20 +22,12 @@ vi.mock("./firebase-client", () => ({
   getFirebaseAuth: () => firebaseAuth.auth,
   signInWithGoogle: firebaseAuth.signInWithGoogle,
   signOutFromFirebase: firebaseAuth.signOutFromFirebase,
-  beginTotpEnrollment: firebaseAuth.beginTotpEnrollment,
-  completeTotpEnrollment: firebaseAuth.completeTotpEnrollment,
-  hasTotpEnrollment: firebaseAuth.hasTotpEnrollment,
   refreshAuthToken: firebaseAuth.refreshAuthToken,
-  resolveTotpChallenge: firebaseAuth.resolveTotpChallenge,
 }));
 
 import {
   createClientWithEmail,
-  beginTotpEnrollment,
-  completeTotpEnrollment,
-  hasTotpEnrollment,
   refreshAuthToken,
-  resolveTotpChallenge,
   sendPasswordReset,
   signInWithEmail,
   signInWithGoogle,
@@ -102,21 +90,11 @@ describe("auth-client", () => {
     expect(firebaseAuth.signOutFromFirebase).toHaveBeenCalledOnce();
   });
 
-  it("exposes typed MFA operations without adding a persistence boundary", async () => {
+  it("delegates claim refreshes to the Firebase boundary", async () => {
     const user = {} as never;
-    const enrollment = {} as never;
-    const error = {} as never;
 
-    await beginTotpEnrollment(user, "admin@example.test");
-    await completeTotpEnrollment(enrollment, "123456");
-    hasTotpEnrollment(user);
     await refreshAuthToken(user);
-    await resolveTotpChallenge(error, "654321");
 
-    expect(firebaseAuth.beginTotpEnrollment).toHaveBeenCalledWith(user, "admin@example.test");
-    expect(firebaseAuth.completeTotpEnrollment).toHaveBeenCalledWith(enrollment, "123456");
-    expect(firebaseAuth.hasTotpEnrollment).toHaveBeenCalledWith(user);
     expect(firebaseAuth.refreshAuthToken).toHaveBeenCalledWith(user);
-    expect(firebaseAuth.resolveTotpChallenge).toHaveBeenCalledWith(error, "654321");
   });
 });

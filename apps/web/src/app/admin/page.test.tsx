@@ -20,6 +20,32 @@ const syntheticSession = {
   role: "owner" as const,
 };
 
+const pilotNavigation = [
+  "Overview",
+  "Attendance",
+  "Members",
+  "Memberships",
+  "Waivers",
+  "Classes",
+  "Levels",
+  "Billing",
+  "Shop",
+  "Staff",
+  "Reports",
+] as const;
+
+const offNavigationRoutes = [
+  "/admin/waitlists",
+  "/admin/crm",
+  "/admin/retention",
+  "/admin/lesson-plans",
+  "/admin/finance",
+  "/admin/families",
+  "/admin/activities",
+  "/admin/groups",
+  "/admin/regyfit-access-records",
+] as const;
+
 function renderAuthenticatedPreview() {
   return render(
     <AdminGateSessionProvider session={syntheticSession}>
@@ -59,9 +85,9 @@ describe("administrative shell", () => {
     expect(within(brand).getByText("BPT", { exact: true })).toBeVisible();
     expect(within(brand).getByText("Jersey", { exact: true })).toBeVisible();
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: "Class waitlists" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Attendance" })).toHaveAttribute(
       "href",
-      "/admin/waitlists",
+      "/admin/attendance",
     );
     expect(screen.getByText("Shell content")).toBeVisible();
   });
@@ -111,9 +137,8 @@ describe("administrative shell", () => {
     renderAuthenticatedPreview();
 
     const skipLink = screen.getByRole("link", { name: "Skip to main content" });
-    const membersLink = within(
-      screen.getByRole("navigation", { name: "Admin navigation" }),
-    ).getByRole("link", { name: "Members" });
+    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    const attendanceLink = within(navigation).getByRole("link", { name: "Attendance" });
 
     await user.tab();
     expect(skipLink).toHaveFocus();
@@ -122,44 +147,85 @@ describe("administrative shell", () => {
     await user.tab();
     expect(screen.getByRole("link", { name: "Overview" })).toHaveFocus();
     await user.tab();
-    expect(membersLink).toHaveFocus();
-    expect(membersLink).toHaveAttribute("href", "/admin/members");
+    expect(attendanceLink).toHaveFocus();
+    expect(attendanceLink).toHaveAttribute("href", "/admin/attendance");
+    expect(within(navigation).getByRole("link", { name: "Members" })).toHaveAttribute(
+      "href",
+      "/admin/members",
+    );
   });
 
-  it("exposes the operational English modules and marks the current route as active", () => {
+  it("lists only the pilot modules, grouped by job, and marks the current route as active", () => {
     renderAuthenticatedPreview();
 
     const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
-    const labels = [
-      "Overview",
-      "Members",
-      "Memberships",
-      "Families",
-      "Waivers",
-      "Classes",
-      "Activities",
-      "Class waitlists",
-      "Attendance",
-      "Reports",
-      "CRM",
-      "Retention",
-      "Finance",
-      "Billing",
-      "Shop",
-      "Regyfit Access Records",
-      "Staff",
-      "Levels",
-      "Lesson plans",
-    ];
-
-    labels.forEach((label) => {
+    pilotNavigation.forEach((label) => {
       expect(within(navigation).getByRole("link", { name: label })).toBeVisible();
     });
-    expect(within(navigation).queryAllByRole("link")).toHaveLength(19);
+    expect(within(navigation).queryAllByRole("link")).toHaveLength(pilotNavigation.length);
     expect(within(navigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
       "href",
       "/admin",
     );
+    ["Today", "People", "Mat", "Money", "Setup"].forEach((group) => {
+      expect(within(navigation).getByRole("list", { name: group })).toBeVisible();
+    });
+  });
+
+  it("keeps post-pilot and retired routes out of the navigation", () => {
+    renderAuthenticatedPreview();
+
+    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    offNavigationRoutes.forEach((href) => {
+      expect(navigation.querySelector(`a[href="${href}"]`)).toBeNull();
+    });
+    expect(
+      within(navigation).queryByRole("link", { name: /waitlist|crm|retention|lesson/i }),
+    ).toBeNull();
+  });
+
+  it("shows a coach only the attendance module plus a way back to the coach portal", () => {
+    const coachSession = {
+      ...syntheticSession,
+      role: "coach" as const,
+      uid: "synthetic-coach",
+    };
+
+    render(
+      <AdminShell session={coachSession}>
+        <p>Coach content</p>
+      </AdminShell>,
+    );
+
+    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    expect(
+      within(navigation)
+        .queryAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["->Attendance"]);
+    expect(screen.getByRole("link", { name: "Coach portal" })).toHaveAttribute("href", "/coach");
+    expect(screen.getByText("Coach attendance access")).toBeVisible();
+  });
+
+  it("adds the classes module for a head coach", () => {
+    const headCoachSession = {
+      ...syntheticSession,
+      role: "headCoach" as const,
+      uid: "synthetic-head-coach",
+    };
+
+    render(
+      <AdminShell session={headCoachSession}>
+        <p>Head coach content</p>
+      </AdminShell>,
+    );
+
+    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    expect(
+      within(navigation)
+        .queryAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["->Attendance", "->Classes"]);
   });
 
   it("marks Members active without leaving legacy hash links", () => {
@@ -200,7 +266,7 @@ describe("administrative shell", () => {
 
     const pageText = document.body.textContent ?? "";
     expect(pageText).not.toMatch(
-      /203\.0\.113\.10|synthetic member|source-demo-\d|memberNumber|\bIP\b|password|secret|api[_ -]?key|bearer\s/i,
+      /203\.0\.113\.10|synthetic member|source-demo-\d|memberNumber|\bIP\b|password|secret|api[_ -]?key|bearer\s|synthetic preview/i,
     );
   });
 
@@ -214,7 +280,7 @@ describe("administrative shell", () => {
 
     expect(main).toHaveClass("admin-main");
     expect(main).toHaveClass("admin-main-content");
-    expect(navigationLinks).toHaveLength(19);
+    expect(navigationLinks).toHaveLength(pilotNavigation.length);
     navigationLinks.forEach((link) => {
       expect(link.tagName).toBe("A");
       expect(link).toHaveAttribute("href");

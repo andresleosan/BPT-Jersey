@@ -1,25 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  isAdminE2EEnabled,
-  readInjectedRegyfitRecordsForRole,
-} from "./admin-test-bootstrap";
-
-const commonRecord = {
-  academyId: "synthetic-academy",
-  sourceSystem: "regyfit" as const,
-  sourceId: "synthetic-regyfit-1",
-  memberDisplayName: "Synthetic Member",
-  memberNumber: "42",
-  loginCount: 42,
-  lastLoginAt: "2026-08-08T12:00:00.000Z",
-  importRunId: "synthetic-import-run-1",
-  capturedAt: "2026-08-08T12:00:00.000Z",
-  schemaVersion: "1" as const,
-};
-
-const ownerRecord = { ...commonRecord, ip: "203.0.113.10" };
-const administratorRecord = { ...commonRecord };
+import { adminSessionForTestRole, isAdminE2EEnabled } from "./admin-test-bootstrap";
 
 describe("controlled admin E2E bootstrap", () => {
   it.each(["127.0.0.1", "localhost", "::1", "[::1]"])(
@@ -40,34 +21,16 @@ describe("controlled admin E2E bootstrap", () => {
     expect(isAdminE2EEnabled("127.0.0.1", false)).toBe(false);
   });
 
-  it("accepts only the requested owner payload and preserves its IP", () => {
-    const records = readInjectedRegyfitRecordsForRole("owner", {
-      role: "owner",
-      records: [ownerRecord],
-    });
+  it("builds a clearly synthetic session for the requested role", () => {
+    const session = adminSessionForTestRole("administrator");
 
-    expect(records).toEqual([ownerRecord]);
-  });
-
-  it("accepts an administrator projection only when it has no IP", () => {
-    const records = readInjectedRegyfitRecordsForRole("administrator", {
+    expect(session).toEqual({
+      uid: "synthetic-admin-administrator",
+      email: "administrator@example.test",
+      displayName: "Synthetic administrator",
+      academyId: "synthetic-academy",
       role: "administrator",
-      records: [administratorRecord],
     });
-
-    expect(records).toEqual([administratorRecord]);
-    expect(records[0]).not.toHaveProperty("ip");
-  });
-
-  it.each([
-    undefined,
-    null,
-    { role: "administrator", records: [ownerRecord] },
-    { role: "owner", records: [{ ...administratorRecord, ip: "" }] },
-    { role: "administrator", records: [ownerRecord] },
-    { role: "owner", records: [{ ...ownerRecord, sourceId: "real-run-1" }] },
-  ])("returns no records for malformed injected data: %j", (payload) => {
-    expect(readInjectedRegyfitRecordsForRole("owner", payload)).toEqual([]);
-    expect(readInjectedRegyfitRecordsForRole("administrator", payload)).toEqual([]);
+    expect(Object.isFrozen(session)).toBe(true);
   });
 });

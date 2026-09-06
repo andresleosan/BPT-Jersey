@@ -37,7 +37,7 @@ test.describe("T062 retention inbox with Firebase Emulators", () => {
     expect(process.env.NEXT_PUBLIC_ADMIN_E2E).not.toBe("true");
 
     const health = trackBrowserHealth(page);
-    await page.goto("/login?role=administrator");
+    await page.goto("/staff/login");
     await page.getByLabel("Email address").fill(process.env.AUTH_EMULATOR_E2E_EMAIL!);
     await page.getByLabel("Password").fill(process.env.AUTH_EMULATOR_E2E_PASSWORD!);
     await page.getByRole("button", { name: "Sign in" }).click();

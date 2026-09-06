@@ -98,7 +98,7 @@ test.describe("Levels and Belts IBJJF E2E (T083)", () => {
     await expect(page.getByRole("heading", { name: "Sign in to continue" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
-      "/login?role=client&returnTo=%2Faccount%2Fprogress",
+      "/login?returnTo=%2Faccount%2Fprogress",
     );
 
     await expectNoBrowserHealthProblems(page, errors, directDataRequests);

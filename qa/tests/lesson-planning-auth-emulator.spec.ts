@@ -39,13 +39,13 @@ test.describe("T066 lesson planning with Firebase Emulators", () => {
     expect(process.env.NEXT_PUBLIC_ADMIN_E2E).not.toBe("true");
     const { errors, authRequests, directDataRequests } = trackBrowserHealth(page);
 
-    await page.goto("/login?role=administrator");
-    await expect(page.getByRole("heading", { name: "Team access" })).toBeVisible();
+    await page.goto("/staff/login");
+    await expect(page.getByRole("heading", { name: "Staff sign-in" })).toBeVisible();
     await page.getByLabel("Email address").fill(process.env.AUTH_EMULATOR_E2E_EMAIL!);
     await page.getByLabel("Password").fill(process.env.AUTH_EMULATOR_E2E_PASSWORD!);
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await expect(page).toHaveURL(/\/admin$/u);
+    await expect(page).toHaveURL(/\/coach$/u);
     await page.goto("/admin/lesson-plans");
     await expect(page.getByRole("heading", { name: "Lesson plans" })).toBeVisible();
     await page.getByLabel("Plan reference").fill("t066-review-plan");

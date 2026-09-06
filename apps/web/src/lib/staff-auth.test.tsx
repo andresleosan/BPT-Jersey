@@ -33,6 +33,9 @@ describe("Staff Auth Context and Gate", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Staff Access Required" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Sign in" }).getAttribute("href")).toBe(
+      "/staff/login?returnTo=%2Fcoach%2Flevels",
+    );
     expect(screen.queryByText("Protected Coach Content")).toBeNull();
   });
 

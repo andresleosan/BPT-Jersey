@@ -39,8 +39,8 @@ test.describe("T067 family achievements with Firebase Emulators", () => {
     expect(process.env.NEXT_PUBLIC_ADMIN_E2E).not.toBe("true");
     const { errors, authRequests, directDataRequests } = trackBrowserHealth(page);
 
-    await page.goto("/login?role=administrator");
-    await expect(page.getByRole("heading", { name: "Team access" })).toBeVisible();
+    await page.goto("/staff/login");
+    await expect(page.getByRole("heading", { name: "Staff sign-in" })).toBeVisible();
     await page.getByLabel("Email address").fill(process.env.AUTH_EMULATOR_E2E_EMAIL!);
     await page.getByLabel("Password").fill(process.env.AUTH_EMULATOR_E2E_PASSWORD!);
     await page.getByRole("button", { name: "Sign in" }).click();

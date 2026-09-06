@@ -128,6 +128,9 @@ export function MembersPage() {
             <Link className="admin-home-link" href="/admin/members/search">
               Search members
             </Link>
+            <Link className="admin-home-link" href="/admin/families">
+              Families and minors
+            </Link>
           </>
         }
         description="The member directory shows only the minimum operational fields for each student."

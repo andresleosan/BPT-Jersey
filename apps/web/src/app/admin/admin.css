@@ -665,99 +665,6 @@
   min-height: 100vh;
 }
 
-.admin-mfa-state {
-  max-width: 44rem;
-}
-
-.admin-mfa-setup {
-  align-items: center;
-  background: var(--gi-white);
-  border-top: 0.35rem solid var(--bpt-purple);
-  display: flex;
-  gap: 1.5rem;
-  margin-top: 2rem;
-  padding: 1.25rem;
-}
-
-.admin-mfa-setup img {
-  background: var(--gi-white);
-  border: 1px solid var(--line);
-  display: block;
-  height: min(14rem, 42vw);
-  object-fit: contain;
-  width: min(14rem, 42vw);
-}
-
-.admin-mfa-setup p,
-.admin-mfa-status {
-  color: var(--muted);
-  margin: 0;
-}
-
-.admin-mfa-form {
-  margin-top: 1.5rem;
-  max-width: 24rem;
-}
-
-.admin-mfa-field {
-  display: grid;
-  gap: 0.45rem;
-}
-
-.admin-mfa-field label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.admin-mfa-field input {
-  background: var(--gi-white);
-  border: 1px solid var(--line);
-  border-radius: 0;
-  color: var(--mat-ink);
-  font:
-    700 1.5rem var(--font-body),
-    sans-serif;
-  letter-spacing: 0.28em;
-  min-height: 3.2rem;
-  padding: 0.65rem 0.75rem;
-  width: 100%;
-}
-
-.admin-mfa-field input:focus-visible {
-  outline: 3px solid var(--bpt-purple);
-  outline-offset: 3px;
-}
-
-.admin-mfa-error {
-  color: #9c1c1c;
-  font-weight: 600;
-  margin: 1rem 0 0;
-}
-
-.admin-mfa-form .admin-auth-button {
-  margin-top: 1.25rem;
-}
-
-.admin-mfa-cancel {
-  background: transparent;
-  border: 0;
-  color: var(--bpt-purple-dark);
-  cursor: pointer;
-  font: inherit;
-  font-weight: 700;
-  margin-top: 1.25rem;
-  padding: 0.4rem 0;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.admin-mfa-cancel:focus-visible {
-  outline: 3px solid var(--bpt-purple);
-  outline-offset: 3px;
-}
-
 .admin-sidebar {
   background: var(--bpt-purple);
   color: var(--gi-white);
@@ -838,11 +745,25 @@
   margin: 0.8rem 0 0;
 }
 
+.admin-nav-group {
+  margin-top: 1.1rem;
+}
+
+.admin-nav-group-label {
+  color: #d9d6ff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin: 0;
+  padding-inline: 0.7rem;
+  text-transform: uppercase;
+}
+
 .admin-nav-list {
   display: grid;
   gap: 0.2rem;
   list-style: none;
-  margin: 1.25rem 0 0;
+  margin: 0.35rem 0 0;
   padding: 0;
 }
 
@@ -1661,7 +1582,7 @@
 
   .admin-mobile-navigation-links .admin-nav-list {
     grid-template-columns: 1fr;
-    margin-top: 0.75rem;
+    margin-top: 0.35rem;
   }
 
   .admin-mobile-navigation-links .admin-nav-list a {

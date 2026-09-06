@@ -12,23 +12,18 @@ import {
   browserSessionPersistence,
   connectAuthEmulator,
   getIdTokenResult,
-  getMultiFactorResolver,
   getAuth,
   GoogleAuthProvider,
   indexedDBLocalPersistence,
   initializeAuth,
-  multiFactor,
   onIdTokenChanged,
   signInWithPopup,
   signOut,
   type Auth,
   type IdTokenResult,
-  type MultiFactorError,
-  type TotpSecret,
   type Unsubscribe,
   type User,
   type UserCredential,
-  TotpMultiFactorGenerator,
 } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
 import {
@@ -36,8 +31,6 @@ import {
   getFunctions,
   type Functions,
 } from "firebase/functions";
-
-import { isValidTotpCode } from "./mfa-flow";
 
 const firestoreEmulatorHost = "127.0.0.1";
 
@@ -72,17 +65,11 @@ const firestoreEmulatorPort = resolveLocalEmulatorPort(
 );
 const authEmulatorUrl = `http://${firestoreEmulatorHost}:${authEmulatorPort}`;
 
-export type MfaEnrollment = Readonly<{
-  qrCodeUrl: string;
-  secret: TotpSecret;
-}>;
-
 let authEmulatorConnected = false;
 let firestoreEmulatorConnected = false;
 let functionsEmulatorConnected = false;
 let firebaseAppCheck: AppCheck | undefined;
 let firebaseAuth: Auth | undefined;
-const enrollmentUsers = new WeakMap<object, User>();
 
 function shouldUseFirebaseEmulators(): boolean {
   if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true") {
@@ -244,67 +231,6 @@ export function signInWithGoogle(): Promise<UserCredential> {
 
 export function signOutFromFirebase(): Promise<void> {
   return signOut(getFirebaseAuth());
-}
-
-export async function beginTotpEnrollment(
-  user: User,
-  accountName: string,
-): Promise<MfaEnrollment> {
-  const normalizedAccountName = accountName.trim();
-  if (!normalizedAccountName) {
-    throw new Error("An account name is required to set up MFA.");
-  }
-
-  const userMfa = multiFactor(user);
-  const session = await userMfa.getSession();
-  const secret = await TotpMultiFactorGenerator.generateSecret(session);
-  const enrollment = Object.freeze({
-    qrCodeUrl: secret.generateQrCodeUrl(normalizedAccountName, "BPT Jersey"),
-    secret,
-  });
-
-  enrollmentUsers.set(enrollment, user);
-  return enrollment;
-}
-
-export async function completeTotpEnrollment(
-  enrollment: MfaEnrollment,
-  code: string,
-): Promise<void> {
-  if (!isValidTotpCode(code)) {
-    throw new Error("A six-digit verification code is required.");
-  }
-
-  const user = enrollmentUsers.get(enrollment);
-  if (!user) {
-    throw new Error("The MFA enrollment session is no longer available.");
-  }
-
-  const assertion = TotpMultiFactorGenerator.assertionForEnrollment(enrollment.secret, code);
-  await multiFactor(user).enroll(assertion, "BPT Jersey authenticator");
-  enrollmentUsers.delete(enrollment);
-}
-
-export async function resolveTotpChallenge(
-  error: MultiFactorError,
-  code: string,
-): Promise<UserCredential> {
-  if (!isValidTotpCode(code)) {
-    throw new Error("A six-digit verification code is required.");
-  }
-
-  const resolver = getMultiFactorResolver(getFirebaseAuth(), error);
-  const totpHint = resolver.hints.find((hint) => hint.factorId === "totp");
-  if (!totpHint) {
-    throw new Error("No TOTP factor is available for this sign-in.");
-  }
-
-  const assertion = TotpMultiFactorGenerator.assertionForSignIn(totpHint.uid, code);
-  return resolver.resolveSignIn(assertion);
-}
-
-export function hasTotpEnrollment(user: User): boolean {
-  return multiFactor(user).enrolledFactors.some((factor) => factor.factorId === "totp");
 }
 
 export function refreshAuthToken(user: User): Promise<IdTokenResult> {

@@ -13,6 +13,7 @@ import type { AdminRole } from "@bpt-jersey/domain";
 import { usePathname } from "next/navigation";
 
 import { AdminAuthProvider, useAdminSession, type AdminSession } from "../../lib/admin-auth";
+import { requireStaffSession } from "../../lib/login-flow";
 import { adminSessionForTestRole, isAdminE2EEnabled } from "../../lib/admin-test-bootstrap";
 import { StaffAuthProvider, useStaffSession, type StaffSession } from "../../lib/staff-auth";
 import { AdminShell } from "./admin-shell";
@@ -103,8 +104,17 @@ function isAdminTestRole(value: string | null): value is AdminTestRole {
   );
 }
 
-function AccessState({ status }: { status: Exclude<GateStatus, "loading" | "authorized"> }) {
+function AccessState({
+  onSignOut,
+  status,
+}: {
+  onSignOut?: () => Promise<void>;
+  status: Exclude<GateStatus, "loading" | "authorized">;
+}) {
+  const pathname = usePathname() ?? "/admin";
   const signedOut = status === "signed-out";
+  // Staff sign in on their own unlinked page and come back to the route they asked for.
+  const staffLoginPath = requireStaffSession(pathname).loginPath;
 
   return (
     <main className="admin-auth-state" aria-labelledby="admin-auth-state-title">
@@ -119,14 +129,25 @@ function AccessState({ status }: { status: Exclude<GateStatus, "loading" | "auth
       </p>
       {signedOut ? (
         <div className="admin-auth-actions">
-          <a className="admin-auth-button" href="/login?role=administrator">
+          <a className="admin-auth-button" href={staffLoginPath}>
             Sign in
           </a>
           <a className="admin-auth-home" href="/">
             Home
           </a>
         </div>
-      ) : null}
+      ) : (
+        <div className="admin-auth-actions">
+          {onSignOut ? (
+            <button className="admin-auth-button" onClick={() => void onSignOut()} type="button">
+              Sign out
+            </button>
+          ) : null}
+          <a className="admin-auth-home" href="/">
+            Home
+          </a>
+        </div>
+      )}
     </main>
   );
 }
@@ -167,7 +188,7 @@ function FirebaseAdminGate({ children }: { children: ReactNode }) {
     return <AccessState status="signed-out" />;
   }
 
-  return <AccessState status="denied" />;
+  return <AccessState onSignOut={admin.signOut} status="denied" />;
 }
 
 function E2EAdminGate({ children }: { children: ReactNode }) {

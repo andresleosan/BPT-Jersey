@@ -1169,28 +1169,6 @@ button:focus-visible {
   max-width: 29rem;
 }
 
-.login-role-selector {
-  border: 0;
-  margin: 2rem 0 0;
-  padding: 0;
-}
-
-.login-role-selector legend {
-  color: var(--mat-ink);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.login-role-options {
-  border: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 0.6rem;
-}
-
-.login-role-options button,
 .login-mode-toggle,
 .login-reset {
   background: transparent;
@@ -1201,15 +1179,6 @@ button:focus-visible {
   font-weight: 700;
   min-height: 2.9rem;
   padding: 0.7rem 0.75rem;
-}
-
-.login-role-options button + button {
-  border-left: 1px solid var(--line);
-}
-
-.login-role-options button[aria-pressed="true"] {
-  background: var(--bpt-purple);
-  color: var(--gi-white);
 }
 
 .login-form {
@@ -1280,7 +1249,6 @@ button:focus-visible {
 
 .login-submit:disabled,
 .login-google:disabled,
-.login-role-options button:disabled,
 .login-mode-toggle:disabled,
 .login-reset:disabled {
   cursor: wait;
@@ -1303,6 +1271,7 @@ button:focus-visible {
 
 .login-mode-toggle,
 .login-context-link {
+  display: inline-block;
   color: var(--bpt-purple-dark);
   font-size: 0.9rem;
   padding-inline: 0;

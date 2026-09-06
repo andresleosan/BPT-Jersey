@@ -91,7 +91,7 @@ test.describe("T063 guardian self-service with Firebase Auth Emulator", () => {
 
     const health = trackBrowserHealth(page);
     await installCallableHarness(page);
-    await page.goto("/login?role=client");
+    await page.goto("/login");
 
     await expect(page.getByRole("heading", { name: "Client account" })).toBeVisible();
     await page.getByLabel("Email address").fill(process.env.AUTH_EMULATOR_E2E_EMAIL!);

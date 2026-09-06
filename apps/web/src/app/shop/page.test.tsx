@@ -99,7 +99,7 @@ describe("client shop", () => {
 
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
-      "/login?role=client&returnTo=%2Fshop",
+      "/login?returnTo=%2Fshop",
     );
     expect(screen.queryByText(/product|cart|order|payment/i)).not.toBeInTheDocument();
     expect(shopApi.listShopCatalog).not.toHaveBeenCalled();

@@ -25,11 +25,7 @@ const familyState = vi.hoisted(() => ({ getFamily: vi.fn() }));
 
 vi.mock("../../../lib/client-auth", () => ({
   ClientAuthGate: ({ children }: { children: React.ReactNode }) =>
-    authState.session ? (
-      children
-    ) : (
-      <a href="/login?role=client&returnTo=%2Faccount%2Fwaitlist">Sign in</a>
-    ),
+    authState.session ? children : <a href="/login?returnTo=%2Faccount%2Fwaitlist">Sign in</a>,
   ClientAuthProvider: ({ children }: { children: React.ReactNode }) => children,
   useClientSession: () => authState,
 }));

@@ -117,11 +117,14 @@ async function signIn(
   const context = await browser.newContext(contextOptions(testInfo));
   const page = await context.newPage();
   const health = trackBrowserHealth(page);
-  await page.goto(`/login?role=${access}`);
+  await page.goto(access === "client" ? "/login" : "/staff/login");
   await page.getByLabel("Email address").fill(identityEmail(identity));
   await page.getByLabel("Password").fill(process.env.AUTH_EMULATOR_E2E_PASSWORD!);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(access === "client" ? /\/account$/u : /\/admin$/u);
+  const coachIdentity = identity === "headCoach" || identity === "coach";
+  await expect(page).toHaveURL(
+    access === "client" ? /\/account$/u : coachIdentity ? /\/coach$/u : /\/admin$/u,
+  );
   return { context, health, page };
 }
 

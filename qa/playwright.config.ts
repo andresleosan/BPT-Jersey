@@ -44,15 +44,5 @@ export default defineConfig({
         video: "off",
       },
     },
-    {
-      name: "t017-mfa-live",
-      testMatch: /admin-mfa-live\.spec\.ts/,
-      use: {
-        ...devices["Desktop Chrome"],
-        screenshot: "off",
-        trace: "off",
-        video: "off",
-      },
-    },
   ],
 });

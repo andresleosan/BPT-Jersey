@@ -678,6 +678,8 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T115 | Limitar a 25 caracteres la etiqueta de condiciones de salud                                                             | T035,T093                                              | aprobada    | Aprobada por el operador el 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: confirmar que ninguna operacion real dependia de que el coach viera la nota clinica completa. Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. **Premisa corregida el 2026-09-05**: el limite de 25 caracteres, la separacion entre `staffReferenceLabel` y `conditionSummary` y el `maxLength` de los dos formularios de administracion ya existian y estaban probados. Lo que faltaba era la consecuencia: la proyeccion de staff seguia llevando la nota clinica completa. Cerrada el 2026-09-05: la proyeccion de staff lleva la etiqueta corta y nunca la nota, el tutor conserva su nota y nunca la etiqueta, y administracion mantiene ambas. Gate completo verde y golden path 15/15. Evidencia al final del ledger. T115 paso a `revision` ese mismo dia y quedo aprobada el 2026-09-05.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | T116 | Delegar permisos administrativos a coaches por concesion auditada                                                       | T019,T093                                              | aprobada    | Aprobada por el operador el 2026-09-06 (alcance sintetico/Emulator). Recomendacion vigente: manageClasses esta en la lista cerrada pero ningun callable de horario la consulta todavia. Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. El DOCX permite que administracion conceda a un coach permisos adicionales. Hoy el rol es fijo en el claim y no existe ninguna concesion revocable ni auditada; cualquier diseno debe conservar el fail-closed por rol y no ampliar el claim. |
 | T117 | Gestionar disclaimers y su aceptacion por participante                                                                  | T090,T106                                              | aprobada    | Aprobada por el operador el 2026-09-06 (alcance sintetico/Emulator) por el mecanismo; el texto legal sigue bloqueado por T011. Decision del operador 2026-09-06: un disclaimer obligatorio pendiente NO bloquea la inscripcion ni la reserva hasta que exista texto legal aprobado. Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. Ademas del waiver principal, el DOCX contempla disclaimers gestionables con aceptacion registrada. Hoy solo existe el waiver versionado de T090; el texto legal sigue bloqueado por T011. Mecanismo implementado el 2026-09-05 con contenido sintetico: dominio nuevo de disclaimers versionados con audiencia y obligatoriedad propias, hash de contenido, superseder transaccional por clave y aceptacion **ligada a la version**, no a la persona; publicar v2 devuelve la fila a la lista del participante y lo dice como reconsentimiento, conservando la aceptacion de v1 como historial. La plataforma no trae ni una palabra de texto legal: todo lo escribe office. Golden path 19/19 en Emulator y gate completo verde. Evidencia al final del ledger. T117 pasa a `revision` por el mecanismo; el texto legal sigue bloqueado por T011. |
+| T118 | Separar el acceso de miembros (`/login`) del acceso de staff (`/staff/login`) con destino decidido por el claim | T014,T015,T077,T102 | revision | Implementada el 2026-09-06 por instruccion del operador ("separar las interfaces"). `/login` es solo para miembros y familias (sin selector Administrator/Client); `/staff/login` es la entrada de owner, administrator, headCoach y coach, sin enlaces desde la landing ni desde ninguna pagina de miembros, con `robots noindex` y `X-Robots-Tag` en `apps/web/public/_headers`. Tras iniciar sesion, los claims del ID token deciden el destino: office -> `/admin`, coaches -> `/coach`; una cuenta sin claim de staff se cierra en el acto con un mensaje generico. Corrige el callejon sin salida anterior: un coach que entraba por "Administrator" aterrizaba en "not authorized" porque `/coach` no estaba permitido y el gate enviaba `returnPath` donde el formulario leia `returnTo`. Gates: `/admin/*` y `/coach/*` enlazan a `/staff/login?returnTo=<ruta>`; el estado "denied" ofrece cerrar sesion. Compuertas: lint, typecheck, prettier, unitarias web 87 archivos/409 pruebas y node 172/1631, E2E estatico 43 pasan + 1 omitida. Evidencia al final del ledger. |
+| T119 | Reducir el panel administrativo al alcance del piloto y retirar codigo muerto | T078,T081,T091,T102 | revision | Implementada el 2026-09-06 por instruccion del operador ("veo muchas cosas en el panel de admin; retira lo que no va a funcionar"). Auditoria de 16 grupos de paneles con verificacion adversarial (tres lentes por recomendacion). Nav 19 -> 11 en cinco grupos (Today, People, Mat, Money, Setup). Borrados: `/admin/groups` y `/admin/activities` (duplicados de `/admin/classes` que escribian `instructorId: coach-1` y horas locales como UTC), la vista web de Regyfit Access Records (fuera del limite Regyfit del BRIEF; el callable y la coleccion siguen en produccion hasta decision del operador), la ruta duplicada `/admin/overview`, `live-operations-panel`, `preview-data.ts`, el adaptador offline de T065, el componente y helpers MFA de T017 (incluida la suite live y su proyecto Playwright) y el archivo sin seguimiento `peer-comparison.tsx` con alumnos ficticios. Fuera del nav pero intactos (rutas, callables, Rules y pruebas): Class waitlists, CRM, Retention y Lesson plans (v2 sin productor en produccion). Families se abre desde Members y el dashboard financiero desde Billing. Coaches: `/coach` como inicio, y en `/admin` solo Attendance (coach) o Attendance + Classes (headCoach) con enlace "Coach portal". Nota lateral "Synthetic preview" sustituida por el aviso de auditoria. Compuertas: las mismas de T118. Evidencia al final del ledger. |
 
 ## Plan de implementaciÃ³n del MVP aprobado
 
@@ -4985,3 +4987,113 @@ comunidades; las 189 etiquetas curadas del alcance anterior quedaron respaldadas
 
 Para retomar manana: las cuatro casillas de T011, aprobar o devolver T035, y pegar las coordenadas
 de Town y West en `/admin/classes` tras verlas en un mapa.
+
+### T118 y T119 - Acceso de staff separado y panel administrativo reducido - 2026-09-06
+
+Instruccion del operador: "analiza el proyecto, las tareas, que falta para terminar; si ves modulos o
+paneles que no van a funcionar retiralos; veo muchas cosas en el panel de admin; separa las interfaces
+para entrar como miembro en la landing y un subdominio o enlace tipo /coaches para staff".
+
+**Auditoria previa (workflow de 41 agentes, 16 grupos de paneles + 7 lectores transversales, cada
+recomendacion de retirar/esconder refutada por tres escepticos: rotura, producto y tecnica).** Resultado:
+
+| Panel | Decision | Motivo verificado |
+|---|---|---|
+| Overview, Attendance, Members, Memberships, Waivers, Classes, Levels, Billing, Shop, Staff, Reports | Se quedan (11) | MVP, cableados a callables reales y probados |
+| Families | Enlace desde Members | MVP, pero "People" ya tenia cuatro entradas; la ruta sigue |
+| Finance | Enlace desde Billing | Mismo flujo repartido en dos entradas; la ruta sigue |
+| Groups, Activities | Borrados | Copias pre-T102 de Classes; escribian `coach-1` y horas locales como UTC |
+| Class waitlists, Lesson plans | Fuera del nav | v2 (T060/T066); rutas, callables y E2E intactos |
+| CRM, Retention | Fuera del nav | Post-piloto por BRIEF; CRM no tiene escritura desde la UI y Retention no tiene productor fuera del Emulator |
+| Regyfit Access Records | Vista web borrada | Fuera del limite Regyfit del BRIEF (copia nombres, numeros e IPs); snapshot congelado de 10 filas de 2026-08-08. El callable `listRegyfitAccessRecords` y su coleccion siguen desplegados: retirarlos es una accion del operador (`firebase functions:delete`) |
+
+**T118 - archivos:** `apps/web/src/lib/login-flow.ts` (audiencias, `sanitizeStaffReturnPath`,
+`resolveStaffDestination`, `requireStaffSession`, `navigateTo`), `apps/web/src/app/login/login-form.tsx`
+(prop `audience`, sin selector de rol, enrutado por claim), `apps/web/src/app/login/page.tsx`,
+`apps/web/src/app/staff/login/page.tsx` (nuevo, `robots noindex`), `apps/web/public/_headers` (nuevo),
+`apps/web/src/app/admin/admin-gate.tsx` (enlace a `/staff/login?returnTo=` y cierre de sesion en
+"denied"), `apps/web/src/lib/staff-auth.tsx`, `apps/web/src/app/page.tsx` (CTA de la tienda sin `role=`),
+`apps/web/src/app/globals.css` (sin reglas del selector). Pruebas: `login-flow.test.ts` 8,
+`login-form.test.tsx` 13 (miembro a `returnTo` permitido o `/account`; owner -> `/admin`; coach ->
+`/coach` respetando `returnTo=/coach/levels`; guardian en la pagina de staff -> `signOut` y mensaje sin
+datos), `login/page.test.tsx` 2, `staff/login/page.test.tsx` 2, `staff-auth.test.tsx`, `client-auth.test.tsx`,
+`account/page.test.tsx`, `shop/page.test.tsx`, `account/waitlist/page.test.tsx` (hrefs sin `role=`).
+E2E estatico: `login-gateway.spec.ts` reescrito (superficie de miembro sin contexto de staff, orden de
+tabulacion, `?role=administrator` ignorado, `/staff/login` con `meta robots noindex` y sin registro, home
+sin enlaces a `/staff`, `/admin` ni `/coach`, gates de `/account`, `/shop`, `/admin` y `/coach`);
+`admin-auth.spec.ts` apunta a `/staff/login?returnTo=`. Specs del Emulator actualizados sin ejecutar
+(opt-in, exigen sesiones sembradas): `staff-auth-emulator`, `family-achievement-auth-emulator`,
+`lesson-planning-auth-emulator` (headCoach aterriza ahora en `/coach`), `retention-inbox-auth-emulator`,
+`waitlist-offer-auth-emulator` (destino por identidad), `login-gateway-live`,
+`client-self-service-auth-emulator`, `waitlist-self-service-auth-emulator`, `levels-catalog`,
+`waiver-registration`. El golden path (T098) es de nivel API y no toca las paginas de login.
+
+**T119 - archivos:** `apps/web/src/app/admin/admin-shell.tsx` (cinco grupos, 11 entradas, filtro por rol,
+enlace "Coach portal"), `admin/page.test.tsx` (11 enlaces, grupos, rutas fuera del nav, vistas coach y
+headCoach), `admin/overview-page.tsx` (antes `overview/page.tsx`; acciones rapidas sin Activities),
+`admin/members/page.tsx` (+ "Families and minors"), `admin/billing/page.tsx` (+ "Finance dashboard"),
+`admin/admin.css` (grupos del nav; reglas MFA fuera), `admin-modules.test.tsx`, `admin-ui.test.tsx`,
+`lib/admin-test-bootstrap.ts` (solo la sesion sintetica), `lib/firebase-client.ts` y `lib/auth-client.ts`
+(sin TOTP), `qa/tests/admin-auth.spec.ts` (`/admin/reports` en lugar de la ruta Regyfit),
+`qa/tests/waiver-registration.spec.ts` (+ fixture `listDisclaimers`, que faltaba desde T117 y fallaba con
+`ERR_CONNECTION_REFUSED` fuera de CI), `qa/playwright.config.ts` y `qa/run-e2e.mjs` (sin proyecto ni
+variables T017). Borrados: `admin/groups/`, `admin/activities/`, `admin/regyfit-access-records/`,
+`lib/regyfit-access-client.ts(+test)`, `admin/admin-mfa.tsx(+test)`, `lib/mfa-flow.ts(+test)`,
+`lib/offline-attendance-storage.ts(+test)`, `admin/preview-data.ts`, `src/index.ts`,
+`admin/overview/live-operations-panel.tsx(+test)`, `account/progress/peer-comparison.tsx` (sin seguimiento),
+`qa/tests/schedule-management.spec.ts`, `qa/tests/regyfit-access-records.spec.ts`,
+`qa/tests/admin-mfa-live.spec.ts`, `qa/src/admin-test-bootstrap.ts`. `STACK.md` documenta las dos entradas.
+
+**Compuertas 2026-09-06:** `pnpm lint` OK, `pnpm typecheck` OK (6 proyectos), `pnpm format:check` OK,
+`vitest --project web` 87 archivos / 409 pruebas, `vitest --project node` 172 archivos / 1631 pruebas,
+build estatico con `NEXT_PUBLIC_ADMIN_E2E=true` (el export contiene `staff/login.html` y `_headers`; ya no
+contiene `admin/overview`, `admin/groups`, `admin/activities` ni `admin/regyfit-access-records`), E2E
+estatico desktop + mobile de `login-gateway`, `admin-auth`, `admin-shell`, `levels-catalog`,
+`waiver-registration` y `public-home`: 43 pasan, 1 omitida esperada. Corrida real con Auth/Firestore/Functions
+Emulator (`qa/scripts/run-lesson-planning-ui-e2e.mjs`, head coach sembrado, JDK 21): el head coach entra por
+`/staff/login`, aterriza en `/coach` (el portal del coach ejecuta `listSessions`) y abre `/admin/lesson-plans`
+con el nav reducido (Attendance, Classes) y el enlace "Coach portal": el enrutado por claim queda verificado
+en navegador real. El paso siguiente del spec (cargar `t066-review-plan`) falla con el mensaje generico
+aunque `getLessonPlan` responde en 10 ms con auth VALID: la respuesta no pasa la validacion del cliente web.
+No depende de este corte (la pagina y el cliente de lesson planning no se tocaron); queda como hallazgo
+abierto de T066 para revisar el seed frente al contrato vigente.
+
+**Limites y riesgos:** esconder `/staff/login` reduce la visibilidad, no es un control de seguridad; la
+proteccion sigue en claims, callables y Rules. Quien tenga guardado `/login?role=administrator` vera el
+formulario de miembros: comunicar la URL nueva al equipo antes de publicar. `_headers` solo lo aplica
+Cloudflare Pages. El subdominio (`staff.bptjersey.com`) queda como opcion posterior: segundo dominio sobre
+el mismo proyecto de Pages con Cloudflare Access delante, y alta previa del origen en CORS de Functions,
+dominios autorizados de Auth y clave de App Check (ver STACK.md). El callable
+`listRegyfitAccessRecords` sigue desplegado sin consumidor web.
+
+**Rollback:** `git revert` del commit; no hay migraciones ni cambios de datos.
+
+**Hallazgo de entorno:** `.firebaserc` esta modificado en el arbol de trabajo (default `demo-bpt-jersey`
+-> `bptjersey-f5a25`, con `targets`/`etags`), con la forma exacta que escribe `firebase use`. Ningun script
+lo lee (todos fijan `--project demo-bpt-jersey`), pero deja `firebase deploy` sin `--project` apuntando a
+produccion. No se toca en este corte; decision del operador.
+
+### Pendiente al retomar (2026-09-06, tras T118 y T119)
+
+Sustituye al checklist anterior. Tablero: 105 aprobadas de 120 (88%), 3 en revision (T035, T118, T119),
+9 pendientes, 1 bloqueada (T099), 1 en progreso (T106) y 1 cancelada (T017).
+
+Lo que de verdad falta para "terminar" (del analisis del ledger, fila por fila):
+
+- Nada de codigo cierra las 13 filas abiertas. Seis son vision o carecen de objetivo (T036 y T061 sin
+  pasarela; T068-T071 v3): si el operador las cancela o las saca del contador, el tablero refleja el
+  piloto real (105 de 114 = 92% hoy; 108 de 114 = 95% con T035/T118/T119 aprobadas). Cinco dependen de
+  decisiones humanas encadenadas: T011 (cuatro casillas y firma) -> T099 (staging) -> T108, T058 -> T059.
+  T035 solo espera aprobacion. T106 paso 2 espera texto legal.
+- Con el asistente: T097 restante (comparacion opt-in de adultos), conectar `manageClasses` (T116),
+  y las mejoras de producto priorizadas en la evidencia de este corte.
+
+Del operador:
+
+- [ ] Aprobar o devolver T035, T118 y T119.
+- [ ] Decidir el destino de T036, T061 y T068-T071 (cancelar o mover fuera del contador del piloto).
+- [ ] T011: las cuatro casillas y la firma del revisor; siguen bloqueando T099, T108, T058, T106 paso 2 y T117 legal.
+- [ ] Restaurar `.firebaserc` a `demo-bpt-jersey` o registrar la decision de dejarlo en produccion.
+- [ ] Decidir si se elimina `listRegyfitAccessRecords` y `regyfitAccessRecords` en produccion.
+- [ ] Comunicar `/staff/login` a office y coaches antes del proximo push a `main` (Pages despliega solo).
+- [ ] T109: pegar las coordenadas de Town y West en `/admin/classes` tras verlas en un mapa.

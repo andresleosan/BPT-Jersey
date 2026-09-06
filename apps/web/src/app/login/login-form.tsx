@@ -1,30 +1,38 @@
 "use client";
 
 import { useState, useSyncExternalStore, type FormEvent } from "react";
+import type { UserCredential } from "firebase/auth";
 
 import {
   createClientWithEmail,
+  refreshAuthToken,
   sendPasswordReset,
   signInWithEmail,
   signInWithGoogle,
+  signOutFromAuth,
 } from "../../lib/auth-client";
-import { defaultDestination, sanitizeReturnPath, toAuthMessage } from "../../lib/login-flow";
-import type { AuthDestination, LoginRole } from "../../lib/login-flow";
+import {
+  memberDestination,
+  memberLoginPath,
+  navigateTo,
+  notStaffAccountMessage,
+  resolveStaffDestination,
+  sanitizeReturnPath,
+  sanitizeStaffReturnPath,
+  toAuthMessage,
+} from "../../lib/login-flow";
+import type { LoginAudience } from "../../lib/login-flow";
 
 type LoginMode = "sign-in" | "create-client";
 type FieldErrors = Readonly<{ email?: string; password?: string }>;
 
 type LoginFormProps = Readonly<{
-  initialRole: LoginRole;
-  returnPath?: AuthDestination;
+  /** Members sign in from the home page; staff sign in from the unlinked staff page. */
+  audience: LoginAudience;
 }>;
 
 function validEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-}
-
-function destinationAfterLogin(role: LoginRole, returnPath?: AuthDestination): void {
-  window.location.assign(defaultDestination(role, returnPath));
 }
 
 function subscribeToLocation(onChange: () => void): () => void {
@@ -40,8 +48,8 @@ function useLocationSearch(): string {
   );
 }
 
-export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginFormProps) {
-  const [selectedRole, setSelectedRole] = useState<LoginRole | undefined>();
+export function LoginForm({ audience }: LoginFormProps) {
+  const isStaff = audience === "staff";
   const [mode, setMode] = useState<LoginMode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,16 +58,10 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const locationSearch = useLocationSearch();
-  const queryParams = new URLSearchParams(locationSearch);
-  const queryRole = queryParams.get("role");
-  const queryRoleValue =
-    queryRole === "administrator" || queryRole === "client" ? queryRole : undefined;
-  const queryReturnPath = sanitizeReturnPath(queryParams.get("returnTo"));
-  const activeRole: LoginRole = selectedRole ?? queryRoleValue ?? initialRole;
-  const returnPath = queryReturnPath ?? initialReturnPath;
+  const queryReturnTo = new URLSearchParams(locationSearch).get("returnTo");
 
-  const isCreating = mode === "create-client" && activeRole === "client";
-  const contextTitle = activeRole === "administrator" ? "Team access" : "Client account";
+  const isCreating = !isStaff && mode === "create-client";
+  const contextTitle = isStaff ? "Staff sign-in" : "Client account";
   const submitLabel = busy
     ? isCreating
       ? "Creating account"
@@ -68,15 +70,7 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
       ? "Create client account"
       : "Sign in";
 
-  function changeRole(nextRole: LoginRole): void {
-    if (busy) {
-      return;
-    }
-
-    setSelectedRole(nextRole);
-    if (nextRole === "administrator") {
-      setMode("sign-in");
-    }
+  function clearMessages(): void {
     setFieldErrors({});
     setAuthError("");
     setNotice("");
@@ -95,6 +89,27 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
     return nextErrors;
   }
 
+  async function completeSignIn(credential: UserCredential): Promise<void> {
+    if (!isStaff) {
+      navigateTo(memberDestination(sanitizeReturnPath(queryReturnTo)));
+      return;
+    }
+
+    // The staff page never trusts the form: the ID token claims decide where this person works.
+    const token = await refreshAuthToken(credential.user);
+    const destination = resolveStaffDestination(
+      { academyId: token.claims.academyId, role: token.claims.role },
+      sanitizeStaffReturnPath(queryReturnTo),
+    );
+    if (!destination) {
+      await signOutFromAuth();
+      setAuthError(notStaffAccountMessage);
+      return;
+    }
+
+    navigateTo(destination);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setAuthError("");
@@ -108,12 +123,10 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
 
     setBusy(true);
     try {
-      if (isCreating) {
-        await createClientWithEmail(email, password);
-      } else {
-        await signInWithEmail(email, password);
-      }
-      destinationAfterLogin(activeRole, returnPath);
+      const credential = isCreating
+        ? await createClientWithEmail(email, password)
+        : await signInWithEmail(email, password);
+      await completeSignIn(credential);
     } catch (error) {
       setAuthError(toAuthMessage(error));
     } finally {
@@ -127,8 +140,8 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
     setNotice("");
 
     try {
-      await signInWithGoogle();
-      destinationAfterLogin(activeRole, returnPath);
+      const credential = await signInWithGoogle();
+      await completeSignIn(credential);
     } catch (error) {
       setAuthError(toAuthMessage(error));
     } finally {
@@ -159,34 +172,16 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
   return (
     <section className="login-card" aria-labelledby="login-title">
       <div className="login-card-heading">
-        <p className="account-eyebrow">BPT Jersey / Account access</p>
+        <p className="account-eyebrow">
+          {isStaff ? "BPT Jersey / Staff access" : "BPT Jersey / Account access"}
+        </p>
         <h1 id="login-title">{contextTitle}</h1>
         <p>
-          {activeRole === "administrator"
-            ? "Use your provisioned academy account to enter the operations workspace."
+          {isStaff
+            ? "Use your provisioned academy account to enter the coach or office workspace."
             : "Sign in to manage your account and reach the authenticated client area."}
         </p>
       </div>
-
-      <fieldset className="login-role-selector" disabled={busy}>
-        <legend>Choose your access context</legend>
-        <div className="login-role-options">
-          <button
-            aria-pressed={activeRole === "administrator"}
-            onClick={() => changeRole("administrator")}
-            type="button"
-          >
-            Administrator
-          </button>
-          <button
-            aria-pressed={activeRole === "client"}
-            onClick={() => changeRole("client")}
-            type="button"
-          >
-            Client
-          </button>
-        </div>
-      </fieldset>
 
       <form
         className="login-form"
@@ -269,31 +264,22 @@ export function LoginForm({ initialRole, returnPath: initialReturnPath }: LoginF
       </form>
 
       <div className="login-secondary-actions">
-        {activeRole === "client" ? (
+        {isStaff ? (
+          <a className="login-context-link" href={memberLoginPath}>
+            Not a coach or office member? Member sign-in
+          </a>
+        ) : (
           <button
             className="login-mode-toggle"
             disabled={busy}
             onClick={() => {
               setMode(isCreating ? "sign-in" : "create-client");
-              setFieldErrors({});
-              setAuthError("");
-              setNotice("");
+              clearMessages();
             }}
             type="button"
           >
             {isCreating ? "Back to sign in" : "Create client account"}
           </button>
-        ) : (
-          <a
-            className="login-context-link"
-            href="/login?role=client"
-            onClick={(event) => {
-              event.preventDefault();
-              changeRole("client");
-            }}
-          >
-            Back to client access
-          </a>
         )}
       </div>
     </section>
