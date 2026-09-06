@@ -22,6 +22,13 @@ import type {
   UpdateClassInput,
 } from "@bpt-jersey/domain/schedule";
 
+import {
+  preClassAttendeeSources,
+  type PreClassAttendee,
+  type PreClassAttendeeSource,
+  type PreClassView,
+} from "@bpt-jersey/domain/schedule/pre-class";
+
 import { getFirebaseFunctions } from "./firebase-client";
 
 export const scheduleCallableClientOptions = Object.freeze({
@@ -372,6 +379,52 @@ export async function getSessionOperationalView(
 
   const result = await callable({ sessionId });
   return result.data.view;
+}
+
+/**
+ * T114: the pre-class list of a session. Everything in it is canonical, so the panel only has to
+ * refuse a response whose shape it does not recognise.
+ */
+const safePreClassError = "Unable to prepare this class. Please try again.";
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPreClassAttendee(value: unknown): value is PreClassAttendee {
+  return (
+    isPlainRecord(value) &&
+    typeof value.studentId === "string" &&
+    typeof value.displayName === "string" &&
+    typeof value.source === "string" &&
+    preClassAttendeeSources.includes(value.source as PreClassAttendeeSource) &&
+    Number.isSafeInteger(value.attendedCount) &&
+    Number.isSafeInteger(value.comparableSessionCount) &&
+    (value.lastAttendedAt === null || typeof value.lastAttendedAt === "string") &&
+    (value.status === null || typeof value.status === "string")
+  );
+}
+
+export async function getPreClassView(sessionId: string): Promise<PreClassView> {
+  try {
+    const callable = httpsCallable<{ sessionId: string }, unknown>(
+      getFirebaseFunctions(),
+      "getPreClassView",
+    );
+    const result = await callable({ sessionId });
+    const data = result.data;
+    if (!isPlainRecord(data) || !isPlainRecord(data.view)) throw new Error(safePreClassError);
+    const view = data.view;
+    if (!Array.isArray(view.attendees) || !view.attendees.every(isPreClassAttendee)) {
+      throw new Error(safePreClassError);
+    }
+    if (!isPlainRecord(view.evidence) || typeof view.evidence.open !== "boolean") {
+      throw new Error(safePreClassError);
+    }
+    return view as unknown as PreClassView;
+  } catch {
+    throw new Error(safePreClassError);
+  }
 }
 
 

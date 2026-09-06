@@ -149,7 +149,29 @@ const scheduleClientMock = vi.hoisted(() => ({
   getSessionOperationalView: vi.fn(),
   recordCheckIn: vi.fn(),
   getScheduleCatalog: vi.fn(),
+  getPreClassView: vi.fn(),
 }));
+
+// T114: the pre-class list of the selected session.
+function preClassView(
+  attendees: readonly Record<string, unknown>[] = [],
+  evidence: Record<string, unknown> = {},
+) {
+  return {
+    session: mockTownSession,
+    attendees,
+    evidence: {
+      open: true,
+      windowDays: 56,
+      minAttendances: 2,
+      comparableSessionCount: 4,
+      bookedCount: attendees.filter((entry) => entry.source === "booked").length,
+      suggestedCount: attendees.filter((entry) => entry.source === "regular").length,
+      ...evidence,
+    },
+    refreshedAt: "2026-09-04T17:00:00.000Z",
+  };
+}
 
 vi.mock("../../lib/schedule-client", () => scheduleClientMock);
 
@@ -215,6 +237,7 @@ describe("CoachDashboardPage", () => {
   beforeEach(() => {
     scheduleClientMock.listSessions.mockResolvedValue([mockTownSession, mockWestSession]);
     birthdaysMock.listUpcomingBirthdays.mockResolvedValue([]);
+    scheduleClientMock.getPreClassView.mockResolvedValue(preClassView());
     // No site coordinates recorded by default, which is the honest starting state (T109).
     scheduleClientMock.getScheduleCatalog.mockResolvedValue({ locations: [], programs: [] });
     proximityMock.measureCheckInProximity.mockReset();
@@ -646,6 +669,68 @@ describe("CoachDashboardPage", () => {
       render(<CoachDashboardPage />);
       expect(
         await screen.findByText("Unable to load upcoming birthdays. Please try again."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("pre-class view (T114)", () => {
+    it("asks for the selected session and lists booked members and regulars", async () => {
+      scheduleClientMock.getPreClassView.mockResolvedValue(
+        preClassView([
+          {
+            studentId: "student-1",
+            displayName: "Ana Coelho",
+            source: "booked",
+            status: "booked_not_arrived",
+            attendedCount: 3,
+            comparableSessionCount: 4,
+            lastAttendedAt: "2026-08-28T18:05:00.000Z",
+          },
+          {
+            studentId: "student-9",
+            displayName: "Bruno Le Sueur",
+            source: "regular",
+            status: null,
+            attendedCount: 4,
+            comparableSessionCount: 4,
+            lastAttendedAt: "2026-08-28T18:05:00.000Z",
+          },
+        ]),
+      );
+      render(<CoachDashboardPage />);
+
+      await waitFor(() => {
+        expect(scheduleClientMock.getPreClassView).toHaveBeenCalledWith("session-town-1");
+      });
+      expect(await screen.findByText("Ana Coelho")).toBeInTheDocument();
+      expect(screen.getByText("Bruno Le Sueur")).toBeInTheDocument();
+      expect(screen.getByText("Regular · 4 of the last 4")).toBeInTheDocument();
+      expect(screen.getByText("2 expected")).toBeInTheDocument();
+      expect(screen.getByText(/Nobody is checked in until you record it/u)).toBeInTheDocument();
+    });
+
+    it("says so when nobody is booked and nobody trains the class yet", async () => {
+      render(<CoachDashboardPage />);
+      expect(
+        await screen.findByText("Nobody is booked and nobody trains this class regularly yet."),
+      ).toBeInTheDocument();
+    });
+
+    it("explains that a closed class only lists the booked members", async () => {
+      scheduleClientMock.getPreClassView.mockResolvedValue(preClassView([], { open: false }));
+      render(<CoachDashboardPage />);
+      expect(
+        await screen.findByText("This class is closed, so only the booked members are listed."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows a safe message when the class cannot be prepared", async () => {
+      scheduleClientMock.getPreClassView.mockRejectedValue(
+        new Error("Unable to prepare this class. Please try again."),
+      );
+      render(<CoachDashboardPage />);
+      expect(
+        await screen.findByText("Unable to prepare this class. Please try again."),
       ).toBeInTheDocument();
     });
   });

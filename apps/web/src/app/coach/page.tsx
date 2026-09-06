@@ -7,6 +7,7 @@ import {
   type UpcomingBirthday,
   type UpcomingBirthdayTrainingCenter,
 } from "@bpt-jersey/domain/birthdays";
+import type { PreClassView } from "@bpt-jersey/domain/schedule/pre-class";
 import {
   checkInOverrideReasonMaxLength,
   checkInOverrideReasonMinLength,
@@ -21,6 +22,7 @@ import {
 import { birthdayWhenLabel, listUpcomingBirthdays } from "../../lib/birthdays-client";
 import { measureCheckInProximity, type ProximityReading } from "../../lib/check-in-proximity";
 import {
+  getPreClassView,
   getScheduleCatalog,
   getSessionOperationalView,
   listSessions,
@@ -47,6 +49,12 @@ function dayQuery(date: string) {
 function birthdaySite(premises: PremisesChoice): UpcomingBirthdayTrainingCenter {
   return premises === "town" ? "Town" : "West";
 }
+
+type PreClassState =
+  | Readonly<{ status: "idle" }>
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "ready"; view: PreClassView }>
+  | Readonly<{ status: "error" }>;
 
 type BirthdayState =
   | Readonly<{ status: "loading" }>
@@ -88,6 +96,9 @@ export default function CoachDashboardPage() {
   // T112: real upcoming birthdays of the active students of this site. The response carries no
   // date of birth, so the panel has nothing sensitive to hide.
   const [birthdays, setBirthdays] = useState<BirthdayState>({ status: "loading" });
+  // T114: who to expect before the class starts. Derived from canonical attendance of the same
+  // class in the recent past; nobody is checked in by it.
+  const [preClass, setPreClass] = useState<PreClassState>({ status: "idle" });
   const [measuring, setMeasuring] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   // Bumped on every premises change so a measurement still in flight for the previous site is
@@ -191,6 +202,27 @@ export default function CoachDashboardPage() {
       active = false;
     };
   }, [premises]);
+
+  useEffect(() => {
+    if (!effectiveSessionId) {
+      setPreClass({ status: "idle" });
+      return;
+    }
+    let active = true;
+    setPreClass({ status: "loading" });
+
+    void getPreClassView(effectiveSessionId)
+      .then((view) => {
+        if (active) setPreClass({ status: "ready", view });
+      })
+      .catch(() => {
+        if (active) setPreClass({ status: "error" });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [effectiveSessionId]);
 
   useEffect(() => {
     let active = true;
@@ -672,6 +704,66 @@ export default function CoachDashboardPage() {
 
         {/* Side Panel: Birthdays & Quick Links */}
         <div className="coach-side-panel">
+          {/* T114: who to expect before the class starts */}
+          <div className="coach-card">
+            <h2 className="coach-card-title" style={{ fontSize: "1.05rem" }}>
+              <span>Before class</span>
+              {preClass.status === "ready" && (
+                <span className="coach-birthday-badge">
+                  {preClass.view.evidence.bookedCount + preClass.view.evidence.suggestedCount}{" "}
+                  expected
+                </span>
+              )}
+            </h2>
+            {preClass.status === "idle" && (
+              <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
+                Pick a class to prepare it.
+              </p>
+            )}
+            {preClass.status === "loading" && (
+              <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
+                Preparing this class…
+              </p>
+            )}
+            {preClass.status === "error" && (
+              <p role="status" style={{ fontSize: "0.825rem", color: "#b91c1c", margin: 0 }}>
+                Unable to prepare this class. Please try again.
+              </p>
+            )}
+            {preClass.status === "ready" && (
+              <>
+                <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: "0 0 0.75rem" }}>
+                  {preClass.view.evidence.open
+                    ? `Booked members, plus regulars of the last ${preClass.view.evidence.windowDays} days who have not booked. Nobody is checked in until you record it.`
+                    : "This class is closed, so only the booked members are listed."}
+                </p>
+                {preClass.view.attendees.length === 0 ? (
+                  <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
+                    Nobody is booked and nobody trains this class regularly yet.
+                  </p>
+                ) : (
+                  <div role="list">
+                    {preClass.view.attendees.map((attendee) => (
+                      <div key={attendee.studentId} className="coach-birthday-item" role="listitem">
+                        <div>
+                          <div className="coach-birthday-name">{attendee.displayName}</div>
+                          <div className="coach-birthday-meta">
+                            {attendee.source === "booked"
+                              ? "Booked"
+                              : `Regular · ${attendee.attendedCount} of the last ${attendee.comparableSessionCount}`}
+                          </div>
+                        </div>
+                        <span className="coach-birthday-badge">
+                          {attendee.source === "booked" ? "Booked" : "Suggested"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Member Upcoming Birthdays Widget */}
           <div className="coach-card">
             <h2 className="coach-card-title" style={{ fontSize: "1.05rem" }}>

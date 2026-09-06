@@ -180,6 +180,11 @@
       "import": "./src/penalties/no-show-penalty-contracts.ts",
       "default": "./lib/penalties/no-show-penalty-contracts.js"
     },
+    "./schedule/pre-class": {
+      "types": "./src/schedule/pre-class-contracts.ts",
+      "import": "./src/schedule/pre-class-contracts.ts",
+      "default": "./lib/schedule/pre-class-contracts.js"
+    },
     "./birthdays": {
       "types": "./src/birthdays/upcoming-birthday-contracts.ts",
       "import": "./src/birthdays/upcoming-birthday-contracts.ts",

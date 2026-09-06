@@ -113,6 +113,7 @@ export {
   resolveNoShowPenalty,
 } from "./penalties/no-show-penalty-callables.js";
 export { listUpcomingBirthdays } from "./birthdays/upcoming-birthday-callables.js";
+export { getPreClassView } from "./schedule/pre-class-callables.js";
 export {
   acceptWaitlistOffer,
   cancelWaitlistEntry,

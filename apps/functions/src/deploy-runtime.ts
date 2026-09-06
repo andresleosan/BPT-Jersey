@@ -27,6 +27,7 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/schedule": "../../domain/schedule/schedule-contracts.js",
   "@bpt-jersey/domain/schedule/advanced-booking":
     "../../domain/schedule/advanced-booking-contracts.js",
+  "@bpt-jersey/domain/schedule/pre-class": "../../domain/schedule/pre-class-contracts.js",
   "@bpt-jersey/domain/announcements": "../../domain/announcements/announcement-contracts.js",
   "@bpt-jersey/domain/reminders": "../../domain/reminders/reminder-contracts.js",
   "@bpt-jersey/domain/retention": "../../domain/retention-contracts.js",

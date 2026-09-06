@@ -59,6 +59,23 @@ type QuorumSweep = Readonly<{
   cancels: boolean;
   releasedBookings: number;
 }>;
+type PreClassView = Readonly<{
+  attendees: readonly Readonly<{
+    studentId: string;
+    displayName: string;
+    source: string;
+    status: string | null;
+    attendedCount: number;
+    comparableSessionCount: number;
+  }>[];
+  evidence: Readonly<{
+    open: boolean;
+    windowDays: number;
+    comparableSessionCount: number;
+    bookedCount: number;
+    suggestedCount: number;
+  }>;
+}>;
 type CatalogLocation = Readonly<{
   locationId: string;
   geofence?: Readonly<{ latitude: number; longitude: number }> | null;
@@ -854,6 +871,66 @@ test.describe("T096 class operations with Firebase Emulators", () => {
     expect(JSON.stringify(reminders)).not.toContain(noticeSession.sessionId);
     expect(JSON.stringify(reminders)).not.toContain(studentId);
 
+    // T114: the pre-class list of a class that is still open. The adult is booked and already
+    // checked in, so the coach sees them with their live status - the CORRECTED canonical state,
+    // "late", not the original check-in the correction replaced. Nothing is suggested here: the
+    // Emulator cannot create attendance for a past class (a booking inside the one-hour cutoff is
+    // refused), so the habit half of the view is proved at unit level with an injected history.
+    const preClass = (
+      await ok<{ view: PreClassView }>(
+        request,
+        "getPreClassView",
+        { sessionId: far.sessionId },
+        owner,
+      )
+    ).view;
+    expect(preClass.evidence).toMatchObject({ open: true, bookedCount: 1, suggestedCount: 0 });
+    expect(preClass.attendees).toEqual([
+      expect.objectContaining({
+        studentId,
+        displayName: "Synthetic T096 Adult",
+        source: "booked",
+        status: "late",
+        comparableSessionCount: 0,
+      }),
+    ]);
+    // A class that is off needs no preparation, and the member who cancelled is not listed.
+    const closedPreClass = (
+      await ok<{ view: PreClassView }>(
+        request,
+        "getPreClassView",
+        { sessionId: later.sessionId },
+        owner,
+      )
+    ).view;
+    expect(closedPreClass.evidence).toMatchObject({ open: false, suggestedCount: 0 });
+    expect(closedPreClass.attendees).toEqual([]);
+    // Members never read who else is expected in a class.
+    await denied(
+      request,
+      "getPreClassView",
+      { sessionId: far.sessionId },
+      adult,
+      403,
+      "PERMISSION_DENIED",
+    );
+    await denied(
+      request,
+      "getPreClassView",
+      { sessionId: `absent-${suffix}` },
+      owner,
+      404,
+      "NOT_FOUND",
+    );
+    await denied(
+      request,
+      "getPreClassView",
+      { sessionId: far.sessionId, windowDays: 7 },
+      owner,
+      400,
+      "INVALID_ARGUMENT",
+    );
+
     // Direct Firestore access to sessions, bookings, attendance and the sweep evidence is denied.
     for (const path of [
       `academies/${academyId}/sessions/${far.sessionId}`,
@@ -871,7 +948,13 @@ test.describe("T096 class operations with Firebase Emulators", () => {
   }) => {
     const owner = await signIn(request, process.env.T096_OWNER_EMAIL);
 
-    for (const name of ["saveSession", "requestBooking", "checkIn", "reconcileSessionQuorum"]) {
+    for (const name of [
+      "saveSession",
+      "requestBooking",
+      "checkIn",
+      "reconcileSessionQuorum",
+      "getPreClassView",
+    ]) {
       const noAppCheck = await call(request, name, null, { session: owner, appCheck: false });
       expect(noAppCheck.status, name).toBe(401);
       expect(noAppCheck.body.error?.status).toBe("UNAUTHENTICATED");

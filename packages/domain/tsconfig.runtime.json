@@ -34,6 +34,7 @@
     "src/levels/lesson-planning-contracts.ts",
     "src/schedule/schedule-contracts.ts",
     "src/schedule/advanced-booking-contracts.ts",
+    "src/schedule/pre-class-contracts.ts",
     "src/announcements/announcement-contracts.ts",
     "src/announcements/safeguarding-contracts.ts",
     "src/reminders/reminder-contracts.ts",
