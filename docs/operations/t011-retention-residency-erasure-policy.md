@@ -2,6 +2,7 @@
 
 **Fecha de trabajo:** 2026-09-01  
 **Borrador con valores propuestos:** 2026-09-05  
+**Identidad del controller aportada por el operador:** 2026-09-06  
 **Estado:** en revisión del operador; borrador completo, sin firmar y sin efecto productivo.  
 **Ámbito:** BPT Jersey, datos de usuarios, menores, tutores, personal, pagos, soporte y cualquier dato de salud que llegue a tratarse.
 
@@ -13,30 +14,51 @@
 > *propuesta redactada por el asistente, no verificada contra la ley aplicable, no firmada por nadie
 > y sin ningún efecto sobre el sistema.* Ninguno de estos valores abre producción, datos reales,
 > staging ni transferencias: los cierres técnicos siguen siendo los mismos que antes de escribirlos.
-> El trabajo del operador y del revisor es sustituir cada comilla por una decisión con fuente,
-> aprobador y fecha, o tacharla.
+> El trabajo del operador es sustituir cada comilla por una decisión con fuente, aprobador y fecha,
+> o tacharla. Desde el 2026-09-06 no hay revisor que comparta ese trabajo.
 
-> **Dos casillas siguen sin valor a propósito.** El número de registro JOIC y la identidad del
-> revisor independiente no se proponen: inventar el primero fabrica un registro regulatorio que no
-> existe, e inventar el segundo atribuye un encargo a un profesional real. Ambas llevan el estado
-> verificable en su lugar.
+> **Las dos casillas que estaban vacías las cerró el operador por decisión, no por evidencia
+> (2026-09-06).** El operador determinó que no se requiere registro JOIC y que no se contratará un
+> revisor independiente. El borrador no las inventa ni las discute: las registra como determinación
+> del controller, con fecha y sin fuente citada, que es exactamente lo que son. La consecuencia hay
+> que decirla una vez y queda dicha: quien firma esta política es también quien la escribió y quien
+> la ejecuta, así que ningún tercero verifica los plazos que el propio borrador marcó como los más
+> probables de estar mal (safeguarding, waivers y la transferencia de Firebase Auth).
 
 ## 1. Responsables que deben designarse
 
 | Rol | Responsabilidad | Designación requerida |
 |---|---|---|
-| Controller | Determina finalidades y medios; responde por cumplimiento y evidencia | `"BPT Jersey"` como nombre comercial; **falta la razón social exacta y su jurisdicción de constitución**, que es el dato que el operador debe escribir |
-| Owner | Ejecuta la política, mantiene inventario, calendario, controles y excepciones | `"Andres Santiago, operador de la plataforma"`, correo corporativo `"[pendiente]"` |
-| Reviewer independiente | Revisa bases legales, DPIA, transferencias, menores/salud y excepciones sin ser dueño del delivery | `"sin designar"`; perfil requerido y borrador de encargo en `t011-reviewer-engagement-brief.md`. No se propone un nombre: hacerlo atribuiría un encargo inexistente |
+| Controller | Determina finalidades y medios; responde por cumplimiento y evidencia | **Brazilian Power Team · Jersey**, aportado por el operador el 2026-09-06 como nombre de la entidad responsable, con `"BPT Jersey"` como forma abreviada de uso comercial. Representante que firma por el controller: **Vladimiro "Miro" Afonso** (owner interno). Contacto de privacidad: **bptjersey@gmail.com**. **Sigue faltando** la forma jurídica (sole trader, Ltd, association u otra), el número de registro y el domicilio registrado en Jersey: lo pide cualquier contrato de processor, cualquier póliza y cualquier texto legal que nombre al responsable, y no se puede inventar |
+| Owner | Ejecuta la política, mantiene inventario, calendario, controles y excepciones | `"Andres Santiago, operador de la plataforma"`; el único correo aportado por el operador es el buzón compartido `bptjersey@gmail.com`, que no es una dirección nominal ni un dominio propio |
+| Reviewer independiente | Revisa bases legales, DPIA, transferencias, menores/salud y excepciones sin ser dueño del delivery | **No se designa.** Decisión del operador del 2026-09-06: la operación no contratará revisión independiente. El encargo redactado en `t011-reviewer-engagement-brief.md` queda archivado, no enviado. El rol no se reasigna: se elimina, y con él el control que separaba decidir de verificar |
 | Security/Engineering owner | Implementa borrado, accesos, logs, backups y pruebas | `"Andres Santiago"` (misma persona que el owner) |
 
-La aprobación debe conservar nombre, cargo, fecha, alcance, versión y conflictos declarados. El reviewer no puede aprobar su propio trabajo.
+La aprobación debe conservar nombre, cargo, fecha, alcance, versión y conflictos declarados. La regla de que el reviewer no aprueba su propio trabajo decae al no haber reviewer; lo que queda en su lugar es que la firma diga con qué fecha y sobre qué versión se aprobó, para que se pueda auditar después.
 
-**Hallazgo que el borrador no puede resolver solo:** en la propuesta, controller, owner y security owner
-son la misma persona. Es lo normal en una operación de una sola persona y no es un defecto en sí, pero
-concentra la decisión y su propia verificación en el mismo actor. Por eso el revisor independiente es
-la única de las cuatro casillas que no admite un valor propuesto: es precisamente quien rompe esa
-concentración.
+**Aporte del operador 2026-09-06.** El operador entregó la identidad del responsable y su owner
+interno: entidad `Brazilian Power Team · Jersey`, owner interno `Vladimiro "Miro" Afonso`, correo
+`bptjersey@gmail.com`, con dos lugares de impartición ya registrados en la configuración de academia
+(Town: Office 9, 13 Library Place, St Helier; West: Strive Health Club, L'Avenue de la Reine
+Elizabeth II, St Peter, JE3 7BP) y el cuadro docente de Miro Afonso, Eduardo "Eddie" Afonso, Andrew
+"Topo" Toporis y Charlie Tromans. Esto cierra el *quién* y deja abierto el *cómo está constituido*:
+un nombre comercial no es todavía una razón social. Para cualquier contrato de processor, póliza
+de seguro o texto legal publicado hacen falta la forma jurídica, el número de registro y el
+domicilio registrado, y ese dato lo tiene el operador en su documentación de constitución, no el
+asistente.
+
+**Riesgo declarado del contacto de privacidad.** `bptjersey@gmail.com` es un buzón de consumo
+compartido. Sirve como canal público mientras no exista dominio propio, pero no permite control de
+accesos por persona, ni registro de quién leyó una solicitud de derechos, ni retención del propio
+buzón. Antes de anunciarlo como contacto de privacidad en un texto legal, el owner debe decidir si
+se sustituye por una dirección de dominio propio o si se documenta el control compensatorio.
+
+**Hallazgo, ahora asumido explícitamente:** controller, owner y security owner recaen en el mismo
+círculo de dos personas, y desde el 2026-09-06 no hay revisor independiente que lo compense. Es una
+decisión legítima del operador y así queda registrada; lo que no cambia es el efecto: la política se
+aprueba, se ejecuta y se audita dentro del mismo actor. Cualquier lector externo de este documento
+—un regulador, un asegurador, un padre que pregunta— debe poder ver eso escrito, y por eso se escribe
+aquí en vez de omitirse.
 
 ## 2. Las diez decisiones que deben resolverse
 
@@ -86,8 +108,15 @@ La retención debe ser proporcional a la finalidad. La JOIC describe el principi
 
 Antes de procesar datos personales como controller o processor establecido en Jersey:
 
-1. Confirmar la entidad, rol controller/processor, actividades, categorías de datos, sujetos, procesadores y contacto de privacidad.
-2. Completar o actualizar el registro JOIC y conservar número, fecha, alcance y cargo pagado o exención. La JOIC indica que controllers y processors establecidos en Jersey deben registrarse salvo una exención aplicable: <https://www.jerseyoic.org/guidance/data-protection/registration/registration-1>.
+1. Confirmar la entidad, rol controller/processor, actividades, categorías de datos, sujetos, procesadores y contacto de privacidad. La entidad declarada el 2026-09-06 es `Brazilian Power Team · Jersey` con contacto `bptjersey@gmail.com`; el formulario de registro exige además la forma jurídica, el número de registro y el domicilio, que siguen pendientes.
+2. **Determinación del operador del 2026-09-06: no se completará el registro JOIC.** Se registra
+   como determinación de aplicabilidad del controller, que es la vía alternativa que el propio
+   paquete admitía junto al número de registro, y se registra con su límite a la vista: hoy no
+   consta la exención concreta en la que se apoya. La guía JOIC dice que controllers y processors
+   establecidos en Jersey deben registrarse salvo exención aplicable:
+   <https://www.jerseyoic.org/guidance/data-protection/registration/registration-1>. Si el operador
+   identifica cuál es la exención, o confirma con la JOIC que no procede registrarse, basta con
+   anotarlo aquí con fecha y la casilla pasa de decisión a evidencia.
 3. Completar la DPIA con naturaleza, alcance, contexto, finalidades, necesidad, proporcionalidad, riesgos y mitigaciones.
 4. Incluir en la DPIA el uso de datos de menores, salud, perfiles, decisiones automatizadas, proveedores, accesos administrativos, transferencias y borrado.
 5. Si queda un riesgo alto no mitigado, consultar a JOIC antes de iniciar el procesamiento; la plataforma de DPIA de JOIC indica que no debe iniciarse el tratamiento mientras la consulta esté abierta: <https://portal.jerseyoic.org/dpia>.
@@ -141,16 +170,24 @@ Si falla el borrado, el sistema debe quedar en estado de excepción visible y no
 
 ## 8. Criterio de cierre de T011
 
+El 2026-09-06 el operador retiró dos criterios de esta lista: el registro JOIC y la firma de un
+revisor independiente. La firma que cierra T011 pasa a ser la del controller, Vladimiro "Miro"
+Afonso, sobre las diez decisiones y el calendario. Retirar criterios acorta la lista, no la deuda:
+los plazos que este mismo borrador marcó como poco fiables siguen sin verificar por nadie.
+
 T011 solo puede pasar a **aprobada** cuando existan:
 
-- controller, owner y reviewer independiente designados;
-- diez decisiones firmadas y calendario de retención completo;
-- registro JOIC confirmado o exención documentada;
-- DPIA aprobada y consulta JOIC si el riesgo residual lo exige;
+- controller y owner designados —hecho el 2026-09-06— y la razón social completa con forma jurídica, número de registro y domicilio registrado;
+- diez decisiones firmadas por el controller y calendario de retención completo;
+- DPIA aprobada. La decisión del 2026-09-06 cubre el registro y el revisor, no la DPIA: si queda riesgo alto residual, la consulta previa a JOIC sigue formando parte del proceso;
 - mapa de residencia/transferencias, DPA y TIA/SCC/Addendum aplicables;
 - controles de menores y salud implementados;
 - runbook, auditoría y matriz de pruebas ejecutados con evidencia real;
 - rollback y restauración segura probados.
+
+El acta que recoge las firmas —las diez decisiones, el calendario, el mapa de regiones y los tres
+puntos marcados como menos fiables— está en `docs/operations/t011-controller-approval-acta-draft.md`,
+sin firmar.
 
 ## Fuentes primarias
 

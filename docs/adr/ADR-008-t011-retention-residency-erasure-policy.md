@@ -1,7 +1,7 @@
 # ADR-008 — Propuesta de política de retención, residencia y eliminación para T011
 
 **Fecha:** 2026-09-01  
-**Estado:** propuesta; bloqueada hasta designación y aprobación independiente.
+**Estado:** propuesta; enmendada el 2026-09-06 por decisión del operador. La aprobación independiente deja de ser un gate: pendiente de firma del controller.
 
 ## Contexto
 
@@ -23,8 +23,8 @@ El detalle, las diez decisiones y el runbook están en `docs/operations/t011-ret
 ## Consecuencias
 
 Positivas: menor superficie de datos, controles fail-closed y auditoría reproducible.  
-Costes: inventario de proveedores, DPIA, registro JOIC, revisión jurídica, automatización de borrado y pruebas periódicas.
+Costes: inventario de proveedores, DPIA, automatización de borrado y pruebas periódicas. El registro JOIC y la revisión jurídica se retiraron del coste el 2026-09-06 por decisión del operador; lo que se ahorra en coste se traslada a riesgo asumido por el controller.
 
 ## Gates de aceptación
 
-No se puede aprobar hasta designar controller, owner y reviewer independiente; completar el registro JOIC; aprobar la DPIA; resolver las diez decisiones; documentar transferencias/DPA; implementar controles de menores/salud; y pasar la matriz de pruebas.
+Enmienda 2026-09-06 (decisión del operador): se retiran de los gates el reviewer independiente y el registro JOIC. Quedan: completar la razón social del controller —forma jurídica, número de registro y domicilio—; aprobar la DPIA; resolver y firmar las diez decisiones; documentar transferencias/DPA; implementar controles de menores/salud; y pasar la matriz de pruebas. La firma que cierra es la del controller, sin contraparte que la revise.

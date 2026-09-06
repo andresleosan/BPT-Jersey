@@ -1,0 +1,126 @@
+# T011 — Controller Approval Act (draft for signature)
+
+> **Nota para el operador (ES).** Este acta está en inglés a propósito: la firma quien la tiene que
+> entender, y el firmante es Vladimiro Afonso. El detalle completo sigue en
+> `t011-retention-residency-erasure-policy.md`. Este documento no añade decisiones nuevas: recoge las
+> que ya están redactadas para que se aprueben, se modifiquen o se rechacen una por una, con firma y
+> fecha. Hasta que esté firmado, T011 sigue siendo un borrador.
+
+**Status:** unsigned draft. Nothing in this document takes effect until it is signed and dated.
+**Prepared:** 2026-09-06
+**Source of record:** `docs/operations/t011-retention-residency-erasure-policy.md` (full policy),
+`docs/operations/t011-retention-residency-deletion-decision-packet.md` (decision packet).
+
+## 1. Who is signing, and what that means
+
+| Field | Value |
+| --- | --- |
+| Controller (entity) | Brazilian Power Team · Jersey (short form "BPT Jersey") |
+| Legal form, registration number, registered address | **Not yet supplied.** Complete before this act is signed |
+| Signing representative | Vladimiro "Miro" Afonso, internal owner |
+| Privacy contact | bptjersey@gmail.com |
+| Platform owner / security owner | Andres Santiago |
+| Independent reviewer | None. Waived by operator decision on 2026-09-06 |
+| JOIC registration | None. Determined not required by the operator on 2026-09-06; the specific exemption relied on is not recorded |
+
+**What you are taking on by signing.** There is no independent reviewer and no regulator-facing
+registration on file. That is a legitimate choice for an operation this size, and it is already
+recorded as your decision — but it means your signature is the only check on these decisions. If a
+parent, an insurer or the Jersey Office of the Information Commissioner ever asks how a retention
+period or a data transfer was decided, this act is the whole answer. It should therefore say what
+you actually agree with, not what is easiest to sign.
+
+## 2. The three items most likely to be wrong
+
+These are flagged first because nobody else will flag them. The draft author marked them as the
+weakest values in the policy, and they are the ones worth spending your reading time on.
+
+| # | Item | What the draft proposes | Why it is flagged |
+| --- | --- | --- | --- |
+| A | Safeguarding and incidents involving minors | Keep until the individual turns 25, minimum 7 years; documented review before destruction, never automatic deletion | The proposed period is an analogy, not a sourced rule. Real safeguarding regimes tend to require long and very specific retention. If any period here is wrong, this is the one |
+| B | Waivers, consents and evidence | Keep 10 years from last participation; retain only the version and hash after that | The correct period is driven by the limitation period for claims against the club. That is a question for whoever advises you on liability, not a drafting choice |
+| C | Firebase Authentication region | No region can be selected; identity and email are handled globally | This is not a blank to fill in — it is a transfer outside UK/EEA that exists by design of the provider. Every other service is proposed as Jersey/UK/EEA. Signing the "no transfers outside UK/EEA" line without noting this one would make the record inaccurate |
+
+Decision on each: ______________________________________________
+
+## 3. The ten decisions
+
+Approve, amend or reject each. An amended row must say what replaces it.
+
+| # | Decision | Proposal being approved | Accept / Amend / Reject |
+| ---: | --- | --- | --- |
+| 1 | Controller and purpose | BPT Jersey is controller for its own purposes; each purpose recorded separately, no open-ended "just in case" purposes | |
+| 2 | Inventory and minimisation | Collect only identity/contact and strictly necessary academic or operational data; no health or sensitive identifiers by default | |
+| 3 | Lawful basis for ordinary data | One lawful basis chosen per purpose before collection; consent only where it genuinely fits | |
+| 4 | Health data | Prohibited in the MVP unless a use case is approved through a DPIA, with a special-category condition, restricted access and logical separation | |
+| 5 | Minors and guardians | Minors treated as a vulnerable group; age verified where relevant, guardian authority documented, no automatic reliance on a child's own consent | |
+| 6 | Retention by data type | A period or rule per purpose rather than one global period; delete or anonymise at expiry (see section 4) | |
+| 7 | Exceptions and legal hold | Deletion suspended only for a documented legal obligation, claim, investigation or safeguarding matter, each with scope, approver, review date and expiry | |
+| 8 | Residency and transfers | Jersey/UK/EEA as the preferred route; no transfer to a third country without adequacy or a valid safeguard, a transfer assessment and a contract — subject to item C above | |
+| 9 | Technical deletion | Authenticated, idempotent deletion across primary store, indexes, objects, queues, exports and processors; backups expire by cycle and are never restored to production without purge | |
+| 10 | Rights, audit and approval | Requests, access, changes, deletions, failures and exceptions logged; quarterly review and revalidation when a provider or purpose changes | |
+
+## 4. The retention calendar
+
+Every period below is a drafting proposal, not a verified legal obligation. Confirm or replace each.
+
+| Record class | Trigger | Proposed period | Action at expiry | Confirm / Replace |
+| --- | --- | --- | --- | --- |
+| Adult account and contact | Account closure or last activity | 24 months | Anonymise, keeping authorship and references | |
+| Minor student, operational data | Student leaves | 12 months | Delete the operational profile; keep only the audit link | |
+| **Safeguarding and incidents with minors** | Case closure | **Until age 25, minimum 7 years** | Documented review before destruction | **See item A** |
+| Health and support | End of support need or departure | 12 months | Reinforced deletion and access review | |
+| **Waivers, consents and evidence** | Revocation or replacement by a new version | **10 years from last participation** | Keep version and hash only; delete the private object | **See item B** |
+| Memberships, invoices and payments | End of the tax year | 6 years | Reduce to accounting minimum; never store PAN/CVV | |
+| Attendance and check-out | Session completed | 24 months | Aggregate and anonymise; keep the count, not the name | |
+| CRM, leads and communications | Last interaction | 24 months | Delete the lead; keep the opt-out | |
+| Privacy and system audit | Event creation | 7 years | Archive; destroy after review | |
+| Generated exports and reports | Download creation | 7 days | Automatic object expiry | |
+| Backups and restore artefacts | End of technical cycle | 35 days | Automatic expiry; expired data is never restored | |
+| Operational logs and telemetry | Creation | 90 days | Automatic purge | |
+
+**None of these is implemented today.** The system currently deletes nothing on expiry: it keeps
+history through deactivation and append-only records. Signing this calendar authorises building it,
+it does not describe current behaviour.
+
+## 5. Service locations being approved
+
+| Service | Proposed region | Note |
+| --- | --- | --- |
+| Firestore (canonical store) | europe-west2 (London) | **A Firestore region cannot be changed after the database is created.** This is the least reversible line in the document |
+| Cloud Functions | europe-west2 (London) | Must match Firestore |
+| Realtime Database (presence) | europe-west1 (Belgium) | London is not offered; ephemeral data, no personal data |
+| Firebase Authentication | Global, not selectable | See item C |
+| Cloudflare R2 (private documents) | EU jurisdiction | Must be set explicitly when the bucket is created |
+| Payment provider | Jersey/UK | Depends on the still-open provider decision (T010) |
+
+Transfers outside UK/EEA proposed as: **none, other than Firebase Authentication (item C).**
+
+Confirm / Amend: ______________________________________________
+
+## 6. What this signature does not do
+
+- It does not approve the DPIA. **No DPIA has been written yet.** It is a separate document covering
+  minors, health/support, finance, attendance and access control, and it has to exist before real
+  personal data is processed. This act cannot approve a document that does not exist.
+- It does not complete the controller's registered identity (legal form, registration number,
+  registered address), which is still outstanding and blocks any processor contract.
+- It does not authorise production, real member data, a staging environment, payment processing or
+  any data transfer. Those remain closed until the outstanding items above are done.
+- It does not approve the legal wording of the waiver or of any disclaimer. That text is written by
+  the club, not by the platform.
+
+## 7. Signature
+
+| Field | Completed by the controller |
+| --- | --- |
+| Name and role | |
+| Entity signed for | |
+| Date and time zone | |
+| Scope approved | Sections 2, 3, 4 and 5 of this act as recorded above |
+| Amendments made | |
+| Decision (`approve`, `approve with amendments`, `reject`) | |
+| Verifiable signature or reference | |
+
+Once signed, record the outcome in the T011 row of `tasks.md` with the date and the amendments, and
+update the policy so the signed values replace the quoted proposals.

@@ -6,9 +6,18 @@ Updated: 2026-09-05. At the operator's request every empty decision now carries 
 quoted, in `docs/operations/t011-retention-residency-erasure-policy.md`, so the packet can be edited
 instead of filled from scratch. A quoted value is a drafting aid written by the assistant: it is not
 legal advice, it is not verified against the applicable law, nobody has signed it, and it changes
-nothing in the running system. Two boxes are deliberately still empty - the JOIC registration number
-and the independent reviewer's identity - because inventing them would fabricate a regulatory record
-and a professional engagement respectively.
+nothing in the running system. The two boxes that were deliberately empty - the JOIC registration
+number and the independent reviewer's identity - were closed on 2026-09-06 by operator decision
+rather than by evidence: the operator determined that no JOIC registration is required and that no
+independent reviewer will be engaged. Both are recorded below as controller determinations, dated
+and without a cited source, because that is what they are. The practical effect is that the person
+who wrote these decisions is also the only person who will sign and audit them.
+
+Updated: 2026-09-06. The operator supplied the controller identity - entity `Brazilian Power Team ·
+Jersey`, internal owner `Vladimiro "Miro" Afonso`, contact `bptjersey@gmail.com` - which fills the
+accountable-person half of the first row. The registered half (legal form, registration number,
+registered address) is still open, so JOIC registration and every processor contract remain blocked.
+A trading name is not yet a registered entity, and this packet does not treat it as one.
 
 Prepared: 2026-08-21
 
@@ -87,7 +96,7 @@ or transfer allowance is selected by this packet.
 
 This is a decision aid, not legal advice or a compliance certification.
 
-- The academy/controller identity and JOIC registration status must be recorded. JOIC states that controllers and processors established in Jersey that process personal data must register, subject to the applicable registration framework.
+- The academy/controller identity and JOIC registration status must be recorded. JOIC states that controllers and processors established in Jersey that process personal data must register, subject to the applicable registration framework. This bullet records what the source says; the operator's 2026-09-06 determination that registration is not required is recorded in the inputs table below and does not restate the source.
 - A lawful basis must be selected before each processing activity. Health data also needs a valid special-category condition; consent is not assumed as a universal fallback.
 - The DPJL storage-limitation principle does not provide one universal retention period. Each category needs a purpose, trigger, justified period, action at expiry, legal-hold treatment and owner. Live data, backups, logs and exported artifacts must be covered.
 - Controller/processor roles must be assessed per activity. Each processor needs a written contract covering instructions, confidentiality, security, sub-processors, rights/breach assistance and deletion/return at termination.
@@ -99,9 +108,9 @@ This is a decision aid, not legal advice or a compliance certification.
 
 | Decision                                    | Required evidence                                                                                         | Current state                                        |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Legal controller and academy decision owner | Legal/organisational identity, accountable person and contact                                             | Proposed 2026-09-05: trading name `"BPT Jersey"`, owner `"Andres Santiago"`; the exact registered entity is still missing |
-| JOIC registration                           | Registration status/number or documented applicability determination                                      | `"unknown - to be checked against the JOIC public register"`. No number is proposed: inventing one fabricates a regulatory record |
-| Applicable reviewer                         | Named Jersey legal/data-protection adviser or DPO reviewer                                                | `"not designated"`. No name is proposed: inventing one attributes an engagement to a real professional |
+| Legal controller and academy decision owner | Legal/organisational identity, accountable person and contact                                             | Operator input 2026-09-06: entity **Brazilian Power Team · Jersey** (short form `"BPT Jersey"`), internal owner and signing representative **Vladimiro "Miro" Afonso**, privacy contact **bptjersey@gmail.com**; platform owner `"Andres Santiago"`. Still missing: legal form, registration number and registered address, which JOIC registration requires |
+| JOIC registration                           | Registration status/number or documented applicability determination                                      | **Operator determination 2026-09-06: not required, no registration will be filed.** Recorded under the "documented applicability determination" branch. Open point: the specific exemption relied on is not cited, so this is a decision, not yet evidence |
+| Applicable reviewer                         | Named Jersey legal/data-protection adviser or DPO reviewer                                                | **Operator decision 2026-09-06: no independent reviewer will be engaged.** The drafted brief in `t011-reviewer-engagement-brief.md` is archived, not sent. Accepted consequence: the controller signs decisions nobody else verified, including the periods this draft flagged as least reliable |
 | Processing inventory and lawful bases       | Purpose-by-purpose basis for identity, minors, health, finance, attendance, safeguarding, CRM and audit   | Missing                                              |
 | Special-category conditions                 | Separate condition and safeguards for health/support and any other special-category data                  | Missing                                              |
 | Retention schedule                          | Trigger, period/rule, expiry action, owner, legal hold and backup treatment for every matrix row          | Drafted 2026-09-05: twelve proposed periods in the policy, each with how far to trust it. Safeguarding is flagged as the likeliest to be wrong |
@@ -110,7 +119,7 @@ This is a decision aid, not legal advice or a compliance certification.
 | DPIA                                        | Screening, risks, mitigations, residual risk and JOIC consultation decision                               | Missing                                              |
 | Rights and incident operations              | Access, correction, erasure/restriction, guardian authority, breach triage and 72-hour assessment process | Missing                                              |
 
-No row may be completed with an invented default. The operator and applicable reviewer must record approver, date, source, scope and conditions.
+No row may be completed with an invented default. Since 2026-09-06 there is no applicable reviewer, so the operator alone records approver, date, source, scope and conditions - and a row closed by decision must say so instead of reading as verified.
 
 ## Official References Consulted
 

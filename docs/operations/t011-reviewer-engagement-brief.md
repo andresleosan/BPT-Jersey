@@ -1,12 +1,14 @@
 # T011 Reviewer Engagement Brief
 
-Estado: listo para seleccion y envio manual; no constituye asesoria legal ni autoriza produccion.
+Estado: **archivado el 2026-09-06 por decision del operador; no se enviara.** El operador determino que la operacion no contratara revision independiente. El contenido se conserva sin cambios por dos motivos: deja constancia de que la revision se preparo y se descarto, y sigue sirviendo de guion si en algun momento se decide contratarla. No constituye asesoria legal ni autoriza produccion.
 
 Preparado: 2026-08-28
 
 ## Situacion confirmada
 
 El operador confirmo el 2026-08-28 que no hay decision owner de la academia ni revisor Jersey designados. No se ha contactado a JOIC ni a un asesor, no se han compartido datos o credenciales y no se ha contraido gasto.
+
+Actualizacion 2026-09-06: el decision owner ya existe (Vladimiro "Miro" Afonso, por Brazilian Power Team · Jersey) y el operador decidio que no habra revisor independiente ni registro JOIC. Este paquete deja de estar pendiente de envio y pasa a ser historial.
 
 `T011` permanece bloqueada. Ninguna respuesta a este paquete habilita por si sola datos reales, una region cloud, Firestore, billing, staging o produccion: las decisiones aceptadas deben incorporarse al ledger con responsable, fecha, fuente, alcance y condiciones.
 
