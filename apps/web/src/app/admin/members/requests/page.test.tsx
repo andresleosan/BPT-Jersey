@@ -30,7 +30,10 @@ const guardian = {
 };
 
 beforeEach(() => {
-  enrolmentApi.listEnrolmentRequests.mockResolvedValue([waiting, guardian]);
+  enrolmentApi.listEnrolmentRequests.mockResolvedValue({
+    requests: [waiting, guardian],
+    truncated: false,
+  });
   enrolmentApi.returnEnrolmentRequest.mockResolvedValue({ ...waiting, status: "returned" });
 });
 
@@ -80,9 +83,10 @@ describe("enrolment request queue", () => {
   });
 
   it("drops the action once a request is resolved", async () => {
-    enrolmentApi.listEnrolmentRequests.mockResolvedValue([
-      { ...waiting, status: "approved" as const },
-    ]);
+    enrolmentApi.listEnrolmentRequests.mockResolvedValue({
+      requests: [{ ...waiting, status: "approved" as const }],
+      truncated: false,
+    });
 
     render(<EnrolmentRequestQueuePage />);
 
@@ -102,8 +106,20 @@ describe("enrolment request queue", () => {
     expect(await screen.findByText("Alex Adult")).toBeVisible();
   });
 
+  it("says when the page is full instead of implying it is the whole queue", async () => {
+    enrolmentApi.listEnrolmentRequests.mockResolvedValue({
+      requests: [waiting],
+      truncated: true,
+    });
+
+    render(<EnrolmentRequestQueuePage />);
+
+    // The loading panel also carries role="status", so match the sentence, not the role.
+    expect(await screen.findByText(/older requests are not shown/i)).toBeVisible();
+  });
+
   it("says so when nobody has applied yet", async () => {
-    enrolmentApi.listEnrolmentRequests.mockResolvedValue([]);
+    enrolmentApi.listEnrolmentRequests.mockResolvedValue({ requests: [], truncated: false });
 
     render(<EnrolmentRequestQueuePage />);
 

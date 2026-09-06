@@ -10,7 +10,7 @@ import "../../admin.css";
 
 type QueueState =
   | Readonly<{ status: "loading" }>
-  | Readonly<{ status: "ready"; requests: readonly EnrolmentRequestRow[] }>
+  | Readonly<{ status: "ready"; requests: readonly EnrolmentRequestRow[]; truncated: boolean }>
   | Readonly<{ status: "error" }>;
 
 type Notice = Readonly<{ tone: "error" | "success"; text: string }>;
@@ -37,8 +37,9 @@ export default function EnrolmentRequestQueuePage() {
     let active = true;
     setState({ status: "loading" });
     void listEnrolmentRequests()
-      .then((requests) => {
-        if (active) setState({ status: "ready", requests });
+      .then((queue) => {
+        if (active)
+          setState({ status: "ready", requests: queue.requests, truncated: queue.truncated });
       })
       .catch(() => {
         if (active) setState({ status: "error" });
@@ -62,6 +63,7 @@ export default function EnrolmentRequestQueuePage() {
         current.status === "ready"
           ? {
               status: "ready",
+              truncated: current.truncated,
               requests: current.requests.map((item) =>
                 item.enrolmentRequestId === updated.enrolmentRequestId ? updated : item,
               ),
@@ -120,6 +122,13 @@ export default function EnrolmentRequestQueuePage() {
         <section className="admin-panel-card">
           No enrolment requests yet. They appear here as soon as somebody applies from the site.
         </section>
+      ) : null}
+
+      {state.status === "ready" && state.truncated ? (
+        <p className="admin-panel-card" role="status">
+          This page is full, so older requests are not shown. Resolve what is here before assuming
+          the queue is empty.
+        </p>
       ) : null}
 
       {state.status === "ready" && state.requests.length > 0 ? (

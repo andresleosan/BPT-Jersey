@@ -43,7 +43,7 @@ function services() {
     now: () => now,
     store: {
       submit: vi.fn().mockResolvedValue(record),
-      listForAcademy: vi.fn().mockResolvedValue([record]),
+      listForAcademy: vi.fn().mockResolvedValue({ requests: [record], truncated: false }),
       listForSubmitter: vi.fn().mockResolvedValue([record]),
       returnForChanges: vi
         .fn()
@@ -140,8 +140,10 @@ describe("enrolment request callables", () => {
   it("keeps confidential detail out of the office queue", async () => {
     const current = services();
 
-    const rows = await listEnrolmentRequestsHandler(request(null, "administrator"), current);
+    const queue = await listEnrolmentRequestsHandler(request(null, "administrator"), current);
+    const rows = queue.requests;
 
+    expect(queue.truncated).toBe(false);
     expect(rows).toEqual([
       {
         enrolmentRequestId: "enrolment-1",
@@ -155,6 +157,10 @@ describe("enrolment request callables", () => {
     ]);
     expect(JSON.stringify(rows)).not.toContain("Library Place");
     expect(JSON.stringify(rows)).not.toContain("1994-04-02");
+    current.store.listForAcademy.mockResolvedValueOnce({ requests: [record], truncated: true });
+    await expect(
+      listEnrolmentRequestsHandler(request(null, "owner"), current),
+    ).resolves.toMatchObject({ truncated: true });
     await expect(
       listEnrolmentRequestsHandler(request(null, "guardian"), current),
     ).rejects.toMatchObject({ code: "permission-denied" });

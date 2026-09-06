@@ -142,12 +142,23 @@ function row(value: unknown, message: string): EnrolmentRequestRow {
   });
 }
 
-export async function listEnrolmentRequests(): Promise<readonly EnrolmentRequestRow[]> {
+export type EnrolmentRequestQueue = Readonly<{
+  requests: readonly EnrolmentRequestRow[];
+  /** True when the page filled up, so office is not looking at every request. */
+  truncated: boolean;
+}>;
+
+export async function listEnrolmentRequests(): Promise<EnrolmentRequestQueue> {
   try {
     const callable = httpsCallable<null, unknown>(getFirebaseFunctions(), "listEnrolmentRequests");
     const data = (await callable(null)).data;
-    if (!Array.isArray(data)) throw new Error(queueError);
-    return Object.freeze(data.map((item) => row(item, queueError)));
+    if (!isRecord(data) || !Array.isArray(data.requests) || typeof data.truncated !== "boolean") {
+      throw new Error(queueError);
+    }
+    return Object.freeze({
+      requests: Object.freeze(data.requests.map((item) => row(item, queueError))),
+      truncated: data.truncated,
+    });
   } catch {
     throw new Error(queueError);
   }

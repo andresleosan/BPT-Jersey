@@ -107,6 +107,20 @@ describe("enrolment request submission", () => {
     });
   });
 
+  it("refuses an adult who is also enrolling children, because no role can express it", () => {
+    // A claim holds one role and the vocabulary has no guardian-and-adult-student. Accepting this
+    // would build a request the write path cannot approve.
+    const parsed = parseEnrolmentRequestSubmission(
+      submission({ applicantIsStudent: true, minors: [minor] }),
+      effectiveDate,
+    );
+
+    expect(parsed).toEqual({
+      ok: false,
+      error: [{ path: ["minors"], code: "adult_and_minors_not_supported" }],
+    });
+  });
+
   it("never lets an applicant claim a membership number the academy assigns", () => {
     const parsed = parseEnrolmentRequestSubmission(
       submission({ applicant: { ...applicant, membershipNumber: "BPT-0001" } }),

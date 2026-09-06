@@ -15,8 +15,9 @@ export type EnrolmentDocumentSnapshot = Readonly<{
 export type EnrolmentQuerySnapshot = Readonly<{ docs: readonly EnrolmentDocumentSnapshot[] }>;
 export type EnrolmentQuery = Readonly<{
   path: string;
-  field: string;
-  value: unknown;
+  field?: string;
+  value?: unknown;
+  orderBy?: Readonly<{ field: string; direction: "desc" }>;
   limit: number;
 }>;
 export type EnrolmentCollection = Readonly<{
@@ -25,6 +26,13 @@ export type EnrolmentCollection = Readonly<{
     field: string,
     operator: "==",
     value: unknown,
+  ) => Readonly<{ limit: (count: number) => EnrolmentQuery }>;
+  // The collection is already scoped to one academy by its path, so the office queue needs no
+  // equality filter - only an order, which keeps the newest requests inside the page instead of
+  // letting an accumulating archive push them out of sight.
+  orderBy: (
+    field: string,
+    direction: "desc",
   ) => Readonly<{ limit: (count: number) => EnrolmentQuery }>;
 }>;
 export type EnrolmentTransaction = Readonly<{
@@ -80,9 +88,15 @@ export type WithdrawEnrolmentRequestInput = Readonly<{
   enrolmentRequestId: string;
 }>;
 
+export type EnrolmentRequestPage = Readonly<{
+  requests: readonly EnrolmentRequestRecord[];
+  /** True when the page filled up: the reviewer is not seeing every request. */
+  truncated: boolean;
+}>;
+
 export type EnrolmentRequestStore = Readonly<{
   submit: (input: SubmitEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
-  listForAcademy: (academyId: string) => Promise<readonly EnrolmentRequestRecord[]>;
+  listForAcademy: (academyId: string) => Promise<EnrolmentRequestPage>;
   listForSubmitter: (
     academyId: string,
     actorId: string,
@@ -161,6 +175,39 @@ export function enrolmentRequestId(requestId: string): string {
   return `enrolment-${requestId}`;
 }
 
+/**
+ * One document per applicant recording the request they currently hold. Scanning the applicant's
+ * own rows to answer "do you already have one open?" is only correct while they have few rows: the
+ * scan is capped, so once somebody accumulates enough resolved requests a genuinely open one can
+ * fall outside the page and the guard silently passes. A single document keyed by the applicant is
+ * exact regardless of how much history they build up.
+ */
+export function enrolmentHoldId(submittedBy: string): string {
+  return `hold-${submittedBy}`;
+}
+
+type EnrolmentHold = Readonly<{
+  submittedBy: string;
+  enrolmentRequestId: string;
+  status: string;
+  updatedAt: string;
+}>;
+
+function storedHold(snapshot: EnrolmentDocumentSnapshot): EnrolmentHold | undefined {
+  const data = snapshot.data();
+  if (data === undefined) return undefined;
+  const { submittedBy, enrolmentRequestId: heldId, status, updatedAt } = data;
+  if (
+    typeof submittedBy !== "string" ||
+    typeof heldId !== "string" ||
+    typeof status !== "string" ||
+    typeof updatedAt !== "string"
+  ) {
+    throw new EnrolmentRequestStoreError("invalid", "Stored enrolment hold is unreadable");
+  }
+  return Object.freeze({ submittedBy, enrolmentRequestId: heldId, status, updatedAt });
+}
+
 export function createEnrolmentRequestStore(
   dependencies: EnrolmentRequestStoreDependencies,
 ): EnrolmentRequestStore {
@@ -184,20 +231,14 @@ export function createEnrolmentRequestStore(
     });
   }
 
-  async function read(
-    academyId: string,
-    field: "academyId" | "submittedBy",
-    value: string,
-    limit: number,
-  ): Promise<readonly EnrolmentRequestRecord[]> {
-    const query = firestore
-      .collection(collectionPath(academyId, "enrolmentRequests"))
-      .where(field, "==", value)
-      .limit(limit);
+  async function run(query: EnrolmentQuery, academyId: string): Promise<EnrolmentRequestPage> {
     const snapshot = await firestore.runTransaction(async (transaction) =>
       asQuery(await transaction.get(query)),
     );
-    return newestFirst(snapshot.docs.map((document) => stored(document, academyId)));
+    return Object.freeze({
+      requests: newestFirst(snapshot.docs.map((document) => stored(document, academyId))),
+      truncated: snapshot.docs.length >= query.limit,
+    });
   }
 
   async function transition(
@@ -235,6 +276,17 @@ export function createEnrolmentRequestStore(
       if (!candidate.ok)
         throw new EnrolmentRequestStoreError("invalid", "Enrolment request contract rejected");
       transaction.set(reference, candidate.value);
+      transaction.set(
+        firestore.doc(
+          `${collectionPath(academyId, "enrolmentRequestHolds")}/${enrolmentHoldId(existing.submittedBy)}`,
+        ),
+        {
+          submittedBy: existing.submittedBy,
+          enrolmentRequestId: existing.enrolmentRequestId,
+          status,
+          updatedAt: now,
+        },
+      );
       audit(transaction, academyId, actorId, action, reference.path);
       return candidate.value;
     });
@@ -250,10 +302,9 @@ export function createEnrolmentRequestStore(
           id(input.submission.requestId, "request"),
         )}`,
       );
-      const openRequests = firestore
-        .collection(collectionPath(academyId, "enrolmentRequests"))
-        .where("submittedBy", "==", actorId)
-        .limit(ENROLMENT_REQUEST_SUBMITTER_QUERY_LIMIT);
+      const holdReference = firestore.doc(
+        `${collectionPath(academyId, "enrolmentRequestHolds")}/${enrolmentHoldId(actorId)}`,
+      );
 
       return firestore.runTransaction(async (transaction) => {
         const snapshot = asDocument(await transaction.get(reference));
@@ -264,14 +315,18 @@ export function createEnrolmentRequestStore(
             throw new EnrolmentRequestStoreError("conflict", "Request id already used");
           return existing;
         }
-        const mine = asQuery(await transaction.get(openRequests));
-        const alreadyOpen = mine.docs
-          .map((document) => stored(document, academyId))
-          .some((record) => isOpenEnrolmentRequest(record.status));
-        if (alreadyOpen)
+        const hold = storedHold(asDocument(await transaction.get(holdReference)));
+        if (hold && isOpenEnrolmentRequest(hold.status))
           throw new EnrolmentRequestStoreError(
             "precondition",
             "You already have a request waiting for the academy to review",
+          );
+        // Somebody the academy already enrolled does not apply again: a second approval would
+        // create a second student record for one person.
+        if (hold?.status === "approved")
+          throw new EnrolmentRequestStoreError(
+            "precondition",
+            "The academy has already enrolled you. Ask reception if something needs changing",
           );
 
         const candidate = parseEnrolmentRequestRecord({
@@ -289,6 +344,12 @@ export function createEnrolmentRequestStore(
         if (!candidate.ok)
           throw new EnrolmentRequestStoreError("invalid", "Enrolment request contract rejected");
         transaction.create(reference, candidate.value);
+        transaction.set(holdReference, {
+          submittedBy: actorId,
+          enrolmentRequestId: reference.id,
+          status: "submitted",
+          updatedAt: now,
+        });
         audit(transaction, academyId, actorId, "enrolment.request.submitted", reference.path);
         return candidate.value;
       });
@@ -296,16 +357,25 @@ export function createEnrolmentRequestStore(
 
     async listForAcademy(academyId) {
       const scope = id(academyId, "academy");
-      return read(scope, "academyId", scope, ENROLMENT_REQUEST_QUERY_LIMIT);
+      return run(
+        firestore
+          .collection(collectionPath(scope, "enrolmentRequests"))
+          .orderBy("submittedAt", "desc")
+          .limit(ENROLMENT_REQUEST_QUERY_LIMIT),
+        scope,
+      );
     },
 
     async listForSubmitter(academyId, actorId) {
-      return read(
-        id(academyId, "academy"),
-        "submittedBy",
-        id(actorId, "actor"),
-        ENROLMENT_REQUEST_SUBMITTER_QUERY_LIMIT,
+      const scope = id(academyId, "academy");
+      const page = await run(
+        firestore
+          .collection(collectionPath(scope, "enrolmentRequests"))
+          .where("submittedBy", "==", id(actorId, "actor"))
+          .limit(ENROLMENT_REQUEST_SUBMITTER_QUERY_LIMIT),
+        scope,
       );
+      return page.requests;
     },
 
     async returnForChanges(input) {

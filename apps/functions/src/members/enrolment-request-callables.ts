@@ -28,6 +28,11 @@ import {
  * status; approving a request, with the canonical write and the claim that follows it, is its own
  * reviewed step and is not part of this file.
  */
+export type EnrolmentRequestQueue = Readonly<{
+  requests: readonly EnrolmentRequestRow[];
+  truncated: boolean;
+}>;
+
 export type EnrolmentRequestCallableServices = Readonly<{
   store: EnrolmentRequestStore;
   now?: () => string;
@@ -144,11 +149,16 @@ export async function withdrawEnrolmentRequestHandler(
 export async function listEnrolmentRequestsHandler(
   request: CallableRequest<unknown>,
   services: EnrolmentRequestCallableServices,
-): Promise<readonly EnrolmentRequestRow[]> {
+): Promise<EnrolmentRequestQueue> {
   const actor = actorWithRole(request, officeRoles, "Office access is required");
   noPayload(request.data);
   try {
-    return (await services.store.listForAcademy(actor.academyId)).map(toEnrolmentRequestRow);
+    const page = await services.store.listForAcademy(actor.academyId);
+    // A queue that silently drops the overflow reads as "this is everybody". Say when it is not.
+    return Object.freeze({
+      requests: page.requests.map(toEnrolmentRequestRow),
+      truncated: page.truncated,
+    });
   } catch (error) {
     return mapError(error, "read");
   }

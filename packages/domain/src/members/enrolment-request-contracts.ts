@@ -198,6 +198,12 @@ export function parseEnrolmentRequestSubmission(
   if (!applicantIsStudent && minors.length === 0) {
     return err(issue(["minors"], "request_enrols_nobody"));
   }
+  // A role claim holds one value, and the vocabulary has no "guardian and adult student" - so an
+  // adult who trains AND brings children cannot be represented by anything the write path can
+  // produce. Rejecting it here is honest; accepting it would build a request nobody can approve.
+  if (applicantIsStudent && minors.length > 0) {
+    return err(issue(["minors"], "adult_and_minors_not_supported"));
+  }
 
   let applicantType: string;
   try {
@@ -263,9 +269,16 @@ export function toEnrolmentRequestClientView(
   });
 }
 
-const openStatuses = new Set<EnrolmentRequestStatus>(["submitted", "returned"]);
+const openStatuses: ReadonlySet<string> = new Set<EnrolmentRequestStatus>([
+  "submitted",
+  "returned",
+]);
 
-/** A request that office already resolved is history: nothing may reopen or edit it. */
-export function isOpenEnrolmentRequest(status: EnrolmentRequestStatus): boolean {
+/**
+ * A request that office already resolved is history: nothing may reopen or edit it. Takes a plain
+ * string because callers also ask this of a status read straight out of storage, where the value is
+ * not yet known to belong to the vocabulary.
+ */
+export function isOpenEnrolmentRequest(status: string): boolean {
   return openStatuses.has(status);
 }

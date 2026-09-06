@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { EnrolmentRequestRecord } from "@bpt-jersey/domain/members/enrolment-requests";
 import {
   createEnrolmentRequestStore,
+  enrolmentHoldId,
   enrolmentRequestId,
   EnrolmentRequestStoreError,
   type EnrolmentDocumentData,
@@ -58,19 +59,33 @@ function firestoreDouble(seed: Readonly<Record<string, EnrolmentDocumentData>> =
       where: (field, _operator, value) => ({
         limit: (count: number): EnrolmentQuery => ({ path, field, value, limit: count }),
       }),
+      orderBy: (field, direction) => ({
+        limit: (count: number): EnrolmentQuery => ({
+          path,
+          orderBy: { field, direction },
+          limit: count,
+        }),
+      }),
     }),
     runTransaction: async <T>(callback: (transaction: EnrolmentTransaction) => Promise<T>) => {
       const transaction: EnrolmentTransaction = {
         get: async (target) => {
-          if ("field" in target) {
-            const docs = [...documents.entries()]
-              .filter(
-                ([path, data]) =>
-                  path.startsWith(`${target.path}/`) &&
-                  (data as Record<string, unknown>)[target.field] === target.value,
-              )
-              .slice(0, target.limit)
-              .map(([path]) => snapshot(path));
+          if ("limit" in target) {
+            const field = target.field;
+            const matches = [...documents.entries()].filter(
+              ([path, data]) =>
+                path.startsWith(`${target.path}/`) &&
+                (field === undefined || (data as Record<string, unknown>)[field] === target.value),
+            );
+            const order = target.orderBy;
+            if (order) {
+              matches.sort(([, left], [, right]) =>
+                String((right as Record<string, unknown>)[order.field]).localeCompare(
+                  String((left as Record<string, unknown>)[order.field]),
+                ),
+              );
+            }
+            const docs = matches.slice(0, target.limit).map(([path]) => snapshot(path));
             return { docs } satisfies EnrolmentQuerySnapshot;
           }
           return snapshot(target.path);
@@ -118,6 +133,16 @@ function record(overrides: Partial<EnrolmentRequestRecord> = {}): EnrolmentReque
 }
 
 const requestPath = `academies/academy-1/enrolmentRequests/${enrolmentRequestId(requestId)}`;
+const holdPath = `academies/academy-1/enrolmentRequestHolds/${enrolmentHoldId("visitor-1")}`;
+
+function hold(status: string) {
+  return {
+    submittedBy: "visitor-1",
+    enrolmentRequestId: enrolmentRequestId(requestId),
+    status,
+    updatedAt: now,
+  };
+}
 
 describe("enrolment request store", () => {
   it("stores a submitted request with its audit trail", async () => {
@@ -175,7 +200,10 @@ describe("enrolment request store", () => {
   });
 
   it("keeps one open request per applicant", async () => {
-    const { store } = firestoreDouble({ [requestPath]: record() });
+    const { store } = firestoreDouble({
+      [requestPath]: record(),
+      [holdPath]: hold("submitted"),
+    });
 
     await expect(
       store.submit({
@@ -187,8 +215,72 @@ describe("enrolment request store", () => {
     ).rejects.toMatchObject({ code: "precondition" });
   });
 
+  it("still finds the open request behind a long history of resolved ones", async () => {
+    // Scanning the applicant's own rows answers this only while they have few rows; the scan is
+    // capped, so a busy applicant could slip a second open request past it. The hold document is
+    // exact no matter how much history sits in front of it.
+    const noise = Object.fromEntries(
+      Array.from({ length: 40 }, (_item, index) => [
+        `academies/academy-1/enrolmentRequests/enrolment-old-${index}`,
+        record({
+          enrolmentRequestId: `enrolment-old-${index}`,
+          requestId: `6f1d2f66-6f4f-4a2e-9a0e-2b6f0a4a1c${String(index).padStart(2, "0")}`,
+          status: "withdrawn",
+        }),
+      ]),
+    );
+    const { store } = firestoreDouble({
+      ...noise,
+      [requestPath]: record(),
+      [holdPath]: hold("submitted"),
+    });
+
+    await expect(
+      store.submit({
+        academyId: "academy-1",
+        actorId: "visitor-1",
+        now: later,
+        submission: { ...submission, requestId: otherRequestId },
+      }),
+    ).rejects.toMatchObject({ code: "precondition" });
+  });
+
+  it("does not let somebody the academy already enrolled apply again", async () => {
+    const { store } = firestoreDouble({ [holdPath]: hold("approved") });
+
+    await expect(
+      store.submit({
+        academyId: "academy-1",
+        actorId: "visitor-1",
+        now: later,
+        submission: { ...submission, requestId: otherRequestId },
+      }),
+    ).rejects.toMatchObject({ code: "precondition" });
+  });
+
+  it("keeps the hold in step with the request it points at", async () => {
+    const { store, documents } = firestoreDouble();
+
+    await store.submit({ academyId: "academy-1", actorId: "visitor-1", now, submission });
+    expect(documents.get(holdPath)).toMatchObject({
+      submittedBy: "visitor-1",
+      status: "submitted",
+    });
+
+    await store.withdraw({
+      academyId: "academy-1",
+      actorId: "visitor-1",
+      now: later,
+      enrolmentRequestId: enrolmentRequestId(requestId),
+    });
+    expect(documents.get(holdPath)).toMatchObject({ status: "withdrawn", updatedAt: later });
+  });
+
   it("lets an applicant submit again once the previous request is resolved", async () => {
-    const { store } = firestoreDouble({ [requestPath]: record({ status: "withdrawn" }) });
+    const { store } = firestoreDouble({
+      [requestPath]: record({ status: "withdrawn" }),
+      [holdPath]: hold("withdrawn"),
+    });
 
     const saved = await store.submit({
       academyId: "academy-1",
@@ -272,7 +364,8 @@ describe("enrolment request store", () => {
     const office = await store.listForAcademy("academy-1");
     const mine = await store.listForSubmitter("academy-1", "visitor-1");
 
-    expect(office.map((item) => item.submittedBy)).toEqual(["visitor-2", "visitor-1"]);
+    expect(office.truncated).toBe(false);
+    expect(office.requests.map((item) => item.submittedBy)).toEqual(["visitor-2", "visitor-1"]);
     expect(mine.map((item) => item.submittedBy)).toEqual(["visitor-1"]);
   });
 
