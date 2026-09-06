@@ -51,6 +51,27 @@ describe("default-deny Firebase rules", () => {
     await assertFails(setDoc(doc(firestore, "students/student-1"), { name: "Test Student" }));
   });
 
+  it("keeps enrolment requests and their holds unreachable from any client", async () => {
+    // An enrolment request carries a date of birth, an address and an emergency contact, and the
+    // hold says who has one open. Both are written only by callables running as the Admin SDK.
+    const firestore = testEnvironment.authenticatedContext("client-1").firestore();
+
+    await assertFails(getDoc(doc(firestore, "academies/academy-1/enrolmentRequests/enrolment-1")));
+    await assertFails(
+      setDoc(doc(firestore, "academies/academy-1/enrolmentRequests/enrolment-1"), {
+        applicantIsStudent: true,
+      }),
+    );
+    await assertFails(
+      getDoc(doc(firestore, "academies/academy-1/enrolmentRequestHolds/hold-client-1")),
+    );
+    await assertFails(
+      setDoc(doc(firestore, "academies/academy-1/enrolmentRequestHolds/hold-client-1"), {
+        status: "withdrawn",
+      }),
+    );
+  });
+
   it("rejects direct reads and writes to restricted health collections for authenticated users", async () => {
     const firestore = testEnvironment.authenticatedContext("owner-1").firestore();
 
