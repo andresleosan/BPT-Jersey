@@ -22,7 +22,7 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 | T008 | Confirmar horarios concretos, capacidades y reglas comerciales todavia configurables   | -          | aprobada  | Piloto sintetico aprobado por el operador: catalogo real de 10 planes y reglas Town/West desde los DOCX; defaults T008-P01..P07 y horario ficticio solo para Emulator/staging aislado; no es aprobacion operativa ni productiva.                                                                                                                                                                                                                                                                                          |
 | T009 | Confirmar criterios y ponderaciones de evaluacion/reconocimiento                       | -          | aprobada  | Piloto sintetico aprobado por el operador: baseline real de stripes por edad desde BPTJ FUNCTIONS APP.docx y defaults T009-P01..P06 solo para Emulator/staging aislado; promociones siguen bajo revision humana y no es politica real del head coach.                                                                                                                                                                                                                                                                     |
 | T010 | Seleccionar proveedor de pagos disponible en Jersey para post-piloto                   | -          | bloqueada | Propuesta explicita 2026-09-01: CityPay Limited + Paylink alojado para pagos unicos GBP, detras del adapter provider-independent. Evidencia vigente: declaracion JFSC/Channel Islands, Paylinks publicados en Ports of Jersey/Jersey Water/Jersey FA, sandbox, 3DS, refunds y test accounts. T010 sigue bloqueada hasta aceptacion del operador, onboarding, contrato/tarifas/monedas/settlement, revision legal/DPA, presupuesto/alertas, secretos y prueba sandbox con rollback; costo comprometido GBP 0 y sin cobros. |
-| T011 | Confirmar politica de retencion, residencia y borrado con asesoria aplicable a Jersey  | -          | bloqueada | Decision owner y reviewer confirmados como no designados el 2026-08-28; brief de seleccion/consulta preparado sin envio ni gasto. Faltan controller/registro JOIC y las 10 decisiones aprobadas.                                                                                                                                                                                                                                                                                                                          |
+| T011 | Confirmar politica de retencion, residencia y borrado con asesoria aplicable a Jersey  | -          | revision  | 2026-09-05, por instruccion del operador ("no puedes inventarlo y dejar entre comillas"): el borrador queda completo con valores propuestos entrecomillados en `docs/operations/t011-retention-residency-erasure-policy.md`, editables en vez de vacios. Cubre los cuatro responsables, doce plazos de retencion con su grado de fiabilidad declarado y el mapa de region por servicio. Un valor entrecomillado es una propuesta del asistente sin verificar, sin firmar y sin efecto en el sistema: no abre produccion, datos reales, staging ni transferencias, y ningun plazo esta implementado. Dos casillas siguen vacias a proposito, el numero de registro JOIC y la identidad del revisor, porque inventarlas fabricaria un registro regulatorio y un encargo profesional. T011 pasa a `revision` para que el operador edite; solo pasa a `aprobada` con las designaciones, la DPIA y la firma del revisor, y hasta entonces sigue bloqueando a T035/T036/T061, T099, T058, el paso 2 de T106 y el texto legal de T117.                                                                                                                                                                                                                                                                                                                          |
 
 ## M1 - Identidad, autorizaciÃ³n y auditorÃ­a
 
@@ -4710,3 +4710,41 @@ Nota de entorno para el golden path en local: `.tmp/member-directory-baselines/`
 base privadas por academia, no por secreto, asi que tras regenerar los secretos sinteticos hay que
 borrar esos artefactos o el inicializador canonico falla con "Invalid private empty baseline
 artifact". En CI no ocurre porque el job siempre arranca limpio.
+
+### Evidencia T011 - borrador completo con valores propuestos - 2026-09-05
+
+Instruccion del operador, literal: "no puedes inventarlo y dejar entre comillas y luego lo modifico,
+necesito avanzar". El paquete llevaba desde el 2026-08-21 con las casillas vacias y eso no es un
+borrador que alguien pueda revisar, es un formulario. Rellenarlo con propuestas discutibles lo
+convierte en algo editable, que era el objetivo.
+
+Lo que se rellena:
+
+- Los cuatro responsables de la seccion 1: controller `"BPT Jersey"` (falta la razon social exacta,
+  que es un dato que solo tiene el operador), owner y security owner `"Andres Santiago"`.
+- Doce plazos de retencion en la seccion 3, cada uno con una columna nueva que declara **cuanto hay
+  que desconfiar de el**. Safeguarding va marcado como el mas probable de estar mal: el valor
+  propuesto es una analogia con otros regimenes, no una fuente.
+- El mapa de region por servicio en la seccion 5, con transferencias fuera de UK/EEA propuestas en
+  `"ninguna"`.
+
+Dos hallazgos reales que aparecieron al rellenar, y que no son opinables:
+
+- **La region de Firestore no se puede cambiar una vez creada la base.** Elegirla mal es el error
+  mas caro del proyecto y hoy no esta elegida.
+- **Firebase Auth no permite seleccionar region.** No es una casilla que se pueda rellenar: es una
+  transferencia que el revisor tiene que evaluar si o si, y ninguna redaccion la hace desaparecer.
+
+Lo que no se inventa, y por que: el numero de registro JOIC queda en
+`"desconocido - verificar en el registro publico"` y el revisor independiente en `"sin designar"`.
+Inventar el primero fabrica un registro regulatorio inexistente y el segundo atribuye un encargo a
+un profesional real; ninguna de las dos cosas se arregla editandola despues.
+
+Alcance y efecto: solo documentacion. Ningun plazo esta implementado, el sistema sigue sin borrar
+nada por vencimiento y conserva historial con desactivacion y append-only. Los cierres fail-closed
+de salud, waivers y documentos privados siguen exactamente igual. T011 pasa de `bloqueada` a
+`revision`, que significa "esperando tu edicion" y no "resuelta": sigue bloqueando a T035/T036/T061,
+T099, T058, el paso 2 de T106 y el texto legal de T117 hasta que este firmada.
+
+Compuertas: `pnpm verify:mvp` completo en verde; el diff son tres documentos, `tasks.md`,
+`Lista/Lista.js` y el test del tablero.

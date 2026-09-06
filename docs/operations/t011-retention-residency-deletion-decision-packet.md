@@ -1,6 +1,14 @@
 # T011 Retention, Residency And Deletion Decision Packet
 
-Status: blocked; prepared for operator and applicable Jersey legal/advisory review.
+Status: under operator review; the draft is now complete with proposed values and remains unsigned.
+
+Updated: 2026-09-05. At the operator's request every empty decision now carries a proposed value,
+quoted, in `docs/operations/t011-retention-residency-erasure-policy.md`, so the packet can be edited
+instead of filled from scratch. A quoted value is a drafting aid written by the assistant: it is not
+legal advice, it is not verified against the applicable law, nobody has signed it, and it changes
+nothing in the running system. Two boxes are deliberately still empty - the JOIC registration number
+and the independent reviewer's identity - because inventing them would fabricate a regulatory record
+and a professional engagement respectively.
 
 Prepared: 2026-08-21
 
@@ -91,14 +99,14 @@ This is a decision aid, not legal advice or a compliance certification.
 
 | Decision                                    | Required evidence                                                                                         | Current state                                        |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Legal controller and academy decision owner | Legal/organisational identity, accountable person and contact                                             | Not designated; operator response 2026-08-28         |
-| JOIC registration                           | Registration status/number or documented applicability determination                                      | Missing                                              |
-| Applicable reviewer                         | Named Jersey legal/data-protection adviser or DPO reviewer                                                | Not designated; engagement brief prepared 2026-08-28 |
+| Legal controller and academy decision owner | Legal/organisational identity, accountable person and contact                                             | Proposed 2026-09-05: trading name `"BPT Jersey"`, owner `"Andres Santiago"`; the exact registered entity is still missing |
+| JOIC registration                           | Registration status/number or documented applicability determination                                      | `"unknown - to be checked against the JOIC public register"`. No number is proposed: inventing one fabricates a regulatory record |
+| Applicable reviewer                         | Named Jersey legal/data-protection adviser or DPO reviewer                                                | `"not designated"`. No name is proposed: inventing one attributes an engagement to a real professional |
 | Processing inventory and lawful bases       | Purpose-by-purpose basis for identity, minors, health, finance, attendance, safeguarding, CRM and audit   | Missing                                              |
 | Special-category conditions                 | Separate condition and safeguards for health/support and any other special-category data                  | Missing                                              |
-| Retention schedule                          | Trigger, period/rule, expiry action, owner, legal hold and backup treatment for every matrix row          | Missing                                              |
-| Processor/sub-processor register            | Firebase/Google Cloud, Cloudflare and future providers with contracts, regions and deletion terms         | Missing                                              |
-| Transfer assessment                         | Receiver, country, adequacy/safeguard, TIA/SCC/Jersey Addendum where applicable, onward transfers         | Missing                                              |
+| Retention schedule                          | Trigger, period/rule, expiry action, owner, legal hold and backup treatment for every matrix row          | Drafted 2026-09-05: twelve proposed periods in the policy, each with how far to trust it. Safeguarding is flagged as the likeliest to be wrong |
+| Processor/sub-processor register            | Firebase/Google Cloud, Cloudflare and future providers with contracts, regions and deletion terms         | Drafted 2026-09-05 as the same region map; no contract or DPA is signed with any provider |
+| Transfer assessment                         | Receiver, country, adequacy/safeguard, TIA/SCC/Jersey Addendum where applicable, onward transfers         | Drafted 2026-09-05: proposed regions per service, transfers outside UK/EEA proposed as `"none"`. Firebase Auth has no selectable region and needs a real assessment |
 | DPIA                                        | Screening, risks, mitigations, residual risk and JOIC consultation decision                               | Missing                                              |
 | Rights and incident operations              | Access, correction, erasure/restriction, guardian authority, breach triage and 72-hour assessment process | Missing                                              |
 
@@ -186,3 +194,8 @@ approved Jersey, UK, or EU processing region. Synthetic transfer placeholder:
 
 Before T011 can advance, replace every `(f)` value with a reviewed decision,
 source, approver, date, scope, legal-hold rule, and rollback/deletion evidence.
+
+Do not confuse this appendix with the 2026-09-05 draft. These `(f)` rows are fixture values sized for
+Emulator test runs; the quoted proposals in the policy document are candidate real-world periods
+awaiting review. Where the two disagree - and they do, by years in several rows - the appendix is the
+one that is deliberately wrong.

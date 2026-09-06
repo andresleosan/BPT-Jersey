@@ -1,21 +1,42 @@
 # T011 — Política de retención, residencia y eliminación
 
 **Fecha de trabajo:** 2026-09-01  
-**Estado:** bloqueada; paquete preparado para designación y aprobación.  
+**Borrador con valores propuestos:** 2026-09-05  
+**Estado:** en revisión del operador; borrador completo, sin firmar y sin efecto productivo.  
 **Ámbito:** BPT Jersey, datos de usuarios, menores, tutores, personal, pagos, soporte y cualquier dato de salud que llegue a tratarse.
 
 > Este documento es una propuesta operativa y no sustituye asesoramiento jurídico. No se debe procesar un nuevo conjunto de datos de menores o salud hasta que el controller y el reviewer independiente hayan firmado las decisiones aplicables.
+
+> **Cómo leer los valores entre comillas.** A petición del operador (2026-09-05), cada casilla que
+> antes estaba vacía lleva ahora un valor propuesto `"entre comillas"` para que el borrador pueda
+> editarse en vez de rellenarse desde cero. Un valor entrecomillado significa exactamente esto:
+> *propuesta redactada por el asistente, no verificada contra la ley aplicable, no firmada por nadie
+> y sin ningún efecto sobre el sistema.* Ninguno de estos valores abre producción, datos reales,
+> staging ni transferencias: los cierres técnicos siguen siendo los mismos que antes de escribirlos.
+> El trabajo del operador y del revisor es sustituir cada comilla por una decisión con fuente,
+> aprobador y fecha, o tacharla.
+
+> **Dos casillas siguen sin valor a propósito.** El número de registro JOIC y la identidad del
+> revisor independiente no se proponen: inventar el primero fabrica un registro regulatorio que no
+> existe, e inventar el segundo atribuye un encargo a un profesional real. Ambas llevan el estado
+> verificable en su lugar.
 
 ## 1. Responsables que deben designarse
 
 | Rol | Responsabilidad | Designación requerida |
 |---|---|---|
-| Controller | Determina finalidades y medios; responde por cumplimiento y evidencia | `[razón social exacta de BPT Jersey / representante autorizado]` |
-| Owner | Ejecuta la política, mantiene inventario, calendario, controles y excepciones | `[nombre, cargo y correo corporativo]` |
-| Reviewer independiente | Revisa bases legales, DPIA, transferencias, menores/salud y excepciones sin ser dueño del delivery | `[abogado/a o profesional de privacidad independiente]` |
-| Security/Engineering owner | Implementa borrado, accesos, logs, backups y pruebas | `[nombre, cargo y correo corporativo]` |
+| Controller | Determina finalidades y medios; responde por cumplimiento y evidencia | `"BPT Jersey"` como nombre comercial; **falta la razón social exacta y su jurisdicción de constitución**, que es el dato que el operador debe escribir |
+| Owner | Ejecuta la política, mantiene inventario, calendario, controles y excepciones | `"Andres Santiago, operador de la plataforma"`, correo corporativo `"[pendiente]"` |
+| Reviewer independiente | Revisa bases legales, DPIA, transferencias, menores/salud y excepciones sin ser dueño del delivery | `"sin designar"`; perfil requerido y borrador de encargo en `t011-reviewer-engagement-brief.md`. No se propone un nombre: hacerlo atribuiría un encargo inexistente |
+| Security/Engineering owner | Implementa borrado, accesos, logs, backups y pruebas | `"Andres Santiago"` (misma persona que el owner) |
 
 La aprobación debe conservar nombre, cargo, fecha, alcance, versión y conflictos declarados. El reviewer no puede aprobar su propio trabajo.
+
+**Hallazgo que el borrador no puede resolver solo:** en la propuesta, controller, owner y security owner
+son la misma persona. Es lo normal en una operación de una sola persona y no es un defecto en sí, pero
+concentra la decisión y su propia verificación en el mismo actor. Por eso el revisor independiente es
+la única de las cuatro casillas que no admite un valor propuesto: es precisamente quien rompe esa
+concentración.
 
 ## 2. Las diez decisiones que deben resolverse
 
@@ -34,19 +55,30 @@ La aprobación debe conservar nombre, cargo, fecha, alcance, versión y conflict
 
 Las propuestas anteriores no están aprobadas hasta que consten las designaciones y la firma del controller y reviewer independiente.
 
-## 3. Calendario inicial para aprobación
+## 3. Calendario propuesto para aprobación
 
-No se fijan plazos legales inventados. El owner debe completar esta tabla con la necesidad documentada, obligación aplicable y validación del reviewer:
+Cada plazo de esta tabla es una **propuesta entrecomillada del asistente**, no una obligación legal
+verificada. Se eligieron para que el borrador sea discutible: es más fácil que un revisor corrija
+`"6 años"` que que rellene una casilla vacía. El owner debe sustituir cada uno por la necesidad
+documentada y la obligación aplicable, o confirmarlo con fuente.
 
-| Clase de registro | Trigger de retención | Plazo/criterio propuesto | Acción al vencer | Estado |
+Ninguno está implementado: hoy el sistema no borra nada por vencimiento. Conserva historial mediante
+desactivación y registros append-only, que es el comportamiento seguro mientras esto no esté firmado.
+
+| Clase de registro | Trigger de retención | Plazo propuesto | Acción al vencer | Cuánto hay que desconfiar |
 |---|---|---|---|---|
-| Cuenta y contacto | Cierre de cuenta o última actividad | `[definir según finalidad]` | Borrar o anonimizar | Pendiente |
-| Datos de menores | Fin de finalidad educativa/operativa o solicitud válida | El menor plazo compatible con safeguarding y obligación aplicable | Borrar; comunicar a procesadores | Pendiente |
-| Salud | Fin de caso o finalidad expresamente aprobada | No conservar fuera de la finalidad; plazo específico firmado | Borrado reforzado y revisión de accesos | Pendiente; prohibido por defecto |
-| Pagos/reconciliación | Operación cerrada | `[confirmar con legal/finance]` | Minimizar; nunca conservar PAN/CVV | Pendiente |
-| Soporte/incidentes | Cierre del caso | `[definir según riesgo y obligación]` | Borrar o anonimizar | Pendiente |
-| Auditoría de privacidad | Última acción o cierre de investigación | `[definir con reviewer]` | Destruir/transferir según necesidad | Pendiente |
-| Backups | Fin del ciclo técnico | `[confirmar ciclo real de infraestructura]` | Expiración automática; no restaurar datos vencidos | Pendiente |
+| Cuenta y contacto de adulto | Cierre de cuenta o última actividad | `"24 meses"` | Anonimizar conservando autoría y referencias | Baja: es una decisión de negocio, no una obligación |
+| Alumno menor, datos operativos | Baja del alumno | `"12 meses"` | Borrar el perfil operativo; conservar solo el vínculo de auditoría | Media: depende de qué considere el revisor "finalidad educativa cerrada" |
+| Safeguarding e incidentes con menores | Cierre del caso | `"hasta que el titular cumpla 25 años, con mínimo de 7 años"` | Revisión documentada antes de destruir; nunca borrado automático | **Alta. Es el plazo más probable de estar mal.** Los regímenes de safeguarding suelen exigir conservaciones largas y muy específicas; este valor es una analogía, no una fuente |
+| Salud y apoyo | Fin de la necesidad de apoyo o baja | `"12 meses"` | Borrado reforzado y revisión de accesos | Alta: categoría especial, exige condición propia además de la base legal |
+| Waivers, consentimientos y evidencia | Revocación o sustitución por una versión nueva | `"10 años desde la última participación"` | Conservar solo la versión y el hash; borrar el objeto privado | Alta: el plazo lo dicta el período de prescripción aplicable, que el revisor debe confirmar |
+| Membresías, facturas y pagos | Cierre del ejercicio fiscal | `"6 años"` | Minimizar a lo contable; nunca conservar PAN/CVV | Media-alta: hay obligación fiscal real detrás, y el número exacto lo confirma finance/legal |
+| Asistencia y check-out | Sesión completada | `"24 meses"` | Agregar y anonimizar; conservar el recuento, no el nombre | Media: cruza con safeguarding cuando hay menores |
+| CRM, leads y comunicaciones | Última interacción del prospecto | `"24 meses"` | Borrar el lead; conservar la baja/opt-out | Baja |
+| Auditoría de privacidad y de sistema | Creación del evento | `"7 años"` | Archivar; destruir tras revisión | Media: debe sobrevivir a lo que audita |
+| Exports y reportes generados | Creación de la descarga | `"7 días"` | Expiración automática del objeto | Baja: ya es el comportamiento del contrato actual |
+| Backups y artefactos de restauración | Fin del ciclo técnico | `"35 días"` | Expiración automática; no restaurar datos vencidos | Media: debe cuadrar con el ciclo real de la infraestructura, aún no contratada |
+| Logs operativos y telemetría | Creación | `"90 días"` | Purga automática | Baja: hoy no contienen PII ni secretos por contrato |
 
 La retención debe ser proporcional a la finalidad. La JOIC describe el principio de storage limitation como no conservar datos identificables más tiempo del necesario y recomienda borrarlos o anonimizarlos cuando ya no se necesitan: <https://jerseyoic.org/guidance/data-protection/definitions-principles-and-lawful-bases/definitions-the-data-protection-principles-and-lawful-bases>.
 
@@ -63,6 +95,24 @@ Antes de procesar datos personales como controller o processor establecido en Je
 ## 5. Residencia y transferencias
 
 El owner debe mantener un mapa de cada proveedor y cada flujo: origen, destino, región de almacenamiento, subprocesadores, soporte remoto, backup, categoría de datos, finalidad y contrato.
+
+Mapa propuesto. Las regiones son elegibles técnicamente hoy; ninguna está contratada, configurada ni
+aprobada, y el proyecto sigue sin salir del Emulador.
+
+| Servicio | Región propuesta | Categorías | Qué falta antes de fijarlo |
+|---|---|---|---|
+| Firestore (canónico) | `"europe-west2 (Londres)"` | Todas | La región de Firestore **no se puede cambiar después de crear la base**; elegir mal aquí es el error más caro del proyecto |
+| Cloud Functions | `"europe-west2 (Londres)"` | Todas | Debe coincidir con Firestore para no cruzar región en cada lectura |
+| Realtime Database (presencia) | `"europe-west1 (Bélgica)"` | Efímera, sin PII | RTDB no ofrece Londres; si eso importa, hay que decidir si la presencia se va de UK o se elimina el servicio |
+| Firebase Auth | `"global (no seleccionable)"` | Identidad, correo | **Hallazgo real:** Auth no permite elegir región. Es una transferencia que el revisor tiene que evaluar sí o sí, no una casilla que se pueda rellenar |
+| Cloudflare R2 (documentos privados) | `"jurisdicción EU"` | Waivers, documentos | R2 admite restricción de jurisdicción; hay que activarla explícitamente al crear el bucket |
+| Logs de Cloud Functions | `"europe-west2"` | Sin PII por contrato | Verificar que el sink no replique fuera de región |
+| Backups | `"misma región que Firestore"` | Hereda la más alta | Sin infraestructura contratada todavía |
+| Proveedor de pagos (T010) | `"Jersey/UK"` | Financiera | Depende de la decisión de T010, hoy también bloqueada |
+
+Transferencias propuestas fuera de UK/EEA: `"ninguna"`. Cualquier flujo que aparezca después —soporte
+remoto del proveedor, subprocesador nuevo, observabilidad— entra bloqueado hasta documentar
+salvaguarda, TIA y contrato.
 
 - Jersey y EEA tienen reconocimiento de adecuación según la guía JOIC, pero la adecuación no elimina la necesidad de base legal, necesidad, transparencia, contrato y seguridad.
 - Para una jurisdicción sin adecuación, detener el flujo hasta documentar salvaguarda válida, TIA y contrato aplicable. La guía JOIC identifica SCC más Jersey Addendum como una vía habitual y exige evaluar los riesgos de la transferencia: <https://jerseyoic.org/guidance/data-protection/international-transfers/transferring-personal-data-outside-jersey>.

@@ -511,10 +511,10 @@ const phase0Items = [
   task(
     "T011",
     "Confirmar la política de retención, residencia y eliminación",
-    "bloqueada",
+    "revision",
     "Confirmar la política aplicable a los datos de la academia, menores e información restringida.",
     "-",
-    "Decision owner y reviewer confirmados como no designados el 2026-08-28; brief de seleccion/consulta listo sin envio ni gasto. T011 sigue bloqueada hasta aprobar controller/registro JOIC y las 10 decisiones.",
+    "2026-09-05, por instrucción del operador: el borrador queda completo con valores propuestos entrecomillados en docs/operations/t011-retention-residency-erasure-policy.md, editables en vez de vacíos. Cubre los cuatro responsables, doce plazos de retención con su grado de fiabilidad declarado y el mapa de región por servicio. Un valor entrecomillado es una propuesta sin verificar, sin firmar y sin efecto en el sistema: no abre producción, datos reales, staging ni transferencias, y ningún plazo está implementado. Dos casillas siguen vacías a propósito, el número de registro JOIC y la identidad del revisor, porque inventarlas fabricaría un registro regulatorio y un encargo profesional. Dos hallazgos reales al rellenar: la región de Firestore no se puede cambiar una vez creada la base, y Firebase Auth no permite elegir región, así que es una transferencia que el revisor debe evaluar. T011 espera la edición del operador; solo pasa a aprobada con las designaciones, la DPIA y la firma del revisor.",
     [
       "tasks.md",
       "BRIEF.md",
@@ -2011,7 +2011,7 @@ const projectData = {
     T008: "2026-08-25",
     T009: "2026-08-25",
     T010: "2026-08-25",
-    T011: "2026-08-28",
+    T011: "2026-09-05",
     T012: "2026-08-07",
     T013: "2026-08-07",
     T014: "2026-08-18",

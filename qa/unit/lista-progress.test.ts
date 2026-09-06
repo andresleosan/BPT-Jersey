@@ -43,10 +43,10 @@ describe("Lista project progress", () => {
   it("reflects the approval of 2026-09-05", () => {
     expect(counts).toEqual({
       aprobada: 101,
-      revision: 0,
+      revision: 1,
       "en-progreso": 1,
       pendiente: 12,
-      bloqueada: 3,
+      bloqueada: 2,
       cancelada: 1,
     });
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
