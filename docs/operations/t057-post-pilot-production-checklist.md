@@ -22,7 +22,7 @@ con un acta fechada y T011 debe resolverse antes de aprobar este checklist.
 | Costos y alertas                  | T010 mantiene shortlist documentada en docs/operations/payment-provider-decision-packet.md; no hay proveedor seleccionado, presupuesto ni alertas productivas aprobadas                                                                                                                          | Pendiente                                   |
 | CI/CD y entornos                  | CI ejecuta calidad, Rules, build y smoke. El operador decidio conservar el auto-deploy de Pages desde `main`; cada push remoto despliega frontend, pero sigue sin aprobacion manual, Environment protegido ni release coordinada con Firebase                                                    | Pendiente urgente                           |
 | Browser QA                        | Piloto sintetico completo: 71 pasan/14 omitidos live-staging-opt-in; T060 Auth+Functions+Firestore Emulator 6/6 desktop/mobile sin retries; no existe corrida autenticada contra staging real                                                                                                    | Revision                                    |
-| Source control                    | `main`/`origin/main` permanecen en `aac9e0c`; Pages produccion fue contenida mediante rollback a `620d6c7`/`34b8ba2c`. La divergencia dura hasta el proximo push autorizado a `main`, que desplegara Pages                                                                                       | Push a `main` implica deploy                |
+| Source control                    | Actualizado 2026-09-06: el operador autorizo expresamente el push a `main`, que publica el frontend en Pages. La divergencia con `aac9e0c` queda cerrada. Functions y Rules no se desplegaron en esa release y siguen en su revision anterior                                                    | Release de frontend autorizada 2026-09-06   |
 
 ## Criterio de salida
 
@@ -94,3 +94,20 @@ requiere su checkpoint exacto antes de pasar a implementacion.
   conservar `production_branch=main` y `production_deployments_enabled=true`; la API ya coincidia y
   no se hizo una escritura redundante. Otro push a `main` publicara el corte, por lo que cada release
   sigue requiriendo autorizacion explicita bajo T058.
+
+## Release de frontend autorizada 2026-09-06
+
+- Autorizacion: instruccion explicita del operador ("commit y push") tras revisar el alcance del
+  corte. Sustituye, solo para esta release, la regla de "no hacer push a `main`" del proximo paso.
+- Alcance real: frontend estatico en Cloudflare Pages desde `main`. Commits `e71664d` y `f20c59e`.
+  No se desplegaron Cloud Functions ni Firestore Rules, no se tocaron datos y no se ejecutaron
+  migraciones.
+- Por que es seguro publicarlo por separado: el corte retira llamadas al backend y no anade ninguna,
+  asi que el bundle nuevo no depende de codigo de Functions sin desplegar. Es la situacion inversa a
+  la release parcial del 2026-08-30.
+- Efecto visible: `/login` queda como entrada de miembros y `/staff/login` como entrada de staff, sin
+  enlaces publicos. Desaparecen `/admin/groups`, `/admin/activities`, `/admin/regyfit-access-records`
+  y `/admin/overview`.
+- Lo que sigue abierto: esta release no cierra T057 ni satisface T058. Los gates de T011, staging
+  separado, costos y alertas, y CD protegido siguen pendientes.
+- Rollback: volver Pages a la deployment anterior desde el panel de Cloudflare.

@@ -111,7 +111,7 @@ histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-
 | T055 | Ejecutar carga, contratos, seguridad, accesibilidad y E2E completo por rol | T008,T009,T011,T018,T019,T021-T033,T037-T042,T045,T047-T054,T083,T086 | aprobada  | QA aprobado unicamente para el piloto sintetico: verify:mvp, unitarias 159/1082, Rules 64/64, carga sintetica 240 solicitudes/concurrencia 24 sin fallos (p95 82 ms) y E2E smoke 5 pasan/1 omitida. T011, carga live/staging y produccion siguen bloqueados; no autoriza datos reales ni despliegue.                                                                                                                                     |
 | T056 | Ejecutar piloto con datos controlados y corregir hallazgos                 | T055                                                                  | aprobada  | Piloto E2E sintetico ejecutado: 71 pasaron, 14 omitidos por live/staging u opt-in y 0 fallos; verify:mvp y carga sintetica pasan; acta aprobada explicitamente por el operador el 2026-08-27 unicamente para el piloto sintetico; no autoriza staging real, produccion, datos reales, pagos ni migraciones.                                                                                                                              |
 | T057 | Preparar checklist post-piloto de produccion, monitoreo, costos y rollback | T056                                                                  | aprobada  | Aprobada por el operador el 2026-09-04 para el alcance sintetico/Emulator registrado; los pendientes descritos siguen vigentes para produccion. Revalidada 2026-08-31: checklist y rollback documentados; T089 aprobado tecnicamente con gate global 175/1237, Rules 78/78, carga p95 29 ms y smoke 5/5 + 1 omitida. T011, staging real, costos/alertas, CD protegido y autorizacion de T058 siguen abiertos; no se autoriza produccion. |
-| T058 | Desplegar a producciÃ³n con confirmaciÃ³n explÃ­cita del operador          | T057                                                                  | pendiente | Produccion no esta desplegada: la release parcial de Pages fue revertida; T058 depende del cierre de T057 y de autorizacion explicita del operador.                                                                                                                                                                                                                                                                                      |
+| T058 | Desplegar a producciÃ³n con confirmaciÃ³n explÃ­cita del operador          | T057                                                                  | pendiente | Corregido el 2026-09-06 para que la fila describa la realidad: Cloudflare Pages publica el frontend en cada push a `main` y el operador autorizo ese push el 2026-09-06; T104 ya habia desplegado callables en `bptjersey-f5a25`. Lo que T058 define, una release coordinada de Functions, Rules y web con los gates de T057 cerrados, sigue sin ocurrir, asi que la fila sigue pendiente y depende de T057, T011 y T099.                                                                                                                                                                                                                                                                                      |
 | T059 | Cerrar proyecto: capability-gap-analysis y registrar `LECCIONES.md`        | T058                                                                  | pendiente | LecciÃ³n registrada despuÃ©s de producciÃ³n; fuera del piloto                                                                                                                                                                                                                                                                                                                                                                            |
 
 ## v2 - post-lanzamiento
@@ -5147,6 +5147,52 @@ las cierre.
 **Compuertas:** `vitest --project node qa/unit` 8 archivos / 26 pruebas, `pnpm lint`, `pnpm typecheck`
 y `pnpm format:check` en verde. Sin cambios de codigo de aplicacion, datos, migraciones ni despliegue.
 
+### Decision del operador: proyecto por defecto en produccion y publicacion autorizada del frontend - 2026-09-06
+
+Instruccion del operador: "resolver para que todo apunte a lo real, commit y push".
+
+**`.firebaserc`.** El alias por defecto queda en `bptjersey-f5a25` en vez de `demo-bpt-jersey`. El
+archivo llevaba modificado en el arbol de trabajo desde antes de esta sesion, con la forma exacta que
+escribe `firebase use`; ahora la decision queda registrada y versionada en vez de quedarse como un
+cambio suelto sin dueno.
+
+Que cambia de verdad: ningun script del repositorio lee `.firebaserc`. Los comandos de emulador de
+`package.json`, `scripts/run-integration.mjs`, los runners de `qa/scripts/` y el workflow del golden
+path fijan `--project demo-bpt-jersey` o `GCLOUD_PROJECT=demo-bpt-jersey` de forma explicita, y los
+runners abortan si el proyecto no coincide. El unico efecto real es sobre una persona: un
+`firebase deploy` o un `firebase firestore:delete` escrito a mano sin `--project` ahora apunta a
+produccion. Es una perdida de red de seguridad aceptada a conciencia por el operador, no un descuido.
+
+**Publicacion del frontend.** El operador autorizo el push a `main`. Cloudflare Pages conserva
+`production_branch=main` y `production_deployments_enabled=true`, asi que ese push publica el
+frontend en `https://bptjersey.pages.dev`. Contenido de la release: los commits `e71664d`
+(separacion del acceso de miembros y staff, panel administrativo reducido, codigo muerto retirado) y
+`f20c59e` (decision de alcance en el ledger y contador que excluye lo cancelado).
+
+Lo que **no** hace este push: no despliega Cloud Functions, no despliega Firestore Rules, no toca
+datos, no ejecuta migraciones y no crea el staging de T099. El cambio publicado es sustractivo en su
+superficie de backend: retira llamadas (`listRegyfitAccessRecords` deja de tener consumidor web) y no
+anade ninguna, que es la direccion segura para publicar el frontend por separado. Por eso no repite
+el incidente de release parcial del 2026-08-30, en el que un bundle nuevo llamaba a un backend que
+todavia no se habia desplegado.
+
+Lo que este push **no es**: no es T058. T058 exige una release coordinada de Functions, Rules y web
+con los gates de T057 cerrados, y esos gates siguen abiertos porque dependen de T011 y T099. La fila
+T058 se corrige para describir la huella real de produccion, pero se queda en `pendiente`.
+
+**Efecto inmediato para el equipo.** Desde esta publicacion, `/login?role=administrator` muestra el
+formulario de miembros y la unica entrada de staff es `/staff/login`. Office y coaches necesitan esa
+URL para poder entrar; queda como la primera accion del checklist.
+
+**Rutas que dejan de existir en produccion tras esta publicacion:** `/admin/groups`,
+`/admin/activities`, `/admin/regyfit-access-records` y `/admin/overview`. Un enlace guardado a
+cualquiera de ellas devolvera 404. Es el resultado buscado, no una regresion.
+
+**Compuertas antes de publicar:** pnpm verify:mvp completo en verde (exit 0): formato, lint, typecheck y build; 259 archivos y 2041 pruebas unitarias; 13 archivos de Rules; build sintetico E2E; carga sintetica de 240 solicitudes con 0 fallos y p95 de 39 ms; smoke E2E 5 pasan mas 1 omitida esperada.
+
+**Rollback:** volver Pages a la deployment anterior desde el panel de Cloudflare, como se hizo el
+2026-08-30. No hay datos ni migraciones que revertir.
+
 ### Pendiente al retomar (2026-09-06, tras la decision de alcance del operador)
 
 Sustituye a los checklists anteriores. Tablero: 108 aprobadas de 113 contadas (96%), 3 pendientes
@@ -5158,10 +5204,12 @@ Del operador, en este orden:
 - [ ] T011: las cuatro casillas (razon social exacta y jurisdiccion, owner interno, estado del
       registro JOIC, autorizacion del revisor) y la firma del revisor independiente. Es el unico
       nudo real: bloquea T099, T108, T058, el paso 2 de T106 y el texto legal de T117.
-- [ ] Comunicar `/staff/login` a office y coaches antes del proximo push a `main`, porque Pages
-      despliega solo y `/login?role=administrator` ya muestra el formulario de miembros.
-- [ ] Restaurar `.firebaserc` a `demo-bpt-jersey` o registrar la decision de dejarlo apuntando a
-      produccion.
+- [ ] **Urgente, ya publicado:** comunicar `/staff/login` a office y coaches. El push autorizado del
+      2026-09-06 ya lo puso en produccion, asi que `/login?role=administrator` muestra desde ahora el
+      formulario de miembros y el equipo no tiene otra entrada al panel.
+- [x] `.firebaserc` apunta a `bptjersey-f5a25` por decision del operador del 2026-09-06, con la
+      consecuencia asumida: un `firebase deploy` escrito a mano sin `--project` va a produccion. Los
+      scripts del repositorio siguen fijando `demo-bpt-jersey` de forma explicita.
 - [ ] Decidir si se retiran el callable `listRegyfitAccessRecords` y su coleccion en produccion; el
       panel web ya no existe.
 - [ ] T109: pegar las coordenadas de Town y West en `/admin/classes` tras comprobarlas en un mapa.

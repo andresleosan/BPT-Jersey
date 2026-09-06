@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "demo-bpt-jersey"
-  }
+    "default": "bptjersey-f5a25"
+  },
+  "targets": {},
+  "etags": {}
 }
