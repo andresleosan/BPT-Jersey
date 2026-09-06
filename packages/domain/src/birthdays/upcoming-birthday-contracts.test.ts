@@ -58,9 +58,12 @@ describe("deriveUpcomingBirthdays", () => {
       ["Tomorrow", 1],
       ["Far Away", 5],
     ]);
+    // The age reached, never the year it was derived from.
+    expect(result.map((entry) => entry.turningAge)).toEqual([32, 11, 32]);
+    expect(JSON.stringify(result)).not.toContain("1994");
   });
 
-  it("never carries a date of birth or an age", () => {
+  it("carries the age reached but never the date of birth (T112, 2026-09-06)", () => {
     const [entry] = deriveUpcomingBirthdays({
       today: "2026-06-15",
       windowDays: 1,
@@ -70,6 +73,7 @@ describe("deriveUpcomingBirthdays", () => {
       studentId: "s-1",
       displayName: "Synthetic Member",
       daysAway: 0,
+      turningAge: 32,
       participantType: "adult",
       trainingCenter: "Town",
     });

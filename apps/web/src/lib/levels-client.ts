@@ -22,6 +22,7 @@ import {
   type RecordMedicalLeaveInput,
   type RejectPromotionInput,
   type StudentProgressSummary,
+  type AgeBandEvaluation,
 } from "@bpt-jersey/domain/levels";
 import { getFirebaseFunctions } from "./firebase-client";
 
@@ -345,27 +346,43 @@ export type OpenedStudentLevel = Readonly<{
   currentDefinitionKey: string;
   currentLevelStartedAt: string;
   state: "initialized";
+  /** T113: whether the student sits inside the belt's catalog age band. A warning, never a gate. */
+  ageBand: AgeBandEvaluation;
 }>;
+
+function isAgeBand(value: unknown): value is AgeBandEvaluation {
+  if (typeof value !== "object" || value === null) return false;
+  const band = value as Record<string, unknown>;
+  const wholeOrNull = (candidate: unknown) =>
+    candidate === null || (typeof candidate === "number" && Number.isSafeInteger(candidate));
+  return (
+    typeof band.met === "boolean" &&
+    wholeOrNull(band.requiredMinAge) &&
+    wholeOrNull(band.requiredMaxAge) &&
+    wholeOrNull(band.ageYears)
+  );
+}
 
 /** Head coach only: opens a student's level record at the belt they hold. */
 export async function openStudentLevel(input: OpenStudentLevelInput): Promise<OpenedStudentLevel> {
   const parsed = parseOpenStudentLevelInput(input);
   if (!parsed.ok) throw new Error(safeOpenLevelError);
-  const callable = httpsCallable<OpenStudentLevelInput, { head: OpenedStudentLevel }>(
-    getFirebaseFunctions(),
-    "openStudentLevel",
-  );
+  const callable = httpsCallable<
+    OpenStudentLevelInput,
+    { head: Omit<OpenedStudentLevel, "ageBand">; ageBand: unknown }
+  >(getFirebaseFunctions(), "openStudentLevel");
   try {
     const response = await callable(parsed.value);
     const head = response.data.head;
     if (
       head.studentId !== parsed.value.studentId ||
       head.currentDefinitionKey !== parsed.value.definitionKey ||
-      head.state !== "initialized"
+      head.state !== "initialized" ||
+      !isAgeBand(response.data.ageBand)
     ) {
       throw new Error(safeOpenLevelError);
     }
-    return head;
+    return { ...head, ageBand: response.data.ageBand };
   } catch {
     throw new Error(safeOpenLevelError);
   }

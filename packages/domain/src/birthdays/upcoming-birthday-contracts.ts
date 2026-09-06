@@ -6,9 +6,11 @@ import { err, ok, type Result } from "../result";
  *
  * The birth year never leaves the backend. A birthday widget cannot hide the day it celebrates -
  * that is the whole feature - but the year is not needed to greet somebody, so the projection
- * carries only the name, how many days away the birthday is and whether the member is an adult or
- * a minor. Office that needs the real date of birth reads the canonical member record, which is
- * where the full date lives and is audited.
+ * carries the name, how many days away the birthday is, whether the member is an adult or a minor
+ * and, by operator decision on 2026-09-06, the age they turn. That last one is an integer, not a
+ * date: "turns 9" is what a coach says on the mat, and it still does not let anybody reconstruct
+ * the day of birth from a list. Office that needs the real date of birth reads the canonical
+ * member record, which is where the full date lives and is audited.
  */
 export const upcomingBirthdayDefaultWindowDays = 7;
 export const upcomingBirthdayMaxWindowDays = 31;
@@ -30,12 +32,14 @@ export type UpcomingBirthdayCandidate = Readonly<{
   status: string;
 }>;
 
-/** What a coach receives. No date of birth, no age, no family or user identifier. */
+/** What a coach receives. No date of birth, no family or user identifier. */
 export type UpcomingBirthday = Readonly<{
   studentId: string;
   displayName: string;
   /** 0 is today, 1 is tomorrow, up to the requested window. */
   daysAway: number;
+  /** The age reached on the day, as a whole number of years. */
+  turningAge: number;
   participantType: UpcomingBirthdayParticipantType;
   trainingCenter: UpcomingBirthdayTrainingCenter;
 }>;
@@ -152,6 +156,7 @@ export function deriveUpcomingBirthdays(
           studentId: candidate.studentId,
           displayName: candidate.fullName.trim(),
           daysAway: offset,
+          turningAge: (parts(day)?.year ?? 0) - (parts(candidate.dateOfBirth)?.year ?? 0),
           participantType: candidate.participantType as UpcomingBirthdayParticipantType,
           trainingCenter: candidate.trainingCenter as UpcomingBirthdayTrainingCenter,
         }),

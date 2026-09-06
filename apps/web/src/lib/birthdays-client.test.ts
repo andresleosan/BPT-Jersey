@@ -14,6 +14,7 @@ const birthday = {
   studentId: "student-1",
   displayName: "Ana Coelho",
   daysAway: 2,
+  turningAge: 30,
   participantType: "adult",
   trainingCenter: "Town",
 };

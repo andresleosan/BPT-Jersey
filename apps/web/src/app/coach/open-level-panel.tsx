@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
+import { describeAgeBand, type LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 
 import { getLevelCatalog, openStudentLevel } from "../../lib/levels-client";
 
@@ -56,8 +56,21 @@ export function OpenLevelPanel({ studentIds, onOpened }: PanelProps) {
     setBusy(true);
     setMessage(undefined);
     try {
-      await openStudentLevel({ studentId, definitionKey, decisionNotes: notes.trim() });
-      setMessage({ tone: "success", text: `Level record opened for student ${studentId}.` });
+      const opened = await openStudentLevel({
+        studentId,
+        definitionKey,
+        decisionNotes: notes.trim(),
+      });
+      // T113: out of band is allowed and said out loud. Silence here would mean the student never
+      // shows up as a recognition candidate and nobody knows why.
+      setMessage({
+        tone: "success",
+        text: opened.ageBand.met
+          ? `Level record opened for student ${studentId}.`
+          : `Level record opened for student ${studentId}. Outside the catalog age band ` +
+            `(${describeAgeBand(opened.ageBand)}): the record is open, but no promotion will be ` +
+            `proposed for this student until the band is met.`,
+      });
       onOpened?.(studentId, definitionKey);
       setNotes("");
     } catch {

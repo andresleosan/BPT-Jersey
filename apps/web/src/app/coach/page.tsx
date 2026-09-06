@@ -802,7 +802,7 @@ export default function CoachDashboardPage() {
                       </div>
                     </div>
                     <span className="coach-birthday-badge">
-                      {birthdayWhenLabel(birthday.daysAway)}
+                      {birthdayWhenLabel(birthday.daysAway)} &middot; turns {birthday.turningAge}
                     </span>
                   </div>
                 ))}

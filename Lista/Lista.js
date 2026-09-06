@@ -1909,7 +1909,7 @@ const recoveryItems = [
     "aprobada",
     "Derivar los cumpleanos del directorio canonico en vez de anunciarlos sin datos.",
     "T093,T102",
-    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: el panel no muestra la edad que se cumple, por alcance minimo; anadirla es una linea en la proyeccion y una decision de producto del operador. Alta 2026-09-05 e implementada el mismo dia. La constante sampleBirthdays desaparece: el panel lee listUpcomingBirthdays, que deriva la ventana de siete dias de los alumnos canonicos activos del sitio elegido. El ano de nacimiento nunca sale del backend: la proyeccion lleva nombre, cuantos dias faltan y si es adulto o menor, y office que necesite la fecha real la lee en el registro canonico. Solo staff puede llamarla; el cliente recibe 403. Un nacido el 29 de febrero se felicita el 28 en un ano comun. Dominio 16, servicio 8, callable 9, cliente web 3 y panel 15; E2E autenticado en Emulator dentro del golden path (14/14) con un alumno de Town y otro de West.",
+    "Decision del operador 2026-09-06: el panel muestra ademas la edad que se cumple (entero), nunca la fecha ni el ano. Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: el panel no muestra la edad que se cumple, por alcance minimo; anadirla es una linea en la proyeccion y una decision de producto del operador. Alta 2026-09-05 e implementada el mismo dia. La constante sampleBirthdays desaparece: el panel lee listUpcomingBirthdays, que deriva la ventana de siete dias de los alumnos canonicos activos del sitio elegido. El ano de nacimiento nunca sale del backend: la proyeccion lleva nombre, cuantos dias faltan y si es adulto o menor, y office que necesite la fecha real la lee en el registro canonico. Solo staff puede llamarla; el cliente recibe 403. Un nacido el 29 de febrero se felicita el 28 en un ano comun. Dominio 16, servicio 8, callable 9, cliente web 3 y panel 15; E2E autenticado en Emulator dentro del golden path (14/14) con un alumno de Town y otro de West.",
     [
       "tasks.md",
       "packages/domain/src/birthdays/upcoming-birthday-contracts.ts",
@@ -1927,7 +1927,7 @@ const recoveryItems = [
     "aprobada",
     "Aplicar las franjas de edad del catalogo al proponer stripes.",
     "T083,T097",
-    "Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: la franja filtra candidatos y propuestas, pero openStudentLevel y approvePromotion siguen sin consultarla; extenderla a esos dos callables es decision del operador. Alta 2026-09-05 e implementada el mismo dia. Las 171 definiciones del catalogo llevan franja de edad y ninguna se leia: minAge y maxAge se parseaban y se guardaban sin usarse nunca. Ahora evaluateAgeBand decide la franja del rango de destino, buildStudentProgressSummary la publica como criterio propio y overallEligible la exige, de modo que la propuesta de reconocimiento nombra la franja cuando es lo que frena al alumno. Ambos extremos son inclusivos porque las franjas del catalogo comparten frontera (4-7 y 7-10). Sin fecha de nacimiento y con franja declarada la regla falla cerrada. La readiness sigue midiendo entrenamiento, no cumpleanos. Belts y stripes se siguen sin otorgar automaticamente y el head coach puede abrir un nivel fuera de franja. Dominio 19 casos nuevos; E2E autenticado en Emulator con dos hermanos del mismo cinturon dentro del golden path (15/15).",
+    "Decision del operador 2026-09-06: abrir fuera de franja sigue permitido pero el panel lo avisa; openStudentLevel devuelve la evaluacion de la franja y approvePromotion sigue sin consultarla. Aprobada por el operador 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: la franja filtra candidatos y propuestas, pero openStudentLevel y approvePromotion siguen sin consultarla; extenderla a esos dos callables es decision del operador. Alta 2026-09-05 e implementada el mismo dia. Las 171 definiciones del catalogo llevan franja de edad y ninguna se leia: minAge y maxAge se parseaban y se guardaban sin usarse nunca. Ahora evaluateAgeBand decide la franja del rango de destino, buildStudentProgressSummary la publica como criterio propio y overallEligible la exige, de modo que la propuesta de reconocimiento nombra la franja cuando es lo que frena al alumno. Ambos extremos son inclusivos porque las franjas del catalogo comparten frontera (4-7 y 7-10). Sin fecha de nacimiento y con franja declarada la regla falla cerrada. La readiness sigue midiendo entrenamiento, no cumpleanos. Belts y stripes se siguen sin otorgar automaticamente y el head coach puede abrir un nivel fuera de franja. Dominio 19 casos nuevos; E2E autenticado en Emulator con dos hermanos del mismo cinturon dentro del golden path (15/15).",
     [
       "tasks.md",
       "BRIEF.md",
@@ -2076,8 +2076,8 @@ const projectData = {
     T109: "2026-09-05",
     T110: "2026-09-05",
     T111: "2026-09-05",
-    T112: "2026-09-05",
-    T113: "2026-09-05",
+    T112: "2026-09-06",
+    T113: "2026-09-06",
     T114: "2026-09-05",
     T115: "2026-09-05",
     T116: "2026-09-06",

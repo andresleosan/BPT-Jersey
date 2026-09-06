@@ -323,7 +323,7 @@ export function createOpenStudentLevelHandler(dependencies: HandlerDependencies)
     const parsed = parseOpenStudentLevelInput(request.data);
     if (!parsed.ok) invalidPayload();
     try {
-      const head = await dependencies.store.openStudentLevel({
+      const { head, ageBand } = await dependencies.store.openStudentLevel({
         academyId: actor.academyId,
         input: parsed.value,
         openedBy: actor.userId,
@@ -337,6 +337,8 @@ export function createOpenStudentLevelHandler(dependencies: HandlerDependencies)
           currentLevelStartedAt: head.currentLevelStartedAt,
           state: head.state,
         },
+        // T113: the band is a warning for the head coach, not a gate. Numbers only, no dates.
+        ageBand,
       };
     } catch (error) {
       return mapStoreError(error, "open student level");

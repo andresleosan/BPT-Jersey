@@ -477,6 +477,9 @@ describe("Level Callables", () => {
         state: "initialized",
       });
       expect(JSON.stringify(opened)).not.toMatch(/staff-1|headcoach-1|openingNotes/u);
+      // T113: the age band rides along as a warning; still no identifiers and no dates.
+      expect(opened.ageBand).toMatchObject({ met: expect.any(Boolean) });
+      expect(JSON.stringify(opened.ageBand)).not.toMatch(/\d{4}-\d{2}-\d{2}/u);
 
       await expect(
         handler(fakeRequest(payload, "headCoach", "headcoach-1", "demo-academy")),

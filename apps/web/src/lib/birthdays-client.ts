@@ -28,6 +28,8 @@ function isBirthday(value: unknown): value is UpcomingBirthday {
     typeof value.displayName === "string" &&
     Number.isSafeInteger(value.daysAway) &&
     (value.daysAway as number) >= 0 &&
+    Number.isSafeInteger(value.turningAge) &&
+    (value.turningAge as number) >= 0 &&
     typeof value.participantType === "string" &&
     upcomingBirthdayParticipantTypes.includes(
       value.participantType as UpcomingBirthdayParticipantType,

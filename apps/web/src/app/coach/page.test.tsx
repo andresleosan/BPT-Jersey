@@ -197,6 +197,7 @@ function birthday(
     studentId: string;
     displayName: string;
     daysAway: number;
+    turningAge: number;
     participantType: "adult" | "minor";
     trainingCenter: "Town" | "West";
   }> = {},
@@ -205,6 +206,7 @@ function birthday(
     studentId: "student-birthday-1",
     displayName: "Ana Coelho",
     daysAway: 2,
+    turningAge: 30,
     participantType: "adult" as const,
     trainingCenter: "Town" as const,
     ...overrides,
@@ -620,8 +622,9 @@ describe("CoachDashboardPage", () => {
       });
       expect(await screen.findByText("Today Member")).toBeInTheDocument();
       expect(screen.getByText("Bruno Le Sueur")).toBeInTheDocument();
-      expect(screen.getByText("Today")).toBeInTheDocument();
-      expect(screen.getByText("Tomorrow")).toBeInTheDocument();
+      // T112 (2026-09-06): the badge now also says the age reached, never the year.
+      expect(screen.getByText(/^Today · turns 30$/)).toBeInTheDocument();
+      expect(screen.getByText(/^Tomorrow · turns 30$/)).toBeInTheDocument();
       expect(screen.getByText("2 this week")).toBeInTheDocument();
     });
 

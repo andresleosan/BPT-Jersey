@@ -31,6 +31,7 @@ type Birthday = Readonly<{
   studentId: string;
   displayName: string;
   daysAway: number;
+  turningAge: number;
   participantType: string;
   trainingCenter: string;
 }>;
@@ -220,7 +221,10 @@ test.describe("T112 coach birthdays with Firebase Emulators", () => {
         "participantType",
         "studentId",
         "trainingCenter",
+        "turningAge",
       ]);
+      // Every synthetic adult here was born in 2000: the panel gets the age, never the year.
+      expect(entry.turningAge).toBe(new Date().getUTCFullYear() - 2000);
     }
 
     // A window of zero days is today only, so the member three days out drops off.

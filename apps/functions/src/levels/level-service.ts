@@ -20,6 +20,8 @@ import {
   type RecordMedicalLeaveInput,
   type RejectPromotionInput,
   type StudentProgressSummary,
+  evaluateAgeBand,
+  type AgeBandEvaluation,
 } from "@bpt-jersey/domain/levels";
 import { parseAuditEventDraft, type AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
@@ -137,8 +139,36 @@ export type LevelCatalogStore = Readonly<{
     openedByStaffId: string;
     openedByRole: "headCoach";
     openedAt?: string;
-  }) => Promise<StudentLevelHead>;
+  }) => Promise<OpenedStudentLevel>;
 }>;
+
+/**
+ * T113 (operator decision 2026-09-06): opening a level out of the catalog age band is still the
+ * head coach's call, but it is no longer silent. The band is evaluated at opening and handed back
+ * so the panel can say so; nothing is stored and nothing is blocked. Without the warning, a student
+ * opened out of band would simply never appear as a recognition candidate, with no clue why.
+ */
+export type OpenedStudentLevel = Readonly<{ head: StudentLevelHead; ageBand: AgeBandEvaluation }>;
+
+function openingAgeBand(
+  definition: Readonly<Record<string, unknown>> | undefined,
+  dateOfBirth: unknown,
+  now: string,
+): AgeBandEvaluation {
+  const criteria = definition?.criteria;
+  const band =
+    typeof criteria === "object" && criteria !== null
+      ? (criteria as Readonly<Record<string, unknown>>)
+      : undefined;
+  const whole = (value: unknown) =>
+    typeof value === "number" && Number.isSafeInteger(value) ? value : null;
+  return evaluateAgeBand({
+    criteria:
+      band === undefined ? null : { minAge: whole(band.minAge), maxAge: whole(band.maxAge) },
+    dateOfBirth: typeof dateOfBirth === "string" ? dateOfBirth : null,
+    now,
+  });
+}
 
 /** The canonical progress head a head coach opens; promotions move `currentDefinitionKey`. */
 export type StudentLevelHead = Readonly<{
@@ -1359,7 +1389,7 @@ export function createLevelCatalogStore({
       });
     },
 
-    async openStudentLevel(params): Promise<StudentLevelHead> {
+    async openStudentLevel(params): Promise<OpenedStudentLevel> {
       const { academyId, input, openedBy, openedByStaffId, openedByRole } = params;
       assertValidAcademyId(academyId);
       if (openedByRole !== "headCoach") {
@@ -1437,7 +1467,14 @@ export function createLevelCatalogStore({
         });
         transaction.create(headRef, { ...record });
         appendAuditEventInTransaction(transaction, auditRef, audit);
-        return record;
+        return {
+          head: record,
+          ageBand: openingAgeBand(
+            definitionData,
+            (student as { dateOfBirth?: unknown }).dateOfBirth,
+            now,
+          ),
+        };
       });
     },
 
@@ -2025,7 +2062,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       return record;
     },
 
-    async openStudentLevel(params): Promise<StudentLevelHead> {
+    async openStudentLevel(params): Promise<OpenedStudentLevel> {
       const { academyId, input, openedBy, openedByStaffId, openedByRole } = params;
       assertValidAcademyId(academyId);
       if (openedByRole !== "headCoach") {
@@ -2062,7 +2099,9 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         updatedBy: openedBy,
       });
       heads.set(key, record);
-      return record;
+      // The in-memory store keeps no student records, so the band is evaluated without a birth
+      // date and reads as not met whenever the belt has one: fail closed, never open.
+      return { head: record, ageBand: openingAgeBand(definition, null, now) };
     },
 
     async rejectPromotion(params): Promise<GraduationRecord> {

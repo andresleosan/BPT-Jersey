@@ -58,6 +58,7 @@ describe("OpenLevelPanel", () => {
       currentDefinitionKey: "white-0",
       currentLevelStartedAt: "2026-09-05T10:00:00.000Z",
       state: "initialized",
+      ageBand: { requiredMinAge: null, requiredMaxAge: null, ageYears: 30, met: true },
     });
     const onOpened = vi.fn();
 
@@ -87,6 +88,32 @@ describe("OpenLevelPanel", () => {
       "Level record opened for student student-1.",
     );
     expect(onOpened).toHaveBeenCalledWith("student-1", "white-0");
+  });
+
+  it("says out loud when the belt was opened outside its age band (T113)", async () => {
+    levelsApi.getLevelCatalog.mockResolvedValue({
+      definitions: [definition("white-0", "belt", "WHITE BELT", 1)],
+    });
+    levelsApi.openStudentLevel.mockResolvedValue({
+      studentId: "student-1",
+      currentDefinitionKey: "white-0",
+      currentLevelStartedAt: "2026-09-05T10:00:00.000Z",
+      state: "initialized",
+      ageBand: { requiredMinAge: 4, requiredMaxAge: 7, ageYears: 9, met: false },
+    });
+
+    render(<OpenLevelPanel studentIds={["student-1"]} />);
+    const belt = await screen.findByLabelText("Belt");
+    await waitFor(() => expect(belt).not.toBeDisabled());
+    fireEvent.change(screen.getByLabelText("Student"), { target: { value: "student-1" } });
+    fireEvent.change(belt, { target: { value: "white-0" } });
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Exception agreed." } });
+    fireEvent.click(screen.getByRole("button", { name: "Open level record" }));
+
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Level record opened for student student-1.");
+    expect(status).toHaveTextContent("Outside the catalog age band");
+    expect(status).toHaveTextContent("no promotion will be proposed");
   });
 
   it("reports a failed opening without claiming success", async () => {

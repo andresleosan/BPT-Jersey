@@ -288,7 +288,7 @@ describe("Level Service & Store", () => {
       const stripe = catalog.definitions.find((definition) => definition.kind === "stripe");
       const belt = belts[0]!;
 
-      const head = await store.openStudentLevel({
+      const { head, ageBand } = await store.openStudentLevel({
         academyId: "demo-academy",
         input: {
           studentId: "student-1",
@@ -308,6 +308,14 @@ describe("Level Service & Store", () => {
         lastApprovedPromotionId: null,
         state: "initialized",
       });
+      // T113: the band travels with the opening as numbers, never as a date.
+      expect(ageBand).toMatchObject({ met: expect.any(Boolean) });
+      expect(Object.keys(ageBand).sort()).toEqual([
+        "ageYears",
+        "met",
+        "requiredMaxAge",
+        "requiredMinAge",
+      ]);
 
       await expect(
         store.openStudentLevel({

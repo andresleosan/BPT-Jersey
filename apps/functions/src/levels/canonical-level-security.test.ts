@@ -603,7 +603,8 @@ describe("canonical Levels security boundary", () => {
     });
 
     const first = fixture();
-    const head = await first.store.openStudentLevel(open("white-0"));
+    const { head, ageBand } = await first.store.openStudentLevel(open("white-0"));
+    expect(typeof ageBand.met).toBe("boolean");
     expect(head).toMatchObject({
       studentId: "student-opaque-1",
       systemId: "system-1",
