@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import "../../Lista/Lista.js";
 
-type ListaItem = { status: string };
+type ListaItem = { id: string; status: string };
 type ListaProject = {
   projectData: { stages: unknown };
   flattenItems: (stages: unknown) => ListaItem[];
@@ -18,20 +18,29 @@ type JSDOMConstructor = new (html: string, options?: { url: string }) => JSDOMIn
 const { JSDOM } = createRequire(import.meta.url)("jsdom") as { JSDOM: JSDOMConstructor };
 const project = (globalThis as typeof globalThis & { ListaProject: ListaProject }).ListaProject;
 
-describe("Lista resolution board", () => {
-  it("provides concrete resolution requirements for every non-approved task", () => {
-    const items = project.flattenItems(project.projectData.stages);
-    const unresolved = items.filter((item) => item.status !== "aprobada");
+/**
+ * "What is missing to resolve" lists the rows that still owe work: approved rows are done and
+ * cancelled rows are decisions already taken, so neither belongs here.
+ */
+function unresolved(): ListaItem[] {
+  return project
+    .flattenItems(project.projectData.stages)
+    .filter((item) => item.status !== "aprobada" && item.status !== "cancelada");
+}
 
-    expect(unresolved).toHaveLength(15);
-    for (const item of unresolved) {
+describe("Lista resolution board", () => {
+  it("provides concrete resolution requirements for every unresolved task", () => {
+    const items = unresolved();
+
+    expect(items.map((item) => item.id).sort()).toEqual(["T058", "T059", "T099", "T106", "T108"]);
+    for (const item of items) {
       expect(project.getResolutionRequirements(item)).toEqual(
         expect.arrayContaining([expect.any(String)]),
       );
     }
   });
 
-  it("renders one detailed resolution entry per non-approved task", () => {
+  it("renders one detailed resolution entry per unresolved task", () => {
     const dom = new JSDOM(
       readFileSync(new URL("../../Lista/Lista.html", import.meta.url), "utf8"),
       {
@@ -50,9 +59,13 @@ describe("Lista resolution board", () => {
 
     try {
       expect(project.renderProject(dom.window.document)).toBe(true);
-      expect(dom.window.document.querySelectorAll("[data-resolution-item]")).toHaveLength(15);
+      const entries = dom.window.document.querySelectorAll("[data-resolution-item]");
+      expect(entries).toHaveLength(unresolved().length);
+      expect([...entries].map((entry) => entry.getAttribute("data-resolution-item"))).not.toContain(
+        "T017",
+      );
       expect(dom.window.document.querySelector("#resolution-board")?.textContent).toContain(
-        "Qu\u00e9 falta para resolver",
+        "Qué falta para resolver",
       );
     } finally {
       runtime.window = previousWindow;

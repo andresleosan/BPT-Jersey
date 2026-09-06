@@ -32,16 +32,6 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 };
 
 const RESOLUTION_REQUIREMENTS = {
-  T118: [
-    "Probar en el Emulator que un coach real aterriza en /coach y un owner en /admin tras entrar por /staff/login.",
-    "Comunicar la URL /staff/login a office y coaches: /login?role=administrator ya no abre el acceso de staff.",
-    "Aprobar la fila entendiendo que esconder la entrada no es un control de seguridad; claims, callables y Rules lo siguen siendo.",
-  ],
-  T119: [
-    "Confirmar que Class waitlists, CRM, Retention y Lesson plans quedan fuera del piloto (rutas y callables intactos, solo fuera del nav).",
-    "Decidir si se retiran tambien el callable listRegyfitAccessRecords y su coleccion en produccion; el panel web ya no existe.",
-    "Aprobar la fila con la compuerta verde registrada en tasks.md.",
-  ],
   T010: [
     "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
     "Completar onboarding, t\u00e9rminos, tarifas, monedas, disponibilidad regional y revisi\u00f3n legal.",
@@ -886,20 +876,20 @@ const membershipItems = [
   task(
     "T035",
     "Instrucciones de pago manual y transferencia (sin pasarela)",
-    "revision",
+    "aprobada",
     "Usar flujos de pago alojados sin almacenar datos de tarjeta sin procesar.",
     "T034",
-    "Re-scope 2026-09-06: sin pasarela, la fila pasa a ser el pago manual completo. Office guarda una vez las cuentas de la academia (nombre, sort code normalizado, numero de cuenta, banco opcional, referencia a citar y si se acepta efectivo) en un documento auditado y cada miembro con saldo ve How to pay junto a sus facturas. Sin tarjetas ni credenciales. Dominio 8, store 5, callable 3, cliente 4, panel de office 4 y pagina del miembro 4. Golden path 19/19 y gate verde. El pago alojado está fuera del piloto manual.",
+    "Re-scope 2026-09-06: sin pasarela, la fila pasa a ser el pago manual completo. Office guarda una vez las cuentas de la academia (nombre, sort code normalizado, numero de cuenta, banco opcional, referencia a citar y si se acepta efectivo) en un documento auditado y cada miembro con saldo ve How to pay junto a sus facturas. Sin tarjetas ni credenciales. Dominio 8, store 5, callable 3, cliente 4, panel de office 4 y pagina del miembro 4. Golden path 19/19 y gate verde. El pago alojado está fuera del piloto manual. Aprobada por el operador el 2026-09-06.",
     ["tasks.md", "BRIEF.md"],
     "roadmap",
   ),
   task(
     "T036",
     "Implementar webhooks de pago post-piloto firmados e idempotentes",
-    "pendiente",
+    "cancelada",
     "Prevenir efectos financieros duplicados ante reintentos y eventos fuera de orden.",
     "T019,T035",
-    "Diferida 2026-09-06: sin pasarela no hay webhooks. No bloquea nada del piloto. Los webhooks están fuera del piloto manual.",
+    "Diferida 2026-09-06: sin pasarela no hay webhooks. No bloquea nada del piloto. Los webhooks están fuera del piloto manual. Cancelada por el operador el 2026-09-06: sin pasarela no existe evento que firmar, reintentar ni conciliar. Se conserva la fila como historial y el contador del piloto ya no la cuenta.",
     ["tasks.md", "STACK.md"],
     "roadmap",
   ),
@@ -1194,10 +1184,10 @@ const roadmapV2Items = [
   task(
     "T061",
     "Reintentos, períodos de gracia, prorrateo, promociones y flujos de pausa/cancelación",
-    "pendiente",
+    "cancelada",
     "Automatizar operaciones más profundas del ciclo de facturación.",
     "T010,T034,T035",
-    "Diferida 2026-09-06: sin pasarela no aplican reintentos ni prorrateo automatico; pausas y cancelaciones siguen manuales. No bloquea nada del piloto. Plan preliminar en docs/roadmap/v2-v3-advance-plan.md. Antes de habilitar proveedor, el primer gate debe rechazar replays con la misma clave de idempotencia y payload divergente; el adaptador base aun no esta conectado al runtime. Pendiente de slice, contrato, criterios y checkpoint humano.",
+    "Diferida 2026-09-06: sin pasarela no aplican reintentos ni prorrateo automatico; pausas y cancelaciones siguen manuales. No bloquea nada del piloto. Plan preliminar en docs/roadmap/v2-v3-advance-plan.md. Antes de habilitar proveedor, el primer gate debe rechazar replays con la misma clave de idempotencia y payload divergente; el adaptador base aun no esta conectado al runtime. Pendiente de slice, contrato, criterios y checkpoint humano. Cancelada por el operador el 2026-09-06: reintentos, prorrateo y promociones presuponen la pasarela que el operador descarto; pausa y cancelacion siguen siendo manuales en office. Se conserva la fila como historial y el contador del piloto ya no la cuenta.",
     ["tasks.md", "BRIEF.md"],
     "roadmap",
   ),
@@ -1335,40 +1325,40 @@ const roadmapV3Items = [
   task(
     "T068",
     "Aplicaciones nativas para iOS y Android",
-    "pendiente",
+    "cancelada",
     "Considerar clientes nativos después de validar el producto web.",
     "-",
-    "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP.",
+    "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP. Cancelada por el operador el 2026-09-06: las apps nativas quedan fuera del MVP y no hay evidencia de necesidad antes de validar el producto web. Se conserva la fila como historial y el contador del piloto ya no la cuenta.",
     ["tasks.md", "BRIEF.md"],
     "roadmap",
   ),
   task(
     "T069",
     "Comunidad moderada",
-    "pendiente",
+    "cancelada",
     "Añadir funciones comunitarias controladas con protección.",
     "-",
-    "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP.",
+    "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP. Cancelada por el operador el 2026-09-06: la comunidad moderada queda fuera del MVP y exige politica de moderacion, safeguarding y retencion antes de cualquier corte. Se conserva la fila como historial y el contador del piloto ya no la cuenta.",
     ["tasks.md", "BRIEF.md"],
     "roadmap",
   ),
   task(
     "T070",
     "Referidos, clases privadas, competiciones y tienda",
-    "pendiente",
+    "cancelada",
     "Ampliar crecimiento y comercio después de los seminarios operativos de T026.",
     "-",
-    "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP.",
+    "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP. Cancelada por el operador el 2026-09-06: referidos, privadas y competiciones quedan fuera del MVP; la tienda del club ya existe y esta desplegada en T105. Se conserva la fila como historial y el contador del piloto ya no la cuenta.",
     ["tasks.md", "BRIEF.md"],
     "roadmap",
   ),
   task(
     "T071",
     "Analítica, IA asistida, multiacademia, marca blanca y SaaS",
-    "pendiente",
+    "cancelada",
     "Considerar funciones de escala solo cuando el producto central sea estable.",
     "-",
-    "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP.",
+    "Plan preliminar de avance en docs/roadmap/v2-v3-advance-plan.md; pendiente de slice, contrato, criterios de aceptacion y checkpoint humano; no implica aprobacion del MVP. Cancelada por el operador el 2026-09-06: analitica predictiva, IA, multiacademia y SaaS quedan fuera del MVP; la plataforma es de una sola academia por diseno. Se conserva la fila como historial y el contador del piloto ya no la cuenta.",
     ["tasks.md", "BRIEF.md", "STACK.md"],
     "roadmap",
   ),
@@ -2004,20 +1994,20 @@ const recoveryItems = [
   task(
     "T118",
     "Separar el acceso de miembros (/login) del acceso de staff (/staff/login)",
-    "revision",
+    "aprobada",
     "Miembros entran desde la landing; staff entra por una URL sin enlaces y el claim decide el destino.",
     "T014,T015,T077,T102",
-    "Implementada el 2026-09-06 por instruccion del operador. /login sin selector de rol; /staff/login con robots noindex y X-Robots-Tag, sin enlaces publicos. Tras iniciar sesion, los claims deciden: office -> /admin, coaches -> /coach; una cuenta sin claim de staff se cierra en el acto. Corrige el callejon sin salida de los coaches (returnPath/returnTo y /coach no permitido). Gates de /admin y /coach enlazan a /staff/login?returnTo=. Unitarias web 409, node 1631, E2E estatico 43 + 1 omitida, lint, typecheck y prettier en verde.",
+    "Implementada el 2026-09-06 por instruccion del operador. /login sin selector de rol; /staff/login con robots noindex y X-Robots-Tag, sin enlaces publicos. Tras iniciar sesion, los claims deciden: office -> /admin, coaches -> /coach; una cuenta sin claim de staff se cierra en el acto. Corrige el callejon sin salida de los coaches (returnPath/returnTo y /coach no permitido). Gates de /admin y /coach enlazan a /staff/login?returnTo=. Unitarias web 409, node 1631, E2E estatico 43 + 1 omitida, lint, typecheck y prettier en verde. Aprobada por el operador el 2026-09-06.",
     ["tasks.md", "STACK.md", "apps/web/src/lib/login-flow.ts", "apps/web/src/app/staff/login/page.tsx"],
     "mvp",
   ),
   task(
     "T119",
     "Reducir el panel administrativo al alcance del piloto y retirar codigo muerto",
-    "revision",
+    "aprobada",
     "Nav de 19 a 11 entradas en cinco grupos; fuera lo duplicado, lo v2 sin productor y lo que el BRIEF excluye.",
     "T078,T081,T091,T102",
-    "Implementada el 2026-09-06 tras una auditoria de 16 grupos de paneles con verificacion adversarial. Borrados Groups y Activities (duplicados que escribian coach-1 y horas UTC), la vista web de Regyfit Access Records, la ruta duplicada /admin/overview, preview-data, el adaptador offline de T065, el componente y helpers MFA de T017 y peer-comparison.tsx con alumnos ficticios. Fuera del nav pero intactos: Class waitlists, CRM, Retention y Lesson plans. Families desde Members, dashboard financiero desde Billing. Coaches: /coach como inicio y en /admin solo Attendance (+ Classes para headCoach). Mismas compuertas que T118.",
+    "Implementada el 2026-09-06 tras una auditoria de 16 grupos de paneles con verificacion adversarial. Borrados Groups y Activities (duplicados que escribian coach-1 y horas UTC), la vista web de Regyfit Access Records, la ruta duplicada /admin/overview, preview-data, el adaptador offline de T065, el componente y helpers MFA de T017 y peer-comparison.tsx con alumnos ficticios. Fuera del nav pero intactos: Class waitlists, CRM, Retention y Lesson plans. Families desde Members, dashboard financiero desde Billing. Coaches: /coach como inicio y en /admin solo Attendance (+ Classes para headCoach). Mismas compuertas que T118. Aprobada por el operador el 2026-09-06.",
     ["tasks.md", "apps/web/src/app/admin/admin-shell.tsx"],
     "mvp",
   ),
@@ -2117,6 +2107,10 @@ const projectData = {
     T035: "2026-09-06",
     T118: "2026-09-06",
     T119: "2026-09-06",
+    T068: "2026-09-06",
+    T069: "2026-09-06",
+    T070: "2026-09-06",
+    T071: "2026-09-06",
   },
   cutoffDate: "2026-09-05",
   sourceLedger: "tasks.md",
@@ -2274,9 +2268,19 @@ function countStatuses(items) {
   return counts;
 }
 
+/**
+ * A cancelled row is a decision already taken, not pending work: it leaves both sides of the ratio
+ * so the bar answers "how much of what we still intend to build is done". `countStatuses` keeps
+ * counting every status, so the breakdown still shows how many rows were cancelled.
+ */
+function countedItems(items) {
+  return items.filter((item) => item.status !== "cancelada");
+}
+
 function getStageProgress(currentStage) {
-  const total = currentStage.items.length;
-  const approved = currentStage.items.filter((item) => item.status === "aprobada").length;
+  const counted = countedItems(currentStage.items);
+  const total = counted.length;
+  const approved = counted.filter((item) => item.status === "aprobada").length;
   return {
     approved,
     approvedCount: approved,
@@ -2400,11 +2404,12 @@ function getVisibleStages(stages, filters = {}) {
 }
 
 function getGlobalProgress(items) {
-  const approved = items.filter((item) => item.status === "aprobada").length;
+  const counted = countedItems(items);
+  const approved = counted.filter((item) => item.status === "aprobada").length;
   return {
     approved,
-    total: items.length,
-    percentage: items.length === 0 ? 0 : Math.round((approved / items.length) * 100),
+    total: counted.length,
+    percentage: counted.length === 0 ? 0 : Math.round((approved / counted.length) * 100),
   };
 }
 
@@ -2515,8 +2520,9 @@ function getResolutionRequirements(item) {
 }
 
 function renderResolutionBoard(resolutionList) {
+  // A cancelled row has nothing left to resolve, so it does not belong on this board either.
   const unresolvedItems = flattenItems(projectData.stages).filter(
-    (item) => item.status !== "aprobada",
+    (item) => item.status !== "aprobada" && item.status !== "cancelada",
   );
   resolutionList.replaceChildren();
 
