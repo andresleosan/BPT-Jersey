@@ -4972,3 +4972,16 @@ borrar esos artefactos o el inicializador canonico falla con "Invalid private em
 artifact". El runner exige ademas `BPT_SYNTHETIC_PILOT=true` y `GCLOUD_PROJECT=demo-bpt-jersey`;
 `qa/run-e2e.mjs` reenvia a Playwright solo las variables de una lista blanca; y un comando de shell
 de mas de ~180 lineas se trunca en esta consola, asi que los scripts largos van a fichero.
+
+### Cierre de sesion: grafo de conocimiento refrescado - 2026-09-06
+
+`graphify . --update --code-only` seguido de `graphify cluster-only . --code-only`, sin coste de LLM
+(solo AST). Cambio de alcance respecto al refresco anterior: aquel cubria solo `apps/`; este cubre
+el repositorio entero (`apps`, `packages`, `qa`, `scripts`, `Lista`), asi que el salto de 5017 a
+8061 nodos y de 10808 a 18759 aristas es cobertura nueva, no crecimiento del codigo. 359
+comunidades; las 189 etiquetas curadas del alcance anterior quedaron respaldadas en
+`graphify-out/2026-09-06/` y las comunidades nuevas llevan el nombre de su hub. Construido desde
+`a805cbb`; contiene los modulos del dia (`createDisclaimerService`, `PaymentInstructionsPanel`, `allowedByRoleOrGrant`, `evaluateDelegatedPermission`, `deriveOutstandingDisclaimers`, `savePaymentInstructions`, `openingAgeBand`, `buildPreClassView`). `graphify-out/` sigue fuera de git.
+
+Para retomar manana: las cuatro casillas de T011, aprobar o devolver T035, y pegar las coordenadas
+de Town y West en `/admin/classes` tras verlas en un mapa.
