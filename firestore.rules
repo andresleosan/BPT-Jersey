@@ -86,6 +86,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // T116: a delegated permission is an administrative record. No client reads it - not even the
+    // coach who holds one - because knowing who may do what is itself administrative information.
+    match /academies/{academyId}/staffPermissionGrants/{grantId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/adminRoleLocks/{uid} {
       allow read, write: if false;
     }

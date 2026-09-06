@@ -225,6 +225,8 @@ describe("domain contracts", () => {
       "session.quorum.cancelled",
       "penalty.no_show.proposed",
       "penalty.no_show.resolved",
+      "staff.permission.granted",
+      "staff.permission.revoked",
       "student.checked_out",
       "location.geofence.saved",
       "notification.preference.updated",

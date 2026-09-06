@@ -8,6 +8,12 @@ import {
 } from "@bpt-jersey/domain/penalties";
 
 import { requireUserActor } from "../auth/user-authorization.js";
+import { allowedByRoleOrGrant } from "../staff/permission-grant-callables.js";
+import {
+  createPermissionGrantService,
+  type GrantFirestore,
+  type PermissionGrantService,
+} from "../staff/permission-grant-service.js";
 import {
   NoShowPenaltyError,
   createNoShowPenaltyService,
@@ -61,6 +67,29 @@ function requireRole(
   return actor;
 }
 
+/**
+ * T116: the office queue is the first consumer of a delegated permission. Office still reaches it by
+ * role; a coach reaches it only while holding a live `reviewPenalties` grant. The role check runs
+ * first and unchanged, so nothing office could do before depends on the grant store being readable.
+ */
+async function requireOfficeOrGrant(
+  request: CallableRequest<unknown>,
+  permissions: PermissionGrantService,
+  message: string,
+) {
+  const actor = requireUserActor(request);
+  const allowed = await allowedByRoleOrGrant({
+    service: permissions,
+    academyId: actor.academyId,
+    userId: actor.userId,
+    role: actor.role,
+    permittedRoles: officeRoles,
+    permission: "reviewPenalties",
+  });
+  if (!allowed) throw new HttpsError("permission-denied", message);
+  return actor;
+}
+
 export function createProposeNoShowPenaltiesHandler(options: { service: NoShowPenaltyService }) {
   return async (request: CallableRequest<unknown>) => {
     const actor = requireRole(
@@ -92,9 +121,16 @@ export function createProposeNoShowPenaltiesHandler(options: { service: NoShowPe
   };
 }
 
-export function createListNoShowPenaltiesHandler(options: { service: NoShowPenaltyService }) {
+export function createListNoShowPenaltiesHandler(options: {
+  service: NoShowPenaltyService;
+  permissions: PermissionGrantService;
+}) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireRole(request, officeRoles, "Office access required to review penalties");
+    const actor = await requireOfficeOrGrant(
+      request,
+      options.permissions,
+      "Office access required to review penalties",
+    );
     const data = request.data as { status?: unknown } | null;
     let status: NoShowPenaltyStatus | undefined;
     if (data !== null && data !== undefined) {
@@ -124,9 +160,16 @@ export function createListNoShowPenaltiesHandler(options: { service: NoShowPenal
   };
 }
 
-export function createResolveNoShowPenaltyHandler(options: { service: NoShowPenaltyService }) {
+export function createResolveNoShowPenaltyHandler(options: {
+  service: NoShowPenaltyService;
+  permissions: PermissionGrantService;
+}) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = requireRole(request, officeRoles, "Office access required to resolve penalties");
+    const actor = await requireOfficeOrGrant(
+      request,
+      options.permissions,
+      "Office access required to resolve penalties",
+    );
     const parsed = parseResolveNoShowPenaltyInput(request.data);
     if (!parsed.ok) {
       throw new HttpsError("invalid-argument", parsed.error);
@@ -153,14 +196,26 @@ function getService(): NoShowPenaltyService {
   return service;
 }
 
+let permissions: PermissionGrantService | undefined;
+function getPermissions(): PermissionGrantService {
+  permissions ??= createPermissionGrantService({
+    firestore: getFirestore() as unknown as GrantFirestore,
+  });
+  return permissions;
+}
+
 export const proposeNoShowPenalties = onCall(noShowPenaltyCallableOptions, async (request) =>
   createProposeNoShowPenaltiesHandler({ service: getService() })(request),
 );
 
 export const listNoShowPenalties = onCall(noShowPenaltyCallableOptions, async (request) =>
-  createListNoShowPenaltiesHandler({ service: getService() })(request),
+  createListNoShowPenaltiesHandler({ service: getService(), permissions: getPermissions() })(
+    request,
+  ),
 );
 
 export const resolveNoShowPenalty = onCall(noShowPenaltyCallableOptions, async (request) =>
-  createResolveNoShowPenaltyHandler({ service: getService() })(request),
+  createResolveNoShowPenaltyHandler({ service: getService(), permissions: getPermissions() })(
+    request,
+  ),
 );

@@ -2,7 +2,8 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 // T098 golden path: the authenticated callable-level suites (T094 onboarding, T095 manual
-// billing, T096 class operations with T109/T110, T111 no-show penalty, T112 coach birthdays,
+// billing, T096 class operations with T109/T110, T111 no-show penalty, T116 delegated staff
+// permissions, T112 coach birthdays,
 // T113 level age bands and T097 progress) chained in ONE emulator run over ONE synthetic academy:
 // family/adult -> waiver ->
 // membership -> class -> booking -> attendance -> no-show penalty -> invoice and payment ->
@@ -139,7 +140,7 @@ run([
 ]);
 run(["apps/functions/scripts/seed-levels.mjs", "--target=emulator", `--academy-id=${academyId}`]);
 
-// The seven suites in order, one worker, no retries, no static web server.
+// The eight suites in order, one worker, no retries, no static web server.
 run(
   [
     "qa/run-e2e.mjs",
@@ -147,6 +148,7 @@ run(
     "tests/manual-billing-auth-emulator.spec.ts",
     "tests/schedule-auth-emulator.spec.ts",
     "tests/no-show-penalty-auth-emulator.spec.ts",
+    "tests/staff-permission-grant-auth-emulator.spec.ts",
     "tests/coach-birthday-auth-emulator.spec.ts",
     "tests/level-age-band-auth-emulator.spec.ts",
     "tests/progress-auth-emulator.spec.ts",
@@ -183,6 +185,12 @@ run(
     T111_HEAD_COACH_EMAIL: headCoachEmail,
     T111_ADULT_EMAIL: adults.penalty,
     T111_E2E_PASSWORD: password,
+    T116_PERMISSION_GRANT_EMULATOR_E2E: "true",
+    T116_E2E_ACADEMY_ID: academyId,
+    T116_FUNCTIONS_EMULATOR_PORT: functionsPort,
+    T116_OWNER_EMAIL: ownerEmail,
+    T116_HEAD_COACH_EMAIL: headCoachEmail,
+    T116_E2E_PASSWORD: password,
     T112_BIRTHDAY_EMULATOR_E2E: "true",
     T112_E2E_ACADEMY_ID: academyId,
     T112_FUNCTIONS_EMULATOR_PORT: functionsPort,

@@ -34,7 +34,11 @@ const consent = {
 } as const;
 
 describe("waiver client", () => {
-  beforeEach(() => callable.mockReset());
+  beforeEach(() => {
+    // Block body on purpose: an arrow returning the mock makes Vitest treat it as the hook's
+    // teardown and call it after the test, outside any try/catch.
+    callable.mockReset();
+  });
 
   it("loads only the strict registration projection", async () => {
     callable.mockResolvedValue({ data: { currentVersion: version, subjects: [{ studentId: "student-1", displayName: "Synthetic Minor", participantType: "minor", consent }] } });

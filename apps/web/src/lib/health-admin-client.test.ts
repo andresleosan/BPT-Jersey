@@ -55,7 +55,11 @@ const profile = {
 } as const;
 
 describe("health admin client", () => {
-  beforeEach(() => callableState.call.mockReset());
+  beforeEach(() => {
+    // Block body on purpose: an arrow returning the mock makes Vitest treat it as the hook's
+    // teardown and call it after the test, outside any try/catch.
+    callableState.call.mockReset();
+  });
 
   it("parses the admin projection including a pending request", async () => {
     callableState.call.mockResolvedValue({ data: profile });

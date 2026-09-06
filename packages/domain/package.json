@@ -185,6 +185,11 @@
       "import": "./src/schedule/pre-class-contracts.ts",
       "default": "./lib/schedule/pre-class-contracts.js"
     },
+    "./staff/permission-grants": {
+      "types": "./src/staff/permission-grant-contracts.ts",
+      "import": "./src/staff/permission-grant-contracts.ts",
+      "default": "./lib/staff/permission-grant-contracts.js"
+    },
     "./birthdays": {
       "types": "./src/birthdays/upcoming-birthday-contracts.ts",
       "import": "./src/birthdays/upcoming-birthday-contracts.ts",

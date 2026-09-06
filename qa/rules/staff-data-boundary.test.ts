@@ -15,6 +15,9 @@ const staffCollections = Object.freeze([
   "staff",
   "staffAvailability",
   "staffAssignments",
+  // T116: a coach who holds a delegated permission still cannot read the grant collection. The
+  // grant is honoured by a callable, never by widening what the client may reach directly.
+  "staffPermissionGrants",
   "adminRoleLocks",
 ] as const);
 const actorCases = Object.freeze([

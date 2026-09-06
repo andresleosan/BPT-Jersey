@@ -50,6 +50,7 @@
     "src/exports/aggregate-report-export.ts",
     "src/shop/shop-contracts.ts",
     "src/penalties/no-show-penalty-contracts.ts",
-    "src/birthdays/upcoming-birthday-contracts.ts"
+    "src/birthdays/upcoming-birthday-contracts.ts",
+    "src/staff/permission-grant-contracts.ts"
   ]
 }

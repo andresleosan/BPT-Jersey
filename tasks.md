@@ -676,7 +676,7 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T113 | Aplicar las reglas de stripes por franja de edad del catalogo                                                           | T083,T097                                              | aprobada    | Aprobada por el operador el 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: decidir si la franja debe bloquear tambien `openStudentLevel` y `approvePromotion`, hoy deliberadamente fuera del alcance de la fila. Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. Hallazgo del reconocimiento: las 171 definiciones llevan `minAge`/`maxAge` y ninguna se leia. Implementada el 2026-09-05: decision pura `evaluateAgeBand` con ambos extremos inclusivos y fallo cerrado sin fecha de nacimiento, criterio `age` propio en el resumen de progreso, `overallEligible` que lo exige y la frase de la franja en las razones del candidato solo cuando es lo que frena. La regla solo filtra candidatos y propuestas: `openStudentLevel` y `approvePromotion` siguen siendo decision del head coach, y nada se otorga automaticamente. Golden path 15/15 en Emulator y gate completo verde. Evidencia al final del ledger. T113 paso a `revision` ese mismo dia y quedo aprobada el 2026-09-05.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | T114 | Publicar la interfaz preclase del coach con sugerencias de asistentes                                                   | T096,T066                                              | aprobada    | Aprobada por el operador el 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: revisar las tres constantes elegidas -56 dias de ventana, dos asistencias de habito y media hora de tolerancia- cuando existan datos reales (T099). Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. Implementada el 2026-09-05: dominio nuevo `@bpt-jersey/domain/schedule/pre-class` con la definicion de clase comparable y de habito, callable `getPreClassView` solo staff, cliente web y tarjeta "Before class" en el panel del coach. Cada sugerencia lleva su evidencia (cuantas de cuantas y la ultima); no se inventa ninguna racha, no se escribe nada y el coach sigue registrando cada check-in. Golden path 15/15 en Emulator y gate completo verde. Evidencia al final del ledger. T114 paso a `revision` ese mismo dia y quedo aprobada el 2026-09-05.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | T115 | Limitar a 25 caracteres la etiqueta de condiciones de salud                                                             | T035,T093                                              | aprobada    | Aprobada por el operador el 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: confirmar que ninguna operacion real dependia de que el coach viera la nota clinica completa. Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. **Premisa corregida el 2026-09-05**: el limite de 25 caracteres, la separacion entre `staffReferenceLabel` y `conditionSummary` y el `maxLength` de los dos formularios de administracion ya existian y estaban probados. Lo que faltaba era la consecuencia: la proyeccion de staff seguia llevando la nota clinica completa. Cerrada el 2026-09-05: la proyeccion de staff lleva la etiqueta corta y nunca la nota, el tutor conserva su nota y nunca la etiqueta, y administracion mantiene ambas. Gate completo verde y golden path 15/15. Evidencia al final del ledger. T115 paso a `revision` ese mismo dia y quedo aprobada el 2026-09-05.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| T116 | Delegar permisos administrativos a coaches por concesion auditada                                                       | T019,T093                                              | pendiente   | Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. El DOCX permite que administracion conceda a un coach permisos adicionales. Hoy el rol es fijo en el claim y no existe ninguna concesion revocable ni auditada; cualquier diseno debe conservar el fail-closed por rol y no ampliar el claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| T116 | Delegar permisos administrativos a coaches por concesion auditada                                                       | T019,T093                                              | revision    | Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. El DOCX permite que administracion conceda a un coach permisos adicionales. Hoy el rol es fijo en el claim y no existe ninguna concesion revocable ni auditada; cualquier diseno debe conservar el fail-closed por rol y no ampliar el claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | T117 | Gestionar disclaimers y su aceptacion por participante                                                                  | T090,T106                                              | pendiente   | Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. Ademas del waiver principal, el DOCX contempla disclaimers gestionables con aceptacion registrada. Hoy solo existe el waiver versionado de T090; el texto legal sigue bloqueado por T011.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## Plan de implementaciÃ³n del MVP aprobado
@@ -4677,74 +4677,118 @@ Compuertas de la propia aprobacion: `pnpm verify:mvp` completo en verde (exit 0)
 91/91, carga 240/240 con p95 40 ms y smoke 5 pasados y 1 omitido. No se toco codigo de produccion:
 el diff son `tasks.md`, `Lista/Lista.js` y los dos tests del tablero.
 
-### Pendiente al retomar (2026-09-05, tras la aprobacion de las once filas)
+### Evidencia T116 - permisos administrativos delegados a un coach - 2026-09-05
 
-Sustituye a los checklists anteriores del dia. Arbol limpio tras `50cc3bc` (T109), `7821ecb` (T110),
-`d7f9b56` y `5e8d13e` (T111), `2961e8e` (T112), `4a3b997` (T113), `5158bba` (T114), `8523e3a` (T115)
-y el commit de esta aprobacion. Ya no queda ninguna fila esperando revision del operador.
+Octava laguna del DOCX y la ultima sin bloqueo externo. El DOCX permite que administracion conceda
+permisos adicionales a un coach; hoy el rol vive en el claim y no habia forma de dar nada sin
+cambiarlo.
+
+- **Por que no se toca el claim.** Un claim se acuna al iniciar sesion y sobrevive hasta que el token
+  se renueva, asi que ampliarlo da alcance administrativo que ya no dice quien lo dio, por que ni
+  hasta cuando, y quitarlo no surte efecto hasta la siguiente renovacion. La concesion es un
+  documento: `academies/{academyId}/staffPermissionGrants/{grantId}`.
+- Modulo de dominio nuevo `packages/domain/src/staff/permission-grant-contracts.ts`, publicado como
+  subruta `@bpt-jersey/domain/staff/permission-grants` (registrada en los exports del paquete, en
+  `tsconfig.runtime.json` y en el mapa de `deploy-runtime.ts`).
+- **Lista cerrada de lo delegable**: `reviewPenalties` y `manageClasses`, y nada mas. Lo ausente
+  importa mas que lo presente: dinero, salud, safeguarding, exports de miembros y la propia
+  administracion de personal no son delegables. La ultima es la que sostiene el resto: un coach que
+  pudiera conceder permisos podria concederse cualquiera, y la lista cerrada dejaria de significar
+  nada. Hay una prueba que lo afirma nombre por nombre.
+- Toda concesion **caduca**, como mucho a 180 dias. Una delegacion sin fin no se distingue de un
+  cambio de rol, y el sentido de T116 es que no lo sea. La caducidad se deriva al leer, no se
+  almacena, asi que una concesion vencida deja de funcionar sin que nada tenga que barrerla.
+- Reglas que el dominio decide una sola vez: solo office concede, nunca a si mismo, solo a un coach o
+  head coach activo, el rol del sujeto se lee de su ficha de personal y nunca de lo que envie quien
+  llama, motivo obligatorio de 8 a 200 caracteres, y caducidad futura y acotada.
+- **La autorizacion queda como "lo permite el rol, o lo permite una concesion viva"**. El rol decide
+  primero y sin cambios: un actor que ya estaba permitido no llega a tocar el almacen de concesiones,
+  de modo que una caida de ese almacen nunca puede dejar a office fuera de su propia cola. Hay una
+  prueba que lo afirma con `not.toHaveBeenCalled()`.
+- Primer consumidor real: la cola de office de T111 (`listNoShowPenalties` y `resolveNoShowPenalty`).
+  No es un gancho de adorno: el E2E concede, entra, revoca y vuelve a quedar fuera.
+- Callables `grantStaffPermission`, `revokeStaffPermission` y `listStaffPermissionGrants`, solo
+  office, con App Check y payload cerrado. El titular de una concesion **no** puede leer la lista de
+  delegaciones ni revocar la suya: saber quien puede que cosa es informacion administrativa.
+- Rules: `staffPermissionGrants` queda deny-by-default como el resto de colecciones de personal, y se
+  suma a la matriz de `qa/rules/staff-data-boundary.test.ts`, que la ejercita contra anonimo,
+  cliente, coach, owner y administrator en dos academias. Un coach con concesion sigue sin poder leer
+  la coleccion directamente.
+- Auditoria: `staff.permission.granted` y `staff.permission.revoked`, atomicas con la escritura y con
+  identificador determinista, de modo que un replay no acuna una segunda concesion ni un segundo
+  evento.
+- Interfaz: seccion "Delegated permissions" en `/admin/staff`, con el formulario (usuario, permiso de
+  la lista cerrada, motivo y fecha de caducidad) y la lista con su estado vigente y el boton de
+  revocar solo cuando queda algo que revocar. El panel lo dice con todas sus letras: que una
+  concesion nunca cambia el rol de nadie.
+- Pruebas: dominio 22, servicio 12, callables de concesion 10, callables de penalizacion 13 (4 nuevas
+  para el acceso delegado), cliente web 6 y panel de administracion 15 (6 nuevas).
+- E2E autenticado en Emulator dentro del golden path (17/17 en 1.8 min), suite nueva
+  `qa/tests/staff-permission-grant-auth-emulator.spec.ts`. Lo que demuestra: el head coach es
+  rechazado, office concede, **la misma sesion con el mismo token** entra, el spec decodifica el
+  token y afirma que el claim sigue diciendo `headCoach`, el titular no puede ampliar ni ver ni
+  revocar su concesion, office revoca y la puerta se cierra en la llamada siguiente sin que nada
+  renueve un token. Mas los negativos: permission fuera de la lista, concesion a si mismo, caducidad
+  pasada y a un ano, payload malformado, y 401 sin App Check y sin sesion. Rules 403 en lectura REST
+  directa para owner y para el coach.
+- Hallazgo de entorno registrado: `qa/run-e2e.mjs` reenvia al proceso de Playwright **solo** las
+  variables de una lista blanca. La suite nueva se salto en silencio (`-` en el reporte, no un fallo)
+  hasta anadir las seis `T116_*`. Cualquier suite futura tiene que tocar esa lista ademas del script
+  del golden path; no basta con encadenar el spec.
+- Compuertas: `pnpm verify:mvp` completo en verde (exit 0): `format:check`, `lint` sin avisos,
+  `typecheck` 6/6, `build`, `test:unit` 257 archivos / 1974 pruebas, `test:rules` 13 archivos / 91
+  pruebas, `build:e2e-synthetic`, `test:load:synthetic` 240/240 con p95 30 ms y `test:e2e:smoke` 5
+  pasados y 1 omitido.
+
+Alcance que no se hace, y por que: `manageClasses` esta en la lista cerrada pero todavia ningun
+callable de horario la consulta. Se declara porque la lista es el artefacto de diseno y porque el
+E2E la usa para probar que una concesion **no** sirve para otra permission; conectarla a los
+callables de clases es un cambio pequeno y separado, con su propia prueba de que un coach sin
+concesion sigue siendo rechazado.
+
+### Trampa de Vitest encontrada y desactivada - 2026-09-05
+
+Al escribir las pruebas del cliente aparecio un fallo que no era el que parecia: la prueba afirmaba
+correctamente y aun asi salia en rojo con el error crudo del mock. La causa es que
+`beforeEach(() => callable.mockReset())` **devuelve el mock**, y Vitest trata una funcion devuelta
+por un hook como su teardown, asi que llama al mock despues de la prueba, fuera de cualquier
+try/catch, y reporta lo que lance como fallo del test.
+
+Se corrige con cuerpo de bloque. El mismo patron estaba en otros dos archivos
+(`health-admin-client.test.ts` y `waiver-client.test.ts`): pasan hoy porque sus mocks no lanzan, pero
+quedan desactivados con la explicacion, porque la primera prueba que anada un mock que lance ahi se
+encontraria con el mismo desconcierto.
+
+### Pendiente al retomar (2026-09-05, tras cerrar T116)
+
+Sustituye a los checklists anteriores del dia.
 
 Trabajo tecnico que el asistente puede continuar sin decision humana:
 
-- [ ] T116: permisos administrativos delegados a un coach por concesion auditada y revocable, sin
-      ampliar el claim y conservando el fail-closed por rol. Es la unica de las lagunas del DOCX que
-      queda sin bloqueo externo, y es la siguiente en el orden del ledger.
-- [ ] T117 esta parcialmente bloqueada: el mecanismo de disclaimers versionados y su aceptacion por
-      participante se puede construir sobre T090, pero el texto legal depende de T011, que sigue sin
-      decision. Se puede entregar el mecanismo con contenido sintetico y dejar el texto fuera.
+- [ ] T117, parcialmente: el mecanismo de disclaimers versionados y su aceptacion por participante se
+      puede construir sobre T090 con contenido sintetico. El texto legal depende de T011.
 - [ ] T097 restante: comparacion opt-in de adultos (no existe modelo de opt-in) y reinicio de la
       barra de progresion al promover (DOCX, no verificado).
+- [ ] Conectar `manageClasses` a los callables de horario, si el operador quiere esa segunda
+      delegacion viva.
 
-Decisiones del operador que siguen abiertas y no bloquean el trabajo tecnico:
+Techo de ingenieria: cerradas T116 y T117 el tablero llega a 103/118, es decir 87%. Todo lo demas
+depende de T010 o T011, o es alcance v2/v3 (T068 a T071) fuera del MVP.
 
-- [ ] Coordenadas reales de Town y West para T109.
-- [ ] Checkpoint unico de automatizacion para T110 y T111 (funcion programada).
-- [ ] Edad visible en el panel de cumpleanos (T112).
-- [ ] Extender la franja de edad a la apertura y la aprobacion de nivel (T113).
-- [ ] Confirmar o cambiar las tres constantes de la vista preclase (T114).
-- [ ] Confirmar que ninguna operacion real dependia de que el coach viera la nota clinica (T115).
-- [ ] Abrir una ficha de miembro en produccion (T104) y las dos acciones externas de T107.
-- [ ] T010 y T011 siguen bloqueando T035/T036/T061, T099, T058 y el paso 2 de T106; sin T099 no hay
-      recorrido de navegador ni datos reales. T117 depende ademas del texto legal de T011.
+Decisiones del operador que siguen abiertas:
+
+- [ ] T011: cuatro casillas que solo el operador puede llenar (razon social exacta, owner interno,
+      estado del registro JOIC y autorizacion para contratar al revisor). El borrador ya esta
+      completo con valores propuestos entrecomillados.
+- [ ] T010: proveedor de pagos, que bloquea T035, T036 y T061.
+- [ ] Aprobar o devolver T116, unica fila en `revision` junto con T011.
+- [ ] Coordenadas reales de Town y West (T109); checkpoint unico de automatizacion (T110 y T111);
+      edad visible en cumpleanos (T112); franja de edad en apertura y aprobacion (T113); las tres
+      constantes de la vista preclase (T114); la nota clinica que el coach ya no ve (T115); abrir una
+      ficha en produccion (T104) y las dos acciones externas de T107.
 
 Nota de entorno para el golden path en local: `.tmp/member-directory-baselines/` guarda las lineas
 base privadas por academia, no por secreto, asi que tras regenerar los secretos sinteticos hay que
 borrar esos artefactos o el inicializador canonico falla con "Invalid private empty baseline
-artifact". En CI no ocurre porque el job siempre arranca limpio.
-
-### Evidencia T011 - borrador completo con valores propuestos - 2026-09-05
-
-Instruccion del operador, literal: "no puedes inventarlo y dejar entre comillas y luego lo modifico,
-necesito avanzar". El paquete llevaba desde el 2026-08-21 con las casillas vacias y eso no es un
-borrador que alguien pueda revisar, es un formulario. Rellenarlo con propuestas discutibles lo
-convierte en algo editable, que era el objetivo.
-
-Lo que se rellena:
-
-- Los cuatro responsables de la seccion 1: controller `"BPT Jersey"` (falta la razon social exacta,
-  que es un dato que solo tiene el operador), owner y security owner `"Andres Santiago"`.
-- Doce plazos de retencion en la seccion 3, cada uno con una columna nueva que declara **cuanto hay
-  que desconfiar de el**. Safeguarding va marcado como el mas probable de estar mal: el valor
-  propuesto es una analogia con otros regimenes, no una fuente.
-- El mapa de region por servicio en la seccion 5, con transferencias fuera de UK/EEA propuestas en
-  `"ninguna"`.
-
-Dos hallazgos reales que aparecieron al rellenar, y que no son opinables:
-
-- **La region de Firestore no se puede cambiar una vez creada la base.** Elegirla mal es el error
-  mas caro del proyecto y hoy no esta elegida.
-- **Firebase Auth no permite seleccionar region.** No es una casilla que se pueda rellenar: es una
-  transferencia que el revisor tiene que evaluar si o si, y ninguna redaccion la hace desaparecer.
-
-Lo que no se inventa, y por que: el numero de registro JOIC queda en
-`"desconocido - verificar en el registro publico"` y el revisor independiente en `"sin designar"`.
-Inventar el primero fabrica un registro regulatorio inexistente y el segundo atribuye un encargo a
-un profesional real; ninguna de las dos cosas se arregla editandola despues.
-
-Alcance y efecto: solo documentacion. Ningun plazo esta implementado, el sistema sigue sin borrar
-nada por vencimiento y conserva historial con desactivacion y append-only. Los cierres fail-closed
-de salud, waivers y documentos privados siguen exactamente igual. T011 pasa de `bloqueada` a
-`revision`, que significa "esperando tu edicion" y no "resuelta": sigue bloqueando a T035/T036/T061,
-T099, T058, el paso 2 de T106 y el texto legal de T117 hasta que este firmada.
-
-Compuertas: `pnpm verify:mvp` completo en verde; el diff son tres documentos, `tasks.md`,
-`Lista/Lista.js` y el test del tablero.
+artifact". El runner exige ademas `BPT_SYNTHETIC_PILOT=true` y `GCLOUD_PROJECT=demo-bpt-jersey` para
+generar los secretos. En CI no ocurre porque el job siempre arranca limpio.

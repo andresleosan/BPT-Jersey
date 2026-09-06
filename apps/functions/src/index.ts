@@ -112,6 +112,11 @@ export {
   proposeNoShowPenalties,
   resolveNoShowPenalty,
 } from "./penalties/no-show-penalty-callables.js";
+export {
+  grantStaffPermission,
+  listStaffPermissionGrants,
+  revokeStaffPermission,
+} from "./staff/permission-grant-callables.js";
 export { listUpcomingBirthdays } from "./birthdays/upcoming-birthday-callables.js";
 export { getPreClassView } from "./schedule/pre-class-callables.js";
 export {

@@ -40,12 +40,12 @@ describe("Lista project progress", () => {
     expect(countedItems).toBe(items.length);
   });
 
-  it("reflects the approval of 2026-09-05", () => {
+  it("reflects the board as of 2026-09-05", () => {
     expect(counts).toEqual({
       aprobada: 101,
-      revision: 1,
+      revision: 2,
       "en-progreso": 1,
-      pendiente: 12,
+      pendiente: 11,
       bloqueada: 2,
       cancelada: 1,
     });
