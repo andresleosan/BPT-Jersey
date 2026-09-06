@@ -33,6 +33,7 @@ const navigationGroups: readonly NavigationGroup[] = [
     label: "People",
     items: [
       { label: "Members", href: "/admin/members" },
+      { label: "Enrolment requests", href: "/admin/members/requests" },
       { label: "Memberships", href: "/admin/memberships" },
       { label: "Waivers", href: "/admin/waivers" },
     ],

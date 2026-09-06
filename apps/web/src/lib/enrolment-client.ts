@@ -2,6 +2,7 @@ import { httpsCallable } from "firebase/functions";
 
 import type {
   EnrolmentRequestClientView,
+  EnrolmentRequestRow,
   EnrolmentRequestStatus,
   EnrolmentRequestSubmission,
 } from "@bpt-jersey/domain/members/enrolment-requests";
@@ -94,5 +95,75 @@ export async function withdrawEnrolmentRequest(
     return view((await callable({ enrolmentRequestId })).data, withdrawError);
   } catch {
     throw new Error(withdrawError);
+  }
+}
+
+const queueError = "Unable to load enrolment requests.";
+const reviewError = "Unable to update the request.";
+
+/**
+ * The office queue. It carries a name, a centre and a status by design: the applicant's date of
+ * birth, address and emergency contact are Confidential and are never listed here.
+ */
+function row(value: unknown, message: string): EnrolmentRequestRow {
+  if (!isRecord(value)) throw new Error(message);
+  const {
+    enrolmentRequestId,
+    applicantName,
+    applicantIsStudent,
+    minorCount,
+    trainingCenter,
+    status,
+    submittedAt,
+    reviewedAt,
+  } = value;
+  if (
+    typeof enrolmentRequestId !== "string" ||
+    typeof applicantName !== "string" ||
+    typeof applicantIsStudent !== "boolean" ||
+    typeof minorCount !== "number" ||
+    typeof trainingCenter !== "string" ||
+    typeof status !== "string" ||
+    !(enrolmentRequestStatuses as readonly string[]).includes(status) ||
+    typeof submittedAt !== "string" ||
+    (reviewedAt !== undefined && typeof reviewedAt !== "string")
+  ) {
+    throw new Error(message);
+  }
+  return Object.freeze({
+    enrolmentRequestId,
+    applicantName,
+    applicantIsStudent,
+    minorCount,
+    trainingCenter: trainingCenter as EnrolmentRequestRow["trainingCenter"],
+    status: status as EnrolmentRequestStatus,
+    submittedAt,
+    ...(reviewedAt === undefined ? {} : { reviewedAt }),
+  });
+}
+
+export async function listEnrolmentRequests(): Promise<readonly EnrolmentRequestRow[]> {
+  try {
+    const callable = httpsCallable<null, unknown>(getFirebaseFunctions(), "listEnrolmentRequests");
+    const data = (await callable(null)).data;
+    if (!Array.isArray(data)) throw new Error(queueError);
+    return Object.freeze(data.map((item) => row(item, queueError)));
+  } catch {
+    throw new Error(queueError);
+  }
+}
+
+export async function returnEnrolmentRequest(
+  enrolmentRequestId: string,
+  note: string,
+): Promise<EnrolmentRequestRow> {
+  try {
+    const callable = httpsCallable<{ enrolmentRequestId: string; note: string }, unknown>(
+      getFirebaseFunctions(),
+      "returnEnrolmentRequest",
+    );
+    return row((await callable({ enrolmentRequestId, note })).data, reviewError);
+  } catch {
+    throw new Error(reviewError);
   }
 }

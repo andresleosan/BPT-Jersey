@@ -24,6 +24,7 @@ const pilotNavigation = [
   "Overview",
   "Attendance",
   "Members",
+  "Enrolment requests",
   "Memberships",
   "Waivers",
   "Classes",
