@@ -25,6 +25,7 @@ env:
   GOLDEN_PATH_HEAD_COACH_EMAIL: golden-headcoach@example.test
   GOLDEN_PATH_GUARDIAN_EMAIL: golden-guardian@example.test
   GOLDEN_PATH_GUARDIAN_PROGRESS_EMAIL: golden-guardian-progress@example.test
+  GOLDEN_PATH_GUARDIAN_LEVELS_EMAIL: golden-guardian-levels@example.test
   GOLDEN_PATH_ADULT_ONBOARDING_EMAIL: golden-adult-onboarding@example.test
   GOLDEN_PATH_ADULT_BILLING_EMAIL: golden-adult-billing@example.test
   GOLDEN_PATH_ADULT_SCHEDULE_EMAIL: golden-adult-schedule@example.test

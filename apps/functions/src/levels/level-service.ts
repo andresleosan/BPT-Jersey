@@ -958,7 +958,9 @@ export function createLevelCatalogStore({
       studentId: string,
     ): Promise<StudentProgressSummary> {
       assertValidAcademyId(academyId);
-      storedStudent(
+      // T113: the canonical student carries the date of birth the age band of the target rank is
+      // read against. It stays here; the summary only reports the band and whether it is met.
+      const student = storedStudent(
         await firestore.doc(`academies/${academyId}/students/${studentId}`).get(),
         academyId,
         studentId,
@@ -1048,6 +1050,7 @@ export function createLevelCatalogStore({
         attendedClassesCount: attendance.length,
         totalHours: totalMinutes / 60,
         currentLevelStartedAt: headData.currentLevelStartedAt ?? null,
+        dateOfBirth: student.dateOfBirth,
       });
     },
 
@@ -1180,6 +1183,7 @@ export function createLevelCatalogStore({
             currentDefinitionKey: head.currentDefinitionKey as string,
             currentLevelStartedAt:
               typeof head.currentLevelStartedAt === "string" ? head.currentLevelStartedAt : null,
+            dateOfBirth: profile.dateOfBirth,
           },
         ];
       });

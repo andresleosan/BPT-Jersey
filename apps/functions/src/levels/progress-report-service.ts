@@ -99,6 +99,8 @@ export function createFirestoreProgressReportStore(params: {
                 : undefined,
             currentLevelStartedAt:
               typeof head?.currentLevelStartedAt === "string" ? head.currentLevelStartedAt : null,
+            // T113: the age band of the target rank is applied against it; it is never reported.
+            dateOfBirth: student.dateOfBirth,
           };
         });
 

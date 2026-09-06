@@ -656,6 +656,17 @@ export type ProgressCriteriaSummary = Readonly<{
     met: boolean;
     percentage: number;
   }>;
+  /**
+   * T113: the age band the catalog fixes for the target rank. The BRIEF says the DOCX govern age,
+   * classes and time, and every one of the 171 definitions carries a band, so a recognition that
+   * ignored it would propose a child for a rank they are too young or too old to hold.
+   */
+  age: Readonly<{
+    requiredMinAge: number | null;
+    requiredMaxAge: number | null;
+    ageYears: number | null;
+    met: boolean;
+  }>;
   overallEligible: boolean;
 }>;
 
@@ -720,6 +731,8 @@ export type ProgressReportStudent = Readonly<{
   studentId: string;
   currentDefinitionKey?: string | undefined;
   currentLevelStartedAt?: string | null | undefined;
+  /** T113: needed for the age band of the target rank; never reported back. */
+  dateOfBirth?: string | null | undefined;
 }>;
 
 export function buildProgressReport(options: {
@@ -776,6 +789,7 @@ export function buildProgressReport(options: {
       attendedClassesCount: attendedCountByStudent.get(student.studentId) ?? 0,
       totalHours: (attendedCountByStudent.get(student.studentId) ?? 0) * 1.5,
       currentLevelStartedAt: student.currentLevelStartedAt ?? null,
+      dateOfBirth: student.dateOfBirth ?? null,
       now,
     });
 
@@ -842,6 +856,84 @@ export function buildProgressReport(options: {
     calculatedAt: now,
   });
 }
+const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/u;
+
+/**
+ * Completed years on a given day, in UTC. Returns null when the date of birth is unusable or lies
+ * in the future, so the caller decides what an unknown age means rather than getting a wrong number.
+ */
+export function ageInCompletedYears(dateOfBirth: string, on: string): number | null {
+  if (!dateOnlyPattern.test(dateOfBirth)) return null;
+  const birthMs = Date.parse(`${dateOfBirth}T00:00:00.000Z`);
+  const onMs = Date.parse(on);
+  if (Number.isNaN(birthMs) || Number.isNaN(onMs) || onMs < birthMs) return null;
+  const birth = new Date(birthMs);
+  const day = new Date(onMs);
+  let age = day.getUTCFullYear() - birth.getUTCFullYear();
+  const birthdayNotReached =
+    day.getUTCMonth() < birth.getUTCMonth() ||
+    (day.getUTCMonth() === birth.getUTCMonth() && day.getUTCDate() < birth.getUTCDate());
+  if (birthdayNotReached) age -= 1;
+  return age < 0 ? null : age;
+}
+
+export type AgeBandEvaluation = Readonly<{
+  requiredMinAge: number | null;
+  requiredMaxAge: number | null;
+  ageYears: number | null;
+  met: boolean;
+}>;
+
+/**
+ * Whether a student's age fits the band of a target rank. The bands of the catalog share their
+ * boundaries (4-7 is followed by 7-10), so both ends are inclusive and a seven year old fits both.
+ *
+ * A rank with no band is met by anybody. A rank WITH a band and an unknown date of birth is not
+ * met: the catalog states a rule the platform cannot verify, and a recognition proposal is not the
+ * place to guess. Nothing is ever granted automatically either way (BRIEF), so this only filters
+ * candidates and proposals.
+ */
+export function evaluateAgeBand(input: {
+  criteria: Pick<LevelCriteria, "minAge" | "maxAge"> | null;
+  dateOfBirth?: string | null;
+  now?: string;
+}): AgeBandEvaluation {
+  const requiredMinAge = input.criteria?.minAge ?? null;
+  const requiredMaxAge = input.criteria?.maxAge ?? null;
+  const now = input.now ?? new Date().toISOString();
+  const ageYears =
+    typeof input.dateOfBirth === "string" ? ageInCompletedYears(input.dateOfBirth, now) : null;
+  if (requiredMinAge === null && requiredMaxAge === null) {
+    return Object.freeze({ requiredMinAge, requiredMaxAge, ageYears, met: true });
+  }
+  if (ageYears === null) {
+    return Object.freeze({ requiredMinAge, requiredMaxAge, ageYears: null, met: false });
+  }
+  const met =
+    (requiredMinAge === null || ageYears >= requiredMinAge) &&
+    (requiredMaxAge === null || ageYears <= requiredMaxAge);
+  return Object.freeze({ requiredMinAge, requiredMaxAge, ageYears, met });
+}
+
+/** The sentence a coach reads when a candidate is held back, or cleared, by the age band. */
+export function describeAgeBand(age: AgeBandEvaluation): string {
+  const band =
+    age.requiredMinAge !== null && age.requiredMaxAge !== null
+      ? `${age.requiredMinAge}-${age.requiredMaxAge}`
+      : age.requiredMinAge !== null
+        ? `${age.requiredMinAge}+`
+        : age.requiredMaxAge !== null
+          ? `up to ${age.requiredMaxAge}`
+          : "any age";
+  if (age.requiredMinAge === null && age.requiredMaxAge === null) {
+    return "Age: no band on this rank (Met)";
+  }
+  if (age.ageYears === null) {
+    return `Age: band ${band} required, date of birth unknown (Not met)`;
+  }
+  return `Age: ${age.ageYears} against band ${band} (${age.met ? "Met" : "Not met"})`;
+}
+
 export function buildStudentProgressSummary(options: {
   catalog: CanonicalLevelCatalog | LevelCatalogProjection;
   studentId: string;
@@ -850,6 +942,8 @@ export function buildStudentProgressSummary(options: {
   attendedClassesCount?: number;
   totalHours?: number;
   currentLevelStartedAt?: string | null;
+  /** T113: only the age band of the target rank is read from it; it never leaves the summary. */
+  dateOfBirth?: string | null;
   now?: string;
 }): InitializedStudentProgressSummary {
   const {
@@ -860,6 +954,7 @@ export function buildStudentProgressSummary(options: {
     attendedClassesCount = 0,
     totalHours = 0,
     currentLevelStartedAt = null,
+    dateOfBirth = null,
     now = new Date().toISOString(),
   } = options;
 
@@ -944,7 +1039,15 @@ export function buildStudentProgressSummary(options: {
   const skillsPercentage =
     totalSkills === 0 ? 100 : Math.round((completedSkills / totalSkills) * 100);
 
-  const overallEligible = targetDefinition === null ? true : classesMet && timeMet && skillsMet;
+  // T113: the age band of the rank the student would move into.
+  const age = evaluateAgeBand({
+    criteria: targetDefinition?.criteria ?? null,
+    dateOfBirth,
+    now,
+  });
+
+  const overallEligible =
+    targetDefinition === null ? true : classesMet && timeMet && skillsMet && age.met;
 
   const criteria: ProgressCriteriaSummary = Object.freeze({
     classes: Object.freeze({
@@ -963,6 +1066,7 @@ export function buildStudentProgressSummary(options: {
       met: skillsMet,
       percentage: skillsPercentage,
     }),
+    age,
     overallEligible,
   });
 
@@ -1197,6 +1301,8 @@ export function generateRecognitionCandidates(options: {
     studentName: string;
     currentDefinitionKey?: string | undefined;
     currentLevelStartedAt?: string | null | undefined;
+    /** T113: the age band of the catalog is applied against it. */
+    dateOfBirth?: string | null | undefined;
   }[];
   evaluations: readonly EvaluationRecord[];
   attendances: readonly { studentId: string; attendedAt: string }[];
@@ -1235,6 +1341,7 @@ export function generateRecognitionCandidates(options: {
       attendedClassesCount: studentAtts.length,
       totalHours: studentAtts.length * 1.5,
       currentLevelStartedAt: student.currentLevelStartedAt ?? null,
+      dateOfBirth: student.dateOfBirth ?? null,
       now,
     });
 
@@ -1242,7 +1349,7 @@ export function generateRecognitionCandidates(options: {
       continue; // Student is already at highest rank
     }
 
-    const { classes, time, skills, overallEligible } = progress.criteria;
+    const { classes, time, skills, age, overallEligible } = progress.criteria;
 
     const classRatio = classes.required ? Math.min(1, classes.completed / classes.required) : 1;
     const timeRatio = time.requiredDays ? Math.min(1, time.elapsedDays / time.requiredDays) : 1;
@@ -1282,6 +1389,10 @@ export function generateRecognitionCandidates(options: {
           `Skills: ${skills.completed}/${skills.total} completed (Pending: ${pending.join(", ")})`,
         );
       }
+
+      // T113: the age band is only reported when it is what holds the student back. A rank with no
+      // band, or one the student already fits, adds nothing a coach needs to read.
+      if (!age.met) reasons.push(describeAgeBand(age));
     }
 
     candidates.push(
