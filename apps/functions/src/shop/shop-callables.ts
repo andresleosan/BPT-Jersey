@@ -22,8 +22,11 @@ export type ShopCallableServices = Readonly<{
   now?: () => string;
 }>;
 
-const catalogRoles = new Set(["owner", "administrator", "guardian", "adultStudent"]);
-const customerRoles = new Set(["guardian", "adultStudent"]);
+// A shopper is a buyer with no student record. The shop is the only place the role reaches, and
+// inside it a shopper does exactly what a client does: browse the catalogue and order their own
+// items. Administration stays with owner and administrator.
+const catalogRoles = new Set(["owner", "administrator", "guardian", "adultStudent", "shopper"]);
+const customerRoles = new Set(["guardian", "adultStudent", "shopper"]);
 const adminRoles = new Set(["owner", "administrator"]);
 
 function invalid(): never {

@@ -9,6 +9,7 @@ export {
 } from "./auth/admin-authorization.js";
 export type { AdminActor } from "./auth/admin-authorization.js";
 export { bootstrapEmulatorOwner, provisionAdminRole } from "./auth/admin-provisioning.js";
+export { registerShopperAccount } from "./auth/shopper-callables.js";
 export { listRegyfitAccessRecords } from "./regyfit/access-records.js";
 export { getRegyfitMemberRecord, listRegyfitMemberRecords } from "./regyfit/member-records.js";
 export { cleanupExpiredMemberImportSessionsSchedule } from "./members/member-callables.js";

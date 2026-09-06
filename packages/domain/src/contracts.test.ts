@@ -133,6 +133,7 @@ describe("domain contracts", () => {
       "coach",
       "guardian",
       "adultStudent",
+      "shopper",
     ]);
     expect(Object.isFrozen(userRoles)).toBe(true);
     expectTypeOf<UserRole>().toEqualTypeOf<(typeof userRoles)[number]>();
@@ -149,7 +150,7 @@ describe("domain contracts", () => {
 
   it("exposes the runtime contract values from the public entrypoint", () => {
     expect(domainModules).toHaveLength(14);
-    expect(userRoles).toHaveLength(6);
+    expect(userRoles).toHaveLength(7);
     expect(parseUserClaims({ academyId: "academy-demo", role: "guardian" })).toEqual({
       ok: true,
       value: { academyId: "academy-demo", role: "guardian" },
@@ -239,6 +240,7 @@ describe("domain contracts", () => {
       "shop.product.status.changed",
       "shop.order.placed",
       "shop.order.status.changed",
+      "client.role.self_assigned",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

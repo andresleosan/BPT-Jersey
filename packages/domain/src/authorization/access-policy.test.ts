@@ -56,6 +56,33 @@ function input(overrides: Partial<AccessEvaluationInput> = {}): AccessEvaluation
 }
 
 describe("access policy", () => {
+  it("denies the buyer-only role everywhere a student requirement applies", () => {
+    // The shopper role exists so somebody can buy without being a student. Nothing in the platform
+    // lists it as an allowed role, and this proves the default is denial rather than an oversight
+    // waiting to be discovered in production.
+    const buyer = actor("shopper", "buyer-1" as UserId);
+
+    for (const allowedRoles of [
+      ["owner", "administrator"],
+      ["guardian"],
+      ["adultStudent"],
+      ["headCoach", "coach"],
+    ] as const) {
+      const decision = evaluateAccess(
+        input({
+          actor: buyer,
+          requirement: requirement({
+            allowedRoles: [...allowedRoles],
+            classification: "Confidential",
+          }),
+          resource: resource({ classification: "Confidential", subjectUserId: guardianId }),
+        }),
+      );
+
+      expect(decision).toEqual({ ok: false, error: "ROLE_DENIED" });
+    }
+  });
+
   it("allows an active same-academy actor when the academy policy grants the role", () => {
     const currentActor = actor();
     const result = evaluateAccess(input({ actor: currentActor }));

@@ -67,6 +67,7 @@ export const auditActions = Object.freeze([
   "shop.product.status.changed",
   "shop.order.placed",
   "shop.order.status.changed",
+  "client.role.self_assigned",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -163,7 +164,8 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "shop.product.saved"
           | "shop.product.status.changed"
           | "shop.order.placed"
-          | "shop.order.status.changed";
+          | "shop.order.status.changed"
+          | "client.role.self_assigned";
       }>
     | Readonly<{
         action: "invoice.created" | "invoice.voided" | "invoice.status.changed";
@@ -297,6 +299,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "shop.product.status.changed": commonFields,
   "shop.order.placed": commonFields,
   "shop.order.status.changed": commonFields,
+  "client.role.self_assigned": commonFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
     "imported",

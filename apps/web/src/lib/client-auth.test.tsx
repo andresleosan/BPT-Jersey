@@ -6,6 +6,7 @@ type SyntheticUser = {
   uid: string;
   email: string | null;
   displayName: string | null;
+  getIdTokenResult?: (force?: boolean) => Promise<{ claims: Record<string, unknown> }>;
 };
 
 const authBoundary = vi.hoisted(() => {
@@ -25,6 +26,30 @@ const authBoundary = vi.hoisted(() => {
 
 vi.mock("./auth-client", () => authBoundary);
 
+const accountBoundary = vi.hoisted(() => ({
+  registerShopperAccount: vi.fn(async () => "shopper" as const),
+}));
+
+vi.mock("./client-account", () => accountBoundary);
+
+/** A user whose token behaves like Firebase: claims change only after a forced refresh. */
+function userWithClaims(
+  uid: string,
+  initial: Record<string, unknown>,
+  afterRefresh: Record<string, unknown> = initial,
+): SyntheticUser {
+  let claims = initial;
+  return {
+    uid,
+    email: `${uid}@example.test`,
+    displayName: "Client Name",
+    getIdTokenResult: async (force?: boolean) => {
+      if (force === true) claims = afterRefresh;
+      return { claims };
+    },
+  };
+}
+
 import {
   ClientAuthGate,
   ClientAuthProvider,
@@ -41,6 +66,7 @@ function SessionProbe() {
         Sign out
       </button>
       {session ? <output data-testid="email">{session.email}</output> : null}
+      {session?.role ? <output data-testid="role">{session.role}</output> : null}
       {status === "signed-in" ? <div data-testid="client-content">Client content</div> : null}
     </>
   );
@@ -129,6 +155,74 @@ describe("ClientAuthProvider", () => {
     expect(authBoundary.signOutFromAuth).toHaveBeenCalledOnce();
   });
 
+  it("registers a brand new Google account as a buyer and keeps the session", async () => {
+    render(
+      <ClientAuthProvider>
+        <SessionProbe />
+      </ClientAuthProvider>,
+    );
+
+    await act(async () => {
+      authBoundary.emitUser(userWithClaims("new-visitor", {}, { role: "shopper" }));
+    });
+
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("signed-in"));
+    expect(accountBoundary.registerShopperAccount).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("role")).toHaveTextContent("shopper");
+  });
+
+  it("stays signed out when the claim never lands, and does not retry in a loop", async () => {
+    accountBoundary.registerShopperAccount.mockResolvedValue("shopper");
+
+    render(
+      <ClientAuthProvider>
+        <SessionProbe />
+      </ClientAuthProvider>,
+    );
+
+    await act(async () => {
+      authBoundary.emitUser(userWithClaims("stuck-visitor", {}));
+    });
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("signed-out"));
+
+    await act(async () => {
+      authBoundary.emitUser(userWithClaims("stuck-visitor", {}));
+    });
+
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("signed-out"));
+    expect(accountBoundary.registerShopperAccount).toHaveBeenCalledOnce();
+  });
+
+  it("never asks for a role when the academy already granted one", async () => {
+    render(
+      <ClientAuthProvider>
+        <SessionProbe />
+      </ClientAuthProvider>,
+    );
+
+    await act(async () => {
+      authBoundary.emitUser(userWithClaims("student-1", { role: "adultStudent" }));
+    });
+
+    await waitFor(() => expect(screen.getByTestId("role")).toHaveTextContent("adultStudent"));
+    expect(accountBoundary.registerShopperAccount).not.toHaveBeenCalled();
+  });
+
+  it("refuses a session for a role the client surfaces do not know", async () => {
+    render(
+      <ClientAuthProvider>
+        <SessionProbe />
+      </ClientAuthProvider>,
+    );
+
+    await act(async () => {
+      authBoundary.emitUser(userWithClaims("staff-1", { role: "coach" }));
+    });
+
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("signed-out"));
+    expect(accountBoundary.registerShopperAccount).not.toHaveBeenCalled();
+  });
+
   it("fails closed when the auth subscription cannot be created", async () => {
     authBoundary.subscribeToIdTokenChanges.mockImplementationOnce(() => {
       throw new Error("not available");
@@ -167,6 +261,43 @@ describe("ClientAuthGate", () => {
       "href",
       "/login?returnTo=%2Fshop",
     );
+  });
+
+  it("tells a buyer-only account that the student area is not theirs", async () => {
+    render(
+      <ClientAuthProvider>
+        <ClientAuthGate returnPath="/account">
+          <p>Protected account</p>
+        </ClientAuthGate>
+      </ClientAuthProvider>,
+    );
+
+    await act(async () => {
+      authBoundary.emitUser(userWithClaims("buyer-1", { role: "shopper" }));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /for academy students/i })).toBeVisible(),
+    );
+    expect(screen.queryByText("Protected account")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /sign in/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /club shop/i })).toHaveAttribute("href", "/shop");
+  });
+
+  it("admits a buyer where the surface allows one", async () => {
+    render(
+      <ClientAuthProvider>
+        <ClientAuthGate allow={["guardian", "adultStudent", "shopper"]} returnPath="/shop">
+          <p>Protected shop</p>
+        </ClientAuthGate>
+      </ClientAuthProvider>,
+    );
+
+    await act(async () => {
+      authBoundary.emitUser(userWithClaims("buyer-2", { role: "shopper" }));
+    });
+
+    await waitFor(() => expect(screen.getByText("Protected shop")).toBeVisible());
   });
 
   it("renders protected children for a signed-in user", async () => {

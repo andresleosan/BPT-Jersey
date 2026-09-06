@@ -105,7 +105,7 @@ const draft = {
 
 describe("shop callables", () => {
   it("serves only published products to clients and administrators", async () => {
-    for (const role of ["owner", "administrator", "guardian", "adultStudent"]) {
+    for (const role of ["owner", "administrator", "guardian", "adultStudent", "shopper"]) {
       const current = services();
       const catalog = await listShopCatalogHandler(request(null, role), current);
       expect(catalog.map((item) => item.productId)).toEqual(["bpt-gi-blue"]);
@@ -120,6 +120,42 @@ describe("shop callables", () => {
     await expect(
       listShopCatalogHandler(request({ extra: true }, "guardian"), services()),
     ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
+  it("lets a shopper buy without giving it anything a student has", async () => {
+    const current = services();
+
+    const placed = await placeShopOrderHandler(
+      request(
+        {
+          requestId: "req-1",
+          productId: "bpt-gi-blue",
+          size: "A2",
+          quantity: 1,
+          contactName: "Sam Shopper",
+          contactPhone: null,
+          note: null,
+        },
+        "shopper",
+        "buyer-1",
+      ),
+      current,
+    );
+
+    expect(placed.orderId).toBe("order-req-1");
+    expect(current.store.placeOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ academyId: "academy-1", actorId: "buyer-1" }),
+    );
+    await expect(listMyShopOrdersHandler(request(null, "shopper"), current)).resolves.toHaveLength(
+      0,
+    );
+    for (const denied of [
+      listManagedShopProductsHandler(request(null, "shopper"), current),
+      saveShopProductHandler(request(draft, "shopper"), current),
+      listShopOrdersHandler(request(null, "shopper"), current),
+    ]) {
+      await expect(denied).rejects.toMatchObject({ code: "permission-denied" });
+    }
   });
 
   it("serves published products to a visitor with no account and hides the rest", async () => {
