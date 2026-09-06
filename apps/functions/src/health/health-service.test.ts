@@ -225,4 +225,50 @@ describe("health support store", () => {
       status: "inactive",
     });
   });
+
+  it("gives a coach the staff label and never the clinical note (T115)", async () => {
+    const seeded = createFakeFirestore({
+      "academies/academy-1/students/student-1": student,
+      "academies/academy-1/relationships/family-1--student-1": relationship,
+    });
+    // A coach reaches a health profile only while they are assigned to the student.
+    const store = createHealthStore({
+      firestore: seeded.firestore,
+      hasCurrentStudentAssignment: async ({ actorId }) => actorId === "coach-1",
+    });
+    await store.saveHealthProfile(saveInput);
+
+    await expect(
+      store.getHealthProfile({
+        academyId: "academy-1",
+        actorId: "coach-2",
+        role: "coach",
+        studentId: "student-1",
+      }),
+    ).rejects.toThrow("Current assignment is required");
+
+    for (const role of ["coach", "headCoach"] as const) {
+      const staff = await store.getHealthProfile({
+        academyId: "academy-1",
+        actorId: "coach-1",
+        role,
+        studentId: "student-1",
+      });
+      expect(staff).toMatchObject({ studentId: "student-1", staffReferenceLabel: "Visual cue" });
+      expect(staff).not.toHaveProperty("conditionSummary");
+      expect(JSON.stringify(staff), role).not.toContain("clear visual instruction");
+    }
+
+    // Administration keeps both: it owns the record and writes the label.
+    const admin = await store.getHealthProfile({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      role: "owner",
+      studentId: "student-1",
+    });
+    expect(admin).toMatchObject({
+      conditionSummary: "Needs a clear visual instruction.",
+      staffReferenceLabel: "Visual cue",
+    });
+  });
 });

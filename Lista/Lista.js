@@ -1960,11 +1960,15 @@ const recoveryItems = [
   task(
     "T115",
     "Etiqueta de 25 caracteres para condiciones de salud",
-    "pendiente",
+    "revision",
     "Separar la etiqueta corta del detalle clinico y validar su limite.",
     "T035,T093",
-    "Alta 2026-09-05 por instruccion del operador sobre las lagunas del DOCX. El formulario oficial usa una etiqueta de 25 caracteres para la condicion mostrada al staff, separada de la nota clinica completa. Hoy no existe ni el limite ni la separacion.",
-    ["tasks.md", "packages/domain/src/health", "apps/functions/src/health"],
+    "Alta 2026-09-05 y cerrada el mismo dia, con una correccion de la premisa: el limite de 25 caracteres y la separacion entre staffReferenceLabel y conditionSummary YA existian en el contrato de salud y estaban probados, y los dos formularios de administracion ya traian maxLength 25. Lo que faltaba era la consecuencia: la proyeccion de staff seguia llevando la nota clinica completa de hasta 1000 caracteres, asi que la separacion no significaba nada para un coach. Ahora la proyeccion de staff lleva la etiqueta corta y nunca la nota; el tutor sigue leyendo la nota que el mismo escribio y nunca la etiqueta; administracion conserva ambas. Dominio 8 y servicio 7, incluida la guarda de asignacion vigente del coach. Gate completo verde y golden path 15/15.",
+    [
+      "tasks.md",
+      "packages/domain/src/health/health-contracts.ts",
+      "apps/functions/src/health/health-service.ts",
+    ],
     "special",
   ),
   task(
@@ -2075,6 +2079,7 @@ const projectData = {
     T112: "2026-09-05",
     T113: "2026-09-05",
     T114: "2026-09-05",
+    T115: "2026-09-05",
   },
   cutoffDate: "2026-09-05",
   sourceLedger: "tasks.md",

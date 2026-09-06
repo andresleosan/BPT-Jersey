@@ -66,17 +66,25 @@ export type HealthProfileChangeRequestInput = Readonly<{
   proposedConditionSummary: string | null;
   proposedExpiresAt: string | null;
 }>;
-export type HealthProfileRedactedProjection = Readonly<{
+/** What every projection carries: the operational shape of the profile, never its clinical text. */
+export type HealthProfileBaseProjection = Readonly<{
   healthProfileId: string;
   studentId: string;
   minimumOperationalSupport: readonly MinimumOperationalSupportCode[];
-  conditionSummary: string | null;
   reviewState: HealthReviewState;
   expiresAt: string | null;
   status: HealthProfileStatus;
   schemaVersion: "1";
 }>;
-export type HealthProfileStaffProjection = HealthProfileRedactedProjection &
+/** The guardian of the student reads the clinical note back: it is theirs, they wrote it. */
+export type HealthProfileRedactedProjection = HealthProfileBaseProjection &
+  Readonly<{ conditionSummary: string | null }>;
+/**
+ * T115: a coach reads the short operational label of at most 25 characters and never the clinical
+ * note. The official form separates the two on purpose, and the separation only means something if
+ * the full note stops at administration.
+ */
+export type HealthProfileStaffProjection = HealthProfileBaseProjection &
   Readonly<{ staffReferenceLabel: string | null }>;
 export type HealthProfileAdminProjection = HealthProfile &
   Readonly<{ pendingChangeRequest: HealthProfileChangeRequest | null }>;
@@ -395,12 +403,13 @@ export function toHealthProfileProjection(
   scope: "admin" | "staff" | "guardian",
 ): HealthProfileAdminProjection | HealthProfileStaffProjection | HealthProfileRedactedProjection {
   if (scope === "admin") return Object.freeze({ ...profile, pendingChangeRequest: null });
+  // T115: the clinical note is deliberately absent here. A coach on the mat needs the short label
+  // ("Asthma - inhaler in bag"), not the medical history behind it.
   if (scope === "staff")
     return Object.freeze({
       healthProfileId: profile.healthProfileId,
       studentId: profile.studentId,
       minimumOperationalSupport: profile.minimumOperationalSupport,
-      conditionSummary: profile.conditionSummary,
       staffReferenceLabel: profile.staffReferenceLabel,
       reviewState: profile.reviewState,
       expiresAt: profile.expiresAt,

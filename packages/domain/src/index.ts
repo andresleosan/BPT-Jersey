@@ -525,6 +525,7 @@ export type {
   HealthProfileChangeRequest,
   HealthProfileSaveInput,
   HealthProfileChangeRequestInput,
+  HealthProfileBaseProjection,
   HealthProfileRedactedProjection,
   HealthProfileStaffProjection,
   HealthProfileAdminProjection,
