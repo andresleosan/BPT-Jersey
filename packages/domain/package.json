@@ -35,6 +35,11 @@
       "import": "./src/members/member-directory-contracts.ts",
       "default": "./lib/members/member-directory-contracts.js"
     },
+    "./members/enrolment-requests": {
+      "types": "./src/members/enrolment-request-contracts.ts",
+      "import": "./src/members/enrolment-request-contracts.ts",
+      "default": "./lib/members/enrolment-request-contracts.js"
+    },
     "./members/regyfit-records": {
       "types": "./src/members/regyfit-member-record-contracts.ts",
       "import": "./src/members/regyfit-member-record-contracts.ts",

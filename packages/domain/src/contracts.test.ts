@@ -241,6 +241,9 @@ describe("domain contracts", () => {
       "shop.order.placed",
       "shop.order.status.changed",
       "client.role.self_assigned",
+      "enrolment.request.submitted",
+      "enrolment.request.returned",
+      "enrolment.request.withdrawn",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

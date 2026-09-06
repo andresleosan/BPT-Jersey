@@ -389,23 +389,30 @@ const createTrainingPreferencesSchema = z
   })
   .readonly();
 
+/**
+ * The field-by-field definition of an administrative enrolment. It is exported as a shape, not only
+ * as a schema, so a surface that enrols somebody through another door - the self-service request of
+ * T121 - builds on these exact fields instead of restating them and drifting from them.
+ */
+export const adminCreateStudentInputShape = Object.freeze({
+  requestId: opaqueIdentifierSchema,
+  fullName: canonicalText(160),
+  dateOfBirth: dateOnlySchema,
+  phoneNumber: canonicalText(64).optional(),
+  email: z.string().email().max(320).refine(isCanonicalText).optional(),
+  trainingCenter: z.enum(trainingCenters),
+  trainingTimePreferences: createTrainingPreferencesSchema,
+  membershipNumber: administrativeIdentifierInputSchema.optional(),
+  idCardNumber: administrativeIdentifierInputSchema.optional(),
+  vatNumber: administrativeIdentifierInputSchema.optional(),
+  gender: z.enum(memberGenders).optional(),
+  frequencyNote: canonicalText(256).optional(),
+  emergencyContact: emergencyContactSchema.optional(),
+  postalAddress: postalAddressSchema.optional(),
+});
+
 export const adminCreateStudentInputSchema = z
-  .strictObject({
-    requestId: opaqueIdentifierSchema,
-    fullName: canonicalText(160),
-    dateOfBirth: dateOnlySchema,
-    phoneNumber: canonicalText(64).optional(),
-    email: z.string().email().max(320).refine(isCanonicalText).optional(),
-    trainingCenter: z.enum(trainingCenters),
-    trainingTimePreferences: createTrainingPreferencesSchema,
-    membershipNumber: administrativeIdentifierInputSchema.optional(),
-    idCardNumber: administrativeIdentifierInputSchema.optional(),
-    vatNumber: administrativeIdentifierInputSchema.optional(),
-    gender: z.enum(memberGenders).optional(),
-    frequencyNote: canonicalText(256).optional(),
-    emergencyContact: emergencyContactSchema.optional(),
-    postalAddress: postalAddressSchema.optional(),
-  })
+  .strictObject({ ...adminCreateStudentInputShape })
   .readonly();
 
 export type AdminCreateStudentInput = Readonly<z.infer<typeof adminCreateStudentInputSchema>>;
