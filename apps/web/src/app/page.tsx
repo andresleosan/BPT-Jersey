@@ -242,6 +242,9 @@ export default function HomePage() {
         <p>Brazilian Power Team Jersey</p>
         <p>Train with purpose. Belong to the team.</p>
         <p>Public information last verified {academyContent.lastVerified}.</p>
+        <a className="site-footer-staff" href="/staff/login">
+          Staff sign-in
+        </a>
       </footer>
     </>
   );

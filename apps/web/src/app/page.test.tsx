@@ -8,6 +8,19 @@ describe("public home branding", () => {
     cleanup();
   });
 
+  it("offers the staff sign-in from the footer and never from the primary navigation", () => {
+    render(<HomePage />);
+
+    const staffLink = screen.getByRole("link", { name: "Staff sign-in" });
+    expect(staffLink).toHaveAttribute("href", "/staff/login");
+    expect(staffLink.closest("footer")).not.toBeNull();
+    expect(
+      screen
+        .getByRole("navigation", { name: "Primary navigation" })
+        .querySelector('a[href^="/staff"]'),
+    ).toBeNull();
+  });
+
   it("renders the official logo asset in the public header", () => {
     render(<HomePage />);
 

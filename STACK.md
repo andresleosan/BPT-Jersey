@@ -126,8 +126,10 @@ despliegues productivos, cobros online ni mensajería externa.
 - Servicio: Cloudflare Pages para el frontend estático/PWA (`https://bptjersey.pages.dev`); Firebase Cloud Functions para backend.
 - Build de Pages: ejecutar `next build` desde `apps/web` y publicar `apps/web/out`.
 - Entradas (T118): `/login` es la entrada de miembros y familias, enlazada desde la landing.
-  `/staff/login` es la entrada de owner, administrator, headCoach y coach: sin enlaces publicos,
-  `robots noindex` en la pagina y `X-Robots-Tag` para `/staff/*`, `/admin*` y `/coach*` en
+  `/staff/login` es la entrada de owner, administrator, headCoach y coach. Desde el 2026-09-06,
+  por decision del operador, la landing lleva un enlace discreto `Staff sign-in` en el pie, fuera
+  de la navegacion principal; la pagina conserva
+  `robots noindex` y el `X-Robots-Tag` para `/staff/*`, `/admin*` y `/coach*` en
   `apps/web/public/_headers` (Cloudflare Pages lo aplica; el servidor de QA y Firebase Hosting lo
   ignoran). El destino tras iniciar sesion lo deciden los claims del ID token: office -> `/admin`,
   coaches -> `/coach`; una cuenta sin claim de staff se cierra en el acto. Esconder la entrada no

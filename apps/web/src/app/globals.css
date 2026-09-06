@@ -773,6 +773,24 @@ button:focus-visible {
   margin: 0;
 }
 
+/* Coaches and office reach their own sign-in from here. It stays out of the primary navigation
+   and the page keeps its noindex, so it is a convenience for the team, not a promotion of the
+   staff area to visitors. */
+.site-footer-staff {
+  align-items: center;
+  color: #c9c7c1;
+  display: inline-flex;
+  min-height: 1.75rem;
+  padding: 0.25rem 0;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.site-footer-staff:hover,
+.site-footer-staff:focus-visible {
+  color: var(--gi-white);
+}
+
 @keyframes hero-reveal {
   from {
     opacity: 0;

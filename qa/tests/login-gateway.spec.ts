@@ -104,7 +104,7 @@ test.describe("member and staff sign-in surfaces", () => {
     await expectNoBrowserHealthProblems(page, errors);
   });
 
-  test("keeps the public home free of staff and admin links", async ({ page }) => {
+  test("exposes the staff entrance only in the footer of the public home", async ({ page }) => {
     const errors = trackBrowserHealth(page);
     await page.goto("/");
 
@@ -112,7 +112,11 @@ test.describe("member and staff sign-in surfaces", () => {
       "href",
       "/login",
     );
-    await expect(page.locator('a[href^="/staff"]')).toHaveCount(0);
+    // The staff entrance is reachable from the footer by operator decision, and from nowhere else.
+    const staffLinks = page.locator('a[href^="/staff"]');
+    await expect(staffLinks).toHaveCount(1);
+    await expect(staffLinks).toHaveAttribute("href", "/staff/login");
+    await expect(page.locator('nav a[href^="/staff"]')).toHaveCount(0);
     await expect(page.locator('a[href^="/admin"]')).toHaveCount(0);
     await expect(page.locator('a[href^="/coach"]')).toHaveCount(0);
     await expect(page.locator('a[href*="role="]')).toHaveCount(0);
