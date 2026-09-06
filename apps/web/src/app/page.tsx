@@ -223,6 +223,9 @@ export default function HomePage() {
             <h2 id="contact-title">Start with a free class</h2>
             <p>{academyContent.notes.contact}</p>
             <div className="hero-actions">
+              <a className="button button-primary" href="/enrol">
+                Ask for a place
+              </a>
               <a className="button button-secondary" href="#contact">
                 Book a free class
               </a>

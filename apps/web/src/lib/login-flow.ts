@@ -12,6 +12,7 @@ export type MemberDestination =
   | "/account/progress"
   | "/account/waitlist"
   | "/shop"
+  | "/enrol"
   | "/checkout";
 
 /** The member gates and account pages keep their prop type under the historical name. */
@@ -37,6 +38,7 @@ const memberDestinations = new Set<MemberDestination>([
   "/account/progress",
   "/account/waitlist",
   "/shop",
+  "/enrol",
   "/checkout",
 ]);
 

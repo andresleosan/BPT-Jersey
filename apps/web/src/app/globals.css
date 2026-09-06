@@ -3346,3 +3346,127 @@ button:focus-visible {
     width: 100%;
   }
 }
+
+/* T121 - self-service enrolment request. Shares the shop page's plate: same rhythm, same field
+   treatment, so the two client-facing forms do not read as two different products. */
+.enrol-page {
+  margin: 0 auto;
+  max-width: 60rem;
+  min-height: 100vh;
+  padding: clamp(3rem, 8vw, 6rem) clamp(1.25rem, 4vw, 4.5rem);
+}
+
+.enrol-page h1 {
+  color: var(--mat-ink);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(3.2rem, 8vw, 6.5rem);
+  letter-spacing: -0.04em;
+  line-height: 0.8;
+  margin: 0.75rem 0 0;
+  text-transform: uppercase;
+}
+
+.enrol-page h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  line-height: 0.95;
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.enrol-form,
+.enrol-status {
+  background: var(--gi-white);
+  border-top: 0.35rem solid var(--bpt-purple);
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2.5rem;
+  padding: 1.5rem;
+}
+
+.enrol-form fieldset,
+.enrol-minor {
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.enrol-form legend {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0 0.4rem;
+  text-transform: uppercase;
+}
+
+.enrol-field {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 0.4rem;
+  letter-spacing: 0.08em;
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.enrol-field input,
+.enrol-field select {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  letter-spacing: normal;
+  min-height: 2.9rem;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  text-transform: none;
+  width: 100%;
+}
+
+.enrol-field input:focus-visible,
+.enrol-field select:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
+.enrol-preferences label,
+.enrol-who label {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.enrol-preferences input,
+.enrol-who input {
+  min-height: auto;
+  width: auto;
+}
+
+.enrol-hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.enrol-message {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--bpt-purple);
+  margin-top: 1.5rem;
+  padding: 0.9rem 1rem;
+}
+
+.enrol-review-note {
+  background: var(--canvas);
+  border-left: 0.35rem solid var(--bpt-purple);
+  padding: 0.9rem 1rem;
+}
+
+.enrol-minors {
+  display: grid;
+  gap: 1rem;
+}
