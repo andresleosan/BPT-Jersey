@@ -9,6 +9,7 @@ import type {
   WaiverRegistrationProjection,
 } from "@bpt-jersey/domain/consents";
 import { ClientAuthGate, ClientAuthProvider } from "../../../lib/client-auth";
+import { DisclaimersPanel } from "../disclaimers";
 import {
   acceptWaiver,
   getWaiverEvidenceDownload,
@@ -417,6 +418,8 @@ function WaiverContent() {
           {message}
         </p>
       ) : null}
+      {/* T117: the disclaimers of whichever participant is selected above. */}
+      {subject ? <DisclaimersPanel studentId={subject.studentId} /> : null}
     </main>
   );
 }

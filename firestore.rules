@@ -92,6 +92,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // T117: disclaimers and their acceptances are reached only through the callables, which decide
+    // who may act for which participant. A client reading the collection directly would see every
+    // other participant's acceptance.
+    match /academies/{academyId}/disclaimers/{disclaimerId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/disclaimerAcceptances/{acceptanceId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/adminRoleLocks/{uid} {
       allow read, write: if false;
     }

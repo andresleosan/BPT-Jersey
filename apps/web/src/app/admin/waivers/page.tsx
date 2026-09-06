@@ -8,6 +8,7 @@ import {
   publishWaiverVersion,
   withdrawCurrentWaiver,
 } from "../../../lib/waiver-client";
+import { DisclaimerAdminPanel } from "./disclaimer-admin";
 import "../../account/waiver/waiver.css";
 
 type ClauseDraft = { key: WaiverClauseKey; heading: string; body: string; required: boolean };
@@ -283,6 +284,8 @@ export default function AdminWaiversPage() {
           </form>
         </div>
       ) : null}
+
+      <DisclaimerAdminPanel />
     </section>
   );
 }

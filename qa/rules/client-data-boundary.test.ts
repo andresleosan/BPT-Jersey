@@ -63,6 +63,9 @@ const academyBackendOnlyCollections = Object.freeze([
   "members",
   "memberImportOperations",
   "adminRoleLocks",
+  // T117: a client reading these directly would see every other participant's acceptances.
+  "disclaimers",
+  "disclaimerAcceptances",
   "sessionCapacityStates",
   "bookingQuotaStates",
   "waitlistPositionStates",

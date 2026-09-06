@@ -185,6 +185,11 @@
       "import": "./src/schedule/pre-class-contracts.ts",
       "default": "./lib/schedule/pre-class-contracts.js"
     },
+    "./consents/disclaimers": {
+      "types": "./src/consents/disclaimer-contracts.ts",
+      "import": "./src/consents/disclaimer-contracts.ts",
+      "default": "./lib/consents/disclaimer-contracts.js"
+    },
     "./staff/permission-grants": {
       "types": "./src/staff/permission-grant-contracts.ts",
       "import": "./src/staff/permission-grant-contracts.ts",

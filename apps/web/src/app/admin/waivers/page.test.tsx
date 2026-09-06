@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
   getCurrentWaiverAdmin: vi.fn(),
@@ -8,6 +8,20 @@ const api = vi.hoisted(() => ({
   withdrawCurrentWaiver: vi.fn(),
 }));
 vi.mock("../../../lib/waiver-client", () => api);
+
+// The page now also mounts the T117 disclaimer panel, which fetches on mount. Stubbing it keeps
+// these assertions about the waiver form and nothing else.
+const disclaimerApi = vi.hoisted(() => ({
+  listDisclaimers: vi.fn(),
+  publishDisclaimer: vi.fn(),
+  withdrawDisclaimer: vi.fn(),
+  getOutstandingDisclaimers: vi.fn(),
+  acceptDisclaimer: vi.fn(),
+  withdrawDisclaimerAcceptance: vi.fn(),
+  disclaimerAudienceLabel: (audience: string) => audience,
+  disclaimerChangedError: "changed",
+}));
+vi.mock("../../../lib/disclaimers-client", () => disclaimerApi);
 import AdminWaiversPage from "./page";
 
 const clauses = [
@@ -43,6 +57,10 @@ const version = {
 } as const;
 
 describe("admin waivers page", () => {
+  beforeEach(() => {
+    disclaimerApi.listDisclaimers.mockResolvedValue([]);
+  });
+
   afterEach(() => {
     cleanup();
     Object.values(api).forEach((mock) => mock.mockReset());

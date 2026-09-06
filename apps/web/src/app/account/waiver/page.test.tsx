@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const authState = vi.hoisted(() => ({ status: "signed-in" as "signed-in" | "signed-out" }));
 const api = vi.hoisted(() => ({
@@ -15,6 +15,20 @@ vi.mock("../../../lib/client-auth", () => ({
   ClientAuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock("../../../lib/waiver-client", () => api);
+
+// The page now also mounts the T117 disclaimers panel for the selected participant. Stubbing it
+// keeps these assertions about the waiver form and nothing else.
+const disclaimerApi = vi.hoisted(() => ({
+  getOutstandingDisclaimers: vi.fn(),
+  acceptDisclaimer: vi.fn(),
+  withdrawDisclaimerAcceptance: vi.fn(),
+  listDisclaimers: vi.fn(),
+  publishDisclaimer: vi.fn(),
+  withdrawDisclaimer: vi.fn(),
+  disclaimerAudienceLabel: (audience: string) => audience,
+  disclaimerChangedError: "changed",
+}));
+vi.mock("../../../lib/disclaimers-client", () => disclaimerApi);
 
 import WaiverPage from "./page";
 
@@ -79,6 +93,10 @@ const accepted = {
 } as const;
 
 describe("account waiver page", () => {
+  beforeEach(() => {
+    disclaimerApi.getOutstandingDisclaimers.mockResolvedValue([]);
+  });
+
   afterEach(() => {
     cleanup();
     authState.status = "signed-in";

@@ -677,7 +677,7 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T114 | Publicar la interfaz preclase del coach con sugerencias de asistentes                                                   | T096,T066                                              | aprobada    | Aprobada por el operador el 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: revisar las tres constantes elegidas -56 dias de ventana, dos asistencias de habito y media hora de tolerancia- cuando existan datos reales (T099). Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. Implementada el 2026-09-05: dominio nuevo `@bpt-jersey/domain/schedule/pre-class` con la definicion de clase comparable y de habito, callable `getPreClassView` solo staff, cliente web y tarjeta "Before class" en el panel del coach. Cada sugerencia lleva su evidencia (cuantas de cuantas y la ultima); no se inventa ninguna racha, no se escribe nada y el coach sigue registrando cada check-in. Golden path 15/15 en Emulator y gate completo verde. Evidencia al final del ledger. T114 paso a `revision` ese mismo dia y quedo aprobada el 2026-09-05.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | T115 | Limitar a 25 caracteres la etiqueta de condiciones de salud                                                             | T035,T093                                              | aprobada    | Aprobada por el operador el 2026-09-05 (alcance sintetico/Emulator). Recomendacion vigente: confirmar que ninguna operacion real dependia de que el coach viera la nota clinica completa. Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. **Premisa corregida el 2026-09-05**: el limite de 25 caracteres, la separacion entre `staffReferenceLabel` y `conditionSummary` y el `maxLength` de los dos formularios de administracion ya existian y estaban probados. Lo que faltaba era la consecuencia: la proyeccion de staff seguia llevando la nota clinica completa. Cerrada el 2026-09-05: la proyeccion de staff lleva la etiqueta corta y nunca la nota, el tutor conserva su nota y nunca la etiqueta, y administracion mantiene ambas. Gate completo verde y golden path 15/15. Evidencia al final del ledger. T115 paso a `revision` ese mismo dia y quedo aprobada el 2026-09-05.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | T116 | Delegar permisos administrativos a coaches por concesion auditada                                                       | T019,T093                                              | revision    | Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. El DOCX permite que administracion conceda a un coach permisos adicionales. Hoy el rol es fijo en el claim y no existe ninguna concesion revocable ni auditada; cualquier diseno debe conservar el fail-closed por rol y no ampliar el claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| T117 | Gestionar disclaimers y su aceptacion por participante                                                                  | T090,T106                                              | pendiente   | Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. Ademas del waiver principal, el DOCX contempla disclaimers gestionables con aceptacion registrada. Hoy solo existe el waiver versionado de T090; el texto legal sigue bloqueado por T011.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| T117 | Gestionar disclaimers y su aceptacion por participante                                                                  | T090,T106                                              | revision    | Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. Ademas del waiver principal, el DOCX contempla disclaimers gestionables con aceptacion registrada. Hoy solo existe el waiver versionado de T090; el texto legal sigue bloqueado por T011. Mecanismo implementado el 2026-09-05 con contenido sintetico: dominio nuevo de disclaimers versionados con audiencia y obligatoriedad propias, hash de contenido, superseder transaccional por clave y aceptacion **ligada a la version**, no a la persona; publicar v2 devuelve la fila a la lista del participante y lo dice como reconsentimiento, conservando la aceptacion de v1 como historial. La plataforma no trae ni una palabra de texto legal: todo lo escribe office. Golden path 19/19 en Emulator y gate completo verde. Evidencia al final del ledger. T117 pasa a `revision` por el mecanismo; el texto legal sigue bloqueado por T011.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## Plan de implementaciÃ³n del MVP aprobado
 
@@ -4759,29 +4759,103 @@ Se corrige con cuerpo de bloque. El mismo patron estaba en otros dos archivos
 quedan desactivados con la explicacion, porque la primera prueba que anada un mock que lance ahi se
 encontraria con el mismo desconcierto.
 
-### Pendiente al retomar (2026-09-05, tras cerrar T116)
+### Evidencia T117 - disclaimers gestionables y su aceptacion por participante - 2026-09-05
 
-Sustituye a los checklists anteriores del dia.
+Ultima laguna del DOCX. Se entrega el **mecanismo completo con contenido sintetico**; el texto legal
+real sigue bloqueado por T011 y eso no lo desbloquea nada de lo que hay aqui.
 
-Trabajo tecnico que el asistente puede continuar sin decision humana:
+Decision de diseno principal, y la que mas se penso: **no reutilizar el waiver de T090**. Aquel es un
+documento unico y obligatorio, de cuatro clausulas fijas y en orden fijo, que ademas cierra la
+inscripcion. Reutilizarlo habria impuesto esa forma a cualquier cosa que la academia quiera que
+alguien lea. Un disclaimer es independiente: tiene su clave, su audiencia (todos, adultos o menores)
+y su propia obligatoriedad.
 
-- [ ] T117, parcialmente: el mecanismo de disclaimers versionados y su aceptacion por participante se
-      puede construir sobre T090 con contenido sintetico. El texto legal depende de T011.
-- [ ] T097 restante: comparacion opt-in de adultos (no existe modelo de opt-in) y reinicio de la
-      barra de progresion al promover (DOCX, no verificado).
-- [ ] Conectar `manageClasses` a los callables de horario, si el operador quiere esa segunda
+- Modulo de dominio nuevo `packages/domain/src/consents/disclaimer-contracts.ts`, publicado como
+  subruta `@bpt-jersey/domain/consents/disclaimers` (registrada en los exports del paquete, en
+  `tsconfig.runtime.json` y en el mapa de `deploy-runtime.ts`).
+- **La propiedad que da sentido a la fila**: la aceptacion queda ligada a una version y a su hash de
+  contenido, no a la clave. Publicar v2 de la misma clave supersede v1 en la misma transaccion,
+  devuelve la fila a la lista del participante y **se lo dice como reconsentimiento** ("aceptaste la
+  version v1, el texto ha cambiado"), conservando la aceptacion de v1 intacta como historial. Nada
+  hereda consentimiento en silencio a traves de un cambio de texto.
+- El hash cubre lo que un lector notaria (titulo, cuerpo, audiencia) y no lo que no (la fecha de
+  efecto y la obligatoriedad no piden releer nada). Hay una prueba que fija exactamente esa frontera.
+- Aceptar envia el hash del texto que se renderizo. Si office republica entre que la pagina cargo y
+  el participante pulsa aceptar, el backend **rechaza** con codigo propio (`aborted`, HTTP 409) en
+  vez de registrar consentimiento sobre unas palabras que nadie leyo. El panel lo traduce a "esto se
+  actualizo mientras lo leias, lee la version nueva", que es la instruccion util, no un error generico.
+- Autoridad identica en espiritu a la de T090: un adulto actua solo por si mismo, un tutor solo por un
+  menor con el que tenga relacion vigente. Un tutor no puede retirar la aceptacion de otro.
+- **La plataforma no trae ni una palabra de texto legal.** El corpus esta vacio hasta que office
+  publique, y el panel de administracion lo dice literalmente. Todo el texto de las pruebas y del E2E
+  esta escrito por las pruebas y es reconociblemente sintetico.
+- Office ve la adopcion como **recuento**, nunca como lista de personas: una lista de nombres al lado
+  de una pregunta de consentimiento es una cosa muy distinta y mucho mas sensible que un total.
+- Callables: `publishDisclaimer`, `withdrawDisclaimer` y `listDisclaimers` solo para office;
+  `getOutstandingDisclaimers`, `acceptDisclaimer` y `withdrawDisclaimerAcceptance` solo para el
+  participante o su tutor. La lista de pendientes esta cerrada a staff, que tiene el recuento.
+- Auditoria: `disclaimer.published`, `disclaimer.withdrawn`, `disclaimer.accepted` y
+  `disclaimer.acceptance.withdrawn`, atomicas con la escritura y con identificador determinista.
+- Rules: `disclaimers` y `disclaimerAcceptances` quedan deny-by-default y se suman a la matriz de
+  `qa/rules/client-data-boundary.test.ts`. Un cliente que leyera la coleccion directamente veria las
+  aceptaciones de todos los demas.
+- Interfaz: panel de office en `/admin/waivers` (publicar, retirar, adopcion por recuento, y un aviso
+  explicito cuando la clave que se va a publicar ya tiene una version viva) y panel del participante
+  en `/account/waiver` para el alumno seleccionado.
+- **Defecto de accesibilidad corregido durante la integracion**: al montar el panel nuevo, la pagina
+  paso a tener dos formularios de publicacion con campos de igual nombre accesible ("Version label",
+  "Title"). Se renombraron los del disclaimer en vez de tocar el test, porque el problema era real
+  para quien navega por lector de pantalla, no solo para la prueba.
+- Pruebas: dominio 20, servicio 18, callables 12, cliente web y dos paneles (7 del participante, 6 de
+  office).
+- E2E autenticado en Emulator dentro del golden path (19/19 en 1.8 min), suite nueva
+  `qa/tests/disclaimer-auth-emulator.spec.ts`: el adulto se da de alta, office publica v1, la fila
+  aparece como primera lectura, aceptar con un hash equivocado se rechaza, aceptar con el correcto
+  vacia la lista, office publica v2 y **el mismo participante vuelve a la lista marcado como
+  reconsentimiento**, el hash de v1 ya no sirve para v2, office ve `acceptedCount: 1` sobre la v1
+  superseded sin ningun identificador de alumno, y Rules devuelve 403 en lectura REST directa de las
+  dos colecciones para owner y para el adulto. Mas los negativos de rol, payload y fail-closed 401.
+- Compuertas: `pnpm verify:mvp` completo en verde (exit 0): `format:check`, `lint` sin avisos,
+  `typecheck` 6/6, `build`, `test:unit` 262 archivos / 2037 pruebas, `test:rules` 13 archivos / 91
+  pruebas, `build:e2e-synthetic`, `test:load:synthetic` 240/240 con p95 30 ms y `test:e2e:smoke` 5
+  pasados y 1 omitido.
+
+Alcance que **no** se hace, y por que:
+
+- Un disclaimer obligatorio pendiente **no bloquea** hoy la inscripcion ni la reserva. El contrato
+  declara `required` y la lista lo ordena primero, pero conectar ese bloqueo es una decision de
+  producto que depende del texto legal (T011) y del paso 2 de T106. Declarado, no aplicado, y dicho.
+- No hay PDF de evidencia como el del waiver de T090. La aceptacion guarda el hash del texto exacto,
+  que es lo que permite reconstruirla; generar el documento firmado es trabajo aparte.
+
+Nota de entorno anadida a la de T116: Firebase mapea `HttpsError("aborted")` a **HTTP 409**, no a
+400. El E2E lo dio por 400 en la primera corrida y fallo; queda registrado porque es el unico codigo
+de esta base que no cae en el 400/403/404 habitual.
+
+### Pendiente al retomar (2026-09-05, tras cerrar T117)
+
+Sustituye a los checklists anteriores del dia. Cerradas las ocho lagunas del DOCX (T109 a T117).
+
+Techo de ingenieria alcanzado. Con T116 y T117 en `revision`, el tablero queda en 101 aprobadas de
+118 y llegaria a 103/118 (87%) al aprobarlas. Todo lo que queda depende de una decision del operador
+o es alcance v2/v3 fuera del MVP.
+
+Trabajo tecnico que el asistente todavia puede hacer sin decision humana:
+
+- [ ] T097 restante: comparacion opt-in de adultos (no existe modelo de opt-in, habria que disenarlo)
+      y reinicio de la barra de progresion al promover (DOCX, no verificado).
+- [ ] Conectar `manageClasses` de T116 a los callables de horario, si se quiere esa segunda
       delegacion viva.
-
-Techo de ingenieria: cerradas T116 y T117 el tablero llega a 103/118, es decir 87%. Todo lo demas
-depende de T010 o T011, o es alcance v2/v3 (T068 a T071) fuera del MVP.
 
 Decisiones del operador que siguen abiertas:
 
+- [ ] Aprobar o devolver T011, T116 y T117, las tres filas en `revision`.
 - [ ] T011: cuatro casillas que solo el operador puede llenar (razon social exacta, owner interno,
-      estado del registro JOIC y autorizacion para contratar al revisor). El borrador ya esta
-      completo con valores propuestos entrecomillados.
-- [ ] T010: proveedor de pagos, que bloquea T035, T036 y T061.
-- [ ] Aprobar o devolver T116, unica fila en `revision` junto con T011.
+      estado del registro JOIC y autorizacion para contratar al revisor). El borrador esta completo
+      con valores propuestos entrecomillados. Bloquea T035/T036/T061, T099, T058, el paso 2 de T106 y
+      el texto legal de T117.
+- [ ] T010: proveedor de pagos.
+- [ ] Si un disclaimer obligatorio pendiente debe bloquear la inscripcion o la reserva (T117).
 - [ ] Coordenadas reales de Town y West (T109); checkpoint unico de automatizacion (T110 y T111);
       edad visible en cumpleanos (T112); franja de edad en apertura y aprobacion (T113); las tres
       constantes de la vista preclase (T114); la nota clinica que el coach ya no ve (T115); abrir una
@@ -4790,5 +4864,6 @@ Decisiones del operador que siguen abiertas:
 Nota de entorno para el golden path en local: `.tmp/member-directory-baselines/` guarda las lineas
 base privadas por academia, no por secreto, asi que tras regenerar los secretos sinteticos hay que
 borrar esos artefactos o el inicializador canonico falla con "Invalid private empty baseline
-artifact". El runner exige ademas `BPT_SYNTHETIC_PILOT=true` y `GCLOUD_PROJECT=demo-bpt-jersey` para
-generar los secretos. En CI no ocurre porque el job siempre arranca limpio.
+artifact". El runner exige ademas `BPT_SYNTHETIC_PILOT=true` y `GCLOUD_PROJECT=demo-bpt-jersey`. Y
+`qa/run-e2e.mjs` reenvia a Playwright solo las variables de una lista blanca: una suite nueva se
+salta en silencio hasta anadir las suyas ahi, ademas de encadenarla en el script del golden path.

@@ -113,6 +113,14 @@ export {
   resolveNoShowPenalty,
 } from "./penalties/no-show-penalty-callables.js";
 export {
+  acceptDisclaimer,
+  getOutstandingDisclaimers,
+  listDisclaimers,
+  publishDisclaimer,
+  withdrawDisclaimer,
+  withdrawDisclaimerAcceptance,
+} from "./consents/disclaimer-callables.js";
+export {
   grantStaffPermission,
   listStaffPermissionGrants,
   revokeStaffPermission,

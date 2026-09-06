@@ -55,6 +55,10 @@ export const auditActions = Object.freeze([
   "penalty.no_show.resolved",
   "staff.permission.granted",
   "staff.permission.revoked",
+  "disclaimer.published",
+  "disclaimer.withdrawn",
+  "disclaimer.accepted",
+  "disclaimer.acceptance.withdrawn",
   "student.checked_out",
   "location.geofence.saved",
   "notification.preference.updated",
@@ -147,6 +151,10 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "penalty.no_show.resolved"
           | "staff.permission.granted"
           | "staff.permission.revoked"
+          | "disclaimer.published"
+          | "disclaimer.withdrawn"
+          | "disclaimer.accepted"
+          | "disclaimer.acceptance.withdrawn"
           | "student.checked_out"
           | "location.geofence.saved"
           | "notification.preference.updated"
@@ -275,6 +283,10 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "penalty.no_show.resolved": commonFields,
   "staff.permission.granted": commonFields,
   "staff.permission.revoked": commonFields,
+  "disclaimer.published": commonFields,
+  "disclaimer.withdrawn": commonFields,
+  "disclaimer.accepted": commonFields,
+  "disclaimer.acceptance.withdrawn": commonFields,
   "student.checked_out": commonFields,
   "location.geofence.saved": commonFields,
   "notification.preference.updated": commonFields,

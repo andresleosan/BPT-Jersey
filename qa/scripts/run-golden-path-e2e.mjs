@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 // T098 golden path: the authenticated callable-level suites (T094 onboarding, T095 manual
 // billing, T096 class operations with T109/T110, T111 no-show penalty, T116 delegated staff
+// permissions, T117 disclaimers,
 // permissions, T112 coach birthdays,
 // T113 level age bands and T097 progress) chained in ONE emulator run over ONE synthetic academy:
 // family/adult -> waiver ->
@@ -68,6 +69,7 @@ const adults = {
   birthdayTown: required("GOLDEN_PATH_ADULT_BIRTHDAY_TOWN_EMAIL"),
   birthdayWest: required("GOLDEN_PATH_ADULT_BIRTHDAY_WEST_EMAIL"),
   progress: required("GOLDEN_PATH_ADULT_PROGRESS_EMAIL"),
+  disclaimer: required("GOLDEN_PATH_ADULT_DISCLAIMER_EMAIL"),
 };
 for (const email of [
   ownerEmail,
@@ -82,7 +84,7 @@ for (const email of [
 if (new Set([guardianEmail, progressGuardianEmail, levelsGuardianEmail]).size !== 3) {
   throw new Error("Golden path requires three distinct guardian users.");
 }
-if (new Set(Object.values(adults)).size !== 7) {
+if (new Set(Object.values(adults)).size !== 8) {
   throw new Error("Golden path requires seven distinct adult users.");
 }
 for (const name of [
@@ -140,7 +142,7 @@ run([
 ]);
 run(["apps/functions/scripts/seed-levels.mjs", "--target=emulator", `--academy-id=${academyId}`]);
 
-// The eight suites in order, one worker, no retries, no static web server.
+// The nine suites in order, one worker, no retries, no static web server.
 run(
   [
     "qa/run-e2e.mjs",
@@ -149,6 +151,7 @@ run(
     "tests/schedule-auth-emulator.spec.ts",
     "tests/no-show-penalty-auth-emulator.spec.ts",
     "tests/staff-permission-grant-auth-emulator.spec.ts",
+    "tests/disclaimer-auth-emulator.spec.ts",
     "tests/coach-birthday-auth-emulator.spec.ts",
     "tests/level-age-band-auth-emulator.spec.ts",
     "tests/progress-auth-emulator.spec.ts",
@@ -191,6 +194,13 @@ run(
     T116_OWNER_EMAIL: ownerEmail,
     T116_HEAD_COACH_EMAIL: headCoachEmail,
     T116_E2E_PASSWORD: password,
+    T117_DISCLAIMER_EMULATOR_E2E: "true",
+    T117_E2E_ACADEMY_ID: academyId,
+    T117_FUNCTIONS_EMULATOR_PORT: functionsPort,
+    T117_OWNER_EMAIL: ownerEmail,
+    T117_HEAD_COACH_EMAIL: headCoachEmail,
+    T117_ADULT_EMAIL: adults.disclaimer,
+    T117_E2E_PASSWORD: password,
     T112_BIRTHDAY_EMULATOR_E2E: "true",
     T112_E2E_ACADEMY_ID: academyId,
     T112_FUNCTIONS_EMULATOR_PORT: functionsPort,

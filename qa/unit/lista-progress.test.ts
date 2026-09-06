@@ -43,9 +43,9 @@ describe("Lista project progress", () => {
   it("reflects the board as of 2026-09-05", () => {
     expect(counts).toEqual({
       aprobada: 101,
-      revision: 2,
+      revision: 3,
       "en-progreso": 1,
-      pendiente: 11,
+      pendiente: 10,
       bloqueada: 2,
       cancelada: 1,
     });
