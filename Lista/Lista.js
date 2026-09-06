@@ -1906,11 +1906,19 @@ const recoveryItems = [
   task(
     "T112",
     "Cumpleanos reales en el panel del coach",
-    "pendiente",
+    "revision",
     "Derivar los cumpleanos del directorio canonico en vez de anunciarlos sin datos.",
     "T093,T102",
-    "Alta 2026-09-05 por instruccion del operador sobre las lagunas del DOCX. El panel del coach anuncia cumpleanos que no lee de ninguna fuente canonica. Debe derivarlos de dateOfBirth de alumnos activos con alcance minimo por rol.",
-    ["tasks.md", "apps/web/src/app/coach/page.tsx", "apps/functions/src/reports"],
+    "Alta 2026-09-05 e implementada el mismo dia. La constante sampleBirthdays desaparece: el panel lee listUpcomingBirthdays, que deriva la ventana de siete dias de los alumnos canonicos activos del sitio elegido. El ano de nacimiento nunca sale del backend: la proyeccion lleva nombre, cuantos dias faltan y si es adulto o menor, y office que necesite la fecha real la lee en el registro canonico. Solo staff puede llamarla; el cliente recibe 403. Un nacido el 29 de febrero se felicita el 28 en un ano comun. Dominio 16, servicio 8, callable 9, cliente web 3 y panel 15; E2E autenticado en Emulator dentro del golden path (14/14) con un alumno de Town y otro de West.",
+    [
+      "tasks.md",
+      "packages/domain/src/birthdays/upcoming-birthday-contracts.ts",
+      "apps/functions/src/birthdays/upcoming-birthday-service.ts",
+      "apps/functions/src/birthdays/upcoming-birthday-callables.ts",
+      "apps/web/src/lib/birthdays-client.ts",
+      "apps/web/src/app/coach/page.tsx",
+      "qa/tests/coach-birthday-auth-emulator.spec.ts",
+    ],
     "special",
   ),
   task(

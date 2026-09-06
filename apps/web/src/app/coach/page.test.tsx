@@ -159,6 +159,36 @@ const proximityMock = vi.hoisted(() => ({ measureCheckInProximity: vi.fn() }));
 
 vi.mock("../../lib/check-in-proximity", () => proximityMock);
 
+// T112: the upcoming birthdays now come from the canonical students, so the panel is driven by the
+// callable client instead of a sample list.
+const birthdaysMock = vi.hoisted(() => ({ listUpcomingBirthdays: vi.fn() }));
+
+vi.mock("../../lib/birthdays-client", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/birthdays-client")>(
+    "../../lib/birthdays-client",
+  );
+  return { ...actual, listUpcomingBirthdays: birthdaysMock.listUpcomingBirthdays };
+});
+
+function birthday(
+  overrides: Partial<{
+    studentId: string;
+    displayName: string;
+    daysAway: number;
+    participantType: "adult" | "minor";
+    trainingCenter: "Town" | "West";
+  }> = {},
+) {
+  return {
+    studentId: "student-birthday-1",
+    displayName: "Ana Coelho",
+    daysAway: 2,
+    participantType: "adult" as const,
+    trainingCenter: "Town" as const,
+    ...overrides,
+  };
+}
+
 const townGeofence = { latitude: 49.186, longitude: -2.106 };
 
 function townCatalog() {
@@ -184,6 +214,7 @@ import CoachDashboardPage from "./page";
 describe("CoachDashboardPage", () => {
   beforeEach(() => {
     scheduleClientMock.listSessions.mockResolvedValue([mockTownSession, mockWestSession]);
+    birthdaysMock.listUpcomingBirthdays.mockResolvedValue([]);
     // No site coordinates recorded by default, which is the honest starting state (T109).
     scheduleClientMock.getScheduleCatalog.mockResolvedValue({ locations: [], programs: [] });
     proximityMock.measureCheckInProximity.mockReset();
@@ -258,9 +289,9 @@ describe("CoachDashboardPage", () => {
       expect(screen.getByText("✓ Quorum Met (>=4)")).toBeInTheDocument();
     });
 
-    // Birthdays widget
+    // Birthdays widget: real members now, so with none seeded it says so (T112)
     expect(screen.getByText("🎂 Upcoming Birthdays")).toBeInTheDocument();
-    expect(screen.getByText("Lucas Silva")).toBeInTheDocument();
+    expect(await screen.findByText("No birthdays at Town this week.")).toBeInTheDocument();
   });
 
   it("filters classes when switching to West premises", async () => {
@@ -542,6 +573,80 @@ describe("CoachDashboardPage", () => {
           method: "manual",
         });
       });
+    });
+  });
+
+  describe("upcoming birthdays (T112)", () => {
+    it("asks for the birthdays of the selected site and lists them", async () => {
+      birthdaysMock.listUpcomingBirthdays.mockResolvedValue([
+        birthday({ studentId: "s-today", displayName: "Today Member", daysAway: 0 }),
+        birthday({
+          studentId: "s-minor",
+          displayName: "Bruno Le Sueur",
+          daysAway: 1,
+          participantType: "minor",
+        }),
+      ]);
+      render(<CoachDashboardPage />);
+
+      await waitFor(() => {
+        expect(birthdaysMock.listUpcomingBirthdays).toHaveBeenCalledWith({
+          trainingCenter: "Town",
+          windowDays: 7,
+        });
+      });
+      expect(await screen.findByText("Today Member")).toBeInTheDocument();
+      expect(screen.getByText("Bruno Le Sueur")).toBeInTheDocument();
+      expect(screen.getByText("Today")).toBeInTheDocument();
+      expect(screen.getByText("Tomorrow")).toBeInTheDocument();
+      expect(screen.getByText("2 this week")).toBeInTheDocument();
+    });
+
+    it("never prints an age or a date of birth", async () => {
+      birthdaysMock.listUpcomingBirthdays.mockResolvedValue([
+        birthday({ participantType: "minor" }),
+      ]);
+      render(<CoachDashboardPage />);
+
+      const name = await screen.findByText("Ana Coelho");
+      expect(screen.getByText("Minor · Town")).toBeInTheDocument();
+      const widget = name.closest(".coach-card")?.textContent ?? "";
+      expect(widget).not.toMatch(/\byrs?\b/u);
+      expect(widget).not.toMatch(/\b(19|20)\d{2}\b/u);
+    });
+
+    it("follows the premises selector", async () => {
+      render(<CoachDashboardPage />);
+      await waitFor(() => {
+        expect(birthdaysMock.listUpcomingBirthdays).toHaveBeenCalledWith({
+          trainingCenter: "Town",
+          windowDays: 7,
+        });
+      });
+
+      fireEvent.click(screen.getByRole("radio", { name: "West (St Peter)" }));
+
+      await waitFor(() => {
+        expect(birthdaysMock.listUpcomingBirthdays).toHaveBeenCalledWith({
+          trainingCenter: "West",
+          windowDays: 7,
+        });
+      });
+    });
+
+    it("says so when nobody has a birthday this week", async () => {
+      render(<CoachDashboardPage />);
+      expect(await screen.findByText("No birthdays at Town this week.")).toBeInTheDocument();
+    });
+
+    it("shows a safe message when the birthdays cannot be loaded", async () => {
+      birthdaysMock.listUpcomingBirthdays.mockRejectedValue(
+        new Error("Unable to load upcoming birthdays. Please try again."),
+      );
+      render(<CoachDashboardPage />);
+      expect(
+        await screen.findByText("Unable to load upcoming birthdays. Please try again."),
+      ).toBeInTheDocument();
     });
   });
 });

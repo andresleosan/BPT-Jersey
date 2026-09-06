@@ -112,6 +112,7 @@ export {
   proposeNoShowPenalties,
   resolveNoShowPenalty,
 } from "./penalties/no-show-penalty-callables.js";
+export { listUpcomingBirthdays } from "./birthdays/upcoming-birthday-callables.js";
 export {
   acceptWaitlistOffer,
   cancelWaitlistEntry,

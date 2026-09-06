@@ -29,6 +29,8 @@ env:
   GOLDEN_PATH_ADULT_BILLING_EMAIL: golden-adult-billing@example.test
   GOLDEN_PATH_ADULT_SCHEDULE_EMAIL: golden-adult-schedule@example.test
   GOLDEN_PATH_ADULT_PENALTY_EMAIL: golden-adult-penalty@example.test
+  GOLDEN_PATH_ADULT_BIRTHDAY_TOWN_EMAIL: golden-adult-birthday-town@example.test
+  GOLDEN_PATH_ADULT_BIRTHDAY_WEST_EMAIL: golden-adult-birthday-west@example.test
   GOLDEN_PATH_ADULT_PROGRESS_EMAIL: golden-adult-progress@example.test
 
 jobs:

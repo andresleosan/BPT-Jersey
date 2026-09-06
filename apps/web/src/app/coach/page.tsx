@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
+  upcomingBirthdayDefaultWindowDays,
+  type UpcomingBirthday,
+  type UpcomingBirthdayTrainingCenter,
+} from "@bpt-jersey/domain/birthdays";
+import {
   checkInOverrideReasonMaxLength,
   checkInOverrideReasonMinLength,
   checkInProximityRadiusMeters,
@@ -13,6 +18,7 @@ import {
   type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
+import { birthdayWhenLabel, listUpcomingBirthdays } from "../../lib/birthdays-client";
 import { measureCheckInProximity, type ProximityReading } from "../../lib/check-in-proximity";
 import {
   getScheduleCatalog,
@@ -37,26 +43,15 @@ function dayQuery(date: string) {
   } as const;
 }
 
-// Sample upcoming birthdays for mat recognition
-interface UpcomingBirthday {
-  id: string;
-  name: string;
-  date: string;
-  daysAway: number;
-  category: string;
+// T112: the site the coach picked, in the vocabulary of the canonical student record.
+function birthdaySite(premises: PremisesChoice): UpcomingBirthdayTrainingCenter {
+  return premises === "town" ? "Town" : "West";
 }
 
-const sampleBirthdays: readonly UpcomingBirthday[] = [
-  { id: "b1", name: "Lucas Silva", date: "Tomorrow", daysAway: 1, category: "Kids (7 yrs)" },
-  { id: "b2", name: "Emma Le Brocq", date: "In 3 days", daysAway: 3, category: "Teens (14 yrs)" },
-  {
-    id: "b3",
-    name: "Marc Du Val",
-    date: "This Friday",
-    daysAway: 5,
-    category: "Adults (White Belt)",
-  },
-];
+type BirthdayState =
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "ready"; entries: readonly UpcomingBirthday[] }>
+  | Readonly<{ status: "error" }>;
 
 export default function CoachDashboardPage() {
   const { session } = useStaffSession();
@@ -90,6 +85,9 @@ export default function CoachDashboardPage() {
     | Readonly<{ status: "error" }>
   >({ status: "loading" });
   const [proximity, setProximity] = useState<ProximityReading | null>(null);
+  // T112: real upcoming birthdays of the active students of this site. The response carries no
+  // date of birth, so the panel has nothing sensitive to hide.
+  const [birthdays, setBirthdays] = useState<BirthdayState>({ status: "loading" });
   const [measuring, setMeasuring] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   // Bumped on every premises change so a measurement still in flight for the previous site is
@@ -193,6 +191,26 @@ export default function CoachDashboardPage() {
       active = false;
     };
   }, [premises]);
+
+  useEffect(() => {
+    let active = true;
+    setBirthdays({ status: "loading" });
+
+    void listUpcomingBirthdays({
+      trainingCenter: birthdaySite(premises),
+      windowDays: upcomingBirthdayDefaultWindowDays,
+    })
+      .then((entries) => {
+        if (active) setBirthdays({ status: "ready", entries });
+      })
+      .catch(() => {
+        if (active) setBirthdays({ status: "error" });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [premises, date]);
 
   /**
    * A reading older than the server's freshness window would be recorded as unavailable while the
@@ -658,22 +676,46 @@ export default function CoachDashboardPage() {
           <div className="coach-card">
             <h2 className="coach-card-title" style={{ fontSize: "1.05rem" }}>
               <span>🎂 Upcoming Birthdays</span>
-              <span className="coach-birthday-badge">{sampleBirthdays.length} this week</span>
+              {birthdays.status === "ready" && (
+                <span className="coach-birthday-badge">{birthdays.entries.length} this week</span>
+              )}
             </h2>
             <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: "0 0 0.75rem" }}>
               Greet members and celebrate their birthday milestones on the mat!
             </p>
-            <div role="list">
-              {sampleBirthdays.map((b) => (
-                <div key={b.id} className="coach-birthday-item" role="listitem">
-                  <div>
-                    <div className="coach-birthday-name">{b.name}</div>
-                    <div className="coach-birthday-meta">{b.category}</div>
+            {birthdays.status === "loading" && (
+              <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
+                Loading birthdays…
+              </p>
+            )}
+            {birthdays.status === "error" && (
+              <p role="status" style={{ fontSize: "0.825rem", color: "#b91c1c", margin: 0 }}>
+                Unable to load upcoming birthdays. Please try again.
+              </p>
+            )}
+            {birthdays.status === "ready" && birthdays.entries.length === 0 && (
+              <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
+                No birthdays at {premises === "town" ? "Town" : "West"} this week.
+              </p>
+            )}
+            {birthdays.status === "ready" && birthdays.entries.length > 0 && (
+              <div role="list">
+                {birthdays.entries.map((birthday) => (
+                  <div key={birthday.studentId} className="coach-birthday-item" role="listitem">
+                    <div>
+                      <div className="coach-birthday-name">{birthday.displayName}</div>
+                      <div className="coach-birthday-meta">
+                        {birthday.participantType === "minor" ? "Minor" : "Adult"} ·{" "}
+                        {birthday.trainingCenter}
+                      </div>
+                    </div>
+                    <span className="coach-birthday-badge">
+                      {birthdayWhenLabel(birthday.daysAway)}
+                    </span>
                   </div>
-                  <span className="coach-birthday-badge">{b.date}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quick Links Card */}

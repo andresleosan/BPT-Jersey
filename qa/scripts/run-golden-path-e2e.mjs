@@ -2,9 +2,10 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 // T098 golden path: the authenticated callable-level suites (T094 onboarding, T095 manual
-// billing, T096 class operations with T109/T110, T111 no-show penalty, T097 progress) chained in
-// ONE emulator run over ONE synthetic academy: family/adult -> waiver -> membership -> class ->
-// booking -> attendance -> no-show penalty -> invoice and payment -> progress -> report.
+// billing, T096 class operations with T109/T110, T111 no-show penalty, T112 coach birthdays and
+// T097 progress) chained in ONE emulator run over ONE synthetic academy: family/adult -> waiver ->
+// membership -> class -> booking -> attendance -> no-show penalty -> invoice and payment ->
+// birthdays -> progress -> report.
 // Run inside `firebase emulators:exec --only auth,firestore,functions`.
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const projectId = "demo-bpt-jersey";
@@ -52,13 +53,16 @@ const headCoachEmail = required("GOLDEN_PATH_HEAD_COACH_EMAIL");
 const guardianEmail = required("GOLDEN_PATH_GUARDIAN_EMAIL");
 // A second guardian, because each suite enrols its own family and a tutor holds one family.
 const progressGuardianEmail = required("GOLDEN_PATH_GUARDIAN_PROGRESS_EMAIL");
-// One adult per suite: each suite creates that adult's membership and a second current
-// membership for the same student is (correctly) refused.
+// One adult per suite, and two for the birthday suite because it needs one member at each site.
+// Each suite creates its own adult's membership and a second current membership for the same
+// student is (correctly) refused.
 const adults = {
   onboarding: required("GOLDEN_PATH_ADULT_ONBOARDING_EMAIL"),
   billing: required("GOLDEN_PATH_ADULT_BILLING_EMAIL"),
   schedule: required("GOLDEN_PATH_ADULT_SCHEDULE_EMAIL"),
   penalty: required("GOLDEN_PATH_ADULT_PENALTY_EMAIL"),
+  birthdayTown: required("GOLDEN_PATH_ADULT_BIRTHDAY_TOWN_EMAIL"),
+  birthdayWest: required("GOLDEN_PATH_ADULT_BIRTHDAY_WEST_EMAIL"),
   progress: required("GOLDEN_PATH_ADULT_PROGRESS_EMAIL"),
 };
 for (const email of [
@@ -73,8 +77,8 @@ for (const email of [
 if (guardianEmail === progressGuardianEmail) {
   throw new Error("Golden path requires two distinct guardian users.");
 }
-if (new Set(Object.values(adults)).size !== 5) {
-  throw new Error("Golden path requires five distinct adult users.");
+if (new Set(Object.values(adults)).size !== 7) {
+  throw new Error("Golden path requires seven distinct adult users.");
 }
 for (const name of [
   "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
@@ -107,7 +111,7 @@ const ownerEnvironment = {
 };
 run(["qa/scripts/seed-auth-emulator.mjs"], ownerEnvironment);
 run(["qa/scripts/seed-member-directory-emulator.mjs"], ownerEnvironment);
-// Clients: two guardians and four adults (Auth users and claims only).
+// Clients: two guardians and seven adults (Auth users and claims only).
 for (const [index, adultEmail] of Object.values(adults).entries()) {
   run(["qa/scripts/seed-onboarding-emulator.mjs"], {
     T094_E2E_ACADEMY_ID: academyId,
@@ -129,7 +133,7 @@ run([
 ]);
 run(["apps/functions/scripts/seed-levels.mjs", "--target=emulator", `--academy-id=${academyId}`]);
 
-// The five suites in order, one worker, no retries, no static web server.
+// The six suites in order, one worker, no retries, no static web server.
 run(
   [
     "qa/run-e2e.mjs",
@@ -137,6 +141,7 @@ run(
     "tests/manual-billing-auth-emulator.spec.ts",
     "tests/schedule-auth-emulator.spec.ts",
     "tests/no-show-penalty-auth-emulator.spec.ts",
+    "tests/coach-birthday-auth-emulator.spec.ts",
     "tests/progress-auth-emulator.spec.ts",
     "--project=desktop-chromium",
     "--workers=1",
@@ -171,6 +176,14 @@ run(
     T111_HEAD_COACH_EMAIL: headCoachEmail,
     T111_ADULT_EMAIL: adults.penalty,
     T111_E2E_PASSWORD: password,
+    T112_BIRTHDAY_EMULATOR_E2E: "true",
+    T112_E2E_ACADEMY_ID: academyId,
+    T112_FUNCTIONS_EMULATOR_PORT: functionsPort,
+    T112_OWNER_EMAIL: ownerEmail,
+    T112_HEAD_COACH_EMAIL: headCoachEmail,
+    T112_ADULT_TOWN_EMAIL: adults.birthdayTown,
+    T112_ADULT_WEST_EMAIL: adults.birthdayWest,
+    T112_E2E_PASSWORD: password,
     T097_PROGRESS_EMULATOR_E2E: "true",
     T097_E2E_ACADEMY_ID: academyId,
     T097_FUNCTIONS_EMULATOR_PORT: functionsPort,

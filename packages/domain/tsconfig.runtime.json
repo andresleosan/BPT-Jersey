@@ -48,6 +48,7 @@
     "src/reports/operational-report.ts",
     "src/exports/aggregate-report-export.ts",
     "src/shop/shop-contracts.ts",
-    "src/penalties/no-show-penalty-contracts.ts"
+    "src/penalties/no-show-penalty-contracts.ts",
+    "src/birthdays/upcoming-birthday-contracts.ts"
   ]
 }

@@ -179,6 +179,11 @@
       "types": "./src/penalties/no-show-penalty-contracts.ts",
       "import": "./src/penalties/no-show-penalty-contracts.ts",
       "default": "./lib/penalties/no-show-penalty-contracts.js"
+    },
+    "./birthdays": {
+      "types": "./src/birthdays/upcoming-birthday-contracts.ts",
+      "import": "./src/birthdays/upcoming-birthday-contracts.ts",
+      "default": "./lib/birthdays/upcoming-birthday-contracts.js"
     }
   },
   "scripts": {
