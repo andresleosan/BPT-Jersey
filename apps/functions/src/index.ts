@@ -193,6 +193,7 @@ export {
 export {
   listManagedShopProducts,
   listMyShopOrders,
+  listPublicShopCatalog,
   listShopCatalog,
   listShopOrders,
   placeShopOrder,

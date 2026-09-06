@@ -134,6 +134,10 @@ despliegues productivos, cobros online ni mensajería externa.
   ignoran). El destino tras iniciar sesion lo deciden los claims del ID token: office -> `/admin`,
   coaches -> `/coach`; una cuenta sin claim de staff se cierra en el acto. Esconder la entrada no
   es un control de seguridad: la proteccion real siguen siendo claims, callables y Rules.
+- Tienda publica (T120): `listPublicShopCatalog` responde sin sesion, con App Check y CORS del
+  origen de Pages, devuelve solo productos activos y recibe la academia en el payload porque un
+  visitante anonimo no tiene claim del que derivarla. El frontend la toma de `NEXT_PUBLIC_ACADEMY_ID`
+  (por defecto `demo-academy`, el tenant de produccion). Pedir sigue exigiendo sesion de cliente.
 - Variables de Pages: configurar los seis `NEXT_PUBLIC_FIREBASE_*` públicos por entorno, `NEXT_PUBLIC_FIREBASE_ENV=staging` (o `production`) y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false`; nunca configurar material de Admin SDK en el frontend. La guardia de build/runtime rechaza emuladores fuera de `local`.
 - CI actual: GitHub Actions ejecuta calidad, Rules, build y smoke sintético. No existe todavía CD,
   GitHub Environments, aprobación automatizada por entorno ni rollback reproducible; completarlos

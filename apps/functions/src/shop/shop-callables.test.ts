@@ -5,6 +5,7 @@ import type { ShopOrderRecord, ShopProductRecord } from "@bpt-jersey/domain/shop
 import {
   listManagedShopProductsHandler,
   listMyShopOrdersHandler,
+  listPublicShopCatalogHandler,
   listShopCatalogHandler,
   listShopOrdersHandler,
   placeShopOrderHandler,
@@ -119,6 +120,39 @@ describe("shop callables", () => {
     await expect(
       listShopCatalogHandler(request({ extra: true }, "guardian"), services()),
     ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
+  it("serves published products to a visitor with no account and hides the rest", async () => {
+    const current = services();
+
+    const catalog = await listPublicShopCatalogHandler(
+      request({ academyId: "demo-academy" }),
+      current,
+    );
+
+    expect(catalog.map((item) => item.productId)).toEqual(["bpt-gi-blue"]);
+    expect(catalog[0]).not.toHaveProperty("academyId");
+    expect(catalog[0]).not.toHaveProperty("createdBy");
+    expect(current.store.listProducts).toHaveBeenCalledWith("demo-academy");
+  });
+
+  it("keeps the public catalogue to a single validated academy and nothing else", async () => {
+    for (const payload of [
+      null,
+      undefined,
+      {},
+      { academyId: "demo-academy", extra: true },
+      { academyId: "" },
+      { academyId: "Demo-Academy" },
+      { academyId: "../demo-academy" },
+      { academyId: "demo academy" },
+      { academyId: 7 },
+      [{ academyId: "demo-academy" }],
+    ]) {
+      await expect(
+        listPublicShopCatalogHandler(request(payload), services()),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+    }
   });
 
   it("restricts product administration to owner and administrator", async () => {

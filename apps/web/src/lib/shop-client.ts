@@ -17,6 +17,7 @@ import {
 import { getFirebaseFunctions } from "./firebase-client";
 
 const catalogError = "Unable to load the club shop.";
+const publicCatalogError = "Unable to load the club shop catalog.";
 const productError = "Unable to save the product.";
 const orderError = "Unable to place the order.";
 const ordersError = "Unable to load orders.";
@@ -39,6 +40,21 @@ function list(value: unknown, message: string): readonly unknown[] {
 async function call<Input, Output>(name: string, input: Input): Promise<Output> {
   const callable = httpsCallable<Input, Output>(getFirebaseFunctions(), name);
   return (await callable(input)).data;
+}
+
+/** Reads the published catalogue without a session. Only active products ever come back. */
+export async function listPublicShopCatalog(
+  academyId: string,
+): Promise<readonly ShopProductProjection[]> {
+  try {
+    const data = list(
+      await call<{ academyId: string }, unknown>("listPublicShopCatalog", { academyId }),
+      publicCatalogError,
+    );
+    return sortShopProducts(data.map((item) => product(item, publicCatalogError)));
+  } catch {
+    throw new Error(publicCatalogError);
+  }
 }
 
 export async function listShopCatalog(): Promise<readonly ShopProductProjection[]> {

@@ -32,6 +32,20 @@ function invalid(): never {
 function noPayload(value: unknown): void {
   if (value !== null && value !== undefined) invalid();
 }
+// An anonymous caller carries no academy claim, so the public catalogue takes the tenant from the
+// payload. It is a plain slug, never used to widen access: the handler only ever reads published
+// products of that academy and returns the same projection the signed-in catalogue returns.
+const publicAcademyIdPattern = /^[a-z][a-z0-9-]{2,60}$/u;
+
+function publicAcademyId(value: unknown): string {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) invalid();
+  const keys = Reflect.ownKeys(value);
+  if (keys.length !== 1 || keys[0] !== "academyId") invalid();
+  const academyId = (value as { academyId: unknown }).academyId;
+  if (typeof academyId !== "string" || !publicAcademyIdPattern.test(academyId)) invalid();
+  return academyId;
+}
+
 function actorWithRole(request: CallableRequest<unknown>, roles: Set<string>, message: string) {
   const actor = requireUserActor(request);
   if (!roles.has(actor.role)) throw new HttpsError("permission-denied", message);
@@ -66,6 +80,25 @@ export async function listShopCatalogHandler(
   noPayload(request.data);
   try {
     const products = await services.store.listProducts(actor.academyId);
+    return products.filter((product) => product.active).map(toShopProductProjection);
+  } catch (error) {
+    return mapError(error, "read");
+  }
+}
+
+/**
+ * The club shop catalogue is public information: the academy already lists its merchandise on its
+ * own website, so a visitor can read it without an account and only needs to sign in to order.
+ * Hidden products never leave the backend and the projection carries no order, customer, cost or
+ * internal field.
+ */
+export async function listPublicShopCatalogHandler(
+  request: CallableRequest<unknown>,
+  services: ShopCallableServices,
+): Promise<readonly ShopProductProjection[]> {
+  const academyId = publicAcademyId(request.data);
+  try {
+    const products = await services.store.listProducts(academyId);
     return products.filter((product) => product.active).map(toShopProductProjection);
   } catch (error) {
     return mapError(error, "read");
@@ -214,6 +247,9 @@ export const shopCallableOptions = browserAdminCallableOptions;
 
 export const listShopCatalog = onCall(shopCallableOptions, (request) =>
   listShopCatalogHandler(request, callableServices()),
+);
+export const listPublicShopCatalog = onCall(shopCallableOptions, (request) =>
+  listPublicShopCatalogHandler(request, callableServices()),
 );
 export const listManagedShopProducts = onCall(shopCallableOptions, (request) =>
   listManagedShopProductsHandler(request, callableServices()),

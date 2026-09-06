@@ -12,8 +12,14 @@ import {
   type ShopProductProjection,
 } from "@bpt-jersey/domain/shop";
 import { academyContent } from "../../content/academy";
-import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../lib/client-auth";
-import { listMyShopOrders, listShopCatalog, placeShopOrder } from "../../lib/shop-client";
+import { publicAcademyId } from "../../lib/academy";
+import { ClientAuthProvider, useClientSession } from "../../lib/client-auth";
+import {
+  listMyShopOrders,
+  listPublicShopCatalog,
+  listShopCatalog,
+  placeShopOrder,
+} from "../../lib/shop-client";
 
 type LoadState =
   | Readonly<{ status: "loading" }>
@@ -53,7 +59,12 @@ function ProductCard({
 }: {
   product: ShopProductProjection;
   busy: boolean;
-  onOrder: (product: ShopProductProjection, size: string | null, quantity: number) => Promise<void>;
+  /** Absent for a visitor with no account: the card then invites them to sign in instead. */
+  onOrder?: (
+    product: ShopProductProjection,
+    size: string | null,
+    quantity: number,
+  ) => Promise<void>;
 }) {
   const [size, setSize] = useState(product.sizes[0] ?? "");
   const [quantity, setQuantity] = useState("1");
@@ -68,7 +79,7 @@ function ProductCard({
       Math.max(1, Math.trunc(Number(quantity)) || 1),
     );
     setQuantity(String(parsedQuantity));
-    void onOrder(product, product.sizes.length > 0 ? size : null, parsedQuantity);
+    void onOrder?.(product, product.sizes.length > 0 ? size : null, parsedQuantity);
   }
 
   return (
@@ -95,47 +106,54 @@ function ProductCard({
         {product.description ? (
           <p className="shop-product-description">{product.description}</p>
         ) : null}
-        <form className="shop-order-form" onSubmit={submit}>
-          {product.sizes.length > 0 ? (
-            <label className="shop-field" htmlFor={sizeId}>
-              Size
-              <select
+        {onOrder === undefined ? (
+          <a className="button button-secondary shop-signin-link" href="/login?returnTo=%2Fshop">
+            Sign in to order
+          </a>
+        ) : (
+          <form className="shop-order-form" onSubmit={submit}>
+            {product.sizes.length > 0 ? (
+              <label className="shop-field" htmlFor={sizeId}>
+                Size
+                <select
+                  disabled={busy || soldOut}
+                  id={sizeId}
+                  onChange={(event) => setSize(event.target.value)}
+                  value={size}
+                >
+                  {product.sizes.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label className="shop-field" htmlFor={quantityId}>
+              Quantity
+              <input
                 disabled={busy || soldOut}
-                id={sizeId}
-                onChange={(event) => setSize(event.target.value)}
-                value={size}
-              >
-                {product.sizes.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                id={quantityId}
+                max={shopOrderMaximumQuantity}
+                min={1}
+                onChange={(event) => setQuantity(event.target.value)}
+                type="number"
+                value={quantity}
+              />
             </label>
-          ) : null}
-          <label className="shop-field" htmlFor={quantityId}>
-            Quantity
-            <input
-              disabled={busy || soldOut}
-              id={quantityId}
-              max={shopOrderMaximumQuantity}
-              min={1}
-              onChange={(event) => setQuantity(event.target.value)}
-              type="number"
-              value={quantity}
-            />
-          </label>
-          <button className="button button-primary" disabled={busy || soldOut} type="submit">
-            {soldOut ? "Sold out" : `Request ${product.name}`}
-          </button>
-        </form>
+            <button className="button button-primary" disabled={busy || soldOut} type="submit">
+              {soldOut ? "Sold out" : `Request ${product.name}`}
+            </button>
+          </form>
+        )}
       </div>
     </li>
   );
 }
 
 function ShopContent() {
-  const { session } = useClientSession();
+  const { session, status } = useClientSession();
+  const signedIn = status === "signed-in";
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [filter, setFilter] = useState<CategoryFilter>("all");
@@ -148,9 +166,12 @@ function ShopContent() {
   useEffect(() => {
     let active = true;
     setState({ status: "loading" });
-    void Promise.all([listShopCatalog(), listMyShopOrders()])
+    const load = signedIn
+      ? Promise.all([listShopCatalog(), listMyShopOrders()])
+      : listPublicShopCatalog(publicAcademyId).then((products) => [products, [] as const] as const);
+    void load
       .then(([products, orders]) => {
-        if (active) setState({ status: "ready", products, orders });
+        if (active) setState({ status: "ready", products, orders: [...orders] });
       })
       .catch(() => {
         if (active) setState({ status: "error" });
@@ -158,7 +179,7 @@ function ShopContent() {
     return () => {
       active = false;
     };
-  }, [reloadToken]);
+  }, [reloadToken, signedIn]);
 
   useEffect(() => {
     if (session?.displayName && contactName.length === 0) setContactName(session.displayName);
@@ -222,8 +243,8 @@ function ShopContent() {
 
   return (
     <main className="shop-page" id="main-content" aria-labelledby="shop-title">
-      <a className="shop-back-link" href="/account">
-        <span aria-hidden="true">&larr;</span> Back to account
+      <a className="shop-back-link" href={signedIn ? "/account" : "/"}>
+        <span aria-hidden="true">&larr;</span> {signedIn ? "Back to account" : "Back to home"}
       </a>
       <p className="account-eyebrow">BPT Jersey / Club shop</p>
       <h1 id="shop-title">Club shop</h1>
@@ -263,42 +284,49 @@ function ShopContent() {
 
       {state.status === "ready" ? (
         <>
-          <section className="shop-section" aria-labelledby="shop-collection-title">
-            <p className="account-eyebrow">Collection details</p>
-            <h2 id="shop-collection-title">Who is collecting</h2>
-            <div className="shop-collection-form">
-              <label className="shop-field" htmlFor="shop-contact-name">
-                Name for the order
-                <input
-                  autoComplete="name"
-                  id="shop-contact-name"
-                  maxLength={160}
-                  onChange={(event) => setContactName(event.target.value)}
-                  value={contactName}
-                />
-              </label>
-              <label className="shop-field" htmlFor="shop-contact-phone">
-                Phone (optional)
-                <input
-                  autoComplete="tel"
-                  id="shop-contact-phone"
-                  maxLength={64}
-                  onChange={(event) => setContactPhone(event.target.value)}
-                  type="tel"
-                  value={contactPhone}
-                />
-              </label>
-              <label className="shop-field" htmlFor="shop-order-note">
-                Note for the academy (optional)
-                <input
-                  id="shop-order-note"
-                  maxLength={500}
-                  onChange={(event) => setNote(event.target.value)}
-                  value={note}
-                />
-              </label>
-            </div>
-          </section>
+          {signedIn ? (
+            <section className="shop-section" aria-labelledby="shop-collection-title">
+              <p className="account-eyebrow">Collection details</p>
+              <h2 id="shop-collection-title">Who is collecting</h2>
+              <div className="shop-collection-form">
+                <label className="shop-field" htmlFor="shop-contact-name">
+                  Name for the order
+                  <input
+                    autoComplete="name"
+                    id="shop-contact-name"
+                    maxLength={160}
+                    onChange={(event) => setContactName(event.target.value)}
+                    value={contactName}
+                  />
+                </label>
+                <label className="shop-field" htmlFor="shop-contact-phone">
+                  Phone (optional)
+                  <input
+                    autoComplete="tel"
+                    id="shop-contact-phone"
+                    maxLength={64}
+                    onChange={(event) => setContactPhone(event.target.value)}
+                    type="tel"
+                    value={contactPhone}
+                  />
+                </label>
+                <label className="shop-field" htmlFor="shop-order-note">
+                  Note for the academy (optional)
+                  <input
+                    id="shop-order-note"
+                    maxLength={500}
+                    onChange={(event) => setNote(event.target.value)}
+                    value={note}
+                  />
+                </label>
+              </div>
+            </section>
+          ) : (
+            <p className="shop-message" role="status">
+              Browse the catalog freely. Sign in when you want to request an item and collect it at
+              the academy.
+            </p>
+          )}
 
           <section className="shop-section" aria-labelledby="shop-catalog-title">
             <p className="account-eyebrow">Catalog</p>
@@ -331,8 +359,8 @@ function ShopContent() {
                     <ProductCard
                       busy={busy}
                       key={product.productId}
-                      onOrder={order}
                       product={product}
+                      {...(signedIn ? { onOrder: order } : {})}
                     />
                   ))}
                 </ul>
@@ -340,54 +368,56 @@ function ShopContent() {
             )}
           </section>
 
-          <section className="shop-section" aria-labelledby="shop-orders-title">
-            <p className="account-eyebrow">Your orders</p>
-            <h2 id="shop-orders-title">Order history</h2>
-            {state.orders.length === 0 ? (
-              <div className="shop-empty">
-                <strong>No orders yet.</strong>
-                <p>Requested items appear here with their collection status.</p>
-              </div>
-            ) : (
-              <div className="shop-orders-table-wrap">
-                <table className="shop-orders-table">
-                  <caption className="visually-hidden">Your club shop orders</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Placed</th>
-                      <th scope="col">Item</th>
-                      <th scope="col">Size</th>
-                      <th scope="col">Qty</th>
-                      <th scope="col">Total</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Payment</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {state.orders.map((item) => (
-                      <tr key={item.orderId}>
-                        <td>{new Date(item.createdAt).toLocaleDateString("en-GB")}</td>
-                        <td>{item.productName}</td>
-                        <td>{item.size ?? "-"}</td>
-                        <td>{item.quantity}</td>
-                        <td>{formatShopPrice(item.totalMinor, item.currency)}</td>
-                        <td>
-                          <span className={`shop-status-badge shop-status-${item.status}`}>
-                            {statusLabels[item.status]}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`shop-status-badge shop-status-${item.paymentStatus}`}>
-                            {item.paymentStatus === "paid" ? "Paid" : "Pay on collection"}
-                          </span>
-                        </td>
+          {signedIn ? (
+            <section className="shop-section" aria-labelledby="shop-orders-title">
+              <p className="account-eyebrow">Your orders</p>
+              <h2 id="shop-orders-title">Order history</h2>
+              {state.orders.length === 0 ? (
+                <div className="shop-empty">
+                  <strong>No orders yet.</strong>
+                  <p>Requested items appear here with their collection status.</p>
+                </div>
+              ) : (
+                <div className="shop-orders-table-wrap">
+                  <table className="shop-orders-table">
+                    <caption className="visually-hidden">Your club shop orders</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Placed</th>
+                        <th scope="col">Item</th>
+                        <th scope="col">Size</th>
+                        <th scope="col">Qty</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Payment</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+                    </thead>
+                    <tbody>
+                      {state.orders.map((item) => (
+                        <tr key={item.orderId}>
+                          <td>{new Date(item.createdAt).toLocaleDateString("en-GB")}</td>
+                          <td>{item.productName}</td>
+                          <td>{item.size ?? "-"}</td>
+                          <td>{item.quantity}</td>
+                          <td>{formatShopPrice(item.totalMinor, item.currency)}</td>
+                          <td>
+                            <span className={`shop-status-badge shop-status-${item.status}`}>
+                              {statusLabels[item.status]}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`shop-status-badge shop-status-${item.paymentStatus}`}>
+                              {item.paymentStatus === "paid" ? "Paid" : "Pay on collection"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          ) : null}
         </>
       ) : null}
     </main>
@@ -397,9 +427,7 @@ function ShopContent() {
 export default function ShopPage() {
   return (
     <ClientAuthProvider>
-      <ClientAuthGate returnPath="/shop">
-        <ShopContent />
-      </ClientAuthGate>
+      <ShopContent />
     </ClientAuthProvider>
   );
 }

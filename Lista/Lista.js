@@ -32,6 +32,18 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 };
 
 const RESOLUTION_REQUIREMENTS = {
+  T120: [
+    "Aprobar el modelo de dos clientes: un comprador no ve datos de estudiante y un estudiante conserva su acceso actual.",
+    "Definir que expone el catalogo publico: solo productos activos, nombre, descripcion, precio e imagen; nunca pedidos ni costos internos.",
+    "Implementar el alta autoservicio del claim de forma idempotente, sin permitir que nadie se asigne un rol distinto de comprador.",
+    "Cubrir con Rules, pruebas de frontera y E2E que un comprador no alcanza estudiantes, familias, asistencia ni progreso.",
+  ],
+  T121: [
+    "Aprobar el flujo: quien solicita, que datos entrega, quien revisa y que pasa cuando office devuelve una solicitud.",
+    "Resolver el texto legal del waiver y de los disclaimers, hoy bloqueado por T011, antes de habilitar uso operativo.",
+    "Implementar la creacion del estudiante canonico y el ascenso del claim en una sola transaccion, respetando la reserva de capacidad de ADR-009.",
+    "Cubrir con auditoria, Rules, Emulator y E2E el camino completo de solicitud, revision, aprobacion y devolucion.",
+  ],
   T010: [
     "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
     "Completar onboarding, t\u00e9rminos, tarifas, monedas, disponibilidad regional y revisi\u00f3n legal.",
@@ -2011,6 +2023,26 @@ const recoveryItems = [
     ["tasks.md", "apps/web/src/app/admin/admin-shell.tsx"],
     "mvp",
   ),
+  task(
+    "T120",
+    "Cliente comprador y cliente estudiante, con catalogo de tienda publico",
+    "revision",
+    "Quien solo quiere comprar no necesita ser estudiante, y ver la tienda no deberia exigir cuenta.",
+    "T015,T105,T118",
+    "Alta 2026-09-06 por instruccion del operador. Hoy listShopCatalog exige rol de cliente y /shop entero vive detras del gate, asi que un visitante no ve ni un producto; ademas nadie asigna el claim de cliente al registrarse, de modo que quien se da de alta en produccion queda sin rol y el gate lo trata como desconectado para siempre. Alcance: rol shopper sin acceso a datos de estudiante, alta autoservicio idempotente del claim, catalogo publico con proyeccion reducida y solo productos activos, y /shop que muestra el catalogo a cualquiera y pide sesion solo al pedir. Corte 1 implementado el 2026-09-06: listPublicShopCatalog sin sesion con App Check, solo productos activos, academia validada en el payload, y /shop fuera del gate con Sign in to order por tarjeta. Falta el corte 2, el rol shopper y el alta autoservicio del claim.",
+    ["tasks.md", "apps/functions/src/shop", "apps/web/src/app/shop"],
+    "mvp",
+  ),
+  task(
+    "T121",
+    "Solicitud de inscripcion autoservicio y bandeja de solicitudes en miembros",
+    "pendiente",
+    "El solicitante llena sus datos una vez y office los revisa, en lugar de volver a teclearlos.",
+    "T090,T093,T094,T117,T120",
+    "Alta 2026-09-06 por instruccion del operador. El autoservicio de T094 ya guarda perfil, tutor y waiver, pero nada llega al directorio canonico: office vuelve a teclear todo en /admin/members/add. Alcance: coleccion de solicitudes con estado y auditoria, formulario que reutiliza el contrato del alta administrativa incluidos los menores a cargo del tutor, revision de office que aprueba o devuelve, y creacion del estudiante canonico con ascenso del claim en una sola transaccion. El texto legal sigue bloqueado por T011.",
+    ["tasks.md", "apps/functions/src/members", "apps/web/src/app/account"],
+    "mvp",
+  ),
 ];
 
 const projectData = {
@@ -2107,6 +2139,8 @@ const projectData = {
     T035: "2026-09-06",
     T118: "2026-09-06",
     T119: "2026-09-06",
+    T120: "2026-09-06",
+    T121: "2026-09-06",
     T068: "2026-09-06",
     T069: "2026-09-06",
     T070: "2026-09-06",

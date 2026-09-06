@@ -45,9 +45,9 @@ describe("Lista project progress", () => {
   it("reflects the board as of 2026-09-06", () => {
     expect(counts).toEqual({
       aprobada: 108,
-      revision: 0,
+      revision: 1,
       "en-progreso": 1,
-      pendiente: 3,
+      pendiente: 4,
       bloqueada: 1,
       cancelada: 7,
     });
@@ -76,6 +76,6 @@ describe("Lista project progress", () => {
     ]);
     expect(counts.cancelada).toBe(cancelled.length);
     expect(progress.total).toBe(items.length - cancelled.length);
-    expect(progress).toEqual({ approved: 108, total: 113, percentage: 96 });
+    expect(progress).toEqual({ approved: 108, total: 115, percentage: 94 });
   });
 });

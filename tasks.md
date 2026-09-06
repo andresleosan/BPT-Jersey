@@ -680,6 +680,8 @@ la evidencia; `Lista/Lista.js` debe reflejar esta secciÃ³n sin crear tareas fu
 | T117 | Gestionar disclaimers y su aceptacion por participante                                                                  | T090,T106                                              | aprobada    | Aprobada por el operador el 2026-09-06 (alcance sintetico/Emulator) por el mecanismo; el texto legal sigue bloqueado por T011. Decision del operador 2026-09-06: un disclaimer obligatorio pendiente NO bloquea la inscripcion ni la reserva hasta que exista texto legal aprobado. Laguna del DOCX registrada el 2026-09-05 y elevada a fila el 2026-09-05 por instruccion del operador. Ademas del waiver principal, el DOCX contempla disclaimers gestionables con aceptacion registrada. Hoy solo existe el waiver versionado de T090; el texto legal sigue bloqueado por T011. Mecanismo implementado el 2026-09-05 con contenido sintetico: dominio nuevo de disclaimers versionados con audiencia y obligatoriedad propias, hash de contenido, superseder transaccional por clave y aceptacion **ligada a la version**, no a la persona; publicar v2 devuelve la fila a la lista del participante y lo dice como reconsentimiento, conservando la aceptacion de v1 como historial. La plataforma no trae ni una palabra de texto legal: todo lo escribe office. Golden path 19/19 en Emulator y gate completo verde. Evidencia al final del ledger. T117 pasa a `revision` por el mecanismo; el texto legal sigue bloqueado por T011. |
 | T118 | Separar el acceso de miembros (`/login`) del acceso de staff (`/staff/login`) con destino decidido por el claim | T014,T015,T077,T102 | aprobada  | Implementada el 2026-09-06 por instruccion del operador ("separar las interfaces"). `/login` es solo para miembros y familias (sin selector Administrator/Client); `/staff/login` es la entrada de owner, administrator, headCoach y coach, con `robots noindex` y `X-Robots-Tag` en `apps/web/public/_headers`. Tras iniciar sesion, los claims del ID token deciden el destino: office -> `/admin`, coaches -> `/coach`; una cuenta sin claim de staff se cierra en el acto con un mensaje generico. Corrige el callejon sin salida anterior: un coach que entraba por "Administrator" aterrizaba en "not authorized" porque `/coach` no estaba permitido y el gate enviaba `returnPath` donde el formulario leia `returnTo`. Gates: `/admin/*` y `/coach/*` enlazan a `/staff/login?returnTo=<ruta>`; el estado "denied" ofrece cerrar sesion. Compuertas: lint, typecheck, prettier, unitarias web 87 archivos/409 pruebas y node 172/1631, E2E estatico 43 pasan + 1 omitida. Evidencia al final del ledger. Aprobada por el operador el 2026-09-06. |
 | T119 | Reducir el panel administrativo al alcance del piloto y retirar codigo muerto | T078,T081,T091,T102 | aprobada  | Implementada el 2026-09-06 por instruccion del operador ("veo muchas cosas en el panel de admin; retira lo que no va a funcionar"). Auditoria de 16 grupos de paneles con verificacion adversarial (tres lentes por recomendacion). Nav 19 -> 11 en cinco grupos (Today, People, Mat, Money, Setup). Borrados: `/admin/groups` y `/admin/activities` (duplicados de `/admin/classes` que escribian `instructorId: coach-1` y horas locales como UTC), la vista web de Regyfit Access Records (fuera del limite Regyfit del BRIEF; el callable y la coleccion siguen en produccion hasta decision del operador), la ruta duplicada `/admin/overview`, `live-operations-panel`, `preview-data.ts`, el adaptador offline de T065, el componente y helpers MFA de T017 (incluida la suite live y su proyecto Playwright) y el archivo sin seguimiento `peer-comparison.tsx` con alumnos ficticios. Fuera del nav pero intactos (rutas, callables, Rules y pruebas): Class waitlists, CRM, Retention y Lesson plans (v2 sin productor en produccion). Families se abre desde Members y el dashboard financiero desde Billing. Coaches: `/coach` como inicio, y en `/admin` solo Attendance (coach) o Attendance + Classes (headCoach) con enlace "Coach portal". Nota lateral "Synthetic preview" sustituida por el aviso de auditoria. Compuertas: las mismas de T118. Evidencia al final del ledger. Aprobada por el operador el 2026-09-06. |
+| T120 | Separar cliente comprador de cliente estudiante y abrir el catalogo de la tienda sin cuenta | T015,T105,T118 | revision  | Alta 2026-09-06 por instruccion del operador: "hay que tener dos tipos de clientes, los que solo quieran comprar y los estudiantes" y "que se puedan ver los productos de la tienda sin tener cuenta". Hoy `listShopCatalog` exige un actor con rol en `catalogRoles` (owner, administrator, guardian, adultStudent) y `/shop` entero vive detras de `ClientAuthGate`, asi que un visitante no ve ni un producto. Ademas nadie asigna el claim de cliente: `setCustomUserClaims` solo se llama en `admin-provisioning` y `staff-callables`, de modo que quien se registra hoy en produccion queda sin rol y `ClientAuthGate` lo trata como desconectado para siempre. Alcance: rol `shopper` nuevo en el vocabulario del dominio sin acceso a datos de estudiante, callable de alta autoservicio que asigna el claim solo cuando no existe, catalogo publico con proyeccion reducida y solo productos activos, y `/shop` que muestra el catalogo a cualquiera y pide sesion unicamente al pedir. Corte 1 implementado el 2026-09-06: catalogo publico. Falta el corte 2, el rol comprador y el alta autoservicio del claim. |
+| T121 | Solicitud de inscripcion autoservicio y bandeja de solicitudes en el panel de miembros | T090,T093,T094,T117,T120 | pendiente | Alta 2026-09-06 por instruccion del operador: al registrarse con Google se abre un formulario como el de alta de miembro, el solicitante llena sus datos, el disclaimer y el waiver, y las solicitudes aparecen en la parte administrativa de miembros para que crear un miembro sea mas facil. Hoy el autoservicio de T094 ya guarda perfil, tutor y waiver, pero nada de eso llega al directorio canonico: office vuelve a teclear los datos en `/admin/members/add`. Alcance: coleccion de solicitudes tenant-scoped con estado y auditoria, formulario de solicitud que reutiliza el contrato del alta administrativa incluidos menores a cargo del tutor, revision de office que aprueba o devuelve, y creacion del estudiante canonico y ascenso del claim a `guardian` o `adultStudent` en una sola transaccion. Depende de T120 para el rol de partida. El texto legal del waiver y de los disclaimers sigue bloqueado por T011, asi que la solicitud se construye con el texto que publique office y no habilita uso operativo hasta que ese texto exista. |
 
 ## Plan de implementaciÃ³n del MVP aprobado
 
@@ -5220,34 +5222,118 @@ afirmar que la entrada no tiene enlaces publicos.
 
 **Rollback:** quitar el enlace del pie y devolver las dos pruebas a su asercion anterior.
 
-### Pendiente al retomar (2026-09-06, tras la decision de alcance del operador)
+### T120 corte 1 - el catalogo de la tienda se lee sin cuenta - 2026-09-06
 
-Sustituye a los checklists anteriores. Tablero: 108 aprobadas de 113 contadas (96%), 3 pendientes
-(T058, T059, T108), 1 bloqueada (T099), 1 en progreso (T106) y 7 canceladas fuera del contador
-(T017, T036, T061, T068, T069, T070, T071).
+Instruccion del operador: "que se puedan ver los productos de la tienda sin tener cuenta".
 
-Del operador, en este orden:
+**El problema medido.** `listShopCatalogHandler` llamaba a `actorWithRole` con
+`catalogRoles`, asi que exigia sesion y claim; y `/shop` entero estaba envuelto en `ClientAuthGate`.
+Un visitante no veia ni un producto: la portada le ofrecia "Open the club shop" y el destino le pedia
+iniciar sesion. Eso es lo que el operador describio como "al intentar ver mas productos tambien
+solicita el registro".
 
-- [ ] T011: las cuatro casillas (razon social exacta y jurisdiccion, owner interno, estado del
-      registro JOIC, autorizacion del revisor) y la firma del revisor independiente. Es el unico
-      nudo real: bloquea T099, T108, T058, el paso 2 de T106 y el texto legal de T117.
-- [ ] Avisar a office y coaches de que la entrada cambio: `/login?role=administrator` ya no abre el
-      panel. Desde el 2026-09-06 hay un enlace `Staff sign-in` en el pie de la portada, asi que nadie
-      queda bloqueado aunque no recuerde la URL; aun asi conviene que guarden `/staff/login`.
-- [x] `.firebaserc` apunta a `bptjersey-f5a25` por decision del operador del 2026-09-06, con la
-      consecuencia asumida: un `firebase deploy` escrito a mano sin `--project` va a produccion. Los
-      scripts del repositorio siguen fijando `demo-bpt-jersey` de forma explicita.
-- [ ] Decidir si se retiran el callable `listRegyfitAccessRecords` y su coleccion en produccion; el
-      panel web ya no existe.
-- [ ] T109: pegar las coordenadas de Town y West en `/admin/classes` tras comprobarlas en un mapa.
+**Lo implementado.** `listPublicShopCatalog`, un callable nuevo sin sesion:
 
-Trabajo tecnico que el asistente puede hacer sin decision humana:
+- Conserva App Check y el CORS de un solo origen de `browserAdminCallableOptions`, asi que sigue
+  restringido a la aplicacion de la academia.
+- Devuelve unicamente productos activos, con la misma proyeccion que ya usaba el catalogo
+  autenticado: nombre, categoria, descripcion, precio, tallas, imagen, stock y orden. Ningun pedido,
+  cliente, coste ni campo interno. La proyeccion ya era publica por diseno, asi que no hizo falta
+  inventar un tipo reducido.
+- Recibe la academia en el payload porque un llamador anonimo no tiene claim del que derivarla. El
+  valor se valida como slug (`^[a-z][a-z0-9-]{2,60}$`), se rechaza cualquier clave extra y no se usa
+  para ampliar acceso: solo elige de que academia se leen los productos publicados.
 
-- [ ] Alta real de miembros: hoy "Create client account" crea el usuario de Auth pero nada asigna el
-      claim `guardian`/`adultStudent`, asi que un miembro que se registre en produccion no puede usar
-      `/account`. Es el primer hueco funcional del piloto.
-- [ ] T097 restante: comparacion opt-in de adultos y reinicio de la barra al promover.
-- [ ] Conectar `manageClasses` de T116 a los callables de horario.
-- [ ] Nombres en vez de IDs en el roster del coach y en Attendance, resueltos en el callable.
-- [ ] Hallazgo abierto de T066: el spec del Emulator carga `t066-review-plan` y el cliente web
-      rechaza la respuesta pese a que `getLessonPlan` responde con auth VALID.
+En el frontend, `/shop` deja de estar detras del gate. El visitante ve el catalogo y cada tarjeta le
+ofrece "Sign in to order" en vez del formulario; los datos de recogida y el historial de pedidos solo
+existen para quien tiene sesion. `NEXT_PUBLIC_ACADEMY_ID` selecciona la academia publica, con
+`demo-academy` por defecto, que es el tenant real de produccion, para que no quede inerte al
+desplegar como pasa con las variables que nadie configura.
+
+**Frontera probada.** Callables: un visitante recibe solo el producto activo, sin `academyId` ni
+`createdBy`, y `listProducts` se llama con la academia pedida; diez payloads invalidos (nulo, vacio,
+clave extra, mayusculas, `../`, espacio, numero, array) se rechazan con `invalid-argument`. Web:
+cuatro casos de la pagina, incluidos que el visitante no dispara `listShopCatalog` ni
+`listMyShopOrders`, que no existe formulario de pedido ni historial, y que el cliente autenticado
+conserva su flujo completo. E2E: la portada abre `/shop` sin pedir sesion.
+
+**Lo que el operador debe saber.** Los cinco productos sembrados en produccion estan **inactivos** a
+proposito porque los precios eran provisionales. Con este corte el catalogo ya es publico, pero
+seguira mostrando "No products are published yet" hasta que office active productos desde
+`/admin/shop`. No es un fallo del corte.
+
+**Lo que falta de T120.** El corte 2: el rol `shopper` y el alta autoservicio del claim. Hoy quien se
+registra sigue quedando sin rol, asi que puede ver la tienda pero no completar un pedido. Esa mitad
+va con T121.
+
+**Compuertas:** pnpm verify:mvp completo en verde (exit 0): 259 archivos y 2041 pruebas unitarias, 13 archivos de Rules, carga sintetica de 240 solicitudes con 0 fallos y p95 de 39 ms, smoke E2E. Ademas login-gateway en desktop y movil, 14 pruebas, incluida la nueva que abre /shop sin sesion.
+
+**Rollback:** revertir el commit. No hay datos, migraciones ni cambios de Rules.
+
+### Cierre de sesion: grafo de conocimiento refrescado - 2026-09-06
+
+`graphify . --update --code-only` seguido de `graphify cluster-only . --code-only`, sin coste de LLM
+(solo AST). 69 archivos de codigo re-extraidos, 24 eliminados y 103 nodos podados de 23 archivos que
+este corte borro: los modulos MFA de T017, el adaptador offline de T065, `preview-data`, las rutas
+`/admin/groups`, `/admin/activities` y `/admin/regyfit-access-records`, y sus pruebas. El grafo baja
+de 8061 a 7963 nodos y de 18759 a 18559 aristas; esa caida es codigo retirado, no cobertura perdida.
+357 comunidades, 274 renombradas por su hub porque el conjunto cambio. Contiene los modulos nuevos
+del dia: `resolveStaffDestination`, `requireStaffSession`, `sanitizeStaffReturnPath`,
+`listPublicShopCatalogHandler`, `publicAcademyId` y el `AdminShell` agrupado. `graphify-out/` sigue
+fuera de git.
+
+### Pendiente al retomar (2026-09-06, cierre de sesion)
+
+Sustituye a los checklists anteriores. Tablero: 108 aprobadas de 115 contadas (94%), 1 en revision
+(T120 corte 1), 4 pendientes (T058, T059, T108, T121), 1 bloqueada (T099), 1 en progreso (T106) y 7
+canceladas fuera del contador (T017, T036, T061, T068, T069, T070, T071).
+
+**Lo que se publico hoy en produccion**, en cuatro pushes a `main` (Pages despliega solo):
+
+1. `e71664d` acceso de miembros separado del de staff y panel administrativo reducido de 19 a 11
+   entradas.
+2. `f20c59e` tres filas aprobadas, seis canceladas y contador que excluye lo cancelado.
+3. `52f8031` `.firebaserc` en produccion y registro de la release autorizada.
+4. `ebd8264` enlace `Staff sign-in` en el pie de la portada.
+
+El catalogo publico de la tienda (T120 corte 1) queda commiteado en esta sesion; verificar en vivo
+tras el deploy de Pages.
+
+**Siguiente trabajo tecnico, sin esperar a nadie, en este orden:**
+
+1. **T120 corte 2**: rol `shopper` en el vocabulario del dominio sin acceso a datos de estudiante, y
+   callable de alta autoservicio que asigna el claim solo cuando no existe ninguno. Hoy
+   `setCustomUserClaims` solo se llama en `admin-provisioning` y `staff-callables`, asi que quien se
+   registra en produccion queda sin rol y `ClientAuthGate` lo trata como desconectado para siempre.
+   Es el fallo que impide cualquier registro real y bloquea a T121.
+2. **T121**: coleccion de solicitudes con estado y auditoria, formulario que reutiliza el contrato del
+   alta administrativa incluidos los menores a cargo del tutor, bandeja en `/admin/members`, y
+   creacion del estudiante canonico con ascenso del claim en una sola transaccion. Respetar la
+   reserva de capacidad de ADR-009.
+3. Mejoras de mayor impacto de la auditoria: nombres en vez de identificadores en el roster del coach
+   y en asistencia resueltos dentro del callable; PAYG de contado del coach que hoy no registra la
+   deuda; checkout de menores con los adultos autorizados prellenados desde la familia.
+4. T097 restante (comparacion opt-in de adultos) y conectar `manageClasses` de T116.
+
+**Del operador, en orden de peso:**
+
+- [ ] **T011**, el unico nudo real: razon social exacta y jurisdiccion, owner interno con correo
+      corporativo, estado o numero del registro JOIC, autorizacion para contratar al revisor, y la
+      firma del revisor independiente. Bloquea T099, y por encadenamiento T108, T058 y T059, mas el
+      paso 2 de T106 y el texto legal de T117 y T121.
+- [ ] **Activar productos en `/admin/shop`**: los cinco sembrados estan inactivos, asi que el catalogo
+      publico se vera vacio hasta que office los active. No es un fallo del corte.
+- [ ] **Avisar a office y coaches de `/staff/login`**: `/login?role=administrator` ya no abre el panel.
+      Hay un enlace en el pie de la portada, asi que nadie queda bloqueado.
+- [ ] **T109**: pegar las coordenadas de Town y West en `/admin/classes` tras verlas en un mapa.
+- [ ] Decidir si se retiran `listRegyfitAccessRecords` y su coleccion en produccion; el panel web ya
+      no existe.
+
+**Hallazgos abiertos que conviene no perder:**
+
+- El spec `lesson-planning-auth-emulator` carga `t066-review-plan` y el cliente web rechaza la
+  respuesta pese a que `getLessonPlan` responde con auth VALID. Anterior a este corte, sin diagnosticar.
+- `consent-callables` falla cerrado salvo con `BPT_SYNTHETIC_PILOT=true`, y ningun despliegue lo
+  define: la mitad del waiver esta inerte en produccion. Mismo patron en el export CSV de reportes.
+- Dos archivos sueltos `ADMIN` y `COACH` en la raiz, de 20 bytes y con el contenido cruzado, restos de
+  una redireccion de shell. Sin seguimiento en git y sin tocar.

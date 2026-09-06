@@ -123,10 +123,7 @@ test.describe("member and staff sign-in surfaces", () => {
     await expectNoBrowserHealthProblems(page, errors);
   });
 
-  for (const [pathname, returnPath] of [
-    ["/account", "/login?returnTo=%2Faccount"],
-    ["/shop", "/login?returnTo=%2Fshop"],
-  ] as const) {
+  for (const [pathname, returnPath] of [["/account", "/login?returnTo=%2Faccount"]] as const) {
     test(`keeps ${pathname} behind the member session gate`, async ({ page }) => {
       const errors = trackBrowserHealth(page);
       await installStaticRoute(page, pathname);
@@ -138,6 +135,19 @@ test.describe("member and staff sign-in surfaces", () => {
       await expectNoBrowserHealthProblems(page, errors);
     });
   }
+
+  // T120: the club shop catalogue is public information. A visitor reads it without an account.
+  test("opens the club shop to a visitor with no account", async ({ page }) => {
+    const errors = trackBrowserHealth(page);
+    await installStaticRoute(page, "/shop");
+    await page.goto("/shop");
+
+    await expect(page.getByRole("heading", { name: "Club shop", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to continue" })).toHaveCount(0);
+    await expect(page.getByLabel("Name for the order")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /Back to home/ })).toHaveAttribute("href", "/");
+    await expectNoBrowserHealthProblems(page, errors);
+  });
 
   test("sends signed-out administrator access to the staff sign-in", async ({ page }) => {
     const errors = trackBrowserHealth(page);
