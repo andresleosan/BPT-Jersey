@@ -5546,3 +5546,62 @@ demostrarse contencion real simultanea, porque el Emulator serializa con un solo
 private empty baseline artifact.` Causa: los artefactos cifrados de `.tmp/member-directory-baselines/`
 sobreviven entre corridas mientras los secretos sinteticos se regeneran en cada una, asi que dejan de
 descifrar. Se borran y vuelve a funcionar. Es scratch local, no dato.
+
+### Owner aprovisionado y waiver en el alta - 2026-09-07
+
+**El 403 de office no era un fallo: era la sonda de vitalidad funcionando.** El operador reporto que
+podia ver la lista de solicitudes pero no abrir el detalle, devolver ni aprobar. `listEnrolmentRequests`
+solo comprueba el rol; el detalle, la devolucion y la aprobacion pasan ademas por
+`requireCanonicalMemberDirectoryActor`, que exige un documento de administrador aprovisionado. Leyendo
+Firestore: `academies/demo-academy/users` estaba **vacia**. Ningun administrador aprovisionado, nunca.
+
+Y debajo habia algo mas: `provisionedAdminDocumentSchema` exige `authProvider: "google"`, y la cuenta
+que se usaba, `admin@admin.com`, es de contrasena. **No puede pasar esa sonda jamas.** Se propuso al
+operador cambiar el codigo para admitir cuentas de contrasena y se llego a empezar; el operador
+prefirio usar una cuenta de Google, asi que se revirtio y el control queda intacto. No se escribio en
+ningun momento un documento diciendo "google" sobre una cuenta que no lo es: seria un registro falso
+en produccion para saltarse un control, en el sistema que guarda datos de menores.
+
+**Incidencia en medio:** las dos cuentas `andres*@gmail.com` desaparecieron de Auth mientras se
+trabajaba -tres consultas consecutivas devolvieron solo dos cuentas-, y con ellas la cuenta elegida.
+La solicitud que quedaba en la bandeja apunta a `lXadgEEQQqdUG3QmxA1q3rEDLUs1`, borrada, asi que esta
+huerfana: aprobarla intentaria vincular una cuenta que no existe. Por decision del operador se deja
+donde esta y se prueba con una nueva.
+
+**Aprovisionamiento**, ejecutado por script contra la API con las tres piezas que escribe
+`admin-provisioning.ts`: comprobacion previa de que no hay `adminRoleLocks` huerfano -un lock presente
+invalida al actor y el aprovisionamiento habria quedado inservible sin decirlo-, evento de auditoria
+`admin.role.granted` con actor `system:admin-bootstrap` -ninguna persona lo autorizo desde dentro del
+producto, es el arranque del primer administrador y asi consta-, y el documento con los quince campos
+del esquema, verificados uno a uno, sin ninguno de mas porque `strictObject` los rechaza. Cuenta:
+`andres.san1404@gmail.com`, UID `Y1feAnNSzGdP5sGxlA7smeGk8H32`, `adminRole: owner`,
+`authProvider: google` -verdadero-.
+
+**Waiver en el alta (peticion del operador).** El texto del PDF del club entra al dominio en
+`packages/domain/src/consents/enrolment-waiver-terms.ts` con version y hash SHA-256 fijado por una
+prueba que lo recalcula. El cliente envia solo la version; el servidor guarda version, hash, fecha y
+quien acepto. Una aceptacion que solo dice "aceptado" no prueba nada despues.
+
+Lo que **no** se recoge, y es deliberado: condiciones medicas, lesiones y alergias. El formulario de
+papel las pide, son categoria especial, y el MVP las prohibe sin caso de uso aprobado (DPIA §2,
+decision 4 del acta). La clausula que las menciona si se muestra, porque el solicitante se compromete
+a declararlas al instructor. Esto tampoco sustituye una firma ni crea una version en `waiverVersions`:
+eso es T117, y cuando se despliegue esta pasa a ser su primera version en vez de una paralela.
+
+El hueco `Instructor Name` del PDF se rellena en la aprobacion con el nombre del revisor, leido de su
+documento administrativo y no del token. Opcional en toda la cadena: perder una etiqueta no puede ser
+el motivo por el que una inscripcion falle.
+
+**Fallo destapado, ajeno a la funcionalidad:** el mapa de reescritura de imports del artefacto de
+despliegue (`deploy-runtime.ts`) resolvia el subpath nuevo contra el mas corto que lo prefija
+-`consents` ganaba a `consents/enrolment-waiver`- y el Emulator no cargaba ninguna funcion. Registrada
+la entrada explicita.
+
+**Evidencia:** unitarias 2178/2179 -el fallo es `deploy-runtime`, flake conocido bajo carga, 3/3
+aislado-, Rules 92/92, y en Emulator con el artefacto real directorio 2/2 e inscripcion 4/4, incluida
+la prueba de que dos aprobaciones producen un alumno y no dos. Dos pruebas de interfaz nuevas: sin
+aceptar no se envia, y la version que viaja es la que estaba en pantalla. Despliegue ejecutado por el
+operador: siete funciones actualizadas, las cinco sondeadas responden 401 sin sesion.
+
+**Sin verificar todavia:** el circuito completo en produccion desde el navegador, que exige una sesion
+real y lo prueba el operador.
