@@ -1,0 +1,194 @@
+# DPIA — Evaluación de impacto en protección de datos (BORRADOR)
+
+**Estado: borrador sin aprobar. No es asesoría legal ni una certificación de cumplimiento.**
+**Fecha:** 2026-09-06 · **Redactado por:** el asistente, a partir del código y de los documentos de
+T011 · **Aprueba:** el controller (Vladimiro "Miro" Afonso) · **Revisor independiente:** ninguno,
+por decisión expresa del operador del 2026-09-06.
+
+Este documento cierra el único criterio de T011 que es analítico y no decisional. Los otros dos que
+siguen abiertos —la razón social completa (forma jurídica, número de registro y domicilio
+registrado) y las diez decisiones firmadas— no los puede cerrar nadie más que el controller, y este
+borrador no los suple.
+
+**Qué NO hace este documento:** no abre producción, no autoriza datos reales, no decide una base
+legal, no aprueba una transferencia y no sustituye la consulta a la JOIC si el riesgo residual sigue
+siendo alto. Un valor que aquí aparezca como propuesta es una propuesta.
+
+---
+
+## 1. Por qué esta evaluación es obligatoria
+
+No es una formalidad. El proyecto combina, en un mismo sistema, cinco factores que la guía de la
+JOIC señala por separado como indicadores de riesgo alto:
+
+1. **Menores de edad** como titulares principales, con datos aportados por un tutor.
+2. **Datos de salud y apoyo**: `HealthProfile` con códigos de apoyo operativo mínimo y estados de
+   revisión (`packages/domain/src/health/health-contracts.ts`), aunque el MVP prohíba el dato de
+   salud salvo caso de uso aprobado.
+3. **Datos financieros**: planes, cuotas, facturas, pagos y penalizaciones.
+4. **Control de acceso y asistencia**, incluida geolocalización: `location.geofence.saved`,
+   `attendance.proximity_override` y el geocercado por sede son monitorización de presencia física
+   de menores.
+5. **Datos reales ya importados**: 249 registros de miembros reales de Regyfit están en el proyecto
+   de producción `bptjersey-f5a25` desde el 2026-09-04, y 243 fichas más desde la importación PDF
+   del 2026-08-12.
+
+El quinto punto es el que cambia la naturaleza del ejercicio: **esto no es una evaluación previa a
+un tratamiento hipotético.** Ya hay tratamiento de datos personales reales de menores en
+producción. La evaluación llega tarde y debe leerse así.
+
+---
+
+## 2. Inventario de tratamiento, derivado del código
+
+Cada fila se comprobó contra los contratos del dominio, no contra la memoria.
+
+| Categoría                          | Dónde vive                                         | Sensibilidad declarada | Titulares         |
+| ---------------------------------- | -------------------------------------------------- | ---------------------- | ----------------- |
+| Identidad del estudiante           | `students/{id}`                                    | General                | Adultos y menores |
+| Perfil administrativo              | `studentAdminProfiles/{id}`                        | Confidencial           | Adultos y menores |
+| Contacto de emergencia y dirección | dentro del perfil administrativo                   | Confidencial           | Adultos y menores |
+| Documento de cliente               | `users/{uid}`                                      | General                | Adultos           |
+| Familias y parentesco              | `families`, `familyRelationships`                  | General                | Tutor y menores   |
+| Solicitudes de inscripción         | `enrolmentRequests`, `enrolmentRequestHolds`       | Confidencial           | Adultos y menores |
+| Asistencia y presencia             | asistencia, geocercas, anulaciones por proximidad  | Confidencial           | Adultos y menores |
+| Progresión y evaluaciones          | niveles, promociones, bajas médicas                | Confidencial           | Adultos y menores |
+| Salud y apoyo                      | perfiles y cambios de `HealthProfile`              | **Categoría especial** | Adultos y menores |
+| Finanzas                           | membresías, facturas, pagos, penalizaciones        | Confidencial           | Adultos y tutores |
+| Consentimientos y waivers          | waivers, disclaimers, evidencias                   | Confidencial           | Adultos y tutores |
+| Personal                           | `staff`, permisos, disponibilidad                  | Confidencial           | Empleados         |
+| Auditoría                          | `auditEvents`                                      | Metadatos              | Todos             |
+| **Importación Regyfit**            | `regyfitMemberRecords`, `regyfitAccessRecords`     | **Ver §4.1**           | Adultos y menores |
+| Claves de identidad                | `studentIdentityKeys` (HMAC-SHA256, no reversible) | Seudonimizado          | Adultos y menores |
+
+---
+
+## 3. Mitigaciones que el sistema ya tiene
+
+Se listan porque son reales y verificables, no porque basten.
+
+- **Aislamiento por inquilino por ruta.** Todo cuelga de `academies/{academyId}/…` y el `academyId`
+  sale del claim, nunca del payload.
+- **Denegación por defecto en Rules**, con una prueba que la fija (`qa/rules/default-deny.test.ts`,
+  92/92 el 2026-09-06). Ninguna colección sensible es alcanzable desde un cliente.
+- **App Check obligatorio** en los callables, y en el camino canónico verificado además dentro del
+  handler y no solo en las opciones.
+- **Proyecciones separadas por superficie.** Una cola o un listado nunca llevan fecha de nacimiento,
+  dirección ni contacto de emergencia; el detalle Confidencial se lee de uno en uno.
+- **Lectura restringida con propósito declarado, evento de auditoría y presupuesto** de 20 lecturas
+  cada 5 minutos por actor, para `member.detail.read`, `member.identity.lookup` y
+  `enrolment.request.detail.read`.
+- **Sonda de vitalidad**: el camino canónico revalida contra Auth y el documento de staff que la
+  cuenta sigue activa, de modo que un administrador revocado no escribe con un token aún no
+  expirado.
+- **Identificadores seudonimizados**: los números de socio, documento e IVA se reservan como claves
+  HMAC, no como valores en claro.
+- **Auditoría que no repite el valor**: los eventos de lectura restringida apuntan al contador del
+  lector, nunca al dato leído.
+
+---
+
+## 4. Riesgos residuales
+
+Ordenados por gravedad. Ninguno tiene todavía una decisión del controller.
+
+### 4.1 Contraseñas de miembros reales almacenadas en claro — **ALTO**
+
+`packages/domain/src/members/regyfit-member-record-contracts.ts:65` define
+`password: canonicalText(64).optional()` dentro del bloque de acceso del registro Regyfit, y
+`getRegyfitMemberRecord` (`apps/functions/src/regyfit/member-records.ts:105-120`) **devuelve el
+registro completo**, contraseña incluida, a cualquier claim de administrador. Los 249 registros
+importados a producción el 2026-09-04 son de personas reales, entre ellas menores.
+
+Comparado con el directorio canónico, a esta lectura le faltan tres controles que allí sí existen:
+
+| Control                         | `getMemberDetail` | `getRegyfitMemberRecord` |
+| ------------------------------- | ----------------- | ------------------------ |
+| Propósito declarado             | sí                | **no**                   |
+| Evento de auditoría por lectura | sí                | **no**                   |
+| Límite de lecturas por actor    | sí                | **no**                   |
+| Sonda de vitalidad del actor    | sí                | **no**                   |
+
+Consecuencias que hay que decir sin rodeos: nadie puede saber después quién leyó una contraseña,
+porque no queda rastro; un administrador revocado la sigue leyendo mientras su token no expire; y
+como la gente reutiliza contraseñas, el alcance del daño no se limita a Regyfit.
+
+**Decisión del controller requerida.** Opciones, de más a menos protectora: (a) borrar el campo de
+los registros ya importados y del contrato, si la operación no lo necesita; (b) conservarlo pero
+fuera de la proyección de detalle, accesible solo por un camino restringido con propósito y
+auditoría; (c) conservarlo como está, documentando la aceptación del riesgo. **El asistente no
+ejecuta ninguna: borrar datos reales de producción exige confirmación explícita.**
+
+### 4.2 T011 aprobada como borrador, y bloqueando — **ALTO**
+
+La política de retención, residencia y borrado está aprobada como _borrador con valores
+propuestos_. Ninguno de los doce plazos está implementado en el sistema: no hay proceso de borrado
+al vencimiento, ni tratamiento de retención legal, ni purga de copias. Es decir, hoy el principio de
+limitación del plazo de conservación no se cumple para ningún dato real que ya está almacenado.
+
+### 4.3 Sin revisor independiente — **ALTO (aceptado por decisión)**
+
+Por decisión del operador del 2026-09-06 no se contrata revisión independiente. Se retira el control
+que separaba decidir de verificar: quien firma las decisiones es el mismo que las toma. Este
+borrador tampoco es una revisión independiente, y la ausencia se hace más pesada precisamente porque
+hay hallazgos como el §4.1.
+
+### 4.4 Sin registro JOIC y sin exención citada — **MEDIO/ALTO**
+
+El operador determinó el 2026-09-06 que no procede registrarse. La exención concreta en que se apoya
+no consta. Mientras no se cite, es una decisión, no evidencia.
+
+### 4.5 Sin contrato de encargado con ningún proveedor — **MEDIO/ALTO**
+
+No hay DPA firmado con Google/Firebase ni con Cloudflare, pese a que ambos ya tratan datos reales.
+La guía de la JOIC exige contrato escrito con instrucciones, confidencialidad, seguridad,
+subencargados, asistencia en derechos y brechas, y devolución o borrado al terminar.
+
+### 4.6 Firebase Auth sin región seleccionable — **MEDIO**
+
+El mapa de regiones propone "ninguna transferencia fuera de UK/EEA", pero Firebase Auth no permite
+elegir región y necesita una evaluación real. Afecta a correo, nombre y teléfono de todas las
+cuentas, incluidas las de tutores de menores.
+
+### 4.7 Secretos placeholder en producción — **MEDIO**
+
+Los tres secretos del directorio canónico valen `placeholder-not-configured` en `bptjersey-f5a25`.
+Fallan cerrado, comprobado (19 bytes decodificados frente a los 32 exigidos), así que no derivan
+claves de una cadena pública: el servicio lanza al construirse. El riesgo no es de exposición sino
+de disponibilidad, y bloquea cualquier despliegue del camino que liga ficha y cuenta.
+
+### 4.8 Ausencia de operativa de derechos y brechas — **MEDIO**
+
+No existe procedimiento documentado de acceso, rectificación, supresión o limitación, ni de triaje
+de brecha con evaluación en 72 horas, ni de cómo se acredita la autoridad del tutor sobre el menor.
+El sistema tiene la trazabilidad para soportarlos; la operativa no está escrita.
+
+---
+
+## 5. Riesgo residual y consulta a la JOIC
+
+Con §4.1, §4.2 y §4.3 abiertos a la vez —credenciales en claro de menores sin auditoría de lectura,
+sin plazos de conservación implementados y sin contraparte que verifique— **el riesgo residual de
+este borrador es alto.**
+
+La guía consultada dice que, si tras las mitigaciones sigue habiendo riesgo alto probable, hay que
+consultar a la JOIC **antes** de tratar. Aquí el tratamiento ya empezó, así que la pregunta al
+controller no es si consultar antes, sino si procede notificar ahora y con qué alcance.
+
+**Esta es una recomendación técnica, no una determinación legal.** Quien decide es el controller.
+
+---
+
+## 6. Qué hace falta para que esto deje de ser un borrador
+
+1. Decisión del controller sobre §4.1, y ejecución de la que elija.
+2. Razón social completa: forma jurídica, número de registro y domicilio registrado.
+3. Las diez decisiones firmadas del acta (`t011-controller-approval-acta-draft.md`).
+4. Base legal por actividad y condición de categoría especial para salud/apoyo.
+5. Inventario de encargados con contrato firmado.
+6. Evaluación de transferencia real para Firebase Auth.
+7. Procedimiento de derechos y de brechas.
+8. Determinación sobre la consulta o notificación a la JOIC.
+
+Los puntos 2, 3 y 8 no los puede redactar el asistente. Los demás sí, en cuanto el controller decida
+la dirección.

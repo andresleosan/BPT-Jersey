@@ -48,7 +48,7 @@ describe("Lista project progress", () => {
       revision: 0,
       "en-progreso": 1,
       pendiente: 3,
-      bloqueada: 1,
+      bloqueada: 2,
       cancelada: 7,
     });
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
@@ -76,14 +76,12 @@ describe("Lista project progress", () => {
     ]);
     expect(counts.cancelada).toBe(cancelled.length);
     expect(progress.total).toBe(items.length - cancelled.length);
-    // On 2026-09-06 the operator approved T122 and T123; T124 was opened to carry the Emulator
-    // verification T122 had never run, and closed the same day because the reason it was blocked
-    // turned out to be false - JDK 21 was installed all along, shadowed on PATH by an Oracle Java
-    // 8. T121 then completed its last slice. Four rows moved to approved against one row added.
-    // The percentage is only honest because the two things that still cannot be shown are written
-    // down rather than counted as passed: two approvals under genuine contention, which the
-    // single-worker Functions Emulator cannot produce (T124), and production deployment, which the
-    // placeholder canonical-directory secrets still block (T058).
-    expect(progress).toEqual({ approved: 113, total: 118, percentage: 96 });
+    // 2026-09-06 moved four rows to approved - T121, T122, T123 and T124, the last of them the
+    // same day it opened, because the reason it was blocked turned out to be false: JDK 21 was
+    // installed all along, shadowed on PATH by an Oracle Java 8. Then writing T011's DPIA found
+    // cleartext member passwords in production data, which became T125, and the percentage went
+    // back down. That fall is the point: the denominator grew because real work was found, not
+    // invented, and a board that only ever rises is a board that stopped looking.
+    expect(progress).toEqual({ approved: 113, total: 119, percentage: 95 });
   });
 });

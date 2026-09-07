@@ -32,6 +32,11 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 };
 
 const RESOLUTION_REQUIREMENTS = {
+  T125: [
+    "Decision del operador: borrar el campo password de los registros ya importados, moverlo fuera de la proyeccion de detalle, o aceptar el riesgo por escrito.",
+    "Si se conserva, darle los cuatro controles que tiene el directorio canonico: proposito declarado, auditoria por lectura, limite por actor y sonda de vitalidad.",
+    "Confirmar si la operacion necesita de verdad esa contrasena, porque el campo entro por una decision deliberada de replicar Regyfit literalmente.",
+  ],
   T010: [
     "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
     "Completar onboarding, t\u00e9rminos, tarifas, monedas, disponibilidad regional y revisi\u00f3n legal.",
@@ -2083,6 +2088,20 @@ const recoveryItems = [
     ],
     "mvp",
   ),
+  task(
+    "T125",
+    "Decidir que se hace con las contrasenas en claro importadas de Regyfit",
+    "bloqueada",
+    "Credenciales reales de miembros, entre ellos menores, guardadas en texto y legibles sin dejar rastro.",
+    "T107",
+    "Alta 2026-09-06, hallazgo verificado al redactar la DPIA de T011. El contrato del registro Regyfit define un campo password y getRegyfitMemberRecord devuelve el registro completo, contrasena incluida, a cualquier claim de administrador. Los 249 registros importados a produccion el 2026-09-04 son de personas reales, entre ellas menores. No esta expuesto publicamente porque lo cubren App Check, el claim administrativo y las Rules de denegacion por defecto, pero comparado con el directorio canonico le faltan cuatro controles que alli si existen: proposito declarado, evento de auditoria por lectura, limite de lecturas por actor y sonda de vitalidad. Nadie puede saber despues quien leyo una contrasena, un administrador revocado la sigue leyendo mientras su token no expire, y como la gente reutiliza contrasenas el alcance del dano no se limita a Regyfit. Bloqueada porque la decision es del operador y toca datos reales de produccion, no porque falte trabajo tecnico; borrar datos reales es destructivo e irreversible y no se hace sin confirmacion explicita.",
+    [
+      "tasks.md",
+      "docs/operations/t011-dpia-draft.md",
+      "packages/domain/src/members/regyfit-member-record-contracts.ts",
+    ],
+    "mvp",
+  ),
 ];
 
 const projectData = {
@@ -2184,6 +2203,7 @@ const projectData = {
     T122: "2026-09-06",
     T123: "2026-09-06",
     T124: "2026-09-06",
+    T125: "2026-09-06",
     T068: "2026-09-06",
     T069: "2026-09-06",
     T070: "2026-09-06",
