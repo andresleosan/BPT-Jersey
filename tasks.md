@@ -5811,3 +5811,34 @@ el riesgo residual).
 
 **Contadores:** 115 aprobadas de 119 (97%), 0 en revision, 1 en progreso (T106), 3 pendientes (T058,
 T059, T108), 7 canceladas.
+
+### Cierre de sesion: grafo de conocimiento refrescado - 2026-09-07
+
+`--update` incremental sobre el grafo del 2026-09-07 00:02. 42 archivos cambiados desde entonces; se
+extrajeron **31** y se descartaron **11** porque eran `graphify-out/memory/`, que `.graphifyignore`
+excluye a proposito para que el grafo no se describa a si mismo. El detect los proponia igual, asi que
+el filtro se aplico a mano antes de extraer y queda anotado para la proxima vuelta.
+
+- **Codigo, AST y sin coste de LLM:** 23 archivos, 571 nodos y 961 aristas. Entra la herramienta nueva
+  (`scripts/release-delta.mjs` con su `.d.mts` y su prueba) y las pruebas del tablero.
+- **Documentos, extraccion semantica en dos agentes en paralelo:** 8 archivos, 240 nodos y 527 aristas.
+  Uno tomo `tasks.md`, que con 1,06 MB no se lee de una vez y se recorrio por secciones fechadas; el
+  otro, los siete documentos de operaciones. 273.270 tokens de entrada, 0 de salida. Los 8 quedaron
+  sellados en el manifiesto, asi que ninguno vuelve a la cola por fallo silencioso.
+- **Fusion:** 597 nodos reemplazados de los archivos reextraidos y 1 deduplicado. El grafo pasa de
+  **9071 a 9284 nodos** y de **20289 a 20756 aristas**: 265 nodos nuevos, 52 retirados, 600 aristas
+  nuevas, 133 retiradas. Diagnostico de integridad limpio, sin aristas colgantes, huerfanas, en bucle
+  ni colapsadas.
+- **Comunidades:** 461. Cuarenta con nombre puesto a mano -catalogo de niveles, dominio de horarios y
+  asistencia, contratos y politica de acceso, importacion canonica, backup y restauracion, solicitudes
+  de inscripcion, documentos privados y R2, plano de control del directorio, entre otras- y 421
+  nombradas por su nodo central. El HTML se agrega a vista de comunidades porque el grafo pasa de 5000
+  nodos.
+- **Lo que el grafo sabe ahora y antes no:** el runbook de release de T058 entero, con sus tres capas,
+  el orden de despliegue y la trampa de rollback del `strictObject`; el acta de T011 firmada por poder
+  y el hueco de la razon social que bloquea contratos de encargado; la aceptacion del riesgo de las
+  contrasenas de Regyfit ligada a los cuatro controles que le faltan; y las 126 filas del ledger con
+  sus dependencias como aristas, de modo que "que bloquea a que" se responde por consulta.
+
+`graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.
+Para consultarlo: `graphify query "<pregunta>"`.
