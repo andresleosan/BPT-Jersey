@@ -35,6 +35,21 @@
       "import": "./src/members/member-directory-contracts.ts",
       "default": "./lib/members/member-directory-contracts.js"
     },
+    "./members/directory-migration": {
+      "types": "./src/members/member-directory-migration-contracts.ts",
+      "import": "./src/members/member-directory-migration-contracts.ts",
+      "default": "./lib/members/member-directory-migration-contracts.js"
+    },
+    "./members/directory-operations": {
+      "types": "./src/members/member-directory-operation-contracts.ts",
+      "import": "./src/members/member-directory-operation-contracts.ts",
+      "default": "./lib/members/member-directory-operation-contracts.js"
+    },
+    "./members/directory-transitions": {
+      "types": "./src/members/member-directory-transitions.ts",
+      "import": "./src/members/member-directory-transitions.ts",
+      "default": "./lib/members/member-directory-transitions.js"
+    },
     "./members/enrolment-requests": {
       "types": "./src/members/enrolment-request-contracts.ts",
       "import": "./src/members/enrolment-request-contracts.ts",
