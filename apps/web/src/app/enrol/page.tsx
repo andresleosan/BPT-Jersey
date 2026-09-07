@@ -192,16 +192,21 @@ function StatusCard({
           <strong>The academy asked for a change:</strong> {request.reviewNote}
         </p>
       ) : null}
-      {request.status === "submitted" || request.status === "returned" ? (
-        <button
-          className="button button-secondary"
-          disabled={busy}
-          onClick={onWithdraw}
-          type="button"
-        >
-          Withdraw this request
-        </button>
-      ) : null}
+      <div className="hero-actions">
+        {request.status === "submitted" || request.status === "returned" ? (
+          <button
+            className="button button-secondary"
+            disabled={busy}
+            onClick={onWithdraw}
+            type="button"
+          >
+            Withdraw this request
+          </button>
+        ) : null}
+        <a className="button button-secondary" href="/">
+          Back to the home page
+        </a>
+      </div>
     </section>
   );
 }
