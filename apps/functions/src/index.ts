@@ -14,6 +14,8 @@ export { listRegyfitAccessRecords } from "./regyfit/access-records.js";
 export { getRegyfitMemberRecord, listRegyfitMemberRecords } from "./regyfit/member-records.js";
 export { cleanupExpiredMemberImportSessionsSchedule } from "./members/member-callables.js";
 export {
+  approveEnrolmentRequest,
+  getEnrolmentRequestDetail,
   listEnrolmentRequests,
   listMyEnrolmentRequests,
   returnEnrolmentRequest,

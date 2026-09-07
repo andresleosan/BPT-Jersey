@@ -33,11 +33,10 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 
 const RESOLUTION_REQUIREMENTS = {
   T121: [
-    "Cerrar T122 primero: aprobar creando la ficha y ascendiendo el claim produce una segunda ficha en cuanto el miembro guarda su perfil.",
+    "Construir el corte 3c, la UI de aprobacion: aprobar y ver el detalle son callables sin pantalla, asi que office todavia no los alcanza.",
     "Resolver el texto legal del waiver y de los disclaimers, hoy bloqueado por T011, antes de habilitar uso operativo.",
-    "Disenar la secuencia del tutor con menores: createFamily exige claim de guardian y documento de cliente previos.",
-    "Anadir la proyeccion de detalle: hoy office aprobaria sin ver la fecha de nacimiento ni el contacto de emergencia que aprueba.",
-    "Cubrir con auditoria, Rules, Emulator y E2E el camino completo de solicitud, revision, aprobacion y devolucion.",
+    "Verificar en Emulator que dos aprobaciones simultaneas se serializan sobre el documento de la solicitud; el doble de pruebas no lo simula.",
+    "Correr la suite de Rules y el E2E del camino completo, imposible en la maquina actual porque firebase-tools exige Java 21 y el JDK es 1.8.",
   ],
   T123: [
     "Corregir targetLabelUsed en el registro del run para que nombre el proyecto real contra el que corrio.",
@@ -45,7 +44,6 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T122: [
     "Correr la verificacion en Emulator, imposible en la maquina actual porque firebase-tools exige Java 21 y el JDK es 1.8.",
-    "Conectar el metodo nuevo a un flujo real: hoy es una capacidad que nadie llama todavia.",
     "Confirmar que no existen fichas ya duplicadas en produccion antes de dar la tarea por cerrada.",
   ],
   T010: [
@@ -2048,8 +2046,13 @@ const recoveryItems = [
     "en-progreso",
     "El solicitante llena sus datos una vez y office los revisa, en lugar de volver a teclearlos.",
     "T090,T093,T094,T117,T120",
-    "Alta 2026-09-06. Corte 1 aprobado por el operador el 2026-09-06: contrato que reutiliza literalmente la forma del alta administrativa menos las dos casillas de office, requestId y membershipNumber, para que nadie reclame el numero de socio de otro; la edad decide el flujo en vez del checkbox; coleccion tenant-scoped con estado, auditoria y una sola solicitud abierta por persona; callables de envio, listado propio y retirada para roles de cliente incluido shopper, y listado y devolucion con nota para office. Corte 3a: pagina /enrol con el formulario del solicitante, que pide sesion, manda a /account a quien ya es estudiante y muestra el estado con la nota de office si ya hay solicitud abierta. Corte 3b: bandeja en /admin/members/requests que lista nombre, tipo, numero de menores, centro y estado, sin fecha de nacimiento ni direccion, y avisa cuando la pagina esta llena. Correcciones del 2026-09-06 tras auditoria: el guardia de una sola solicitud abierta podia fallar en silencio tras 20 filas de historial y ahora es un documento por solicitante; la cola ordena y declara truncado; el contrato rechaza adulto que ademas inscribe hijos, combinacion que ningun claim puede representar; el telefono pasa a obligatorio porque el documento de cliente no parsea sin el. Falta el corte 2, la aprobacion, bloqueado por T122.",
-    ["tasks.md", "apps/functions/src/members", "apps/web/src/app/enrol"],
+    "Alta 2026-09-06. Corte 1 aprobado por el operador el 2026-09-06: contrato que reutiliza literalmente la forma del alta administrativa menos las dos casillas de office, requestId y membershipNumber, para que nadie reclame el numero de socio de otro; la edad decide el flujo en vez del checkbox; coleccion tenant-scoped con estado, auditoria y una sola solicitud abierta por persona; callables de envio, listado propio y retirada para roles de cliente incluido shopper, y listado y devolucion con nota para office. Corte 3a: pagina /enrol con el formulario del solicitante, que pide sesion, manda a /account a quien ya es estudiante y muestra el estado con la nota de office si ya hay solicitud abierta. Corte 3b: bandeja en /admin/members/requests que lista nombre, tipo, numero de menores, centro y estado, sin fecha de nacimiento ni direccion, y avisa cuando la pagina esta llena. Correcciones del 2026-09-06 tras auditoria: el guardia de una sola solicitud abierta podia fallar en silencio tras 20 filas de historial y ahora es un documento por solicitante; la cola ordena y declara truncado; el contrato rechaza adulto que ademas inscribe hijos, combinacion que ningun claim puede representar; el telefono pasa a obligatorio porque el documento de cliente no parsea sin el. Corte 2 implementado el 2026-09-06, alcance confirmado por el operador: adulto y tutor juntos, mas la proyeccion de detalle. La aprobacion no es una transaccion y no puede serlo, porque el estudiante vive en Firestore, el rol vive en Auth y createFamily exige el rol ya puesto; la solicitud misma es el cerrojo y fija la clave de idempotencia de la escritura administrativa, cada paso es idempotente bajo esa clave, y una secuencia cortada a medias queda en approval-failed, nunca en approved ni de vuelta con el solicitante. Sin ese cerrojo dos revisores concurrentes habrian creado dos estudiantes para una persona. Adulto: ficha primero y rol despues. Tutor: documento de cliente, claim guardian y createFamily, en ese orden porque el escritor de familias lo impone. Tres defectos destapados y corregidos de paso: el borrador de familia no llevaba gender ni frequencyNote y tiraba en silencio lo que el solicitante contesto sobre cada menor; el escritor de auditoria fijaba resultado completed para toda accion fuera de dos nombres, asi que la lectura restringida nueva habria afirmado algo falso; y los dos estados nuevos dejaban atrapada una solicitud que solo el solicitante podia arreglar, asi que office ahora puede devolverla con nota desde approval-failed. Falta el corte 3c, la UI de aprobacion.",
+    [
+      "tasks.md",
+      "docs/superpowers/specs/2026-09-06-t121-slice-2-approval-design.md",
+      "apps/functions/src/members",
+      "apps/web/src/app/enrol",
+    ],
     "mvp",
   ),
   task(
@@ -2058,7 +2061,7 @@ const recoveryItems = [
     "revision",
     "Una persona, una ficha: la que crea office y la que usa el miembro al entrar tienen que ser la misma.",
     "T093,T094",
-    "Alta 2026-09-06 tras la auditoria del camino de aprobacion de T121. Defecto verificado y anterior a T121: el alta administrativa escribia el estudiante sin userId y sin reservar la clave auth-user-id, mientras que saveClientProfile busca al titular por userId y, al no encontrarlo, crea otra ficha con su propia familia y su documento de cliente. Es decir, si office daba de alta a alguien y esa persona entraba y guardaba su perfil, la academia acababa con dos fichas de la misma persona, una con los datos y sin acceso y otra con el acceso y sin los datos, y nada lo detectaba. Implementado el 2026-09-06: createAdminAdultForAccount escribe las dos mitades en una transaccion; los dos caminos comparten un solo plan de escritura cuyo unico parametro nuevo es la cuenta, asi que el alta sin cuenta queda igual, con prueba que lo fija. Falla cerrado sin telefono y ante una cuenta que ya tiene familia o documento de cliente. La prueba decisiva corre los dos writers sobre el mismo almacen y comprueba que el perfil del miembro adopta la ficha de office; con el vinculo desactivado esa misma prueba devuelve una segunda ficha, que es el defecto. Los guardias se comprobaron por mutacion. Pendiente: nadie llama todavia al metodo nuevo, la verificacion en Emulator no se pudo correr aqui por Java, y el camino de tutor con menores se disena en el corte 2 de T121.",
+    "Alta 2026-09-06 tras la auditoria del camino de aprobacion de T121. Defecto verificado y anterior a T121: el alta administrativa escribia el estudiante sin userId y sin reservar la clave auth-user-id, mientras que saveClientProfile busca al titular por userId y, al no encontrarlo, crea otra ficha con su propia familia y su documento de cliente. Es decir, si office daba de alta a alguien y esa persona entraba y guardaba su perfil, la academia acababa con dos fichas de la misma persona, una con los datos y sin acceso y otra con el acceso y sin los datos, y nada lo detectaba. Implementado el 2026-09-06: createAdminAdultForAccount escribe las dos mitades en una transaccion; los dos caminos comparten un solo plan de escritura cuyo unico parametro nuevo es la cuenta, asi que el alta sin cuenta queda igual, con prueba que lo fija. Falla cerrado sin telefono y ante una cuenta que ya tiene familia o documento de cliente. La prueba decisiva corre los dos writers sobre el mismo almacen y comprueba que el perfil del miembro adopta la ficha de office; con el vinculo desactivado esa misma prueba devuelve una segunda ficha, que es el defecto. Los guardias se comprobaron por mutacion. Al 2026-09-06 el corte 2 de T121 consume el metodo, asi que ya no es una capacidad sin flujo, y el camino de tutor con menores quedo disenado e implementado alli, sin pasar por este metodo porque el tutor no es estudiante. Sigue en revision por una sola razon: la verificacion en Emulator no se pudo correr aqui por Java.",
     [
       "tasks.md",
       "docs/superpowers/specs/2026-09-06-t122-member-account-link-design.md",

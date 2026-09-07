@@ -1,5 +1,8 @@
 import {
+  canSubmitEnrolmentRequest,
+  isApprovableEnrolmentRequest,
   isOpenEnrolmentRequest,
+  isReturnableEnrolmentRequest,
   parseEnrolmentRequestRecord,
   type EnrolmentRequestRecord,
   type EnrolmentRequestSubmission,
@@ -49,7 +52,11 @@ export type EnrolmentFirestore = Readonly<{
 }>;
 
 export type EnrolmentAuditAction =
-  "enrolment.request.submitted" | "enrolment.request.returned" | "enrolment.request.withdrawn";
+  | "enrolment.request.submitted"
+  | "enrolment.request.returned"
+  | "enrolment.request.withdrawn"
+  | "enrolment.request.approved"
+  | "enrolment.request.approval.failed";
 export type EnrolmentAuditDraft = Readonly<{
   academyId: string;
   actorId: string;
@@ -88,6 +95,37 @@ export type WithdrawEnrolmentRequestInput = Readonly<{
   enrolmentRequestId: string;
 }>;
 
+export type BeginEnrolmentApprovalInput = Readonly<{
+  academyId: string;
+  actorId: string;
+  now: string;
+  enrolmentRequestId: string;
+  /** The reviewer's idempotency key, used only if the request does not already carry one. */
+  requestId: string;
+}>;
+
+export type BeginEnrolmentApprovalResult = Readonly<{
+  record: EnrolmentRequestRecord;
+  /** True when the request was already approved and this call changed nothing. */
+  alreadyApproved: boolean;
+}>;
+
+export type CompleteEnrolmentApprovalInput = Readonly<{
+  academyId: string;
+  actorId: string;
+  now: string;
+  enrolmentRequestId: string;
+  studentIds: readonly string[];
+}>;
+
+export type FailEnrolmentApprovalInput = Readonly<{
+  academyId: string;
+  actorId: string;
+  now: string;
+  enrolmentRequestId: string;
+  failureCode: string;
+}>;
+
 export type EnrolmentRequestPage = Readonly<{
   requests: readonly EnrolmentRequestRecord[];
   /** True when the page filled up: the reviewer is not seeing every request. */
@@ -103,6 +141,16 @@ export type EnrolmentRequestStore = Readonly<{
   ) => Promise<readonly EnrolmentRequestRecord[]>;
   returnForChanges: (input: ReviewEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
   withdraw: (input: WithdrawEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
+  /**
+   * Takes the approval lock. Approving spans several commits across Firestore and Auth, so the
+   * request document is what serialises reviewers: whoever moves it to `approving` owns the
+   * attempt, and the idempotency key of the canonical write is pinned to the request at that
+   * moment so a retry cannot mint a second student under a second key.
+   */
+  beginApproval: (input: BeginEnrolmentApprovalInput) => Promise<BeginEnrolmentApprovalResult>;
+  completeApproval: (input: CompleteEnrolmentApprovalInput) => Promise<EnrolmentRequestRecord>;
+  /** Where a half-finished approval stops: not open to the applicant, and not approved. */
+  failApproval: (input: FailEnrolmentApprovalInput) => Promise<EnrolmentRequestRecord>;
 }>;
 
 export type EnrolmentRequestStoreErrorCode =
@@ -247,6 +295,7 @@ export function createEnrolmentRequestStore(
     action: EnrolmentAuditAction,
     note: string | undefined,
     requireOwner: boolean,
+    permitted: (status: string) => boolean,
   ): Promise<EnrolmentRequestRecord> {
     const academyId = id(input.academyId, "academy");
     const actorId = id(input.actorId, "actor");
@@ -261,7 +310,7 @@ export function createEnrolmentRequestStore(
       const existing = stored(snapshot, academyId);
       if (requireOwner && existing.submittedBy !== actorId)
         throw new EnrolmentRequestStoreError("not-found", "Enrolment request not found");
-      if (!isOpenEnrolmentRequest(existing.status))
+      if (!permitted(existing.status))
         throw new EnrolmentRequestStoreError(
           "precondition",
           "This request was already resolved and cannot change",
@@ -292,6 +341,66 @@ export function createEnrolmentRequestStore(
     });
   }
 
+  /**
+   * Settles an attempt that holds the lock. Only a request in `approving` may be settled, so a
+   * late answer from an attempt somebody else already resolved cannot overwrite the outcome; and
+   * settling to the state a request already holds is a no-op, which is what makes a retried
+   * approval safe to run to the end.
+   */
+  async function settleApproval(
+    academyIdInput: string,
+    actorIdInput: string,
+    nowInput: string,
+    enrolmentRequestIdInput: string,
+    settlement: Readonly<{
+      status: "approved" | "approval-failed";
+      action: EnrolmentAuditAction;
+      fields: Readonly<Record<string, unknown>>;
+    }>,
+  ): Promise<EnrolmentRequestRecord> {
+    const academyId = id(academyIdInput, "academy");
+    const actorId = id(actorIdInput, "actor");
+    const now = timestamp(nowInput);
+    const reference = firestore.doc(
+      `${collectionPath(academyId, "enrolmentRequests")}/${id(enrolmentRequestIdInput, "enrolment request")}`,
+    );
+    return firestore.runTransaction(async (transaction) => {
+      const snapshot = asDocument(await transaction.get(reference));
+      if (!snapshot.exists)
+        throw new EnrolmentRequestStoreError("not-found", "Enrolment request not found");
+      const existing = stored(snapshot, academyId);
+      if (existing.status === settlement.status) return existing;
+      if (existing.status !== "approving")
+        throw new EnrolmentRequestStoreError(
+          "precondition",
+          "This approval is no longer the one in progress",
+        );
+      const candidate = parseEnrolmentRequestRecord({
+        ...existing,
+        ...settlement.fields,
+        status: settlement.status,
+        reviewedBy: actorId,
+        reviewedAt: now,
+      });
+      if (!candidate.ok)
+        throw new EnrolmentRequestStoreError("invalid", "Enrolment request contract rejected");
+      transaction.set(reference, candidate.value);
+      transaction.set(
+        firestore.doc(
+          `${collectionPath(academyId, "enrolmentRequestHolds")}/${enrolmentHoldId(existing.submittedBy)}`,
+        ),
+        {
+          submittedBy: existing.submittedBy,
+          enrolmentRequestId: existing.enrolmentRequestId,
+          status: settlement.status,
+          updatedAt: now,
+        },
+      );
+      audit(transaction, academyId, actorId, settlement.action, reference.path);
+      return candidate.value;
+    });
+  }
+
   return Object.freeze({
     async submit(input) {
       const academyId = id(input.academyId, "academy");
@@ -316,18 +425,21 @@ export function createEnrolmentRequestStore(
           return existing;
         }
         const hold = storedHold(asDocument(await transaction.get(holdReference)));
-        if (hold && isOpenEnrolmentRequest(hold.status))
+        // An allow list, not a list of refusals: a status added to the vocabulary is refused here
+        // until somebody decides otherwise, instead of quietly letting a person hold two requests.
+        if (!canSubmitEnrolmentRequest(hold?.status)) {
+          if (hold !== undefined && isOpenEnrolmentRequest(hold.status))
+            throw new EnrolmentRequestStoreError(
+              "precondition",
+              "You already have a request waiting for the academy to review",
+            );
+          // Somebody the academy already enrolled does not apply again: a second approval would
+          // create a second student record for one person.
           throw new EnrolmentRequestStoreError(
             "precondition",
-            "You already have a request waiting for the academy to review",
+            "The academy is already handling your enrolment. Ask reception if something needs changing",
           );
-        // Somebody the academy already enrolled does not apply again: a second approval would
-        // create a second student record for one person.
-        if (hold?.status === "approved")
-          throw new EnrolmentRequestStoreError(
-            "precondition",
-            "The academy has already enrolled you. Ask reception if something needs changing",
-          );
+        }
 
         const candidate = parseEnrolmentRequestRecord({
           enrolmentRequestId: reference.id,
@@ -378,12 +490,96 @@ export function createEnrolmentRequestStore(
       return page.requests;
     },
 
+    async beginApproval(input) {
+      const academyId = id(input.academyId, "academy");
+      const actorId = id(input.actorId, "actor");
+      const now = timestamp(input.now);
+      const requestId = input.requestId;
+      const reference = firestore.doc(
+        `${collectionPath(academyId, "enrolmentRequests")}/${id(input.enrolmentRequestId, "enrolment request")}`,
+      );
+      return firestore.runTransaction(async (transaction) => {
+        const snapshot = asDocument(await transaction.get(reference));
+        if (!snapshot.exists)
+          throw new EnrolmentRequestStoreError("not-found", "Enrolment request not found");
+        const existing = stored(snapshot, academyId);
+        // Approving twice is not an error to shout about: the first approval already did it.
+        if (existing.status === "approved")
+          return Object.freeze({ record: existing, alreadyApproved: true });
+        if (!isApprovableEnrolmentRequest(existing.status))
+          throw new EnrolmentRequestStoreError(
+            "precondition",
+            "This request was already resolved and cannot be approved",
+          );
+        // Whoever got here first pinned the key. A retry - by the same reviewer or another - runs
+        // against that key, so the canonical writer answers with the student it already created
+        // instead of creating a second one.
+        const approvalRequestId = existing.approvalRequestId ?? requestId;
+        const candidate = parseEnrolmentRequestRecord({
+          ...existing,
+          status: "approving",
+          reviewedBy: actorId,
+          reviewedAt: now,
+          approvalRequestId,
+        });
+        if (!candidate.ok)
+          throw new EnrolmentRequestStoreError("invalid", "Enrolment request contract rejected");
+        transaction.set(reference, candidate.value);
+        transaction.set(
+          firestore.doc(
+            `${collectionPath(academyId, "enrolmentRequestHolds")}/${enrolmentHoldId(existing.submittedBy)}`,
+          ),
+          {
+            submittedBy: existing.submittedBy,
+            enrolmentRequestId: existing.enrolmentRequestId,
+            status: "approving",
+            updatedAt: now,
+          },
+        );
+        return Object.freeze({ record: candidate.value, alreadyApproved: false });
+      });
+    },
+
+    async completeApproval(input) {
+      return settleApproval(input.academyId, input.actorId, input.now, input.enrolmentRequestId, {
+        status: "approved",
+        action: "enrolment.request.approved",
+        fields: { approvedStudentIds: Object.freeze([...input.studentIds]) },
+      });
+    },
+
+    async failApproval(input) {
+      return settleApproval(input.academyId, input.actorId, input.now, input.enrolmentRequestId, {
+        status: "approval-failed",
+        action: "enrolment.request.approval.failed",
+        fields: { approvalFailureCode: input.failureCode },
+      });
+    },
+
     async returnForChanges(input) {
-      return transition(input, "returned", "enrolment.request.returned", input.note, false);
+      // Office can also hand back an approval that stopped, which is the only way out for an
+      // applicant whose enrolment failed for a reason only they can fix.
+      return transition(
+        input,
+        "returned",
+        "enrolment.request.returned",
+        input.note,
+        false,
+        isReturnableEnrolmentRequest,
+      );
     },
 
     async withdraw(input) {
-      return transition(input, "withdrawn", "enrolment.request.withdrawn", undefined, true);
+      // The applicant may only withdraw something still in their hands. A request office is in the
+      // middle of approving is not.
+      return transition(
+        input,
+        "withdrawn",
+        "enrolment.request.withdrawn",
+        undefined,
+        true,
+        isOpenEnrolmentRequest,
+      );
     },
   });
 }

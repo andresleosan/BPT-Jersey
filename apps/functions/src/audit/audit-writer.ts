@@ -36,8 +36,17 @@ function sameValue(left: unknown, right: unknown): boolean {
   return left === right;
 }
 
+/**
+ * Only a restricted read reports an outcome; every other action is recorded because it happened.
+ * A restricted action missing from this list would be written as "completed" whatever it did,
+ * which is worse than not auditing it at all - the ledger would state something untrue.
+ */
 function storedResult(draft: AuditEventDraft): string {
-  if (draft.action === "member.detail.read" || draft.action === "member.identity.lookup") {
+  if (
+    draft.action === "member.detail.read" ||
+    draft.action === "member.identity.lookup" ||
+    draft.action === "enrolment.request.detail.read"
+  ) {
     return draft.result;
   }
   return "completed";

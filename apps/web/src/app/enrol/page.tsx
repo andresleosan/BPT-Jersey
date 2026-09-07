@@ -81,9 +81,13 @@ const emptyForm: ApplicantForm = {
   minors: [],
 };
 
+// An applicant is told the truth about every state, including the two the approval introduced: a
+// request being processed is not "waiting", and one whose approval stopped is not "approved".
 const statusLabels = {
   submitted: "Waiting for the academy",
   returned: "Sent back to you",
+  approving: "Being processed by the academy",
+  "approval-failed": "The academy is looking into it",
   approved: "Approved",
   withdrawn: "Withdrawn",
 } as const;
@@ -315,9 +319,11 @@ function EnrolContent() {
     }
   }, [session?.email, session?.displayName, form.email.length, form.fullName.length]);
 
+  // Anything the applicant still holds, not only what they can still act on. A request the academy
+  // is processing, or one whose approval stopped, has to show its state: dropping back to a blank
+  // form would invite a second submission the server is going to refuse anyway.
   const openRequest = useMemo(
-    () =>
-      requests?.find((request) => request.status === "submitted" || request.status === "returned"),
+    () => requests?.find((request) => request.status !== "withdrawn"),
     [requests],
   );
 

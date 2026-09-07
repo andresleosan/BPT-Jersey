@@ -21,6 +21,11 @@ import {
   type PublicAdminIdentifierLookupKind,
   type StudentAdminProfile,
 } from "@bpt-jersey/domain/members/directory";
+import {
+  parseEnrolmentRequestRecord,
+  toEnrolmentRequestDetail,
+  type EnrolmentRequestDetail,
+} from "@bpt-jersey/domain/members/enrolment-requests";
 import { parseStudentProfileAt, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import { z } from "zod";
 import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
@@ -69,6 +74,16 @@ export type CanonicalMemberDirectoryReadService = Readonly<{
   list: (command: DirectoryReadCommand) => Promise<AdminDirectoryPage>;
   detail: (command: DirectoryReadCommand) => Promise<MemberRecordMaintenanceDetail>;
   lookup: (command: DirectoryReadCommand) => Promise<ExactMemberLookupResult>;
+  /**
+   * One enrolment request, in full, for the reviewer about to decide it. It lives here rather than
+   * beside the enrolment queue because it is the same kind of read as a member record: the same
+   * date of birth and the same emergency contact, before the person is a member. Sharing this
+   * service means sharing the machinery that makes such a read accountable - the provisioned-actor
+   * check, the audit event and, deliberately, the one per-actor read budget. What it does not
+   * share is the canonical reader precondition: an enrolment request is not a directory record, so
+   * a frozen directory must not hide from office what somebody asked for.
+   */
+  enrolmentRequestDetail: (command: DirectoryReadCommand) => Promise<EnrolmentRequestDetail>;
 }>;
 
 export type CanonicalMemberDirectoryReadDependencies = Readonly<{
@@ -110,6 +125,11 @@ const detailInputSchema = z.strictObject({
   purpose: z.literal("member-record-maintenance"),
 });
 
+const enrolmentDetailInputSchema = z.strictObject({
+  enrolmentRequestId: z.string().regex(identifierPattern),
+  purpose: z.literal("enrolment-request-review"),
+});
+
 const lookupInputSchema = z.strictObject({
   lookupKind: z.enum(["membership-number", "id-card-number", "vat-number"]),
   value: z.string().min(1).max(64),
@@ -140,8 +160,10 @@ const restrictedReadLimitSchema = z.strictObject({
 
 type CursorPayload = Readonly<z.infer<typeof cursorPayloadSchema>>;
 type RestrictedReadLimit = Readonly<z.infer<typeof restrictedReadLimitSchema>>;
-type RestrictedAction = "member.detail.read" | "member.identity.lookup";
-type RestrictedPurpose = "member-record-maintenance" | "member-identity-lookup";
+type RestrictedAction =
+  "member.detail.read" | "member.identity.lookup" | "enrolment.request.detail.read";
+type RestrictedPurpose =
+  "member-record-maintenance" | "member-identity-lookup" | "enrolment-request-review";
 type RestrictedOperationOutcome<T> =
   | Readonly<{ kind: "success"; value: T; auditResult: "completed" | "no-match" }>
   | Readonly<{
@@ -263,6 +285,10 @@ function profilePath(academyId: string, studentId: string): string {
 
 function keyPath(academyId: string, keyId: string): string {
   return `academies/${academyId}/studentIdentityKeys/${keyId}`;
+}
+
+function enrolmentRequestPath(academyId: string, enrolmentRequestId: string): string {
+  return `academies/${academyId}/enrolmentRequests/${enrolmentRequestId}`;
 }
 
 function ratePath(academyId: string, actorId: string): string {
@@ -584,6 +610,8 @@ async function runRestricted<T>(
     action: RestrictedAction;
     purpose: RestrictedPurpose;
     dependencies: CanonicalMemberDirectoryReadDependencies;
+    /** False only for a read that is not of a canonical directory record. */
+    requiresCanonicalReader?: boolean;
     operation: (
       transaction: CanonicalDirectoryReadTransaction,
     ) => Promise<RestrictedOperationOutcome<T>>;
@@ -597,11 +625,13 @@ async function runRestricted<T>(
   const transactionResult = await input.dependencies.store.runTransaction(
     async (transaction): Promise<RestrictedTransactionResult<T>> => {
       await assertProvisionedActor(transaction, actor);
-      await assertCanonicalReader(
-        transaction,
-        actor.academyId,
-        input.dependencies.identitySecretVersion,
-      );
+      if (input.requiresCanonicalReader !== false) {
+        await assertCanonicalReader(
+          transaction,
+          actor.academyId,
+          input.dependencies.identitySecretVersion,
+        );
+      }
       const limitDocument = await transaction.get(ratePath(actor.academyId, actor.actorId));
       const limit = readRateLimit(limitDocument, actor, now);
       if (limit.attemptCount >= restrictedAttemptLimit) {
@@ -838,6 +868,47 @@ export function createCanonicalMemberDirectoryReadService(
           return Object.freeze({
             kind: "success",
             value: toMemberRecordMaintenanceDetail(student, profile),
+            auditResult: "completed",
+          });
+        },
+      });
+    },
+
+    async enrolmentRequestDetail(command) {
+      requireAuthorizedActor(command.actor);
+      const now = requiredTimestamp(command.now);
+      const value = parseInput(enrolmentDetailInputSchema, command.value);
+      return runRestricted<EnrolmentRequestDetail>({
+        command: Object.freeze({ ...command, now }),
+        action: "enrolment.request.detail.read",
+        purpose: value.purpose,
+        dependencies,
+        requiresCanonicalReader: false,
+        operation: async (transaction) => {
+          const document = await transaction.get(
+            enrolmentRequestPath(command.actor.academyId, value.enrolmentRequestId),
+          );
+          if (!document.exists) {
+            return Object.freeze({
+              kind: "failure",
+              code: "not-found",
+              auditResult: "not-found",
+            });
+          }
+          const parsed = parseEnrolmentRequestRecord(document.data);
+          if (!parsed.ok) throw new DirectoryDataIssue("Stored enrolment request is unreadable");
+          // Path scoping already picks the tenant, so a mismatch here is a stored record that
+          // disagrees with where it lives - a data problem, never something to project.
+          if (
+            parsed.value.academyId !== command.actor.academyId ||
+            parsed.value.enrolmentRequestId !== value.enrolmentRequestId ||
+            document.id !== value.enrolmentRequestId
+          ) {
+            throw new DirectoryDataIssue("Enrolment request binding mismatch");
+          }
+          return Object.freeze({
+            kind: "success",
+            value: toEnrolmentRequestDetail(parsed.value),
             auditResult: "completed",
           });
         },

@@ -6,7 +6,11 @@ import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
-import { requireAdminActor } from "../auth/admin-authorization.js";
+import {
+  createMemberDirectoryActorActivityCheck,
+  requireCanonicalMemberDirectoryActor,
+  type MemberDirectoryActorActivityCheck,
+} from "./canonical-actor.js";
 import {
   CanonicalMemberDirectoryReadError,
   createCanonicalMemberDirectoryReadService,
@@ -15,10 +19,8 @@ import {
 import {
   CanonicalMemberDirectoryError,
   createCanonicalMemberDirectoryService,
-  type CanonicalMemberDirectoryActor,
   type CanonicalMemberDirectoryService,
 } from "./canonical-member-directory-service.js";
-import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
 import { createMemberDirectoryFirestoreAdapters } from "./member-directory-firestore.js";
 
 const identityKeySecret = defineSecret("MEMBER_DIRECTORY_IDENTITY_KEY_SECRET");
@@ -29,104 +31,15 @@ const identitySecretVersion = "identity-v1";
 const integritySecretVersion = "integrity-v1";
 const cursorSecretVersion = "cursor-v1";
 
-type MemberDirectoryActorStatusInput = Readonly<{
-  uid: string;
-  academyId: string;
-  role: "owner" | "administrator";
-}>;
-
-type MemberDirectoryActivityAuthUser = Readonly<{
-  uid: string;
-  disabled: boolean;
-  customClaims?: Readonly<Record<string, unknown>>;
-}>;
-
-type MemberDirectoryActivityDocument = Readonly<{
-  exists: boolean;
-  data: () => unknown;
-}>;
-
-export type MemberDirectoryActorActivityDependencies = Readonly<{
-  getAuthUser: (uid: string) => Promise<MemberDirectoryActivityAuthUser>;
-  getDocument: (path: string) => Promise<MemberDirectoryActivityDocument>;
-}>;
-
 export type MemberDirectoryCallableServices = Readonly<{
   writer: CanonicalMemberDirectoryService;
   reader: CanonicalMemberDirectoryReadService;
-  isActorActive: (input: MemberDirectoryActorStatusInput) => Promise<boolean>;
+  isActorActive: MemberDirectoryActorActivityCheck;
   now: () => string;
 }>;
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function createMemberDirectoryActorActivityCheck(
-  dependencies: MemberDirectoryActorActivityDependencies,
-): MemberDirectoryCallableServices["isActorActive"] {
-  return async ({ uid, academyId, role }) => {
-    try {
-      const [authUser, adminDocument, roleLock] = await Promise.all([
-        dependencies.getAuthUser(uid),
-        dependencies.getDocument(`academies/${academyId}/users/${uid}`),
-        dependencies.getDocument(`academies/${academyId}/adminRoleLocks/${uid}`),
-      ]);
-      if (authUser.uid !== uid || authUser.disabled || !adminDocument.exists || roleLock.exists) {
-        return false;
-      }
-      const claims = authUser.customClaims;
-      return (
-        matchesProvisionedMemberDirectoryActor(adminDocument.data(), {
-          actorId: uid,
-          academyId,
-          role,
-        }) &&
-        isRecord(claims) &&
-        claims.academyId === academyId &&
-        claims.role === role
-      );
-    } catch {
-      return false;
-    }
-  };
-}
-
 function serverTimestamp(): string {
   return new Date().toISOString();
-}
-
-async function canonicalActor(
-  request: CallableRequest<unknown>,
-  services: MemberDirectoryCallableServices,
-): Promise<CanonicalMemberDirectoryActor> {
-  const actor = requireAdminActor(request);
-  if (request.app === undefined) {
-    throw new HttpsError("unauthenticated", "Verified App Check is required");
-  }
-  if (actor.role !== "owner" && actor.role !== "administrator") {
-    throw new HttpsError("permission-denied", "Owner or administrator access is required");
-  }
-  let active: boolean;
-  try {
-    active = await services.isActorActive({
-      uid: actor.uid,
-      academyId: actor.academyId,
-      role: actor.role,
-    });
-  } catch {
-    throw new HttpsError("failed-precondition", "Administrative account status is unavailable");
-  }
-  if (!active) {
-    throw new HttpsError("permission-denied", "An active administrative account is required");
-  }
-  return Object.freeze({
-    actorId: actor.uid,
-    academyId: actor.academyId,
-    role: actor.role,
-    active: true,
-    appCheckVerified: true,
-  });
 }
 
 function mapDirectoryError(error: unknown): never {
@@ -166,7 +79,7 @@ export async function createMemberDirectoryHandler(
   request: CallableRequest<unknown>,
   services: MemberDirectoryCallableServices,
 ) {
-  const actor = await canonicalActor(request, services);
+  const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
   try {
     return await services.writer.createAdminAdult({
       actor,
@@ -182,7 +95,7 @@ export async function updateMemberDirectoryHandler(
   request: CallableRequest<unknown>,
   services: MemberDirectoryCallableServices,
 ) {
-  const actor = await canonicalActor(request, services);
+  const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
   try {
     return await services.writer.updateAdminMember({
       actor,
@@ -198,7 +111,7 @@ export async function listMembersHandler(
   request: CallableRequest<unknown>,
   services: MemberDirectoryCallableServices,
 ) {
-  const actor = await canonicalActor(request, services);
+  const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
   try {
     return await services.reader.list({
       actor,
@@ -214,7 +127,7 @@ export async function getMemberDetailHandler(
   request: CallableRequest<unknown>,
   services: MemberDirectoryCallableServices,
 ) {
-  const actor = await canonicalActor(request, services);
+  const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
   try {
     return await services.reader.detail({
       actor,
@@ -230,7 +143,7 @@ export async function lookupMemberIdentityHandler(
   request: CallableRequest<unknown>,
   services: MemberDirectoryCallableServices,
 ) {
-  const actor = await canonicalActor(request, services);
+  const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
   try {
     return await services.reader.lookup({
       actor,
@@ -279,6 +192,8 @@ function defaultServices(): MemberDirectoryCallableServices {
     now: serverTimestamp,
   });
 }
+
+export { createMemberDirectoryActorActivityCheck };
 
 const memberDirectoryCallableOptions = {
   enforceAppCheck: true,

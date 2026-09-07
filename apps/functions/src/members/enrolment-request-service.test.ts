@@ -391,3 +391,215 @@ describe("enrolment request store", () => {
     ).rejects.toMatchObject({ code: "invalid" });
   });
 });
+
+describe("enrolment approval lock", () => {
+  const approvalKey = "1f2e3d4c-5b6a-4978-8695-a4b3c2d1e0f9";
+  const otherApprovalKey = "9e8d7c6b-5a49-4382-9176-0f1e2d3c4b5a";
+
+  async function begin(
+    seed: Readonly<Record<string, EnrolmentDocumentData>>,
+    requestIdInput = approvalKey,
+    actorId = "owner-1",
+  ) {
+    const double = firestoreDouble(seed);
+    const result = await double.store.beginApproval({
+      academyId: "academy-1",
+      actorId,
+      now: later,
+      enrolmentRequestId: enrolmentRequestId(requestId),
+      requestId: requestIdInput,
+    });
+    return { ...double, result };
+  }
+
+  it("takes the lock, pins the reviewer's idempotency key and closes the applicant's hold", async () => {
+    const { result, documents } = await begin({
+      [requestPath]: record(),
+      [holdPath]: hold("submitted"),
+    });
+
+    expect(result.alreadyApproved).toBe(false);
+    expect(result.record).toMatchObject({
+      status: "approving",
+      approvalRequestId: approvalKey,
+      reviewedBy: "owner-1",
+      reviewedAt: later,
+    });
+    expect(documents.get(holdPath)).toMatchObject({ status: "approving" });
+  });
+
+  it("gives a retry the key the first attempt pinned, never a fresh one", async () => {
+    // This is the whole defence against two students for one person: a second key would mint a
+    // second write receipt, and the canonical writer would happily create a second record.
+    const { result } = await begin(
+      { [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }) },
+      otherApprovalKey,
+      "owner-2",
+    );
+
+    expect(result.record.approvalRequestId).toBe(approvalKey);
+  });
+
+  it("resumes an approval that previously stopped", async () => {
+    const { result } = await begin({
+      [requestPath]: record({
+        status: "approval-failed",
+        approvalRequestId: approvalKey,
+        approvalFailureCode: "claim_not_persisted",
+      }),
+    });
+
+    expect(result.record).toMatchObject({ status: "approving", approvalRequestId: approvalKey });
+  });
+
+  it("answers an already approved request without writing anything", async () => {
+    const { result, documents } = await begin({
+      [requestPath]: record({
+        status: "approved",
+        approvalRequestId: approvalKey,
+        approvedStudentIds: ["student-1"],
+      }),
+    });
+
+    expect(result).toMatchObject({ alreadyApproved: true });
+    expect(documents.get(requestPath)).toMatchObject({ status: "approved" });
+  });
+
+  it("refuses to approve a request the applicant withdrew", async () => {
+    const double = firestoreDouble({ [requestPath]: record({ status: "withdrawn" }) });
+
+    await expect(
+      double.store.beginApproval({
+        academyId: "academy-1",
+        actorId: "owner-1",
+        now: later,
+        enrolmentRequestId: enrolmentRequestId(requestId),
+        requestId: approvalKey,
+      }),
+    ).rejects.toMatchObject({ code: "precondition" });
+  });
+
+  it("settles a held approval and records what it created", async () => {
+    const { store, documents, audits } = firestoreDouble({
+      [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }),
+      [holdPath]: hold("approving"),
+    });
+
+    const settled = await store.completeApproval({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now: later,
+      enrolmentRequestId: enrolmentRequestId(requestId),
+      studentIds: ["student-7"],
+    });
+
+    expect(settled).toMatchObject({ status: "approved", approvedStudentIds: ["student-7"] });
+    expect(documents.get(holdPath)).toMatchObject({ status: "approved" });
+    expect(audits.at(-1)).toMatchObject({ action: "enrolment.request.approved" });
+  });
+
+  it("parks a half-finished approval where office can see it, never back with the applicant", async () => {
+    const { store, documents, audits } = firestoreDouble({
+      [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }),
+      [holdPath]: hold("approving"),
+    });
+
+    const settled = await store.failApproval({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now: later,
+      enrolmentRequestId: enrolmentRequestId(requestId),
+      failureCode: "claim_not_persisted",
+    });
+
+    expect(settled).toMatchObject({
+      status: "approval-failed",
+      approvalFailureCode: "claim_not_persisted",
+    });
+    expect(documents.get(holdPath)).toMatchObject({ status: "approval-failed" });
+    expect(audits.at(-1)).toMatchObject({ action: "enrolment.request.approval.failed" });
+  });
+
+  it("refuses a settlement from an attempt that no longer holds the lock", async () => {
+    const { store } = firestoreDouble({ [requestPath]: record({ status: "submitted" }) });
+
+    await expect(
+      store.completeApproval({
+        academyId: "academy-1",
+        actorId: "owner-1",
+        now: later,
+        enrolmentRequestId: enrolmentRequestId(requestId),
+        studentIds: ["student-7"],
+      }),
+    ).rejects.toMatchObject({ code: "precondition" });
+  });
+
+  it("stops an applicant applying again while their approval is in flight or parked", async () => {
+    // Neither state is "open", so a deny list written against the old vocabulary would have let
+    // both through and produced a second request for a person already being enrolled.
+    for (const status of ["approving", "approval-failed"] as const) {
+      const { store } = firestoreDouble({ [holdPath]: hold(status) });
+
+      await expect(
+        store.submit({
+          academyId: "academy-1",
+          actorId: "visitor-1",
+          now: later,
+          submission: { ...submission, requestId: otherRequestId },
+        }),
+      ).rejects.toMatchObject({ code: "precondition" });
+    }
+  });
+
+  it("lets office hand back an approval that stopped, so the applicant is not stuck", async () => {
+    // Without this the person is trapped: they cannot withdraw a request that is not open, and
+    // they cannot apply again while they hold one.
+    const { store, documents } = firestoreDouble({
+      [requestPath]: record({
+        status: "approval-failed",
+        approvalRequestId: approvalKey,
+        approvalFailureCode: "applicant_account_incomplete",
+      }),
+      [holdPath]: hold("approval-failed"),
+    });
+
+    const returned = await store.returnForChanges({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now: later,
+      enrolmentRequestId: enrolmentRequestId(requestId),
+      note: "Add a name to your Google account, then apply again.",
+    });
+
+    expect(returned.status).toBe("returned");
+    expect(documents.get(holdPath)).toMatchObject({ status: "returned" });
+  });
+
+  it("does not let the applicant pull a request out from under an approval in progress", async () => {
+    const { store } = firestoreDouble({
+      [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }),
+    });
+
+    await expect(
+      store.withdraw({
+        academyId: "academy-1",
+        actorId: "visitor-1",
+        now: later,
+        enrolmentRequestId: enrolmentRequestId(requestId),
+      }),
+    ).rejects.toMatchObject({ code: "precondition" });
+  });
+
+  it("lets somebody who withdrew apply again", async () => {
+    const { store } = firestoreDouble({ [holdPath]: hold("withdrawn") });
+
+    const saved = await store.submit({
+      academyId: "academy-1",
+      actorId: "visitor-1",
+      now: later,
+      submission: { ...submission, requestId: otherRequestId },
+    });
+
+    expect(saved.status).toBe("submitted");
+  });
+});

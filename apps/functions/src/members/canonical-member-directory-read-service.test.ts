@@ -717,3 +717,132 @@ describe("canonical administrative directory reads", () => {
     ).toBe(false);
   });
 });
+
+describe("enrolment request detail read", () => {
+  const enrolmentPath = "academies/academy-1/enrolmentRequests/enrolment-1";
+  const command = Object.freeze({
+    actor: actor(),
+    value: { enrolmentRequestId: "enrolment-1", purpose: "enrolment-request-review" },
+    now,
+  });
+
+  function storedRequest(overrides: Readonly<Record<string, unknown>> = {}) {
+    return {
+      enrolmentRequestId: "enrolment-1",
+      academyId: "academy-1",
+      requestId: "6f1d2f66-6f4f-4a2e-9a0e-2b6f0a4a1c11",
+      status: "submitted",
+      applicantIsStudent: true,
+      applicant: {
+        fullName: "Alex Adult",
+        dateOfBirth: "1994-04-02",
+        phoneNumber: "07700900123",
+        trainingCenter: "Town",
+        trainingTimePreferences: ["evening"],
+        emergencyContact: {
+          fullName: "Sam Contact",
+          relationship: "Sister",
+          phoneNumber: "07700900999",
+        },
+        postalAddress: { line: "1 Bath Street", postCode: "JE2 4SU" },
+      },
+      minors: [],
+      submittedBy: "client-1",
+      submittedAt: now,
+      schemaVersion: "1",
+      ...overrides,
+    };
+  }
+
+  it("shows the reviewer exactly what the queue withholds", async () => {
+    // Office was previously asked to approve somebody while looking at a name and a centre. The
+    // date of birth decides whether the applicant is even eligible as an adult, and the emergency
+    // contact is what the academy is taking responsibility for.
+    const harness = fakeStore({ ...seed(), [enrolmentPath]: storedRequest() });
+
+    const detail = await service(harness.store).enrolmentRequestDetail(command);
+
+    expect(detail).toMatchObject({
+      enrolmentRequestId: "enrolment-1",
+      status: "submitted",
+      applicant: expect.objectContaining({
+        dateOfBirth: "1994-04-02",
+        emergencyContact: expect.objectContaining({ phoneNumber: "07700900999" }),
+        postalAddress: expect.objectContaining({ postCode: "JE2 4SU" }),
+      }),
+    });
+  });
+
+  it("audits the read and spends it from the same budget as a member record read", async () => {
+    const harness = fakeStore({ ...seed(), [enrolmentPath]: storedRequest() });
+
+    await service(harness.store).enrolmentRequestDetail(command);
+
+    expect(harness.records.get("academies/academy-1/auditEvents/restricted-audit-1")).toEqual(
+      expect.objectContaining({
+        action: "enrolment.request.detail.read",
+        targetRef: "academies/academy-1/studentRestrictedReadLimits/owner-1",
+        purpose: "enrolment-request-review",
+        result: "completed",
+      }),
+    );
+    expect(harness.records.get("academies/academy-1/studentRestrictedReadLimits/owner-1")).toEqual(
+      expect.objectContaining({ attemptCount: 1 }),
+    );
+  });
+
+  it("records a miss instead of leaking whether the request exists", async () => {
+    const harness = fakeStore(seed());
+
+    await expect(service(harness.store).enrolmentRequestDetail(command)).rejects.toThrow(
+      /not found/i,
+    );
+    expect(harness.records.get("academies/academy-1/auditEvents/restricted-audit-1")).toEqual(
+      expect.objectContaining({ action: "enrolment.request.detail.read", result: "not-found" }),
+    );
+  });
+
+  it("refuses an actor the academy no longer provisions", async () => {
+    const withoutActor = seed();
+    delete withoutActor["academies/academy-1/users/owner-1"];
+    const harness = fakeStore({ ...withoutActor, [enrolmentPath]: storedRequest() });
+
+    await expect(service(harness.store).enrolmentRequestDetail(command)).rejects.toMatchObject({
+      code: "unauthorized",
+    });
+  });
+
+  it("still answers while the member directory is frozen", async () => {
+    // A request is not a directory record. Freezing the directory must not hide from office what
+    // somebody asked for - only what the directory itself would write.
+    const frozen = seed();
+    delete frozen["academies/academy-1/memberDirectoryStates/current"];
+    const harness = fakeStore({ ...frozen, [enrolmentPath]: storedRequest() });
+
+    await expect(service(harness.store).enrolmentRequestDetail(command)).resolves.toMatchObject({
+      enrolmentRequestId: "enrolment-1",
+    });
+  });
+
+  it("refuses a stored request that disagrees with where it lives", async () => {
+    const harness = fakeStore({
+      ...seed(),
+      [enrolmentPath]: storedRequest({ academyId: "academy-2" }),
+    });
+
+    await expect(service(harness.store).enrolmentRequestDetail(command)).rejects.toMatchObject({
+      code: "unavailable",
+    });
+  });
+
+  it("refuses a read that does not declare its purpose", async () => {
+    const harness = fakeStore({ ...seed(), [enrolmentPath]: storedRequest() });
+
+    await expect(
+      service(harness.store).enrolmentRequestDetail({
+        ...command,
+        value: { enrolmentRequestId: "enrolment-1" },
+      }),
+    ).rejects.toMatchObject({ code: "invalid" });
+  });
+});

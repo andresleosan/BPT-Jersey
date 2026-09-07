@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-import type { EnrolmentRequestRow } from "@bpt-jersey/domain/members/enrolment-requests";
+import {
+  isReturnableEnrolmentRequest,
+  type EnrolmentRequestRow,
+} from "@bpt-jersey/domain/members/enrolment-requests";
 import { listEnrolmentRequests, returnEnrolmentRequest } from "../../../../lib/enrolment-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
 
@@ -18,6 +21,8 @@ type Notice = Readonly<{ tone: "error" | "success"; text: string }>;
 const statusLabels = {
   submitted: "Waiting",
   returned: "Returned",
+  approving: "Approving",
+  "approval-failed": "Approval stopped",
   approved: "Approved",
   withdrawn: "Withdrawn",
 } as const;
@@ -134,7 +139,9 @@ export default function EnrolmentRequestQueuePage() {
       {state.status === "ready" && state.requests.length > 0 ? (
         <ul className="admin-request-list" aria-label="Enrolment requests">
           {state.requests.map((request) => {
-            const open = request.status === "submitted" || request.status === "returned";
+            // An approval that stopped is handed back the same way, and it has to be: it is the
+            // only way out for an applicant whose enrolment failed for a reason only they can fix.
+            const open = isReturnableEnrolmentRequest(request.status);
             const noteId = `enrolment-note-${request.enrolmentRequestId}`;
             return (
               <li className="admin-panel-card admin-request-card" key={request.enrolmentRequestId}>

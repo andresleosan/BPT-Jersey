@@ -288,6 +288,30 @@ describe("family Firestore store", () => {
     expect([...records.keys()].some((path) => /(?:^|\/)members(?:\/|$)/u.test(path))).toBe(false);
   });
 
+  it("records the gender and frequency note a draft carries instead of guessing unknown", async () => {
+    // An approved enrolment request is now one of the ways a family gets created, and that form
+    // asks both questions. Recording `unknown` over an answer is a quiet falsehood.
+    const { store, records } = createServices({
+      "academies/academy-1/users/user-1": tutorUser(),
+    });
+
+    await store.createFamily({
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator",
+      requestId: "request-create-answers",
+      tutorUserId: "user-1",
+      students: [{ ...draft("Synthetic Minor"), gender: "male", frequencyNote: "Twice a week" }],
+      now: "2026-08-19T10:00:00.000Z",
+    });
+
+    expect(records.get("academies/academy-1/studentAdminProfiles/student-1")).toMatchObject({
+      gender: "male",
+      frequencyNote: "Twice a week",
+      source: "admin",
+    });
+  });
+
   it("creates a minor administrative profile only when the waiver blocks are enrolled", async () => {
     const { store, records } = createServices({
       "academies/academy-1/users/user-1": tutorUser(),

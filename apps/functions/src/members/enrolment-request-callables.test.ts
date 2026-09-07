@@ -3,11 +3,14 @@ import type { CallableRequest } from "firebase-functions/v2/https";
 
 import type { EnrolmentRequestRecord } from "@bpt-jersey/domain/members/enrolment-requests";
 import {
+  approveEnrolmentRequestHandler,
+  getEnrolmentRequestDetailHandler,
   listEnrolmentRequestsHandler,
   listMyEnrolmentRequestsHandler,
   returnEnrolmentRequestHandler,
   submitEnrolmentRequestHandler,
   withdrawEnrolmentRequestHandler,
+  type EnrolmentOfficeCallableServices,
   type EnrolmentRequestCallableServices,
 } from "./enrolment-request-callables.js";
 import { EnrolmentRequestStoreError } from "./enrolment-request-service.js";
@@ -50,6 +53,11 @@ function services() {
         .fn()
         .mockResolvedValue({ ...record, status: "returned", reviewNote: "Add a phone." }),
       withdraw: vi.fn().mockResolvedValue({ ...record, status: "withdrawn" }),
+      beginApproval: vi
+        .fn()
+        .mockResolvedValue({ record: { ...record, status: "approving" }, alreadyApproved: false }),
+      completeApproval: vi.fn().mockResolvedValue({ ...record, status: "approved" }),
+      failApproval: vi.fn().mockResolvedValue({ ...record, status: "approval-failed" }),
     },
   } satisfies EnrolmentRequestCallableServices & {
     store: Record<string, ReturnType<typeof vi.fn>>;
@@ -233,5 +241,143 @@ describe("enrolment request callables", () => {
     await expect(
       listEnrolmentRequestsHandler(request(null, "owner"), current),
     ).rejects.toMatchObject({ code: "internal" });
+  });
+});
+
+const approvalKey = "1f2e3d4c-5b6a-4978-8695-a4b3c2d1e0f9";
+
+function officeServices(overrides: Partial<EnrolmentOfficeCallableServices> = {}) {
+  return {
+    now: () => now,
+    reader: {
+      list: vi.fn(),
+      detail: vi.fn(),
+      lookup: vi.fn(),
+      enrolmentRequestDetail: vi.fn().mockResolvedValue({
+        enrolmentRequestId: "enrolment-1",
+        status: "submitted",
+        applicantIsStudent: true,
+        applicant,
+        minors: [],
+        submittedBy: "client-1",
+        submittedAt: now,
+      }),
+    },
+    approvals: {
+      approve: vi.fn().mockResolvedValue({
+        enrolmentRequestId: "enrolment-1",
+        role: "adultStudent",
+        studentIds: ["student-1"],
+        alreadyApproved: false,
+      }),
+    },
+    isActorActive: vi.fn().mockResolvedValue(true),
+    ...overrides,
+  } as unknown as EnrolmentOfficeCallableServices & {
+    reader: Record<string, ReturnType<typeof vi.fn>>;
+    approvals: Record<string, ReturnType<typeof vi.fn>>;
+    isActorActive: ReturnType<typeof vi.fn>;
+  };
+}
+
+function officeRequest(
+  data: unknown,
+  input: Readonly<{ role?: string; appCheck?: boolean; uid?: string }> = {},
+): CallableRequest<unknown> {
+  const role = input.role ?? "owner";
+  return {
+    data,
+    auth: { uid: input.uid ?? "owner-1", token: { academyId: "academy-1", role } },
+    ...(input.appCheck === false ? {} : { app: { appId: "web-app-1" } }),
+  } as unknown as CallableRequest<unknown>;
+}
+
+describe("enrolment office callables", () => {
+  const detailPayload = {
+    enrolmentRequestId: "enrolment-1",
+    purpose: "enrolment-request-review",
+  };
+  const approvalPayload = {
+    enrolmentRequestId: "enrolment-1",
+    requestId: approvalKey,
+    purpose: "enrolment-request-review",
+  };
+
+  it("gives a reviewer the Confidential detail of one request", async () => {
+    const current = officeServices();
+
+    const detail = await getEnrolmentRequestDetailHandler(officeRequest(detailPayload), current);
+
+    expect(detail).toMatchObject({ enrolmentRequestId: "enrolment-1" });
+    expect(current.reader.enrolmentRequestDetail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({ actorId: "owner-1", appCheckVerified: true }),
+        value: detailPayload,
+      }),
+    );
+  });
+
+  it("approves through the canonical writer with the reviewer's own key", async () => {
+    const current = officeServices();
+
+    const result = await approveEnrolmentRequestHandler(officeRequest(approvalPayload), current);
+
+    expect(result).toMatchObject({ role: "adultStudent", studentIds: ["student-1"] });
+    expect(current.approvals.approve).toHaveBeenCalledWith(
+      expect.objectContaining({ enrolmentRequestId: "enrolment-1", requestId: approvalKey }),
+    );
+  });
+
+  it("refuses both office doors without verified App Check in the handler", async () => {
+    // The callable option alone is not the guarantee: a handler reached any other way must still
+    // refuse, because what follows it writes to the canonical member directory.
+    for (const handler of [getEnrolmentRequestDetailHandler, approveEnrolmentRequestHandler]) {
+      const current = officeServices();
+
+      await expect(
+        handler(officeRequest(approvalPayload, { appCheck: false }), current),
+      ).rejects.toMatchObject({ code: "unauthenticated" });
+      expect(current.approvals.approve).not.toHaveBeenCalled();
+      expect(current.reader.enrolmentRequestDetail).not.toHaveBeenCalled();
+    }
+  });
+
+  it("refuses a client account, however well formed the payload", async () => {
+    for (const role of ["shopper", "guardian", "adultStudent", "coach"]) {
+      const current = officeServices();
+
+      await expect(
+        approveEnrolmentRequestHandler(officeRequest(approvalPayload, { role }), current),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+      expect(current.approvals.approve).not.toHaveBeenCalled();
+    }
+  });
+
+  it("refuses an administrator the academy has since revoked", async () => {
+    // A revoked administrator keeps a valid token until it expires. Without the liveness probe
+    // that token still enrols people.
+    const current = officeServices({
+      isActorActive: vi.fn().mockResolvedValue(false),
+    } as Partial<EnrolmentOfficeCallableServices>);
+
+    await expect(
+      approveEnrolmentRequestHandler(officeRequest(approvalPayload), current),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(current.approvals.approve).not.toHaveBeenCalled();
+  });
+
+  it("refuses a payload that does not declare its purpose or names a foreign field", async () => {
+    const current = officeServices();
+
+    for (const payload of [
+      { enrolmentRequestId: "enrolment-1", requestId: approvalKey },
+      { ...approvalPayload, academyId: "academy-2" },
+      { ...approvalPayload, requestId: "not-a-uuid" },
+    ]) {
+      await expect(
+        approveEnrolmentRequestHandler(officeRequest(payload), current),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+    }
+    expect(current.approvals.approve).not.toHaveBeenCalled();
   });
 });

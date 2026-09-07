@@ -689,13 +689,20 @@ function buildMinorAdminProfile(
   actorId: string,
   now: string,
 ): StudentAdminProfile | undefined {
-  if (student.emergencyContact === undefined && student.postalAddress === undefined) {
+  if (
+    student.emergencyContact === undefined &&
+    student.postalAddress === undefined &&
+    student.gender === undefined &&
+    student.frequencyNote === undefined
+  ) {
     return undefined;
   }
   const parsed = studentAdminProfileSchema.safeParse({
     studentId,
     academyId,
-    gender: "unknown",
+    // `unknown` is the absence of an answer, not an answer. A draft that carries one keeps it.
+    gender: student.gender ?? "unknown",
+    ...(student.frequencyNote === undefined ? {} : { frequencyNote: student.frequencyNote }),
     ...(student.emergencyContact === undefined
       ? {}
       : { emergencyContact: { ...student.emergencyContact } }),

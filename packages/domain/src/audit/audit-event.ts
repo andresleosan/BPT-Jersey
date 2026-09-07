@@ -71,6 +71,9 @@ export const auditActions = Object.freeze([
   "enrolment.request.submitted",
   "enrolment.request.returned",
   "enrolment.request.withdrawn",
+  "enrolment.request.approved",
+  "enrolment.request.approval.failed",
+  "enrolment.request.detail.read",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -96,7 +99,16 @@ export const memberIdentityLookupAuditResults = Object.freeze([
   "rate-limited",
 ] as const);
 
+/**
+ * Reading one enrolment request is exactly as Confidential as reading a member record - it is the
+ * same date of birth and the same emergency contact, before the person is a member - so it carries
+ * the same restricted vocabulary and shares the same per-actor read budget.
+ */
+export const enrolmentRequestDetailReadAuditResults = memberDetailReadAuditResults;
+
 export type MemberDetailReadAuditResult = (typeof memberDetailReadAuditResults)[number];
+export type EnrolmentRequestDetailReadAuditResult =
+  (typeof enrolmentRequestDetailReadAuditResults)[number];
 export type MemberIdentityLookupAuditResult = (typeof memberIdentityLookupAuditResults)[number];
 
 type RestrictedMemberReadAuditVariant =
@@ -107,6 +119,10 @@ type RestrictedMemberReadAuditVariant =
   | Readonly<{
       action: "member.identity.lookup";
       result: MemberIdentityLookupAuditResult;
+    }>
+  | Readonly<{
+      action: "enrolment.request.detail.read";
+      result: EnrolmentRequestDetailReadAuditResult;
     }>;
 
 export type RestrictedMemberReadAuditEventDraft = CommonAuditEventDraft &
@@ -171,7 +187,9 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "client.role.self_assigned"
           | "enrolment.request.submitted"
           | "enrolment.request.returned"
-          | "enrolment.request.withdrawn";
+          | "enrolment.request.withdrawn"
+          | "enrolment.request.approved"
+          | "enrolment.request.approval.failed";
       }>
     | Readonly<{
         action: "invoice.created" | "invoice.voided" | "invoice.status.changed";
@@ -247,6 +265,16 @@ const commonFields = Object.freeze([
   "correlationId",
 ] as const);
 const restrictedMemberReadFields = Object.freeze([...commonFields, "result"]);
+/**
+ * Every restricted read is bound to one declared purpose. The target is the reader's own rate
+ * limit document rather than what was read: the ledger records that somebody spent a restricted
+ * read, and never repeats the Confidential value in a second place.
+ */
+const restrictedReadPurposes = Object.freeze({
+  "member.detail.read": "member-record-maintenance",
+  "member.identity.lookup": "member-identity-lookup",
+  "enrolment.request.detail.read": "enrolment-request-review",
+} as const);
 const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.freeze({
   "admin.role.granted": commonFields,
   "admin.role.revoked": commonFields,
@@ -309,6 +337,9 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "enrolment.request.submitted": commonFields,
   "enrolment.request.returned": commonFields,
   "enrolment.request.withdrawn": commonFields,
+  "enrolment.request.approved": commonFields,
+  "enrolment.request.approval.failed": commonFields,
+  "enrolment.request.detail.read": restrictedMemberReadFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
     "imported",
@@ -510,15 +541,16 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       issues.push(issue(["correlationId"], "AUDIT_CORRELATION_ID_INVALID"));
     }
 
-    if (parsedAction === "member.detail.read" || parsedAction === "member.identity.lookup") {
-      const expectedPurpose =
-        parsedAction === "member.detail.read"
-          ? "member-record-maintenance"
-          : "member-identity-lookup";
+    if (
+      parsedAction === "member.detail.read" ||
+      parsedAction === "member.identity.lookup" ||
+      parsedAction === "enrolment.request.detail.read"
+    ) {
+      const expectedPurpose = restrictedReadPurposes[parsedAction];
       const allowedResults: readonly string[] =
-        parsedAction === "member.detail.read"
-          ? memberDetailReadAuditResults
-          : memberIdentityLookupAuditResults;
+        parsedAction === "member.identity.lookup"
+          ? memberIdentityLookupAuditResults
+          : memberDetailReadAuditResults;
       const expectedTarget =
         `academies/${snapshot.academyId as string}/studentRestrictedReadLimits/` +
         (snapshot.actorId as string);
@@ -877,6 +909,15 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           ...base,
           action: parsedAction,
           result: snapshot.result as MemberIdentityLookupAuditResult,
+        }),
+      );
+    }
+    if (parsedAction === "enrolment.request.detail.read") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          result: snapshot.result as EnrolmentRequestDetailReadAuditResult,
         }),
       );
     }

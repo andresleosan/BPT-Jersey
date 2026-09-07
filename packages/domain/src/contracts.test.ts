@@ -244,6 +244,9 @@ describe("domain contracts", () => {
       "enrolment.request.submitted",
       "enrolment.request.returned",
       "enrolment.request.withdrawn",
+      "enrolment.request.approved",
+      "enrolment.request.approval.failed",
+      "enrolment.request.detail.read",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

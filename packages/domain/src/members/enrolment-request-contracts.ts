@@ -32,9 +32,18 @@ const applicantShape = withoutOfficeOwnedFields(
   officeOwnedEnrolmentFields,
 );
 
+/**
+ * `approving` is not decoration: approving a request is several writes across Firestore and Auth
+ * that cannot share one commit, so the request itself is the lock. A reviewer takes it before the
+ * first write and nobody else can take it again, which is what stops two reviewers from enrolling
+ * one applicant twice. `approval-failed` is where a half-finished approval stops: not open, so the
+ * applicant cannot apply again behind office's back, and not approved, because they are not.
+ */
 export const enrolmentRequestStatuses = Object.freeze([
   "submitted",
   "returned",
+  "approving",
+  "approval-failed",
   "approved",
   "withdrawn",
 ] as const);
@@ -116,10 +125,52 @@ export const enrolmentRequestRecordSchema = z
     reviewedBy: opaqueIdentifierSchema.optional(),
     reviewedAt: auditDateTimeSchema.optional(),
     reviewNote: reviewNoteSchema.optional(),
+    /**
+     * The idempotency key of the administrative write, minted by the reviewer and then pinned to
+     * the request. A retried approval must reuse it: a fresh key would mint a fresh write receipt,
+     * and a fresh receipt is a second student for the same person.
+     */
+    approvalRequestId: z.string().regex(uuidV4Pattern).optional(),
+    approvedStudentIds: z
+      .array(opaqueIdentifierSchema)
+      .min(1)
+      .max(maximumEnrolmentRequestMinors + 1)
+      .readonly()
+      .optional(),
+    approvalFailureCode: z
+      .string()
+      .regex(/^[a-z][a-z0-9_-]{0,63}$/u)
+      .optional(),
     schemaVersion: z.literal("1"),
   })
   .readonly();
 export type EnrolmentRequestRecord = Readonly<z.infer<typeof enrolmentRequestRecordSchema>>;
+
+/**
+ * What a reviewer sends to approve. `requestId` is theirs, not the applicant's: it becomes the
+ * idempotency key of the canonical write and lands inside the write receipt's MAC, so a value
+ * chosen by the applicant's browser has no business being there. `purpose` is declared for the
+ * same reason every restricted read declares one - the approval reads the whole Confidential
+ * request before it writes.
+ */
+export const enrolmentRequestApprovalSchema = z
+  .strictObject({
+    enrolmentRequestId: opaqueIdentifierSchema,
+    requestId: z.string().regex(uuidV4Pattern),
+    purpose: z.literal("enrolment-request-review"),
+  })
+  .readonly();
+export type EnrolmentRequestApproval = Readonly<z.infer<typeof enrolmentRequestApprovalSchema>>;
+
+export const enrolmentRequestDetailRequestSchema = z
+  .strictObject({
+    enrolmentRequestId: opaqueIdentifierSchema,
+    purpose: z.literal("enrolment-request-review"),
+  })
+  .readonly();
+export type EnrolmentRequestDetailRequest = Readonly<
+  z.infer<typeof enrolmentRequestDetailRequestSchema>
+>;
 
 export const enrolmentRequestReviewSchema = z
   .strictObject({
@@ -143,6 +194,28 @@ export type EnrolmentRequestRow = Readonly<{
   status: EnrolmentRequestStatus;
   submittedAt: string;
   reviewedAt?: string;
+}>;
+
+/**
+ * What one reviewer reads about one request, immediately before deciding it. This is the
+ * Confidential half the queue deliberately withholds - date of birth, emergency contact, postal
+ * address, document numbers - and it exists because approving a person without reading what you
+ * are approving is not a review. It is read one request at a time, purpose-bound, audited and
+ * counted against the same restricted read budget as a member record.
+ */
+export type EnrolmentRequestDetail = Readonly<{
+  enrolmentRequestId: string;
+  status: EnrolmentRequestStatus;
+  applicantIsStudent: boolean;
+  applicant: EnrolmentApplicant;
+  minors: readonly EnrolmentMinor[];
+  submittedBy: string;
+  submittedAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  approvedStudentIds?: readonly string[];
+  approvalFailureCode?: string;
 }>;
 
 /** What the applicant sees about their own request. Never another applicant's. */
@@ -281,9 +354,55 @@ export function toEnrolmentRequestClientView(
   });
 }
 
+export function toEnrolmentRequestDetail(record: EnrolmentRequestRecord): EnrolmentRequestDetail {
+  return Object.freeze({
+    enrolmentRequestId: record.enrolmentRequestId,
+    status: record.status,
+    applicantIsStudent: record.applicantIsStudent,
+    applicant: record.applicant,
+    minors: Object.freeze([...record.minors]),
+    submittedBy: record.submittedBy,
+    submittedAt: record.submittedAt,
+    ...(record.reviewedBy === undefined ? {} : { reviewedBy: record.reviewedBy }),
+    ...(record.reviewedAt === undefined ? {} : { reviewedAt: record.reviewedAt }),
+    ...(record.reviewNote === undefined ? {} : { reviewNote: record.reviewNote }),
+    ...(record.approvedStudentIds === undefined
+      ? {}
+      : { approvedStudentIds: Object.freeze([...record.approvedStudentIds]) }),
+    ...(record.approvalFailureCode === undefined
+      ? {}
+      : { approvalFailureCode: record.approvalFailureCode }),
+  });
+}
+
+export function parseEnrolmentRequestApproval(
+  value: unknown,
+): Result<EnrolmentRequestApproval, readonly ValidationIssue[]> {
+  if (!isPlainData(value)) return err(issue([], "invalid_plain_data"));
+  const parsed = enrolmentRequestApprovalSchema.safeParse(value);
+  return parsed.success ? ok(parsed.data) : err(issues(parsed.error));
+}
+
+export function parseEnrolmentRequestDetailRequest(
+  value: unknown,
+): Result<EnrolmentRequestDetailRequest, readonly ValidationIssue[]> {
+  if (!isPlainData(value)) return err(issue([], "invalid_plain_data"));
+  const parsed = enrolmentRequestDetailRequestSchema.safeParse(value);
+  return parsed.success ? ok(parsed.data) : err(issues(parsed.error));
+}
+
 const openStatuses: ReadonlySet<string> = new Set<EnrolmentRequestStatus>([
   "submitted",
   "returned",
+]);
+
+/**
+ * The one hold status from which somebody may apply again. Written as an allow list on purpose: a
+ * deny list has to be revisited every time the vocabulary grows, and the status that gets
+ * forgotten is the one that lets a person hold two requests at once.
+ */
+const resubmittableHoldStatuses: ReadonlySet<string> = new Set<EnrolmentRequestStatus>([
+  "withdrawn",
 ]);
 
 /**
@@ -293,4 +412,24 @@ const openStatuses: ReadonlySet<string> = new Set<EnrolmentRequestStatus>([
  */
 export function isOpenEnrolmentRequest(status: string): boolean {
   return openStatuses.has(status);
+}
+
+/** Whether an applicant holding a request in this state may submit a new one. */
+export function canSubmitEnrolmentRequest(heldStatus: string | undefined): boolean {
+  return heldStatus === undefined || resubmittableHoldStatuses.has(heldStatus);
+}
+
+/** A request a reviewer may take the approval lock on, now or as a retry of their own attempt. */
+export function isApprovableEnrolmentRequest(status: string): boolean {
+  return isOpenEnrolmentRequest(status) || status === "approving" || status === "approval-failed";
+}
+
+/**
+ * A request office may hand back to the applicant with a note. It includes `approval-failed`, and
+ * that is not a detail: an approval can stop for a reason only the applicant can fix, and without
+ * this the person is stuck for ever - they cannot withdraw a request that is not open, and they
+ * cannot apply again while they hold one. Handing it back is the way out, and the note says why.
+ */
+export function isReturnableEnrolmentRequest(status: string): boolean {
+  return isOpenEnrolmentRequest(status) || status === "approval-failed";
 }

@@ -1,4 +1,5 @@
 import type { ValidationIssue } from "../errors";
+import { memberGenders, type MemberGender } from "../members/member-contracts";
 import type {
   StudentProfile,
   TrainingCenter,
@@ -82,6 +83,13 @@ export type FamilyStudentDraft = Readonly<{
   email?: string;
   trainingCenter: TrainingCenter;
   trainingTimePreferences: readonly TrainingTimePreference[];
+  /**
+   * Both optional and both administrative. They exist because a family can now be created from an
+   * enrolment request the applicant filled in, and that form asks for them: without somewhere to
+   * carry them the writer would drop what the applicant typed and record `unknown` instead.
+   */
+  gender?: MemberGender;
+  frequencyNote?: string;
   emergencyContact?: FamilyStudentEmergencyContact;
   postalAddress?: FamilyStudentPostalAddress;
 }>;
@@ -150,12 +158,16 @@ const studentDraftFields = Object.freeze([
   "email",
   "trainingCenter",
   "trainingTimePreferences",
+  "gender",
+  "frequencyNote",
   "emergencyContact",
   "postalAddress",
 ] as const);
 const studentDraftOptionalFields = Object.freeze([
   "phoneNumber",
   "email",
+  "gender",
+  "frequencyNote",
   "emergencyContact",
   "postalAddress",
 ] as const);
@@ -377,6 +389,15 @@ export function parseFamilyStudentDraft(
     if (!Object.hasOwn(value, field)) continue;
     const valid = field === "email" ? isEmail(value[field]) : isNonEmptyText(value[field], 64);
     if (!valid) issues.push(issue([field], field === "email" ? "invalid_email" : "invalid_text"));
+  }
+  if (
+    Object.hasOwn(value, "gender") &&
+    !(memberGenders as readonly unknown[]).includes(value.gender)
+  ) {
+    issues.push(issue(["gender"], "unknown_enum"));
+  }
+  if (Object.hasOwn(value, "frequencyNote") && !isNonEmptyText(value.frequencyNote, 256)) {
+    issues.push(issue(["frequencyNote"], "invalid_text"));
   }
   // A waiver block is optional as a whole, but complete and closed once started.
   if (Object.hasOwn(value, "emergencyContact")) {

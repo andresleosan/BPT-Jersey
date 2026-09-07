@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { adminCreateStudentInputSchema } from "./member-directory-contracts";
 import {
+  canSubmitEnrolmentRequest,
+  isApprovableEnrolmentRequest,
   isOpenEnrolmentRequest,
+  parseEnrolmentRequestApproval,
+  parseEnrolmentRequestDetailRequest,
   maximumEnrolmentRequestMinors,
   parseEnrolmentRequestRecord,
   parseEnrolmentRequestReview,
   parseEnrolmentRequestSubmission,
   toEnrolmentRequestClientView,
+  toEnrolmentRequestDetail,
   toEnrolmentRequestRow,
   type EnrolmentRequestRecord,
 } from "./enrolment-request-contracts";
@@ -241,5 +246,105 @@ describe("enrolment request projections", () => {
       false,
     );
     expect(parseEnrolmentRequestReview({ enrolmentRequestId: "enrolment-1" }).ok).toBe(false);
+  });
+});
+
+describe("enrolment request approval", () => {
+  const approvalKey = "1f2e3d4c-5b6a-4978-8695-a4b3c2d1e0f9";
+
+  it("shows the reviewer the Confidential detail the queue withholds", () => {
+    const detail = toEnrolmentRequestDetail(record);
+    const row = toEnrolmentRequestRow(record);
+
+    expect(detail.applicant.dateOfBirth).toBe("1994-04-02");
+    expect(detail.applicant.emergencyContact).toBeDefined();
+    expect(detail.minors).toHaveLength(1);
+    // The two projections exist precisely so that a queue is not a bulk export of dates of birth.
+    expect(JSON.stringify(row)).not.toContain("1994-04-02");
+    expect(JSON.stringify(row)).not.toContain("Library Place");
+  });
+
+  it("carries the outcome of an approval, and the reason one stopped", () => {
+    const approved = toEnrolmentRequestDetail({
+      ...record,
+      status: "approved",
+      approvedStudentIds: ["student-1"],
+    });
+    const stopped = toEnrolmentRequestDetail({
+      ...record,
+      status: "approval-failed",
+      approvalFailureCode: "claim_not_persisted",
+    });
+
+    expect(approved.approvedStudentIds).toEqual(["student-1"]);
+    expect(stopped.approvalFailureCode).toBe("claim_not_persisted");
+  });
+
+  it("stores the reviewer's idempotency key and what the approval produced", () => {
+    const parsed = parseEnrolmentRequestRecord({
+      ...record,
+      status: "approving",
+      approvalRequestId: approvalKey,
+    });
+
+    expect(parsed.ok).toBe(true);
+    expect(parseEnrolmentRequestRecord({ ...record, approvalRequestId: "not-a-uuid" }).ok).toBe(
+      false,
+    );
+    expect(parseEnrolmentRequestRecord({ ...record, approvalFailureCode: "Not A Slug" }).ok).toBe(
+      false,
+    );
+  });
+
+  it("takes an approval only with a reviewer key and a declared purpose", () => {
+    expect(
+      parseEnrolmentRequestApproval({
+        enrolmentRequestId: "enrolment-1",
+        requestId: approvalKey,
+        purpose: "enrolment-request-review",
+      }).ok,
+    ).toBe(true);
+    // A key chosen by the applicant's browser has no business inside the write receipt's MAC, and
+    // an undeclared purpose is not a review.
+    expect(
+      parseEnrolmentRequestApproval({
+        enrolmentRequestId: "enrolment-1",
+        requestId: approvalKey,
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseEnrolmentRequestApproval({
+        enrolmentRequestId: "enrolment-1",
+        requestId: "enrolment-1",
+        purpose: "enrolment-request-review",
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseEnrolmentRequestDetailRequest({
+        enrolmentRequestId: "enrolment-1",
+        purpose: "member-record-maintenance",
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("keeps an approval in flight out of both the applicant's hands and a second reviewer's", () => {
+    expect(isOpenEnrolmentRequest("approving")).toBe(false);
+    expect(isOpenEnrolmentRequest("approval-failed")).toBe(false);
+    expect(canSubmitEnrolmentRequest("approving")).toBe(false);
+    expect(canSubmitEnrolmentRequest("approval-failed")).toBe(false);
+    expect(canSubmitEnrolmentRequest("approved")).toBe(false);
+    expect(canSubmitEnrolmentRequest("submitted")).toBe(false);
+    // Only two things let somebody apply: never having applied, and having withdrawn.
+    expect(canSubmitEnrolmentRequest("withdrawn")).toBe(true);
+    expect(canSubmitEnrolmentRequest(undefined)).toBe(true);
+  });
+
+  it("lets a reviewer resume an attempt but never reopen a decided request", () => {
+    expect(isApprovableEnrolmentRequest("submitted")).toBe(true);
+    expect(isApprovableEnrolmentRequest("returned")).toBe(true);
+    expect(isApprovableEnrolmentRequest("approving")).toBe(true);
+    expect(isApprovableEnrolmentRequest("approval-failed")).toBe(true);
+    expect(isApprovableEnrolmentRequest("withdrawn")).toBe(false);
+    expect(isApprovableEnrolmentRequest("approved")).toBe(false);
   });
 });
