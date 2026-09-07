@@ -4,7 +4,11 @@ import { memberDirectoryStateSchema } from "./member-directory-contracts";
 import type { MemberDirectoryState } from "./member-directory-contracts";
 import { memberDirectoryMigrationPhases } from "./member-directory-migration-contracts";
 import {
+  memberDirectoryMaxChunksPerOperation,
+  memberDirectoryMaxRowsPerChunk,
+  memberDirectoryMaxRowsPerOperation,
   planMemberDirectoryAcquisition,
+  planMemberDirectoryChunkCommit,
   planMemberDirectoryPhaseChange,
 } from "./member-directory-transitions";
 
@@ -371,5 +375,139 @@ describe("member directory phase vocabularies", () => {
         frozenTuple("restore-prepared", { preparedOperationId: "op-1", ...coordination }),
       ).success,
     ).toBe(false);
+  });
+});
+
+describe("member directory chunk commit", () => {
+  function frozenForward(lastCommittedChunkNo = 0): MemberDirectoryState {
+    const acquired = planMemberDirectoryAcquisition({
+      ...acquire,
+      currentState: state(),
+      phase: "forward",
+    });
+    return memberDirectoryStateSchema.parse({ ...acquired, lastCommittedChunkNo });
+  }
+
+  const commit = {
+    operationId: "op-1",
+    phase: "forward",
+    rowCount: 50,
+    priorRowCount: 0,
+    outputSetMac: "a".repeat(64),
+    now: "2026-09-07T12:01:00.000Z",
+    actorId: "runner-a",
+  } as const;
+
+  it("commits the next chunk and advances both counters together", () => {
+    const decision = planMemberDirectoryChunkCommit({
+      ...commit,
+      currentState: frozenForward(3),
+      chunkNo: 4,
+      priorRowCount: 150,
+    });
+
+    expect(decision.kind).toBe("commit");
+    if (decision.kind !== "commit") {
+      return;
+    }
+    expect(decision.nextState.lastCommittedChunkNo).toBe(4);
+    expect(decision.nextState.stateRevision).toBe(frozenForward(3).stateRevision + 1);
+  });
+
+  it("refuses a gap in the chunk sequence", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({ ...commit, currentState: frozenForward(3), chunkNo: 5 }),
+    ).toThrow(/without gaps/u);
+  });
+
+  /**
+   * The replay rule. An already-committed chunk arriving again with the same receipt is a no-op,
+   * which is what makes a crashed runner safe to restart. The same chunk with a different receipt
+   * is not a replay at all - it is a second, different write under an identifier that already means
+   * something else, and it fails closed.
+   */
+  it("no-ops an exact replay and refuses a divergent one", () => {
+    const replay = planMemberDirectoryChunkCommit({
+      ...commit,
+      currentState: frozenForward(4),
+      chunkNo: 4,
+      committedOutputSetMac: commit.outputSetMac,
+    });
+    expect(replay.kind).toBe("noop");
+
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(4),
+        chunkNo: 4,
+        committedOutputSetMac: "b".repeat(64),
+      }),
+    ).toThrow(/different content under the same receipt/u);
+  });
+
+  it("refuses a replay with no stored receipt to compare against", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({ ...commit, currentState: frozenForward(4), chunkNo: 4 }),
+    ).toThrow(/no stored receipt/u);
+  });
+
+  it("enforces the row and chunk budgets", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(0),
+        chunkNo: 1,
+        rowCount: memberDirectoryMaxRowsPerChunk + 1,
+      }),
+    ).toThrow(/at most 50 rows/u);
+
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(memberDirectoryMaxChunksPerOperation),
+        chunkNo: memberDirectoryMaxChunksPerOperation + 1,
+      }),
+    ).toThrow(/at most 8 chunks/u);
+
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(7),
+        chunkNo: 8,
+        rowCount: 1,
+        priorRowCount: memberDirectoryMaxRowsPerOperation,
+      }),
+    ).toThrow(/at most 400 rows/u);
+  });
+
+  it("refuses a chunk whose phase does not match the state", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(0),
+        chunkNo: 1,
+        phase: "compensation",
+      }),
+    ).toThrow(/while the state is in forward/u);
+  });
+
+  it("refuses a chunk from another operation, or on an expired lease", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(0),
+        chunkNo: 1,
+        operationId: "op-2",
+      }),
+    ).toThrow(/its own operation/u);
+
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(0),
+        chunkNo: 1,
+        now: "2026-09-07T12:02:00.000Z",
+      }),
+    ).toThrow(/live lease/u);
   });
 });

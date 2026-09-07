@@ -149,12 +149,17 @@ export type {
 } from "./members/member-directory-contracts";
 export {
   memberDirectoryAcquirablePhases,
+  memberDirectoryMaxChunksPerOperation,
+  memberDirectoryMaxRowsPerChunk,
+  memberDirectoryMaxRowsPerOperation,
   planMemberDirectoryAcquisition,
+  planMemberDirectoryChunkCommit,
   planMemberDirectoryPhaseChange,
 } from "./members/member-directory-transitions";
 export type {
   MemberDirectoryAcquirablePhase,
   MemberDirectoryAcquisitionInput,
+  MemberDirectoryChunkCommitDecision,
 } from "./members/member-directory-transitions";
 export {
   assertLeaseRecoveryWithinDeadline,

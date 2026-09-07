@@ -272,6 +272,117 @@ export function planMemberDirectoryAcquisition(
 }
 
 /**
+ * Transaction budgets from the spec. The 50-row bound assumes the worst row writes a student, an
+ * admin profile, five uniqueness reservations plus chunk receipt, audit and state - 353 writes,
+ * under Firestore's 500 limit with size headroom. None of these may be raised without fresh
+ * Emulator and load evidence.
+ */
+export const memberDirectoryMaxRowsPerChunk = 50;
+export const memberDirectoryMaxChunksPerOperation = 8;
+export const memberDirectoryMaxRowsPerOperation = 400;
+
+export type MemberDirectoryChunkCommitDecision =
+  | Readonly<{ kind: "commit"; nextState: MemberDirectoryState }>
+  | Readonly<{ kind: "noop"; reason: string }>;
+
+/**
+ * Decides whether one chunk may commit, replay as a no-op, or must fail closed.
+ *
+ * The replay rule is the delicate part. A chunk that is already committed is a no-op *only* when
+ * the receipt presented matches the stored one exactly; the same chunk number arriving with
+ * different content is a retry under a receipt that no longer describes it, and the spec forbids
+ * skipping or re-running it. Failing there is the difference between an idempotent replay and a
+ * silent second write.
+ */
+export function planMemberDirectoryChunkCommit(
+  input: Readonly<{
+    currentState: MemberDirectoryState;
+    operationId: string;
+    phase: MemberDirectoryState["operationPhase"];
+    chunkNo: number;
+    rowCount: number;
+    /** Rows already committed by earlier chunks of this operation. */
+    priorRowCount: number;
+    outputSetMac: string;
+    /** The stored receipt for this chunk, when one already exists. */
+    committedOutputSetMac?: string;
+    now: string;
+    actorId: string;
+  }>,
+): MemberDirectoryChunkCommitDecision {
+  const current = memberDirectoryStateSchema.parse(input.currentState);
+
+  if (current.activeOperationId === undefined || current.leaseExpiresAt === undefined) {
+    throw new Error("A member directory chunk requires an active operation and lease");
+  }
+  if (current.activeOperationId !== input.operationId) {
+    throw new Error("A member directory chunk requires its own operation");
+  }
+  if (current.operationPhase !== input.phase) {
+    throw new Error(
+      `A member directory chunk for ${input.phase} cannot commit while the state is in ${current.operationPhase}`,
+    );
+  }
+  if (isLeaseExpired({ leaseExpiresAt: current.leaseExpiresAt, now: input.now })) {
+    throw new Error("A member directory chunk requires a live lease");
+  }
+  if (
+    current.operationDeadline !== undefined &&
+    parseInstant(input.now, "now") >= parseInstant(current.operationDeadline, "operationDeadline")
+  ) {
+    throw new Error("A member directory chunk cannot commit past its operation deadline");
+  }
+
+  if (input.rowCount < 0 || input.rowCount > memberDirectoryMaxRowsPerChunk) {
+    throw new Error(
+      `A member directory chunk may carry at most ${String(memberDirectoryMaxRowsPerChunk)} rows`,
+    );
+  }
+  if (input.chunkNo < 1 || input.chunkNo > memberDirectoryMaxChunksPerOperation) {
+    throw new Error(
+      `A member directory operation accepts at most ${String(memberDirectoryMaxChunksPerOperation)} chunks`,
+    );
+  }
+  if (input.priorRowCount + input.rowCount > memberDirectoryMaxRowsPerOperation) {
+    throw new Error(
+      `A member directory operation accepts at most ${String(memberDirectoryMaxRowsPerOperation)} rows`,
+    );
+  }
+
+  if (input.chunkNo <= current.lastCommittedChunkNo) {
+    if (input.committedOutputSetMac === undefined) {
+      throw new Error("A committed member directory chunk has no stored receipt to replay against");
+    }
+    if (input.committedOutputSetMac !== input.outputSetMac) {
+      throw new Error(
+        "A member directory chunk cannot be retried with different content under the same receipt",
+      );
+    }
+    return Object.freeze({
+      kind: "noop" as const,
+      reason: `Chunk ${String(input.chunkNo)} of ${input.operationId} is already committed with the same receipt`,
+    });
+  }
+
+  if (input.chunkNo !== current.lastCommittedChunkNo + 1) {
+    throw new Error(
+      `Member directory chunks advance without gaps; expected ${String(current.lastCommittedChunkNo + 1)} but got ${String(input.chunkNo)}`,
+    );
+  }
+
+  return Object.freeze({
+    kind: "commit" as const,
+    nextState: memberDirectoryStateSchema.parse({
+      ...current,
+      stateRevision: current.stateRevision + 1,
+      lastCommittedChunkNo: input.chunkNo,
+      updatedAt: input.now,
+      updatedBy: input.actorId,
+    }),
+  });
+}
+
+/**
  * Entering another phase under the same operation and lease - the forward-to-compensation move.
  * The phase-local chunk counter resets to 0, which is exactly why it must be an audited state
  * transition and not something an executor does implicitly between chunks.
