@@ -7,6 +7,10 @@ import {
 import { planMemberDirectoryChunkCommit } from "@bpt-jersey/domain/members/directory-transitions";
 
 import {
+  constantTimeMacEquals,
+  createMemberDirectoryChunkOutputSetMac,
+} from "./member-directory-crypto.js";
+import {
   advanceMemberDirectoryControlPlane,
   assertMemberDirectoryControlPlane,
   type MemberDirectoryGuardEvent,
@@ -52,6 +56,20 @@ export type MemberDirectoryChunkControlPlane = Readonly<{
   priorRowCount: number;
 }>;
 
+/**
+ * One domain document an executor wants created inside the chunk's transaction.
+ *
+ * Create-only, deliberately. Every phase that only adds documents - bootstrap, forward, projection -
+ * is expressible here, and the phases that remove them (compensation, recovery) undo a *verified*
+ * prior state rather than issuing free-form deletes, so they need their own reviewed shape rather
+ * than a `delete` member added here in advance.
+ */
+export type MemberDirectoryChunkDomainWrite = Readonly<{
+  operation: "create";
+  path: string;
+  data: Readonly<Record<string, unknown>>;
+}>;
+
 export type MemberDirectoryChunkCommitWrite = Readonly<{
   academyId: string;
   chunkId: string;
@@ -59,6 +77,8 @@ export type MemberDirectoryChunkCommitWrite = Readonly<{
   guard: MemberDirectoryRestoreGuard;
   event: MemberDirectoryGuardEvent;
   receipt: MemberDirectoryChunkReceipt;
+  /** The executor's own documents, created in the same transaction as everything above. */
+  domainWrites: readonly MemberDirectoryChunkDomainWrite[];
 }>;
 
 export type MemberDirectoryChunkStore = Readonly<{
@@ -88,6 +108,14 @@ export type MemberDirectoryChunkCommitRequest = Readonly<{
   actorId: string;
   /** Required for, and only for, a compensation chunk. */
   sourceForwardChunkNo?: number;
+  /**
+   * The executor's domain writes. When present - an empty array included - the runner recomputes
+   * the output-set MAC over them and refuses the chunk unless it equals `outputSetMac`, so the
+   * receipt is a proof of what was written rather than a number the caller asserted. Omitting the
+   * field leaves the MAC unchecked, which is only sound because a chunk with no domain writes
+   * writes nothing to be wrong about.
+   */
+  domainWrites?: readonly MemberDirectoryChunkDomainWrite[];
 }>;
 
 export type MemberDirectoryChunkCommitResult = Readonly<{
@@ -112,6 +140,21 @@ export async function runMemberDirectoryChunkCommit(
     phase: request.phase,
     chunkNo: request.chunkNo,
   });
+
+  const domainWrites = request.domainWrites ?? [];
+  // Checked before the first read: a chunk whose receipt does not describe its own writes must
+  // never reach Firestore, however healthy the control plane turns out to be.
+  if (request.domainWrites !== undefined) {
+    const recomputed = createMemberDirectoryChunkOutputSetMac({
+      chunkId,
+      phase: request.phase,
+      writes: domainWrites,
+      secretMaterial: dependencies.integritySecretMaterial,
+    });
+    if (!constantTimeMacEquals(recomputed, request.outputSetMac)) {
+      throw new Error("Member directory chunk output set does not match its receipt MAC");
+    }
+  }
 
   const controlPlane = await dependencies.store.read({
     academyId: request.academyId,
@@ -199,6 +242,7 @@ export async function runMemberDirectoryChunkCommit(
     guard: advanced.guard,
     event: advanced.event,
     receipt,
+    domainWrites,
   });
 
   return Object.freeze({ chunkId, committed: true });

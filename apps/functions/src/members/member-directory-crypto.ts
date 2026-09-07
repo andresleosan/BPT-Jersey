@@ -191,6 +191,49 @@ export function createMemberDirectoryIntegrityMac(
     .digest("hex");
 }
 
+export type MemberDirectoryOutputWrite = Readonly<{ path: string; data: unknown }>;
+
+/**
+ * The output-set MAC of one migration chunk (T108): a sorted leaf-per-document MAC folded into a
+ * root bound to the chunk that produced it.
+ *
+ * The leaves are sorted so the MAC describes a *set* of documents rather than the order an executor
+ * happened to emit them in, and the root binds the chunk ID and phase so a MAC computed for one
+ * chunk cannot be presented as the receipt of another. Its domains are distinct from the canonical
+ * import's leaf/root domains for the same reason: an import receipt must not verify as a chunk one.
+ *
+ * A repeated path is rejected rather than folded in twice. Two writes to one document inside a
+ * transaction is a planning bug, and a MAC that quietly accepted it would certify the wrong set.
+ */
+export function createMemberDirectoryChunkOutputSetMac(
+  input: Readonly<{
+    chunkId: string;
+    phase: string;
+    writes: readonly MemberDirectoryOutputWrite[];
+    secretMaterial: string;
+  }>,
+): string {
+  const seenPaths = new Set<string>();
+  const leaves = input.writes
+    .map((write) => {
+      if (seenPaths.has(write.path)) {
+        throw new Error("A member directory chunk cannot write the same document twice");
+      }
+      seenPaths.add(write.path);
+      return createMemberDirectoryIntegrityMac({
+        domain: "bpt-member-directory-chunk-output-leaf-v1",
+        values: [write.path, canonicalizeMemberDirectoryValue(write.data)],
+        secretMaterial: input.secretMaterial,
+      });
+    })
+    .sort();
+  return createMemberDirectoryIntegrityMac({
+    domain: "bpt-member-directory-chunk-output-root-v1",
+    values: [input.chunkId, input.phase, "1", ...leaves],
+    secretMaterial: input.secretMaterial,
+  });
+}
+
 function normalizedIdentityValue(kind: StudentIdentityKeyKind, value: string): string {
   if (kind === "auth-user-id") return requiredSafeIdentifier(value, "Auth user ID");
   const normalized = normalizeAdministrativeIdentifier(value);

@@ -6,6 +6,7 @@ import {
 } from "@bpt-jersey/domain/members/directory-transitions";
 import { describe, expect, it } from "vitest";
 
+import { planMemberDirectoryBootstrapChunk } from "./member-directory-bootstrap-executor.js";
 import {
   runMemberDirectoryChunkCommit,
   type MemberDirectoryChunkCommitWrite,
@@ -20,6 +21,7 @@ import {
 const projectId = "demo-bpt-jersey";
 const academyId = "academy-bpt-jersey";
 const integritySecretMaterial = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8";
+const identitySecretMaterial = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
 const integritySecretVersion = "integrity-v1";
 const acquiredAt = "2026-09-07T12:00:00.000Z";
 const now = "2026-09-07T12:01:00.000Z";
@@ -54,7 +56,11 @@ function baseline(): MemberDirectoryState {
  * acquire the forward operation through the same functions production uses. A fixture with a
  * hand-made MAC would pass the runner while proving nothing about the chain it is supposed to check.
  */
-function frozenForwardControlPlane(lastCommittedChunkNo = 0): {
+function frozenControlPlane(
+  phase: "forward" | "bootstrap",
+  transitionKind: "directory-forward" | "identity-key-bootstrap",
+  lastCommittedChunkNo: number,
+): {
   state: MemberDirectoryState;
   guard: unknown;
   event: unknown;
@@ -70,7 +76,7 @@ function frozenForwardControlPlane(lastCommittedChunkNo = 0): {
 
   const acquired = planMemberDirectoryAcquisition({
     currentState: baseline(),
-    phase: "forward",
+    phase,
     operationId: "op-1",
     leaseId: "lease-1",
     leaseOwner: "runner-a",
@@ -86,7 +92,7 @@ function frozenForwardControlPlane(lastCommittedChunkNo = 0): {
     event: initial.event,
     nextState: acquired,
     operationId: "op-1",
-    transitionKind: "directory-forward",
+    transitionKind,
     now: acquiredAt,
     actorId: "runner-a",
     integritySecretMaterial,
@@ -98,6 +104,14 @@ function frozenForwardControlPlane(lastCommittedChunkNo = 0): {
     guard: advanced.guard,
     event: advanced.event,
   };
+}
+
+function frozenForwardControlPlane(lastCommittedChunkNo = 0): {
+  state: MemberDirectoryState;
+  guard: unknown;
+  event: unknown;
+} {
+  return frozenControlPlane("forward", "directory-forward", lastCommittedChunkNo);
 }
 
 function createStore(
@@ -122,6 +136,75 @@ function createStore(
         return Promise.resolve();
       },
     },
+  };
+}
+
+function createBootstrapStore(): {
+  store: MemberDirectoryChunkStore;
+  writes: MemberDirectoryChunkCommitWrite[];
+} {
+  const plane = frozenControlPlane("bootstrap", "identity-key-bootstrap", 0);
+  const writes: MemberDirectoryChunkCommitWrite[] = [];
+  return {
+    writes,
+    store: {
+      read: () =>
+        Promise.resolve({
+          state: plane.state,
+          guard: plane.guard,
+          event: plane.event,
+          priorRowCount: 0,
+        }),
+      commit: (write) => {
+        writes.push(write);
+        return Promise.resolve();
+      },
+    },
+  };
+}
+
+function bootstrapPlanInput() {
+  const studentId = "student-1001";
+  const auditFields = {
+    schemaVersion: "1",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdBy: "system",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    updatedBy: "system",
+  } as const;
+  return {
+    academyId,
+    operationId: "op-1",
+    chunkNo: 1,
+    plannedStudentIds: [studentId],
+    observed: [
+      {
+        studentId,
+        student: {
+          studentId,
+          academyId,
+          fullName: "Synthetic Bootstrap Student",
+          dateOfBirth: "2000-01-02",
+          trainingCenter: "Town",
+          trainingTimePreferences: ["evening"],
+          participantType: "adult",
+          active: true,
+          status: "active",
+          ...auditFields,
+        },
+        profile: {
+          studentId,
+          academyId,
+          membershipNumber: "BPT 1001",
+          gender: "unknown",
+          source: "admin",
+          ...auditFields,
+        },
+      },
+    ],
+    existingKeys: [],
+    now,
+    actorId: "runner-a",
   };
 }
 
@@ -285,5 +368,66 @@ describe("member directory chunk runner", () => {
 
     expect(writes[0]?.receipt.sourceForwardChunkNo).toBe(8);
     expect(writes[0]?.event.transitionKind).toBe("failed-forward-compensation");
+  });
+
+  /**
+   * The join between the envelope and the first executor: the bootstrap planner produces the domain
+   * writes and their MAC, and the runner carries both into the same commit as the control plane.
+   */
+  it("carries an executor's domain writes into the same commit", async () => {
+    const plan = planMemberDirectoryBootstrapChunk(bootstrapPlanInput(), {
+      identitySecretMaterial,
+      identitySecretVersion: "identity-v1",
+      integritySecretMaterial,
+    });
+    const { store, writes } = createBootstrapStore();
+
+    const result = await runMemberDirectoryChunkCommit(dependencies(store), {
+      ...request,
+      phase: "bootstrap",
+      rowCount: plan.rowCount,
+      quarantinedCount: plan.quarantinedCount,
+      outputSetMac: plan.outputSetMac,
+      domainWrites: plan.domainWrites,
+    });
+
+    expect(result).toEqual({ chunkId: "op-1:bootstrap:1", committed: true });
+    expect(writes[0]?.domainWrites).toEqual(plan.domainWrites);
+    expect(writes[0]?.receipt.chunkId).toBe("op-1:bootstrap:1");
+    expect(writes[0]?.event.transitionKind).toBe("identity-key-bootstrap");
+  });
+
+  /**
+   * A receipt that does not describe the documents it is committed with would certify the wrong
+   * set forever, so the check runs before the control plane is even read.
+   */
+  it("refuses domain writes the receipt MAC does not describe", async () => {
+    const plan = planMemberDirectoryBootstrapChunk(bootstrapPlanInput(), {
+      identitySecretMaterial,
+      identitySecretVersion: "identity-v1",
+      integritySecretMaterial,
+    });
+    const { store, writes } = createBootstrapStore();
+    let reads = 0;
+    const countingStore: MemberDirectoryChunkStore = {
+      read: (input) => {
+        reads += 1;
+        return store.read(input);
+      },
+      commit: (write) => store.commit(write),
+    };
+
+    await expect(
+      runMemberDirectoryChunkCommit(dependencies(countingStore), {
+        ...request,
+        phase: "bootstrap",
+        rowCount: plan.rowCount,
+        quarantinedCount: plan.quarantinedCount,
+        outputSetMac: "c".repeat(64),
+        domainWrites: plan.domainWrites,
+      }),
+    ).rejects.toThrow(/output set does not match its receipt MAC/u);
+    expect(writes).toHaveLength(0);
+    expect(reads).toBe(0);
   });
 });
