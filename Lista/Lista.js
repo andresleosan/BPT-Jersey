@@ -32,6 +32,12 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 };
 
 const RESOLUTION_REQUIREMENTS = {
+  T126: [
+    "Aportar el domicilio de la entidad responsable. Candidato sin confirmar: Office 9, 13 Library Place, St Helier, la sede Town ya registrada en la configuracion de academia, que nadie ha confirmado como direccion de la entidad.",
+    "Precisar si es sole trader o asociacion sin registrar: un sole trader es una persona fisica, y entonces el controller no es una entidad sino Vladimiro Afonso comerciando bajo el nombre. Cambia quien responde en derecho.",
+    "Con esos dos datos, actualizar la politica, la DPIA (seccion 6, punto 2) y el acta de T011, que los esperan en su sitio.",
+    "Lo que desbloquea: contratos de encargado, polizas y el texto legal publicado de T117. No bloquea ninguna release.",
+  ],
   T125: [
     "Resuelta el 2026-09-07: el operador conserva el campo tal cual y acepta el riesgo por escrito, porque son datos reales que la operacion usa y el administrador ya tiene permiso de uso.",
     "Lo que la aceptacion no cambia: siguen ausentes los cuatro controles del directorio canonico -proposito declarado, auditoria por lectura, limite por actor y sonda de vitalidad-, asi que una lectura de contrasena no deja rastro.",
@@ -48,8 +54,8 @@ const RESOLUTION_REQUIREMENTS = {
     "Hecho 2026-09-06: DPIA redactada, con riesgo residual declarado alto que la firma no baja.",
     "Hecho 2026-09-07: las diez decisiones, la D11 y los doce plazos firmados por poder (Andres Santiago, p.p. Vladimiro Afonso).",
     "Hecho 2026-09-07: el operador declara la entidad no incorporada ni registrada (sole trader / asociacion sin registrar); con eso la forma juridica queda declarada y el numero de registro se cierra por inexistencia, no en blanco.",
-    "Falta, y es dato y no decision: el domicilio de la entidad -candidato sin confirmar, Office 9, 13 Library Place, St Helier- y precisar cual de las dos formas no incorporadas es, porque un sole trader es una persona fisica y una asociacion no. Bloquea contratos de encargado, no releases.",
-    "Y despues, implementar los doce plazos, que hoy no existen en el sistema.",
+    "Cerrada 2026-09-07 por instruccion del operador: no queda ninguna decision pendiente en esta fila. El dato que faltaba -domicilio y forma exacta- pasa a T126, que es donde bloquea de verdad: contratos de encargado, polizas y el texto legal de T117.",
+    "Lo que el cierre no hace: los doce plazos de retencion siguen sin existir en el sistema, y el riesgo residual de la DPIA sigue alto.",
   ],
   T017: [
     "Mantener la cancelaci\u00f3n: no implementar MFA obligatorio dentro de esta tarea sustituida.",
@@ -2108,11 +2114,26 @@ const recoveryItems = [
     "aprobada",
     "Credenciales reales de miembros guardadas en texto y legibles sin dejar rastro: riesgo aceptado por el operador el 2026-09-07.",
     "T107",
-    "Alta 2026-09-06, hallazgo verificado al redactar la DPIA de T011. Decidida por el operador el 2026-09-07: opcion (c) de la DPIA, se conserva el campo tal cual y se documenta la aceptacion del riesgo. Razon del operador: son datos reales que se necesitan para usar y hacer el seguimiento, el administrador ya tiene permiso de uso, y por eso se migra lo real. Lo que se acepta, sin adornos: el campo password de los 249 registros importados el 2026-09-04 sigue en claro, getRegyfitMemberRecord devuelve el registro entero a cualquier claim de administrador y member-profile-panel.tsx lo imprime como una fila mas de la ficha; siguen ausentes los cuatro controles que si tiene el directorio canonico -proposito declarado, evento de auditoria por lectura, limite de lecturas por actor y sonda de vitalidad-, asi que nadie puede saber despues quien leyo una contrasena y un administrador revocado la sigue leyendo mientras su token no expire. Precision anotada al decidir: el seguimiento de uso lo dan login, logins y lastLogin; password no lo lee el sistema para nada, solo se imprime. Dos numeros que nadie ha contado y que la decision no necesita pero la DPIA agradeceria: cuantos de los 249 traen password no vacio -el campo es optional- y cuantos son menores; ambos son contables en solo lectura. La fila cierra porque lo unico que faltaba era la decision; la aceptacion quedo en la seccion 3.1 del acta de T011, aprobada sin firma el 2026-09-07 por instruccion del operador, y el riesgo residual de la DPIA sigue siendo alto.",
+    "Alta 2026-09-06, hallazgo verificado al redactar la DPIA de T011. Decidida por el operador el 2026-09-07: opcion (c) de la DPIA, se conserva el campo tal cual y se documenta la aceptacion del riesgo. Razon del operador: son datos reales que se necesitan para usar y hacer el seguimiento, el administrador ya tiene permiso de uso, y por eso se migra lo real. Lo que se acepta, sin adornos: el campo password de los 249 registros importados el 2026-09-04 sigue en claro, getRegyfitMemberRecord devuelve el registro entero a cualquier claim de administrador y member-profile-panel.tsx lo imprime como una fila mas de la ficha; siguen ausentes los cuatro controles que si tiene el directorio canonico -proposito declarado, evento de auditoria por lectura, limite de lecturas por actor y sonda de vitalidad-, asi que nadie puede saber despues quien leyo una contrasena y un administrador revocado la sigue leyendo mientras su token no expire. Precision anotada al decidir: el seguimiento de uso lo dan login, logins y lastLogin; password no lo lee el sistema para nada, solo se imprime. Dos numeros que nadie ha contado y que la decision no necesita pero la DPIA agradeceria: cuantos de los 249 traen password no vacio -el campo es optional- y cuantos son menores; ambos son contables en solo lectura. La fila cierra porque lo unico que faltaba era la decision; la aceptacion quedo en la seccion 3.1 del acta de T011, firmada ese mismo 2026-09-07 por poder (Andres Santiago, p.p. Vladimiro Afonso), y el riesgo residual de la DPIA sigue siendo alto.",
     [
       "tasks.md",
       "docs/operations/t011-dpia-draft.md",
       "packages/domain/src/members/regyfit-member-record-contracts.ts",
+    ],
+    "mvp",
+  ),
+  task(
+    "T126",
+    "Completar la identidad registrada del controller: domicilio y forma no incorporada exacta",
+    "pendiente",
+    "El unico dato que le quedaba a T011 y que no era una decision. Bloquea contratos de encargado, no releases.",
+    "T011",
+    "Alta 2026-09-07 al cerrar T011. El operador declaro ese dia la entidad no incorporada ni registrada, con lo que la forma juridica quedo declarada y el numero de registro cerrado por inexistencia; falta el domicilio y falta precisar sole trader o asociacion sin registrar. La distincion no es cosmetica: un sole trader es una persona fisica, y entonces el controller no es una entidad sino Vladimiro Afonso comerciando bajo el nombre. Bloquea cualquier contrato de encargado -un DPA nombra con exactitud a quien responde-, cualquier poliza y el texto legal publicado de T117; no bloquea ninguna release, ni T058 ni T059 ni el paso 2 de T106 ni T108. Se cierra con dos lineas del operador: no hay nada que el asistente pueda aportar aqui sin inventar una identidad juridica, que es justo lo que esta cadena de filas lleva evitando desde el 2026-09-05.",
+    [
+      "tasks.md",
+      "docs/operations/t011-retention-residency-erasure-policy.md",
+      "docs/operations/t011-dpia-draft.md",
+      "docs/operations/t011-controller-approval-acta-draft.md",
     ],
     "mvp",
   ),
@@ -2219,6 +2240,7 @@ const projectData = {
     T123: "2026-09-06",
     T124: "2026-09-06",
     T125: "2026-09-07",
+    T126: "2026-09-07",
     T068: "2026-09-06",
     T069: "2026-09-06",
     T070: "2026-09-06",

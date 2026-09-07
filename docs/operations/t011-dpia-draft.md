@@ -229,9 +229,10 @@ controller no es si consultar antes, sino si procede notificar ahora y con qué 
    operador como **entidad no incorporada** (sole trader / asociación sin registrar), y número de
    registro cerrado **por inexistencia** —no queda en blanco: no hay registro que citar—. **Sigue
    abierto el domicilio**, más la precisión de cuál de las dos formas es, porque un sole trader es
-   una persona física y una asociación no lo es. Es el único criterio de cierre de T011 que sigue
-   abierto, y bloquea cualquier contrato de encargado (punto 5), porque un DPA tiene que nombrar a
-   quien responde con exactitud.
+   una persona física y una asociación no lo es. Ese resto **dejó de ser criterio de cierre de T011
+   el 2026-09-07, cuando T011 se cerró, y pasó a T126**, que es donde bloquea de verdad: cualquier
+   contrato de encargado (punto 5), porque un DPA tiene que nombrar a quien responde con exactitud,
+   cualquier póliza y el texto legal publicado de T117. No bloquea ninguna release.
 3. ~~Las diez decisiones firmadas del acta~~ — firmadas el 2026-09-07 por poder (Andres Santiago,
    p.p. Vladimiro Afonso), con las once filas aceptadas sin enmiendas, los doce plazos confirmados y
    el mapa de regiones confirmado. La firma autoriza construir los plazos; ninguno existe todavía,

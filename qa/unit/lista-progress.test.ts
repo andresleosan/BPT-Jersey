@@ -47,7 +47,7 @@ describe("Lista project progress", () => {
       aprobada: 115,
       revision: 0,
       "en-progreso": 1,
-      pendiente: 3,
+      pendiente: 4,
       bloqueada: 0,
       cancelada: 7,
     });
@@ -55,9 +55,11 @@ describe("Lista project progress", () => {
     // already approved and the human gate had been settled the day before), the rehearsal was
     // finished the same day - runbook, baseline rebuilt from the T107 hash map and the live
     // inventory, delta re-measured - and the operator approved it. Nothing sits in `revision` any
-    // more, and nothing is blocked. The four rows still open are open because the work is real:
-    // T106 waits on three decisions, T108 has no executor written, and T058/T059 are the release
-    // and the close-out, both the operator's to call.
+    // more, and nothing is blocked. The five rows still open are open because the work is real:
+    // T106 waits on three decisions, T108 has no executor written, T058/T059 are the release and
+    // the close-out, and T126 - opened on 2026-09-07 when T011 closed - carries the one thing T011
+    // was still missing: a registered address, and which unincorporated form the controller is.
+    // That last one is data only the operator holds, and it blocks contracts, not releases.
     expect(items.filter((item) => item.status === "revision")).toEqual([]);
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
       expect.objectContaining({ id: "T106" }),
@@ -92,6 +94,12 @@ describe("Lista project progress", () => {
     // DPIA's residual risk is still high. T011's act was signed later that day, per procurationem
     // (Andres Santiago, p.p. Vladimiro Afonso), which formalises the acceptance without changing
     // any of that.
-    expect(progress).toEqual({ approved: 115, total: 119, percentage: 97 });
+    //
+    // The ratio went 115/119 -> 115/120 on 2026-09-07, so the percentage drops 97 -> 96 without a
+    // single row regressing: T011 closed and T126 opened in the same move, carrying the registered
+    // address it never had. A new open row is exactly what should move this number down, and the
+    // alternative - closing T011 while quietly dropping the gap - is the thing this board exists to
+    // make impossible.
+    expect(progress).toEqual({ approved: 115, total: 120, percentage: 96 });
   });
 });

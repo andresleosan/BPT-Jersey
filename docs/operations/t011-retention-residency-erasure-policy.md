@@ -186,7 +186,7 @@ los plazos que este mismo borrador marcó como poco fiables siguen sin verificar
 
 T011 solo puede pasar a **aprobada** cuando existan:
 
-- controller y owner designados —hecho el 2026-09-06— y la razón social completa: forma jurídica —declarada el 2026-09-07 como entidad no incorporada—, número de registro —inexistente por esa declaración, cerrado— y domicilio, **que sigue pendiente y es lo único que queda de este criterio**;
+- controller y owner designados —hecho el 2026-09-06— y la razón social: forma jurídica —declarada el 2026-09-07 como entidad no incorporada— y número de registro —inexistente por esa declaración, cerrado—. El domicilio, mas precisar si es sole trader o asociación sin registrar, **dejó de ser criterio de cierre de T011 el 2026-09-07 y pasó a T126**: es un dato de contrato, no una decisión de política, y este documento lo sigue esperando en la celda del controller;
 - diez decisiones firmadas por el controller y calendario de retención completo;
 - DPIA aprobada. La decisión del 2026-09-06 cubre el registro y el revisor, no la DPIA: si queda riesgo alto residual, la consulta previa a JOIC sigue formando parte del proceso;
 - mapa de residencia/transferencias, DPA y TIA/SCC/Addendum aplicables;

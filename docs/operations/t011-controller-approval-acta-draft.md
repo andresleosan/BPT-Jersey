@@ -148,8 +148,9 @@ Transfers outside UK/EEA approved as: **none, other than Firebase Authentication
   declared, and the registration number is closed **as non-existent** rather than left blank. What
   remains is the **registered address**, plus which of the two unincorporated forms applies — a sole
   trader is a natural person trading under the name, an association is not, and a DPA has to name
-  whoever actually answers. That remainder is the **one closing criterion of T011 still open**, it
-  is a fact rather than a decision, and it blocks any processor contract.
+  whoever actually answers. That remainder **stopped being a T011 closing criterion on 2026-09-07,
+  when T011 closed, and moved to T126** — it is a fact rather than a decision, and it blocks any
+  processor contract, any insurance policy and the published legal text of T117, but no release.
 - It does not approve the DPIA. The DPIA was written on 2026-09-06
   (`docs/operations/t011-dpia-draft.md`) and remains an unapproved draft with a declared high
   residual risk. Signing section 3.1 accepts one finding of it; it does not approve the document, and
