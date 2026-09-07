@@ -5515,10 +5515,27 @@ por el propio sondeo repetido-. En el log de Google: `state: ACTIVE`, `Default S
 succeeded` y `Callable request verification passed`, o sea que el contenedor arranca con los secretos
 nuevos y la funcion ejecuta de verdad. Antes del despliegue, las ocho daban 404.
 
-**Lo que sigue sin desplegar.** De los 27 callables que faltaban, quedan 19. Los dos que mas se van a
-notar son `listMembers` y `getMemberDetail`: el directorio canonico sigue en 404, asi que un alumno
-recien aprobado no aparece en `/admin/members`. Ya no estan bloqueados por nada -los secretos son
-reales- y es un despliegue equivalente cuando el operador lo pida.
+**5. Directorio canonico, desplegado a continuacion por peticion del operador.** `listMembers`,
+`getMemberDetail`, `lookupMemberIdentity`, `createMember` y `updateMember`, creadas en `us-central1`.
+Las cinco responden 401 sin sesion. Eso vale como prueba fuerte de los secretos: el servicio del
+directorio canonico lanzaba al construirse con los valores placeholder, asi que si arranca es que el
+material nuevo es valido.
+
+**Hallazgo medido, que no estaba en ninguna fila.** No faltaban dos callables, faltaban treinta. Se
+comparo lo que la web invoca (`httpsCallable` en `apps/web/src`) contra `firebase functions:list`:
+**37 llamadas distintas, 30 sin desplegar**. Tras los dos despliegues de hoy quedan **25**, y ninguna
+afecta ya a inscribirse ni a revisar. Son de otras areas: waivers y consentimientos (`acceptWaiver`,
+`revokeWaiverConsent`, `getWaiverRegistration`, `getWaiverEvidenceDownload`, `listDisclaimers`),
+salud (`getHealthProfile`, `saveHealthProfile`), planes y membresias (`listPlans`, `savePlan`,
+`listManagedPlans`, `listMemberships`), staff (`listStaffProfiles`, `createStaffProfile`,
+`updateStaffProfile`, `setStaffActive`), planes de clase (`getLessonPlan`, `approveLessonPlan`),
+importacion PDF, niveles, cumpleanos, retencion, perfil de cliente y export agregado.
+
+**Por que no se desplegaron esas 25 tambien:** el propio ledger ya registra que `consent-callables`
+falla cerrado salvo con `BPT_SYNTHETIC_PILOT=true` y que ningun despliegue define esa variable, con
+el mismo patron en el export CSV de reportes. Subirlas a ciegas dejaria media funcionalidad inerte en
+produccion pareciendo desplegada, que es peor que un 404 honesto. Requiere mirarlas una por una, y eso
+es trabajo de T058.
 
 **Evidencia previa, en Emulator, del mismo camino** (4/4, `enrolment-approval-auth-emulator.spec.ts`):
 aprobar a un tutor lo mete en la familia sin convertirlo en alumno; dos aprobaciones producen un
