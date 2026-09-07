@@ -88,6 +88,7 @@ describe("enrolment request page", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
@@ -105,10 +106,24 @@ describe("enrolment request page", () => {
       },
       minors: [],
     });
-    expect(submission.applicant).not.toHaveProperty("phoneNumber");
     expect(submission.applicant).not.toHaveProperty("emergencyContact");
     expect(submission.applicant).not.toHaveProperty("postalAddress");
     expect(submission.applicant).not.toHaveProperty("membershipNumber");
+  });
+
+  it("will not send a request without a phone number the academy can call", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
+    await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a phone number the academy can reach you on.",
+    );
+    expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
   });
 
   it("refuses to send a guardian request with no child on it", async () => {
@@ -117,6 +132,7 @@ describe("enrolment request page", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText(/parent or guardian/i));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
@@ -130,6 +146,7 @@ describe("enrolment request page", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
     await user.type(screen.getByLabelText("Date of birth"), "1990-01-01");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText(/parent or guardian/i));
     await user.click(screen.getByRole("button", { name: /add a child/i }));
     await user.type(
@@ -207,6 +224,7 @@ describe("enrolment request page", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 

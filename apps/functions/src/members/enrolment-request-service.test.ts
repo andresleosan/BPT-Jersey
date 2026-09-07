@@ -23,6 +23,7 @@ const otherRequestId = "8a2e3b77-7f5f-4b3f-8b1f-3c7f1b5b2d22";
 const applicant = {
   fullName: "Alex Adult",
   dateOfBirth: "1994-04-02",
+  phoneNumber: "07700900123",
   trainingCenter: "Town",
   trainingTimePreferences: ["evening"],
 } as const;

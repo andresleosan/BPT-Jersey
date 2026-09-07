@@ -122,7 +122,7 @@ function toSubmission(form: ApplicantForm, requestId: string): EnrolmentRequestS
       trainingCenter: form.trainingCenter,
       trainingTimePreferences: [...form.trainingTimePreferences],
       gender: form.gender,
-      ...(trimmed(form.phoneNumber) === undefined ? {} : { phoneNumber: form.phoneNumber.trim() }),
+      phoneNumber: form.phoneNumber.trim(),
       ...(trimmed(form.email) === undefined ? {} : { email: form.email.trim() }),
       ...(emergencyContact === undefined ? {} : { emergencyContact }),
       ...(postalAddress === undefined ? {} : { postalAddress }),
@@ -140,6 +140,9 @@ function toSubmission(form: ApplicantForm, requestId: string): EnrolmentRequestS
 function validate(form: ApplicantForm): string | undefined {
   if (!form.fullName.trim()) return "Enter your full name.";
   if (!form.dateOfBirth) return "Enter your date of birth.";
+  // Required here, unlike on the administrative form: the academy cannot open a client record
+  // without a phone number, and office is not standing in front of this applicant to ask.
+  if (!form.phoneNumber.trim()) return "Enter a phone number the academy can reach you on.";
   if (form.trainingTimePreferences.length === 0 && form.applicantIsStudent) {
     return "Choose at least one training time.";
   }
@@ -466,7 +469,7 @@ function EnrolContent() {
               />
             </label>
             <label className="enrol-field" htmlFor="enrol-phone">
-              Phone
+              Phone (required)
               <input
                 autoComplete="tel"
                 id="enrol-phone"

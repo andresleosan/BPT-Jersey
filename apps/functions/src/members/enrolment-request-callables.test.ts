@@ -18,6 +18,7 @@ const requestId = "6f1d2f66-6f4f-4a2e-9a0e-2b6f0a4a1c11";
 const applicant = {
   fullName: "Alex Adult",
   dateOfBirth: "1994-04-02",
+  phoneNumber: "07700900123",
   trainingCenter: "Town",
   trainingTimePreferences: ["evening"],
   postalAddress: { line: "9 Library Place", postCode: "JE2 4WW" },

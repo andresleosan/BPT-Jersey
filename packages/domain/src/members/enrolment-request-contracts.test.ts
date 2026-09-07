@@ -107,6 +107,23 @@ describe("enrolment request submission", () => {
     });
   });
 
+  it("asks for a phone number even though the administrative form does not", () => {
+    // The academy's client record will not parse without one, and an approved applicant whose
+    // client record cannot be written is half-enrolled.
+    const withoutPhone = Object.fromEntries(
+      Object.entries(applicant).filter(([key]) => key !== "phoneNumber"),
+    );
+    const parsed = parseEnrolmentRequestSubmission(
+      submission({ applicant: withoutPhone }),
+      effectiveDate,
+    );
+
+    expect(parsed.ok).toBe(false);
+    expect(
+      adminCreateStudentInputSchema.safeParse({ ...withoutPhone, requestId: "x" }).success,
+    ).toBe(true);
+  });
+
   it("refuses an adult who is also enrolling children, because no role can express it", () => {
     // A claim holds one role and the vocabulary has no guardian-and-adult-student. Accepting this
     // would build a request the write path cannot approve.

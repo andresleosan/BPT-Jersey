@@ -61,7 +61,19 @@ const reviewNoteSchema = z
     "Note must be trimmed and contain no control characters",
   );
 
-export const enrolmentApplicantSchema = z.strictObject({ ...applicantShape }).readonly();
+/**
+ * One field is deliberately stricter here than on the administrative form: a phone number. The
+ * academy's own client record (`users/{uid}`) will not parse without one, and an approved applicant
+ * whose client record cannot be written is half-enrolled - for a guardian it blocks their children
+ * entirely. Office can enrol somebody who left a phone number blank because office is standing in
+ * front of them; a form on the website has no such recourse, so it asks.
+ */
+export const enrolmentApplicantSchema = z
+  .strictObject({
+    ...applicantShape,
+    phoneNumber: applicantShape.phoneNumber.unwrap(),
+  })
+  .readonly();
 export type EnrolmentApplicant = Readonly<z.infer<typeof enrolmentApplicantSchema>>;
 
 /** A minor in the applicant's care. Same fields, minus the ones that belong to an adult account. */
