@@ -39,7 +39,6 @@ describe("Lista resolution board", () => {
       "T106",
       "T108",
       "T121",
-      "T124",
     ]);
     for (const item of items) {
       expect(project.getResolutionRequirements(item)).toEqual(

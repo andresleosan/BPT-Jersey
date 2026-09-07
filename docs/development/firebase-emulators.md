@@ -28,14 +28,27 @@ directly with a real Auth Emulator session.
    `MEMBER_PAGE_TOKEN_SECRET`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`. Export the same
    identity/integrity values plus `MEMBER_DIRECTORY_BASELINE_ENCRYPTION_SECRET` in the shell: the
    initializer binds the directory state to them and the callables verify that binding.
-3. Run, with JDK 21 on `PATH`:
+3. Run, with JDK 21 on `PATH`. Check what `java -version` actually reports rather than whether a
+   JDK 21 is installed: an Oracle Java 8 entry under
+   `C:\Program Files (x86)\Common Files\Oracle\Java\java8path` shadows a perfectly good Temurin
+   21 and firebase-tools then refuses. Prepending the real JDK for the command is enough:
+
+   ```bash
+   export PATH="/c/Program Files/Eclipse Adoptium/jdk-21.0.12.8-hotspot/bin:$PATH"
+   ```
 
    ```bash
    T093_MEMBER_DIRECTORY_EMULATOR_E2E=true GCLOUD_PROJECT=demo-bpt-jersey    T093_E2E_ACADEMY_ID=t093-e2e-academy    AUTH_EMULATOR_E2E_EMAIL=t093-owner@example.test AUTH_EMULATOR_E2E_PASSWORD=<12+ chars>    npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions      "node qa/scripts/run-member-directory-e2e.mjs"
    ```
 
-The runner seeds the Auth user, writes the exact provisioned `users/{uid}` document, initializes the
-empty canonical directory for the synthetic academy and runs the spec. The encrypted empty baseline is
+   `T121_APPLICANT_PASSWORD=<12+ chars>` is required too: the same run covers the enrolment
+   approval of T121 slice 2, whose applicants are seeded by
+   `qa/scripts/seed-enrolment-applicants-emulator.mjs`.
+
+The runner seeds the Auth user, writes the exact provisioned `users/{uid}` document, seeds the
+synthetic enrolment applicants, initializes the empty canonical directory for the synthetic academy
+and runs both specs: `member-directory-auth-emulator.spec.ts` (T093) and
+`enrolment-approval-auth-emulator.spec.ts` (T121 slice 2 / T122). The encrypted empty baseline is
 kept under the ignored `.tmp/member-directory-baselines/`; if the secrets change, use a new
 `T093_E2E_ACADEMY_ID` because an existing baseline can only be reopened with its original secrets.
 
@@ -181,3 +194,15 @@ a tutor holds one family.
 ```bash
 BPT_SYNTHETIC_PILOT=true GOLDEN_PATH_EMULATOR_E2E=true GCLOUD_PROJECT=demo-bpt-jersey GOLDEN_PATH_ACADEMY_ID=golden-e2e-academy GOLDEN_PATH_PASSWORD=<12+ chars> GOLDEN_PATH_OWNER_EMAIL=golden-owner@example.test GOLDEN_PATH_HEAD_COACH_EMAIL=golden-headcoach@example.test GOLDEN_PATH_GUARDIAN_EMAIL=golden-guardian@example.test GOLDEN_PATH_GUARDIAN_PROGRESS_EMAIL=golden-guardian-progress@example.test GOLDEN_PATH_GUARDIAN_LEVELS_EMAIL=golden-guardian-levels@example.test GOLDEN_PATH_ADULT_ONBOARDING_EMAIL=golden-adult-onboarding@example.test GOLDEN_PATH_ADULT_BILLING_EMAIL=golden-adult-billing@example.test GOLDEN_PATH_ADULT_SCHEDULE_EMAIL=golden-adult-schedule@example.test GOLDEN_PATH_ADULT_PENALTY_EMAIL=golden-adult-penalty@example.test GOLDEN_PATH_ADULT_BIRTHDAY_TOWN_EMAIL=golden-adult-birthday-town@example.test GOLDEN_PATH_ADULT_BIRTHDAY_WEST_EMAIL=golden-adult-birthday-west@example.test GOLDEN_PATH_ADULT_PROGRESS_EMAIL=golden-adult-progress@example.test npx firebase emulators:exec --project demo-bpt-jersey --only auth,firestore,functions   "node qa/scripts/run-golden-path-e2e.mjs"
 ```
+
+## What the enrolment approval E2E cannot prove
+
+`enrolment-approval-auth-emulator.spec.ts` dispatches two approvals of one request together and
+checks that a single member comes out. That is a real case - a distracted second reviewer - but it
+is **not** a race. The Functions Emulator runs invocations through a single worker and serialises
+them; its own log shows `Beginning ... Finished ... Beginning ... Finished`, never an overlap. This
+was verified by mutation: with the approval idempotency key deliberately un-pinned, the whole suite
+still passed. Do not cite it as evidence of behaviour under simultaneous contention. The pin is
+covered by a unit test that does fail under that mutation
+(`apps/functions/src/members/enrolment-request-service.test.ts`, "gives a retry the key the first
+attempt pinned, never a fresh one").

@@ -44,11 +44,11 @@ describe("Lista project progress", () => {
 
   it("reflects the board as of 2026-09-06", () => {
     expect(counts).toEqual({
-      aprobada: 111,
+      aprobada: 112,
       revision: 0,
       "en-progreso": 2,
       pendiente: 3,
-      bloqueada: 2,
+      bloqueada: 1,
       cancelada: 7,
     });
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
@@ -77,11 +77,13 @@ describe("Lista project progress", () => {
     ]);
     expect(counts.cancelada).toBe(cancelled.length);
     expect(progress.total).toBe(items.length - cancelled.length);
-    // Later on 2026-09-06 the operator approved T122 and T123 and, rather than let the Emulator
-    // verification T122 never ran become a footnote, opened T124 to carry it. So both sides of the
-    // ratio moved: two rows approved, one row of real outstanding work added. The percentage rising
-    // by one point is the honest reading only because the debt it excludes is on the board as T124
-    // instead of hidden inside an approved row.
-    expect(progress).toEqual({ approved: 111, total: 118, percentage: 94 });
+    // Later on 2026-09-06 the operator approved T122 and T123, and T124 was opened to carry the
+    // Emulator verification T122 had never run. T124 then closed the same day, because the reason
+    // it was blocked turned out to be false: JDK 21 was installed all along, shadowed on PATH by an
+    // Oracle Java 8. So three rows moved to approved against one row added. The percentage is only
+    // honest because the one thing that still cannot be shown - two approvals under genuine
+    // contention, which the single-worker Functions Emulator cannot produce - is written down in
+    // T124 and in the spec rather than counted as passed.
+    expect(progress).toEqual({ approved: 112, total: 118, percentage: 95 });
   });
 });

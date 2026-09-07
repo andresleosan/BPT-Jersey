@@ -41,6 +41,12 @@ const password = required("AUTH_EMULATOR_E2E_PASSWORD");
 if (password.length < 12) {
   throw new Error("T093 runner requires a synthetic password of 12+ characters.");
 }
+// T121 slice 2 rides on the same provisioned directory: the approval writes through the same
+// canonical writer, so seeding it twice would only invent a second source of truth.
+const applicantPassword = required("T121_APPLICANT_PASSWORD");
+if (applicantPassword.length < 12) {
+  throw new Error("T121 applicants require a synthetic password of 12+ characters.");
+}
 for (const name of [
   "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
   "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
@@ -73,6 +79,7 @@ function run(args) {
 
 run(["qa/scripts/seed-auth-emulator.mjs"]);
 run(["qa/scripts/seed-member-directory-emulator.mjs"]);
+run(["qa/scripts/seed-enrolment-applicants-emulator.mjs"]);
 run([
   "apps/functions/scripts/member-directory-empty-initialize.mjs",
   `--academy-id=${academyId}`,
@@ -81,6 +88,13 @@ run([
 run([
   "qa/run-e2e.mjs",
   "tests/member-directory-auth-emulator.spec.ts",
+  "--project=desktop-chromium",
+  "--workers=1",
+  "--retries=0",
+]);
+run([
+  "qa/run-e2e.mjs",
+  "tests/enrolment-approval-auth-emulator.spec.ts",
   "--project=desktop-chromium",
   "--workers=1",
   "--retries=0",
