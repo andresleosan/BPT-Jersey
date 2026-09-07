@@ -60,9 +60,11 @@ describe("Lista project progress", () => {
     // was approved on that evidence, and step 2 - never built - became T127. A row that is half
     // done is now two rows that each say something true, rather than one that says neither.
     //
-    // The five open rows are open because the work is real: T108 has no executor written,
-    // T058/T059 are the release and the close-out, T126 carries the registered address T011 never
-    // had, and T127 waits on three answers, two of them shared with T058.
+    // The five open rows are open because the work is real: T108 has one of its seven executors
+    // written and rehearsed in the Emulator since 2026-09-07 and is still missing the other six,
+    // the parent operation document, the frozen plan and the approvals; T058/T059 are the release
+    // and the close-out, T126 carries the registered address T011 never had, and T127 waits on
+    // three answers, two of them shared with T058.
     expect(items.filter((item) => item.status === "revision")).toEqual([]);
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([]);
   });
