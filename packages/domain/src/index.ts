@@ -148,6 +148,15 @@ export type {
   StudentDirectorySource,
 } from "./members/member-directory-contracts";
 export {
+  memberDirectoryAcquirablePhases,
+  planMemberDirectoryAcquisition,
+  planMemberDirectoryPhaseChange,
+} from "./members/member-directory-transitions";
+export type {
+  MemberDirectoryAcquirablePhase,
+  MemberDirectoryAcquisitionInput,
+} from "./members/member-directory-transitions";
+export {
   assertLeaseRecoveryWithinDeadline,
   assertLeaseRenewable,
   assertMemberDirectoryOperationStatusTransition,
