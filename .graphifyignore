@@ -1,0 +1,29 @@
+# Qué queda fuera del grafo de conocimiento, y por qué.
+#
+# El grafo existe para responder preguntas sobre esta plataforma: el dominio de la academia, sus
+# contratos, sus callables y las decisiones registradas en el ledger. Todo lo de abajo es real y
+# está versionado, pero no es conocimiento del proyecto: es herramienta, o es el propio grafo
+# mirándose al espejo. Incluirlo entierra el dominio bajo manuales de terceros y hace que cada
+# actualización cueste extracción semántica que no aporta ninguna arista útil.
+#
+# Si algún día hace falta razonar sobre la metodología en sí, se quita la línea que toque.
+
+# Skills vendorizadas de terceros (227 documentos) y el núcleo de la agencia (25).
+# Documentan cómo se trabaja, no qué hace la plataforma.
+.agents/
+.cronos/
+
+# Configuración de las plataformas de agentes.
+.claude/
+.codex/
+.vscode/
+
+# La salida del propio graphify. Reingerir el informe y el grafo haría que el grafo se describiera
+# a sí mismo en cada vuelta.
+graphify-out/
+
+# Activos binarios: logos, fotos de producto y capturas de regresión visual. La extracción con
+# visión cuesta un subagente por imagen y no devuelve ninguna relación de dominio; son insumos de
+# la interfaz, no conocimiento.
+apps/web/public/
+qa/visuals/
