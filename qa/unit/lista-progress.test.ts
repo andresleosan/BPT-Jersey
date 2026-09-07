@@ -44,15 +44,16 @@ describe("Lista project progress", () => {
 
   it("reflects the board as of 2026-09-06", () => {
     expect(counts).toEqual({
-      aprobada: 108,
+      aprobada: 109,
       revision: 1,
-      "en-progreso": 1,
-      pendiente: 4,
+      "en-progreso": 2,
+      pendiente: 3,
       bloqueada: 1,
       cancelada: 7,
     });
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
       expect.objectContaining({ id: "T106" }),
+      expect.objectContaining({ id: "T121" }),
     ]);
   });
 
@@ -76,6 +77,9 @@ describe("Lista project progress", () => {
     ]);
     expect(counts.cancelada).toBe(cancelled.length);
     expect(progress.total).toBe(items.length - cancelled.length);
-    expect(progress).toEqual({ approved: 108, total: 115, percentage: 94 });
+    // T122 was opened on 2026-09-06 for a defect that already existed and nobody had recorded, so
+    // the denominator grew while the numerator did not. The percentage falling is the honest
+    // reading: work that was always there is now counted.
+    expect(progress).toEqual({ approved: 109, total: 116, percentage: 94 });
   });
 });

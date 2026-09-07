@@ -32,17 +32,17 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 };
 
 const RESOLUTION_REQUIREMENTS = {
-  T120: [
-    "Aprobar el modelo de dos clientes: un comprador no ve datos de estudiante y un estudiante conserva su acceso actual.",
-    "Definir que expone el catalogo publico: solo productos activos, nombre, descripcion, precio e imagen; nunca pedidos ni costos internos.",
-    "Implementar el alta autoservicio del claim de forma idempotente, sin permitir que nadie se asigne un rol distinto de comprador.",
-    "Cubrir con Rules, pruebas de frontera y E2E que un comprador no alcanza estudiantes, familias, asistencia ni progreso.",
-  ],
   T121: [
-    "Aprobar el flujo: quien solicita, que datos entrega, quien revisa y que pasa cuando office devuelve una solicitud.",
+    "Cerrar T122 primero: aprobar creando la ficha y ascendiendo el claim produce una segunda ficha en cuanto el miembro guarda su perfil.",
     "Resolver el texto legal del waiver y de los disclaimers, hoy bloqueado por T011, antes de habilitar uso operativo.",
-    "Implementar la creacion del estudiante canonico y el ascenso del claim en una sola transaccion, respetando la reserva de capacidad de ADR-009.",
+    "Disenar la secuencia del tutor con menores: createFamily exige claim de guardian y documento de cliente previos.",
+    "Anadir la proyeccion de detalle: hoy office aprobaria sin ver la fecha de nacimiento ni el contacto de emergencia que aprueba.",
     "Cubrir con auditoria, Rules, Emulator y E2E el camino completo de solicitud, revision, aprobacion y devolucion.",
+  ],
+  T122: [
+    "Correr la verificacion en Emulator, imposible en la maquina actual porque firebase-tools exige Java 21 y el JDK es 1.8.",
+    "Conectar el metodo nuevo a un flujo real: hoy es una capacidad que nadie llama todavia.",
+    "Confirmar que no existen fichas ya duplicadas en produccion antes de dar la tarea por cerrada.",
   ],
   T010: [
     "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
@@ -2026,21 +2026,31 @@ const recoveryItems = [
   task(
     "T120",
     "Cliente comprador y cliente estudiante, con catalogo de tienda publico",
-    "revision",
+    "aprobada",
     "Quien solo quiere comprar no necesita ser estudiante, y ver la tienda no deberia exigir cuenta.",
     "T015,T105,T118",
-    "Alta 2026-09-06 por instruccion del operador. Hoy listShopCatalog exige rol de cliente y /shop entero vive detras del gate, asi que un visitante no ve ni un producto; ademas nadie asigna el claim de cliente al registrarse, de modo que quien se da de alta en produccion queda sin rol y el gate lo trata como desconectado para siempre. Alcance: rol shopper sin acceso a datos de estudiante, alta autoservicio idempotente del claim, catalogo publico con proyeccion reducida y solo productos activos, y /shop que muestra el catalogo a cualquiera y pide sesion solo al pedir. Corte 1 implementado el 2026-09-06: listPublicShopCatalog sin sesion con App Check, solo productos activos, academia validada en el payload, y /shop fuera del gate con Sign in to order por tarjeta. Falta el corte 2, el rol shopper y el alta autoservicio del claim.",
+    "Aprobada por el operador el 2026-09-06 para el alcance sintetico registrado. El hallazgo real: setCustomUserClaims solo se llamaba desde el provisioning de admins y la gestion de staff, asi que quien se registraba con Google quedaba sin ningun claim y, como todos los callables exigen uno, quedaba bloqueado para siempre sin que nadie pudiera arreglarlo. Corte 1: catalogo publico sin sesion con App Check, solo productos activos. Corte 2: rol shopper en el vocabulario del dominio y callable registerShopperAccount que asigna el claim solo si la cuenta no tiene rol, nunca sobrescribe uno concedido por la academia, rechaza una cuenta de otra academia, no acepta payload (la academia sale de ACADEMY_ID), relee el claim y revierte si no cuajo, y deja auditoria. El modelo de acceso es lista blanca por requisito, asi que un rol que ninguna lista nombra queda denegado por construccion, con prueba que lo fija para los cuatro ambitos. En la web la sesion pide el rol una vez por cuenta y solo cuenta como iniciada si el token refrescado trae el claim; ClientAuthGate admite por defecto solo roles de estudiante y a un comprador le dice que el area es de estudiantes. Pendiente del operador: definir ACADEMY_ID en el entorno de Functions antes de desplegar, porque su valor por defecto es demo-academy.",
     ["tasks.md", "apps/functions/src/shop", "apps/web/src/app/shop"],
     "mvp",
   ),
   task(
     "T121",
     "Solicitud de inscripcion autoservicio y bandeja de solicitudes en miembros",
-    "pendiente",
+    "en-progreso",
     "El solicitante llena sus datos una vez y office los revisa, en lugar de volver a teclearlos.",
     "T090,T093,T094,T117,T120",
-    "Alta 2026-09-06 por instruccion del operador. El autoservicio de T094 ya guarda perfil, tutor y waiver, pero nada llega al directorio canonico: office vuelve a teclear todo en /admin/members/add. Alcance: coleccion de solicitudes con estado y auditoria, formulario que reutiliza el contrato del alta administrativa incluidos los menores a cargo del tutor, revision de office que aprueba o devuelve, y creacion del estudiante canonico con ascenso del claim en una sola transaccion. El texto legal sigue bloqueado por T011.",
-    ["tasks.md", "apps/functions/src/members", "apps/web/src/app/account"],
+    "Alta 2026-09-06. Corte 1 aprobado por el operador el 2026-09-06: contrato que reutiliza literalmente la forma del alta administrativa menos las dos casillas de office, requestId y membershipNumber, para que nadie reclame el numero de socio de otro; la edad decide el flujo en vez del checkbox; coleccion tenant-scoped con estado, auditoria y una sola solicitud abierta por persona; callables de envio, listado propio y retirada para roles de cliente incluido shopper, y listado y devolucion con nota para office. Corte 3a: pagina /enrol con el formulario del solicitante, que pide sesion, manda a /account a quien ya es estudiante y muestra el estado con la nota de office si ya hay solicitud abierta. Corte 3b: bandeja en /admin/members/requests que lista nombre, tipo, numero de menores, centro y estado, sin fecha de nacimiento ni direccion, y avisa cuando la pagina esta llena. Correcciones del 2026-09-06 tras auditoria: el guardia de una sola solicitud abierta podia fallar en silencio tras 20 filas de historial y ahora es un documento por solicitante; la cola ordena y declara truncado; el contrato rechaza adulto que ademas inscribe hijos, combinacion que ningun claim puede representar; el telefono pasa a obligatorio porque el documento de cliente no parsea sin el. Falta el corte 2, la aprobacion, bloqueado por T122.",
+    ["tasks.md", "apps/functions/src/members", "apps/web/src/app/enrol"],
+    "mvp",
+  ),
+  task(
+    "T122",
+    "Vincular un miembro creado por office con la cuenta del propio miembro",
+    "revision",
+    "Una persona, una ficha: la que crea office y la que usa el miembro al entrar tienen que ser la misma.",
+    "T093,T094",
+    "Alta 2026-09-06 tras la auditoria del camino de aprobacion de T121. Defecto verificado y anterior a T121: el alta administrativa escribia el estudiante sin userId y sin reservar la clave auth-user-id, mientras que saveClientProfile busca al titular por userId y, al no encontrarlo, crea otra ficha con su propia familia y su documento de cliente. Es decir, si office daba de alta a alguien y esa persona entraba y guardaba su perfil, la academia acababa con dos fichas de la misma persona, una con los datos y sin acceso y otra con el acceso y sin los datos, y nada lo detectaba. Implementado el 2026-09-06: createAdminAdultForAccount escribe las dos mitades en una transaccion; los dos caminos comparten un solo plan de escritura cuyo unico parametro nuevo es la cuenta, asi que el alta sin cuenta queda igual, con prueba que lo fija. Falla cerrado sin telefono y ante una cuenta que ya tiene familia o documento de cliente. La prueba decisiva corre los dos writers sobre el mismo almacen y comprueba que el perfil del miembro adopta la ficha de office; con el vinculo desactivado esa misma prueba devuelve una segunda ficha, que es el defecto. Los guardias se comprobaron por mutacion. Pendiente: nadie llama todavia al metodo nuevo, la verificacion en Emulator no se pudo correr aqui por Java, y el camino de tutor con menores se disena en el corte 2 de T121.",
+    ["tasks.md", "docs/superpowers/specs/2026-09-06-t122-member-account-link-design.md", "apps/functions/src/members"],
     "mvp",
   ),
 ];
@@ -2141,6 +2151,7 @@ const projectData = {
     T119: "2026-09-06",
     T120: "2026-09-06",
     T121: "2026-09-06",
+    T122: "2026-09-06",
     T068: "2026-09-06",
     T069: "2026-09-06",
     T070: "2026-09-06",
