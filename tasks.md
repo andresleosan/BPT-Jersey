@@ -5432,6 +5432,19 @@ Son dos fallos distintos y conviene no mezclarlos:
    hueco que define T058, y para el directorio canonico sigue bloqueado por los tres secretos
    placeholder (DPIA §4.7).
 
+**Causa raiz confirmada el 2026-09-07 en la consola: termino la prueba gratuita de Google Cloud.**
+No fue una tarjeta rechazada ni una cuenta cerrada. El banner de `console.cloud.google.com/billing`
+decia: "Finalizo la prueba gratuita, pero tu experiencia con Google Cloud Platform puede continuar.
+Para restablecer los servicios, actualiza la cuenta antes del 6 de octubre de 2026." Al terminar la
+prueba, Google desactiva la facturacion, y sin facturacion Cloud Functions v2 no sirve. El operador
+convirtio la cuenta a de pago el mismo dia y el servicio empezo a volver: los callables pasaron de
+5xx a 401 -que es la respuesta correcta a una peticion sin autenticar- conforme se propagaba.
+
+**Fecha que no conviene olvidar: 6 de octubre de 2026.** Es el plazo que daba el banner para
+restablecer servicios; pasado ese punto Google puede eliminar los recursos del proyecto, y ahi
+dentro estan los 249 registros reales. Ya no aplica al haberse actualizado la cuenta, pero queda
+anotado porque la misma situacion se repite si la cuenta de pago cae.
+
 **Accion, y correccion de la recomendacion anterior.** Antes de leer el log se recomendo un
 redespliegue acotado de las dos funciones del directorio. **Eso era incorrecto y no debe ejecutarse
 mientras la facturacion siga desactivada:** el despliegue fallaria, y aunque no fallara no arreglaria
@@ -5471,3 +5484,48 @@ Metodo del delta, para que sea reproducible y no una impresion: extraccion estat
 exportados en `apps/functions/src/index.ts` en cada commit y diferencia de conjuntos. No es
 `firebase functions:list` -que requiere credenciales- asi que mide el codigo, no el estado real de la
 nube; los 404 medidos en el incidente de arriba confirman la parte que importa.
+
+### Despliegue del circuito de inscripcion a produccion - 2026-09-07
+
+Pedido por el operador: "que las personas se puedan inscribir y que el admin pueda revisar".
+Ejecutado por el asistente con autorizacion explicita, paso a paso, sobre `bptjersey-f5a25`.
+
+**1. Secretos.** Los tres que atan los callables de inscripcion y el directorio canonico
+-`MEMBER_DIRECTORY_IDENTITY_KEY_SECRET`, `MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET` y
+`MEMBER_DIRECTORY_CURSOR_SECRET`- pasan a **version 2** con 48 bytes aleatorios cada uno, generados
+en local, escritos a un fichero temporal, subidos con `--data-file` y borrados. Los valores no
+aparecen en chat, git ni logs. **No fue una migracion:** cada secreto tenia una unica version, la del
+placeholder, y ningun callable que los usa se habia desplegado nunca, asi que no existia clave
+derivada del valor viejo. Esto cierra el §4.7 de la DPIA.
+
+**2. Rules e indices.** `firebase deploy --only firestore:rules,firestore:indexes`. Las Rules
+compilaron y se liberaron; los indices se desplegaron. Con esto produccion coincide con lo que
+verifican las 92/92: denegacion explicita para `enrolmentRequests`, `enrolmentRequestHolds`,
+`staffPermissionGrants` y `disclaimers`, y exenciones de indexado para contacto de emergencia y
+direccion postal.
+
+**3. Las ocho funciones del circuito**, creadas de cero en `us-central1`: `registerShopperAccount`,
+`submitEnrolmentRequest`, `listMyEnrolmentRequests`, `withdrawEnrolmentRequest`,
+`listEnrolmentRequests`, `getEnrolmentRequestDetail`, `approveEnrolmentRequest`,
+`returnEnrolmentRequest`. El despliegue concedio ademas `roles/secretmanager.secretAccessor` a
+`387764816359-compute@developer.gserviceaccount.com` sobre los tres secretos.
+
+**4. Verificacion.** Ni un 404 ni un 503: las ocho responden 401 -correcto sin sesion- o 429 -limite
+por el propio sondeo repetido-. En el log de Google: `state: ACTIVE`, `Default STARTUP TCP probe
+succeeded` y `Callable request verification passed`, o sea que el contenedor arranca con los secretos
+nuevos y la funcion ejecuta de verdad. Antes del despliegue, las ocho daban 404.
+
+**Lo que sigue sin desplegar.** De los 27 callables que faltaban, quedan 19. Los dos que mas se van a
+notar son `listMembers` y `getMemberDetail`: el directorio canonico sigue en 404, asi que un alumno
+recien aprobado no aparece en `/admin/members`. Ya no estan bloqueados por nada -los secretos son
+reales- y es un despliegue equivalente cuando el operador lo pida.
+
+**Evidencia previa, en Emulator, del mismo camino** (4/4, `enrolment-approval-auth-emulator.spec.ts`):
+aprobar a un tutor lo mete en la familia sin convertirlo en alumno; dos aprobaciones producen un
+alumno y no dos; y la puerta se cierra sin App Check, sin sesion o desde una cuenta cliente. Sigue sin
+demostrarse contencion real simultanea, porque el Emulator serializa con un solo worker.
+
+**Incidencia encontrada al ejecutarlo:** el inicializador del baseline canonico fallaba con `Invalid
+private empty baseline artifact.` Causa: los artefactos cifrados de `.tmp/member-directory-baselines/`
+sobreviven entre corridas mientras los secretos sinteticos se regeneran en cada una, asi que dejan de
+descifrar. Se borran y vuelve a funcionar. Es scratch local, no dato.

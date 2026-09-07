@@ -178,9 +178,15 @@ El mapa de regiones propone "ninguna transferencia fuera de UK/EEA", pero Fireba
 elegir región y necesita una evaluación real. Afecta a correo, nombre y teléfono de todas las
 cuentas, incluidas las de tutores de menores.
 
-### 4.7 Secretos placeholder en producción — **MEDIO**
+### 4.7 Secretos placeholder en producción — **RESUELTO el 2026-09-07**
 
-Los tres secretos del directorio canónico valen `placeholder-not-configured` en `bptjersey-f5a25`.
+**Resuelto el 2026-09-07:** los tres secretos (`MEMBER_DIRECTORY_IDENTITY_KEY_SECRET`,
+`MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET`, `MEMBER_DIRECTORY_CURSOR_SECRET`) tienen ya una
+versión 2 con material aleatorio de 48 bytes, generado sin pasar por chat, git ni logs. No hubo
+migración que hacer: cada secreto tenía una sola versión, la del placeholder, y los callables que los
+usan nunca se habían desplegado, así que en producción no existía ninguna clave derivada del valor
+antiguo. Lo que sigue es el registro de por qué esto era un riesgo. Los tres secretos del directorio
+canónico valían `placeholder-not-configured` en `bptjersey-f5a25`.
 Fallan cerrado, comprobado (19 bytes decodificados frente a los 32 exigidos), así que no derivan
 claves de una cadena pública: el servicio lanza al construirse. El riesgo no es de exposición sino
 de disponibilidad, y bloquea cualquier despliegue del camino que liga ficha y cuenta.
