@@ -2,6 +2,7 @@ import { httpsCallable } from "firebase/functions";
 
 import type {
   EnrolmentRequestClientView,
+  EnrolmentRequestDetail,
   EnrolmentRequestRow,
   EnrolmentRequestStatus,
   EnrolmentRequestSubmission,
@@ -176,5 +177,97 @@ export async function returnEnrolmentRequest(
     return row((await callable({ enrolmentRequestId, note })).data, reviewError);
   } catch {
     throw new Error(reviewError);
+  }
+}
+
+const detailError = "Unable to open this request.";
+const approvalError = "Unable to approve this request.";
+
+/**
+ * The Confidential detail of one request. Read on demand and never for a whole page: it is
+ * purpose-bound, audited, and spends from the same per-actor budget as reading a member record, so
+ * fetching one per row would burn a reviewer's allowance just by opening the queue.
+ */
+export async function getEnrolmentRequestDetail(
+  enrolmentRequestId: string,
+): Promise<EnrolmentRequestDetail> {
+  try {
+    const callable = httpsCallable<
+      { enrolmentRequestId: string; purpose: "enrolment-request-review" },
+      unknown
+    >(getFirebaseFunctions(), "getEnrolmentRequestDetail");
+    const data = (
+      await callable({ enrolmentRequestId, purpose: "enrolment-request-review" })
+    ).data;
+    if (
+      !isRecord(data) ||
+      typeof data.enrolmentRequestId !== "string" ||
+      typeof data.status !== "string" ||
+      !(enrolmentRequestStatuses as readonly string[]).includes(data.status) ||
+      !isRecord(data.applicant) ||
+      !Array.isArray(data.minors)
+    ) {
+      throw new Error(detailError);
+    }
+    return data as unknown as EnrolmentRequestDetail;
+  } catch {
+    throw new Error(detailError);
+  }
+}
+
+export type EnrolmentApprovalOutcome = Readonly<{
+  enrolmentRequestId: string;
+  role: "adultStudent" | "guardian";
+  studentIds: readonly string[];
+  alreadyApproved: boolean;
+}>;
+
+/**
+ * Approves one request. The idempotency key belongs to the reviewer's action, so it is minted here
+ * and not by the applicant; a retry of a failed approval mints a new one and the request itself
+ * still resolves it to the key the first attempt pinned.
+ */
+export async function approveEnrolmentRequest(
+  enrolmentRequestId: string,
+): Promise<EnrolmentApprovalOutcome> {
+  try {
+    const callable = httpsCallable<
+      {
+        enrolmentRequestId: string;
+        requestId: string;
+        purpose: "enrolment-request-review";
+      },
+      unknown
+    >(getFirebaseFunctions(), "approveEnrolmentRequest");
+    const data = (
+      await callable({
+        enrolmentRequestId,
+        requestId: createEnrolmentRequestId(),
+        purpose: "enrolment-request-review",
+      })
+    ).data;
+    if (
+      !isRecord(data) ||
+      typeof data.enrolmentRequestId !== "string" ||
+      (data.role !== "adultStudent" && data.role !== "guardian") ||
+      !Array.isArray(data.studentIds) ||
+      typeof data.alreadyApproved !== "boolean"
+    ) {
+      throw new Error(approvalError);
+    }
+    return Object.freeze({
+      enrolmentRequestId: data.enrolmentRequestId,
+      role: data.role,
+      studentIds: Object.freeze(data.studentIds.map(String)),
+      alreadyApproved: data.alreadyApproved,
+    });
+  } catch (error) {
+    // An approval that stops carries a reason office needs to read, and the failure slug travels
+    // in the message. Collapsing it would leave a reviewer staring at "something went wrong".
+    if (isRecord(error) && typeof error.code === "string" && error.code.endsWith("failed-precondition")) {
+      const message = typeof error.message === "string" ? error.message : "";
+      if (message) throw new Error(message);
+    }
+    throw new Error(approvalError);
   }
 }

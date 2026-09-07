@@ -3713,6 +3713,23 @@
   margin: 0.4rem 0 0;
 }
 
+/*
+ * The Confidential half of a request, shown only for the one the reviewer opened. Set apart from
+ * the card so it reads as "this is the sensitive detail you asked to see", not as more of the
+ * queue.
+ */
+.admin-request-detail {
+  border-left: 3px solid var(--accent, #1f6feb);
+  margin-top: 0.75rem;
+  padding: 0.25rem 0 0.25rem 0.75rem;
+}
+
+.admin-request-minors {
+  color: var(--muted, #5b5b66);
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+
 .admin-request-actions {
   align-items: end;
   display: flex;

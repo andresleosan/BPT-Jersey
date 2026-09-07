@@ -44,16 +44,15 @@ describe("Lista project progress", () => {
 
   it("reflects the board as of 2026-09-06", () => {
     expect(counts).toEqual({
-      aprobada: 112,
+      aprobada: 113,
       revision: 0,
-      "en-progreso": 2,
+      "en-progreso": 1,
       pendiente: 3,
       bloqueada: 1,
       cancelada: 7,
     });
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
       expect.objectContaining({ id: "T106" }),
-      expect.objectContaining({ id: "T121" }),
     ]);
   });
 
@@ -77,13 +76,14 @@ describe("Lista project progress", () => {
     ]);
     expect(counts.cancelada).toBe(cancelled.length);
     expect(progress.total).toBe(items.length - cancelled.length);
-    // Later on 2026-09-06 the operator approved T122 and T123, and T124 was opened to carry the
-    // Emulator verification T122 had never run. T124 then closed the same day, because the reason
-    // it was blocked turned out to be false: JDK 21 was installed all along, shadowed on PATH by an
-    // Oracle Java 8. So three rows moved to approved against one row added. The percentage is only
-    // honest because the one thing that still cannot be shown - two approvals under genuine
-    // contention, which the single-worker Functions Emulator cannot produce - is written down in
-    // T124 and in the spec rather than counted as passed.
-    expect(progress).toEqual({ approved: 112, total: 118, percentage: 95 });
+    // On 2026-09-06 the operator approved T122 and T123; T124 was opened to carry the Emulator
+    // verification T122 had never run, and closed the same day because the reason it was blocked
+    // turned out to be false - JDK 21 was installed all along, shadowed on PATH by an Oracle Java
+    // 8. T121 then completed its last slice. Four rows moved to approved against one row added.
+    // The percentage is only honest because the two things that still cannot be shown are written
+    // down rather than counted as passed: two approvals under genuine contention, which the
+    // single-worker Functions Emulator cannot produce (T124), and production deployment, which the
+    // placeholder canonical-directory secrets still block (T058).
+    expect(progress).toEqual({ approved: 113, total: 118, percentage: 96 });
   });
 });

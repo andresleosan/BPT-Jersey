@@ -4,9 +4,15 @@ import { useEffect, useState } from "react";
 
 import {
   isReturnableEnrolmentRequest,
+  type EnrolmentRequestDetail,
   type EnrolmentRequestRow,
 } from "@bpt-jersey/domain/members/enrolment-requests";
-import { listEnrolmentRequests, returnEnrolmentRequest } from "../../../../lib/enrolment-client";
+import {
+  approveEnrolmentRequest,
+  getEnrolmentRequestDetail,
+  listEnrolmentRequests,
+  returnEnrolmentRequest,
+} from "../../../../lib/enrolment-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
 
 import "../../admin.css";
@@ -31,12 +37,60 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleDateString("en-GB");
 }
 
+function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
+  const { applicant } = detail;
+  return (
+    <div className="admin-request-detail">
+      <p className="admin-request-meta">
+        <strong>Born</strong> {applicant.dateOfBirth} · <strong>Phone</strong>{" "}
+        {applicant.phoneNumber}
+        {applicant.email ? ` · ${applicant.email}` : ""}
+      </p>
+      {applicant.postalAddress ? (
+        <p className="admin-request-meta">
+          <strong>Address</strong> {applicant.postalAddress.line},{" "}
+          {applicant.postalAddress.postCode}
+        </p>
+      ) : null}
+      {applicant.emergencyContact ? (
+        <p className="admin-request-meta">
+          <strong>In an emergency</strong> {applicant.emergencyContact.fullName} (
+          {applicant.emergencyContact.relationship}) {applicant.emergencyContact.phoneNumber}
+        </p>
+      ) : (
+        <p className="admin-request-meta">
+          <strong>No emergency contact given.</strong>
+        </p>
+      )}
+      {detail.minors.length > 0 ? (
+        <ul className="admin-request-minors" aria-label="Children in their care">
+          {detail.minors.map((minor) => (
+            <li key={`${minor.fullName}-${minor.dateOfBirth}`}>
+              {minor.fullName} · born {minor.dateOfBirth} · {minor.trainingCenter}
+              {minor.frequencyNote ? ` · ${minor.frequencyNote}` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {detail.approvalFailureCode ? (
+        <p className="admin-request-meta">
+          <strong>An earlier approval stopped:</strong> {detail.approvalFailureCode}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function EnrolmentRequestQueuePage() {
   const [state, setState] = useState<QueueState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   const [busyId, setBusyId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
+  // Read details are cached per request, because every fetch is audited and spends from the same
+  // per-actor budget as reading a member record. Reopening a panel must not cost a second read.
+  const [details, setDetails] = useState<Readonly<Record<string, EnrolmentRequestDetail>>>({});
+  const [openDetailId, setOpenDetailId] = useState<string>();
 
   useEffect(() => {
     let active = true;
@@ -53,6 +107,60 @@ export default function EnrolmentRequestQueuePage() {
       active = false;
     };
   }, [reloadToken]);
+
+  async function openDetail(request: EnrolmentRequestRow): Promise<void> {
+    if (openDetailId === request.enrolmentRequestId) {
+      setOpenDetailId(undefined);
+      return;
+    }
+    if (details[request.enrolmentRequestId]) {
+      setOpenDetailId(request.enrolmentRequestId);
+      return;
+    }
+    setBusyId(request.enrolmentRequestId);
+    setNotice(undefined);
+    try {
+      const detail = await getEnrolmentRequestDetail(request.enrolmentRequestId);
+      setDetails((current) => ({ ...current, [request.enrolmentRequestId]: detail }));
+      setOpenDetailId(request.enrolmentRequestId);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Unable to open this request.",
+      });
+    } finally {
+      setBusyId(undefined);
+    }
+  }
+
+  async function approve(request: EnrolmentRequestRow): Promise<void> {
+    setBusyId(request.enrolmentRequestId);
+    setNotice(undefined);
+    try {
+      const outcome = await approveEnrolmentRequest(request.enrolmentRequestId);
+      setNotice({
+        tone: "success",
+        text: outcome.alreadyApproved
+          ? `${request.applicantName} was already enrolled. Nothing changed.`
+          : outcome.role === "guardian"
+            ? `${request.applicantName} can now sign in, and ${outcome.studentIds.length} ${
+                outcome.studentIds.length === 1 ? "child is" : "children are"
+              } enrolled.`
+            : `${request.applicantName} is enrolled and can now sign in.`,
+      });
+      setOpenDetailId(undefined);
+      // The approval touches the request, the directory and the account. Re-reading the queue is
+      // the only way to show what actually happened rather than what was asked for.
+      setReloadToken((token) => token + 1);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Unable to approve this request.",
+      });
+    } finally {
+      setBusyId(undefined);
+    }
+  }
 
   async function sendBack(request: EnrolmentRequestRow): Promise<void> {
     const note = (notes[request.enrolmentRequestId] ?? "").trim();
@@ -158,6 +266,16 @@ export default function EnrolmentRequestQueuePage() {
                 </p>
                 {open ? (
                   <div className="admin-request-actions">
+                    <button
+                      className="button button-secondary"
+                      disabled={busyId === request.enrolmentRequestId}
+                      onClick={() => void openDetail(request)}
+                      type="button"
+                    >
+                      {openDetailId === request.enrolmentRequestId
+                        ? "Hide detail"
+                        : "Read the full request"}
+                    </button>
                     <label className="shop-admin-field" htmlFor={noteId}>
                       What needs to change
                       <input
@@ -180,7 +298,35 @@ export default function EnrolmentRequestQueuePage() {
                     >
                       Send back to applicant
                     </button>
+                    {/*
+                      Approving creates a member record and grants the account a role. It stays out
+                      of reach until the reviewer has actually opened the request: office was
+                      previously able to approve somebody while looking at a name and a centre,
+                      which is the gap this slice exists to close.
+                    */}
+                    <button
+                      className="button"
+                      disabled={
+                        busyId === request.enrolmentRequestId ||
+                        !details[request.enrolmentRequestId]
+                      }
+                      onClick={() => void approve(request)}
+                      title={
+                        details[request.enrolmentRequestId]
+                          ? undefined
+                          : "Read the full request before enrolling somebody."
+                      }
+                      type="button"
+                    >
+                      Approve and enrol
+                    </button>
                   </div>
+                ) : null}
+                {openDetailId === request.enrolmentRequestId &&
+                details[request.enrolmentRequestId] ? (
+                  <DetailPanel
+                    detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
+                  />
                 ) : null}
               </li>
             );
