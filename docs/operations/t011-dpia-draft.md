@@ -8,8 +8,11 @@ por decisión expresa del operador del 2026-09-06.
 Este documento cierra el único criterio de T011 que es analítico y no decisional. De los otros dos,
 las diez decisiones se firmaron el 2026-09-07 (acta `t011-controller-approval-acta-draft.md`, firma
 por poder: Andres Santiago, p.p. Vladimiro Afonso, sobre la instrucción del operador de esa fecha).
-Sigue abierta la razón social completa —forma jurídica, número de registro y domicilio registrado—,
-que es un dato del controller y este borrador no lo suple.
+De la razón social completa, el 2026-09-07 el operador declaró la forma jurídica —entidad no
+incorporada (sole trader / asociación sin registrar)—, con lo que el número de registro queda
+cerrado por inexistencia. Sigue abierto **el domicilio**, y con él la precisión de si el controller
+es una persona física que comercia bajo ese nombre: son datos del controller y este borrador no los
+suple.
 
 **Qué NO hace este documento:** no abre producción, no autoriza datos reales, no decide una base
 legal, no aprueba una transferencia y no sustituye la consulta a la JOIC si el riesgo residual sigue
@@ -222,9 +225,13 @@ controller no es si consultar antes, sino si procede notificar ahora y con qué 
 
 1. ~~Decisión del controller sobre §4.1~~ — tomada el 2026-09-07 (opción (c), aceptación del
    riesgo), registrada en la sección 3.1 del acta y firmada allí el mismo día.
-2. Razón social completa: forma jurídica, número de registro y domicilio registrado. **Es el único
-   criterio de cierre de T011 que sigue abierto**, y bloquea cualquier contrato de encargado (punto
-   5), porque un DPA tiene que nombrar la entidad con exactitud.
+2. Razón social completa. Parcialmente resuelta el 2026-09-07: forma jurídica declarada por el
+   operador como **entidad no incorporada** (sole trader / asociación sin registrar), y número de
+   registro cerrado **por inexistencia** —no queda en blanco: no hay registro que citar—. **Sigue
+   abierto el domicilio**, más la precisión de cuál de las dos formas es, porque un sole trader es
+   una persona física y una asociación no lo es. Es el único criterio de cierre de T011 que sigue
+   abierto, y bloquea cualquier contrato de encargado (punto 5), porque un DPA tiene que nombrar a
+   quien responde con exactitud.
 3. ~~Las diez decisiones firmadas del acta~~ — firmadas el 2026-09-07 por poder (Andres Santiago,
    p.p. Vladimiro Afonso), con las once filas aceptadas sin enmiendas, los doce plazos confirmados y
    el mapa de regiones confirmado. La firma autoriza construir los plazos; ninguno existe todavía,

@@ -35,10 +35,10 @@ const RESOLUTION_REQUIREMENTS = {
   T125: [
     "Resuelta el 2026-09-07: el operador conserva el campo tal cual y acepta el riesgo por escrito, porque son datos reales que la operacion usa y el administrador ya tiene permiso de uso.",
     "Lo que la aceptacion no cambia: siguen ausentes los cuatro controles del directorio canonico -proposito declarado, auditoria por lectura, limite por actor y sonda de vitalidad-, asi que una lectura de contrasena no deja rastro.",
-    "Registrada en la seccion 3.1 del acta de T011, aprobada sin firma el 2026-09-07 por instruccion del operador: decision fechada y atribuida, no acta firmada. El riesgo residual de la DPIA sigue siendo alto.",
+    "Registrada en la seccion 3.1 del acta de T011, firmada ese mismo 2026-09-07 por poder (Andres Santiago, p.p. Vladimiro Afonso) por instruccion del operador: decision fechada y atribuida, con la atestacion por poder a la vista. El riesgo residual de la DPIA sigue siendo alto.",
   ],
   T010: [
-    "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
+    "Elegir expl\u00edcitamente un proveedor compatible con la forma real de la entidad, declarada no incorporada el 2026-09-07 (sole trader / asociacion sin registrar), no con una entidad incorporada como supon\u00eda este requisito.",
     "Completar onboarding, t\u00e9rminos, tarifas, monedas, disponibilidad regional y revisi\u00f3n legal.",
     "Definir presupuesto, l\u00edmites, alertas de gasto y custodia de credenciales sin almacenar tarjetas.",
     "Validar el adaptador en un entorno aislado con credenciales de prueba y documentar rollback.",
@@ -47,7 +47,9 @@ const RESOLUTION_REQUIREMENTS = {
     "Hecho 2026-09-06: controller, owner y contacto designados; revisor independiente y registro JOIC retirados por decision del operador.",
     "Hecho 2026-09-06: DPIA redactada, con riesgo residual declarado alto que la firma no baja.",
     "Hecho 2026-09-07: las diez decisiones, la D11 y los doce plazos firmados por poder (Andres Santiago, p.p. Vladimiro Afonso).",
-    "Falta, y es dato y no decision: la razon social completa -forma juridica, numero de registro y domicilio registrado-, que bloquea contratos de encargado. Y despues, implementar los plazos, que hoy no existen.",
+    "Hecho 2026-09-07: el operador declara la entidad no incorporada ni registrada (sole trader / asociacion sin registrar); con eso la forma juridica queda declarada y el numero de registro se cierra por inexistencia, no en blanco.",
+    "Falta, y es dato y no decision: el domicilio de la entidad -candidato sin confirmar, Office 9, 13 Library Place, St Helier- y precisar cual de las dos formas no incorporadas es, porque un sole trader es una persona fisica y una asociacion no. Bloquea contratos de encargado, no releases.",
+    "Y despues, implementar los doce plazos, que hoy no existen en el sistema.",
   ],
   T017: [
     "Mantener la cancelaci\u00f3n: no implementar MFA obligatorio dentro de esta tarea sustituida.",
