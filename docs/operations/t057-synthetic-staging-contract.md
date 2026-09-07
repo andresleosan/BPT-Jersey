@@ -1,6 +1,6 @@
 # T057 Synthetic Staging Contract
 
-Estado: contrato documental listo; no existe un entorno staging aprovisionado y este documento no autoriza crearlo.
+Estado: **enmendado el 2026-09-07 (ver "Enmienda" al final). El proyecto staging separado no se va a aprovisionar.** El contrato documental original se conserva completo debajo, porque describe lo que se decidio no hacer y por que, y porque sus gates siguen siendo la referencia si algun dia se retoma.
 
 Fecha: 2026-08-28
 
@@ -91,3 +91,54 @@ El contrato pasa de documental a staging verificado solo cuando todos los gates 
 - La ubicacion de Firestore se selecciona al aprovisionar y no puede cambiarse: https://firebase.google.com/docs/firestore/locations
 - Cloudflare Pages permite proteger preview deployments con Access: https://developers.cloudflare.com/pages/configuration/preview-deployments/
 - GitHub Environments puede restringir ramas, secretos y aprobaciones segun el plan: https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
+
+---
+
+## Enmienda 2026-09-07 - staging separado descartado, T099 recortada a ensayo de release
+
+Decision del operador del 2026-09-07, tomada sobre T099. Este contrato exigia cinco gates (A-E) para
+un proyecto Firebase separado. **Ese entorno no se va a crear.**
+
+### Por que
+
+Cuando se escribio este contrato, el 2026-08-28, produccion no tenia datos reales y staging servia
+para validar antes de tocarla. El 2026-09-04 se importaron 249 registros reales a `bptjersey-f5a25` y
+se desplegaron callables. El proposito original -validar antes- ya no se puede cumplir: llega en
+orden invertido. Lo que si sigue teniendo valor es no ensayar la release coordinada de T058 encima de
+los datos reales, y eso no necesita un segundo proyecto de pago.
+
+El gate humano que este contrato registraba como bloqueo tambien cayo: el decision owner y el revisor
+de T011 estaban sin designar el 2026-08-28, y el 2026-09-06 el operador nombro a Vladimiro Afonso y
+retiro la revision independiente. Lo unico que quedaba, por tanto, era gasto y una superficie mas que
+mantener sincronizada.
+
+### Que lo sustituye
+
+| Gate original | Sustituto aprobado |
+| --- | --- |
+| B, proyecto vacio | Ninguno. No se crea proyecto |
+| C, costo y acceso | Ninguno. No hay recursos que presupuestar |
+| D, prueba sintetica | Emulator Suite sobre `demo-bpt-jersey` con el artefacto de despliegue real: Rules y golden path autenticado con secretos sinteticos |
+| E, rollback | Runbook de release y rollback de T058, con baseline reconstruible y orden explicito de Rules, Functions y frontend |
+
+### Riesgos que esto deja sin cubrir, aceptados por la misma decision
+
+El Emulator no valida nada de lo siguiente, y por tanto la primera vez que ocurra sera en produccion:
+
+1. Identidad cloud e IAM reales, incluido el `invoker` publico de los callables.
+2. Region, cuotas y arranque en frio del contenedor de Cloud Run.
+3. Montaje real de secretos en el arranque de la instancia. Es precisamente donde vive el problema
+   abierto de los tres secretos placeholder (DPIA §4.7).
+4. App Check con clave real y dominio real.
+5. El despliegue mismo: descubrimiento de funciones, tiempos y fallos parciales.
+6. Cloudflare Pages con Access, `noindex` y variables de entorno de produccion.
+
+Los seis se trasladan a T058 como riesgo asumido, no como trabajo pendiente de T099. El incidente del
+2026-09-07 -las funciones desplegadas devolviendo 503 sin que el codigo hubiera cambiado- es un
+ejemplo concreto de exactamente esta clase de fallo: no lo habria detectado ningun Emulator.
+
+### Lo que sigue vigente de este contrato
+
+Las fronteras de identidad: `bptjersey-f5a25` es produccion y nunca es destino de pruebas ni fuente
+de fixtures; el Emulator corre sobre `demo-bpt-jersey`; y se prohiben exportaciones, copias y
+restauraciones de datos reales hacia cualquier entorno de prueba. Nada de esta enmienda relaja eso.

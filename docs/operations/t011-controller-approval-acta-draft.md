@@ -6,7 +6,20 @@
 > que ya están redactadas para que se aprueben, se modifiquen o se rechacen una por una, con firma y
 > fecha. Hasta que esté firmado, T011 sigue siendo un borrador.
 
-**Status:** unsigned draft. Nothing in this document takes effect until it is signed and dated.
+**Status: approved without signature on 2026-09-07, by operator instruction.** The operator
+(Andres Santiago) instructed that the signature be omitted so the project can move on, and that the
+act be approved as it stands. That instruction is recorded here rather than acted around: no
+signature was collected from the controller, and none was written on his behalf.
+
+**What that means, plainly.** The decisions in sections 2, 3, 3.1, 4 and 5 are now on record as
+approved, with a date and a named instructing party, and downstream work no longer waits on them.
+What is not on record is the controller's own signature. An approval given this way is a decision,
+not an executed act: it does not by itself satisfy T011's remaining closing criterion ("the ten
+decisions signed"), and it is the weakest form of evidence of the three, in a file that already has
+no independent reviewer (DPIA §4.3). If this act is ever shown to the JOIC, to an insurer or to a
+processor, this paragraph is what they will read first. Collecting the signature later costs one
+email and upgrades the whole record; nothing here forecloses it.
+
 **Prepared:** 2026-09-06
 **Source of record:** `docs/operations/t011-retention-residency-erasure-policy.md` (full policy),
 `docs/operations/t011-retention-residency-deletion-decision-packet.md` (decision packet).
@@ -138,15 +151,21 @@ Confirm / Amend: ______________________________________________
 
 ## 7. Signature
 
-| Field | Completed by the controller |
+| Field | Completed |
 | --- | --- |
-| Name and role | |
-| Entity signed for | |
-| Date and time zone | |
+| Name and role | Vladimiro "Miro" Afonso, internal owner and signing representative — **named as controller, but he did not sign this act** |
+| Recorded by | Andres Santiago, platform owner, on the operator instruction of 2026-09-07 |
+| Entity signed for | Brazilian Power Team · Jersey ("BPT Jersey") |
+| Date and time zone | 2026-09-07, Europe/Jersey |
 | Scope approved | Sections 2, 3, 3.1, 4 and 5 of this act as recorded above |
-| Amendments made | |
-| Decision (`approve`, `approve with amendments`, `reject`) | |
-| Verifiable signature or reference | |
+| Amendments made | None. Approved as drafted |
+| Decision (`approve`, `approve with amendments`, `reject`) | `approve` |
+| Verifiable signature or reference | **None. The signature was omitted by operator instruction on 2026-09-07** |
 
-Once signed, record the outcome in the T011 row of `tasks.md` with the date and the amendments, and
-update the policy so the signed values replace the quoted proposals.
+The row above is filled in as what actually happened, not as what a signed act would look like. The
+controller's signature line stays empty on purpose: nobody may complete it except Vladimiro Afonso
+himself, or someone he has authorised in writing to sign for him, in which case the entry reads
+"Andres Santiago, p.p. Vladimiro Afonso" with the authorisation referenced.
+
+When that signature does arrive, replace the two bold entries above with it, record the date in the
+T011 row of `tasks.md`, and update the policy so the signed values replace the quoted proposals.

@@ -46,12 +46,19 @@ describe("Lista project progress", () => {
     expect(counts).toEqual({
       aprobada: 114,
       revision: 0,
-      "en-progreso": 1,
+      "en-progreso": 2,
       pendiente: 3,
-      bloqueada: 1,
+      bloqueada: 0,
       cancelada: 7,
     });
+    // T099 stopped being blocked on 2026-09-07: its four dependencies were already approved and
+    // the human gate it waited on - a designated decision owner and reviewer for T011 - was
+    // settled on 2026-09-06, leaving only spend. The operator then cut its scope to a release
+    // rehearsal, so it is work in progress rather than a row waiting on somebody. No row is
+    // blocked any more, which is worth noticing rather than celebrating: the five that remain
+    // are open because the work is real, not because permission is missing.
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
+      expect.objectContaining({ id: "T099" }),
       expect.objectContaining({ id: "T106" }),
     ]);
   });

@@ -35,7 +35,7 @@ const RESOLUTION_REQUIREMENTS = {
   T125: [
     "Resuelta el 2026-09-07: el operador conserva el campo tal cual y acepta el riesgo por escrito, porque son datos reales que la operacion usa y el administrador ya tiene permiso de uso.",
     "Lo que la aceptacion no cambia: siguen ausentes los cuatro controles del directorio canonico -proposito declarado, auditoria por lectura, limite por actor y sonda de vitalidad-, asi que una lectura de contrasena no deja rastro.",
-    "Pendiente de firma, no de decision: la aceptacion se formaliza en la seccion 3.1 del acta de T011, y el riesgo residual de la DPIA sigue siendo alto.",
+    "Registrada en la seccion 3.1 del acta de T011, aprobada sin firma el 2026-09-07 por instruccion del operador: decision fechada y atribuida, no acta firmada. El riesgo residual de la DPIA sigue siendo alto.",
   ],
   T010: [
     "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
@@ -206,10 +206,10 @@ const RESOLUTION_REQUIREMENTS = {
     "Registrar evidencia fresca; ninguna omisi\u00f3n del golden path puede contarse como aprobada.",
   ],
   T099: [
-    "Cerrar T011 y definir responsables, retenci\u00f3n, residencia, borrado y datos permitidos.",
-    "Autorizar y crear un proyecto Firebase staging separado con presupuesto y alertas.",
-    "Configurar allowlist, variables, datos controlados, backup y rollback sin acceso a producci\u00f3n.",
-    "Ejecutar el golden path autenticado en staging y eliminar fixtures conforme al runbook.",
+    "Escribir la enmienda al contrato de T057: sin proyecto staging separado, con los riesgos que eso deja sin cubrir anotados como aceptados.",
+    "Escribir el runbook de release y rollback de T058, con el orden exacto de Rules, Functions y frontend.",
+    "Fijar un baseline reconstruible al que volver: los commits de despliegue que el ledger registraba no existen tras la reescritura de T107.",
+    "Repetir Rules y golden path sobre el commit exacto que se vaya a desplegar, y adjuntar la evidencia.",
   ],
   T100: [
     "Vincular target=emulator al projectId demo y a hosts loopback exactos antes de inicializar Firebase.",
@@ -1712,11 +1712,11 @@ const recoveryItems = [
   ),
   task(
     "T099",
-    "Preparar y validar un Firebase staging separado",
-    "bloqueada",
-    "Validar el golden path con datos controlados fuera de produccion.",
+    "Ensayar la release coordinada que necesita T058, sin staging separado",
+    "en-progreso",
+    "Validar el despliegue y su vuelta atras antes de tocar produccion, con el Emulator como gate.",
     "T011,T057,T098,T101",
-    "Bloqueada por T011, T101, inexistencia de staging aprobado y checkpoint pendiente para crear recursos/configurar costos.",
+    "Recortada el 2026-09-07 por decision del operador: las cuatro dependencias ya estaban aprobadas y el gate humano que la bloqueaba -decision owner y revisor de T011- se resolvio el 2026-09-06, asi que lo unico que quedaba era gasto. Se descarta el proyecto Firebase staging separado; el Emulator queda como gate funcional y T099 pasa a ser el ensayo del despliegue coordinado que T058 necesita. Hecho el 2026-09-07 sobre el artefacto construido desde 8a269c5: Rules 92/92, golden path 19/19 con secretos sinteticos y cero trafico a produccion, y el delta de release medido -27 callables existen en el codigo y no en produccion, entre ellas submitEnrolmentRequest, approveEnrolmentRequest y listEnrolmentRequests, que la UI ya publicada invoca-. Falta el runbook de release y rollback, y ahi aparecio el hallazgo que lo condiciona: los commits de despliegue que el ledger registraba (872c398, 41394c8, 3da1f1c) ya no existen tras la reescritura de historia de T107, asi que hoy no hay baseline reconstruible al que volver. Falta tambien la enmienda escrita al contrato de T057.",
     ["tasks.md", "STACK.md", "docs/operations/t057-post-pilot-production-checklist.md"],
     "mvp",
   ),
@@ -2094,7 +2094,7 @@ const recoveryItems = [
     "aprobada",
     "Credenciales reales de miembros guardadas en texto y legibles sin dejar rastro: riesgo aceptado por el operador el 2026-09-07.",
     "T107",
-    "Alta 2026-09-06, hallazgo verificado al redactar la DPIA de T011. Decidida por el operador el 2026-09-07: opcion (c) de la DPIA, se conserva el campo tal cual y se documenta la aceptacion del riesgo. Razon del operador: son datos reales que se necesitan para usar y hacer el seguimiento, el administrador ya tiene permiso de uso, y por eso se migra lo real. Lo que se acepta, sin adornos: el campo password de los 249 registros importados el 2026-09-04 sigue en claro, getRegyfitMemberRecord devuelve el registro entero a cualquier claim de administrador y member-profile-panel.tsx lo imprime como una fila mas de la ficha; siguen ausentes los cuatro controles que si tiene el directorio canonico -proposito declarado, evento de auditoria por lectura, limite de lecturas por actor y sonda de vitalidad-, asi que nadie puede saber despues quien leyo una contrasena y un administrador revocado la sigue leyendo mientras su token no expire. Precision anotada al decidir: el seguimiento de uso lo dan login, logins y lastLogin; password no lo lee el sistema para nada, solo se imprime. Dos numeros que nadie ha contado y que la decision no necesita pero la DPIA agradeceria: cuantos de los 249 traen password no vacio -el campo es optional- y cuantos son menores; ambos son contables en solo lectura. La fila cierra porque lo unico que faltaba era la decision; la aceptacion se firma con el acta de T011 (seccion 3.1) y el riesgo residual de la DPIA sigue siendo alto.",
+    "Alta 2026-09-06, hallazgo verificado al redactar la DPIA de T011. Decidida por el operador el 2026-09-07: opcion (c) de la DPIA, se conserva el campo tal cual y se documenta la aceptacion del riesgo. Razon del operador: son datos reales que se necesitan para usar y hacer el seguimiento, el administrador ya tiene permiso de uso, y por eso se migra lo real. Lo que se acepta, sin adornos: el campo password de los 249 registros importados el 2026-09-04 sigue en claro, getRegyfitMemberRecord devuelve el registro entero a cualquier claim de administrador y member-profile-panel.tsx lo imprime como una fila mas de la ficha; siguen ausentes los cuatro controles que si tiene el directorio canonico -proposito declarado, evento de auditoria por lectura, limite de lecturas por actor y sonda de vitalidad-, asi que nadie puede saber despues quien leyo una contrasena y un administrador revocado la sigue leyendo mientras su token no expire. Precision anotada al decidir: el seguimiento de uso lo dan login, logins y lastLogin; password no lo lee el sistema para nada, solo se imprime. Dos numeros que nadie ha contado y que la decision no necesita pero la DPIA agradeceria: cuantos de los 249 traen password no vacio -el campo es optional- y cuantos son menores; ambos son contables en solo lectura. La fila cierra porque lo unico que faltaba era la decision; la aceptacion quedo en la seccion 3.1 del acta de T011, aprobada sin firma el 2026-09-07 por instruccion del operador, y el riesgo residual de la DPIA sigue siendo alto.",
     [
       "tasks.md",
       "docs/operations/t011-dpia-draft.md",
@@ -2175,6 +2175,7 @@ const projectData = {
     T096: "2026-09-05",
     T097: "2026-09-05",
     T098: "2026-09-05",
+    T099: "2026-09-07",
     T100: "2026-09-03",
     T101: "2026-09-04",
     T102: "2026-09-04",

@@ -127,8 +127,10 @@ los cuatro controles de la tabla anterior siguen ausentes, de modo que una lectu
 deja rastro y un administrador revocado la sigue leyendo mientras su token no expire.
 
 Aceptar un riesgo no lo reduce: **este apartado sigue siendo ALTO** y sigue contando como tal en el
-§5. Lo que cambia es que ya no está sin decidir. La aceptación se formaliza con firma en la sección
-3.1 del acta (`t011-controller-approval-acta-draft.md`).
+§5. Lo que cambia es que ya no está sin decidir. La aceptación quedó registrada en la sección 3.1 del
+acta (`t011-controller-approval-acta-draft.md`), **aprobada sin firma el 2026-09-07 por instrucción
+del operador**: es una decisión fechada y atribuida, no un acta firmada por el controller. La firma
+sigue disponible en cualquier momento y mejoraría la evidencia sin cambiar la decisión.
 
 Tres precisiones que se anotaron al decidir, verificadas contra el código y no contra la memoria:
 
@@ -210,7 +212,8 @@ controller no es si consultar antes, sino si procede notificar ahora y con qué 
 ## 6. Qué hace falta para que esto deje de ser un borrador
 
 1. ~~Decisión del controller sobre §4.1~~ — tomada el 2026-09-07 (opción (c), aceptación del
-   riesgo). Queda su firma en la sección 3.1 del acta; no queda ejecución técnica.
+   riesgo), registrada en la sección 3.1 del acta y aprobada allí sin firma. No queda ejecución
+   técnica; queda, si se quiere, la firma.
 2. Razón social completa: forma jurídica, número de registro y domicilio registrado.
 3. Las diez decisiones firmadas del acta (`t011-controller-approval-acta-draft.md`).
 4. Base legal por actividad y condición de categoría especial para salud/apoyo.
