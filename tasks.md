@@ -5731,3 +5731,32 @@ lote se corrige hacia delante, y el runbook lo dice.
 **Contadores:** 114 aprobadas de 119 (96%), 1 en revision (T099), 1 en progreso (T106), 3 pendientes
 (T058, T059, T108), 7 canceladas. El porcentaje no cambia porque `revision` no es `aprobada`; cambia
 cuando el operador apruebe T099.
+
+### Pendiente al retomar (2026-09-07, tras cerrar el ensayo de T099)
+
+Sustituye a los checklists anteriores. Commit `8cf4fa2` en `main`, **sin push**: un push publica el
+frontend en Pages y eso es una release que autoriza el operador. Nada se desplego, borro ni configuro
+en produccion en esta sesion; las lecturas fueron `functions:list --json` y `wrangler pages
+deployment list`.
+
+**Del operador, en orden de peso:**
+
+- [ ] Aprobar (o devolver) **T099**: runbook, baseline e inventario en
+      `docs/operations/t058-release-rollback-runbook.md`; delta reproducible con `pnpm release:delta`.
+- [ ] **T011**: razon social completa y las diez decisiones firmadas. Sigue siendo el nudo que bloquea
+      datos reales, T108, T058 y por encadenamiento T059.
+- [ ] **T058, decisiones previas a cualquier release** (runbook §3.2 y §4.0): como llegan a
+      produccion `BPT_SYNTHETIC_PILOT`, `R2_ACCOUNT_ID` y `R2_BUCKET_NAME` (o se sustituye ese gate);
+      credenciales R2 reales; si se retiran las dos huerfanas y `listRegyfitAccessRecords`; y que
+      lotes de las 114 entran primero.
+- [ ] **Alertas** (runbook §6.1): presupuesto, 5xx en Cloud Run, fallos de Cloud Scheduler y
+      disponibilidad. Hoy no hay ninguna, y la caida del 2026-09-07 se descubrio abriendo la pagina.
+- [ ] **Pages**: activar "Build watch paths" o aceptar que cada push de documentacion es una release
+      de frontend.
+- [ ] **T106 paso 2**: decidir si la firma presencial en papel sigue teniendo sentido con la
+      aceptacion digital de T121.
+- [ ] Verificar en el navegador, con sesion real, el circuito de inscripcion desplegado el
+      2026-09-07 (sigue sin verificar).
+
+**Siguiente trabajo tecnico que no espera a nadie:** ninguno de los cuatro abiertos. T058 y T059 son
+del operador; T106 paso 2 y T108 son codigo grande detras de decisiones que no se han tomado.
