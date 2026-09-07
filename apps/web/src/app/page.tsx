@@ -222,12 +222,10 @@ export default function HomePage() {
             <p className="section-kicker">Your first class starts here</p>
             <h2 id="contact-title">Start with a free class</h2>
             <p>{academyContent.notes.contact}</p>
-            {/*
-              The "Ask for a place" call to action belongs here and is deliberately absent: the
-              enrolment callables are not deployed yet, so anybody following it would sign in and
-              land in a loop. Restore it the day Functions ship - it is one <a> tag to /enrol.
-            */}
             <div className="hero-actions">
+              <a className="button button-primary" href="/enrol">
+                Ask for a place
+              </a>
               <a className="button button-secondary" href="#contact">
                 Book a free class
               </a>

@@ -187,11 +187,20 @@ export function ClientAuthGate({
         <h1 id="client-auth-state-title">This area is for academy students</h1>
         <p>
           Your account can buy from the club shop. Classes, progress and billing open once the
-          academy registers you as a student.
+          academy registers you as a student. If that is what you are here for, ask the academy for
+          a place and somebody will review your request.
         </p>
-        <a className="button button-primary" href="/shop">
-          Go to the club shop
-        </a>
+        <div className="hero-actions">
+          <a className="button button-primary" href="/enrol">
+            Ask for a place
+          </a>
+          <a className="button button-secondary" href="/shop">
+            Go to the club shop
+          </a>
+          <a className="button button-secondary" href="/">
+            Back to the home page
+          </a>
+        </div>
       </main>
     );
   }
@@ -203,9 +212,14 @@ export function ClientAuthGate({
       <p className="account-eyebrow">BPT Jersey / Client</p>
       <h1 id="client-auth-state-title">Sign in to continue</h1>
       <p>Your client account is required to access this area.</p>
-      <a className="button button-primary" href={requirement.loginPath}>
-        Sign in
-      </a>
+      <div className="hero-actions">
+        <a className="button button-primary" href={requirement.loginPath}>
+          Sign in
+        </a>
+        <a className="button button-secondary" href="/">
+          Back to the home page
+        </a>
+      </div>
     </main>
   );
 }
