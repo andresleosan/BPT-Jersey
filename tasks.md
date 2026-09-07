@@ -5842,3 +5842,30 @@ el filtro se aplico a mano antes de extraer y queda anotado para la proxima vuel
 
 `graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.
 Para consultarlo: `graphify query "<pregunta>"`.
+
+### Corte listo para publicar, push pendiente del operador - 2026-09-07
+
+Cinco commits en `main` local, arbol limpio, `origin/main` sin nada que traer, asi que el push es un
+avance directo sin fusion:
+
+| Commit | Que lleva |
+| --- | --- |
+| `8cf4fa2` | Ensayo de release de T099: runbook, baseline reconstruido, delta corregido y la herramienta que lo mide |
+| `d2effff` | Checklist de "pendiente al retomar" tras ese ensayo |
+| `abd4916` | T099 aprobada y acta de T011 firmada por poder, con las filas dependientes reconciliadas |
+| `389744a` | Refresco del grafo de conocimiento |
+| este | Esta nota |
+
+**El push lo tiene que lanzar el operador.** El asistente lo intento y el clasificador de permisos de
+la sesion lo denego; no se busco ningun rodeo, porque publicar es exactamente la clase de accion que
+ese control existe para retener. El comando es `git push origin main`.
+
+**Lo que ese push hace, y conviene tenerlo presente:** Cloudflare Pages construye en cada push a
+`main`, tambien cuando el corte es solo documentacion, asi que crea una deployment de produccion
+nueva y desplaza a la anterior. El bundle sera funcionalmente identico -este corte no toca
+`apps/web`- pero la deployment cambia, y con ella el objetivo de un rollback de frontend. Es
+exactamente el comportamiento que el runbook describe en su seccion 1. **Al terminar, anotar el id de
+la deployment** con `npx wrangler pages deployment list --project-name bptjersey` en la tabla de
+releases del runbook (seccion 7), para que el proximo rollback no apunte a una deployment vieja.
+
+No se desplego ninguna Function, no se toco Rules ni indices, y no se ejecuto ninguna migracion.
