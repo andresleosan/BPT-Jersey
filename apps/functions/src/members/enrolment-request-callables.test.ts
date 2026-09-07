@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CallableRequest } from "firebase-functions/v2/https";
 
+import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
 import type { EnrolmentRequestRecord } from "@bpt-jersey/domain/members/enrolment-requests";
 import {
   approveEnrolmentRequestHandler,
@@ -27,7 +28,13 @@ const applicant = {
   postalAddress: { line: "9 Library Place", postCode: "JE2 4WW" },
 } as const;
 
-const submission = { requestId, applicantIsStudent: true, applicant, minors: [] } as const;
+const submission = {
+  requestId,
+  applicantIsStudent: true,
+  applicant,
+  minors: [],
+  waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
+} as const;
 
 const record: EnrolmentRequestRecord = {
   enrolmentRequestId: "enrolment-1",

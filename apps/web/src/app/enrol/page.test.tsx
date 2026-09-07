@@ -2,6 +2,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
+
 const authState = vi.hoisted(() => ({
   status: "signed-in" as "signed-in" | "signed-out" | "loading",
   session: undefined as
@@ -82,6 +84,45 @@ describe("enrolment request page", () => {
     expect(enrolmentApi.listMyEnrolmentRequests).not.toHaveBeenCalled();
   });
 
+  /**
+   * The acceptance is the whole point of showing the waiver: without it the academy has a request
+   * from somebody who never agreed to anything. It is checked last, so a person who accepted and
+   * then missed a field is told about the field.
+   */
+  it("will not send a request until the waiver is accepted", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
+    await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
+
+    expect(await screen.findByText(/read and accept the waiver/i)).toBeVisible();
+    expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
+  });
+
+  it("shows the club's waiver and sends the version that was on screen", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
+    expect(screen.getByText(/Acknowledgment of Risks/i)).toBeVisible();
+    expect(screen.getByText(/Participants Under 18/i)).toBeVisible();
+
+    await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
+
+    await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
+    expect(enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0]).toMatchObject({
+      waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
+    });
+  });
+
   it("submits an adult applying for themselves without empty optional fields", async () => {
     const user = userEvent.setup();
     render(<EnrolPage />);
@@ -90,6 +131,7 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -118,6 +160,7 @@ describe("enrolment request page", () => {
     await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
     await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -134,6 +177,7 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText(/parent or guardian/i));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Add the child you are enrolling.");
@@ -158,6 +202,7 @@ describe("enrolment request page", () => {
       "2016-05-10",
     );
     await user.click(screen.getByLabelText("Afternoon", { selector: "#enrol-minor-0-afternoon" }));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -226,6 +271,7 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

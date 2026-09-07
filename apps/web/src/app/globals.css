@@ -3496,6 +3496,54 @@ button:focus-visible {
   padding: 0.9rem 1rem;
 }
 
+/*
+ * The waiver is shown in full inside the form. It is long on purpose - it is the club's document,
+ * not a summary - so it scrolls in its own box instead of pushing the submit button off the page.
+ * The box is focusable so somebody using a keyboard can scroll it without a mouse.
+ */
+.enrol-waiver-scroll {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 0.9rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.enrol-waiver-scroll h3 {
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+}
+
+.enrol-waiver-scroll p,
+.enrol-waiver-scroll li {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0 0 0.5rem;
+}
+
+.enrol-waiver-scroll ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.enrol-waiver-accept {
+  align-items: start;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: auto 1fr;
+  line-height: 1.45;
+}
+
+.enrol-waiver-accept input {
+  margin-top: 0.2rem;
+  min-height: auto;
+  width: auto;
+}
+
 .enrol-minors {
   display: grid;
   gap: 1rem;

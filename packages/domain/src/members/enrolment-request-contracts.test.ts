@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { enrolmentWaiverTermsVersion } from "../consents/enrolment-waiver-terms";
+
 import { adminCreateStudentInputSchema } from "./member-directory-contracts";
 import {
   canSubmitEnrolmentRequest,
@@ -45,7 +47,14 @@ const minor = {
 } as const;
 
 function submission(overrides: Record<string, unknown> = {}) {
-  return { requestId, applicantIsStudent: true, applicant, minors: [], ...overrides };
+  return {
+    requestId,
+    applicantIsStudent: true,
+    applicant,
+    minors: [],
+    waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
+    ...overrides,
+  };
 }
 
 const record: EnrolmentRequestRecord = {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
+
 import type { EnrolmentRequestRecord } from "@bpt-jersey/domain/members/enrolment-requests";
 import {
   createEnrolmentRequestStore,
@@ -33,6 +35,7 @@ const submission = {
   applicantIsStudent: true,
   applicant,
   minors: [],
+  waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
 } as const;
 
 /** A synthetic Firestore that keeps documents in a map and honours the query shapes the store uses. */

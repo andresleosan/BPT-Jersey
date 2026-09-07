@@ -61,6 +61,12 @@ export type ApproveEnrolmentRequestInput = Readonly<{
   /** The reviewer's idempotency key. Ignored when the request already carries one. */
   requestId: string;
   now: string;
+  /**
+   * The reviewer's display name, read from their provisioned administrative document. It fills the
+   * `Instructor Name` line the paper waiver leaves blank. Optional so an approval still completes
+   * when the name cannot be read: losing a label is not a reason to refuse an enrolment.
+   */
+  instructorName?: string;
 }>;
 
 export type EnrolmentApprovalResult = Readonly<{
@@ -349,6 +355,7 @@ export function createEnrolmentApprovalService(
         now: input.now,
         enrolmentRequestId: record.enrolmentRequestId,
         studentIds,
+        ...(input.instructorName === undefined ? {} : { instructorName: input.instructorName }),
       });
       return Object.freeze({
         enrolmentRequestId: record.enrolmentRequestId,

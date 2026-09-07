@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
+import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
+
 /**
  * T121 slice 2 authenticated Emulator E2E: office approves an enrolment request and the applicant
  * becomes both a member of the academy and an account that can sign in as one.
@@ -117,6 +119,7 @@ function adultSubmission(requestId: string) {
       postalAddress,
     },
     minors: [],
+    waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
   };
 }
 
@@ -321,6 +324,7 @@ test.describe("T121 enrolment approval with Firebase Emulators", () => {
             emergencyContact,
           },
         ],
+        waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
       },
       { idToken: applicantToken },
     );

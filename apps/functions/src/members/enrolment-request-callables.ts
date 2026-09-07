@@ -78,6 +78,12 @@ export type EnrolmentOfficeCallableServices = Readonly<{
   reader: CanonicalMemberDirectoryReadService;
   approvals: EnrolmentApprovalService;
   isActorActive: MemberDirectoryActorActivityCheck;
+  /**
+   * The reviewer's name as their provisioned administrative document records it, for the waiver's
+   * `Instructor Name` line. Resolves to undefined rather than throwing: a missing label must never
+   * be the reason an enrolment fails.
+   */
+  reviewerDisplayName?: (academyId: string, actorId: string) => Promise<string | undefined>;
   now?: () => string;
 }>;
 
@@ -296,11 +302,13 @@ export async function approveEnrolmentRequestHandler(
   const parsed = parseEnrolmentRequestApproval(request.data);
   if (!parsed.ok) throw new HttpsError("invalid-argument", "Enrolment payload is invalid");
   try {
+    const instructorName = await services.reviewerDisplayName?.(actor.academyId, actor.actorId);
     return await services.approvals.approve({
       actor,
       enrolmentRequestId: parsed.value.enrolmentRequestId,
       requestId: parsed.value.requestId,
       now: officeNow(services),
+      ...(instructorName === undefined ? {} : { instructorName }),
     });
   } catch (error) {
     return mapOfficeError(error, "write");
@@ -414,6 +422,17 @@ function officeCallableServices(): EnrolmentOfficeCallableServices {
       getAuthUser: (uid) => auth.getUser(uid),
       getDocument: (path) => firestore.doc(path).get(),
     }),
+    reviewerDisplayName: async (academyId, actorId) => {
+      try {
+        const snapshot = await firestore.doc(`academies/${academyId}/users/${actorId}`).get();
+        const displayName = (snapshot.data() as { displayName?: unknown } | undefined)?.displayName;
+        return typeof displayName === "string" && displayName.trim().length > 0
+          ? displayName.trim().slice(0, 160)
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    },
   };
 }
 

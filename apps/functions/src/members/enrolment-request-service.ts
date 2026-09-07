@@ -7,6 +7,7 @@ import {
   type EnrolmentRequestRecord,
   type EnrolmentRequestSubmission,
 } from "@bpt-jersey/domain/members/enrolment-requests";
+import { enrolmentWaiverTermsContentHash } from "@bpt-jersey/domain/consents/enrolment-waiver";
 
 export type EnrolmentDocumentData = Readonly<Record<string, unknown>>;
 export type EnrolmentDocumentReference = Readonly<{ id: string; path: string }>;
@@ -116,6 +117,8 @@ export type CompleteEnrolmentApprovalInput = Readonly<{
   now: string;
   enrolmentRequestId: string;
   studentIds: readonly string[];
+  /** Display name of the reviewer, recorded against the waiver's `Instructor Name` line. */
+  instructorName?: string;
 }>;
 
 export type FailEnrolmentApprovalInput = Readonly<{
@@ -451,6 +454,15 @@ export function createEnrolmentRequestStore(
           minors: input.submission.minors,
           submittedBy: actorId,
           submittedAt: now,
+          // The client sends only the version it displayed. The hash and the timestamp are the
+          // server's, so an acceptance names words the server can reproduce rather than words the
+          // client claims were on screen.
+          waiverAcceptance: {
+            version: input.submission.waiverAcceptance.version,
+            contentHash: enrolmentWaiverTermsContentHash,
+            acceptedAt: now,
+            acceptedBy: actorId,
+          },
           schemaVersion: "1",
         });
         if (!candidate.ok)
@@ -544,7 +556,11 @@ export function createEnrolmentRequestStore(
       return settleApproval(input.academyId, input.actorId, input.now, input.enrolmentRequestId, {
         status: "approved",
         action: "enrolment.request.approved",
-        fields: { approvedStudentIds: Object.freeze([...input.studentIds]) },
+        fields: {
+          approvedStudentIds: Object.freeze([...input.studentIds]),
+          // The paper waiver's `Instructor Name` line, filled by whoever approved.
+          ...(input.instructorName === undefined ? {} : { instructorName: input.instructorName }),
+        },
       });
     },
 

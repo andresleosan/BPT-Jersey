@@ -190,6 +190,11 @@
       "import": "./src/schedule/pre-class-contracts.ts",
       "default": "./lib/schedule/pre-class-contracts.js"
     },
+    "./consents/enrolment-waiver": {
+      "types": "./src/consents/enrolment-waiver-terms.ts",
+      "import": "./src/consents/enrolment-waiver-terms.ts",
+      "default": "./lib/consents/enrolment-waiver-terms.js"
+    },
     "./consents/disclaimers": {
       "types": "./src/consents/disclaimer-contracts.ts",
       "import": "./src/consents/disclaimer-contracts.ts",

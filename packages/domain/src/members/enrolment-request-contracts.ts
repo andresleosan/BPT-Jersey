@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { enrolmentWaiverTermsVersion } from "../consents/enrolment-waiver-terms";
+
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 import { deriveParticipantType } from "../profiles/profile-contracts";
@@ -101,12 +103,28 @@ export type EnrolmentMinor = Readonly<z.infer<typeof enrolmentMinorSchema>>;
 
 export const maximumEnrolmentRequestMinors = 10;
 
+/**
+ * What the applicant sends to say they accept the waiver. Only the version travels: the text and
+ * its hash live in the domain, so a client cannot claim to have accepted words it invented, and the
+ * server records which version was on screen. `accepted` is a literal `true` rather than a boolean
+ * because a submission that says `false` is not an acceptance to store - it is a form that was
+ * never completed.
+ */
+export const enrolmentWaiverAcceptanceSchema = z
+  .strictObject({
+    version: z.literal(enrolmentWaiverTermsVersion),
+    accepted: z.literal(true),
+  })
+  .readonly();
+export type EnrolmentWaiverAcceptance = Readonly<z.infer<typeof enrolmentWaiverAcceptanceSchema>>;
+
 export const enrolmentRequestSubmissionSchema = z
   .strictObject({
     requestId: z.string().regex(uuidV4Pattern),
     applicantIsStudent: z.boolean(),
     applicant: enrolmentApplicantSchema,
     minors: z.array(enrolmentMinorSchema).max(maximumEnrolmentRequestMinors).readonly(),
+    waiverAcceptance: enrolmentWaiverAcceptanceSchema,
   })
   .readonly();
 export type EnrolmentRequestSubmission = Readonly<z.infer<typeof enrolmentRequestSubmissionSchema>>;
@@ -122,6 +140,25 @@ export const enrolmentRequestRecordSchema = z
     minors: z.array(enrolmentMinorSchema).max(maximumEnrolmentRequestMinors).readonly(),
     submittedBy: opaqueIdentifierSchema,
     submittedAt: auditDateTimeSchema,
+    /**
+     * Optional because requests submitted before the waiver existed are still readable. A missing
+     * acceptance is a fact about an old request, not a reason for office to lose the record.
+     */
+    waiverAcceptance: z
+      .strictObject({
+        version: z.string().min(1).max(32),
+        contentHash: z.string().regex(/^[0-9a-f]{64}$/u),
+        acceptedAt: auditDateTimeSchema,
+        acceptedBy: opaqueIdentifierSchema,
+      })
+      .readonly()
+      .optional(),
+    /**
+     * The `Instructor Name` line of the paper waiver. Filled on approval with the display name of
+     * the reviewer who approved, so the name comes from an authenticated account instead of
+     * handwriting. Optional for the same reason as the acceptance above.
+     */
+    instructorName: z.string().min(1).max(160).optional(),
     reviewedBy: opaqueIdentifierSchema.optional(),
     reviewedAt: auditDateTimeSchema.optional(),
     reviewNote: reviewNoteSchema.optional(),

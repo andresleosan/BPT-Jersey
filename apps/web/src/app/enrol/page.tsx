@@ -8,6 +8,12 @@ import type {
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import { ClientAuthProvider, useClientSession } from "../../lib/client-auth";
 import {
+  enrolmentWaiverTermsAcknowledgement,
+  enrolmentWaiverTermsSections,
+  enrolmentWaiverTermsTitle,
+  enrolmentWaiverTermsVersion,
+} from "@bpt-jersey/domain/consents/enrolment-waiver";
+import {
   createEnrolmentRequestId,
   listMyEnrolmentRequests,
   submitEnrolmentRequest,
@@ -54,6 +60,7 @@ type ApplicantForm = {
   addressLine: string;
   postCode: string;
   minors: MinorForm[];
+  waiverAccepted: boolean;
 };
 
 const emptyMinor: MinorForm = {
@@ -79,6 +86,7 @@ const emptyForm: ApplicantForm = {
   addressLine: "",
   postCode: "",
   minors: [],
+  waiverAccepted: false,
 };
 
 // An applicant is told the truth about every state, including the two the approval introduced: a
@@ -138,6 +146,9 @@ function toSubmission(form: ApplicantForm, requestId: string): EnrolmentRequestS
       trainingCenter: minor.trainingCenter,
       trainingTimePreferences: [...minor.trainingTimePreferences],
     })),
+    // Only the version travels. The server stores the hash of the text it holds, so the acceptance
+    // names words the academy can reproduce rather than words this form claims were on screen.
+    waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
   } as EnrolmentRequestSubmission;
 }
 
@@ -160,7 +171,56 @@ function validate(form: ApplicantForm): string | undefined {
       return "Choose at least one training time for every child.";
     }
   }
+  // Last, so somebody who accepted and then missed a field is not told to accept again.
+  if (!form.waiverAccepted) {
+    return "Read and accept the waiver before sending your request.";
+  }
   return undefined;
+}
+
+/**
+ * The club's waiver, shown in full rather than linked. An acceptance is only worth storing if the
+ * person could read what they accepted without leaving the form, and the stored acceptance names
+ * this exact version.
+ */
+function WaiverTerms({
+  accepted,
+  onChange,
+}: Readonly<{ accepted: boolean; onChange: (next: boolean) => void }>) {
+  return (
+    <fieldset className="enrol-waiver">
+      <legend>{enrolmentWaiverTermsTitle}</legend>
+      <p className="enrol-hint">
+        Version {enrolmentWaiverTermsVersion}. The academy also asks about medical conditions,
+        injuries and allergies in person at reception; this form does not collect them.
+      </p>
+      <div className="enrol-waiver-scroll" tabIndex={0} role="region" aria-label="Waiver terms">
+        {enrolmentWaiverTermsSections.map((section) => (
+          <article key={section.heading}>
+            <h3>{section.heading}</h3>
+            {section.paragraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+            {section.bullets === undefined ? null : (
+              <ul>
+                {section.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            )}
+          </article>
+        ))}
+      </div>
+      <label className="enrol-waiver-accept">
+        <input
+          checked={accepted}
+          onChange={(event) => onChange(event.target.checked)}
+          type="checkbox"
+        />
+        <span>{enrolmentWaiverTermsAcknowledgement}</span>
+      </label>
+    </fieldset>
+  );
 }
 
 function togglePreference(list: readonly Preference[], value: Preference): Preference[] {
@@ -647,6 +707,16 @@ function EnrolContent() {
             </button>
           </section>
 
+          <WaiverTerms
+            accepted={form.waiverAccepted}
+            onChange={(next) => setForm({ ...form, waiverAccepted: next })}
+          />
+
+          {/*
+            Deliberately not disabled when the waiver is unaccepted: a dead button explains nothing.
+            The validator says what is missing, in the same place every other missing field is
+            reported.
+          */}
           <button className="button button-primary" disabled={busy} type="submit">
             Send request to the academy
           </button>
