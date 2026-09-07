@@ -6049,3 +6049,111 @@ escribirse y probarse en el Emulator; la ejecucion real seguira entrando por T05
 verificado y confirmacion aparte.
 
 **Sin cambios en produccion.**
+
+### Cierre de sesion: T011 y T106 cerradas, T108 arrancada - 2026-09-07
+
+Sesion larga con cuatro instrucciones encadenadas del operador: cerrar T011, cerrar tambien las
+dependientes, aprobar lo que se pudiera, y avanzar todo lo posible.
+
+**Lo que cerro y por que:**
+
+| Fila | Antes | Ahora | Sobre que evidencia |
+| --- | --- | --- | --- |
+| T011 | aprobada con un criterio abierto | **cerrada** | El operador declaro la entidad no incorporada: forma juridica declarada y numero de registro cerrado por inexistencia. El dato de contrato restante paso a T126 |
+| T106 | en-progreso | **aprobada (paso 1)** | Focales 407/407, typecheck y lint verdes del 2026-09-04, sin cambios desde entonces. El paso 2, nunca construido, paso a T127 |
+
+En los dos casos el criterio fue el mismo y conviene que no se pierda: **no se aprueba por
+instruccion, se aprueba por evidencia**, y lo que falta se saca a una fila propia donde se sigue
+contando como trabajo abierto. Partir suma en los dos lados del ratio, asi que el porcentaje apenas
+se mueve; lo contrario -cerrar entero dejando caer lo que falta- es lo que este tablero existe para
+impedir.
+
+**Lo que NO se aprobo, dicho una vez para que no se repregunte:** T058 es una release que no ha
+ocurrido -114 de los 149 callables que invoca la web siguen sin desplegar-; T059 es por su propio
+texto una leccion posterior a produccion; T108 no tenia ni un ejecutor; T126 exigiria inventar un
+domicilio. Aprobar cualquiera habria roto la regla del propio `AGENTS.md`.
+
+**T108, arrancada: cinco rebanadas, todas puras y probadas sin Emulator.**
+
+| # | Pieza | Fichero |
+| --- | --- | --- |
+| 1 | Contratos de migracion | `packages/domain/src/members/member-directory-migration-contracts.ts` |
+| 2 | Ciclo de vida y lease | `packages/domain/src/members/member-directory-operation-contracts.ts` |
+| 3 | Planificador de adquisicion y cambio de fase | `packages/domain/src/members/member-directory-transitions.ts` |
+| 4 | Compromiso de chunk | (mismo fichero que 3) |
+| 5 | Envoltorio transaccional | `apps/functions/src/members/member-directory-chunk-runner.ts` |
+
+70 pruebas focales nuevas. Estado final del repositorio: **272 ficheros y 2259 pruebas unitarias**,
+typecheck de todo el workspace, `eslint . --max-warnings 0` y prettier limpios.
+
+**Lo que queda de T108, que es la mayor parte:** los siete ejecutores con sus escrituras de dominio,
+la cuarentena, la acunacion y el consumo de aprobaciones, el adaptador Firestore del runner, y el
+ensayo completo en Emulator. La rebanada 5 es el esqueleto sobre el que se enchufan los siete.
+
+**Errores propios de esta sesion, anotados porque el metodo importa mas que el resultado:**
+
+1. Afirme que los contadores del tablero estaban inflados. Era falso: conte con un patron `T` mas
+   tres digitos que deja fuera a `T020A`, en los dos lados a la vez, asi que el error se confirmaba
+   solo. Lo destapo una prueba verde que contradecia mi recuento. **Un tablero se cuenta ejecutando
+   el codigo que lo define, no con una expresion regular.**
+2. Reformatee entero un documento de politica creyendo que mi cambio lo habia ensuciado, cuando ya
+   estaba sin formatear en `HEAD`. Mi comprobacion de base fue invalida porque la hice sobre una
+   ruta que el chequeo no cubria.
+3. Crei ver 341 lineas de error de typecheck en `apps/functions`. Eran artefacto de invocar `tsc`
+   sin los flags del script real; salen identicas en `HEAD`.
+
+Los tres son el mismo fallo: **verificar con un comando distinto del que usa el proyecto**. Antes de
+declarar una regresion, correr el script que el repositorio define.
+
+### Decisiones abiertas del operador al 2026-09-07
+
+Diez, agrupadas por lo que desbloquean. Ninguna bloquea seguir con T108.
+
+| # | Decision | Recomendacion del asistente |
+| --- | --- | --- |
+| 1 | Push de los commits pendientes | Publica una deployment de Pages nueva aunque el corte no toque `apps/web` |
+| 2 | **T126**: domicilio y forma exacta | Candidato sin confirmar: `Office 9, 13 Library Place, St Helier` |
+| 3 | **T127 (a)**: firma presencial en papel con la aceptacion digital de T121 | Decision de producto; el asistente no la suple |
+| 4 | **T058**: como llega `BPT_SYNTHETIC_PILOT` a produccion | **No llevarlo.** Dejar consents, health y exports fuera del primer lote: sus otros gates siguen sin cumplirse |
+| 5 | **T058**: credenciales R2 reales | Las crea el operador; hasta entonces, fuera todo lo que ligue R2 |
+| 6 | **T058**: las dos huerfanas y `listRegyfitAccessRecords` | **Retirarlas.** La ultima lee contrasenas en claro sin auditoria de lectura (T125) |
+| 7 | **T058**: que lote entra primero | El que no tiene gate de codigo, ni R2, ni seed: `staff/*`, `families`, `profiles/*`, `crm`, `penalties`, `listPublicShopCatalog` y avisos |
+| 8 | **Alertas** (runbook 6.1) | Presupuesto, 5xx en Cloud Run, fallos de Cloud Scheduler y disponibilidad. Hoy no hay ninguna |
+| 9 | **Pages**: "Build watch paths" | Activarlo o aceptar que cada push de documentacion es una release de frontend |
+| 10 | **Levels**: sembrar el catalogo en produccion | Exige cambio aprobado en `level-seed-target.mjs`, backup previo y fila nueva |
+
+Las 4, 5 y 7 van juntas y desbloquean T058 y T059 de golpe. Las 2 y 6 son las mas baratas.
+
+**Contadores:** 116 aprobadas de 121 (96%), 0 en revision, 0 en progreso, 5 pendientes (T058, T059,
+T108, T126, T127), 7 canceladas, sobre 128 filas.
+
+**Sin cambios en produccion en toda la sesion.** Nada desplegado, migrado, borrado ni configurado.
+
+### Grafo de conocimiento refrescado - 2026-09-07
+
+`--update` incremental sobre el grafo de esta misma manana. 28 archivos cambiados; se extrajeron
+**17** y se descartaron **11** porque eran `graphify-out/memory/`, que `.graphifyignore` excluye a
+proposito para que el grafo no se describa a si mismo. El detect los propone igual, asi que el filtro
+se volvio a aplicar a mano: es el mismo aviso que dejo la vuelta anterior y sigue siendo necesario.
+
+- **Codigo, AST y sin coste de LLM:** 13 archivos, 348 nodos y 1144 aristas. Entran las cinco piezas
+  nuevas de T108 con sus pruebas, el indice y el `package.json` del dominio, `Lista.js` y las dos
+  pruebas del tablero que cambiaron de numeros.
+- **Documentos, extraccion semantica en dos agentes en paralelo:** 4 archivos, 251 nodos y 474
+  aristas. Uno tomo `tasks.md`, que con 1,1 MB no se lee de una vez y se recorrio por secciones
+  fechadas; el otro, los tres documentos de T011. 252.336 tokens de entrada, 0 de salida.
+- **Fusion:** 435 nodos reemplazados de los archivos reextraidos. El grafo pasa de **9284 a 9448
+  nodos** y de **20756 a 21015 aristas**. Diagnostico de integridad limpio: sin aristas colgantes,
+  con extremo ausente, en bucle ni colapsadas.
+- **Comunidades:** 458. Treinta y tres con nombre puesto a mano, incluidas las tres que recogen el
+  trabajo nuevo -contratos de migracion, ciclo de vida y lease, y envoltorio transaccional de chunk-,
+  y 425 nombradas por su nodo central. El HTML se agrega a vista de comunidades porque el grafo pasa
+  de 5000 nodos.
+- **Lo que el grafo sabe ahora y antes no:** el andamiaje de T108 entero, con la regla de replay y
+  los tres presupuestos de chunk; el cierre de T011 y el traslado de la razon social a T126; la
+  particion de T106 y la aparicion de T127; y las diez decisiones abiertas del operador con lo que
+  desbloquea cada una. El agente que recorrio `tasks.md` anoto ademas una arista que la columna de
+  dependencias no lleva y solo esta en prosa: **T117 depende de T126** para su texto legal publicado.
+
+`graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.
+Para consultarlo: `graphify query "<pregunta>"`.
