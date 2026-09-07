@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Timestamp } from "firebase-admin/firestore";
 
 import type { MemberDirectoryState } from "@bpt-jersey/domain/members/directory";
 
@@ -6,6 +7,7 @@ import {
   buildStudentIdentityKey,
   deriveStudentIdentityKeyId,
 } from "../members/member-directory-crypto.js";
+import { createCanonicalMemberDirectoryService } from "../members/canonical-member-directory-service.js";
 import { buildInitialMemberDirectoryControlPlane } from "../members/member-directory-state.js";
 import {
   createProfileStore,
@@ -435,5 +437,136 @@ describe("canonical adult profile directory linking", () => {
         integritySecretMaterial: identitySecret,
       }),
     ).toThrow(ProfileStoreError);
+  });
+
+  it("adopts the record office already created instead of minting a second person (T122)", async () => {
+    // The defect this closes: office enrols somebody, that person signs in and saves their profile,
+    // and the academy ends up with two students for one human being - one holding the data with no
+    // login, one holding the login with none of the data.
+    //
+    // The office write runs against a plain double rather than AtomicProfileFirestore because that
+    // harness clones every document, and cloning strips the prototype off the Timestamp fields the
+    // provisioned-admin schema requires. The records it produces are then handed to the profile
+    // store exactly as they were written.
+    const officeRecords = new Map<string, Record<string, unknown>>(
+      Object.entries({
+        ...canonicalControlPlane(),
+        "academies/academy-1/users/owner-1": {
+          userId: "owner-1",
+          academyId: "academy-1",
+          accountType: "staff",
+          displayName: "Synthetic Owner",
+          email: "owner@example.test",
+          authProvider: "google",
+          active: true,
+          adminRole: "owner",
+          lastRoleChangeAuditId: "audit-role-1",
+          createdAt: Timestamp.fromMillis(1_700_000_000_000),
+          createdBy: "bootstrap-owner",
+          updatedAt: Timestamp.fromMillis(1_700_000_001_000),
+          updatedBy: "bootstrap-owner",
+          status: "active",
+          schemaVersion: 1,
+        },
+      }) as ReadonlyArray<[string, Record<string, unknown>]>,
+    );
+    const officeFirestore = {
+      doc: (path: string) => ({ id: path.split("/").at(-1) ?? "", path }),
+      runTransaction: async (
+        callback: (transaction: {
+          get: (reference: { id: string; path: string }) => Promise<unknown>;
+          create: (
+            reference: { id: string; path: string },
+            data: Record<string, unknown>,
+          ) => unknown;
+          set: (reference: { id: string; path: string }, data: Record<string, unknown>) => unknown;
+        }) => Promise<unknown>,
+      ) => {
+        const staged = new Map<string, Record<string, unknown>>();
+        const transaction = {
+          get: async (reference: { id: string; path: string }) => {
+            const data = officeRecords.get(reference.path);
+            return { id: reference.id, exists: data !== undefined, data: () => data };
+          },
+          create: (reference: { id: string; path: string }, data: Record<string, unknown>) => {
+            if (officeRecords.has(reference.path)) throw new Error("already exists");
+            staged.set(reference.path, data);
+            return transaction;
+          },
+          set: (reference: { id: string; path: string }, data: Record<string, unknown>) => {
+            staged.set(reference.path, data);
+            return transaction;
+          },
+        };
+        const result = await callback(transaction);
+        for (const [path, data] of staged) officeRecords.set(path, data);
+        return result;
+      },
+    };
+
+    const directory = createCanonicalMemberDirectoryService({
+      firestore: officeFirestore as unknown as Parameters<
+        typeof createCanonicalMemberDirectoryService
+      >[0]["firestore"],
+      projectId: "demo-bpt-jersey",
+      identitySecretMaterial: identitySecret,
+      identitySecretVersion: "identity-v1",
+      integritySecretMaterial: integritySecret,
+      integritySecretVersion: "integrity-v1",
+      generateStudentId: () => "student-from-office",
+      generateAuditId: () => "audit-office-1",
+    });
+
+    const created = await directory.createAdminAdultForAccount({
+      actor: {
+        actorId: "owner-1",
+        academyId: "academy-1",
+        role: "owner",
+        active: true,
+        appCheckVerified: true,
+      },
+      value: {
+        requestId: "office-request-1",
+        fullName: "Adult Example",
+        dateOfBirth: "1990-03-14",
+        phoneNumber: "+1 201 555 0199",
+        email: "adult@example.com",
+        trainingCenter: "Town",
+        trainingTimePreferences: ["evening"],
+        membershipNumber: "bpt 4321",
+      },
+      account: {
+        userId: "user-1",
+        displayName: "Adult Account",
+        email: "adult@example.com",
+      },
+      now: "2026-09-03T12:00:00.000Z",
+    });
+
+    expect(created.studentId).toBe("student-from-office");
+
+    // Now the member signs in and saves their own profile, against what office left behind.
+    const handover = Object.fromEntries(
+      [...officeRecords.entries()].filter(([path]) => path !== "academies/academy-1/users/owner-1"),
+    );
+    const firestore = new AtomicProfileFirestore(handover);
+    const store = createCanonicalStore(firestore);
+
+    const saved = await store.saveClientProfile(
+      saveInput({ requestId: "profile-request-9", now: "2026-09-03T12:10:00.000Z" }),
+    );
+
+    expect(saved.student.studentId).toBe("student-from-office");
+    expect(
+      [...firestore.records.keys()].filter((path) =>
+        path.startsWith("academies/academy-1/students/"),
+      ),
+    ).toEqual(["academies/academy-1/students/student-from-office"]);
+    expect(
+      [...firestore.records.keys()].filter((path) => path.includes("/families/")),
+    ).toHaveLength(1);
+    expect(
+      [...firestore.records.keys()].filter((path) => path.includes("/studentIdentityKeys/")),
+    ).toHaveLength(2);
   });
 });

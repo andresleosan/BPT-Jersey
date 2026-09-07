@@ -7,7 +7,11 @@ import {
   type MemberDirectoryDocumentData,
   type MemberDirectoryFirestore,
 } from "./canonical-member-directory-service.js";
-import { buildStudentIdentityKey } from "./member-directory-crypto.js";
+import {
+  buildStudentIdentityKey,
+  createMemberDirectoryIntegrityMac,
+  deriveStudentIdentityKeyId,
+} from "./member-directory-crypto.js";
 import { buildInitialMemberDirectoryControlPlane } from "./member-directory-state.js";
 
 const identitySecret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
@@ -615,5 +619,162 @@ describe("canonical administrative member writer", () => {
     ).rejects.toThrow(/synthetic commit failure/i);
     expect(failedCommit.committedWritePaths).toHaveLength(0);
     expect(failedCommit.records).toEqual(new Map(Object.entries(controlPlaneSeed())));
+  });
+});
+
+describe("canonical member directory writer, linked to an account (T122)", () => {
+  function service(store: ReturnType<typeof fakeFirestore>) {
+    return createCanonicalMemberDirectoryService({
+      firestore: store.firestore,
+      projectId: "demo-bpt-jersey",
+      identitySecretMaterial: identitySecret,
+      identitySecretVersion: "identity-v1",
+      integritySecretMaterial: integritySecret,
+      integritySecretVersion: "integrity-v1",
+      generateStudentId: () => "student-linked-1",
+      generateAuditId: () => "audit-linked-1",
+    });
+  }
+
+  const account = {
+    userId: "member-uid-1",
+    displayName: "Synthetic Adult",
+    email: "Adult@Example.test",
+  } as const;
+
+  it("writes the member and their account as one record", async () => {
+    const store = fakeFirestore();
+
+    const result = await service(store).createAdminAdultForAccount({
+      actor: actor(),
+      value: input(),
+      account,
+      now,
+    });
+
+    expect(result).toEqual({ memberId: "student-linked-1", studentId: "student-linked-1" });
+
+    const student = store.records.get("academies/academy-1/students/student-linked-1");
+    expect(student).toMatchObject({ userId: "member-uid-1" });
+    const familyId = (student as { familyId: string }).familyId;
+    expect(familyId.startsWith("adult-")).toBe(true);
+
+    // The three documents the administrative create never wrote.
+    expect(store.records.get(`academies/academy-1/families/${familyId}`)).toMatchObject({
+      primaryContactUserId: "member-uid-1",
+      billingContactUserId: "member-uid-1",
+      status: "active",
+    });
+    expect(store.records.get("academies/academy-1/users/member-uid-1")).toMatchObject({
+      accountType: "client",
+      displayName: "Synthetic Adult",
+      email: "adult@example.test",
+      phoneNumber: "+441534000001",
+    });
+
+    // And the administrative half is still there.
+    expect(
+      store.records.get("academies/academy-1/studentAdminProfiles/student-linked-1"),
+    ).toMatchObject({ source: "admin", gender: "unknown" });
+  });
+
+  it("reserves the identity the self-service profile looks for, which is the whole point", async () => {
+    // Without this reservation the member signs in, /account/profile queries students by userId,
+    // finds nothing, and mints a second student for the same person.
+    const store = fakeFirestore();
+
+    await service(store).createAdminAdultForAccount({
+      actor: actor(),
+      value: input(),
+      account,
+      now,
+    });
+
+    const keyId = deriveStudentIdentityKeyId({
+      academyId: "academy-1",
+      kind: "auth-user-id",
+      value: "member-uid-1",
+      secretMaterial: identitySecret,
+    });
+    expect(store.records.get(`academies/academy-1/studentIdentityKeys/${keyId}`)).toMatchObject({
+      kind: "auth-user-id",
+      ownerStudentId: "student-linked-1",
+    });
+  });
+
+  it("advances the control plane as an account link, not as a plain create", async () => {
+    const store = fakeFirestore();
+
+    await service(store).createAdminAdultForAccount({
+      actor: actor(),
+      value: input(),
+      account,
+      now,
+    });
+
+    expect(store.records.get("memberDirectoryRestoreGuards/academy-1/events/1")).toMatchObject({
+      transitionKind: "adult-auth-link",
+    });
+  });
+
+  it("refuses to link an enrolment with no phone number", async () => {
+    const store = fakeFirestore();
+    const withoutPhone = Object.fromEntries(
+      Object.entries(input()).filter(([key]) => key !== "phoneNumber"),
+    );
+
+    await expect(
+      service(store).createAdminAdultForAccount({
+        actor: actor(),
+        value: withoutPhone,
+        account,
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "invalid" });
+    expect(store.committedWritePaths).toHaveLength(0);
+  });
+
+  it("refuses an account that already holds part of a member record", async () => {
+    // The family id is derived from the account, so the collision has to be tested against the
+    // real derived id - seeding an arbitrary family proves nothing.
+    const familyId =
+      "adult-" +
+      createMemberDirectoryIntegrityMac({
+        domain: "bpt-adult-family-identity-v1",
+        values: ["academy-1", "member-uid-1"],
+        secretMaterial: integritySecret,
+      });
+
+    for (const seeded of [
+      { "academies/academy-1/users/member-uid-1": { accountType: "client" } },
+      { [`academies/academy-1/families/${familyId}`]: { familyId } },
+    ]) {
+      const store = fakeFirestore({ ...controlPlaneSeed(), ...seeded });
+
+      await expect(
+        service(store).createAdminAdultForAccount({
+          actor: actor(),
+          value: input(),
+          account,
+          now,
+        }),
+      ).rejects.toMatchObject({ code: "conflict" });
+      expect(store.committedWritePaths).toHaveLength(0);
+    }
+  });
+
+  it("leaves the unlinked administrative create exactly as it was", async () => {
+    const store = fakeFirestore();
+
+    await service(store).createAdminAdult({ actor: actor(), value: input(), now });
+
+    const student = store.records.get("academies/academy-1/students/student-linked-1");
+    expect(student).not.toHaveProperty("userId");
+    expect(student).not.toHaveProperty("familyId");
+    expect([...store.records.keys()].some((path) => path.includes("/families/"))).toBe(false);
+    expect(store.records.has("academies/academy-1/users/member-uid-1")).toBe(false);
+    expect(store.records.get("memberDirectoryRestoreGuards/academy-1/events/1")).toMatchObject({
+      transitionKind: "canonical-identity-create",
+    });
   });
 });

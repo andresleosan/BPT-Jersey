@@ -48,6 +48,10 @@ function services(): MemberDirectoryCallableServices {
         memberId: "student-1",
         studentId: "student-1",
       })),
+      createAdminAdultForAccount: vi.fn(async () => ({
+        memberId: "student-1",
+        studentId: "student-1",
+      })),
       updateAdminMember: vi.fn(async () => ({
         memberId: "student-1",
         studentId: "student-1",

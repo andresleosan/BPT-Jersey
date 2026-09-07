@@ -9,7 +9,13 @@ import {
   type AdminUpdateStudentInput,
   type StudentAdminProfile,
 } from "@bpt-jersey/domain/members/directory";
-import { parseStudentProfileAt, type StudentProfile } from "@bpt-jersey/domain/profiles";
+import {
+  parseStudentProfileAt,
+  parseUserProfile,
+  type StudentProfile,
+  type UserProfile,
+} from "@bpt-jersey/domain/profiles";
+import { parseFamilyRecord, type FamilyRecord } from "@bpt-jersey/domain/families";
 import { z } from "zod";
 
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
@@ -71,6 +77,24 @@ export type CreateAdminAdultCommand = Readonly<{
 
 export type CreateAdminAdultResult = Readonly<{ memberId: string; studentId: string }>;
 
+/**
+ * The account an enrolment is linked to. `displayName` and `email` come from the Auth record
+ * rather than from the form: they are what the account already proves about itself, and the
+ * academy's client document will not parse without them.
+ */
+export type MemberAccountLink = Readonly<{
+  userId: string;
+  displayName: string;
+  email: string;
+}>;
+
+export type CreateAdminAdultForAccountCommand = Readonly<{
+  actor: CanonicalMemberDirectoryActor;
+  value: unknown;
+  account: MemberAccountLink;
+  now: string;
+}>;
+
 export type UpdateAdminMemberCommand = Readonly<{
   actor: CanonicalMemberDirectoryActor;
   value: unknown;
@@ -79,6 +103,15 @@ export type UpdateAdminMemberCommand = Readonly<{
 
 export type CanonicalMemberDirectoryService = Readonly<{
   createAdminAdult: (command: CreateAdminAdultCommand) => Promise<CreateAdminAdultResult>;
+  /**
+   * The same enrolment, for somebody whose account the academy already knows. It writes what
+   * `createAdminAdult` writes plus the three things that make a record the member's own: the
+   * `userId` on the student with their family, their client document, and the `auth-user-id`
+   * reservation that stops the self-service profile from creating a second person.
+   */
+  createAdminAdultForAccount: (
+    command: CreateAdminAdultForAccountCommand,
+  ) => Promise<CreateAdminAdultResult>;
   updateAdminMember: (command: UpdateAdminMemberCommand) => Promise<CreateAdminAdultResult>;
 }>;
 
@@ -199,6 +232,14 @@ function auditPath(academyId: string, auditId: string): string {
   return `academies/${academyId}/auditEvents/${auditId}`;
 }
 
+function userPath(academyId: string, userId: string): string {
+  return `academies/${academyId}/users/${userId}`;
+}
+
+function familyPath(academyId: string, familyId: string): string {
+  return `academies/${academyId}/families/${familyId}`;
+}
+
 function guardPath(academyId: string): string {
   return `memberDirectoryRestoreGuards/${academyId}`;
 }
@@ -276,10 +317,13 @@ function buildStudent(
   studentId: string,
   actorId: string,
   now: string,
+  /** Present only when office is enrolling somebody whose account is already known. */
+  link?: Readonly<{ userId: string; familyId: string }>,
 ): StudentProfile {
   const record = {
     studentId,
     academyId,
+    ...(link === undefined ? {} : { userId: link.userId, familyId: link.familyId }),
     fullName: input.fullName,
     dateOfBirth: input.dateOfBirth,
     ...(input.phoneNumber === undefined ? {} : { phoneNumber: input.phoneNumber }),
@@ -661,175 +705,295 @@ export function createCanonicalMemberDirectoryService(
   const generateStudentId = dependencies.generateStudentId ?? randomUUID;
   const generateAuditId = dependencies.generateAuditId ?? randomUUID;
 
-  return Object.freeze({
-    async createAdminAdult(command) {
-      requireAuthorizedActor(command.actor);
-      const now = requiredTimestamp(command.now);
-      const parsedInput = parseAdminCreateStudentInput(command.value, now.slice(0, 10));
-      if (!parsedInput.ok) {
-        throw new CanonicalMemberDirectoryError("invalid", "Invalid admin student input");
-      }
-      const academyId = command.actor.academyId;
-      const actorId = command.actor.actorId;
-      const expectedRequestMac = requestMac(
-        academyId,
-        actorId,
-        parsedInput.value,
-        dependencies.integritySecretMaterial,
-      );
-      const receiptId = requestReceiptId(
-        academyId,
-        actorId,
-        parsedInput.value.requestId,
-        dependencies.integritySecretMaterial,
-      );
-      const studentId = requiredIdentifier(generateStudentId(), "generated student ID");
-      const auditEventId = requiredIdentifier(generateAuditId(), "generated audit ID");
-      const receiptRef = dependencies.firestore.doc(receiptPath(academyId, receiptId));
+  /**
+   * One write plan for both doors. `account` is present only when office is enrolling somebody
+   * whose account the academy already knows, and it is the difference between a record the member
+   * can sign in to and a record that gets silently duplicated the first time they do.
+   */
+  async function createAdult(
+    command: CreateAdminAdultCommand,
+    account?: MemberAccountLink,
+  ): Promise<CreateAdminAdultResult> {
+    requireAuthorizedActor(command.actor);
+    const now = requiredTimestamp(command.now);
+    const parsedInput = parseAdminCreateStudentInput(command.value, now.slice(0, 10));
+    if (!parsedInput.ok) {
+      throw new CanonicalMemberDirectoryError("invalid", "Invalid admin student input");
+    }
+    const academyId = command.actor.academyId;
+    const actorId = command.actor.actorId;
+    if (account !== undefined && parsedInput.value.phoneNumber === undefined) {
+      // The academy's client document will not parse without one, and a member without that
+      // document is denied by levels and by the family projection: half-enrolled, in silence.
+      throw new CanonicalMemberDirectoryError("invalid", "A linked enrolment needs a phone number");
+    }
+    const accountLink =
+      account === undefined
+        ? undefined
+        : {
+            displayName: account.displayName,
+            email: account.email,
+            userId: requiredIdentifier(account.userId, "account user ID"),
+            familyId:
+              "adult-" +
+              createMemberDirectoryIntegrityMac({
+                domain: "bpt-adult-family-identity-v1",
+                values: [academyId, account.userId],
+                secretMaterial: dependencies.integritySecretMaterial,
+              }),
+          };
+    const expectedRequestMac = requestMac(
+      academyId,
+      actorId,
+      parsedInput.value,
+      dependencies.integritySecretMaterial,
+    );
+    const receiptId = requestReceiptId(
+      academyId,
+      actorId,
+      parsedInput.value.requestId,
+      dependencies.integritySecretMaterial,
+    );
+    const studentId = requiredIdentifier(generateStudentId(), "generated student ID");
+    const auditEventId = requiredIdentifier(generateAuditId(), "generated audit ID");
+    const receiptRef = dependencies.firestore.doc(receiptPath(academyId, receiptId));
 
-      return dependencies.firestore.runTransaction(async (transaction) => {
-        await assertProvisionedActor(transaction, dependencies, command.actor);
-        const receiptSnapshot = await transaction.get(receiptRef);
-        if (receiptSnapshot.exists) {
-          return resolveReplay(
-            transaction,
-            dependencies,
-            receiptSnapshot.data(),
-            receiptId,
-            academyId,
-            actorId,
-            expectedRequestMac,
-          );
-        }
-
-        const stateRef = dependencies.firestore.doc(statePath(academyId));
-        const guardRef = dependencies.firestore.doc(guardPath(academyId));
-        const [stateSnapshot, guardSnapshot] = await Promise.all([
-          transaction.get(stateRef),
-          transaction.get(guardRef),
-        ]);
-        const stateValue = documentData(stateSnapshot, "Member directory state");
-        const state = assertCanonicalMemberDirectoryWriterReady(stateValue, {
-          academyId,
-          digestVersion: "hmac-sha256-v1",
-          secretVersion: dependencies.identitySecretVersion,
-        });
-        if (!guardSnapshot.exists) {
-          throw new CanonicalMemberDirectoryError(
-            "unavailable",
-            "Member directory restore guard is missing",
-          );
-        }
-        const guard = memberDirectoryRestoreGuardSchema.safeParse(guardSnapshot.data());
-        if (!guard.success) {
-          throw new CanonicalMemberDirectoryError(
-            "unavailable",
-            "Member directory restore guard is invalid",
-          );
-        }
-        const currentEventRef = dependencies.firestore.doc(
-          guardEventPath(academyId, guard.data.lastEventId),
-        );
-        const currentEventSnapshot = await transaction.get(currentEventRef);
-        const currentControl = assertMemberDirectoryControlPlane({
-          projectId: dependencies.projectId,
-          state,
-          guard: guard.data,
-          event: documentData(currentEventSnapshot, "Member directory guard event"),
-          integritySecretMaterial: dependencies.integritySecretMaterial,
-          integritySecretVersion: dependencies.integritySecretVersion,
-        });
-        if (
-          state.globalLegacyReadEliminated === false &&
-          state.rollbackEligibleStudentCount >= state.rollbackCapacityLimit
-        ) {
-          throw new CanonicalMemberDirectoryError(
-            "unavailable",
-            "Member directory rollback capacity is exhausted",
-          );
-        }
-
-        const student = buildStudent(parsedInput.value, academyId, studentId, actorId, now);
-        const profile = buildAdminProfile(parsedInput.value, academyId, studentId, actorId, now);
-        const keys = buildKeys(profile, dependencies);
-        const keyReferences = keys.map((key) =>
-          dependencies.firestore.doc(keyPath(academyId, key.keyId)),
-        );
-        const keySnapshots = await Promise.all(
-          keyReferences.map((reference) => transaction.get(reference)),
-        );
-        if (keySnapshots.some((snapshot) => snapshot.exists)) {
-          throw new CanonicalMemberDirectoryError(
-            "conflict",
-            "Administrative identifier is already reserved",
-          );
-        }
-
-        const nextState = {
-          ...state,
-          stateRevision: state.stateRevision + 1,
-          rollbackEligibleStudentCount: state.globalLegacyReadEliminated
-            ? state.rollbackEligibleStudentCount
-            : state.rollbackEligibleStudentCount + 1,
-          updatedAt: now,
-          updatedBy: actorId,
-        };
-        const nextControl = advanceMemberDirectoryControlPlane({
-          projectId: dependencies.projectId,
-          state: currentControl.state,
-          guard: currentControl.guard,
-          event: currentControl.event,
-          nextState,
-          operationId: receiptId,
-          transitionKind: "canonical-identity-create",
-          integritySecretMaterial: dependencies.integritySecretMaterial,
-          integritySecretVersion: dependencies.integritySecretVersion,
-          now,
-          actorId,
-        });
-        const nextEventRef = dependencies.firestore.doc(
-          guardEventPath(academyId, nextControl.event.eventId),
-        );
-        const studentRef = dependencies.firestore.doc(studentPath(academyId, studentId));
-        const profileRef = dependencies.firestore.doc(profilePath(academyId, studentId));
-        const auditRef = dependencies.firestore.doc(auditPath(academyId, auditEventId));
-        const receipt: MemberDirectoryWriteReceipt = writeReceiptSchema.parse({
+    return dependencies.firestore.runTransaction(async (transaction) => {
+      await assertProvisionedActor(transaction, dependencies, command.actor);
+      const receiptSnapshot = await transaction.get(receiptRef);
+      if (receiptSnapshot.exists) {
+        return resolveReplay(
+          transaction,
+          dependencies,
+          receiptSnapshot.data(),
           receiptId,
           academyId,
           actorId,
-          requestMac: expectedRequestMac,
-          studentId,
-          auditEventId,
-          stateRevisionBefore: state.stateRevision,
-          stateRevisionAfter: nextState.stateRevision,
-          status: "completed",
-          createdAt: now,
-          schemaVersion: "1",
-        });
+          expectedRequestMac,
+        );
+      }
 
-        transaction.create(studentRef, student);
-        transaction.create(profileRef, profile);
-        keys.forEach((key, index) => {
-          const reference = keyReferences[index];
-          if (reference === undefined) {
-            throw new CanonicalMemberDirectoryError("invalid", "Identity key plan mismatch");
-          }
-          transaction.create(reference, key);
-        });
-        transaction.set(stateRef, nextState);
-        transaction.set(guardRef, nextControl.guard);
-        transaction.create(nextEventRef, nextControl.event);
-        appendAuditEventInTransaction(transaction, auditRef, {
-          academyId,
-          actorId,
-          action: "member.created",
-          targetRef: studentRef.path,
-          purpose: "member-record-maintenance",
-          correlationId: receiptId,
-        } as unknown as AuditEventDraft);
-        transaction.create(receiptRef, receipt);
-        return Object.freeze({ memberId: studentId, studentId });
+      const stateRef = dependencies.firestore.doc(statePath(academyId));
+      const guardRef = dependencies.firestore.doc(guardPath(academyId));
+      const [stateSnapshot, guardSnapshot] = await Promise.all([
+        transaction.get(stateRef),
+        transaction.get(guardRef),
+      ]);
+      const stateValue = documentData(stateSnapshot, "Member directory state");
+      const state = assertCanonicalMemberDirectoryWriterReady(stateValue, {
+        academyId,
+        digestVersion: "hmac-sha256-v1",
+        secretVersion: dependencies.identitySecretVersion,
       });
+      if (!guardSnapshot.exists) {
+        throw new CanonicalMemberDirectoryError(
+          "unavailable",
+          "Member directory restore guard is missing",
+        );
+      }
+      const guard = memberDirectoryRestoreGuardSchema.safeParse(guardSnapshot.data());
+      if (!guard.success) {
+        throw new CanonicalMemberDirectoryError(
+          "unavailable",
+          "Member directory restore guard is invalid",
+        );
+      }
+      const currentEventRef = dependencies.firestore.doc(
+        guardEventPath(academyId, guard.data.lastEventId),
+      );
+      const currentEventSnapshot = await transaction.get(currentEventRef);
+      const currentControl = assertMemberDirectoryControlPlane({
+        projectId: dependencies.projectId,
+        state,
+        guard: guard.data,
+        event: documentData(currentEventSnapshot, "Member directory guard event"),
+        integritySecretMaterial: dependencies.integritySecretMaterial,
+        integritySecretVersion: dependencies.integritySecretVersion,
+      });
+      if (
+        state.globalLegacyReadEliminated === false &&
+        state.rollbackEligibleStudentCount >= state.rollbackCapacityLimit
+      ) {
+        throw new CanonicalMemberDirectoryError(
+          "unavailable",
+          "Member directory rollback capacity is exhausted",
+        );
+      }
+
+      const student = buildStudent(
+        parsedInput.value,
+        academyId,
+        studentId,
+        actorId,
+        now,
+        accountLink === undefined
+          ? undefined
+          : { userId: accountLink.userId, familyId: accountLink.familyId },
+      );
+      const profile = buildAdminProfile(parsedInput.value, academyId, studentId, actorId, now);
+      const administrativeKeys = buildKeys(profile, dependencies);
+      // The reservation the self-service profile looks for. Without it that path finds nothing
+      // and mints a second student for the same person.
+      const authKey =
+        accountLink === undefined
+          ? undefined
+          : buildStudentIdentityKey({
+              academyId,
+              kind: "auth-user-id",
+              value: accountLink.userId,
+              ownerStudentId: studentId,
+              secretMaterial: dependencies.identitySecretMaterial,
+              secretVersion: dependencies.identitySecretVersion,
+              now,
+              actorId,
+            });
+      const keys = authKey === undefined ? administrativeKeys : [...administrativeKeys, authKey];
+      const keyReferences = keys.map((key) =>
+        dependencies.firestore.doc(keyPath(academyId, key.keyId)),
+      );
+      const keySnapshots = await Promise.all(
+        keyReferences.map((reference) => transaction.get(reference)),
+      );
+      if (keySnapshots.some((snapshot) => snapshot.exists)) {
+        throw new CanonicalMemberDirectoryError(
+          "conflict",
+          "Administrative identifier is already reserved",
+        );
+      }
+
+      // This method only ever creates a fresh linked member. If the academy already holds a
+      // family or a client document for that account, somebody built part of this person
+      // already, and joining the two halves is not a decision this write may take on its own.
+      const linkedRefs =
+        accountLink === undefined
+          ? undefined
+          : {
+              family: dependencies.firestore.doc(familyPath(academyId, accountLink.familyId)),
+              user: dependencies.firestore.doc(userPath(academyId, accountLink.userId)),
+            };
+      let linkedRecords: Readonly<{ family: FamilyRecord; user: UserProfile }> | undefined;
+      if (accountLink !== undefined && linkedRefs !== undefined) {
+        const [familySnapshot, userSnapshot] = await Promise.all([
+          transaction.get(linkedRefs.family),
+          transaction.get(linkedRefs.user),
+        ]);
+        if (familySnapshot.exists || userSnapshot.exists) {
+          throw new CanonicalMemberDirectoryError(
+            "conflict",
+            "This account already holds a member record",
+          );
+        }
+        const family = parseFamilyRecord({
+          familyId: accountLink.familyId,
+          academyId,
+          primaryContactUserId: accountLink.userId,
+          billingContactUserId: accountLink.userId,
+          active: true,
+          status: "active",
+          schemaVersion: "1",
+          createdAt: now,
+          createdBy: actorId,
+          updatedAt: now,
+          updatedBy: actorId,
+        });
+        const user = parseUserProfile({
+          userId: accountLink.userId,
+          academyId,
+          accountType: "client",
+          displayName: accountLink.displayName,
+          email: accountLink.email.trim().toLowerCase(),
+          phoneNumber: parsedInput.value.phoneNumber,
+          active: true,
+          status: "active",
+          schemaVersion: "1",
+          createdAt: now,
+          createdBy: actorId,
+          updatedAt: now,
+          updatedBy: actorId,
+        });
+        if (!family.ok || !user.ok) {
+          throw new CanonicalMemberDirectoryError("invalid", "Invalid linked member record");
+        }
+        linkedRecords = { family: family.value, user: user.value };
+      }
+
+      const nextState = {
+        ...state,
+        stateRevision: state.stateRevision + 1,
+        rollbackEligibleStudentCount: state.globalLegacyReadEliminated
+          ? state.rollbackEligibleStudentCount
+          : state.rollbackEligibleStudentCount + 1,
+        updatedAt: now,
+        updatedBy: actorId,
+      };
+      const nextControl = advanceMemberDirectoryControlPlane({
+        projectId: dependencies.projectId,
+        state: currentControl.state,
+        guard: currentControl.guard,
+        event: currentControl.event,
+        nextState,
+        operationId: receiptId,
+        transitionKind: accountLink === undefined ? "canonical-identity-create" : "adult-auth-link",
+        integritySecretMaterial: dependencies.integritySecretMaterial,
+        integritySecretVersion: dependencies.integritySecretVersion,
+        now,
+        actorId,
+      });
+      const nextEventRef = dependencies.firestore.doc(
+        guardEventPath(academyId, nextControl.event.eventId),
+      );
+      const studentRef = dependencies.firestore.doc(studentPath(academyId, studentId));
+      const profileRef = dependencies.firestore.doc(profilePath(academyId, studentId));
+      const auditRef = dependencies.firestore.doc(auditPath(academyId, auditEventId));
+      const receipt: MemberDirectoryWriteReceipt = writeReceiptSchema.parse({
+        receiptId,
+        academyId,
+        actorId,
+        requestMac: expectedRequestMac,
+        studentId,
+        auditEventId,
+        stateRevisionBefore: state.stateRevision,
+        stateRevisionAfter: nextState.stateRevision,
+        status: "completed",
+        createdAt: now,
+        schemaVersion: "1",
+      });
+
+      transaction.create(studentRef, student);
+      transaction.create(profileRef, profile);
+      keys.forEach((key, index) => {
+        const reference = keyReferences[index];
+        if (reference === undefined) {
+          throw new CanonicalMemberDirectoryError("invalid", "Identity key plan mismatch");
+        }
+        transaction.create(reference, key);
+      });
+      if (linkedRefs !== undefined && linkedRecords !== undefined) {
+        transaction.create(linkedRefs.family, linkedRecords.family);
+        transaction.create(linkedRefs.user, linkedRecords.user);
+      }
+      transaction.set(stateRef, nextState);
+      transaction.set(guardRef, nextControl.guard);
+      transaction.create(nextEventRef, nextControl.event);
+      appendAuditEventInTransaction(transaction, auditRef, {
+        academyId,
+        actorId,
+        action: "member.created",
+        targetRef: studentRef.path,
+        purpose: "member-record-maintenance",
+        correlationId: receiptId,
+      } as unknown as AuditEventDraft);
+      transaction.create(receiptRef, receipt);
+      return Object.freeze({ memberId: studentId, studentId });
+    });
+  }
+
+  return Object.freeze({
+    async createAdminAdult(command) {
+      return createAdult(command);
+    },
+    async createAdminAdultForAccount(command) {
+      return createAdult(command, command.account);
     },
     async updateAdminMember(command) {
       requireAuthorizedActor(command.actor);
