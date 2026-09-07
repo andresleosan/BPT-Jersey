@@ -44,11 +44,11 @@ describe("Lista project progress", () => {
 
   it("reflects the board as of 2026-09-06", () => {
     expect(counts).toEqual({
-      aprobada: 109,
-      revision: 1,
+      aprobada: 111,
+      revision: 0,
       "en-progreso": 2,
-      pendiente: 4,
-      bloqueada: 1,
+      pendiente: 3,
+      bloqueada: 2,
       cancelada: 7,
     });
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
@@ -77,9 +77,11 @@ describe("Lista project progress", () => {
     ]);
     expect(counts.cancelada).toBe(cancelled.length);
     expect(progress.total).toBe(items.length - cancelled.length);
-    // T122 was opened on 2026-09-06 for a defect that already existed and nobody had recorded, so
-    // the denominator grew while the numerator did not. The percentage falling is the honest
-    // reading: work that was always there is now counted.
-    expect(progress).toEqual({ approved: 109, total: 117, percentage: 93 });
+    // Later on 2026-09-06 the operator approved T122 and T123 and, rather than let the Emulator
+    // verification T122 never ran become a footnote, opened T124 to carry it. So both sides of the
+    // ratio moved: two rows approved, one row of real outstanding work added. The percentage rising
+    // by one point is the honest reading only because the debt it excludes is on the board as T124
+    // instead of hidden inside an approved row.
+    expect(progress).toEqual({ approved: 111, total: 118, percentage: 94 });
   });
 });

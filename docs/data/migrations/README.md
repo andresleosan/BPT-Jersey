@@ -25,8 +25,12 @@ considera que T013 haya migrado datos.
 
 `member-pdf-import-run-2026-08-12.yaml` es evidencia historica de una ejecucion productiva. No es
 una allowlist, un receipt reutilizable ni una autorizacion para otra corrida. En particular, su
-texto `staging-allowlist` describe la etiqueta incorrecta usada entonces y no permite tratar
-`bptjersey-f5a25` como staging.
+campo `guardLabelInCode: staging-allowlist` describe la etiqueta incorrecta usada entonces y no
+permite tratar `bptjersey-f5a25` como staging. Corregido el 2026-09-06 (T123): hasta esa fecha el
+registro llevaba `targetLabelUsed: staging-allowlist`, de modo que quien lo leyera sin este runbook
+al lado concluia que aquella corrida habia ido a staging. No hubo staging: el run fue a produccion,
+con confirmacion del operador. No se cambio ningun dato de la corrida, solo lo que el registro
+afirma sobre ella.
 
 El runner vigente acepta solamente `target=emulator`, `projectId=demo-bpt-jersey` y
 `academyId=demo-academy`. Un dry-run puede ejecutarse sin Firebase Admin ni host. Un confirm exige

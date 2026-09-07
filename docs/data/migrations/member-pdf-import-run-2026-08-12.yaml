@@ -39,8 +39,8 @@ up:
     - operator confirmed bptjersey-f5a25 is the production Firebase project; no separate staging Firebase project exists
     - no Firestore write occurred during dry-run
   checkpointPlan:
-    - verify backup and restoration evidence for the scoped staging collections
-    - execute confirm only with fresh matching receipt and explicit staging confirmation
+    - verify backup and restoration evidence for the scoped production collections
+    - execute confirm only with fresh matching receipt and explicit production confirmation
     - verify counts, tenant scope, operation idempotency, and metadata-only audit
 execution:
   dryRun:
@@ -49,7 +49,16 @@ execution:
     writeStatus: not-executed
   productionApply:
     status: passed
-    targetLabelUsed: staging-allowlist; project is production per operator confirmation
+    target: production
+    targetProjectId: bptjersey-f5a25
+    guardLabelInCode: staging-allowlist
+    guardLabelNote: >-
+      The guard identifier read "staging-allowlist", but the only project it ever admitted was
+      bptjersey-f5a25, which is production. The label was wrong; the target was not a mistake and
+      the operator confirmed it before the apply. Recorded here because the previous field named
+      targetLabelUsed put that wrong label where a reader looks for the environment, so anybody
+      reading this record without the runbook concluded the run had gone to staging. It had not:
+      no separate staging Firebase project existed then, and none exists now.
     executedAt: 2026-08-13T02:12:04.088Z
     result:
       imported: 243

@@ -35,16 +35,15 @@ const RESOLUTION_REQUIREMENTS = {
   T121: [
     "Construir el corte 3c, la UI de aprobacion: aprobar y ver el detalle son callables sin pantalla, asi que office todavia no los alcanza.",
     "Resolver el texto legal del waiver y de los disclaimers, hoy bloqueado por T011, antes de habilitar uso operativo.",
-    "Verificar en Emulator que dos aprobaciones simultaneas se serializan sobre el documento de la solicitud; el doble de pruebas no lo simula.",
-    "Correr la suite de Rules y el E2E del camino completo, imposible en la maquina actual porque firebase-tools exige Java 21 y el JDK es 1.8.",
+    "Reemplazar los tres secretos placeholder del directorio canonico en bptjersey-f5a25 antes de desplegar los callables de office; hoy fallan cerrado.",
+    "La verificacion en Emulator y Rules de este camino se rastrea en T124.",
   ],
-  T123: [
-    "Corregir targetLabelUsed en el registro del run para que nombre el proyecto real contra el que corrio.",
-    "Revisar si algun otro registro de run repite la misma etiqueta incorrecta.",
-  ],
-  T122: [
-    "Correr la verificacion en Emulator, imposible en la maquina actual porque firebase-tools exige Java 21 y el JDK es 1.8.",
-    "Confirmar que no existen fichas ya duplicadas en produccion antes de dar la tarea por cerrada.",
+  T124: [
+    "Instalar JDK 21 o correr la suite en una maquina que ya lo tenga: firebase-tools lo exige y aqui hay Java 1.8.",
+    "Correr el caso de Rules que fija enrolmentRequests y enrolmentRequestHolds como inalcanzables desde cliente, escrito el 2026-09-06 y nunca ejecutado.",
+    "Probar el plan de escritura union contra Firestore real, con adulto y con tutor mas menores: es el criterio de cierre textual de T122.",
+    "Observar bajo concurrencia real que dos beginApproval se serializan sobre el documento de la solicitud; el doble de pruebas no lo simula.",
+    "Escribir el E2E del camino completo de solicitud, revision, aprobacion y devolucion, que hoy no existe.",
   ],
   T010: [
     "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
@@ -1155,7 +1154,7 @@ const closeoutItems = [
     "pendiente",
     "Realizar la publicacion solo despues de superar todos los controles requeridos.",
     "T057",
-    "La publicacion en produccion todavia esta pendiente.",
+    "La publicacion en produccion todavia esta pendiente. Precondicion verificada el 2026-09-06 y no registrada hasta ahora: los tres secretos del directorio canonico valen placeholder-not-configured en bptjersey-f5a25. Fallan cerrado, no en silencio (19 bytes decodificados contra los 32 exigidos), asi que el servicio lanza al construirse en vez de derivar claves de una cadena publica; pero ninguna funcion que ligue una ficha a una cuenta puede desplegarse hasta reemplazarlos.",
     ["tasks.md", "STACK.md"],
     "roadmap",
   ),
@@ -2046,7 +2045,7 @@ const recoveryItems = [
     "en-progreso",
     "El solicitante llena sus datos una vez y office los revisa, en lugar de volver a teclearlos.",
     "T090,T093,T094,T117,T120",
-    "Alta 2026-09-06. Corte 1 aprobado por el operador el 2026-09-06: contrato que reutiliza literalmente la forma del alta administrativa menos las dos casillas de office, requestId y membershipNumber, para que nadie reclame el numero de socio de otro; la edad decide el flujo en vez del checkbox; coleccion tenant-scoped con estado, auditoria y una sola solicitud abierta por persona; callables de envio, listado propio y retirada para roles de cliente incluido shopper, y listado y devolucion con nota para office. Corte 3a: pagina /enrol con el formulario del solicitante, que pide sesion, manda a /account a quien ya es estudiante y muestra el estado con la nota de office si ya hay solicitud abierta. Corte 3b: bandeja en /admin/members/requests que lista nombre, tipo, numero de menores, centro y estado, sin fecha de nacimiento ni direccion, y avisa cuando la pagina esta llena. Correcciones del 2026-09-06 tras auditoria: el guardia de una sola solicitud abierta podia fallar en silencio tras 20 filas de historial y ahora es un documento por solicitante; la cola ordena y declara truncado; el contrato rechaza adulto que ademas inscribe hijos, combinacion que ningun claim puede representar; el telefono pasa a obligatorio porque el documento de cliente no parsea sin el. Corte 2 implementado el 2026-09-06, alcance confirmado por el operador: adulto y tutor juntos, mas la proyeccion de detalle. La aprobacion no es una transaccion y no puede serlo, porque el estudiante vive en Firestore, el rol vive en Auth y createFamily exige el rol ya puesto; la solicitud misma es el cerrojo y fija la clave de idempotencia de la escritura administrativa, cada paso es idempotente bajo esa clave, y una secuencia cortada a medias queda en approval-failed, nunca en approved ni de vuelta con el solicitante. Sin ese cerrojo dos revisores concurrentes habrian creado dos estudiantes para una persona. Adulto: ficha primero y rol despues. Tutor: documento de cliente, claim guardian y createFamily, en ese orden porque el escritor de familias lo impone. Tres defectos destapados y corregidos de paso: el borrador de familia no llevaba gender ni frequencyNote y tiraba en silencio lo que el solicitante contesto sobre cada menor; el escritor de auditoria fijaba resultado completed para toda accion fuera de dos nombres, asi que la lectura restringida nueva habria afirmado algo falso; y los dos estados nuevos dejaban atrapada una solicitud que solo el solicitante podia arreglar, asi que office ahora puede devolverla con nota desde approval-failed. Falta el corte 3c, la UI de aprobacion.",
+    "Alta 2026-09-06. Corte 1 aprobado por el operador el 2026-09-06: contrato que reutiliza literalmente la forma del alta administrativa menos las dos casillas de office, requestId y membershipNumber, para que nadie reclame el numero de socio de otro; la edad decide el flujo en vez del checkbox; coleccion tenant-scoped con estado, auditoria y una sola solicitud abierta por persona; callables de envio, listado propio y retirada para roles de cliente incluido shopper, y listado y devolucion con nota para office. Corte 3a: pagina /enrol con el formulario del solicitante, que pide sesion, manda a /account a quien ya es estudiante y muestra el estado con la nota de office si ya hay solicitud abierta. Corte 3b: bandeja en /admin/members/requests que lista nombre, tipo, numero de menores, centro y estado, sin fecha de nacimiento ni direccion, y avisa cuando la pagina esta llena. Correcciones del 2026-09-06 tras auditoria: el guardia de una sola solicitud abierta podia fallar en silencio tras 20 filas de historial y ahora es un documento por solicitante; la cola ordena y declara truncado; el contrato rechaza adulto que ademas inscribe hijos, combinacion que ningun claim puede representar; el telefono pasa a obligatorio porque el documento de cliente no parsea sin el. Corte 2 implementado el 2026-09-06, alcance confirmado por el operador: adulto y tutor juntos, mas la proyeccion de detalle. La aprobacion no es una transaccion y no puede serlo, porque el estudiante vive en Firestore, el rol vive en Auth y createFamily exige el rol ya puesto; la solicitud misma es el cerrojo y fija la clave de idempotencia de la escritura administrativa, cada paso es idempotente bajo esa clave, y una secuencia cortada a medias queda en approval-failed, nunca en approved ni de vuelta con el solicitante. Sin ese cerrojo dos revisores concurrentes habrian creado dos estudiantes para una persona. Adulto: ficha primero y rol despues. Tutor: documento de cliente, claim guardian y createFamily, en ese orden porque el escritor de familias lo impone. Tres defectos destapados y corregidos de paso: el borrador de familia no llevaba gender ni frequencyNote y tiraba en silencio lo que el solicitante contesto sobre cada menor; el escritor de auditoria fijaba resultado completed para toda accion fuera de dos nombres, asi que la lectura restringida nueva habria afirmado algo falso; y los dos estados nuevos dejaban atrapada una solicitud que solo el solicitante podia arreglar, asi que office ahora puede devolverla con nota desde approval-failed. Corte 2 aprobado por el operador el 2026-09-06 sobre evidencia unitaria y de mutacion, dicho explicitamente: no sobre Emulator, que no corrio. Esa deuda de verificacion se rastrea en T124. Falta el corte 3c, la UI de aprobacion.",
     [
       "tasks.md",
       "docs/superpowers/specs/2026-09-06-t121-slice-2-approval-design.md",
@@ -2058,10 +2057,10 @@ const recoveryItems = [
   task(
     "T122",
     "Vincular un miembro creado por office con la cuenta del propio miembro",
-    "revision",
+    "aprobada",
     "Una persona, una ficha: la que crea office y la que usa el miembro al entrar tienen que ser la misma.",
     "T093,T094",
-    "Alta 2026-09-06 tras la auditoria del camino de aprobacion de T121. Defecto verificado y anterior a T121: el alta administrativa escribia el estudiante sin userId y sin reservar la clave auth-user-id, mientras que saveClientProfile busca al titular por userId y, al no encontrarlo, crea otra ficha con su propia familia y su documento de cliente. Es decir, si office daba de alta a alguien y esa persona entraba y guardaba su perfil, la academia acababa con dos fichas de la misma persona, una con los datos y sin acceso y otra con el acceso y sin los datos, y nada lo detectaba. Implementado el 2026-09-06: createAdminAdultForAccount escribe las dos mitades en una transaccion; los dos caminos comparten un solo plan de escritura cuyo unico parametro nuevo es la cuenta, asi que el alta sin cuenta queda igual, con prueba que lo fija. Falla cerrado sin telefono y ante una cuenta que ya tiene familia o documento de cliente. La prueba decisiva corre los dos writers sobre el mismo almacen y comprueba que el perfil del miembro adopta la ficha de office; con el vinculo desactivado esa misma prueba devuelve una segunda ficha, que es el defecto. Los guardias se comprobaron por mutacion. Al 2026-09-06 el corte 2 de T121 consume el metodo, asi que ya no es una capacidad sin flujo, y el camino de tutor con menores quedo disenado e implementado alli, sin pasar por este metodo porque el tutor no es estudiante. Sigue en revision por una sola razon: la verificacion en Emulator no se pudo correr aqui por Java.",
+    "Alta 2026-09-06 tras la auditoria del camino de aprobacion de T121. Defecto verificado y anterior a T121: el alta administrativa escribia el estudiante sin userId y sin reservar la clave auth-user-id, mientras que saveClientProfile busca al titular por userId y, al no encontrarlo, crea otra ficha con su propia familia y su documento de cliente. Es decir, si office daba de alta a alguien y esa persona entraba y guardaba su perfil, la academia acababa con dos fichas de la misma persona, una con los datos y sin acceso y otra con el acceso y sin los datos, y nada lo detectaba. Implementado el 2026-09-06: createAdminAdultForAccount escribe las dos mitades en una transaccion; los dos caminos comparten un solo plan de escritura cuyo unico parametro nuevo es la cuenta, asi que el alta sin cuenta queda igual, con prueba que lo fija. Falla cerrado sin telefono y ante una cuenta que ya tiene familia o documento de cliente. La prueba decisiva corre los dos writers sobre el mismo almacen y comprueba que el perfil del miembro adopta la ficha de office; con el vinculo desactivado esa misma prueba devuelve una segunda ficha, que es el defecto. Los guardias se comprobaron por mutacion. Al 2026-09-06 el corte 2 de T121 consume el metodo, asi que ya no es una capacidad sin flujo, y el camino de tutor con menores quedo disenado e implementado alli, sin pasar por este metodo porque el tutor no es estudiante. Aprobada por el operador el 2026-09-06 sobre evidencia unitaria y de mutacion, no sobre Emulator: esa verificacion, que el criterio de cierre de la fila exige por escrito, no se ejecuto porque firebase-tools pide Java 21 y aqui hay 1.8. La deuda se movio a T124 en vez de quedar como nota al pie, para que nadie lea esta fila y concluya que la prueba en Emulator paso.",
     [
       "tasks.md",
       "docs/superpowers/specs/2026-09-06-t122-member-account-link-design.md",
@@ -2072,11 +2071,29 @@ const recoveryItems = [
   task(
     "T123",
     "Corregir la etiqueta de destino del run de importacion PDF del 2026-08-12",
-    "pendiente",
+    "aprobada",
     "Un registro que afirma haber corrido contra staging cuando corrio contra produccion.",
     "T107",
-    "Alta 2026-09-06, hallazgo de la reconstruccion del grafo de conocimiento. docs/data/migrations/member-pdf-import-run-2026-08-12.yaml sigue llevando targetLabelUsed: staging-allowlist sobre lo que en realidad era el proyecto de produccion. El runbook ya anota que la etiqueta fue incorrecta, pero el registro del run conserva la afirmacion falsa, asi que quien lo lea sin el runbook al lado concluye que aquello corrio contra staging. No cambia ningun dato: corrige el registro para que diga lo que paso.",
-    ["tasks.md", "docs/data/migrations/member-pdf-import-run-2026-08-12.yaml"],
+    "Alta 2026-09-06, hallazgo de la reconstruccion del grafo de conocimiento. docs/data/migrations/member-pdf-import-run-2026-08-12.yaml sigue llevando targetLabelUsed: staging-allowlist sobre lo que en realidad era el proyecto de produccion. El runbook ya anota que la etiqueta fue incorrecta, pero el registro del run conserva la afirmacion falsa, asi que quien lo lea sin el runbook al lado concluye que aquello corrio contra staging. No cambia ningun dato: corrige el registro para que diga lo que paso. Implementada y aprobada el 2026-09-06: targetLabelUsed: staging-allowlist se reemplazo por target: production, targetProjectId: bptjersey-f5a25 y guardLabelInCode: staging-allowlist, con una nota que explica que la etiqueta del guardia estaba mal pero el destino no fue un error y que no existia entonces ni existe ahora un proyecto staging separado. La etiqueta incorrecta deja de estar donde un lector busca el entorno. Se corrigieron ademas dos lineas del checkpointPlan que llamaban staging a lo que fue produccion, y la nota del README apunta al campo nuevo. Segundo requisito cumplido: staging-allowlist aparece solo en esos dos archivos y ambos quedan correctos. Ningun dato, hash, recuento ni evidencia de backup de la corrida se toco.",
+    [
+      "tasks.md",
+      "docs/data/migrations/member-pdf-import-run-2026-08-12.yaml",
+      "docs/data/migrations/README.md",
+    ],
+    "mvp",
+  ),
+  task(
+    "T124",
+    "Verificar en Emulator y Rules el camino de inscripcion autoservicio",
+    "bloqueada",
+    "La deuda de verificacion del camino de inscripcion, como trabajo visible y no como nota al pie.",
+    "T121,T122",
+    "Alta 2026-09-06 por decision del operador, al aprobar T122 y el corte 2 de T121 sobre evidencia unitaria y de mutacion. Existe para que ninguna de las dos filas afirme una prueba que no se ejecuto. Bloqueada por el entorno, no por el codigo: firebase-tools exige Java 21 y el JDK instalado es 1.8, asi que ni pnpm test:rules ni firebase emulators:exec pueden correr aqui. Hay que verificar el caso de Rules que fija enrolmentRequests y enrolmentRequestHolds como inalcanzables desde cliente, escrito el 2026-09-06 y nunca ejecutado; el plan de escritura union de T122 contra Firestore real con adulto y con tutor mas menores, que es el criterio de cierre textual de esa fila; que dos beginApproval simultaneas se serialicen de verdad sobre el documento de la solicitud, porque el cerrojo que impide dos estudiantes para una persona esta razonado y probado en unidad pero no observado bajo concurrencia; y el E2E del camino completo, que hoy no existe. Se desbloquea instalando JDK 21 o corriendo la suite donde ya lo haya: no requiere gasto, ni proyecto staging, ni datos reales.",
+    [
+      "tasks.md",
+      "docs/superpowers/specs/2026-09-06-t121-slice-2-approval-design.md",
+      "qa/rules/default-deny.test.ts",
+    ],
     "mvp",
   ),
 ];
@@ -2179,6 +2196,7 @@ const projectData = {
     T121: "2026-09-06",
     T122: "2026-09-06",
     T123: "2026-09-06",
+    T124: "2026-09-06",
     T068: "2026-09-06",
     T069: "2026-09-06",
     T070: "2026-09-06",
