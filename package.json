@@ -26,6 +26,7 @@
     "test:integration": "node scripts/run-integration.mjs",
     "test:load:synthetic": "node scripts/load-smoke.mjs",
     "typecheck": "corepack pnpm -r --if-present typecheck",
+    "release:delta": "node scripts/release-delta.mjs",
     "verify:mvp": "node scripts/verify-mvp.mjs"
   },
   "devDependencies": {

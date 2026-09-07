@@ -73,10 +73,10 @@ const RESOLUTION_REQUIREMENTS = {
     "Ejecutar el checklist completo y obtener el checkpoint del operador antes de abrir T058.",
   ],
   T058: [
-    "T057 debe estar cerrado y todos los gates de seguridad, staging, costos y rollback deben estar verdes.",
-    "Obtener confirmaci\u00f3n expl\u00edcita del operador para el despliegue productivo.",
-    "Verificar backup/rollback, variables y controles de acceso antes de publicar.",
-    "Desplegar, ejecutar smoke post-release y registrar la revisi\u00f3n desplegada y sus m\u00e9tricas.",
+    "Seguir docs/operations/t058-release-rollback-runbook.md: precondiciones con evidencia (verify:mvp, golden path, delta medido, secretos, facturacion), orden indices -> Rules -> Functions por nombre -> frontend, y verificacion posterior.",
+    "Decidir lote a lote cuales de las 114 callables invocadas y sin desplegar entran, con que datos previos (seed de Levels, coordenadas, texto legal) y sin tocar las once que dependen de BPT_SYNTHETIC_PILOT hasta decidir ese gate.",
+    "Resolver las dos funciones huerfanas (searchMembers, getMemberReportSummary) y listRegyfitAccessRecords en un paso propio; nunca desplegar con --only functions sin nombres mientras existan.",
+    "Crear la alerta de presupuesto en Google Cloud y obtener la confirmacion explicita del operador para la release; registrar hash completo, functions:list posterior y deployment de Pages en el ledger.",
   ],
   T059: [
     "Completar T058 y conservar evidencia del release y del rollback ensayado.",
@@ -206,10 +206,9 @@ const RESOLUTION_REQUIREMENTS = {
     "Registrar evidencia fresca; ninguna omisi\u00f3n del golden path puede contarse como aprobada.",
   ],
   T099: [
-    "Escribir la enmienda al contrato de T057: sin proyecto staging separado, con los riesgos que eso deja sin cubrir anotados como aceptados.",
-    "Escribir el runbook de release y rollback de T058, con el orden exacto de Rules, Functions y frontend.",
-    "Fijar un baseline reconstruible al que volver: los commits de despliegue que el ledger registraba no existen tras la reescritura de T107.",
-    "Repetir Rules y golden path sobre el commit exacto que se vaya a desplegar, y adjuntar la evidencia.",
+    "Hecho 2026-09-07: enmienda al contrato de T057 (ya existia), runbook de release y rollback, baseline reconstruible con el mapa de hashes de T107 e inventario real de produccion, delta corregido y reproducible con scripts/release-delta.mjs.",
+    "Repetir Rules y golden path sobre el commit exacto que se vaya a desplegar el dia de la release; es una precondicion del runbook (seccion 4.0), no un pendiente de esta fila.",
+    "Aprobacion explicita del operador de la fila en revision.",
   ],
   T100: [
     "Vincular target=emulator al projectId demo y a hosts loopback exactos antes de inicializar Firebase.",
@@ -272,10 +271,10 @@ const RESOLUTION_REQUIREMENTS = {
     "Esperar el texto legal aprobado (T011) antes de publicar cualquier version real.",
   ],
   T108: [
-    "Cerrar T099 y T011 para disponer de un proyecto aislado donde ensayar la migracion.",
-    "Implementar los ejecutores de bootstrap, forward, compensacion, rollback e identity-reconcile del runbook member-directory-v1.",
+    "Aprobacion de T099 (en revision) y firma de T011; sin staging separado, el ensayo es el Emulator y la ejecucion real entra por la release de T058.",
+    "Implementar los ejecutores de bootstrap, forward, compensacion, rollback e identity-reconcile del runbook member-directory-v1; hoy no existe ninguno.",
     "Acunar y consumir aprobaciones con lease, deadline y handoff de source; sin dual-write silencioso.",
-    "Reabrir y poner en verde los 18 requisitos RED heredados de T093 con dry-run, cuarentena y rollback en Emulator.",
+    "Reabrir y poner en verde los 18 requisitos RED heredados de T093 con dry-run, cuarentena y rollback en Emulator, y backup verificado antes de produccion.",
   ],
   T104: [
     "Configurar NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY en Cloudflare Pages y relanzar el despliegue.",
@@ -285,9 +284,9 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T106: [
     "Paso 1 (hecho): capturar contacto de emergencia y direccion como bloques Confidential opcionales y completos.",
-    "Publicar la version oficial del waiver con las cuatro clausulas cuando T011 y el texto legal esten aprobados.",
-    "Anadir recordWitnessedWaiver con signatureMethod in_person_witnessed, evidencia PDF y auditoria.",
-    "Exigir tutor vinculado para menores y permitir renovacion digital desde /account/waiver.",
+    "Decidir si la firma presencial en papel (recordWitnessedWaiver, in_person_witnessed) sigue teniendo sentido ahora que la inscripcion digital de T121 recoge la aceptacion del waiver del club.",
+    "Sacar consent-callables del gate BPT_SYNTHETIC_PILOT con un gate de produccion real y publicar la version oficial del waiver; T011 firmada para datos reales.",
+    "Credenciales R2 reales para la evidencia PDF; despues, exigir tutor vinculado para menores y permitir renovacion digital desde /account/waiver.",
   ],
   T101: [
     "Publicar el catalogo de Levels de forma atomica o mediante estados verificables con manifest completo.",
@@ -1146,8 +1145,14 @@ const closeoutItems = [
     "pendiente",
     "Realizar la publicacion solo despues de superar todos los controles requeridos.",
     "T057",
-    "La publicacion en produccion todavia esta pendiente. Precondicion verificada el 2026-09-06 y no registrada hasta ahora: los tres secretos del directorio canonico valen placeholder-not-configured en bptjersey-f5a25. Fallan cerrado, no en silencio (19 bytes decodificados contra los 32 exigidos), asi que el servicio lanza al construirse en vez de derivar claves de una cadena publica; pero ninguna funcion que ligue una ficha a una cuenta puede desplegarse hasta reemplazarlos.",
-    ["tasks.md", "STACK.md"],
+    "La publicacion coordinada en produccion sigue pendiente. Estado real al 2026-09-07, leido en solo lectura: 39 funciones desplegadas en seis lotes con commit de origen reconstruido, Rules e indices identicos a HEAD, Pages en 51918ad, y los tres secretos del directorio canonico ya en version 2 con material real (el placeholder que esta fila registraba se resolvio ese dia). Hueco medido con pnpm release:delta: la web invoca 149 callables y 114 no estan desplegadas (no 25); dos desplegadas ya no existen en el codigo (searchMembers, getMemberReportSummary) y un --only functions sin nombres las borraria; ninguna funcion define BPT_SYNTHETIC_PILOT, asi que las tres de consentimiento desplegadas estan inertes. Procedimiento en docs/operations/t058-release-rollback-runbook.md. Le toca a T058: elegir lote a lote que se despliega y con que datos previos, retirar o no las huerfanas, crear la alerta de presupuesto que el incidente de facturacion demostro que falta, y ejecutar con confirmacion explicita del operador.",
+    [
+      "tasks.md",
+      "STACK.md",
+      "docs/operations/t058-release-rollback-runbook.md",
+      "docs/operations/t057-post-pilot-production-checklist.md",
+      "scripts/release-delta.mjs",
+    ],
     "roadmap",
   ),
   task(
@@ -1713,11 +1718,18 @@ const recoveryItems = [
   task(
     "T099",
     "Ensayar la release coordinada que necesita T058, sin staging separado",
-    "en-progreso",
+    "revision",
     "Validar el despliegue y su vuelta atras antes de tocar produccion, con el Emulator como gate.",
     "T011,T057,T098,T101",
-    "Recortada el 2026-09-07 por decision del operador: las cuatro dependencias ya estaban aprobadas y el gate humano que la bloqueaba -decision owner y revisor de T011- se resolvio el 2026-09-06, asi que lo unico que quedaba era gasto. Se descarta el proyecto Firebase staging separado; el Emulator queda como gate funcional y T099 pasa a ser el ensayo del despliegue coordinado que T058 necesita. Hecho el 2026-09-07 sobre el artefacto construido desde 8a269c5: Rules 92/92, golden path 19/19 con secretos sinteticos y cero trafico a produccion, y el delta de release medido -27 callables existen en el codigo y no en produccion, entre ellas submitEnrolmentRequest, approveEnrolmentRequest y listEnrolmentRequests, que la UI ya publicada invoca-. Falta el runbook de release y rollback, y ahi aparecio el hallazgo que lo condiciona: los commits de despliegue que el ledger registraba (872c398, 41394c8, 3da1f1c) ya no existen tras la reescritura de historia de T107, asi que hoy no hay baseline reconstruible al que volver. Falta tambien la enmienda escrita al contrato de T057.",
-    ["tasks.md", "STACK.md", "docs/operations/t057-post-pilot-production-checklist.md"],
+    "Recortada el 2026-09-07 por decision del operador: sin proyecto staging separado, el Emulator queda como gate funcional y T099 es el ensayo del despliegue coordinado que T058 necesita. Primera mitad sobre 8a269c5: Rules 92/92, golden path 19/19 con secretos sinteticos, cero trafico a produccion. Segunda mitad el mismo dia: la enmienda al contrato de T057 ya estaba escrita; runbook de release y rollback en docs/operations/t058-release-rollback-runbook.md (orden indices -> Rules -> Functions por nombre -> frontend, rollback por capa desde un worktree del commit baseline, huerfanas, verificacion posterior y registro de releases); baseline resuelto con el mapa de hashes de T107 (872c398 -> c8f06ed, 41394c8 -> 12d7ff2, 3da1f1c -> 89fbe15; 0cd2446 sin equivalente) e inventario de produccion leido en solo lectura: 39 funciones en seis lotes atados a commits vivos, Rules identicas a HEAD, Pages en 51918ad. Delta corregido con scripts/release-delta.mjs (prueba 7/7): la web invoca 149 callables y 114 no estan desplegadas, no 25; dos desplegadas ya no existen en el codigo y un --only functions sin nombres las borraria. Queda la aprobacion del operador; ejecutar la release es T058.",
+    [
+      "tasks.md",
+      "docs/operations/t058-release-rollback-runbook.md",
+      "docs/operations/t057-synthetic-staging-contract.md",
+      "scripts/release-delta.mjs",
+      "qa/unit/release-delta.test.ts",
+      "package.json",
+    ],
     "mvp",
   ),
   task(
@@ -1814,7 +1826,7 @@ const recoveryItems = [
     "en-progreso",
     "Contacto de emergencia y direccion en el alta, firma presencial atestiguada y renovacion digital.",
     "T090,T093,T011",
-    "Paso 1 (datos) completo 2026-09-04 para adultos y menores: bloques opcionales emergencyContact/postalAddress en perfil administrativo, alta, edicion y detalle restringido, nunca en filas generales. Los menores solo entran por el flujo de familias, asi que hasta hoy ninguno podia llevar contacto de emergencia; family-service crea ahora su perfil administrativo en la misma transaccion que estudiante, relacion y control plane, sin identificador administrativo y sin reservar claves de identidad. Paso 2 (firma) bloqueado por T011 y texto legal.",
+    "Paso 1 (datos) completo 2026-09-04 para adultos y menores: bloques opcionales emergencyContact/postalAddress en perfil administrativo, alta, edicion y detalle restringido, nunca en filas generales; family-service crea el perfil administrativo del menor en la misma transaccion que estudiante, relacion y control plane. Paso 2 (firma presencial atestiguada y renovacion digital) sigue sin construirse. Reconciliado 2026-09-07: T011 esta aprobada como borrador desde el 2026-09-06 (sigue bloqueando datos reales hasta la firma) y el texto del waiver del club ya esta en el dominio (enrolment-waiver-terms, T121), asi que los dos bloqueos que la fila nombraba cambiaron de forma. Falta, y no es codigo: decidir si la firma en papel sigue teniendo sentido con la aceptacion digital de la inscripcion, sacar consent-callables del gate BPT_SYNTHETIC_PILOT, y credenciales R2 reales para la evidencia PDF.",
     [
       "tasks.md",
       "docs/operations/t106-waiver-enrolment-integration-analysis.md",
@@ -1844,7 +1856,7 @@ const recoveryItems = [
     "pendiente",
     "Ejecutar la migracion legacy diferida por el corte de T093 con aprobacion, chunks y rollback probados.",
     "T093,T099",
-    "Alta 2026-09-05 al aprobar el corte de T093. Hereda los 11 requisitos out-of-cut (R06, R20-R22, R25, R26, R32-R34, R36, R45) y la clausula de migracion de los 7 partial (R07, R11, R12, R18, R23, R27, R31) de la matriz RED. Hoy no existe ningun ejecutor: no hay escritor de memberDirectoryMigrationChunks ni acunacion o consumo de aprobaciones. Bloqueada en la practica por T099 y T011; no forma parte del piloto sintetico.",
+    "Alta 2026-09-05 al aprobar el corte de T093. Hereda los 11 requisitos out-of-cut (R06, R20-R22, R25, R26, R32-R34, R36, R45) y la clausula de migracion de los 7 partial (R07, R11, R12, R18, R23, R27, R31) de la matriz RED. Reconciliado 2026-09-07: sigue sin existir ningun ejecutor (ni escritor de memberDirectoryMigrationChunks ni acunacion o consumo de aprobaciones; solo el inicializador de baseline vacio y el ensayo de backup v3). El staging separado que esperaba se descarto con la enmienda de T057: el ensayo es el Emulator y la ejecucion real entra por la release de T058 con backup verificado y confirmacion separada. T099 en revision; T011 aprobada como borrador pero bloquea datos reales hasta la firma. No forma parte del piloto sintetico.",
     [
       "tasks.md",
       "docs/data/migrations/member-directory-v1.md",
@@ -2182,9 +2194,9 @@ const projectData = {
     T103: "2026-09-04",
     T104: "2026-09-05",
     T105: "2026-09-04",
-    T106: "2026-09-04",
+    T106: "2026-09-07",
     T107: "2026-09-05",
-    T108: "2026-09-05",
+    T108: "2026-09-07",
     T109: "2026-09-05",
     T110: "2026-09-05",
     T111: "2026-09-05",
@@ -2210,7 +2222,7 @@ const projectData = {
     T070: "2026-09-06",
     T071: "2026-09-06",
   },
-  cutoffDate: "2026-09-05",
+  cutoffDate: "2026-09-07",
   sourceLedger: "tasks.md",
   ledgerCutoffDate: "2026-09-04",
   sourceFiles: [

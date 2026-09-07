@@ -45,8 +45,8 @@ describe("Lista project progress", () => {
   it("reflects the board as of 2026-09-07", () => {
     expect(counts).toEqual({
       aprobada: 114,
-      revision: 0,
-      "en-progreso": 2,
+      revision: 1,
+      "en-progreso": 1,
       pendiente: 3,
       bloqueada: 0,
       cancelada: 7,
@@ -54,11 +54,15 @@ describe("Lista project progress", () => {
     // T099 stopped being blocked on 2026-09-07: its four dependencies were already approved and
     // the human gate it waited on - a designated decision owner and reviewer for T011 - was
     // settled on 2026-09-06, leaving only spend. The operator then cut its scope to a release
-    // rehearsal, so it is work in progress rather than a row waiting on somebody. No row is
-    // blocked any more, which is worth noticing rather than celebrating: the five that remain
-    // are open because the work is real, not because permission is missing.
-    expect(items.filter((item) => item.status === "en-progreso")).toEqual([
+    // rehearsal, and later that day the rehearsal was finished: runbook written, baseline
+    // reconstructed from the T107 hash map and the live inventory, delta re-measured. It now waits
+    // for the operator's approval, which is what `revision` means on this board. No row is blocked
+    // any more, which is worth noticing rather than celebrating: the four that remain open are
+    // open because the work is real, not because permission is missing.
+    expect(items.filter((item) => item.status === "revision")).toEqual([
       expect.objectContaining({ id: "T099" }),
+    ]);
+    expect(items.filter((item) => item.status === "en-progreso")).toEqual([
       expect.objectContaining({ id: "T106" }),
     ]);
   });
