@@ -3,7 +3,8 @@
 **Fecha de trabajo:** 2026-09-01  
 **Borrador con valores propuestos:** 2026-09-05  
 **Identidad del controller aportada por el operador:** 2026-09-06  
-**Estado:** en revisión del operador; borrador completo, sin firmar y sin efecto productivo.  
+**Decisiones firmadas:** 2026-09-07, por poder (Andres Santiago, p.p. Vladimiro Afonso)  
+**Estado:** decisiones firmadas en el acta; **ningún plazo está implementado todavía**, así que la política sigue sin efecto en el sistema.  
 **Ámbito:** BPT Jersey, datos de usuarios, menores, tutores, personal, pagos, soporte y cualquier dato de salud que llegue a tratarse.
 
 > Este documento es una propuesta operativa y no sustituye asesoramiento jurídico. No se debe procesar un nuevo conjunto de datos de menores o salud hasta que el controller y el reviewer independiente hayan firmado las decisiones aplicables.
@@ -187,7 +188,9 @@ T011 solo puede pasar a **aprobada** cuando existan:
 
 El acta que recoge las firmas —las diez decisiones, el calendario, el mapa de regiones y los tres
 puntos marcados como menos fiables— está en `docs/operations/t011-controller-approval-acta-draft.md`,
-sin firmar.
+**firmada el 2026-09-07 por poder** (Andres Santiago, p.p. Vladimiro Afonso, sobre la instrucción del
+operador de esa fecha). Firmar el calendario autoriza construirlo; hoy el sistema no borra nada al
+vencimiento, así que la lista de arriba sigue siendo trabajo pendiente y no una descripción.
 
 ## Fuentes primarias
 

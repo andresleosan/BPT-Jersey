@@ -44,10 +44,10 @@ const RESOLUTION_REQUIREMENTS = {
     "Validar el adaptador en un entorno aislado con credenciales de prueba y documentar rollback.",
   ],
   T011: [
-    "Designar al controller, owner y reviewer independiente responsables de la decisi\u00f3n.",
-    "Resolver y aprobar las diez decisiones sobre base legal, retenci\u00f3n, residencia y eliminaci\u00f3n.",
-    "Completar el registro JOIC, evaluaci\u00f3n de impacto y controles para datos de menores y salud.",
-    "Actualizar reglas, runbook, auditor\u00eda y pruebas con la pol\u00edtica aprobada.",
+    "Hecho 2026-09-06: controller, owner y contacto designados; revisor independiente y registro JOIC retirados por decision del operador.",
+    "Hecho 2026-09-06: DPIA redactada, con riesgo residual declarado alto que la firma no baja.",
+    "Hecho 2026-09-07: las diez decisiones, la D11 y los doce plazos firmados por poder (Andres Santiago, p.p. Vladimiro Afonso).",
+    "Falta, y es dato y no decision: la razon social completa -forma juridica, numero de registro y domicilio registrado-, que bloquea contratos de encargado. Y despues, implementar los plazos, que hoy no existen.",
   ],
   T017: [
     "Mantener la cancelaci\u00f3n: no implementar MFA obligatorio dentro de esta tarea sustituida.",
@@ -206,9 +206,9 @@ const RESOLUTION_REQUIREMENTS = {
     "Registrar evidencia fresca; ninguna omisi\u00f3n del golden path puede contarse como aprobada.",
   ],
   T099: [
-    "Hecho 2026-09-07: enmienda al contrato de T057 (ya existia), runbook de release y rollback, baseline reconstruible con el mapa de hashes de T107 e inventario real de produccion, delta corregido y reproducible con scripts/release-delta.mjs.",
-    "Repetir Rules y golden path sobre el commit exacto que se vaya a desplegar el dia de la release; es una precondicion del runbook (seccion 4.0), no un pendiente de esta fila.",
-    "Aprobacion explicita del operador de la fila en revision.",
+    "Hecho 2026-09-07: enmienda al contrato de T057, runbook de release y rollback, baseline reconstruible e inventario real de produccion, delta corregido y reproducible con scripts/release-delta.mjs.",
+    "Hecho 2026-09-07: Rules 92/92 y golden path 19/19 sobre el commit 51918ad, mas revision adversarial de cuatro lentes con sus 17 hallazgos confirmados incorporados.",
+    "Aprobada por el operador el 2026-09-07. Repetir Rules y golden path sobre el commit exacto que se despliegue es precondicion del runbook, no de esta fila.",
   ],
   T100: [
     "Vincular target=emulator al projectId demo y a hosts loopback exactos antes de inicializar Firebase.",
@@ -518,7 +518,7 @@ const phase0Items = [
     "aprobada",
     "Confirmar la política aplicable a los datos de la academia, menores e información restringida.",
     "-",
-    "Aprobada por el operador 2026-09-06 como borrador con valores propuestos; las cuatro casillas del operador llegan el 2026-09-06 y la firma legal sigue pendiente, asi que T011 sigue bloqueando produccion y datos reales. 2026-09-05, por instrucción del operador: el borrador queda completo con valores propuestos entrecomillados en docs/operations/t011-retention-residency-erasure-policy.md, editables en vez de vacíos. Cubre los cuatro responsables, doce plazos de retención con su grado de fiabilidad declarado y el mapa de región por servicio. Un valor entrecomillado es una propuesta sin verificar, sin firmar y sin efecto en el sistema: no abre producción, datos reales, staging ni transferencias, y ningún plazo está implementado. Dos casillas siguen vacías a propósito, el número de registro JOIC y la identidad del revisor, porque inventarlas fabricaría un registro regulatorio y un encargo profesional. Dos hallazgos reales al rellenar: la región de Firestore no se puede cambiar una vez creada la base, y Firebase Auth no permite elegir región, así que es una transferencia que el revisor debe evaluar. T011 espera la edición del operador; solo pasa a aprobada con las designaciones, la DPIA y la firma del revisor.",
+    "Acta firmada el 2026-09-07 por instruccion del operador, en la forma que la propia acta prescribia para este caso: Andres Santiago, p.p. Vladimiro Afonso, con esa instruccion como autorizacion referenciada. Es una atestacion tipeada por poder, no la firma de puno del controller, y la diferencia esta escrita en el acta, en la DPIA y en el ledger. Firmado: las diez decisiones sin enmiendas, la D11 sobre las contrasenas en claro de Regyfit, los tres puntos marcados como menos fiables con su salvedad intacta, los doce plazos de retencion y el mapa de regiones. Con esto se cierra el segundo de los tres criterios de cierre. Queda uno, que es dato y no decision: la razon social completa (forma juridica, numero de registro y domicilio registrado), que bloquea contratos de encargado y no releases. Lo que la firma no cambia: el riesgo residual de la DPIA sigue alto, ninguno de los doce plazos existe todavia en el sistema, no hay revisor independiente, no se aprueba la DPIA ni se resuelve la notificacion a la JOIC, y ninguna release queda autorizada (ese gate es T058).",
     [
       "tasks.md",
       "BRIEF.md",
@@ -1718,10 +1718,10 @@ const recoveryItems = [
   task(
     "T099",
     "Ensayar la release coordinada que necesita T058, sin staging separado",
-    "revision",
+    "aprobada",
     "Validar el despliegue y su vuelta atras antes de tocar produccion, con el Emulator como gate.",
     "T011,T057,T098,T101",
-    "Recortada el 2026-09-07 por decision del operador: sin proyecto staging separado, el Emulator queda como gate funcional y T099 es el ensayo del despliegue coordinado que T058 necesita. Primera mitad sobre 8a269c5: Rules 92/92, golden path 19/19 con secretos sinteticos, cero trafico a produccion. Segunda mitad el mismo dia: la enmienda al contrato de T057 ya estaba escrita; runbook de release y rollback en docs/operations/t058-release-rollback-runbook.md (orden indices -> Rules -> Functions por nombre -> frontend, rollback por capa desde un worktree del commit baseline, huerfanas, verificacion posterior y registro de releases); baseline resuelto con el mapa de hashes de T107 (872c398 -> c8f06ed, 41394c8 -> 12d7ff2, 3da1f1c -> 89fbe15; 0cd2446 sin equivalente) e inventario de produccion leido en solo lectura: 39 funciones en seis lotes atados a commits vivos, Rules identicas a HEAD, Pages en 51918ad. Delta corregido con scripts/release-delta.mjs (prueba 7/7): la web invoca 149 callables y 114 no estan desplegadas, no 25; dos desplegadas ya no existen en el codigo y un --only functions sin nombres las borraria. Queda la aprobacion del operador; ejecutar la release es T058.",
+    "Aprobada por el operador el 2026-09-07. Recortada ese mismo dia por decision suya: sin proyecto staging separado, el Emulator queda como gate funcional y T099 es el ensayo del despliegue coordinado que T058 necesita. Entregado: enmienda al contrato de T057 (ya existia), runbook de release y rollback en docs/operations/t058-release-rollback-runbook.md, baseline reconstruido con el mapa de hashes de T107 e inventario real de produccion leido en solo lectura (39 funciones en seis lotes atados a commits vivos, Rules identicas a HEAD, Pages en 51918ad), y delta corregido con scripts/release-delta.mjs: la web invoca 149 callables y 114 no estan desplegadas, no 25; dos desplegadas ya no existen en el codigo y un --only functions sin nombres las borraria. Revision adversarial de cuatro lentes con dos escepticos por hallazgo: 17 confirmados, todos incorporados. Evidencia sobre 51918ad: Rules 92/92, golden path 19/19, unitarias 268 archivos y 2186 pruebas, typecheck 6/6, lint y formato limpios. Ejecutar la release es T058.",
     [
       "tasks.md",
       "docs/operations/t058-release-rollback-runbook.md",
@@ -2134,7 +2134,7 @@ const projectData = {
     T008: "2026-08-25",
     T009: "2026-08-25",
     T010: "2026-09-06",
-    T011: "2026-09-06",
+    T011: "2026-09-07",
     T012: "2026-08-07",
     T013: "2026-08-07",
     T014: "2026-08-18",

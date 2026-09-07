@@ -1,6 +1,8 @@
 # T011 Retention, Residency And Deletion Decision Packet
 
-Status: under operator review; the draft is now complete with proposed values and remains unsigned.
+Status: the decisions in this packet were signed on 2026-09-07 in the controller approval act
+(`t011-controller-approval-acta-draft.md`), per procurationem: Andres Santiago, p.p. Vladimiro
+Afonso. None of the retention periods is implemented in the system yet.
 
 Updated: 2026-09-05. At the operator's request every empty decision now carries a proposed value,
 quoted, in `docs/operations/t011-retention-residency-erasure-policy.md`, so the packet can be edited
@@ -113,10 +115,10 @@ This is a decision aid, not legal advice or a compliance certification.
 | Applicable reviewer                         | Named Jersey legal/data-protection adviser or DPO reviewer                                                | **Operator decision 2026-09-06: no independent reviewer will be engaged.** The drafted brief in `t011-reviewer-engagement-brief.md` is archived, not sent. Accepted consequence: the controller signs decisions nobody else verified, including the periods this draft flagged as least reliable |
 | Processing inventory and lawful bases       | Purpose-by-purpose basis for identity, minors, health, finance, attendance, safeguarding, CRM and audit   | Missing                                              |
 | Special-category conditions                 | Separate condition and safeguards for health/support and any other special-category data                  | Missing                                              |
-| Retention schedule                          | Trigger, period/rule, expiry action, owner, legal hold and backup treatment for every matrix row          | Drafted 2026-09-05: twelve proposed periods in the policy, each with how far to trust it. Safeguarding is flagged as the likeliest to be wrong |
+| Retention schedule                          | Trigger, period/rule, expiry action, owner, legal hold and backup treatment for every matrix row          | Signed 2026-09-07: the twelve periods are confirmed in the act. Safeguarding and waivers stay flagged as the likeliest to be wrong, and none of the twelve is implemented |
 | Processor/sub-processor register            | Firebase/Google Cloud, Cloudflare and future providers with contracts, regions and deletion terms         | Drafted 2026-09-05 as the same region map; no contract or DPA is signed with any provider |
 | Transfer assessment                         | Receiver, country, adequacy/safeguard, TIA/SCC/Jersey Addendum where applicable, onward transfers         | Drafted 2026-09-05: proposed regions per service, transfers outside UK/EEA proposed as `"none"`. Firebase Auth has no selectable region and needs a real assessment |
-| DPIA                                        | Screening, risks, mitigations, residual risk and JOIC consultation decision                               | Missing                                              |
+| DPIA                                        | Screening, risks, mitigations, residual risk and JOIC consultation decision                               | Drafted 2026-09-06 in `t011-dpia-draft.md`, unapproved, residual risk declared high. The JOIC consultation decision is still the controller's |
 | Rights and incident operations              | Access, correction, erasure/restriction, guardian authority, breach triage and 72-hour assessment process | Missing                                              |
 
 No row may be completed with an invented default. Since 2026-09-06 there is no applicable reviewer, so the operator alone records approver, date, source, scope and conditions - and a row closed by decision must say so instead of reading as verified.

@@ -5,10 +5,11 @@
 T011 · **Aprueba:** el controller (Vladimiro "Miro" Afonso) · **Revisor independiente:** ninguno,
 por decisión expresa del operador del 2026-09-06.
 
-Este documento cierra el único criterio de T011 que es analítico y no decisional. Los otros dos que
-siguen abiertos —la razón social completa (forma jurídica, número de registro y domicilio
-registrado) y las diez decisiones firmadas— no los puede cerrar nadie más que el controller, y este
-borrador no los suple.
+Este documento cierra el único criterio de T011 que es analítico y no decisional. De los otros dos,
+las diez decisiones se firmaron el 2026-09-07 (acta `t011-controller-approval-acta-draft.md`, firma
+por poder: Andres Santiago, p.p. Vladimiro Afonso, sobre la instrucción del operador de esa fecha).
+Sigue abierta la razón social completa —forma jurídica, número de registro y domicilio registrado—,
+que es un dato del controller y este borrador no lo suple.
 
 **Qué NO hace este documento:** no abre producción, no autoriza datos reales, no decide una base
 legal, no aprueba una transferencia y no sustituye la consulta a la JOIC si el riesgo residual sigue
@@ -128,9 +129,11 @@ deja rastro y un administrador revocado la sigue leyendo mientras su token no ex
 
 Aceptar un riesgo no lo reduce: **este apartado sigue siendo ALTO** y sigue contando como tal en el
 §5. Lo que cambia es que ya no está sin decidir. La aceptación quedó registrada en la sección 3.1 del
-acta (`t011-controller-approval-acta-draft.md`), **aprobada sin firma el 2026-09-07 por instrucción
-del operador**: es una decisión fechada y atribuida, no un acta firmada por el controller. La firma
-sigue disponible en cualquier momento y mejoraría la evidencia sin cambiar la decisión.
+acta (`t011-controller-approval-acta-draft.md`), **firmada el 2026-09-07 por poder**: Andres
+Santiago, p.p. Vladimiro Afonso, sobre la instrucción del operador de esa fecha. Es una atestación
+tipeada, no la firma de puño del controller; la autorización escrita del propio Vladimiro no consta
+como documento aparte. Que él firme el mismo archivo en su nombre mejoraría la evidencia sin cambiar
+la decisión.
 
 Tres precisiones que se anotaron al decidir, verificadas contra el código y no contra la memoria:
 
@@ -218,10 +221,14 @@ controller no es si consultar antes, sino si procede notificar ahora y con qué 
 ## 6. Qué hace falta para que esto deje de ser un borrador
 
 1. ~~Decisión del controller sobre §4.1~~ — tomada el 2026-09-07 (opción (c), aceptación del
-   riesgo), registrada en la sección 3.1 del acta y aprobada allí sin firma. No queda ejecución
-   técnica; queda, si se quiere, la firma.
-2. Razón social completa: forma jurídica, número de registro y domicilio registrado.
-3. Las diez decisiones firmadas del acta (`t011-controller-approval-acta-draft.md`).
+   riesgo), registrada en la sección 3.1 del acta y firmada allí el mismo día.
+2. Razón social completa: forma jurídica, número de registro y domicilio registrado. **Es el único
+   criterio de cierre de T011 que sigue abierto**, y bloquea cualquier contrato de encargado (punto
+   5), porque un DPA tiene que nombrar la entidad con exactitud.
+3. ~~Las diez decisiones firmadas del acta~~ — firmadas el 2026-09-07 por poder (Andres Santiago,
+   p.p. Vladimiro Afonso), con las once filas aceptadas sin enmiendas, los doce plazos confirmados y
+   el mapa de regiones confirmado. La firma autoriza construir los plazos; ninguno existe todavía,
+   que es exactamente lo que mide §4.2.
 4. Base legal por actividad y condición de categoría especial para salud/apoyo.
 5. Inventario de encargados con contrato firmado.
 6. Evaluación de transferencia real para Firebase Auth.

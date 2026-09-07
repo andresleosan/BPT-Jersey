@@ -44,24 +44,21 @@ describe("Lista project progress", () => {
 
   it("reflects the board as of 2026-09-07", () => {
     expect(counts).toEqual({
-      aprobada: 114,
-      revision: 1,
+      aprobada: 115,
+      revision: 0,
       "en-progreso": 1,
       pendiente: 3,
       bloqueada: 0,
       cancelada: 7,
     });
-    // T099 stopped being blocked on 2026-09-07: its four dependencies were already approved and
-    // the human gate it waited on - a designated decision owner and reviewer for T011 - was
-    // settled on 2026-09-06, leaving only spend. The operator then cut its scope to a release
-    // rehearsal, and later that day the rehearsal was finished: runbook written, baseline
-    // reconstructed from the T107 hash map and the live inventory, delta re-measured. It now waits
-    // for the operator's approval, which is what `revision` means on this board. No row is blocked
-    // any more, which is worth noticing rather than celebrating: the four that remain open are
-    // open because the work is real, not because permission is missing.
-    expect(items.filter((item) => item.status === "revision")).toEqual([
-      expect.objectContaining({ id: "T099" }),
-    ]);
+    // T099 was the release rehearsal. It stopped being blocked on 2026-09-07 (its dependencies were
+    // already approved and the human gate had been settled the day before), the rehearsal was
+    // finished the same day - runbook, baseline rebuilt from the T107 hash map and the live
+    // inventory, delta re-measured - and the operator approved it. Nothing sits in `revision` any
+    // more, and nothing is blocked. The four rows still open are open because the work is real:
+    // T106 waits on three decisions, T108 has no executor written, and T058/T059 are the release
+    // and the close-out, both the operator's to call.
+    expect(items.filter((item) => item.status === "revision")).toEqual([]);
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
       expect.objectContaining({ id: "T106" }),
     ]);
@@ -91,9 +88,10 @@ describe("Lista project progress", () => {
     // stay as they are and the risk is accepted in writing, because the data is real, the office
     // works from it and the administrator already has permission to use it. Counting that as
     // approved is honest only because what was accepted is written down rather than quietly
-    // dropped - the field is still readable by any administrator claim with no audit trail, the
-    // DPIA's residual risk is still high, and the signature that formalises the acceptance belongs
-    // to T011's act, which is still unsigned.
-    expect(progress).toEqual({ approved: 114, total: 119, percentage: 96 });
+    // dropped - the field is still readable by any administrator claim with no audit trail, and the
+    // DPIA's residual risk is still high. T011's act was signed later that day, per procurationem
+    // (Andres Santiago, p.p. Vladimiro Afonso), which formalises the acceptance without changing
+    // any of that.
+    expect(progress).toEqual({ approved: 115, total: 119, percentage: 97 });
   });
 });
