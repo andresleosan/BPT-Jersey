@@ -147,6 +147,25 @@ export type {
   StudentAdminProfileSource,
   StudentDirectorySource,
 } from "./members/member-directory-contracts";
+export {
+  assertChunkSequence,
+  assertForwardCapacity,
+  buildMemberDirectoryChunkId,
+  isWriteEligibleClassification,
+  memberDirectoryChunkIdSchema,
+  memberDirectoryChunkReceiptSchema,
+  memberDirectoryDryRunClassifications,
+  memberDirectoryMigrationPhases,
+  memberDirectoryOperationReceiptSchema,
+  memberDirectoryRollbackCapacityLimit,
+  parseMemberDirectoryChunkId,
+} from "./members/member-directory-migration-contracts";
+export type {
+  MemberDirectoryChunkReceipt,
+  MemberDirectoryDryRunClassification,
+  MemberDirectoryMigrationPhase,
+  MemberDirectoryOperationReceipt,
+} from "./members/member-directory-migration-contracts";
 export type {
   MemberAuditMetadata,
   MemberGender,
