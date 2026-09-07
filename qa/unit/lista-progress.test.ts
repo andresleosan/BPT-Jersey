@@ -47,7 +47,7 @@ describe("Lista project progress", () => {
       aprobada: 109,
       revision: 1,
       "en-progreso": 2,
-      pendiente: 3,
+      pendiente: 4,
       bloqueada: 1,
       cancelada: 7,
     });
@@ -80,6 +80,6 @@ describe("Lista project progress", () => {
     // T122 was opened on 2026-09-06 for a defect that already existed and nobody had recorded, so
     // the denominator grew while the numerator did not. The percentage falling is the honest
     // reading: work that was always there is now counted.
-    expect(progress).toEqual({ approved: 109, total: 116, percentage: 94 });
+    expect(progress).toEqual({ approved: 109, total: 117, percentage: 93 });
   });
 });
