@@ -5395,7 +5395,7 @@ social completa y las diez decisiones firmadas.
 **Contadores:** 113 -> 114 aprobadas de 119, 95% -> 96%. Quedan cinco filas abiertas -T106, T099,
 T108, T058 y T059- y ninguna se cierra con codigo.
 
-### Produccion caida: el backend no responde y el ledger decia que si - 2026-09-07
+### Produccion caida: facturacion desactivada, todas las Functions fuera - 2026-09-07
 
 Reportado por el operador mientras se trabajaba en T099: `/admin/members/search` en
 `bptjersey.pages.dev` no carga el directorio. La consola del navegador acusa CORS en todas las
@@ -5418,11 +5418,13 @@ presenta como un fallo de CORS; la causa esta debajo. Se descarto la configuraci
 
 Son dos fallos distintos y conviene no mezclarlos:
 
-1. **Las desplegadas no arrancan.** Funcionaban el 2026-09-06 -esta registrado en este mismo ledger,
-   con 200 y "Academy member directory (249 records)"- y el codigo desplegado no ha cambiado desde
-   entonces, asi que cambio algo fuera del codigo. No se pudo leer el log: el classifier de auto mode
-   bloquea `firebase functions:log` igual que bloqueo `firebase deploy` en T104 y T105. Sin ese log,
-   la causa exacta no esta determinada y no se va a adivinar aqui.
+1. **Las desplegadas no arrancan. Causa encontrada: la facturacion del proyecto esta desactivada.**
+   El log de `listRegyfitMemberRecords` lo dice literal: `The request failed because billing is
+   disabled for this project.` Ultima llamada correcta el 2026-09-06T20:10:55Z; primer error el
+   2026-09-07T05:50:32Z. Cloud Functions v2 exige Blaze, asi que caen las 170 a la vez; Firestore
+   sigue respondiendo porque en nivel gratuito sigue sirviendo, y por eso el proyecto parecia vivo.
+   El codigo no tenia nada que ver: `functions:list` confirma que las funciones existen y estan
+   desplegadas en `us-central1`, y los arranques de instancia del 04 al 06 estan en el log, limpios.
 2. **Cuatro callables nunca llegaron a produccion.** Todos los despliegues se hicieron con
    `--only functions:<nombres>`, asi que el directorio canonico (`listMembers`, `getMemberDetail`) y
    la bandeja de inscripcion (`listEnrolmentRequests`) no existen en `bptjersey-f5a25`. La UI que las
@@ -5430,16 +5432,23 @@ Son dos fallos distintos y conviene no mezclarlos:
    hueco que define T058, y para el directorio canonico sigue bloqueado por los tres secretos
    placeholder (DPIA §4.7).
 
-Accion pedida al operador, minima y de menor alcance, para devolver el directorio:
+**Accion, y correccion de la recomendacion anterior.** Antes de leer el log se recomendo un
+redespliegue acotado de las dos funciones del directorio. **Eso era incorrecto y no debe ejecutarse
+mientras la facturacion siga desactivada:** el despliegue fallaria, y aunque no fallara no arreglaria
+nada, porque el problema no esta en el artefacto. Lo unico que devuelve el servicio es reactivar la
+facturacion, y solo lo puede hacer el operador:
 
-```powershell
-$env:FUNCTIONS_DISCOVERY_TIMEOUT="300000"
-npx firebase deploy --project bptjersey-f5a25 --only functions:listRegyfitMemberRecords,functions:getRegyfitMemberRecord
-```
+1. `console.cloud.google.com/billing`, proyecto `bptjersey-f5a25`.
+2. Revisar el estado de la cuenta de facturacion: tarjeta caducada o rechazada, credito de prueba
+   agotado, o cuenta cerrada.
+3. Volver a vincular una cuenta valida. Las funciones se recuperan solas: la siguiente instancia
+   arranca normal. Si tras reactivarla siguen en 5xx, entonces si toca redesplegar.
 
-No procede `--only functions` a secas: intentaria subir las 170 y varias atan los secretos
-placeholder. Si tras el redespliegue sigue en 503, hace falta
-`npx firebase functions:log --project bptjersey-f5a25 --only listRegyfitMemberRecords`.
+**Leccion, y no es menor.** Esto es exactamente la clase de fallo que la enmienda de T057 acababa de
+listar como no cubierta por el Emulator, escrita horas antes de que ocurriera. Ningun test, ningun
+Rules, ningun golden path habria visto esto. Tambien deja a la vista que no hay ninguna alerta: la
+caida empezo a las 05:50 UTC y se detecto porque el operador abrio la pagina. Un aviso de
+presupuesto o de estado de facturacion habria avisado antes; eso es trabajo de T058, no de aqui.
 
 ### T099 - ensayo de release, primera mitad - 2026-09-07
 
