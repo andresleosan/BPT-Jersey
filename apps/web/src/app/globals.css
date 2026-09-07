@@ -1321,6 +1321,36 @@ button:focus-visible {
   max-width: 32rem;
 }
 
+/*
+ * The shared .button variants are drawn for the dark hero: .button-secondary paints its border and
+ * label in --gi-white, which is invisible here because this screen sits on the light canvas. These
+ * rules restate both variants in the ink palette, the same way .profile-account-link does for the
+ * account pages.
+ */
+.client-auth-state .button-primary {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.client-auth-state .button-primary:hover {
+  background: var(--bpt-purple-dark);
+}
+
+.client-auth-state .button-secondary {
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple-dark);
+}
+
+.client-auth-state .button-secondary:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.client-auth-state .button-secondary:focus-visible {
+  box-shadow: 0 0 0 6px var(--canvas);
+  outline-color: var(--bpt-purple-dark);
+}
+
 .client-auth-loading {
   min-height: 100vh;
 }
