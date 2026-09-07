@@ -32,7 +32,7 @@ describe("Lista resolution board", () => {
   it("provides concrete resolution requirements for every unresolved task", () => {
     const items = unresolved();
 
-    expect(items.map((item) => item.id).sort()).toEqual(["T058", "T059", "T106", "T108", "T126"]);
+    expect(items.map((item) => item.id).sort()).toEqual(["T058", "T059", "T108", "T126", "T127"]);
     for (const item of items) {
       expect(project.getResolutionRequirements(item)).toEqual(
         expect.arrayContaining([expect.any(String)]),

@@ -32,6 +32,12 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 };
 
 const RESOLUTION_REQUIREMENTS = {
+  T127: [
+    "Decidir si la firma presencial en papel sigue teniendo sentido ahora que la inscripcion digital de T121 recoge la aceptacion, o si el alta administrativa debe apoyarse en esa misma aceptacion. Es una decision de producto.",
+    "Sacar consent-callables del gate BPT_SYNTHETIC_PILOT con un gate de produccion real: es tambien una de las decisiones de T058 (runbook 3.2), asi que se resuelve alli.",
+    "Aportar credenciales R2 reales para la evidencia PDF; siguen siendo placeholders desde T104. Compartido con T058.",
+    "Con esas tres, implementar el paso 2 segun docs/operations/t106-waiver-enrolment-integration-analysis.md, que sigue vigente y no hay que rehacer.",
+  ],
   T126: [
     "Aportar el domicilio de la entidad responsable. Candidato sin confirmar: Office 9, 13 Library Place, St Helier, la sede Town ya registrada en la configuracion de academia, que nadie ha confirmado como direccion de la entidad.",
     "Precisar si es sole trader o asociacion sin registrar: un sole trader es una persona fisica, y entonces el controller no es una entidad sino Vladimiro Afonso comerciando bajo el nombre. Cambia quien responde en derecho.",
@@ -1830,11 +1836,11 @@ const recoveryItems = [
   ),
   task(
     "T106",
-    "Integrar el Waiver and Emergency Contact Form en el alta administrativa",
-    "en-progreso",
-    "Contacto de emergencia y direccion en el alta, firma presencial atestiguada y renovacion digital.",
-    "T090,T093,T011",
-    "Paso 1 (datos) completo 2026-09-04 para adultos y menores: bloques opcionales emergencyContact/postalAddress en perfil administrativo, alta, edicion y detalle restringido, nunca en filas generales; family-service crea el perfil administrativo del menor en la misma transaccion que estudiante, relacion y control plane. Paso 2 (firma presencial atestiguada y renovacion digital) sigue sin construirse. Reconciliado 2026-09-07: T011 esta aprobada como borrador desde el 2026-09-06 (sigue bloqueando datos reales hasta la firma) y el texto del waiver del club ya esta en el dominio (enrolment-waiver-terms, T121), asi que los dos bloqueos que la fila nombraba cambiaron de forma. Falta, y no es codigo: decidir si la firma en papel sigue teniendo sentido con la aceptacion digital de la inscripcion, sacar consent-callables del gate BPT_SYNTHETIC_PILOT, y credenciales R2 reales para la evidencia PDF.",
+    "Integrar el Waiver and Emergency Contact Form en el alta administrativa: datos (paso 1)",
+    "aprobada",
+    "Contacto de emergencia y direccion en el alta administrativa. La firma presencial atestiguada y la renovacion digital se separaron a T127 el 2026-09-07.",
+    "T090,T093",
+    "Partida el 2026-09-07 por instruccion del operador, con el mismo criterio que separo T011 de T126: lo hecho y probado se cierra, lo que falta se cuenta como trabajo abierto en su propia fila. Esta fila queda siendo el paso 1 (datos) y el paso 2 pasa a T127. Evidencia del paso 1, del 2026-09-04, para adultos y menores: bloques opcionales emergencyContact/postalAddress en perfil administrativo, alta, edicion y detalle restringido, nunca en filas generales; family-service crea el perfil administrativo del menor en la misma transaccion que estudiante, relacion y control plane; focales 407/407, typecheck y lint verdes. No se aprueba por instruccion: se aprueba porque esa evidencia es real, verificable y no ha cambiado, y lo que faltaba pertenecia a otro paso. Reconciliado 2026-09-07: T011 cerro ese dia y lo que le quedaba es hoy T126, que afecta a contratos de encargado y no a esta; el texto del waiver del club ya esta en el dominio (enrolment-waiver-terms, T121).",
     [
       "tasks.md",
       "docs/operations/t106-waiver-enrolment-integration-analysis.md",
@@ -1845,6 +1851,20 @@ const recoveryItems = [
       "apps/web/src/app/admin/members/add/page.tsx",
       "apps/web/src/app/admin/members/search/page.tsx",
       "apps/web/src/app/admin/families/page.tsx",
+    ],
+    "mvp",
+  ),
+  task(
+    "T127",
+    "Waiver en el alta administrativa, paso 2: firma presencial atestiguada y renovacion digital",
+    "pendiente",
+    "El paso 2 que T106 nunca construyo. Espera tres respuestas del operador, dos de ellas compartidas con T058.",
+    "T106",
+    "Alta 2026-09-07 al partir T106, cuyo paso 1 quedo aprobado con evidencia del 2026-09-04. Recoge la firma presencial atestiguada (recordWitnessedWaiver, in_person_witnessed) y la renovacion digital, que nunca se construyeron. Lo que falta no es codigo, son tres respuestas: (a) si la firma presencial en papel sigue teniendo sentido ahora que la inscripcion digital de T121 recoge la aceptacion, o si el alta administrativa debe apoyarse en esa misma aceptacion, que es una decision de producto y no una limitacion tecnica; (b) sacar consent-callables del gate BPT_SYNTHETIC_PILOT, hoy inerte en produccion, que es una de las decisiones de T058; y (c) credenciales R2 reales para la evidencia PDF, placeholders desde T104. Con esas tres el paso 2 es una tarea de codigo acotada por el analisis ya escrito, que sigue siendo valido. (b) y (c) se comparten con T058, asi que se resuelven juntas o no se resuelve ninguna. No bloquea a ninguna otra fila.",
+    [
+      "tasks.md",
+      "docs/operations/t106-waiver-enrolment-integration-analysis.md",
+      "packages/domain/src/consents/enrolment-waiver-terms.ts",
     ],
     "special",
   ),
@@ -2241,6 +2261,7 @@ const projectData = {
     T124: "2026-09-06",
     T125: "2026-09-07",
     T126: "2026-09-07",
+    T127: "2026-09-07",
     T068: "2026-09-06",
     T069: "2026-09-06",
     T070: "2026-09-06",

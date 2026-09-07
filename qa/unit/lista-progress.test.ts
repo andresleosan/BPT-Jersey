@@ -44,10 +44,10 @@ describe("Lista project progress", () => {
 
   it("reflects the board as of 2026-09-07", () => {
     expect(counts).toEqual({
-      aprobada: 115,
+      aprobada: 116,
       revision: 0,
-      "en-progreso": 1,
-      pendiente: 4,
+      "en-progreso": 0,
+      pendiente: 5,
       bloqueada: 0,
       cancelada: 7,
     });
@@ -55,15 +55,16 @@ describe("Lista project progress", () => {
     // already approved and the human gate had been settled the day before), the rehearsal was
     // finished the same day - runbook, baseline rebuilt from the T107 hash map and the live
     // inventory, delta re-measured - and the operator approved it. Nothing sits in `revision` any
-    // more, and nothing is blocked. The five rows still open are open because the work is real:
-    // T106 waits on three decisions, T108 has no executor written, T058/T059 are the release and
-    // the close-out, and T126 - opened on 2026-09-07 when T011 closed - carries the one thing T011
-    // was still missing: a registered address, and which unincorporated form the controller is.
-    // That last one is data only the operator holds, and it blocks contracts, not releases.
+    // more, and nothing is blocked. `en-progreso` is empty too since 2026-09-07, when T106 was
+    // split the same way T011 had been: its step 1 was finished and measured on 2026-09-04, so it
+    // was approved on that evidence, and step 2 - never built - became T127. A row that is half
+    // done is now two rows that each say something true, rather than one that says neither.
+    //
+    // The five open rows are open because the work is real: T108 has no executor written,
+    // T058/T059 are the release and the close-out, T126 carries the registered address T011 never
+    // had, and T127 waits on three answers, two of them shared with T058.
     expect(items.filter((item) => item.status === "revision")).toEqual([]);
-    expect(items.filter((item) => item.status === "en-progreso")).toEqual([
-      expect.objectContaining({ id: "T106" }),
-    ]);
+    expect(items.filter((item) => item.status === "en-progreso")).toEqual([]);
   });
 
   /**
@@ -95,11 +96,12 @@ describe("Lista project progress", () => {
     // (Andres Santiago, p.p. Vladimiro Afonso), which formalises the acceptance without changing
     // any of that.
     //
-    // The ratio went 115/119 -> 115/120 on 2026-09-07, so the percentage drops 97 -> 96 without a
-    // single row regressing: T011 closed and T126 opened in the same move, carrying the registered
-    // address it never had. A new open row is exactly what should move this number down, and the
-    // alternative - closing T011 while quietly dropping the gap - is the thing this board exists to
-    // make impossible.
-    expect(progress).toEqual({ approved: 115, total: 120, percentage: 96 });
+    // The ratio moved twice on 2026-09-07, both times by splitting a row rather than by finishing
+    // work: 115/119 -> 115/120 when T011 closed and T126 took the registered address it never had,
+    // then -> 116/121 when T106's finished step 1 was approved and its unbuilt step 2 became T127.
+    // Splitting adds to both sides, so the percentage barely moves - which is the point. The
+    // alternative in both cases was closing a row while quietly dropping what it still owed, and
+    // that is the thing this board exists to make impossible.
+    expect(progress).toEqual({ approved: 116, total: 121, percentage: 96 });
   });
 });
