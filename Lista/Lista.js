@@ -33,9 +33,9 @@ const IMPLEMENTATION_STATUS_CLASSES = {
 
 const RESOLUTION_REQUIREMENTS = {
   T125: [
-    "Decision del operador: borrar el campo password de los registros ya importados, moverlo fuera de la proyeccion de detalle, o aceptar el riesgo por escrito.",
-    "Si se conserva, darle los cuatro controles que tiene el directorio canonico: proposito declarado, auditoria por lectura, limite por actor y sonda de vitalidad.",
-    "Confirmar si la operacion necesita de verdad esa contrasena, porque el campo entro por una decision deliberada de replicar Regyfit literalmente.",
+    "Resuelta el 2026-09-07: el operador conserva el campo tal cual y acepta el riesgo por escrito, porque son datos reales que la operacion usa y el administrador ya tiene permiso de uso.",
+    "Lo que la aceptacion no cambia: siguen ausentes los cuatro controles del directorio canonico -proposito declarado, auditoria por lectura, limite por actor y sonda de vitalidad-, asi que una lectura de contrasena no deja rastro.",
+    "Pendiente de firma, no de decision: la aceptacion se formaliza en la seccion 3.1 del acta de T011, y el riesgo residual de la DPIA sigue siendo alto.",
   ],
   T010: [
     "Elegir expl\u00edcitamente un proveedor compatible con una entidad incorporada en Jersey.",
@@ -2091,10 +2091,10 @@ const recoveryItems = [
   task(
     "T125",
     "Decidir que se hace con las contrasenas en claro importadas de Regyfit",
-    "bloqueada",
-    "Credenciales reales de miembros, entre ellos menores, guardadas en texto y legibles sin dejar rastro.",
+    "aprobada",
+    "Credenciales reales de miembros guardadas en texto y legibles sin dejar rastro: riesgo aceptado por el operador el 2026-09-07.",
     "T107",
-    "Alta 2026-09-06, hallazgo verificado al redactar la DPIA de T011. El contrato del registro Regyfit define un campo password y getRegyfitMemberRecord devuelve el registro completo, contrasena incluida, a cualquier claim de administrador. Los 249 registros importados a produccion el 2026-09-04 son de personas reales, entre ellas menores. No esta expuesto publicamente porque lo cubren App Check, el claim administrativo y las Rules de denegacion por defecto, pero comparado con el directorio canonico le faltan cuatro controles que alli si existen: proposito declarado, evento de auditoria por lectura, limite de lecturas por actor y sonda de vitalidad. Nadie puede saber despues quien leyo una contrasena, un administrador revocado la sigue leyendo mientras su token no expire, y como la gente reutiliza contrasenas el alcance del dano no se limita a Regyfit. Bloqueada porque la decision es del operador y toca datos reales de produccion, no porque falte trabajo tecnico; borrar datos reales es destructivo e irreversible y no se hace sin confirmacion explicita.",
+    "Alta 2026-09-06, hallazgo verificado al redactar la DPIA de T011. Decidida por el operador el 2026-09-07: opcion (c) de la DPIA, se conserva el campo tal cual y se documenta la aceptacion del riesgo. Razon del operador: son datos reales que se necesitan para usar y hacer el seguimiento, el administrador ya tiene permiso de uso, y por eso se migra lo real. Lo que se acepta, sin adornos: el campo password de los 249 registros importados el 2026-09-04 sigue en claro, getRegyfitMemberRecord devuelve el registro entero a cualquier claim de administrador y member-profile-panel.tsx lo imprime como una fila mas de la ficha; siguen ausentes los cuatro controles que si tiene el directorio canonico -proposito declarado, evento de auditoria por lectura, limite de lecturas por actor y sonda de vitalidad-, asi que nadie puede saber despues quien leyo una contrasena y un administrador revocado la sigue leyendo mientras su token no expire. Precision anotada al decidir: el seguimiento de uso lo dan login, logins y lastLogin; password no lo lee el sistema para nada, solo se imprime. Dos numeros que nadie ha contado y que la decision no necesita pero la DPIA agradeceria: cuantos de los 249 traen password no vacio -el campo es optional- y cuantos son menores; ambos son contables en solo lectura. La fila cierra porque lo unico que faltaba era la decision; la aceptacion se firma con el acta de T011 (seccion 3.1) y el riesgo residual de la DPIA sigue siendo alto.",
     [
       "tasks.md",
       "docs/operations/t011-dpia-draft.md",
@@ -2203,7 +2203,7 @@ const projectData = {
     T122: "2026-09-06",
     T123: "2026-09-06",
     T124: "2026-09-06",
-    T125: "2026-09-06",
+    T125: "2026-09-07",
     T068: "2026-09-06",
     T069: "2026-09-06",
     T070: "2026-09-06",

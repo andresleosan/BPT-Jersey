@@ -92,7 +92,7 @@ Se listan porque son reales y verificables, no porque basten.
 
 Ordenados por gravedad. Ninguno tiene todavía una decisión del controller.
 
-### 4.1 Contraseñas de miembros reales almacenadas en claro — **ALTO**
+### 4.1 Contraseñas de miembros reales almacenadas en claro — **ALTO (aceptado por decisión)**
 
 `packages/domain/src/members/regyfit-member-record-contracts.ts:65` define
 `password: canonicalText(64).optional()` dentro del bloque de acceso del registro Regyfit, y
@@ -113,11 +113,37 @@ Consecuencias que hay que decir sin rodeos: nadie puede saber después quién le
 porque no queda rastro; un administrador revocado la sigue leyendo mientras su token no expire; y
 como la gente reutiliza contraseñas, el alcance del daño no se limita a Regyfit.
 
-**Decisión del controller requerida.** Opciones, de más a menos protectora: (a) borrar el campo de
-los registros ya importados y del contrato, si la operación no lo necesita; (b) conservarlo pero
-fuera de la proyección de detalle, accesible solo por un camino restringido con propósito y
-auditoría; (c) conservarlo como está, documentando la aceptación del riesgo. **El asistente no
-ejecuta ninguna: borrar datos reales de producción exige confirmación explícita.**
+**Decisión del controller, tomada el 2026-09-07: opción (c).** De las tres opciones planteadas —(a)
+borrar el campo de los registros importados y del contrato; (b) conservarlo fuera de la proyección de
+detalle, tras un camino restringido con propósito y auditoría; (c) conservarlo como está,
+documentando la aceptación del riesgo— el controller elige la tercera. Razón dada: son datos reales
+que la operación necesita para usar y hacer el seguimiento de la ficha, el administrador ya tiene
+permiso de uso, y esa es la razón por la que se migra lo real.
+
+Lo que la aceptación cubre, enumerado para que signifique algo: el campo sigue en claro en los 249
+registros de producción; `getRegyfitMemberRecord` sigue devolviéndolo a cualquier claim de
+administrador y `member-profile-panel.tsx:92` sigue imprimiéndolo como una fila más de la ficha; y
+los cuatro controles de la tabla anterior siguen ausentes, de modo que una lectura de contraseña no
+deja rastro y un administrador revocado la sigue leyendo mientras su token no expire.
+
+Aceptar un riesgo no lo reduce: **este apartado sigue siendo ALTO** y sigue contando como tal en el
+§5. Lo que cambia es que ya no está sin decidir. La aceptación se formaliza con firma en la sección
+3.1 del acta (`t011-controller-approval-acta-draft.md`).
+
+Tres precisiones que se anotaron al decidir, verificadas contra el código y no contra la memoria:
+
+- El seguimiento de uso lo dan `login`, `logins` y `lastLogin`. `password` no lo lee ningún camino
+  del sistema: solo se imprime en la ficha.
+- La proyección de listado no lo lleva (`toRegyfitMemberDirectoryRow`); solo el detalle lo expone.
+- `regyfitMemberRecords` no está en `TENANT_BACKUP_COLLECTIONS` y `assertSafeData` rechaza cualquier
+  documento con una clave que case `password`: no hay copias que purgar, pero esa colección tampoco
+  puede entrar al backup mientras el campo exista.
+
+**Dos cifras que esta evaluación no tiene y debería tener:** cuántos de los 249 registros traen un
+`password` no vacío —el campo es `.optional()`— y cuántos titulares son menores. La frase "entre
+ellas menores" de este documento es una inferencia a partir de `birthDate` y del tipo de academia, no
+un recuento. Ambas se obtienen con una lectura, sin borrar nada, y precisan el alcance de lo que se
+acaba de aceptar.
 
 ### 4.2 T011 aprobada como borrador, y bloqueando — **ALTO**
 
@@ -167,9 +193,11 @@ El sistema tiene la trazabilidad para soportarlos; la operativa no está escrita
 
 ## 5. Riesgo residual y consulta a la JOIC
 
-Con §4.1, §4.2 y §4.3 abiertos a la vez —credenciales en claro de menores sin auditoría de lectura,
-sin plazos de conservación implementados y sin contraparte que verifique— **el riesgo residual de
-este borrador es alto.**
+Con §4.1, §4.2 y §4.3 a la vez —credenciales en claro sin auditoría de lectura, sin plazos de
+conservación implementados y sin contraparte que verifique— **el riesgo residual de este borrador es
+alto.** La decisión del 2026-09-07 sobre §4.1 no lo baja: acepta el riesgo, no lo mitiga, y el
+control técnico que faltaba sigue faltando. Se dice aquí porque un lector podría leer "decidido" como
+"resuelto".
 
 La guía consultada dice que, si tras las mitigaciones sigue habiendo riesgo alto probable, hay que
 consultar a la JOIC **antes** de tratar. Aquí el tratamiento ya empezó, así que la pregunta al
@@ -181,7 +209,8 @@ controller no es si consultar antes, sino si procede notificar ahora y con qué 
 
 ## 6. Qué hace falta para que esto deje de ser un borrador
 
-1. Decisión del controller sobre §4.1, y ejecución de la que elija.
+1. ~~Decisión del controller sobre §4.1~~ — tomada el 2026-09-07 (opción (c), aceptación del
+   riesgo). Queda su firma en la sección 3.1 del acta; no queda ejecución técnica.
 2. Razón social completa: forma jurídica, número de registro y domicilio registrado.
 3. Las diez decisiones firmadas del acta (`t011-controller-approval-acta-draft.md`).
 4. Base legal por actividad y condición de categoría especial para salud/apoyo.

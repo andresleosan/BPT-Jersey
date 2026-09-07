@@ -60,6 +60,31 @@ Approve, amend or reject each. An amended row must say what replaces it.
 | 9 | Technical deletion | Authenticated, idempotent deletion across primary store, indexes, objects, queues, exports and processors; backups expire by cycle and are never restored to production without purge | |
 | 10 | Rights, audit and approval | Requests, access, changes, deletions, failures and exceptions logged; quarterly review and revalidation when a provider or purpose changes | |
 
+## 3.1 Additional decision, taken after this act was drafted (D11)
+
+This one is not part of the ten above. It arose from the DPIA written on 2026-09-06, which found a
+cleartext credential in production data, and the operator decided it on 2026-09-07. It is recorded
+here because an acceptance of risk is only an acceptance once it is signed.
+
+| # | Decision | What is being accepted | Accept / Amend / Reject |
+| ---: | --- | --- | --- |
+| 11 | Regyfit cleartext passwords (DPIA §4.1) | The `password` field captured from Regyfit stays as it is, in cleartext, in the 249 production member records imported on 2026-09-04. `getRegyfitMemberRecord` keeps returning it to any administrator claim and the member profile panel keeps printing it. The four controls the canonical directory has — declared purpose, per-read audit event, per-actor read budget, actor liveness probe — remain absent, so a password read leaves no trace and a revoked administrator keeps reading it until the token expires. Passwords are reused, so the blast radius is not limited to Regyfit. | |
+
+Operator's stated reason, recorded verbatim in substance: the data is real, the office needs it to
+work from and to follow the record, the administrator already has permission to use it, and that is
+why real data is being migrated at all.
+
+Two things the signer should know before signing this row, both verified against the code:
+
+- Usage tracking comes from `login`, `logins` and `lastLogin`. The `password` field is read by no
+  code path at all — it is only displayed.
+- Nobody has counted how many of the 249 records carry a non-empty password, nor how many data
+  subjects are minors. The DPIA's phrase "including minors" is an inference from `birthDate`, not a
+  count. Both numbers can be obtained read-only, and they set the true scope of this acceptance.
+
+Accepting this row does not lower the DPIA's residual risk, which stays high. It records who decided,
+when, and what exactly they decided.
+
 ## 4. The retention calendar
 
 Every period below is a drafting proposal, not a verified legal obligation. Confirm or replace each.
@@ -100,9 +125,10 @@ Confirm / Amend: ______________________________________________
 
 ## 6. What this signature does not do
 
-- It does not approve the DPIA. **No DPIA has been written yet.** It is a separate document covering
-  minors, health/support, finance, attendance and access control, and it has to exist before real
-  personal data is processed. This act cannot approve a document that does not exist.
+- It does not approve the DPIA. The DPIA was written on 2026-09-06
+  (`docs/operations/t011-dpia-draft.md`) and remains an unapproved draft with a declared high
+  residual risk. Signing section 3.1 accepts one finding of it; it does not approve the document, and
+  it does not settle whether the JOIC should be notified.
 - It does not complete the controller's registered identity (legal form, registration number,
   registered address), which is still outstanding and blocks any processor contract.
 - It does not authorise production, real member data, a staging environment, payment processing or
@@ -117,7 +143,7 @@ Confirm / Amend: ______________________________________________
 | Name and role | |
 | Entity signed for | |
 | Date and time zone | |
-| Scope approved | Sections 2, 3, 4 and 5 of this act as recorded above |
+| Scope approved | Sections 2, 3, 3.1, 4 and 5 of this act as recorded above |
 | Amendments made | |
 | Decision (`approve`, `approve with amendments`, `reject`) | |
 | Verifiable signature or reference | |

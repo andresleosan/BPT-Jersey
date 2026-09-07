@@ -42,13 +42,13 @@ describe("Lista project progress", () => {
     expect(countedItems).toBe(items.length);
   });
 
-  it("reflects the board as of 2026-09-06", () => {
+  it("reflects the board as of 2026-09-07", () => {
     expect(counts).toEqual({
-      aprobada: 113,
+      aprobada: 114,
       revision: 0,
       "en-progreso": 1,
       pendiente: 3,
-      bloqueada: 2,
+      bloqueada: 1,
       cancelada: 7,
     });
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([
@@ -76,12 +76,13 @@ describe("Lista project progress", () => {
     ]);
     expect(counts.cancelada).toBe(cancelled.length);
     expect(progress.total).toBe(items.length - cancelled.length);
-    // 2026-09-06 moved four rows to approved - T121, T122, T123 and T124, the last of them the
-    // same day it opened, because the reason it was blocked turned out to be false: JDK 21 was
-    // installed all along, shadowed on PATH by an Oracle Java 8. Then writing T011's DPIA found
-    // cleartext member passwords in production data, which became T125, and the percentage went
-    // back down. That fall is the point: the denominator grew because real work was found, not
-    // invented, and a board that only ever rises is a board that stopped looking.
-    expect(progress).toEqual({ approved: 113, total: 119, percentage: 95 });
+    // T125 closed on 2026-09-07 by operator decision, not by code: the cleartext Regyfit passwords
+    // stay as they are and the risk is accepted in writing, because the data is real, the office
+    // works from it and the administrator already has permission to use it. Counting that as
+    // approved is honest only because what was accepted is written down rather than quietly
+    // dropped - the field is still readable by any administrator claim with no audit trail, the
+    // DPIA's residual risk is still high, and the signature that formalises the acceptance belongs
+    // to T011's act, which is still unsigned.
+    expect(progress).toEqual({ approved: 114, total: 119, percentage: 96 });
   });
 });
