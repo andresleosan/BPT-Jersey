@@ -148,7 +148,25 @@ export type {
   StudentDirectorySource,
 } from "./members/member-directory-contracts";
 export {
+  assertLeaseRecoveryWithinDeadline,
+  assertLeaseRenewable,
+  assertMemberDirectoryOperationStatusTransition,
+  assertPostDeadlineRecoveryDeadline,
+  isLeaseExpired,
+  isMemberDirectoryOperationStatusTransitionAllowed,
+  maxInitialOperationDeadlineMs,
+  memberDirectoryLeaseDurationSeconds,
+  memberDirectoryOperationStatuses,
+  memberDirectoryOperationTypes,
+  memberDirectoryTerminalStatuses,
+} from "./members/member-directory-operation-contracts";
+export type {
+  MemberDirectoryOperationStatus,
+  MemberDirectoryOperationType,
+} from "./members/member-directory-operation-contracts";
+export {
   assertChunkSequence,
+  assertCompensationReversesDescending,
   assertForwardCapacity,
   buildMemberDirectoryChunkId,
   isWriteEligibleClassification,

@@ -74,8 +74,12 @@ export function isWriteEligibleClassification(
 }
 
 /**
- * The phases that own chunks. `idle` never does, and the three restore phases are backup v3's, not
- * a migration operation's.
+ * The phases that own chunks, exactly as the chunk-receipt rule lists them.
+ *
+ * `rollback-readonly` is deliberately absent even though it is a real operation phase: its tuple is
+ * stable and frozen with no lease and no active operation, so nothing runs under it and it can own
+ * no chunks. `restore-recovery` is present for the opposite reason - it is backup v3's phase, but
+ * it does run chunked work under a lease.
  */
 export const memberDirectoryMigrationPhases = Object.freeze([
   "bootstrap",
@@ -83,8 +87,8 @@ export const memberDirectoryMigrationPhases = Object.freeze([
   "forward",
   "compensation",
   "rollback-projection",
-  "rollback-readonly",
   "canonical-recovery",
+  "restore-recovery",
 ] as const);
 
 export type MemberDirectoryMigrationPhase = (typeof memberDirectoryMigrationPhases)[number];
@@ -146,21 +150,53 @@ export function parseMemberDirectoryChunkId(value: string): Readonly<{
  * A chunk receipt stores counts and one output MAC, never IDs or payloads, so that compensation can
  * rederive and verify targets from the private plan without any of that living in Firestore.
  */
-export const memberDirectoryChunkReceiptSchema = z.strictObject({
-  chunkId: memberDirectoryChunkIdSchema,
-  operationId: opaqueIdentifierSchema,
-  academyId: opaqueIdentifierSchema,
-  phase: migrationPhaseSchema,
-  chunkNo: chunkNoSchema,
-  outputSetMac: macSchema,
-  writtenCount: z.number().int().nonnegative().safe(),
-  quarantinedCount: z.number().int().nonnegative().safe(),
-  integrityMacVersion: z.literal("hmac-sha256-v1"),
-  integritySecretVersion: opaqueIdentifierSchema,
-  schemaVersion: z.literal("1"),
-  createdAt: auditDateTimeSchema,
-  createdBy: opaqueIdentifierSchema,
-});
+export const memberDirectoryChunkReceiptSchema = z
+  .strictObject({
+    chunkId: memberDirectoryChunkIdSchema,
+    operationId: opaqueIdentifierSchema,
+    academyId: opaqueIdentifierSchema,
+    phase: migrationPhaseSchema,
+    chunkNo: chunkNoSchema,
+    status: z.literal("committed"),
+    outputSetMac: macSchema,
+    writtenCount: z.number().int().nonnegative().safe(),
+    quarantinedCount: z.number().int().nonnegative().safe(),
+    /** Required for, and only for, a compensation chunk: the forward chunk it reverses. */
+    sourceForwardChunkNo: chunkNoSchema.optional(),
+    integrityMacVersion: z.literal("hmac-sha256-v1"),
+    integritySecretVersion: opaqueIdentifierSchema,
+    schemaVersion: z.literal("1"),
+    createdAt: auditDateTimeSchema,
+    createdBy: opaqueIdentifierSchema,
+  })
+  .superRefine((receipt, context) => {
+    const expected = buildMemberDirectoryChunkId({
+      operationId: receipt.operationId,
+      phase: receipt.phase,
+      chunkNo: receipt.chunkNo,
+    });
+    if (receipt.chunkId !== expected) {
+      context.addIssue({
+        code: "custom",
+        path: ["chunkId"],
+        message: "Chunk ID must match its operation, phase and chunk number",
+      });
+    }
+    if (receipt.phase === "compensation" && receipt.sourceForwardChunkNo === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["sourceForwardChunkNo"],
+        message: "A compensation chunk must bind the forward chunk it reverses",
+      });
+    }
+    if (receipt.phase !== "compensation" && receipt.sourceForwardChunkNo !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["sourceForwardChunkNo"],
+        message: "Only a compensation chunk may bind a source forward chunk",
+      });
+    }
+  });
 
 export type MemberDirectoryChunkReceipt = Readonly<
   z.infer<typeof memberDirectoryChunkReceiptSchema>
@@ -290,6 +326,28 @@ export function assertChunkSequence(chunkNos: readonly number[]): void {
     if (chunkNoSchema.safeParse(chunkNo).success === false || chunkNo !== expected) {
       throw new Error(
         `Member directory chunk sequence must start at 1 and advance without gaps; expected ${String(expected)} but found ${String(chunkNo)}`,
+      );
+    }
+  });
+}
+
+/**
+ * Compensation walks the forward chunks backwards: its own chunk numbers ascend from 1 while the
+ * forward chunks they reverse descend. Undoing in forward order would tear down a chunk whose
+ * successors still reference it, so the direction is part of the contract rather than a convention
+ * the executor is trusted to remember.
+ */
+export function assertCompensationReversesDescending(
+  sourceForwardChunkNos: readonly number[],
+): void {
+  sourceForwardChunkNos.forEach((chunkNo, index) => {
+    if (chunkNoSchema.safeParse(chunkNo).success === false) {
+      throw new Error(`Invalid source forward chunk number: ${String(chunkNo)}`);
+    }
+    const previous = sourceForwardChunkNos[index - 1];
+    if (previous !== undefined && chunkNo >= previous) {
+      throw new Error(
+        `Compensation must reverse forward chunks in descending order; ${String(chunkNo)} follows ${String(previous)}`,
       );
     }
   });

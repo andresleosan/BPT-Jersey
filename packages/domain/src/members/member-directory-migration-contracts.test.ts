@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertChunkSequence,
+  assertCompensationReversesDescending,
   assertForwardCapacity,
   buildMemberDirectoryChunkId,
   isWriteEligibleClassification,
@@ -40,6 +41,23 @@ const baseReceipt = {
   integritySecretVersion: "2",
   operationWriteTime: "2026-09-07T10:00:00.000Z",
   createdAt: "2026-09-07T10:00:00.000Z",
+  createdBy: "operator",
+} as const;
+
+const baseChunkReceipt = {
+  chunkId: "op-1:forward:1",
+  operationId: "op-1",
+  academyId: "academy-bpt-jersey",
+  phase: "forward",
+  chunkNo: 1,
+  status: "committed",
+  outputSetMac: "f".repeat(64),
+  writtenCount: 0,
+  quarantinedCount: 0,
+  integrityMacVersion: "hmac-sha256-v1",
+  integritySecretVersion: "2",
+  schemaVersion: "1",
+  createdAt: "2026-09-07T10:05:00.000Z",
   createdBy: "operator",
 } as const;
 
@@ -97,15 +115,29 @@ describe("member directory chunk identifiers", () => {
     ).toThrow();
   });
 
-  it("rejects a phase that owns no chunks", () => {
-    expect(() =>
+  /**
+   * `rollback-readonly` is the interesting rejection. It is a real operation phase, but its tuple is
+   * stable and frozen with no lease and no active operation, so nothing runs under it and it owns no
+   * chunks. `restore-recovery` is the mirror case: backup v3's phase, but it does run chunked work.
+   */
+  it("rejects phases that own no chunks and accepts the one that surprises", () => {
+    for (const phase of ["idle", "rollback-readonly", "restore-prepared"]) {
+      expect(() =>
+        buildMemberDirectoryChunkId({
+          operationId: "op-1",
+          phase: phase as (typeof memberDirectoryMigrationPhases)[number],
+          chunkNo: 1,
+        }),
+      ).toThrow();
+    }
+
+    expect(
       buildMemberDirectoryChunkId({
         operationId: "op-1",
-        // `idle` is a control-plane phase, never a chunk owner.
-        phase: "idle" as (typeof memberDirectoryMigrationPhases)[number],
+        phase: "restore-recovery",
         chunkNo: 1,
       }),
-    ).toThrow();
+    ).toBe("op-1:restore-recovery:1");
   });
 
   it("rejects an identifier whose operation segment is not opaque-safe", () => {
@@ -212,19 +244,9 @@ describe("member directory receipts", () => {
 
   it("accepts a chunk receipt carrying only MACs and counts", () => {
     const receipt = memberDirectoryChunkReceiptSchema.parse({
-      chunkId: "op-1:forward:1",
-      operationId: "op-1",
-      academyId: "academy-bpt-jersey",
-      phase: "forward",
-      chunkNo: 1,
-      outputSetMac: "f".repeat(64),
+      ...baseChunkReceipt,
       writtenCount: 25,
       quarantinedCount: 3,
-      integrityMacVersion: "hmac-sha256-v1",
-      integritySecretVersion: "2",
-      schemaVersion: "1",
-      createdAt: "2026-09-07T10:05:00.000Z",
-      createdBy: "operator",
     });
 
     expect(receipt.outputSetMac).toHaveLength(64);
@@ -233,20 +255,68 @@ describe("member directory receipts", () => {
   it("rejects a non-hex output MAC", () => {
     expect(() =>
       memberDirectoryChunkReceiptSchema.parse({
-        chunkId: "op-1:forward:1",
-        operationId: "op-1",
-        academyId: "academy-bpt-jersey",
-        phase: "forward",
-        chunkNo: 1,
+        ...baseChunkReceipt,
         outputSetMac: "G".repeat(64),
-        writtenCount: 0,
-        quarantinedCount: 0,
-        integrityMacVersion: "hmac-sha256-v1",
-        integritySecretVersion: "2",
-        schemaVersion: "1",
-        createdAt: "2026-09-07T10:05:00.000Z",
-        createdBy: "operator",
       }),
     ).toThrow();
+  });
+
+  /**
+   * The ID is derived from three fields that are also stored, so it can disagree with them. A
+   * receipt whose ID says chunk 1 while its body says chunk 2 would make the gapless-sequence check
+   * meaningless, since the two are read from different places.
+   */
+  it("rejects a chunk ID that disagrees with its own operation, phase or number", () => {
+    expect(() =>
+      memberDirectoryChunkReceiptSchema.parse({ ...baseChunkReceipt, chunkNo: 2 }),
+    ).toThrow();
+    expect(() =>
+      memberDirectoryChunkReceiptSchema.parse({ ...baseChunkReceipt, phase: "bootstrap" }),
+    ).toThrow();
+  });
+
+  it("requires a compensation chunk to bind the forward chunk it reverses", () => {
+    expect(() =>
+      memberDirectoryChunkReceiptSchema.parse({
+        ...baseChunkReceipt,
+        chunkId: "op-1:compensation:1",
+        phase: "compensation",
+      }),
+    ).toThrow(/must bind the forward chunk/u);
+
+    expect(
+      memberDirectoryChunkReceiptSchema.parse({
+        ...baseChunkReceipt,
+        chunkId: "op-1:compensation:1",
+        phase: "compensation",
+        sourceForwardChunkNo: 8,
+      }).sourceForwardChunkNo,
+    ).toBe(8);
+  });
+
+  it("refuses a source forward chunk on any phase but compensation", () => {
+    expect(() =>
+      memberDirectoryChunkReceiptSchema.parse({ ...baseChunkReceipt, sourceForwardChunkNo: 1 }),
+    ).toThrow(/Only a compensation chunk/u);
+  });
+});
+
+describe("member directory compensation ordering", () => {
+  it("accepts forward chunks reversed in descending order", () => {
+    expect(() => {
+      assertCompensationReversesDescending([8, 7, 6, 5]);
+    }).not.toThrow();
+    expect(() => {
+      assertCompensationReversesDescending([1]);
+    }).not.toThrow();
+  });
+
+  it("rejects ascending or repeated source chunks", () => {
+    expect(() => {
+      assertCompensationReversesDescending([5, 6]);
+    }).toThrow(/descending order/u);
+    expect(() => {
+      assertCompensationReversesDescending([5, 5]);
+    }).toThrow(/descending order/u);
   });
 });
