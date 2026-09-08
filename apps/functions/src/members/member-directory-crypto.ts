@@ -235,6 +235,40 @@ export function createMemberDirectoryChunkOutputSetMac(
 }
 
 /**
+ * The fingerprint of one source row (T108, forward).
+ *
+ * The dry-run records it for every reviewed row; the forward chunk recomputes it from the row it
+ * re-reads and refuses the chunk when the two differ. That is what "reject the whole plan if any
+ * input changed" is made of - without it the confirmation would migrate whatever the source happens
+ * to say at commit time rather than what a human reviewed.
+ *
+ * It covers the whole stored document, so a changed name, a changed identifier and a changed
+ * `updatedAt` are one failure rather than three separate checks that can drift apart. Its domain is
+ * its own: a source-row MAC and a chunk-output MAC answer different questions, and neither may ever
+ * verify as the other.
+ */
+export function createMemberDirectorySourceRowMac(
+  input: Readonly<{
+    academyId: string;
+    sourceCollection: string;
+    sourceId: string;
+    document: unknown;
+    secretMaterial: string;
+  }>,
+): string {
+  return createMemberDirectoryIntegrityMac({
+    domain: "bpt-member-directory-source-row-v1",
+    values: [
+      requiredSafeIdentifier(input.academyId, "academy ID"),
+      requiredSafeIdentifier(input.sourceCollection, "source collection"),
+      requiredSafeIdentifier(input.sourceId, "source ID"),
+      canonicalizeMemberDirectoryValue(input.document),
+    ],
+    secretMaterial: input.secretMaterial,
+  });
+}
+
+/**
  * The reservation tuple a baseline is folded from, and its inverse.
  *
  * The format has exactly one definition because it now has two readers: the bootstrap executor,
