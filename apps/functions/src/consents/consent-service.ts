@@ -264,6 +264,48 @@ async function currentPublished(
   return snapshot.docs[0] ? storedVersion(snapshot.docs[0], academyId) : null;
 }
 
+/**
+ * A student holds at most one consent per waiver version, so the whole history is bounded by the
+ * number of versions ever published. This reads it with a single equality - no composite index, and
+ * none needed - and picks the most recent still-accepted one that is not the version being asked
+ * for now.
+ *
+ * The bound is enforced rather than assumed: a page that came back full would mean the history is
+ * larger than any legal one, and choosing "the most recent" out of a truncated page would silently
+ * name the wrong acceptance. Failing closed there is the same rule the migration uses for a
+ * truncated receipt page.
+ *
+ * A revoked acceptance is deliberately not returned. Revocation is a withdrawal of consent, and
+ * offering to renew it as though it were still standing would misstate what the person did.
+ */
+const maxConsentHistoryPerStudent = 50;
+
+async function previousAcceptance(
+  transaction: ConsentTransaction,
+  firestore: ConsentFirestore,
+  academyId: string,
+  studentId: string,
+  currentVersionId: string,
+): Promise<ConsentProjection | null> {
+  const snapshot = asQuery(
+    await transaction.get(
+      firestore
+        .collection(collectionPath(academyId, "consents"))
+        .where("subjectId", "==", studentId)
+        .limit(maxConsentHistoryPerStudent + 1),
+    ),
+  );
+  if (snapshot.docs.length > maxConsentHistoryPerStudent)
+    throw new ConsentStoreError("conflict", "Consent history is larger than a student may hold");
+  let latest: ConsentProjection | null = null;
+  for (const document of snapshot.docs) {
+    const stored = storedConsent(document, academyId);
+    if (stored.status !== "accepted" || stored.waiverVersionId === currentVersionId) continue;
+    if (!latest || stored.signedAt > latest.signedAt) latest = toConsentProjection(stored);
+  }
+  return latest;
+}
+
 async function assertAuthority(
   transaction: ConsentTransaction,
   firestore: ConsentFirestore,
@@ -555,11 +597,31 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
             );
             if (snapshot.exists) consent = toConsentProjection(storedConsent(snapshot, academyId));
           }
+          /**
+           * The renewal case, and only it (T127). A consent is keyed by (student, waiver version),
+           * so a newly published version leaves `consent` null for somebody who signed the previous
+           * one and holds evidence of it. Looking the previous acceptance up here is what lets the
+           * page present a renewal instead of a first signature.
+           *
+           * It is skipped whenever the current version is already accepted: there is nothing to
+           * renew, and the projection refuses to carry both.
+           */
+          const supersededConsent =
+            current && !consent
+              ? await previousAcceptance(
+                  transaction,
+                  dependencies.firestore,
+                  academyId,
+                  student.studentId,
+                  current.waiverVersionId,
+                )
+              : null;
           subjects.push({
             studentId: student.studentId,
             displayName: student.fullName,
             participantType: student.participantType,
             consent,
+            supersededConsent,
           });
         }
         const projection = parseWaiverRegistrationProjection({

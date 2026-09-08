@@ -180,12 +180,41 @@ export const consentProjectionSchema = consentRecordBaseSchema
   })
   .extend({ studentId: safeIdSchema });
 
-export const waiverSubjectProjectionSchema = z.strictObject({
-  studentId: safeIdSchema,
-  displayName: boundedText(160),
-  participantType: z.enum(["adult", "minor"]),
-  consent: consentProjectionSchema.nullable(),
-});
+export const waiverSubjectProjectionSchema = z
+  .strictObject({
+    studentId: safeIdSchema,
+    displayName: boundedText(160),
+    participantType: z.enum(["adult", "minor"]),
+    /** The acceptance of the version published today, when there is one. */
+    consent: consentProjectionSchema.nullable(),
+    /**
+     * The most recent acceptance of a version that has since been superseded (T127).
+     *
+     * It exists so a renewal can be shown as a renewal. A consent record is keyed by
+     * `(student, waiverVersion)`, so publishing a new version leaves `consent` null and the page
+     * would otherwise present a first-time signature to someone who signed years ago and has
+     * evidence to prove it. Carrying the previous acceptance lets the page say which version was
+     * accepted, when, and offer that evidence, while asking for the new one.
+     *
+     * It is only populated when there is something to renew: absent whenever `consent` is present,
+     * because an acceptance of the current version is not a renewal of anything.
+     */
+    supersededConsent: consentProjectionSchema.nullable(),
+  })
+  .superRefine((value, context) => {
+    if (value.consent && value.supersededConsent)
+      context.addIssue({
+        code: "custom",
+        message: "A subject that accepted the current version has nothing to renew",
+        path: ["supersededConsent"],
+      });
+    if (value.supersededConsent && value.supersededConsent.studentId !== value.studentId)
+      context.addIssue({
+        code: "custom",
+        message: "The superseded acceptance must belong to its own subject",
+        path: ["supersededConsent", "studentId"],
+      });
+  });
 
 export const waiverRegistrationProjectionSchema = z.strictObject({
   currentVersion: waiverVersionProjectionSchema.nullable(),

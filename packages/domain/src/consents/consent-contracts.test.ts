@@ -234,6 +234,7 @@ describe("consent contracts", () => {
             status: consent.status,
             schemaVersion: "1",
           },
+          supersededConsent: null,
         },
       ],
     };
@@ -242,6 +243,52 @@ describe("consent contracts", () => {
       parseWaiverRegistrationProjection({
         ...projection,
         subjects: [{ ...projection.subjects[0], signedBy: "guardian-1" }],
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("refuses a renewal that has nothing to renew, or one belonging to another subject", () => {
+    const accepted = {
+      consentId: consent.consentId,
+      studentId: consent.subjectId,
+      waiverVersionId: consent.waiverVersionId,
+      versionLabel: consent.versionLabel,
+      clauseResponses: consent.clauseResponses,
+      signedAt: consent.signedAt,
+      revokedAt: consent.revokedAt,
+      evidenceDocumentId: consent.evidenceDocumentId,
+      status: consent.status,
+      schemaVersion: "1" as const,
+    };
+    const subject = {
+      studentId: consent.subjectId,
+      displayName: "Adult Student",
+      participantType: "adult" as const,
+      consent: null,
+      supersededConsent: accepted,
+    };
+    const projection = { currentVersion: null, subjects: [subject] };
+
+    // A superseded acceptance on its own is the renewal case, and it parses.
+    expect(parseWaiverRegistrationProjection(projection)).toMatchObject({ ok: true });
+
+    /**
+     * Both at once is not a renewal: an acceptance of the current version means there is nothing
+     * left to renew, so carrying a previous one would let the page offer a renewal to somebody who
+     * has already signed what is being asked for.
+     */
+    expect(
+      parseWaiverRegistrationProjection({
+        ...projection,
+        subjects: [{ ...subject, consent: accepted }],
+      }).ok,
+    ).toBe(false);
+
+    // A previous acceptance that belongs to somebody else is never this subject's evidence.
+    expect(
+      parseWaiverRegistrationProjection({
+        ...projection,
+        subjects: [{ ...subject, supersededConsent: { ...accepted, studentId: "student-other" } }],
       }).ok,
     ).toBe(false);
   });

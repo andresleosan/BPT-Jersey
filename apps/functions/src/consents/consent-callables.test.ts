@@ -68,9 +68,9 @@ const versionRecord = {
 function request(data: unknown, role = "owner", uid = "owner-1") {
   return { data, auth: { uid, token: { academyId: "academy-1", role } } } as never;
 }
-function services(pilotEnabled = true): ConsentCallableServices {
+function services(registrationEnabled = true): ConsentCallableServices {
   return {
-    pilotEnabled,
+    registrationEnabled,
     now: () => "2026-08-25T12:10:00Z",
     store: {
       publishWaiverVersion: vi.fn(async () => versionRecord),

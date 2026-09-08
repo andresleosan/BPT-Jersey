@@ -177,11 +177,14 @@ function seededStore(failCreate = "") {
   );
   const storage = r2();
   const audits: unknown[] = [];
+  // Incrementing rather than constant, so a second acceptance -a renewal- does not collide with
+  // the first one's evidence document. The first call still returns document-1.
+  let documentSeq = 0;
   const store = createConsentStore({
     firestore: seeded.firestore,
     r2: storage.client,
     createEvidencePdf: async () => new TextEncoder().encode("%PDF synthetic waiver evidence"),
-    generateDocumentId: () => "document-1",
+    generateDocumentId: () => `document-${String((documentSeq += 1))}`,
     appendAudit: (transaction, reference, draft) => {
       audits.push(draft);
       transaction.create(reference, draft as ConsentDocumentData);
@@ -265,6 +268,190 @@ describe("consent store", () => {
     ).resolves.toMatchObject({
       subjects: [{ studentId: "student-1", consent: { status: "accepted" } }],
     });
+  });
+
+  it("carries the previous acceptance forward as a renewal once a new version supersedes it", async () => {
+    const seeded = seededStore();
+    const first = await seeded.store.publishWaiverVersion({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now,
+      publication,
+    });
+    const accepted = await seeded.store.acceptWaiver({
+      academyId: "academy-1",
+      actorId: "guardian-1",
+      role: "guardian",
+      now: "2026-08-25T12:10:00Z",
+      studentId: "student-1",
+      waiverVersionId: first.waiverVersionId,
+      contentHash: first.contentHash,
+      typedName: "Synthetic Guardian",
+      clauseResponses: responses,
+    });
+
+    const second = await seeded.store.publishWaiverVersion({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now: "2026-08-25T13:00:00Z",
+      publication: {
+        ...publication,
+        versionLabel: "pilot-2026-09",
+        title: "Synthetic pilot waiver revision",
+        effectiveAt: "2026-08-25T13:00:00Z",
+      },
+    });
+
+    /**
+     * The renewal. A consent is keyed by (student, version), so the new version has none - and
+     * without the superseded one the page would present a first signature to somebody who signed
+     * the previous version and holds evidence of it.
+     */
+    const registration = await seeded.store.getWaiverRegistration({
+      academyId: "academy-1",
+      actorId: "guardian-1",
+      role: "guardian",
+      now: "2026-08-25T13:10:00Z",
+    });
+    expect(registration.currentVersion?.waiverVersionId).toBe(second.waiverVersionId);
+    expect(registration.subjects[0]?.consent).toBeNull();
+    expect(registration.subjects[0]?.supersededConsent).toMatchObject({
+      consentId: accepted.consentId,
+      studentId: "student-1",
+      waiverVersionId: first.waiverVersionId,
+      status: "accepted",
+    });
+
+    // Renewing clears it: an acceptance of the current version is not a renewal of anything.
+    await seeded.store.acceptWaiver({
+      academyId: "academy-1",
+      actorId: "guardian-1",
+      role: "guardian",
+      now: "2026-08-25T13:20:00Z",
+      studentId: "student-1",
+      waiverVersionId: second.waiverVersionId,
+      contentHash: second.contentHash,
+      typedName: "Synthetic Guardian",
+      clauseResponses: responses,
+    });
+    const renewed = await seeded.store.getWaiverRegistration({
+      academyId: "academy-1",
+      actorId: "guardian-1",
+      role: "guardian",
+      now: "2026-08-25T13:30:00Z",
+    });
+    expect(renewed.subjects[0]?.consent).toMatchObject({
+      waiverVersionId: second.waiverVersionId,
+      status: "accepted",
+    });
+    expect(renewed.subjects[0]?.supersededConsent).toBeNull();
+  });
+
+  it("refuses a consent history larger than a student may hold", async () => {
+    const seeded = seededStore();
+    const first = await seeded.store.publishWaiverVersion({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now,
+      publication,
+    });
+    const accepted = await seeded.store.acceptWaiver({
+      academyId: "academy-1",
+      actorId: "guardian-1",
+      role: "guardian",
+      now: "2026-08-25T12:10:00Z",
+      studentId: "student-1",
+      waiverVersionId: first.waiverVersionId,
+      contentHash: first.contentHash,
+      typedName: "Synthetic Guardian",
+      clauseResponses: responses,
+    });
+    const stored = seeded.records.get(`academies/academy-1/consents/${accepted.consentId}`);
+    expect(stored).toBeDefined();
+
+    /**
+     * One acceptance per version is the invariant, so a history this long cannot be legal. What the
+     * bound actually prevents is worse than the size: picking "the most recent" out of a truncated
+     * page would silently name the wrong acceptance as the one being renewed.
+     */
+    for (let index = 0; index < 50; index += 1) {
+      const consentId = `consent-history-${String(index)}`;
+      seeded.records.set(`academies/academy-1/consents/${consentId}`, {
+        ...(stored as Record<string, unknown>),
+        consentId,
+        waiverVersionId: `waiver-history-${String(index)}`,
+      });
+    }
+    await seeded.store.publishWaiverVersion({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now: "2026-08-25T13:00:00Z",
+      publication: {
+        ...publication,
+        versionLabel: "pilot-2026-09",
+        effectiveAt: "2026-08-25T13:00:00Z",
+      },
+    });
+
+    await expect(
+      seeded.store.getWaiverRegistration({
+        academyId: "academy-1",
+        actorId: "guardian-1",
+        role: "guardian",
+        now: "2026-08-25T13:10:00Z",
+      }),
+    ).rejects.toBeInstanceOf(ConsentStoreError);
+  });
+
+  it("does not offer a revoked acceptance for renewal", async () => {
+    const seeded = seededStore();
+    const first = await seeded.store.publishWaiverVersion({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now,
+      publication,
+    });
+    const accepted = await seeded.store.acceptWaiver({
+      academyId: "academy-1",
+      actorId: "guardian-1",
+      role: "guardian",
+      now: "2026-08-25T12:10:00Z",
+      studentId: "student-1",
+      waiverVersionId: first.waiverVersionId,
+      contentHash: first.contentHash,
+      typedName: "Synthetic Guardian",
+      clauseResponses: responses,
+    });
+    await seeded.store.revokeWaiverConsent({
+      academyId: "academy-1",
+      actorId: "guardian-1",
+      role: "guardian",
+      now: "2026-08-25T12:30:00Z",
+      consentId: accepted.consentId,
+    });
+    await seeded.store.publishWaiverVersion({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      now: "2026-08-25T13:00:00Z",
+      publication: {
+        ...publication,
+        versionLabel: "pilot-2026-09",
+        effectiveAt: "2026-08-25T13:00:00Z",
+      },
+    });
+
+    /**
+     * Revocation is a withdrawal of consent. Presenting it as a standing acceptance waiting to be
+     * renewed would misstate what the person did, so the renewal path treats it as absent.
+     */
+    const registration = await seeded.store.getWaiverRegistration({
+      academyId: "academy-1",
+      actorId: "guardian-1",
+      role: "guardian",
+      now: "2026-08-25T13:10:00Z",
+    });
+    expect(registration.subjects[0]?.consent).toBeNull();
+    expect(registration.subjects[0]?.supersededConsent).toBeNull();
   });
 
   it("supports adult self-service and rejects forged subject, signer and required decisions", async () => {

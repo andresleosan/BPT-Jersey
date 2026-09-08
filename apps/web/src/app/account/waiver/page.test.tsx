@@ -71,6 +71,7 @@ const registration = {
       displayName: "Synthetic Minor",
       participantType: "minor",
       consent: null,
+      supersededConsent: null,
     },
   ],
 };
@@ -168,6 +169,78 @@ describe("account waiver page", () => {
     );
     await user.click(screen.getByRole("button", { name: "Revoke this acceptance" }));
     expect(await screen.findByText("Waiver revoked")).toBeVisible();
+  });
+
+  it("presents a superseded acceptance as a renewal, with its previous evidence", async () => {
+    const renewedVersion = {
+      ...version,
+      waiverVersionId: "waiver-2",
+      versionLabel: "pilot-2026-09",
+      contentHash: "b".repeat(64),
+    };
+    api.getWaiverRegistration.mockResolvedValue({
+      currentVersion: renewedVersion,
+      subjects: [
+        {
+          ...registration.subjects[0],
+          consent: null,
+          supersededConsent: accepted,
+        },
+      ],
+    });
+    api.getWaiverEvidenceDownload.mockResolvedValue({
+      consent: accepted,
+      downloadUrl: "https://r2.example.test/previous-evidence.pdf",
+      expiresAt: "2999-01-01T00:00:00Z",
+    });
+    api.acceptWaiver.mockResolvedValue({
+      ...accepted,
+      consentId: "consent-2",
+      waiverVersionId: "waiver-2",
+      versionLabel: "pilot-2026-09",
+    });
+    const user = userEvent.setup();
+    render(<WaiverPage />);
+
+    /**
+     * The whole point of the field: without it this screen is a blank first-signature form shown to
+     * somebody who signed the previous version and holds evidence of it.
+     */
+    expect(await screen.findByText("Renewal required")).toBeVisible();
+    expect(screen.getByText(/You accepted version pilot-2026-08 on/u)).toBeVisible();
+    expect(screen.getByText(/replaced by pilot-2026-09/u)).toBeVisible();
+
+    // The previous evidence is still reachable, and it is the previous consent that is opened.
+    await user.click(screen.getByRole("button", { name: "Open previous evidence" }));
+    await waitFor(() => expect(api.getWaiverEvidenceDownload).toHaveBeenCalledWith("consent-1"));
+    expect(await screen.findByRole("link", { name: "Open signed evidence PDF" })).toHaveAttribute(
+      "href",
+      "https://r2.example.test/previous-evidence.pdf",
+    );
+
+    // And the action says what it is.
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "I have read and agree to the official waiver document above.",
+      }),
+    );
+    await user.click(screen.getByLabelText("Decline Photo and video"));
+    for (const heading of ["Medical treatment", "Hygiene", "Data protection"])
+      await user.click(screen.getByLabelText(`Accept ${heading}`));
+    await user.type(screen.getByLabelText("Type your full name"), "Synthetic Guardian");
+    await user.click(screen.getByRole("button", { name: "Renew and create evidence" }));
+    await waitFor(() =>
+      expect(api.acceptWaiver).toHaveBeenCalledWith({
+        studentId: "student-1",
+        waiverVersionId: "waiver-2",
+        contentHash: "b".repeat(64),
+        typedName: "Synthetic Guardian",
+        clauseResponses: accepted.clauseResponses,
+      }),
+    );
+    expect(await screen.findByText("Renewal recorded.")).toBeVisible();
+    // The renewal is over: the card that offered it is gone.
+    expect(screen.queryByText("Renewal required")).not.toBeInTheDocument();
   });
 
   it("renders unavailable, safe-error and signed-out states", async () => {

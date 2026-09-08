@@ -41,7 +41,7 @@ describe("waiver client", () => {
   });
 
   it("loads only the strict registration projection", async () => {
-    callable.mockResolvedValue({ data: { currentVersion: version, subjects: [{ studentId: "student-1", displayName: "Synthetic Minor", participantType: "minor", consent }] } });
+    callable.mockResolvedValue({ data: { currentVersion: version, subjects: [{ studentId: "student-1", displayName: "Synthetic Minor", participantType: "minor", consent, supersededConsent: null }] } });
     await expect(getWaiverRegistration()).resolves.toMatchObject({ currentVersion: { waiverVersionId: "waiver-1" } });
     expect(callable).toHaveBeenCalledWith(null);
     callable.mockResolvedValueOnce({ data: { currentVersion: version, subjects: [], signedBy: "guardian-1" } });

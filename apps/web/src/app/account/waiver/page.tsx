@@ -59,6 +59,12 @@ function WaiverContent() {
     (candidate) => candidate.studentId === selectedStudentId,
   );
   const consent = subject?.consent ?? null;
+  /**
+   * The acceptance of a version that has since been superseded (T127). Its presence is what makes
+   * this a renewal rather than a first signature, and the backend only sends it when there is
+   * genuinely something to renew.
+   */
+  const supersededConsent = subject?.supersededConsent ?? null;
 
   function updateConsent(next: ConsentProjection): void {
     setRegistration((current) =>
@@ -66,7 +72,12 @@ function WaiverContent() {
         ? {
             ...current,
             subjects: current.subjects.map((candidate) =>
-              candidate.studentId === next.studentId ? { ...candidate, consent: next } : candidate,
+              candidate.studentId === next.studentId
+                ? // The superseded acceptance is cleared with the same update: once the current
+                  // version is accepted there is nothing left to renew, and the projection refuses
+                  // to carry both.
+                  { ...candidate, consent: next, supersededConsent: null }
+                : candidate,
             ),
           }
         : current,
@@ -125,8 +136,9 @@ function WaiverContent() {
         typedName: typedName.trim(),
         clauseResponses: decisions as ClauseResponses,
       });
+      const renewal = Boolean(supersededConsent);
       updateConsent(next);
-      setMessage("Acceptance recorded.");
+      setMessage(renewal ? "Renewal recorded." : "Acceptance recorded.");
     } catch {
       setError("Unable to update waiver registration. Please review the version and try again.");
     } finally {
@@ -134,13 +146,12 @@ function WaiverContent() {
     }
   }
 
-  async function prepareDownload(): Promise<void> {
-    if (!consent) return;
+  async function prepareDownload(consentId: string): Promise<void> {
     setBusy(true);
     setError("");
     setEvidenceUrl("");
     try {
-      setEvidenceUrl((await getWaiverEvidenceDownload(consent.consentId)).downloadUrl);
+      setEvidenceUrl((await getWaiverEvidenceDownload(consentId)).downloadUrl);
     } catch {
       setError("Unable to open waiver evidence. Please try again.");
     } finally {
@@ -286,7 +297,7 @@ function WaiverContent() {
                   <button
                     className="button button-primary"
                     disabled={busy}
-                    onClick={() => void prepareDownload()}
+                    onClick={() => void prepareDownload(consent.consentId)}
                     type="button"
                   >
                     Prepare evidence download
@@ -322,6 +333,38 @@ function WaiverContent() {
               </div>
             ) : (
               <form className="waiver-form" noValidate onSubmit={(event) => void submit(event)}>
+                {supersededConsent ? (
+                  <div className="waiver-status-card waiver-status-renewal">
+                    <p className="waiver-status-label">Current status</p>
+                    <h3>Renewal required</h3>
+                    <p>
+                      You accepted version {supersededConsent.versionLabel} on{" "}
+                      {new Date(supersededConsent.signedAt).toLocaleString("en-GB")}. That version
+                      has been replaced by {currentVersion.versionLabel}, so this acceptance needs
+                      renewing. Your previous evidence is retained and can still be opened.
+                    </p>
+                    <div className="waiver-actions">
+                      <button
+                        className="button button-secondary"
+                        disabled={busy}
+                        onClick={() => void prepareDownload(supersededConsent.consentId)}
+                        type="button"
+                      >
+                        Open previous evidence
+                      </button>
+                    </div>
+                    {evidenceUrl ? (
+                      <a
+                        className="waiver-evidence-link"
+                        href={evidenceUrl}
+                        rel="noreferrer noopener"
+                        target="_blank"
+                      >
+                        Open signed evidence PDF
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
                 <label className="waiver-official-confirmation">
                   <input
                     checked={officialDocumentReviewed}
@@ -400,7 +443,11 @@ function WaiverContent() {
                   disabled={busy}
                   type="submit"
                 >
-                  {busy ? "Creating private evidence..." : "Accept and create evidence"}
+                  {busy
+                    ? "Creating private evidence..."
+                    : supersededConsent
+                      ? "Renew and create evidence"
+                      : "Accept and create evidence"}
                 </button>
               </form>
             )}

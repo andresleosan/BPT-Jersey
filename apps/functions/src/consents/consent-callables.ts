@@ -1,4 +1,5 @@
 import { getFirestore } from "firebase-admin/firestore";
+import { defineString } from "firebase-functions/params";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
@@ -21,17 +22,40 @@ import {
 } from "./consent-service.js";
 import { createWaiverEvidencePdf } from "./waiver-evidence-pdf.js";
 
+/**
+ * Whether waiver registration is open in this deployment (T127).
+ *
+ * It replaces `BPT_SYNTHETIC_PILOT` as the production gate, and the reason is the name: that flag
+ * says "synthetic pilot", so setting it in production would have been a false statement about the
+ * environment rather than a decision about the capability. A deployment can be production and have
+ * waiver registration closed, or be an Emulator and have it open; those are two facts and they now
+ * have two flags.
+ *
+ * It is a `defineString` rather than an env var so the value travels with the deployment and is
+ * visible in the function's own configuration - `firebase functions:describe` shows it - instead of
+ * living in a file the artifact has to remember to copy. Its default is `disabled`, so a function
+ * deployed before anyone decides **fails closed**, which is the same posture the synthetic gate had
+ * and the one the release runbook's precondition 6 asks for.
+ *
+ * Anything that is not exactly `enabled` leaves it closed. A typo has one meaning, not two.
+ */
+const waiverRegistrationMode = defineString("BPT_WAIVER_REGISTRATION", {
+  default: "disabled",
+  description:
+    "Set to 'enabled' to open waiver registration in this deployment. Anything else keeps it closed.",
+});
+
 export type ConsentCallableServices = Readonly<{
   store: ConsentStore;
-  pilotEnabled?: boolean;
+  registrationEnabled?: boolean;
   now?: () => string;
 }>;
 
-function pilot(services: ConsentCallableServices): void {
-  if (services.pilotEnabled !== true)
+function assertRegistrationEnabled(services: ConsentCallableServices): void {
+  if (services.registrationEnabled !== true)
     throw new HttpsError(
       "failed-precondition",
-      "Waiver registration is disabled outside the synthetic pilot",
+      "Waiver registration is not enabled in this deployment",
     );
 }
 function invalid(): never {
@@ -83,7 +107,7 @@ export async function publishWaiverVersionHandler(
   request: CallableRequest<unknown>,
   services: ConsentCallableServices,
 ) {
-  pilot(services);
+  assertRegistrationEnabled(services);
   const actor = admin(request);
   const parsed = parseWaiverPublicationInput(request.data);
   if (!parsed.ok) return invalid();
@@ -104,7 +128,7 @@ export async function getCurrentWaiverAdminHandler(
   request: CallableRequest<unknown>,
   services: ConsentCallableServices,
 ) {
-  pilot(services);
+  assertRegistrationEnabled(services);
   const actor = admin(request);
   noPayload(request.data);
   try {
@@ -117,7 +141,7 @@ export async function withdrawCurrentWaiverHandler(
   request: CallableRequest<unknown>,
   services: ConsentCallableServices,
 ) {
-  pilot(services);
+  assertRegistrationEnabled(services);
   const actor = admin(request);
   const parsed = parseWaiverVersionIdInput(request.data);
   if (!parsed.ok) return invalid();
@@ -138,7 +162,7 @@ export async function getWaiverRegistrationHandler(
   request: CallableRequest<unknown>,
   services: ConsentCallableServices,
 ) {
-  pilot(services);
+  assertRegistrationEnabled(services);
   const actor = client(request);
   noPayload(request.data);
   try {
@@ -156,7 +180,7 @@ export async function acceptWaiverHandler(
   request: CallableRequest<unknown>,
   services: ConsentCallableServices,
 ) {
-  pilot(services);
+  assertRegistrationEnabled(services);
   const actor = client(request);
   const parsed = parseWaiverAcceptanceInput(request.data);
   if (!parsed.ok) return invalid();
@@ -176,7 +200,7 @@ export async function revokeWaiverConsentHandler(
   request: CallableRequest<unknown>,
   services: ConsentCallableServices,
 ) {
-  pilot(services);
+  assertRegistrationEnabled(services);
   const actor = client(request);
   const parsed = parseConsentIdInput(request.data);
   if (!parsed.ok) return invalid();
@@ -196,7 +220,7 @@ export async function getWaiverEvidenceDownloadHandler(
   request: CallableRequest<unknown>,
   services: ConsentCallableServices,
 ) {
-  pilot(services);
+  assertRegistrationEnabled(services);
   const actor = evidenceActor(request);
   const parsed = parseConsentIdInput(request.data);
   if (!parsed.ok) return invalid();
@@ -218,7 +242,11 @@ function callableServices(): ConsentCallableServices {
     typeof createConsentStore
   >[0]["firestore"];
   return {
-    pilotEnabled: process.env.BPT_SYNTHETIC_PILOT === "true",
+    // Either gate opens it, and they mean different things: the production parameter is a decision
+    // about the capability, the synthetic flag is a statement about the environment. Keeping both
+    // is what lets the Emulator suites keep working without production borrowing their name.
+    registrationEnabled:
+      waiverRegistrationMode.value() === "enabled" || process.env.BPT_SYNTHETIC_PILOT === "true",
     store: createConsentStore({
       firestore,
       r2: createPrivateStorageR2Client(),

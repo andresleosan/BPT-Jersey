@@ -20,6 +20,11 @@ const otherGuardianId = `${runId}-other`;
 const studentId = `${runId}-student`;
 const relationshipId = `${runId}-relationship`;
 const documentId = `${runId}-document`;
+// Incrementing after the first, so a renewal does not collide with the evidence of the acceptance
+// it renews. The first call still returns `documentId`, which the assertions below name directly.
+let documentSeq = 0;
+const nextDocumentId = (): string =>
+  documentSeq++ === 0 ? documentId : `${documentId}-${String(documentSeq)}`;
 const now = "2026-08-25T12:00:00Z";
 const app = initializeApp({ projectId: "demo-bpt-jersey" }, runId);
 const firestore = getFirestore(app);
@@ -45,7 +50,7 @@ const store = createConsentStore({
   firestore: firestore as unknown as ConsentFirestore,
   r2,
   createEvidencePdf: async () => new TextEncoder().encode("%PDF synthetic emulator waiver"),
-  generateDocumentId: () => documentId,
+  generateDocumentId: nextDocumentId,
   appendAudit: (transaction, reference, draft) =>
     audit(transaction, reference, draft as AuditEventDraft),
 });
@@ -219,5 +224,145 @@ describe("versioned waiver against the Firestore emulator", () => {
     expect(
       (await firestore.doc(`academies/${academyId}/consents/${consent.consentId}`).get()).data(),
     ).toMatchObject({ status: "revoked" });
+  });
+
+  /**
+   * The renewal lookup (T127), against a real Firestore.
+   *
+   * The unit tests prove the selection rules over a fake store. What they cannot prove is the part
+   * that only a real database has an opinion about: that the query behind the previous acceptance
+   * -an equality on `subjectId` over the tenant's `consents` collection- names a field that
+   * actually exists and needs no composite index. A wrong field name passes every test written
+   * against a double and returns nothing in production, which would look exactly like "this person
+   * never signed anything".
+   */
+  it("finds the previous acceptance through a real query once a new version supersedes it", async () => {
+    const renewalStudentId = `${runId}-renewal-student`;
+    await Promise.all([
+      firestore.doc(`academies/${academyId}/students/${renewalStudentId}`).set({
+        studentId: renewalStudentId,
+        academyId,
+        familyId: `${runId}-family`,
+        fullName: "Synthetic Renewal Minor",
+        dateOfBirth: "2015-02-03",
+        trainingCenter: "Town",
+        trainingTimePreferences: ["evening"],
+        participantType: "minor",
+        active: true,
+        status: "active",
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: ownerId,
+        updatedAt: now,
+        updatedBy: ownerId,
+      }),
+      firestore.doc(`academies/${academyId}/relationships/${runId}-renewal-relationship`).set({
+        relationshipId: `${runId}-renewal-relationship`,
+        academyId,
+        familyId: `${runId}-family`,
+        studentId: renewalStudentId,
+        adultUserId: guardianId,
+        relationshipType: "guardian",
+        permissions: ["readProfile"],
+        validFrom: "2026-01-01T00:00:00Z",
+        active: true,
+        status: "active",
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: ownerId,
+        updatedAt: now,
+        updatedBy: ownerId,
+      }),
+    ]);
+
+    const clauses = [
+      {
+        key: "photoVideo" as const,
+        heading: "Photo and video",
+        body: "Synthetic media clause.",
+        required: false,
+      },
+      {
+        key: "medicalTreatment" as const,
+        heading: "Medical treatment",
+        body: "Synthetic medical clause.",
+        required: true,
+      },
+      {
+        key: "hygiene" as const,
+        heading: "Hygiene",
+        body: "Synthetic hygiene clause.",
+        required: true,
+      },
+      {
+        key: "dataProtection" as const,
+        heading: "Data protection",
+        body: "Synthetic data clause.",
+        required: true,
+      },
+    ];
+    const responses = {
+      photoVideo: "declined",
+      medicalTreatment: "accepted",
+      hygiene: "accepted",
+      dataProtection: "accepted",
+    } as const;
+
+    const previous = await store.publishWaiverVersion({
+      academyId,
+      actorId: ownerId,
+      now: "2026-08-26T09:00:00Z",
+      publication: {
+        versionLabel: "pilot-emulator-renewal-a",
+        title: "Synthetic emulator waiver",
+        introduction: "Synthetic content only.",
+        effectiveAt: "2026-08-26T09:00:00Z",
+        confirmReviewed: true,
+        clauses,
+      },
+    });
+    const signed = await store.acceptWaiver({
+      academyId,
+      actorId: guardianId,
+      role: "guardian",
+      now: "2026-08-26T09:10:00Z",
+      studentId: renewalStudentId,
+      waiverVersionId: previous.waiverVersionId,
+      contentHash: previous.contentHash,
+      typedName: "Synthetic Guardian",
+      clauseResponses: responses,
+    });
+
+    const current = await store.publishWaiverVersion({
+      academyId,
+      actorId: ownerId,
+      now: "2026-08-26T10:00:00Z",
+      publication: {
+        versionLabel: "pilot-emulator-renewal-b",
+        title: "Synthetic emulator waiver revision",
+        introduction: "Synthetic content only.",
+        effectiveAt: "2026-08-26T10:00:00Z",
+        confirmReviewed: true,
+        clauses,
+      },
+    });
+
+    const registration = await store.getWaiverRegistration({
+      academyId,
+      actorId: guardianId,
+      role: "guardian",
+      now: "2026-08-26T10:10:00Z",
+    });
+    expect(registration.currentVersion?.waiverVersionId).toBe(current.waiverVersionId);
+    const subject = registration.subjects.find(
+      (candidate) => candidate.studentId === renewalStudentId,
+    );
+    expect(subject?.consent).toBeNull();
+    expect(subject?.supersededConsent).toMatchObject({
+      consentId: signed.consentId,
+      studentId: renewalStudentId,
+      waiverVersionId: previous.waiverVersionId,
+      status: "accepted",
+    });
   });
 });

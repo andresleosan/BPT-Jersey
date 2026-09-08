@@ -209,6 +209,12 @@
 .waiver-status-revoked {
   border-left: 0.35rem solid #bb3c3c;
 }
+/* A renewal is neither active nor revoked: the previous acceptance still stands, and a newer
+   version is waiting. Amber says "action needed" without saying "something went wrong". */
+.waiver-status-renewal {
+  border-left: 0.35rem solid #b8791b;
+  margin-bottom: 1.5rem;
+}
 .waiver-evidence-link {
   display: inline-block;
   margin-top: 1rem;
