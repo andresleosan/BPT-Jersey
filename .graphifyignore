@@ -27,3 +27,9 @@ graphify-out/
 # la interfaz, no conocimiento.
 apps/web/public/
 qa/visuals/
+
+# Inventarios de release: volcados de `functions:list --json`, del orden de 120 KB de metadatos
+# generados por máquina. Son la evidencia de una release concreta y se citan desde el ledger, que
+# sí entra; extraerlos añadiría cien nodos de configuración por release sin una sola relación de
+# dominio.
+docs/operations/release-*-functions.json

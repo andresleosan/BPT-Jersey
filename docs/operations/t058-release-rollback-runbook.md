@@ -534,6 +534,63 @@ bptjersey-f5a25"`. Sin ella responde `PERMISSION_DENIED` con `reason: SERVICE_DI
 proyecto `32555940559`, que es el del propio gcloud y despista. Hubo que habilitar además
 `billingbudgets.googleapis.com`, que estaba apagada.
 
+### 6.3 App Check consumible: un permiso IAM que faltaba desde siempre
+
+**Síntoma:** cualquier callable declarada con `consumeAppCheckToken: true` devuelve `401` a un usuario
+correctamente autenticado. En el navegador se lee como "no has iniciado sesión", que es exactamente lo
+contrario de lo que pasa.
+
+**Causa:** la cuenta de servicio de las funciones —`387764816359-compute@developer.gserviceaccount.com`,
+con `roles/editor`— no tenía `firebaseappcheck.appCheckTokens.verify`. Las callables que **no**
+consumen token validan el JWT de App Check localmente y funcionan; las que **sí** lo consumen deben
+llamar al backend de App Check para gastarlo, reciben `403` y responden `401` al cliente.
+
+**Arreglo,** aplicado el 2026-09-08 con autorización del operador:
+
+```bash
+gcloud projects add-iam-policy-binding bptjersey-f5a25 \
+  --member="serviceAccount:387764816359-compute@developer.gserviceaccount.com" \
+  --role="roles/firebaseappcheck.tokenVerifier"
+```
+
+Ese rol concede **un solo permiso**, el que falta. `roles/firebaseappcheck.admin` también sirve y
+añade administración de configuración y automatizaciones que nadie necesita.
+
+**Lo que conviene retener, más allá del arreglo:**
+
+- **Afectaba a producción desde antes de cualquier release de T058**, y nadie lo sabía: panel
+  financiero, informes operativos, agenda, backup, export, perfil de tutor, penalizaciones, permisos
+  de staff y cumpleaños. El primer lote no lo causó; hizo que alguien mirara.
+- **La propagación de IAM no es inmediata.** Las llamadas de los primeros ~20 segundos tras el
+  `add-iam-policy-binding` siguieron fallando. Un minuto o dos antes de concluir nada.
+- **El log del servidor lo decía en texto plano**, con enlace al troubleshooter. Antes de llegar ahí
+  se descartaron dos hipótesis —los clientes web y un reCAPTCHA hostil al navegador automatizado—,
+  las dos falsas. **Leer el log del que falla va antes que razonar sobre el que llama.**
+- **El cliente también importa, pero no era el bloqueo.** Una callable con `consumeAppCheckToken`
+  exige que el navegador pida un token *limited-use*: `httpsCallable(fns, name,
+  { limitedUseAppCheckTokens: true })`. Sin eso falla igualmente, sólo que por otra razón. Ambas
+  condiciones son necesarias.
+
+### 6.4 Verificación §4.4(4) con navegador conducido
+
+Se puede automatizar la mitad que no necesita sesión —`qa/tests/production-verification.spec.ts`,
+opt-in con `PROD_VERIFY=true` y `BASE_URL`, saltada en CI—, y conviene, porque comprueba carga,
+consola y que `/admin` rechaza a un anónimo sin romperse.
+
+La otra mitad exige sesión real y **no debe automatizarse con credenciales**: se abre Chromium con
+ventana visible, el operador inicia sesión a mano y el guion continúa desde ahí, registrando por
+pantalla el código HTTP de **cada callable invocada**. La contraseña nunca llega al asistente.
+
+Tres cosas aprendidas haciéndolo el 2026-09-08:
+
+- **La puerta de administración es `/staff/login`**, no `/login`, que es la de clientes.
+- **Un navegador conducido no es juez suficiente.** Resultados no deterministas —la misma callable
+  dando `200` y `401` en dos pantallas de la misma sesión— llevaron a culpar a reCAPTCHA. Era falso,
+  pero la duda sólo se resolvió con el operador abriendo la pantalla en su navegador normal. El §4.4(4)
+  pide una persona por una razón.
+- **Que una deployment esté activa no es que contenga el cambio.** Antes de pedirle al operador que
+  verifique, se comprueba leyendo los chunks que la página referencia en producción.
+
 ## 7. Registro de releases
 
 | Fecha      | Alcance                                                                             | Commit             | Evidencia                                                    | Baseline de rollback                                                                                          |
@@ -542,6 +599,8 @@ proyecto `32555940559`, que es el del propio gcloud y despista. Hubo que habilit
 | 2026-09-07 | 7 callables de inscripción actualizadas con el waiver                               | `3cc108e`          | ledger "Owner aprovisionado y waiver en el alta"             | redesplegar las 7 desde `8a269c5` dejaría atascadas las solicitudes con waiver (§5.0): corregir hacia delante |
 | 2026-09-07 | Frontend `51918ad` (Pages `eb118dd6`)                                               | `51918ad`          | `wrangler pages deployment list`                             | Pages `9e083487`                                                                                              |
 | 2026-09-08 | Primer lote de T058: 31 callables (staff, families, crm, penalties, tienda, anuncios) y el redespliegue de la programada huérfana | `437e7a2` | ledger "Release 2026-09-08: las 31 callables del primer lote de T058"; `docs/operations/release-437e7a2-functions.json` | borrar las 31, no existían; la programada vuelve atrás borrando su job de Scheduler |
+| 2026-09-08 | `cleanupExpiredMemberImportSessionsSchedule` con los cinco secretos de R2 ligados, más el índice `memberImportPreviews (status, expiresAt)` | `0b412c0` y `5d3a0a6` | ledger "La cebolla de la limpieza programada y R2 cableado" | pausar el job de Scheduler; el índice es aditivo y no se retira |
+| 2026-09-08 | Frontend: token de App Check de un solo uso en los clientes de penalizaciones, permisos de staff y cumpleaños | `dd131ef` (Pages `2dfc97be`) | ledger "Fila de release del frontend" | Pages `a53dfe90` |
 
 Las releases anteriores al 2026-09-07 están reconstruidas en §2.1 a partir de producción, no de un
 registro escrito en su momento. A partir de aquí, cada fila se escribe el día de la release.

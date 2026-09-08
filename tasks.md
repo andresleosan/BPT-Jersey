@@ -6791,3 +6791,179 @@ metrica tras la primera emision.
 
 **Contadores sin cambio:** 117 aprobadas de 121 (97%), 4 pendientes (T058, T059, T108, T127). T058
 espera la verificacion en navegador; T127 pierde su bloqueo de credenciales R2 pero conserva el resto.
+
+### T058 aprobada: la verificacion en navegador y el permiso que faltaba desde siempre - 2026-09-08
+
+La verificacion del §4.4(4) se hizo, encontro un fallo real, y el fallo no era de la release. Esta
+seccion cuenta las tres hipotesis que se probaron -dos equivocadas- porque el orden en que cayeron es
+mas util que la respuesta.
+
+**Como se hizo la verificacion.** Chromium con ventana visible contra produccion, el operador
+iniciando sesion a mano en `/staff/login` -no `/login`, que es la puerta de clientes- y el guion
+recorriendo despues las seis pantallas del lote, registrando por cada una el codigo HTTP, los errores
+de consola, las excepciones y **el estado de cada callable invocada**. La credencial nunca paso por
+el asistente. Un `200` de `listStaffProfiles` con sesion real es la prueba que un sondeo anonimo con
+`401` no puede dar, y esa diferencia resulto ser el centro del asunto.
+
+**Hipotesis 1, equivocada: los clientes web.** La primera pasada mostro `listStaffPermissionGrants` y
+`listNoShowPenalties` en `401` mientras `listStaffProfiles` daba `200` en la misma pagina. La
+diferencia visible era `consumeAppCheckToken: true`, que exige al cliente pedir un token de App Check
+de un solo uso, y tres clientes -`no-show-penalties-client`, `staff-permissions-client` y
+`birthdays-client`- llamaban a `httpsCallable` sin ese tercer argumento. Se corrigio, con sus pruebas
+y comprobado por mutacion. **El arreglo es correcto y no era el bloqueo.**
+
+**Hipotesis 2, equivocada: el arnes.** Tras desplegar el frontend, la segunda pasada empeoro:
+`listStaffProfiles` daba `401` en `/admin/staff` y `200` en `/admin/classes`, la misma funcion en la
+misma sesion. Como esa callable no consume token y su cliente no se habia tocado, la conclusion
+razonable era que reCAPTCHA Enterprise estaba puntuando mal a un navegador automatizado. Se dijo asi
+y se pidio al operador la comprobacion manual. **Tambien era falso**, y lo demostro su captura: en su
+navegador normal fallaba igual.
+
+**Hipotesis 3, la buena: un permiso IAM.** El log del servidor lo decia sin ambiguedad, y bastaba con
+ir a mirarlo antes: `Permission 'firebaseappcheck.appCheckTokens.verify' denied`. La cuenta de
+servicio de las funciones, `387764816359-compute@developer.gserviceaccount.com`, tenia `roles/editor`
+y ningun permiso de App Check. Las callables que **no** consumen token validan el JWT localmente y
+funcionan; las que si lo consumen tienen que llamar al backend de App Check, reciben `403`, y
+devuelven `401` al navegador. Se concedio `roles/firebaseappcheck.tokenVerifier`, que otorga
+exactamente ese permiso y ninguno mas. Tras la propagacion -las llamadas de los primeros 20 segundos
+todavia fallaron-, cero rechazos y la cola de penalizaciones cargando en el navegador del operador.
+
+**Lo que esto significa, y es mas grande que esta release.** El permiso faltaba **desde siempre**.
+Toda callable con `consumeAppCheckToken` llevaba rota en produccion sin que nadie lo supiera: el
+panel financiero, los informes operativos, la agenda, backup, export y el perfil de tutor, ademas de
+las siete del lote. La release no lo causo; **hizo que alguien mirara**.
+
+**Un sintoma jamas nombra su causa, y aqui la distancia fue maxima.** `401` en el navegador se lee
+como "no estas autenticado". El operador estaba perfectamente autenticado: era el **servidor** el que
+no tenia permiso para comprobarlo. Tres capas de indireccion entre lo que se ve y lo que pasa.
+
+**Y una leccion de metodo que conviene no perder.** Dos hipotesis cayeron antes de leer los logs del
+servidor. Estaban a un comando de distancia y decian la respuesta en texto plano, con enlace al
+troubleshooter incluido. **Leer el log del que falla va antes que razonar sobre el que llama.**
+
+**Dos falsos verdes propios, anotados para no repetirlos.** Un vigilante busco el texto "AppCheck
+token was rejected" cuando el mensaje real era "Failed to validate AppCheck token", y concluyo que no
+habia rechazos habiendolos. Y una consulta de logs pidio una ventana que empezaba **en el futuro**,
+devolviendo cero resultados que se leyeron como cero fallos. **Un filtro que no encuentra nada y una
+ventana vacia se parecen mucho a un exito, y no lo son.**
+
+**Lo que quedo sin arreglar y no es defecto.** La seccion "Billing account could not be loaded" de
+`/admin/billing` sigue vacia porque `listFinancialAccount` **no esta desplegada**, junto con
+`getInvoice`, `issueManualInvoice`, `recordManualPayment`, `voidManualInvoice` y
+`savePaymentInstructions`: el ciclo de facturacion manual entero, que sera otro lote. Es una de las
+83 que la web invoca y no existen, no un fallo de esta release.
+
+### Fila de release del frontend - 2026-09-08
+
+- **Autorizacion:** el operador, el 2026-09-08, para publicar el arreglo de los tres clientes.
+- **Commit:** `dd131ef`; arbol limpio. Empuja ademas los cinco commits de documentacion de la sesion.
+- **Gates:** `verify:mvp` completo en verde en una sola vuelta -274 ficheros, 2317 unitarias, Rules
+  92/92, las ocho etapas-; golden path 19/19.
+- **Deployment de Pages:** `2dfc97be-dfe3-4d34-b094-8699ccc163cb`, desde `dd131ef`.
+  **Anterior, para rollback:** `a53dfe90-3f97-44c3-9c4b-574352590cef`, desde `0942ee5`.
+- **Verificacion:** el bundle servido contiene `limitedUseAppCheckTokens` en dos chunks de
+  `/admin/billing`, comprobado leyendo los chunks referenciados por la pagina en produccion. Que la
+  deployment este activa y que contenga el cambio no son la misma afirmacion.
+
+### T058: aprobada, con una casilla vacia que se queda escrita
+
+**Se aprueba porque la evidencia existe:** la release ocurrio con autorizacion explicita del operador
+nombrando las 31; `functions:list` muestra 70 `ACTIVE` con las 31 presentes y las cuatro de
+`profiles/*` correctamente ausentes; los sondeos anonimos dieron `401` en las 31; los logs de Cloud
+Run salieron limpios; el delta bajo de 114 a 83 invocadas sin desplegar, exactamente 31 menos; y la
+verificacion en navegador del §4.4(4) se hizo con sesion real, encontro un fallo, se corrigio de
+raiz y se volvio a comprobar en el navegador del propio operador.
+
+**Lo que no se cumplio, y se registra en vez de disimularse:** el aviso previo a office y coaches del
+§4.0(10) **no consta**. El operador eligio ventana inmediata sobre una opcion que pedia confirmarlo y
+esa confirmacion nunca llego. La fila se aprueba porque lo que mide -que el despliegue ocurriera, con
+autorizacion y verificado- ocurrio; la casilla vacia queda en la fila de release, que es donde
+significa algo. **Aprobar no es declarar que todo salio perfecto: es declarar que la evidencia que la
+fila pedia existe y se puede abrir.**
+
+**Que desbloquea:** T059, cuya leccion es posterior a produccion y hasta hoy no tenia materia sobre la
+que escribirse. **Que no desbloquea:** los lotes siguientes, que necesitan su propia autorizacion, su
+propio delta y sus propias precondiciones medidas **por funcion**, no por lote.
+
+**Contadores:** 118 aprobadas de 121 (98%), 0 en revision, 0 en progreso, 3 pendientes (T059, T108,
+T127), 7 canceladas, sobre 128 filas.
+
+### El camino al 100 %: tres filas, y que necesita cada una - 2026-09-08
+
+Quedan **T059, T108 y T127**. Ninguna espera ya una decision del operador: las tres son trabajo que se
+puede hacer. Es la primera vez en esta sesion que eso es cierto, y conviene dejar escrito el estado
+exacto para que la siguiente conversacion empiece sin reconstruirlo.
+
+| Fila | Que le falta | Bloqueada por |
+| --- | --- | --- |
+| T059 | `LECCIONES.md` y el analisis de brechas | Nada. La desbloqueo T058 hoy |
+| T108 | Rebanada 9 en adelante; van 8 de las piezas grandes | Nada. Es codigo |
+| T127 | El gate de produccion de `consent-callables` y la renovacion digital | Una decision de producto |
+
+**T059 - cierre del proyecto.** Su evidencia es un `LECCIONES.md` que **no existe** y un analisis de
+brechas sobre la release. Hasta hoy no habia materia: la leccion es posterior a produccion y
+produccion no habia ocurrido. Ahora si. Y esta sesion deja material abundante y concreto para
+escribirlo:
+
+- Que una nota de runbook que declara un bloqueo sin medirlo cuesta releases enteras -las alertas
+  resultaron ser creables desde el primer dia-.
+- Que la precondicion 6 se mide **por funcion desplegada**, no por lote: el anadido de ultima hora es
+  el que nadie vuelve a mirar.
+- Que un sintoma no nombra su causa, con tres ejemplos del mismo dia: "scheduled" era una etiqueta sin
+  disparador, "journal unavailable" era un indice ausente, y `401` era un permiso IAM del servidor.
+- Que **leer el log del que falla va antes que razonar sobre el que llama**: dos hipotesis cayeron
+  antes de mirar un log que decia la respuesta en texto plano.
+- Que una asercion de existencia -`toBeDefined()`- no es una prueba de configuracion, y que un doble
+  que descarta sus argumentos no puede ver lo que le pasan.
+- Que un monitor mal construido genera el error que vigila: el uptime check con `GET` fabricaba la
+  unica entrada de error del proyecto.
+- Que las alertas se pagaron solas: la de `5xx` cazo una funcion rota desde agosto una hora despues
+  de existir.
+
+**T108 - el motor de migracion del directorio canonico.** La unica de las tres cuyo bloqueo siempre
+fue codigo, y sigue igual: **van dos ejecutores de siete y ocho rebanadas**. Lo que falta, en el orden
+en que se venia haciendo:
+
+1. **La rebanada 9, que es la siguiente:** enchufar la verificacion y el cierre del bootstrap a su
+   runner, con adaptador Firestore y ensayo en Emulator. Las piezas puras ya existen de la rebanada 8
+   -el MAC de linea base, la verificacion y el cierre-; falta el cableado.
+2. El ejecutor forward, y despues los otros cinco.
+3. Las dos transiciones que faltan del documento padre, `applying -> verified` y
+   `verified -> completed`, cada una transaccion propia con su prueba.
+4. El plan privado congelado y su dry-run.
+5. La cuarentena, y la acunacion y consumo de aprobaciones.
+6. El ensayo de la operacion completa de punta a punta.
+
+**T127 - la renovacion digital del waiver.** R2 dejo de bloquearla hoy: bucket EU, cinco secretos,
+endpoint jurisdiccional y credenciales reales, verificado en produccion. Le quedan dos cosas:
+
+1. **Una decision de producto pendiente:** sacar `consent-callables` del gate `BPT_SYNTHETIC_PILOT`
+   con un gate de produccion real. El 2026-09-07 se contesto en negativo **para el primer lote**, asi
+   que esas callables siguen desplegadas e inertes. No es un no definitivo: es un no a llevarlas en
+   aquel lote.
+2. Con eso resuelto, implementar la renovacion digital desde `/account/waiver` segun
+   `docs/operations/t106-waiver-enrolment-integration-analysis.md`, que sigue siendo valido.
+
+**Lo que no cuenta para el 100 % pero esta pendiente y no conviene perder:**
+
+- **Rotar la access key de R2.** Su valor acabo en el transcript por la notificacion de cambio de
+  fichero del IDE. Exige redespliegue: las funciones fijan la version del secreto, no usan `latest`.
+- **La alerta 4 del §6.1**, fallos de Cloud Scheduler. Veinte intentos en cuarenta minutos y Google no
+  publico el descriptor de la metrica pese a que el job ejecuto con exito. Sospecha razonable: hace
+  falta al menos un intento **fallido** para materializarla, lo que es ironico tratandose de la alerta
+  de fallos. Politica escrita y a una llamada.
+- **El aviso a office y coaches** de la release del primer lote, que no consta.
+- **"Build watch paths" en Pages**, la decision 9. Autorizada por el operador y **no aplicada**:
+  wrangler no la expone -solo `list`, `create` y `delete`- y hacerlo por API exigiria un token que no
+  se pidio. Se hace en el panel: incluir `apps/web/*`, `packages/*`, `pnpm-lock.yaml` y
+  `package.json`; excluir `docs/*`, `tasks.md`, `Lista/*`, `graphify-out/*`, `qa/*` y
+  `apps/functions/*`.
+- **Dos `catch` que descartan la causa**, anotados y no arreglados:
+  `member-directory-empty-initialize.mjs` y el de `previewStore.listExpired`. Los dos costaron tiempo
+  real de diagnostico esta sesion.
+- **`no-show-penalties-client.ts` no tiene fichero de pruebas**, y es justamente la callable que se
+  vio fallar en produccion.
+- **Los lotes de release siguientes:** 83 callables que la web invoca y no estan desplegadas, entre
+  ellas el ciclo de facturacion manual completo -`listFinancialAccount`, `getInvoice`,
+  `issueManualInvoice`, `recordManualPayment`, `voidManualInvoice`, `savePaymentInstructions`- y
+  `listMemberships`. Cada lote con su autorizacion, su delta y sus precondiciones medidas por funcion.
