@@ -404,13 +404,22 @@ Google Cloud terminó, Cloud Functions v2 dejó de servir y nadie lo supo hasta 
 página. El plazo que dio Google para restablecer servicios era el 6 de octubre de 2026; ya no aplica,
 pero la misma situación se repite si la cuenta de pago cae.
 
-### 6.1 Alertas que faltan, acciones del operador antes de la primera release
+### 6.1 Alertas, creadas el 2026-09-08 salvo una
 
-Hoy no existe ninguna alerta: ni de presupuesto, ni de errores, ni de disponibilidad. Todas requieren
-roles de facturación o de monitorización que el repositorio no tiene, así que son del operador:
+**Corrección de una premisa falsa de esta misma sección.** Hasta el 2026-09-08 este apartado decía
+que las cinco alertas "requieren roles de facturación o de monitorización que el repositorio no
+tiene, así que son del operador". **No es cierto**, y nadie lo había comprobado. La identidad gcloud
+autenticada en la máquina de desarrollo (`andres.san1404@gmail.com`) tiene concedidos, verificados
+con `testIamPermissions` contra `cloudresourcemanager` y `cloudbilling`:
+`monitoring.notificationChannels.create`, `monitoring.alertPolicies.create`,
+`monitoring.uptimeCheckConfigs.create` y `billing.budgets.create` sobre
+`billingAccounts/01A152-164886-CFA852`. Una nota que declara un bloqueo sin medirlo cuesta tantas
+releases como una que declara verde algo roto. **Antes de escribir "no tengo permiso", ejecútese
+`testIamPermissions`.**
 
-Umbrales concretos, decididos el 2026-09-07 para que sean creables sin volver a pensarlos. Se crean
-en este orden: el canal primero, porque las cuatro políticas lo necesitan al guardarse.
+Con la autorización del operador del 2026-09-08 se crearon cuatro de las cinco. Se crean en este
+orden: el canal primero, porque las cuatro políticas lo necesitan al guardarse. Umbrales concretos,
+decididos el 2026-09-07 para que sean creables sin volver a pensarlos.
 
 1. **Canal de notificación.** Monitoring, Alerting, Notification channels, tipo Email, la dirección
    del owner. Es el paso 1 y no el 5: sin canal, una política se guarda sin avisar a nadie.
@@ -429,6 +438,70 @@ en este orden: el canal primero, porque las cuatro políticas lo necesitan al gu
    esperando `200`, y un segundo check contra la URL de un callable desplegado aceptando cualquier
    código que no sea `5xx` -un `401` anónimo significa "vivo y rechazando bien"-. Ambos con alerta
    sobre el canal del punto 1.
+
+### 6.2 Lo que existe hoy en `bptjersey-f5a25`, verificado leyendo la API
+
+Creado el 2026-09-08 sobre un proyecto que tenía **cero** canales y **cero** políticas. Los
+identificadores se anotan para que un rollback o un cambio de umbral no tenga que buscarlos:
+
+| §6.1 | Recurso | Identificador | Estado |
+| --- | --- | --- | --- |
+| 1 | Canal de correo `andres.san1404@gmail.com` | `notificationChannels/12257294977499398601` | **Vivo**, `enabled: true` |
+| 2 | Presupuesto mensual 200.000 COP | `billingAccounts/01A152-164886-CFA852/budgets/b5c93313-9397-4736-8555-d270abf20b29` | **Vivo**, avisos 50/90/100 % real y 100 % previsto |
+| 3 | 5xx en Cloud Run | `alertPolicies/14551742904807390116` | **Viva**, 1 condición, sin filtrar por servicio |
+| 4 | Fallos de Cloud Scheduler | — | **No creable hoy.** Ver abajo |
+| 5 | Disponibilidad, dos uptime checks | `alertPolicies/136751823744566063` | **Viva**, 2 condiciones |
+
+**El presupuesto avisa y no corta**, que era la decisión del 2026-09-07: no lleva regla de corte de
+gasto, y cortar es exactamente lo que dejó producción caída ese día. La moneda de la cuenta de
+facturación es **COP**, no GBP; el importe está en pesos y conviene no leerlo como libras.
+
+Los dos uptime checks corren cada 300 s: `https://bptjersey.pages.dev/` esperando `200`, y
+`https://us-central1-bptjersey-f5a25.cloudfunctions.net/getCurrentWaiverAdmin` aceptando cualquier
+clase que no sea `5xx`. Medido al crearlos: Pages devuelve `200` y el callable `400` a un `GET`
+desnudo, que es "vivo y rechazando bien".
+
+**Por qué la 4 no se pudo crear, y el defecto de producción que eso destapó.** La API rechaza la
+política con `404`: no existe descriptor para `cloudscheduler.googleapis.com/job/attempt_count` en
+este proyecto. La causa no es la métrica: **no hay ningún job de Cloud Scheduler**, comprobado en
+`us-central1`, `us-east1`, `us-east4`, `us-west1`, `us-west2`, `europe-west1` y `europe-west2`, todos
+a cero. Y sin embargo `cleanupExpiredMemberImportSessionsSchedule` figura desplegada y `ACTIVE` desde
+el 2026-09-07 06:22.
+
+**Conviene no confundirse con la anatomía de una `onSchedule` v2, porque invita a un diagnóstico
+falso.** Su `eventTrigger` es `null` y lo único que la marca es la etiqueta
+`deployment-scheduled: true`: eso es **correcto y esperado**. Una función programada v2 se despliega
+como función **HTTPS**, y quien la dispara es un job de Cloud Scheduler **separado**
+(`firebase-schedule-<función>-<región>`) que la invoca. Así que `eventTrigger: null` no prueba nada
+malo. Lo que sí lo prueba es la otra mitad: **el job no existe**. `firebase functions:list` la pinta
+como `scheduled` leyendo la etiqueta, no comprobando el job, así que **el inventario dice "scheduled"
+de una función que hoy no puede dispararse**. Consecuencia real: las sesiones de importación de
+miembros caducadas no se limpian desde esa fecha.
+
+**La comprobación honesta de una función programada son dos lecturas, no una.** La etiqueta dice que
+se desplegó con intención de programarse; solo `gcloud scheduler jobs list --location <región>` dice
+si algo la va a llamar.
+
+Es literalmente el fallo silencioso para el que existe la alerta 4, ocurriendo mientras la alerta no
+existe. Se arregla redesplegando la función para que se le cree el job; **no se tocó**, porque es un
+cambio de producción fuera del lote autorizado. Una vez exista el job y emita, la política se crea
+con el fichero ya escrito:
+
+```bash
+curl -s -X POST "https://monitoring.googleapis.com/v3/projects/bptjersey-f5a25/alertPolicies" \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" -d @policy-scheduler.json
+```
+
+con filtro `metric.type="cloudscheduler.googleapis.com/job/attempt_count" AND
+resource.type="cloud_scheduler_job" AND metric.labels.response_code!="success"`, agregación
+`ALIGN_SUM`/`REDUCE_SUM` sobre 900 s agrupando por `job_id`, y condición `> 0`.
+
+**Un detalle que costó un `403` y conviene no repetir.** La API de presupuestos exige cabecera de
+proyecto de cuota cuando se llama con credenciales de usuario: `-H "x-goog-user-project:
+bptjersey-f5a25"`. Sin ella responde `PERMISSION_DENIED` con `reason: SERVICE_DISABLED` apuntando al
+proyecto `32555940559`, que es el del propio gcloud y despista. Hubo que habilitar además
+`billingbudgets.googleapis.com`, que estaba apagada.
 
 ## 7. Registro de releases
 
