@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const callable = vi.hoisted(() => vi.fn());
-vi.mock("firebase/functions", () => ({ httpsCallable: () => callable }));
+// El doble anterior era `() => callable` y descartaba los argumentos, asi que no podia ver con que
+// opciones se crea el callable. Ahora los registra, que es lo unico que permite fijar la de App
+// Check.
+const httpsCallableSpy = vi.hoisted(() => vi.fn(() => callable));
+vi.mock("firebase/functions", () => ({ httpsCallable: httpsCallableSpy }));
 vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
 import {
@@ -107,5 +111,24 @@ describe("staff permissions client (T116)", () => {
     expect(permissionGrantStatusLabel(grant)).toBe("Active until 2026-10-05");
     expect(permissionGrantStatusLabel({ ...grant, status: "revoked" })).toBe("Revoked");
     expect(permissionGrantStatusLabel({ ...grant, status: "expired" })).toBe("Expired");
+  });
+
+  /**
+   * Estas tres se despliegan con `consumeAppCheckToken`, asi que su token de App Check es de un solo
+   * uso y el cliente tiene que pedir uno limited-use. Con el token normal en cache el servidor
+   * rechaza la llamada, y un rechazo de App Check llega al navegador como `401`: identico a "sin
+   * sesion", de modo que la pantalla parece un problema de permisos y no de configuracion. Visto en
+   * produccion el 2026-09-08 con sesion real de administrador, donde listStaffPermissionGrants
+   * devolvia 401 mientras listStaffProfiles -que no consume token- devolvia 200 en la misma pagina.
+   */
+  it("pide token de App Check de un solo uso en las tres callables", async () => {
+    callable.mockResolvedValue({ data: { grants: [] } });
+    httpsCallableSpy.mockClear();
+
+    await listStaffPermissionGrants();
+
+    expect(httpsCallableSpy).toHaveBeenCalledWith({}, "listStaffPermissionGrants", {
+      limitedUseAppCheckTokens: true,
+    });
   });
 });

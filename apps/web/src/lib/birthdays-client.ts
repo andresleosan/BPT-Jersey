@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable as firebaseHttpsCallable } from "firebase/functions";
 
 import {
   upcomingBirthdayParticipantTypes,
@@ -10,6 +10,26 @@ import {
 } from "@bpt-jersey/domain/birthdays";
 
 import { getFirebaseFunctions } from "./firebase-client";
+
+/**
+ * This callable is deployed with `consumeAppCheckToken: true`, so its App Check token is single-use
+ * and the client has to ask for a limited-use one. Sending the ordinary cached token gets the call
+ * rejected, and an App Check rejection surfaces as `401` — indistinguishable from "not signed in"
+ * unless you already know to look here. Observed in production 2026-09-08 against a real
+ * administrator session.
+ */
+const upcomingBirthdayCallableClientOptions = Object.freeze({ limitedUseAppCheckTokens: true });
+
+function httpsCallable<RequestData, ResponseData>(
+  functions: ReturnType<typeof getFirebaseFunctions>,
+  name: string,
+) {
+  return firebaseHttpsCallable<RequestData, ResponseData>(
+    functions,
+    name,
+    upcomingBirthdayCallableClientOptions,
+  );
+}
 
 /**
  * T112: the upcoming birthdays of the canonical students, for the coach panel. The response never

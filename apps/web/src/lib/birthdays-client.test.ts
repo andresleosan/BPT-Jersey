@@ -30,7 +30,12 @@ describe("birthdays client (T112)", () => {
     await expect(
       listUpcomingBirthdays({ trainingCenter: "West", windowDays: 7 }),
     ).resolves.toEqual([birthday]);
-    expect(api.httpsCallable).toHaveBeenCalledWith({}, "listUpcomingBirthdays");
+    // El tercer argumento no es decorativo: el callable se despliega con
+    // consumeAppCheckToken, asi que sin token de un solo uso el servidor responde 401 y la
+    // pantalla del coach se queda vacia sin decir por que. Visto en produccion el 2026-09-08.
+    expect(api.httpsCallable).toHaveBeenCalledWith({}, "listUpcomingBirthdays", {
+      limitedUseAppCheckTokens: true,
+    });
     expect(api.invoke).toHaveBeenCalledWith({ trainingCenter: "West", windowDays: 7 });
   });
 
