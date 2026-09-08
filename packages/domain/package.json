@@ -40,6 +40,11 @@
       "import": "./src/members/member-directory-migration-contracts.ts",
       "default": "./lib/members/member-directory-migration-contracts.js"
     },
+    "./members/directory-private-plan": {
+      "types": "./src/members/member-directory-private-plan-contracts.ts",
+      "import": "./src/members/member-directory-private-plan-contracts.ts",
+      "default": "./lib/members/member-directory-private-plan-contracts.js"
+    },
     "./members/directory-operations": {
       "types": "./src/members/member-directory-operation-contracts.ts",
       "import": "./src/members/member-directory-operation-contracts.ts",

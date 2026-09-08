@@ -269,6 +269,77 @@ export function createMemberDirectorySourceRowMac(
 }
 
 /**
+ * The MACs of the two frozen private artifacts (T108): the reviewed manifest and the output plan.
+ *
+ * They are separate functions with separate domains because they answer separate questions - which
+ * legacy row becomes which student, against which documents that produces - and a receipt binds
+ * both. One MAC over a concatenation of the two would let a manifest be re-paired with a plan that
+ * happened to hash to the same total.
+ *
+ * Each MAC is taken over the canonical JSON of the whole artifact, so nothing inside it - a row, a
+ * reviewed reason, an expiry, a target path - can change without the receipt that named it ceasing
+ * to verify. That is what keeps the artifacts outside Firestore honest: the database stores no row,
+ * only the proof that the rows it was confirmed against are the rows being executed.
+ */
+export function createMemberDirectoryPrivateManifestMac(
+  input: Readonly<{ manifest: unknown; secretMaterial: string }>,
+): string {
+  return createMemberDirectoryIntegrityMac({
+    domain: "bpt-member-directory-private-manifest-v1",
+    values: [canonicalizeMemberDirectoryValue(input.manifest)],
+    secretMaterial: input.secretMaterial,
+  });
+}
+
+export function createMemberDirectoryPrivatePlanMac(
+  input: Readonly<{ plan: unknown; secretMaterial: string }>,
+): string {
+  return createMemberDirectoryIntegrityMac({
+    domain: "bpt-member-directory-private-plan-v1",
+    values: [canonicalizeMemberDirectoryValue(input.plan)],
+    secretMaterial: input.secretMaterial,
+  });
+}
+
+/**
+ * The source-set MAC of an operation: the fold of every reviewed row's own source fingerprint.
+ *
+ * The receipt carries it so that "the source changed" can be caught **once, for the whole plan**,
+ * before the first chunk, rather than one row at a time as each chunk reaches it. Sorting by source
+ * ID makes it a proof about a set, so re-deriving it from the manifest in a different row order
+ * gives the same answer; a repeated source ID is rejected instead of folded in twice, because a
+ * source mapped twice is the ambiguity the manifest rule already refuses.
+ */
+export function createMemberDirectorySourceSetMac(
+  input: Readonly<{
+    academyId: string;
+    operationId: string;
+    rows: readonly Readonly<{ sourceId: string; sourceRowMac: string }>[];
+    secretMaterial: string;
+  }>,
+): string {
+  const seen = new Set<string>();
+  const folded = input.rows.map((row) => {
+    if (seen.has(row.sourceId)) {
+      throw new Error("A member directory source set cannot list the same row twice");
+    }
+    seen.add(row.sourceId);
+    return `${requiredSafeIdentifier(row.sourceId, "source ID")},${row.sourceRowMac}`;
+  });
+  const sorted = [...folded].sort();
+  return createMemberDirectoryIntegrityMac({
+    domain: "bpt-member-directory-source-set-v1",
+    values: [
+      requiredSafeIdentifier(input.academyId, "academy ID"),
+      requiredSafeIdentifier(input.operationId, "operation ID"),
+      String(sorted.length),
+      ...sorted,
+    ],
+    secretMaterial: input.secretMaterial,
+  });
+}
+
+/**
  * The reservation tuple a baseline is folded from, and its inverse.
  *
  * The format has exactly one definition because it now has two readers: the bootstrap executor,
