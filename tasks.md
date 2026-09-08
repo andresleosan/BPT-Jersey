@@ -7242,3 +7242,57 @@ misma leccion 4, esta vez en el propio arnes de pruebas.**
 
 **Contadores:** **120 aprobadas de 121 (99 %)**, 0 en revision, 0 en progreso, **1 pendiente
 (T108)**, 7 canceladas.
+
+### Cierre de sesion 2026-09-08: 120 de 121, y una sola fila abierta
+
+Estado exacto al terminar, escrito para que la siguiente conversacion empiece sin reconstruirlo.
+
+**Se cerraron tres filas en esta sesion.** T059 -`LECCIONES.md` y el analisis de brechas-, T127 -el
+gate de waiver y la renovacion digital-, y la rebanada 9 de T108. Ademas se sincronizo la fila de
+T058, que decia `pendiente` mientras el ledger la aprobaba.
+
+**Queda T108, y solo T108.** Su bloqueo siempre fue codigo y sigue siendo codigo. Van **dos
+ejecutores de siete y nueve rebanadas**. En el orden en que se venia haciendo:
+
+1. **La rebanada 10, que es la siguiente:** el **ejecutor forward**. Es el mas grande de los siete y
+   el primero que escribe documentos de dominio de verdad -no reservas de identidad-, con
+   cuarentena, que el de bootstrap no tiene.
+2. Los otros cinco ejecutores.
+3. **El plan privado congelado y su dry-run.** Conviene pronto por una razon concreta: es quien trae
+   el almacen real detras del **puerto de artefacto** que la rebanada 9 dejo definido y hoy no tiene
+   implementacion. Es el unico sitio del sistema donde hay un puerto sin adaptador.
+4. La cuarentena, y la acunacion y consumo de aprobaciones.
+5. El ensayo de la operacion completa de punta a punta.
+
+**Lo que no cuenta para el 100 % y no conviene perder.** La lista viva, despues de esta sesion:
+
+- **Los lotes de release.** Es lo mas grande de todo lo pendiente y no es una fila del tablero:
+  **83 callables que la web invoca y no estan desplegadas**. El orden propuesto, con su razon, esta
+  en el §5 de `docs/operations/t059-capability-gap-analysis.md`.
+- **El aviso a office y coaches**, sin enviar. Borrador listo en
+  `docs/operations/t058-aviso-office-coaches-2026-09-08.md`; la casilla del §4.0(10) sigue vacia
+  hasta que salga.
+- **Rotar la access key de R2**, que exige redespliegue porque las funciones fijan la version del
+  secreto.
+- **`qa/tsconfig.json` no incluye `integration/`**: el typecheck nunca ha mirado la bateria de
+  Emulator. Incluirla saca errores de tipos preexistentes en seis ficheros. Descubierto el
+  2026-09-08 al reventar en ejecucion una variable que el typecheck no vio.
+- **Dos `catch` que descartan la causa**: `member-directory-empty-initialize.mjs` y el de
+  `previewStore.listExpired`.
+- **`no-show-penalties-client.ts` sin fichero de pruebas.**
+- **El gate sintetico** sigue cerrando salud, documentos privados y export agregado. Salud no la
+  desbloquea una bandera: la DPIA §2 decision 4 no autoriza tratar datos de salud sin caso de uso
+  aprobado.
+
+**Dos cosas que se aplicaron en produccion hoy y conviene tener presentes.** Las *build watch paths*
+de Pages ya no son `['*']`: un commit que solo toque `docs/*`, `tasks.md`, `Lista/*`,
+`graphify-out/*`, `qa/*` o `apps/functions/*` **no dispara build**. Y la alerta 4 existe como
+coincidencia de registro, `alertPolicies/14996584831695689321`, con lo que el §6.1 esta completo.
+
+**El numero que conviene no volver a perder de vista.** El tablero dice 99 % y produccion sirve el
+**44 %** de lo que la web invoca. Los dos son correctos y miden cosas distintas. Cerrar T108 llevaria
+el tablero al 100 % **y no cambiaria ese 44 %**: eso son lotes de release, con su autorizacion y sus
+precondiciones medidas por funcion.
+
+**Contadores:** 120 aprobadas de 121 (99 %), 0 en revision, 0 en progreso, 1 pendiente (T108), 7
+canceladas, sobre 128 filas.
