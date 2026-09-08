@@ -28,8 +28,8 @@ forecloses that, and §7 says exactly how to record it.
 
 | Field                                               | Value                                                                                                                                                     |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Controller (entity)                                 | Brazilian Power Team · Jersey (short form "BPT Jersey")                                                                                                   |
-| Legal form, registration number, registered address | Legal form **declared 2026-09-07: unincorporated**; registration number therefore **non-existent**, not blank. registered address **given by the operator on 2026-09-07: Office 9, 13 Library Place, St Helier**. What remains is which unincorporated form applies (see §6) |
+| Controller                                          | **Vladimiro "Miro" Afonso, a natural person trading as "Brazilian Power Team · Jersey"** (short form "BPT Jersey"). Declared a **sole trader** by the operator on 2026-09-07: the trading name is not a separate legal person |
+| Legal form, registration number, registered address | Legal form **declared 2026-09-07: unincorporated**; registration number therefore **non-existent**, not blank. registered address **Office 9, 13 Library Place, St Helier**; form declared **sole trader** — all three given by the operator on 2026-09-07 (see §6) |
 | Signing representative                              | Vladimiro "Miro" Afonso, internal owner                                                                                                                   |
 | Signed by                                           | Andres Santiago, p.p. Vladimiro Afonso, on the instruction of 2026-09-07                                                                                  |
 | Privacy contact                                     | bptjersey@gmail.com                                                                                                                                       |
@@ -143,16 +143,14 @@ Transfers outside UK/EEA approved as: **none, other than Firebase Authentication
 
 ## 6. What this signature does not do
 
-- It does not complete the controller's registered identity. Three of its four parts are settled: on
-  2026-09-07 the operator declared the entity **unincorporated**, which declares the legal form and
-  closes the registration number **as non-existent** rather than leaving it blank, and the same day
-  gave the registered address as **Office 9, 13 Library Place, St Helier**. What remains is
-  **which of the two unincorporated forms applies** — a sole trader is a natural person trading under
-  the name, an association is not, and a DPA has to name whoever actually answers, so this document
-  still cannot say whether "the entity" named above is an association or Vladimiro Afonso trading as
-  `BPT Jersey`. That remainder **stopped being a T011 closing criterion on 2026-09-07, when T011
-  closed, and moved to T126** — it is a fact rather than a decision, and it blocks any processor
-  contract, any insurance policy and the published legal text of T117, but no release.
+- The controller's registered identity is now complete, and it is **not** what the wording of this
+  act originally assumed. On 2026-09-07 the operator declared the body **unincorporated**, gave the
+  registered address as **Office 9, 13 Library Place, St Helier**, and then declared the form to
+  be **sole trader**. A sole trader is a natural person, so there is no separate entity: the
+  controller is **Vladimiro Afonso trading as "Brazilian Power Team · Jersey"**, the registration
+  number is closed as non-existent, and every "the entity" in this act names him. The signature of
+  2026-09-07 was given p.p. for that same party and is unaffected — what changed is the description
+  of who was signed for, not who signed or when. This completed T126.
 - It does not approve the DPIA. The DPIA was written on 2026-09-06
   (`docs/operations/t011-dpia-draft.md`) and remains an unapproved draft with a declared high
   residual risk. Signing section 3.1 accepts one finding of it; it does not approve the document, and
@@ -171,7 +169,7 @@ Transfers outside UK/EEA approved as: **none, other than Firebase Authentication
 | Name and role                                             | Vladimiro "Miro" Afonso, internal owner and signing representative, as controller                                     |
 | Signed by                                                 | **Andres Santiago, p.p. Vladimiro Afonso**                                                                            |
 | Authorisation referenced                                  | Operator instruction of 2026-09-07, given in the working session and recorded in `tasks.md` under T011 with that date |
-| Entity signed for                                         | Brazilian Power Team · Jersey ("BPT Jersey")                                                                          |
+| Party signed for                                          | Vladimiro Afonso trading as "Brazilian Power Team · Jersey" ("BPT Jersey"). Recorded at signing as the entity of that name; the operator's declaration of 2026-09-07 established that the name is his trading name and not a separate legal person |
 | Date and time zone                                        | 2026-09-07, Europe/Jersey                                                                                             |
 | Scope approved                                            | Sections 2, 3, 3.1, 4 and 5 of this act as recorded above                                                             |
 | Amendments made                                           | None. Approved as drafted                                                                                             |

@@ -30,7 +30,7 @@
 
 | Rol | Responsabilidad | Designación requerida |
 |---|---|---|
-| Controller | Determina finalidades y medios; responde por cumplimiento y evidencia | **Brazilian Power Team · Jersey**, aportado por el operador el 2026-09-06 como nombre de la entidad responsable, con `"BPT Jersey"` como forma abreviada de uso comercial. Representante que firma por el controller: **Vladimiro "Miro" Afonso** (owner interno). Contacto de privacidad: **bptjersey@gmail.com**. **Forma jurídica declarada por el operador el 2026-09-07: entidad no incorporada (sole trader / asociación sin registrar)**, de donde se sigue que **no existe número de registro**: esa casilla se cierra por inexistencia, no en blanco. **Domicilio aportado por el operador el 2026-09-07: `Office 9, 13 Library Place, St Helier`**, la misma dirección que la sede Town, confirmada ese día como domicilio de la entidad. **Queda una sola precisión**: si la forma es sole trader, el controller es entonces una **persona física** (Vladimiro Afonso *trading as* `BPT Jersey`) y no una entidad separada, porque eso cambia quién responde en derecho. Lo pide cualquier contrato de processor, y no se puede inventar |
+| Controller | Determina finalidades y medios; responde por cumplimiento y evidencia | **Brazilian Power Team · Jersey**, aportado por el operador el 2026-09-06 como nombre de la entidad responsable, con `"BPT Jersey"` como forma abreviada de uso comercial. Representante que firma por el controller: **Vladimiro "Miro" Afonso** (owner interno). Contacto de privacidad: **bptjersey@gmail.com**. **Forma jurídica declarada por el operador el 2026-09-07: entidad no incorporada (sole trader / asociación sin registrar)**, de donde se sigue que **no existe número de registro**: esa casilla se cierra por inexistencia, no en blanco. **Domicilio: `Office 9, 13 Library Place, St Helier`**, la misma dirección que la sede Town. **Forma declarada por el operador el 2026-09-07: sole trader**, de donde se sigue lo que esa forma implica y no es cosmético: el controller **no es una entidad**, es la **persona física Vladimiro Afonso** *trading as* `Brazilian Power Team · Jersey`, y es él quien responde en derecho. Identidad registrada completa; cerró T126 |
 | Owner | Ejecuta la política, mantiene inventario, calendario, controles y excepciones | `"Andres Santiago, operador de la plataforma"`; el único correo aportado por el operador es el buzón compartido `bptjersey@gmail.com`, que no es una dirección nominal ni un dominio propio |
 | Reviewer independiente | Revisa bases legales, DPIA, transferencias, menores/salud y excepciones sin ser dueño del delivery | **No se designa.** Decisión del operador del 2026-09-06: la operación no contratará revisión independiente. El encargo redactado en `t011-reviewer-engagement-brief.md` queda archivado, no enviado. El rol no se reasigna: se elimina, y con él el control que separaba decidir de verificar |
 | Security/Engineering owner | Implementa borrado, accesos, logs, backups y pruebas | `"Andres Santiago"` (misma persona que el owner) |
@@ -49,12 +49,12 @@ un nombre comercial no es todavía una razón social.
 declaró que la entidad **no está incorporada ni registrada** (sole trader / asociación sin
 registrar). Con eso, dos de los tres se resuelven: la forma jurídica queda declarada, y el
 número de registro **no existe** —se cierra por inexistencia, que es un cierre honesto, y no
-por haberlo dejado vacío—. El **domicilio** lo aportó el operador ese mismo día: `Office 9, 13 Library Place, St Helier`, la dirección de la sede Town, confirmada como domicilio de la entidad. Queda una
-consecuencia que la declaración arrastra y conviene no pasar por alto: si la forma es sole
-trader, el controller no es una entidad, es **una persona física** que comercia bajo ese
-nombre, y los documentos que hoy dicen "la entidad" nombran en realidad a Vladimiro Afonso
-*trading as* `BPT Jersey`. Esa precisión —sole trader o asociación, que no son lo mismo— la
-tiene el operador, no el asistente.
+por haberlo dejado vacío—. El **domicilio** lo aportó el operador ese mismo día: `Office 9, 13 Library Place, St Helier`, la dirección de la sede Town. Y ese mismo día precisó la forma:
+**sole trader**. Con eso la identidad registrada queda completa, y con una consecuencia que
+no conviene pasar por alto: el controller **no es una entidad**, es **una persona física**
+que comercia bajo ese nombre, así que donde estos documentos decían "la entidad" nombran en
+realidad a **Vladimiro Afonso** *trading as* `Brazilian Power Team · Jersey`. Un DPA, una
+póliza o el texto legal publicado nombran a él.
 
 **Riesgo declarado del contacto de privacidad.** `bptjersey@gmail.com` es un buzón de consumo
 compartido. Sirve como canal público mientras no exista dominio propio, pero no permite control de
@@ -117,7 +117,7 @@ La retención debe ser proporcional a la finalidad. La JOIC describe el principi
 
 Antes de procesar datos personales como controller o processor establecido en Jersey:
 
-1. Confirmar la entidad, rol controller/processor, actividades, categorías de datos, sujetos, procesadores y contacto de privacidad. La entidad declarada el 2026-09-06 es `Brazilian Power Team · Jersey` con contacto `bptjersey@gmail.com`; el formulario de registro exige además la forma jurídica, el número de registro y el domicilio: la forma quedó declarada el 2026-09-07 como entidad no incorporada, el número no existe por esa misma razón, y el domicilio se aportó ese mismo día: `Office 9, 13 Library Place, St Helier`. Queda solo precisar cuál de las dos formas no incorporadas es.
+1. Confirmar la entidad, rol controller/processor, actividades, categorías de datos, sujetos, procesadores y contacto de privacidad. La entidad declarada el 2026-09-06 es `Brazilian Power Team · Jersey` con contacto `bptjersey@gmail.com`; el formulario de registro exige además la forma jurídica, el número de registro y el domicilio: la forma quedó declarada el 2026-09-07 como entidad no incorporada, el número no existe por esa misma razón, el domicilio se aportó ese mismo día —`Office 9, 13 Library Place, St Helier`— y la forma se precisó como **sole trader**, con lo que el sujeto a registrar es la persona física Vladimiro Afonso *trading as* `BPT Jersey`.
 2. **Determinación del operador del 2026-09-06: no se completará el registro JOIC.** Se registra
    como determinación de aplicabilidad del controller, que es la vía alternativa que el propio
    paquete admitía junto al número de registro, y se registra con su límite a la vista: hoy no
@@ -186,7 +186,7 @@ los plazos que este mismo borrador marcó como poco fiables siguen sin verificar
 
 T011 solo puede pasar a **aprobada** cuando existan:
 
-- controller y owner designados —hecho el 2026-09-06— y la razón social: forma jurídica —declarada el 2026-09-07 como entidad no incorporada— y número de registro —inexistente por esa declaración, cerrado—. El domicilio —aportado el 2026-09-07: `Office 9, 13 Library Place, St Helier`— y la precisión de si es sole trader o asociación sin registrar **dejaron de ser criterio de cierre de T011 el 2026-09-07 y pasaron a T126**: son datos de contrato, no decisiones de política. Del par ya solo falta la precisión de la forma, y este documento la sigue esperando en la celda del controller;
+- controller y owner designados —hecho el 2026-09-06— y la razón social: forma jurídica —declarada el 2026-09-07 como entidad no incorporada— y número de registro —inexistente por esa declaración, cerrado—. El domicilio —`Office 9, 13 Library Place, St Helier`— y la precisión de la forma —**sole trader**— **dejaron de ser criterio de cierre de T011 el 2026-09-07 y pasaron a T126**, que se cerró ese mismo día cuando el operador aportó los dos: son datos de contrato, no decisiones de política, y la celda del controller ya los recoge;
 - diez decisiones firmadas por el controller y calendario de retención completo;
 - DPIA aprobada. La decisión del 2026-09-06 cubre el registro y el revisor, no la DPIA: si queda riesgo alto residual, la consulta previa a JOIC sigue formando parte del proceso;
 - mapa de residencia/transferencias, DPA y TIA/SCC/Addendum aplicables;

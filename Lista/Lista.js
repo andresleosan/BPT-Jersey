@@ -39,9 +39,9 @@ const RESOLUTION_REQUIREMENTS = {
     "Con esas tres, implementar el paso 2 segun docs/operations/t106-waiver-enrolment-integration-analysis.md, que sigue vigente y no hay que rehacer.",
   ],
   T126: [
-    "Aportar el domicilio de la entidad responsable. Candidato sin confirmar: Office 9, 13 Library Place, St Helier, la sede Town ya registrada en la configuracion de academia, que nadie ha confirmado como direccion de la entidad.",
-    "Precisar si es sole trader o asociacion sin registrar: un sole trader es una persona fisica, y entonces el controller no es una entidad sino Vladimiro Afonso comerciando bajo el nombre. Cambia quien responde en derecho.",
-    "Con esos dos datos, actualizar la politica, la DPIA (seccion 6, punto 2) y el acta de T011, que los esperan en su sitio.",
+    "Resuelta el 2026-09-07: el operador aporto el domicilio, Office 9, 13 Library Place, St Helier -la misma direccion que la sede Town-, y despues la forma exacta, sole trader.",
+    "Consecuencia aplicada, no anotada: un sole trader es una persona fisica, asi que el controller no es una entidad. Los tres documentos pasan a nombrar a Vladimiro Afonso trading as Brazilian Power Team - Jersey.",
+    "Actualizados la politica de retencion (celda del controller y criterios de cierre), la DPIA (cabecera y seccion 6, punto 2) y el acta (tabla de identidad y seccion 6). El bloque de firma del acta no se reescribio: cambio la descripcion de la parte firmada, no quien firmo ni cuando.",
     "Lo que desbloquea: contratos de encargado, polizas y el texto legal publicado de T117. No bloquea ninguna release.",
   ],
   T125: [
@@ -2147,10 +2147,10 @@ const recoveryItems = [
   task(
     "T126",
     "Completar la identidad registrada del controller: domicilio y forma no incorporada exacta",
-    "pendiente",
+    "aprobada",
     "El unico dato que le quedaba a T011 y que no era una decision. Bloquea contratos de encargado, no releases.",
     "T011",
-    "Alta 2026-09-07 al cerrar T011. El operador declaro ese dia la entidad no incorporada ni registrada, con lo que la forma juridica quedo declarada y el numero de registro cerrado por inexistencia; el domicilio lo aporto el operador el 2026-09-07, `Office 9, 13 Library Place, St Helier`, la misma direccion que la sede Town, y se llevo ese dia a los tres documentos que lo esperaban. Falta solo precisar sole trader o asociacion sin registrar. La distincion no es cosmetica: un sole trader es una persona fisica, y entonces el controller no es una entidad sino Vladimiro Afonso comerciando bajo el nombre. Bloquea cualquier contrato de encargado -un DPA nombra con exactitud a quien responde-, cualquier poliza y el texto legal publicado de T117; no bloquea ninguna release, ni T058 ni T059 ni el paso 2 de T106 ni T108. Se cierra con dos lineas del operador: no hay nada que el asistente pueda aportar aqui sin inventar una identidad juridica, que es justo lo que esta cadena de filas lleva evitando desde el 2026-09-05.",
+    "Alta 2026-09-07 al cerrar T011. El operador declaro ese dia la entidad no incorporada ni registrada, con lo que la forma juridica quedo declarada y el numero de registro cerrado por inexistencia; cerrada el 2026-09-07 con los dos datos que pedia: el domicilio, `Office 9, 13 Library Place, St Helier`, la misma direccion que la sede Town, y la forma exacta, sole trader. Un sole trader es una persona fisica, asi que el controller no es una entidad: es Vladimiro Afonso trading as Brazilian Power Team - Jersey, y los tres documentos se corrigieron para nombrarle a el. El bloque de firma del acta no se reescribio: cambio la descripcion de la parte firmada, no quien firmo. Desbloquea contratos de encargado, polizas y el texto legal publicado de T117. La distincion no es cosmetica: un sole trader es una persona fisica, y entonces el controller no es una entidad sino Vladimiro Afonso comerciando bajo el nombre. Bloquea cualquier contrato de encargado -un DPA nombra con exactitud a quien responde-, cualquier poliza y el texto legal publicado de T117; no bloquea ninguna release, ni T058 ni T059 ni el paso 2 de T106 ni T108. Se cierra con dos lineas del operador: no hay nada que el asistente pueda aportar aqui sin inventar una identidad juridica, que es justo lo que esta cadena de filas lleva evitando desde el 2026-09-05.",
     [
       "tasks.md",
       "docs/operations/t011-retention-residency-erasure-policy.md",

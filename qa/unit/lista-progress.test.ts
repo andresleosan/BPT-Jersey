@@ -44,10 +44,10 @@ describe("Lista project progress", () => {
 
   it("reflects the board as of 2026-09-07", () => {
     expect(counts).toEqual({
-      aprobada: 116,
+      aprobada: 117,
       revision: 0,
       "en-progreso": 0,
-      pendiente: 5,
+      pendiente: 4,
       bloqueada: 0,
       cancelada: 7,
     });
@@ -60,11 +60,19 @@ describe("Lista project progress", () => {
     // was approved on that evidence, and step 2 - never built - became T127. A row that is half
     // done is now two rows that each say something true, rather than one that says neither.
     //
-    // The five open rows are open because the work is real: T108 has one of its seven executors
+    // T126 closed later on 2026-09-07: the operator gave the registered address and then the exact
+    // form, sole trader, which makes the controller a natural person rather than an entity, so the
+    // three T011 documents now name Vladimiro Afonso trading as the BPT Jersey name. It is counted
+    // as approved because both of the facts it asked for arrived from the only source that could
+    // give them; nothing was inferred from the operator saying "the entity".
+    //
+    // The four open rows are open because the work is real: T108 has one of its seven executors
     // written and rehearsed in the Emulator since 2026-09-07 and is still missing the other six,
-    // the parent operation document, the frozen plan and the approvals; T058/T059 are the release
-    // and the close-out, T126 carries the registered address T011 never had, and T127 waits on
-    // three answers, two of them shared with T058.
+    // the parent operation document, the frozen plan and the approvals; T058 is the release, whose
+    // four decisions were taken on 2026-09-07 and whose first batch of 35 callables is measured and
+    // waiting only for the operator's per-release authorisation; T059 is the close-out that cannot
+    // start until that release happens; and T127 waits on three answers, one of which was just
+    // answered in the negative when BPT_SYNTHETIC_PILOT was kept out of production.
     expect(items.filter((item) => item.status === "revision")).toEqual([]);
     expect(items.filter((item) => item.status === "en-progreso")).toEqual([]);
   });
@@ -104,6 +112,11 @@ describe("Lista project progress", () => {
     // Splitting adds to both sides, so the percentage barely moves - which is the point. The
     // alternative in both cases was closing a row while quietly dropping what it still owed, and
     // that is the thing this board exists to make impossible.
-    expect(progress).toEqual({ approved: 116, total: 121, percentage: 96 });
+    //
+    // The third move, later the same day, is the other kind: 116/121 -> 117/121 because T126 was
+    // actually finished. It asked for two facts only the operator could give, both arrived, and the
+    // second one - sole trader - was applied to the three T011 documents rather than filed as a
+    // note. That is what an approval on evidence looks like next to the two splits above.
+    expect(progress).toEqual({ approved: 117, total: 121, percentage: 97 });
   });
 });
