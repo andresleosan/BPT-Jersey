@@ -244,6 +244,29 @@ export function createR2Client(options: R2ClientOptions): R2Client {
   });
 }
 
+const R2_JURISDICTIONS = new Set(["eu", "fedramp"]);
+
+/**
+ * A jurisdiction-restricted bucket is only reachable on its own endpoint: the EU bucket that the
+ * T011 residency policy requires lives at `<account>.eu.r2.cloudflarestorage.com` and does not
+ * exist at all on the default host.
+ *
+ * An unrecognised jurisdiction throws instead of falling back to the default endpoint. The fallback
+ * is the dangerous branch: a typo in `R2_JURISDICTION` would quietly aim private documents at the
+ * unrestricted host, which is the exact guarantee the signed policy buys. Failing to write beats
+ * writing outside the jurisdiction that was promised.
+ */
+export function r2EndpointFor(accountId: string, jurisdiction?: string): string {
+  const normalized = jurisdiction?.trim().toLowerCase();
+  if (normalized === undefined || normalized === "") {
+    return `https://${accountId}.r2.cloudflarestorage.com`;
+  }
+  if (!R2_JURISDICTIONS.has(normalized)) {
+    throw new Error("Private file storage jurisdiction is not recognised");
+  }
+  return `https://${accountId}.${normalized}.r2.cloudflarestorage.com`;
+}
+
 export function createR2ClientFromEnvironment(): R2Client {
   const accountId = process.env.R2_ACCOUNT_ID;
   const bucket = process.env.R2_BUCKET_NAME;
@@ -254,7 +277,7 @@ export function createR2ClientFromEnvironment(): R2Client {
   }
   return createR2Client({
     bucket,
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    endpoint: r2EndpointFor(accountId, process.env.R2_JURISDICTION),
     credentials: { accessKeyId, secretAccessKey },
   });
 }

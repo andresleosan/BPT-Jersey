@@ -2526,4 +2526,30 @@ describe("member callable boundaries", () => {
   it("exposes a fixed fifteen-minute scheduled cleanup trigger", () => {
     expect(cleanupExpiredMemberImportSessionsSchedule).toBeDefined();
   });
+
+  /**
+   * Deployed 2026-09-08 and it returned HTTP 500 every fifteen minutes: the trigger existed, the
+   * handler reached private storage, and the function bound only MEMBER_PAGE_TOKEN_SECRET, so
+   * `createPrivateStorageR2Client` saw an unconfigured environment and handed back the disabled
+   * client. "The export is defined" was the only thing asserted here, and it stayed true throughout.
+   *
+   * Private storage is all four or nothing, so this asserts the exact set: a partial binding fails
+   * exactly like an empty one, and would pass any test that merely looked for R2 secrets.
+   */
+  it("binds every private-storage secret to the scheduled cleanup, not just the credentials", () => {
+    const endpoint = (
+      cleanupExpiredMemberImportSessionsSchedule as unknown as {
+        __endpoint: { secretEnvironmentVariables?: ReadonlyArray<{ key: string }> };
+      }
+    ).__endpoint;
+    const bound = (endpoint.secretEnvironmentVariables ?? []).map((entry) => entry.key).sort();
+    expect(bound).toEqual([
+      "MEMBER_PAGE_TOKEN_SECRET",
+      "R2_ACCESS_KEY_ID",
+      "R2_ACCOUNT_ID",
+      "R2_BUCKET_NAME",
+      "R2_JURISDICTION",
+      "R2_SECRET_ACCESS_KEY",
+    ]);
+  });
 });

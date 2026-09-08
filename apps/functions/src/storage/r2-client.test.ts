@@ -7,8 +7,38 @@ import {
   createR2Client,
   isEmulatorPrivateStorageAllowed,
   MAX_MEMBER_IMPORT_PDF_BYTES,
+  r2EndpointFor,
   validatePdfUpload,
 } from "./r2-client.js";
+
+describe("private storage endpoint and jurisdiction", () => {
+  const account = "05fb22c155667de064b55c4e287b21d8";
+
+  it("keeps the default endpoint when no jurisdiction is configured", () => {
+    expect(r2EndpointFor(account)).toBe(`https://${account}.r2.cloudflarestorage.com`);
+    expect(r2EndpointFor(account, "")).toBe(`https://${account}.r2.cloudflarestorage.com`);
+  });
+
+  it("routes an EU-restricted bucket to its own endpoint", () => {
+    expect(r2EndpointFor(account, "eu")).toBe(`https://${account}.eu.r2.cloudflarestorage.com`);
+    expect(r2EndpointFor(account, " EU ")).toBe(`https://${account}.eu.r2.cloudflarestorage.com`);
+  });
+
+  /**
+   * The T011 residency policy buys a jurisdictional guarantee for waivers and private documents,
+   * and the bucket that carries it does not exist on the default host. A typo must therefore stop
+   * the write rather than aim it at the unrestricted endpoint: silently leaving the jurisdiction is
+   * the failure the policy exists to prevent, and it would look like a working deployment.
+   */
+  it("refuses an unrecognised jurisdiction instead of falling back to the default host", () => {
+    expect(() => r2EndpointFor(account, "europe")).toThrowError(
+      "Private file storage jurisdiction is not recognised",
+    );
+    expect(() => r2EndpointFor(account, "e u")).toThrowError(
+      "Private file storage jurisdiction is not recognised",
+    );
+  });
+});
 
 describe("private R2 member import adapter", () => {
   it("accepts only bounded PDF metadata", () => {

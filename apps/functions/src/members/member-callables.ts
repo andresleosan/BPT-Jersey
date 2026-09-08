@@ -54,6 +54,37 @@ export { MAX_MEMBER_REPORT_ROWS, MAX_MEMBER_SEARCH_ROWS } from "./member-service
 
 const memberPageTokenSecret = defineSecret("MEMBER_PAGE_TOKEN_SECRET");
 
+/**
+ * Private storage needs its four values together or not at all: `createPrivateStorageR2Client`
+ * treats a partial configuration as unconfigured and returns the disabled client, so three of four
+ * fails exactly like zero of four.
+ *
+ * The account id and the bucket name are not credentials, and they still travel through Secret
+ * Manager. That is deliberate: it is the only mechanism that reaches production today -the
+ * `predeploy` rebuilds `.firebase-functions/` from scratch and the artifact copies no `.env`, which
+ * is why a function reading them from `process.env` deploys inert- and splitting the four across
+ * two mechanisms would let a release ship the two credentials while the other two silently go
+ * missing. Bound secrets are injected as environment variables at runtime, so `r2-client.ts` keeps
+ * reading `process.env` and does not change.
+ */
+const r2AccountIdSecret = defineSecret("R2_ACCOUNT_ID");
+const r2BucketNameSecret = defineSecret("R2_BUCKET_NAME");
+const r2AccessKeyIdSecret = defineSecret("R2_ACCESS_KEY_ID");
+const r2SecretAccessKeySecret = defineSecret("R2_SECRET_ACCESS_KEY");
+/**
+ * The jurisdiction travels with the rest because the bucket is EU-restricted per the T011 residency
+ * policy, and such a bucket does not exist on the default endpoint. Losing this one value does not
+ * degrade the configuration: it points every write at the wrong host.
+ */
+const r2JurisdictionSecret = defineSecret("R2_JURISDICTION");
+const privateStorageSecrets = [
+  r2AccountIdSecret,
+  r2BucketNameSecret,
+  r2AccessKeyIdSecret,
+  r2SecretAccessKeySecret,
+  r2JurisdictionSecret,
+];
+
 const text = z.string().trim().min(1);
 const createMemberSchema = z.strictObject({
   membershipNumber: text.optional(),
@@ -1639,7 +1670,11 @@ export async function cleanupExpiredMemberImportSessions(
 }
 
 export const cleanupExpiredMemberImportSessionsSchedule = onSchedule(
-  { schedule: "every 15 minutes", timeZone: "UTC", secrets: [memberPageTokenSecret] },
+  {
+    schedule: "every 15 minutes",
+    timeZone: "UTC",
+    secrets: [memberPageTokenSecret, ...privateStorageSecrets],
+  },
   async () => {
     const services = defaultServices();
     return cleanupExpiredMemberImportSessions({
@@ -1650,6 +1685,15 @@ export const cleanupExpiredMemberImportSessionsSchedule = onSchedule(
 );
 
 const memberCallableOptions = { secrets: [memberPageTokenSecret] };
+
+/**
+ * Only the four callables that actually touch private storage get the R2 secrets. Binding them on
+ * `memberCallableOptions` would have been one line shorter and would have handed the credentials to
+ * `createMember`, `searchMembers` and the two report readers, which never open a bucket.
+ */
+const memberPrivateStorageCallableOptions = {
+  secrets: [memberPageTokenSecret, ...privateStorageSecrets],
+};
 
 export const createMember = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => createMemberHandler(request, services)),
@@ -1663,15 +1707,19 @@ export const getMemberReport = onCall(memberCallableOptions, async (request) =>
 export const getMemberReportSummary = onCall(memberCallableOptions, async (request) =>
   authorizedDefault(request, (services) => getMemberReportSummaryHandler(request, services)),
 );
-export const getMemberReportPdf = onCall(memberCallableOptions, async (request) =>
+export const getMemberReportPdf = onCall(memberPrivateStorageCallableOptions, async (request) =>
   authorizedDefault(request, (services) => getMemberReportPdfHandler(request, services)),
 );
-export const createMemberPdfImportSession = onCall(memberCallableOptions, async (request) =>
-  authorizedDefault(request, (services) => createMemberPdfImportSessionHandler(request, services)),
+export const createMemberPdfImportSession = onCall(
+  memberPrivateStorageCallableOptions,
+  async (request) =>
+    authorizedDefault(request, (services) =>
+      createMemberPdfImportSessionHandler(request, services),
+    ),
 );
-export const previewMemberPdfImport = onCall(memberCallableOptions, async (request) =>
+export const previewMemberPdfImport = onCall(memberPrivateStorageCallableOptions, async (request) =>
   authorizedDefault(request, (services) => previewMemberPdfImportHandler(request, services)),
 );
-export const confirmMemberPdfImport = onCall(memberCallableOptions, async (request) =>
+export const confirmMemberPdfImport = onCall(memberPrivateStorageCallableOptions, async (request) =>
   authorizedDefault(request, (services) => confirmMemberPdfImportHandler(request, services)),
 );

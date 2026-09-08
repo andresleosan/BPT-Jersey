@@ -50,6 +50,22 @@ const identityKeySecret = defineSecret("MEMBER_DIRECTORY_IDENTITY_KEY_SECRET");
 const migrationIntegritySecret = defineSecret("MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET");
 const r2AccessKeyIdSecret = defineSecret("R2_ACCESS_KEY_ID");
 const r2SecretAccessKeySecret = defineSecret("R2_SECRET_ACCESS_KEY");
+// Las cuatro o ninguna: createPrivateStorageR2Client trata una configuracion parcial como
+// no configurada, asi que ligar solo las dos credenciales dejaba estas funciones tan inertes
+// como ligar cero. El account id y el bucket no son credenciales y viajan igualmente por
+// Secret Manager porque es lo unico que llega a produccion hoy (runbook T058 3.2).
+const r2AccountIdSecret = defineSecret("R2_ACCOUNT_ID");
+const r2BucketNameSecret = defineSecret("R2_BUCKET_NAME");
+// La jurisdiccion tambien: el bucket es EU-restringido por la politica de residencia de T011 y no
+// existe en el endpoint por defecto, asi que perder este valor no degrada nada, apunta a otro sitio.
+const r2JurisdictionSecret = defineSecret("R2_JURISDICTION");
+const privateStorageSecrets = [
+  r2AccountIdSecret,
+  r2BucketNameSecret,
+  r2AccessKeyIdSecret,
+  r2SecretAccessKeySecret,
+  r2JurisdictionSecret,
+];
 const identitySecretVersion = "identity-v1";
 const integritySecretVersion = "integrity-v1";
 const sessionDurationMs = 10 * 60 * 1000;
@@ -872,12 +888,7 @@ function defaultServices(): CanonicalMemberImportCallableServices {
 
 const callableOptions = {
   enforceAppCheck: true,
-  secrets: [
-    identityKeySecret,
-    migrationIntegritySecret,
-    r2AccessKeyIdSecret,
-    r2SecretAccessKeySecret,
-  ],
+  secrets: [identityKeySecret, migrationIntegritySecret, ...privateStorageSecrets],
 };
 
 export const createMemberPdfImportSession = onCall(callableOptions, async (request) =>
@@ -926,12 +937,7 @@ export const cleanupExpiredCanonicalMemberImportSessionsSchedule = onSchedule(
   {
     schedule: "every 15 minutes",
     timeZone: "UTC",
-    secrets: [
-      identityKeySecret,
-      migrationIntegritySecret,
-      r2AccessKeyIdSecret,
-      r2SecretAccessKeySecret,
-    ],
+    secrets: [identityKeySecret, migrationIntegritySecret, ...privateStorageSecrets],
   },
   async () => {
     await cleanupExpiredCanonicalMemberImportsHandler(defaultServices());
