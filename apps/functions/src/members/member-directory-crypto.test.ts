@@ -6,8 +6,10 @@ import {
   canonicalizeMemberDirectoryValue,
   constantTimeMacEquals,
   createMemberDirectoryIntegrityMac,
+  buildStudentIdentityKeyTuple,
   decodeMemberDirectorySecret,
   encodeLengthPrefixedUtf8,
+  parseStudentIdentityKeyTuple,
 } from "./member-directory-crypto.js";
 
 const identitySecret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
@@ -151,6 +153,71 @@ describe("member directory cryptographic boundaries", () => {
     ).toMatch(/^[a-f0-9]{64}$/u);
     for (const value of [undefined, Number.NaN, 1.5, new Date(), { value: undefined }]) {
       expect(() => canonicalizeMemberDirectoryValue(value)).toThrow(/canonical/i);
+    }
+  });
+});
+
+describe("student identity key tuples", () => {
+  const key = buildStudentIdentityKey({
+    academyId: "academy-1",
+    kind: "membership-number",
+    value: "BPT 00001234",
+    ownerStudentId: "student-1",
+    secretMaterial: identitySecret,
+    secretVersion: "identity-v1",
+    now: "2026-09-07T12:00:00.000Z",
+    actorId: "runner-a",
+  });
+
+  it("round-trips the five fields a baseline is folded from", () => {
+    const tuple = buildStudentIdentityKeyTuple(key);
+    expect(tuple.split(",")).toHaveLength(5);
+    expect(parseStudentIdentityKeyTuple(tuple)).toEqual({
+      kind: key.kind,
+      keyId: key.keyId,
+      ownerStudentId: key.ownerStudentId,
+      digestVersion: key.digestVersion,
+      secretVersion: key.secretVersion,
+    });
+  });
+
+  it("refuses a tuple whose key ID does not carry its own kind", () => {
+    /**
+     * Every field here is individually valid, and the digest is a real one. What is wrong is the
+     * pairing: the tuple claims a VAT reservation while naming a membership-number key. The prefix
+     * is what ties a digest to the identifier space it was derived in, so a reader that repaired
+     * this would read one reservation while proving another.
+     */
+    const crossed = [
+      "vat-number",
+      key.keyId,
+      key.ownerStudentId,
+      key.digestVersion,
+      key.secretVersion,
+    ].join(",");
+    expect(() => parseStudentIdentityKeyTuple(crossed)).toThrow(
+      /Invalid student identity key tuple/u,
+    );
+  });
+
+  it("refuses a tuple with the wrong number of fields or an unreadable one", () => {
+    const tuple = buildStudentIdentityKeyTuple(key);
+    for (const malformed of [
+      tuple + ",extra",
+      tuple.split(",").slice(0, 4).join(","),
+      "",
+      [
+        "membership-number",
+        "membership-number:not-a-digest",
+        "student-1",
+        "hmac-sha256-v1",
+        "identity-v1",
+      ].join(","),
+      ["membership-number", key.keyId, "student-1", "hmac-sha512-v1", "identity-v1"].join(","),
+    ]) {
+      expect(() => parseStudentIdentityKeyTuple(malformed)).toThrow(
+        /Invalid student identity key tuple/u,
+      );
     }
   });
 });

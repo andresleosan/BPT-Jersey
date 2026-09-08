@@ -235,6 +235,70 @@ export function createMemberDirectoryChunkOutputSetMac(
 }
 
 /**
+ * The reservation tuple a baseline is folded from, and its inverse.
+ *
+ * The format has exactly one definition because it now has two readers: the bootstrap executor,
+ * which emits the tuples its chunk expects to own, and the closure runner, which rebuilds them from
+ * the documents Firestore actually stored. Two spellings of the same five-field join would produce
+ * two MACs that disagree for no reason anyone could see from either side.
+ *
+ * Only `keyId` may contain a `:`, and none of the five fields may contain a `,`, so the join is
+ * unambiguous and the split back out is total.
+ */
+export function buildStudentIdentityKeyTuple(key: StudentIdentityKey): string {
+  return [key.kind, key.keyId, key.ownerStudentId, key.digestVersion, key.secretVersion].join(",");
+}
+
+export type ParsedStudentIdentityKeyTuple = Readonly<{
+  kind: StudentIdentityKeyKind;
+  keyId: string;
+  ownerStudentId: string;
+  digestVersion: "hmac-sha256-v1";
+  secretVersion: string;
+}>;
+
+const identityKeyTupleFields = z.strictObject({
+  kind: z.enum(studentIdentityKeyKinds),
+  keyId: studentIdentityKeySchema.shape.keyId,
+  ownerStudentId: studentIdentityKeySchema.shape.ownerStudentId,
+  digestVersion: studentIdentityKeySchema.shape.digestVersion,
+  secretVersion: studentIdentityKeySchema.shape.secretVersion,
+});
+
+/**
+ * Reads a tuple back into its fields, and refuses anything it cannot read exactly.
+ *
+ * This exists so a frozen artifact's expected tuple can name the document that must prove it. A
+ * tuple whose `keyId` does not carry its own `kind` is rejected rather than repaired: the prefix is
+ * what ties the digest to the identifier space it was derived in, and a caller that trusted a
+ * mismatched pair would read one reservation while proving another.
+ */
+export function parseStudentIdentityKeyTuple(value: string): ParsedStudentIdentityKeyTuple {
+  const segments = value.split(",");
+  if (segments.length !== 5) {
+    throw new Error("Invalid student identity key tuple");
+  }
+  const [kind, keyId, ownerStudentId, digestVersion, secretVersion] = segments as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const parsed = identityKeyTupleFields.safeParse({
+    kind,
+    keyId,
+    ownerStudentId,
+    digestVersion,
+    secretVersion,
+  });
+  if (!parsed.success || !keyId.startsWith(`${kind}:`)) {
+    throw new Error("Invalid student identity key tuple");
+  }
+  return Object.freeze(parsed.data);
+}
+
+/**
  * The identity-key baseline MAC (T108, bootstrap verification).
  *
  * It is a frozen proof of the identities that predated writer activation: the complete set of

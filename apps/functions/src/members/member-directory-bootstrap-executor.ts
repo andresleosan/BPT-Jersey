@@ -9,6 +9,7 @@ import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/pro
 import type { MemberDirectoryChunkDomainWrite } from "./member-directory-chunk-runner.js";
 import {
   buildStudentIdentityKey,
+  buildStudentIdentityKeyTuple,
   createMemberDirectoryChunkOutputSetMac,
   studentIdentityKeySchema,
   type StudentIdentityKey,
@@ -146,10 +147,6 @@ function expectedIdentityValues(
   );
 }
 
-function keyTuple(key: StudentIdentityKey): string {
-  return [key.kind, key.keyId, key.ownerStudentId, key.digestVersion, key.secretVersion].join(",");
-}
-
 /**
  * Plans one bootstrap chunk: what it must create, what it may leave alone, and the MAC that proves
  * the two together. It performs no I/O and makes no decision about the control plane - the caller
@@ -236,7 +233,7 @@ export function planMemberDirectoryBootstrapChunk(
         bootstrapFailure("two planned students claim the same current identifier");
       }
       claimedKeyIds.add(expected.keyId);
-      tuples.push(keyTuple(expected));
+      tuples.push(buildStudentIdentityKeyTuple(expected));
 
       const stored = keysById.get(expected.keyId);
       if (stored === undefined) {

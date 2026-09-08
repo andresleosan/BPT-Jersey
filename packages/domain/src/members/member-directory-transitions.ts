@@ -437,14 +437,19 @@ export function planMemberDirectoryPhaseChange(
  * identities that predated the writer; it does not migrate anything, so the reader it hands back is
  * the one it took. Cutover is `directory-forward`'s job and needs its own approval.
  */
-export function planMemberDirectoryBootstrapCompletion(
+/**
+ * The precondition both halves of a bootstrap closure share (T108).
+ *
+ * Verification and completion are two transactions on purpose, but they stand on exactly the same
+ * state: the frozen bootstrap tuple, this operation, a live lease and coverage still incomplete.
+ * Written once and called twice, because two copies of a four-part precondition is how the second
+ * transaction quietly starts accepting what the first refuses.
+ */
+export function assertMemberDirectoryBootstrapClosable(
   input: Readonly<{
     currentState: MemberDirectoryState;
     operationId: string;
-    identityKeyBaselineMac: string;
-    identityKeyBaselineArtifactId: string;
     now: string;
-    actorId: string;
   }>,
 ): MemberDirectoryState {
   const current = memberDirectoryStateSchema.parse(input.currentState);
@@ -455,21 +460,21 @@ export function planMemberDirectoryBootstrapCompletion(
     current.freezeStatus !== "frozen" ||
     current.operationPhase !== "bootstrap"
   ) {
-    throw new Error("Only a frozen bootstrap tuple can complete an identity-key bootstrap");
+    throw new Error("Only a frozen bootstrap tuple can close an identity-key bootstrap");
   }
   if (current.activeOperationId === undefined || current.activeOperationId !== input.operationId) {
-    throw new Error("An identity-key bootstrap completion requires its own operation");
+    throw new Error("An identity-key bootstrap closure requires its own operation");
   }
   if (current.leaseExpiresAt === undefined) {
-    throw new Error("An identity-key bootstrap completion requires a lease");
+    throw new Error("An identity-key bootstrap closure requires a lease");
   }
   /**
-   * An expired lease does not complete an operation any more than it commits a chunk. Completion
-   * writes the baseline that every later writer trusts, so it is the last place to let the clock
-   * stand in for authorization.
+   * An expired lease does not close an operation any more than it commits a chunk. Closure ends in
+   * writing the baseline that every later writer trusts, so neither half of it is a place to let
+   * the clock stand in for authorization.
    */
   if (isLeaseExpired({ leaseExpiresAt: current.leaseExpiresAt, now: input.now })) {
-    throw new Error("An identity-key bootstrap completion requires a live lease");
+    throw new Error("An identity-key bootstrap closure requires a live lease");
   }
   /**
    * Coverage alone is enough here, and deliberately so: the state schema already ties the baseline
@@ -478,8 +483,23 @@ export function planMemberDirectoryBootstrapCompletion(
    * kind that quietly rots when the schema changes underneath it.
    */
   if (current.identityKeyCoverage !== "incomplete") {
-    throw new Error("An identity-key bootstrap completes coverage that is still incomplete");
+    throw new Error("An identity-key bootstrap closes coverage that is still incomplete");
   }
+
+  return current;
+}
+
+export function planMemberDirectoryBootstrapCompletion(
+  input: Readonly<{
+    currentState: MemberDirectoryState;
+    operationId: string;
+    identityKeyBaselineMac: string;
+    identityKeyBaselineArtifactId: string;
+    now: string;
+    actorId: string;
+  }>,
+): MemberDirectoryState {
+  const current = assertMemberDirectoryBootstrapClosable(input);
 
   const next: Record<string, unknown> = {
     ...current,
