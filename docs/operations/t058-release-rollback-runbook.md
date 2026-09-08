@@ -441,9 +441,12 @@ decididos el 2026-09-07 para que sean creables sin volver a pensarlos.
    `response_code_class = "5xx"`, agregada por `service_name`, alineación `rate` de 60 s y condición
    **cualquier serie > 0 durante 5 min**. Sin filtrar por servicio: una función nueva que arranque
    rota tiene que disparar sin haberla añadido a mano.
-4. **Cloud Scheduler.** Métrica `cloudscheduler.googleapis.com/job/attempt_count` filtrada por
-   `response_code != "success"`, condición **> 0 en 15 min**. Las `onSchedule` fallan en silencio y
-   hoy nadie se enteraría.
+4. **Cloud Scheduler.** Las `onSchedule` fallan en silencio y sin esto nadie se enteraría. La forma
+   que se pidió primero —umbral sobre `cloudscheduler.googleapis.com/job/attempt_count` filtrada por
+   `response_code != "success"`— **no es creable en este proyecto**, y no por falta de jobs: ver
+   §6.3. La que existe es una **coincidencia de registro** sobre
+   `resource.type="cloud_scheduler_job" AND severity>=ERROR`, que vigila lo mismo, no depende de
+   ningún descriptor de métrica y dispara al primer intento fallido.
 5. **Disponibilidad.** Uptime check HTTPS cada 5 min contra `https://bptjersey.pages.dev/`
    esperando `200`, y un segundo check contra la URL de un callable desplegado aceptando cualquier
    código que no sea `5xx` -un `401` anónimo significa "vivo y rechazando bien"-. Ambos con alerta
@@ -459,7 +462,7 @@ identificadores se anotan para que un rollback o un cambio de umbral no tenga qu
 | 1 | Canal de correo `andres.san1404@gmail.com` | `notificationChannels/12257294977499398601` | **Vivo**, `enabled: true` |
 | 2 | Presupuesto mensual 200.000 COP | `billingAccounts/01A152-164886-CFA852/budgets/b5c93313-9397-4736-8555-d270abf20b29` | **Vivo**, avisos 50/90/100 % real y 100 % previsto |
 | 3 | 5xx en Cloud Run | `alertPolicies/14551742904807390116` | **Viva**, 1 condición, sin filtrar por servicio |
-| 4 | Fallos de Cloud Scheduler | — | **No creable hoy.** Ver abajo |
+| 4 | Fallos de Cloud Scheduler, por coincidencia de registro | `alertPolicies/14996584831695689321` | **Viva** desde el 2026-09-08, 1 condición. No es la de umbral. Ver abajo |
 | 5 | Disponibilidad, dos uptime checks | `alertPolicies/136751823744566063` | **Viva**, 2 condiciones |
 
 **El presupuesto avisa y no corta**, que era la decisión del 2026-09-07: no lleva regla de corte de
@@ -471,9 +474,11 @@ Los dos uptime checks corren cada 300 s: `https://bptjersey.pages.dev/` esperand
 clase que no sea `5xx`. Medido al crearlos: Pages devuelve `200` y el callable `400` a un `GET`
 desnudo, que es "vivo y rechazando bien".
 
-**Por qué la 4 no se pudo crear, y el defecto de producción que eso destapó.** La API rechaza la
-política con `404`: no existe descriptor para `cloudscheduler.googleapis.com/job/attempt_count` en
-este proyecto. La causa no es la métrica: **no hay ningún job de Cloud Scheduler**, comprobado en
+### 6.3 Por qué la 4 no es una alerta de umbral, y el defecto de producción que eso destapó
+
+**Cómo empezó.** La API rechazaba la política con `404`: no existe descriptor para
+`cloudscheduler.googleapis.com/job/attempt_count` en este proyecto. La causa no era la métrica:
+**no había ningún job de Cloud Scheduler**, comprobado en
 `us-central1`, `us-east1`, `us-east4`, `us-west1`, `us-west2`, `europe-west1` y `europe-west2`, todos
 a cero. Y sin embargo `cleanupExpiredMemberImportSessionsSchedule` figura desplegada y `ACTIVE` desde
 el 2026-09-07 06:22.
@@ -514,6 +519,28 @@ ese tiempo. Tres lecciones que este runbook se lleva:
   diagnóstico.
 - **La alerta se pagó sola.** La política de `5xx` creada esa mañana disparó sobre una función rota
   desde agosto, una hora después de existir.
+
+**El descriptor sigue sin publicarse aunque el job funcione, y eso está medido.** El 2026-09-08, con
+el job `ENABLED` ejecutándose cada 15 minutos y devolviendo `200`, la familia
+`cloudscheduler.googleapis.com` tiene **cero descriptores** en el proyecto, mientras
+`run.googleapis.com` tiene 53 y `cloudfunctions.googleapis.com` 7. La sospecha razonable es que hace
+falta al menos un intento **fallido** para materializarla, lo que es irónico tratándose de la alerta
+de fallos. **No se esperó a comprobarlo**: una alerta que solo empieza a existir después del primer
+fallo no vigila el primer fallo.
+
+**Lo que se hizo en su lugar.** Una condición de **coincidencia de registro** sobre
+`resource.type="cloud_scheduler_job" AND severity>=ERROR`. No valida contra ningún descriptor, así
+que se crea antes de que exista una sola entrada que la haga coincidir, y dispara la primera vez que
+un intento falle. El flujo de registro está vivo y comprobado: `cloudscheduler.googleapis.com%2Fexecutions`
+emite una entrada `INFO` cada 15 minutos. Política `alertPolicies/14996584831695689321`, al mismo
+canal de correo del punto 1, con límite de una notificación cada 900 s y cierre automático a 7 días.
+El cuerpo exacto está en `docs/operations/alert-4-cloud-scheduler-log-match.json`, para recrearla o
+para revertirla borrándola.
+
+**La nota que decía "no creable hoy" costó lo que suelen costar.** Estuvo escrita en este runbook
+como si fuera una propiedad del proyecto, cuando lo que describía era una propiedad de **una forma
+concreta** de escribir la alerta. Es la misma lección que ya se llevó una release entera: **un
+bloqueo que no se ha medido no es un bloqueo, es una hipótesis.**
 
 Una vez el job emite su primera métrica —Google publica el descriptor con hasta 10 minutos de
 retardo—, la política se crea con el fichero ya escrito:

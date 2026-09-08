@@ -7040,3 +7040,56 @@ operacion completa de punta a punta. Van **dos ejecutores de siete y nueve reban
 anadio ejecutor: cerro la operacion que el primero abre-, y la fila sigue **pendiente**.
 
 **Contadores sin cambio:** 118 aprobadas de 121 (98%), 3 pendientes (T059, T108, T127).
+
+### Los tres cabos sueltos de la release: dos eran de mecanismo - 2026-09-08
+
+Los tres pendientes que no cuentan para el 100 % se revisaron uno a uno **midiendo en vez de
+releyendo la nota**. Dos de los tres no estaban bloqueados: estaban descritos por una nota que
+confundia "no se puede" con "no se puede **de esta forma**".
+
+**"Build watch paths" en Pages: aplicado.** La nota decia que wrangler no lo expone -cierto, `pages
+project` solo tiene `list`, `create` y `delete`, comprobado en 4.130.0- y que hacerlo por API exigiria
+"un token que no se pidio". Eso ultimo era falso: la sesion OAuth que wrangler ya tiene guardada lleva
+scope **`pages (write)`**. Antes de tocar nada se leyo la configuracion viva, y decia
+`path_includes: ['*']`, `path_excludes: []`: **cada commit disparaba un build**, incluido uno que solo
+toca `tasks.md`. Aplicado por `PATCH` con las listas que el operador habia autorizado -incluye
+`apps/web/*`, `packages/*`, `pnpm-lock.yaml`, `package.json`; excluye `docs/*`, `tasks.md`, `Lista/*`,
+`graphify-out/*`, `qa/*`, `apps/functions/*`- y **releido despues** para confirmar que quedo, con
+`build_command` y `destination_dir` intactos. **Rollback exacto:** volver a `['*']` y `[]`.
+
+**Alerta 4 del §6.1: creada, y no como umbral.** La sospecha era que el descriptor de
+`cloudscheduler.googleapis.com/job/attempt_count` no se materializa hasta que haya un intento
+fallido. Se midio en vez de esperar: con el job `ENABLED` ejecutandose cada 15 minutos y devolviendo
+`200`, la familia `cloudscheduler.googleapis.com` tiene **cero descriptores** en el proyecto, mientras
+`run.googleapis.com` tiene 53 y `cloudfunctions.googleapis.com` 7. La sospecha queda en pie **y da
+igual**, porque la conclusion que importa es otra: **una alerta que solo empieza a existir despues del
+primer fallo no vigila el primer fallo**, asi que esperar no era una opcion, era la ausencia de una.
+
+Lo que si es creable hoy es una condicion de **coincidencia de registro**, que no valida contra
+descriptor alguno: `resource.type="cloud_scheduler_job" AND severity>=ERROR`, sobre un flujo que se
+comprobo vivo -`cloudscheduler.googleapis.com%2Fexecutions` emite una entrada `INFO` cada quince
+minutos-. Vive en `alertPolicies/14996584831695689321`, al mismo canal de correo del punto 1. Con eso
+el §6.1 esta **completo, cinco de cinco**, por primera vez. El cuerpo exacto queda versionado en
+`docs/operations/alert-4-cloud-scheduler-log-match.json`.
+
+**Y esta es la segunda vez esta semana que la misma nota cuesta lo mismo.** "No creable hoy" estaba
+escrito en el runbook como una propiedad del proyecto cuando describia una propiedad de **una forma
+concreta** de pedir la alerta -igual que "las alertas estan bloqueadas" costo releases enteras y
+resulto ser falso desde el primer dia-. **Un bloqueo que no se ha medido no es un bloqueo: es una
+hipotesis**, y escribirla en un runbook la convierte en hecho para todo el que la lea despues.
+
+**El aviso a office y coaches: sigue sin constar, y a proposito.** Es el unico de los tres que no
+tiene mecanismo que lo arregle, porque no se puede avisar "antes" de algo que ya ocurrio. Lo que hay
+es un **borrador listo para enviar** en `docs/operations/t058-aviso-office-coaches-2026-09-08.md`,
+escrito para office y coaches y no para ingenieros: que se publico, que **no** tienen que hacer nada,
+que varias pantallas que les fallaban "desde siempre" ya funcionan -el permiso de App Check-, que
+mirar estos dias y a quien escribir con que datos. Dice de entrada que llega tarde.
+
+**La casilla del §4.0(10) se queda vacia hasta que se envie**, y el borrador lo dice en su primera
+linea. Rellenarla porque existe un texto seria exactamente la clase de evidencia inventada que el §8
+prohibe: **un fichero que describe un aviso no es un aviso**.
+
+**Lo que sigue pendiente de la lista que no cuenta para el 100 %:** rotar la access key de R2 -exige
+redespliegue, porque las funciones fijan la version del secreto-; los dos `catch` que descartan la
+causa; `no-show-penalties-client.ts` sin fichero de pruebas; y los lotes de release siguientes, 83
+callables invocadas y no desplegadas.
