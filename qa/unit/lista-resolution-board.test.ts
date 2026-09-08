@@ -32,12 +32,11 @@ describe("Lista resolution board", () => {
   it("provides concrete resolution requirements for every unresolved task", () => {
     const items = unresolved();
 
-    // T058 left this list on 2026-09-08, when the release it describes actually shipped and was
-    // verified end to end. The three that remain are, for the first time, all unblocked work rather
-    // than rows waiting on someone: T059 needs a LECCIONES.md that does not exist yet, T108 needs
-    // the executors it has always needed, and T127 needs a product decision plus the digital
-    // renewal. None of them is waiting on a fact only the operator can supply.
-    expect(items.map((item) => item.id).sort()).toEqual(["T059", "T108", "T127"]);
+    // T058, T059 and T127 all left this list on 2026-09-08: the release shipped and was verified,
+    // the closing documents were written, and the waiver gate decision arrived and was implemented.
+    // What remains is the one row whose blocker was always code and still is - T108 has two of its
+    // seven executors - which is why this list is now a single id rather than a set of them.
+    expect(items.map((item) => item.id).sort()).toEqual(["T108"]);
     for (const item of items) {
       expect(project.getResolutionRequirements(item)).toEqual(
         expect.arrayContaining([expect.any(String)]),

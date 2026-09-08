@@ -44,10 +44,10 @@ describe("Lista project progress", () => {
 
   it("reflects the board as of 2026-09-08", () => {
     expect(counts).toEqual({
-      aprobada: 118,
+      aprobada: 120,
       revision: 0,
       "en-progreso": 0,
-      pendiente: 3,
+      pendiente: 1,
       bloqueada: 0,
       cancelada: 7,
     });
@@ -118,7 +118,7 @@ describe("Lista project progress", () => {
     // second one - sole trader - was applied to the three T011 documents rather than filed as a
     // note. That is what an approval on evidence looks like next to the two splits above.
     //
-    // 2026-09-08 takes it to 118/121, and this one is the rarest kind: a row approved because the
+    // 2026-09-08 takes it to 120/121 in three moves. The first is the rarest kind: a row approved because the
     // thing it describes actually happened. T058 shipped 31 callables to production with the
     // operator's explicit authorisation, and every check the runbook asks for was run - inventory,
     // anonymous probes, Cloud Run logs, the delta falling by exactly 31, and the browser pass with a
@@ -132,6 +132,6 @@ describe("Lista project progress", () => {
     // beforehand. The row is approved because what it measures - an authorised, verified deployment
     // - happened, not because the procedure was followed perfectly. Approving is a claim that the
     // evidence exists and can be opened, not that nothing went wrong.
-    expect(progress).toEqual({ approved: 118, total: 121, percentage: 98 });
+    expect(progress).toEqual({ approved: 120, total: 121, percentage: 99 });
   });
 });
