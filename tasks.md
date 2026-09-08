@@ -6698,3 +6698,96 @@ puede decirlo. La fila se aclara, no se cierra.
 (T058, T059, T108, T127), 7 canceladas, sobre 128 filas. T058 sigue pendiente **con la release ya
 hecha**, que es una situacion nueva y deliberada: le falta la verificacion de navegador, y aprobarla
 antes seria afirmar que unas pantallas se abrieron cuando nadie las ha abierto.
+
+### La cebolla de la limpieza programada: tres capas, y ninguna era la de arriba - 2026-09-08
+
+Arreglar el job de Scheduler huerfano no arreglo la funcion. La destapo. Conviene contarlo entero
+porque el patron -cada arreglo revela el siguiente, y el sintoma nunca nombra la causa- es el
+hallazgo, mas que cualquiera de las tres capas.
+
+**Capa 1: no habia job.** `cleanupExpiredMemberImportSessionsSchedule` figuraba `ACTIVE` y
+`functions:list` la pintaba como `scheduled` desde agosto. La etiqueta `deployment-scheduled` dice
+que se desplego con intencion de programarse; no dice que exista quien la llame. No existia. El
+redespliegue del 2026-09-08 creo el job, `ENABLED`, cada 15 minutos.
+
+**Capa 2: la funcion no ligaba los valores de R2.** En cuanto empezo a dispararse, devolvio `500`
+cada quince minutos con `Private file storage is not configured`. `createPrivateStorageR2Client`
+exige cuatro valores y la funcion ligaba uno solo, `MEMBER_PAGE_TOKEN_SECRET`. **Esto es la
+precondicion 6 del runbook, incumplida por el asistente:** "si el mecanismo no existe todavia, la
+funcion no entra en el lote". Se midio para las 31 del primer lote -ninguna lee `process.env`- y no
+se midio para la que se anadio despues. La leccion no es "revisar mejor": es que **la precondicion se
+mide por funcion desplegada, no por lote**, porque un anadido de ultima hora no hereda la medicion de
+los demas.
+
+**Capa 3: faltaba un indice compuesto.** Con R2 configurado, el error cambio a `Member import cleanup
+journal unavailable`. Ese mensaje no menciona indices ni consultas: nace de un `catch` que convierte
+cualquier fallo de `previewStore.listExpired` en un texto sobre el diario. La consulta real combina
+igualdad sobre `status` con rango sobre `expiresAt`, lo que exige indice compuesto, y no existia
+**ni declarado ni en produccion**: cero de diecisiete.
+
+**La conclusion que importa: la funcion nunca habia funcionado.** No se rompio el 2026-09-08; llevaba
+desplegada desde agosto sin que ninguna de sus tres dependencias estuviera completa, y el inventario
+la mostraba sana todo ese tiempo. Tras las tres capas se ejecuto por primera vez: **HTTP 200, cero
+`5xx`, cero entradas de error**, a las 07:05:17Z.
+
+**Lo que hizo visible el fallo fue la alerta creada esa misma manana.** La politica de `5xx` disparo
+sobre una funcion que llevaba semanas rota en silencio. Es el argumento entero del §6.1 en un caso
+concreto, y llego una hora despues de crearla.
+
+### R2, cableado de verdad
+
+| Pieza | Estado |
+| --- | --- |
+| Bucket `bptjersey`, **jurisdiccion EU** | Existente, creado por el operador el 2026-09-08 05:58Z |
+| `R2_ACCOUNT_ID`, `R2_BUCKET_NAME`, `R2_JURISDICTION` | Creados en Secret Manager, version 1 |
+| `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | **Version 2 con material real**, aportado por el operador |
+| Ligado a las cinco funciones que abren bucket | Hecho; las demas de `members` no los reciben |
+| Endpoint jurisdiccional | `r2EndpointFor`, con fallo cerrado |
+| Indice `memberImportPreviews (status, expiresAt)` | Desplegado y `READY` |
+
+**Los cinco valores viajan por Secret Manager, incluidos los dos que no son secretos.** El account id
+y el bucket no son credenciales; van por ahi porque es lo unico que llega a produccion hoy y porque
+repartir los cuatro entre dos mecanismos permitiria una release que despliega dos y pierde los otros
+dos en silencio. Los secretos ligados se inyectan como variables de entorno en runtime, asi que
+`r2-client.ts` sigue leyendo `process.env` para eso.
+
+**El endpoint si obligo a tocar `r2-client.ts`, contra lo que se dijo al elegir el mecanismo.** Un
+bucket con jurisdiccion EU vive en `<account>.eu.r2.cloudflarestorage.com` y **no existe** en el host
+por defecto, asi que el endpoint fijo de antes no lo alcanzaba. De ahi el quinto secreto,
+`R2_JURISDICTION`, y una regla que conviene no relajar: **una jurisdiccion no reconocida lanza en vez
+de caer al host por defecto**. El fallback silencioso es la rama peligrosa: una errata mandaria
+documentos privados al host sin restriccion juridica -exactamente la garantia que la politica de
+residencia de T011 compra- y el despliegue pareceria funcionar. Fallar al escribir es preferible a
+escribir fuera de la jurisdiccion prometida.
+
+**La prueba que dejo pasar todo esto decia `toBeDefined()`.** Y siguio siendo cierta durante las tres
+horas en que la funcion devolvia `500`. Se sustituyo por una que fija el conjunto exacto de secretos
+ligados, comprobada por mutacion: ligar solo las dos credenciales falla senalando las dos que faltan.
+El endpoint tiene la suya, tambien mutada. **Una asercion de existencia no es una prueba de
+configuracion.**
+
+**Dos defectos de diagnostico anotados y no arreglados**, por ser cambio propio fuera de esta release:
+`member-directory-empty-initialize.mjs` tiene un `catch` sin binding que descarta la causa y solo
+imprime "Empty canonical initialization failed"; y el `catch` de `previewStore.listExpired` convierte
+un `FAILED_PRECONDITION` de indice en un mensaje sobre el diario de limpieza. Los dos costaron
+tiempo real esta sesion.
+
+**El golden path local no es repetible, y va al runbook.** Cada corrida genera un
+`MEMBER_DIRECTORY_BASELINE_ENCRYPTION_SECRET` nuevo, asi que el artefacto de linea base de la corrida
+anterior ya no se puede reabrir y el inicializador falla. En CI no se ve porque el workspace nace
+limpio; en la misma maquina falla siempre a la segunda vuelta. Se limpia
+`.tmp/member-directory-baselines/` antes de correrlo. Es la misma familia que el tropiezo de Node 24
+con `--env-file`: fallos que solo existen corriendo el gate en local.
+
+**Una credencial que hay que rotar.** Los dos valores de R2 se cargaron desde ficheros para que no
+pasaran por la conversacion, y la integracion del IDE notifico el cambio **con su contenido**, asi que
+acabaron en el transcript igualmente. La via limpia es el comando de PowerShell sobre `$env:TEMP`, sin
+fichero dentro del arbol vigilado. **Rotar esa key queda pendiente**, y con ella un redespliegue: las
+funciones fijan la version del secreto (`v2`), no `latest`, asi que anadir una version 3 no basta.
+
+**Estado de las alertas:** cuatro vivas desde la manana; la quinta -fallos de Cloud Scheduler- ya no
+esta bloqueada por la ausencia de job, solo por el retardo con que Google publica el descriptor de la
+metrica tras la primera emision.
+
+**Contadores sin cambio:** 117 aprobadas de 121 (97%), 4 pendientes (T058, T059, T108, T127). T058
+espera la verificacion en navegador; T127 pierde su bloqueo de credenciales R2 pero conserva el resto.

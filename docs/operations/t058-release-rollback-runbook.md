@@ -195,6 +195,16 @@ está en `.gitignore`. Una función que dependa de ellos se despliega inerte.
      queda **node** aunque vaya después de la ruta del script, y aborta si el fichero todavía no
      existe: se invoca `node -- qa/scripts/generate-synthetic-emulator-secrets.mjs …`, o se crea el
      fichero antes. En CI no se nota porque `$GITHUB_ENV` ya existe (visto el 2026-09-07).
+     **El golden path local no es repetible: hay que vaciar `.tmp/member-directory-baselines/` antes
+     de cada corrida.** Cada ejecución genera un `MEMBER_DIRECTORY_BASELINE_ENCRYPTION_SECRET` nuevo,
+     así que el artefacto de línea base de la corrida anterior ya no se puede reabrir y el
+     inicializador aborta con `Empty canonical initialization failed.` —un mensaje que **no dice la
+     causa**, porque `member-directory-empty-initialize.mjs` la descarta en un `catch` sin binding—.
+     Pasa la primera vez y falla la segunda, siempre, en la misma máquina; en CI nunca, porque el
+     workspace nace limpio (visto el 2026-09-08). Además, el bloque `env:` del job de
+     `.github/workflows/golden-path.yml` tiene **18 variables** que el runner exige
+     (`GOLDEN_PATH_EMULATOR_E2E`, `BPT_SYNTHETIC_PILOT`, los correos sintéticos): copiarlas a mano
+     cuesta dos vueltas por dejarse alguna, y sale más barato leerlas del propio workflow.
    - `node apps/functions/scripts/build-deploy-artifact.mjs` termina con exit 0.
 4. **Delta medido.** `pnpm release:delta --project bptjersey-f5a25`: la lista "invocado y sin
    desplegar" debe contener exactamente lo que la release va a cubrir para las pantallas que se
@@ -483,9 +493,30 @@ se desplegó con intención de programarse; solo `gcloud scheduler jobs list --l
 si algo la va a llamar.
 
 Es literalmente el fallo silencioso para el que existe la alerta 4, ocurriendo mientras la alerta no
-existe. Se arregla redesplegando la función para que se le cree el job; **no se tocó**, porque es un
-cambio de producción fuera del lote autorizado. Una vez exista el job y emita, la política se crea
-con el fichero ya escrito:
+existe.
+
+**Resuelto el mismo día, y lo que salió debajo.** Con autorización propia del operador se redesplegó
+la función y el job quedó creado (`ENABLED`, cada 15 minutos). Eso no la arregló: la **destapó**.
+Empezó a devolver `500` cada quince minutos con `Private file storage is not configured`, porque
+ligaba un solo secreto de los cinco que la configuración de R2 necesita —incumplimiento de la
+precondición 6 de este runbook, medida para las 31 del lote y **no** para la que se añadió después—.
+Corregido eso, el error pasó a `Member import cleanup journal unavailable`, que resultó ser un índice
+compuesto ausente para `memberImportPreviews (status, expiresAt)`, ni declarado ni en producción.
+
+Con las tres capas resueltas la función se ejecutó **por primera vez desde que existe**: `HTTP 200`,
+cero `5xx`, cero entradas de error. **Nunca había funcionado**, y el inventario la mostró sana todo
+ese tiempo. Tres lecciones que este runbook se lleva:
+
+- **La precondición 6 se mide por función desplegada, no por lote.** Un añadido de última hora no
+  hereda la medición de los demás, y es justo el que nadie vuelve a mirar.
+- **Un síntoma no nombra su causa.** "Journal unavailable" era un índice; "scheduled" era una etiqueta
+  sin disparador. Dos `catch` que descartan el error original costaron el grueso del tiempo de
+  diagnóstico.
+- **La alerta se pagó sola.** La política de `5xx` creada esa mañana disparó sobre una función rota
+  desde agosto, una hora después de existir.
+
+Una vez el job emite su primera métrica —Google publica el descriptor con hasta 10 minutos de
+retardo—, la política se crea con el fichero ya escrito:
 
 ```bash
 curl -s -X POST "https://monitoring.googleapis.com/v3/projects/bptjersey-f5a25/alertPolicies" \
