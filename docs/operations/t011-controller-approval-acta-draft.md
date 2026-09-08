@@ -29,7 +29,7 @@ forecloses that, and §7 says exactly how to record it.
 | Field                                               | Value                                                                                                                                                     |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Controller (entity)                                 | Brazilian Power Team · Jersey (short form "BPT Jersey")                                                                                                   |
-| Legal form, registration number, registered address | Legal form **declared 2026-09-07: unincorporated**; registration number therefore **non-existent**, not blank. **Registered address still open** (see §6) |
+| Legal form, registration number, registered address | Legal form **declared 2026-09-07: unincorporated**; registration number therefore **non-existent**, not blank. registered address **given by the operator on 2026-09-07: Office 9, 13 Library Place, St Helier**. What remains is which unincorporated form applies (see §6) |
 | Signing representative                              | Vladimiro "Miro" Afonso, internal owner                                                                                                                   |
 | Signed by                                           | Andres Santiago, p.p. Vladimiro Afonso, on the instruction of 2026-09-07                                                                                  |
 | Privacy contact                                     | bptjersey@gmail.com                                                                                                                                       |
@@ -143,14 +143,16 @@ Transfers outside UK/EEA approved as: **none, other than Firebase Authentication
 
 ## 6. What this signature does not do
 
-- It does not complete the controller's registered identity. Two of the three parts were settled on
-  2026-09-07 by the operator's declaration that the entity is **unincorporated**: the legal form is
-  declared, and the registration number is closed **as non-existent** rather than left blank. What
-  remains is the **registered address**, plus which of the two unincorporated forms applies — a sole
-  trader is a natural person trading under the name, an association is not, and a DPA has to name
-  whoever actually answers. That remainder **stopped being a T011 closing criterion on 2026-09-07,
-  when T011 closed, and moved to T126** — it is a fact rather than a decision, and it blocks any
-  processor contract, any insurance policy and the published legal text of T117, but no release.
+- It does not complete the controller's registered identity. Three of its four parts are settled: on
+  2026-09-07 the operator declared the entity **unincorporated**, which declares the legal form and
+  closes the registration number **as non-existent** rather than leaving it blank, and the same day
+  gave the registered address as **Office 9, 13 Library Place, St Helier**. What remains is
+  **which of the two unincorporated forms applies** — a sole trader is a natural person trading under
+  the name, an association is not, and a DPA has to name whoever actually answers, so this document
+  still cannot say whether "the entity" named above is an association or Vladimiro Afonso trading as
+  `BPT Jersey`. That remainder **stopped being a T011 closing criterion on 2026-09-07, when T011
+  closed, and moved to T126** — it is a fact rather than a decision, and it blocks any processor
+  contract, any insurance policy and the published legal text of T117, but no release.
 - It does not approve the DPIA. The DPIA was written on 2026-09-06
   (`docs/operations/t011-dpia-draft.md`) and remains an unapproved draft with a declared high
   residual risk. Signing section 3.1 accepts one finding of it; it does not approve the document, and

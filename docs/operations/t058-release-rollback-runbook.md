@@ -191,7 +191,10 @@ está en `.gitignore`. Una función que dependa de ellos se despliega inerte.
      que exige `GCLOUD_PROJECT=demo-bpt-jersey` antes de correr) y `FUNCTIONS_DISCOVERY_TIMEOUT=300000`:
      con 170 exports, el Emulator en Windows no descubre el artefacto en los 10 s por defecto y las
      19 pruebas fallan sin que ninguna se ejecute (visto el 2026-09-07). El mismo valor hace falta en
-     `firebase deploy`, como ya registró el despliegue de T104.
+     `firebase deploy`, como ya registró el despliegue de T104. Con Node 24, `--env-file=` se lo
+     queda **node** aunque vaya después de la ruta del script, y aborta si el fichero todavía no
+     existe: se invoca `node -- qa/scripts/generate-synthetic-emulator-secrets.mjs …`, o se crea el
+     fichero antes. En CI no se nota porque `$GITHUB_ENV` ya existe (visto el 2026-09-07).
    - `node apps/functions/scripts/build-deploy-artifact.mjs` termina con exit 0.
 4. **Delta medido.** `pnpm release:delta --project bptjersey-f5a25`: la lista "invocado y sin
    desplegar" debe contener exactamente lo que la release va a cubrir para las pantallas que se

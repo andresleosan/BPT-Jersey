@@ -87,10 +87,11 @@ const RESOLUTION_REQUIREMENTS = {
     "Ejecutar el checklist completo y obtener el checkpoint del operador antes de abrir T058.",
   ],
   T058: [
-    "Seguir docs/operations/t058-release-rollback-runbook.md: precondiciones con evidencia (verify:mvp, golden path, delta medido, secretos, facturacion), orden indices -> Rules -> Functions por nombre -> frontend, y verificacion posterior.",
-    "Decidir lote a lote cuales de las 114 callables invocadas y sin desplegar entran, con que datos previos (seed de Levels, coordenadas, texto legal) y sin tocar las once que dependen de BPT_SYNTHETIC_PILOT hasta decidir ese gate.",
-    "Resolver las dos funciones huerfanas (searchMembers, getMemberReportSummary) y listRegyfitAccessRecords en un paso propio; nunca desplegar con --only functions sin nombres mientras existan.",
-    "Crear la alerta de presupuesto en Google Cloud y obtener la confirmacion explicita del operador para la release; registrar hash completo, functions:list posterior y deployment de Pages en el ledger.",
+    "Autorizacion explicita del operador para esta release nombrando las 35 callables del primer lote: es la precondicion 4.0(1) del runbook y el propio runbook dice que 'ya se probo antes' no la sustituye. Es lo unico que falta del lado del codigo.",
+    "Ventana fuera del horario de clases de Town y West, con aviso previo a office y coaches y el operador disponible la hora siguiente para la verificacion en navegador sobre bptjersey.pages.dev.",
+    "Crear las cinco alertas del runbook 6.1 (presupuesto, 5xx en Cloud Run, fallos de Cloud Scheduler, uptime y canal de correo): exigen roles de facturacion y monitorizacion que el repositorio no tiene.",
+    "Retirar las dos huerfanas (searchMembers, getMemberReportSummary) y listRegyfitAccessRecords en su paso propio del 4.3; nunca desplegar con --only functions sin nombres mientras existan.",
+    "Despues de la release: registrar hash completo, functions:list posterior y la fila de release del ledger, y volver a medir el delta para los lotes siguientes (consentimientos, salud y export siguen fuera mientras BPT_SYNTHETIC_PILOT no se lleve, y todo lo de R2 mientras no haya credenciales reales).",
   ],
   T059: [
     "Completar T058 y conservar evidencia del release y del rollback ensayado.",
@@ -1160,7 +1161,7 @@ const closeoutItems = [
     "pendiente",
     "Realizar la publicacion solo despues de superar todos los controles requeridos.",
     "T057",
-    "La publicacion coordinada en produccion sigue pendiente. Estado real al 2026-09-07, leido en solo lectura: 39 funciones desplegadas en seis lotes con commit de origen reconstruido, Rules e indices identicos a HEAD, Pages en 51918ad, y los tres secretos del directorio canonico ya en version 2 con material real (el placeholder que esta fila registraba se resolvio ese dia). Hueco medido con pnpm release:delta: la web invoca 149 callables y 114 no estan desplegadas (no 25); dos desplegadas ya no existen en el codigo (searchMembers, getMemberReportSummary) y un --only functions sin nombres las borraria; ninguna funcion define BPT_SYNTHETIC_PILOT, asi que las tres de consentimiento desplegadas estan inertes. Procedimiento en docs/operations/t058-release-rollback-runbook.md. Le toca a T058: elegir lote a lote que se despliega y con que datos previos, retirar o no las huerfanas, crear la alerta de presupuesto que el incidente de facturacion demostro que falta, y ejecutar con confirmacion explicita del operador.",
+    "La publicacion coordinada en produccion sigue pendiente. Estado real al 2026-09-07, leido en solo lectura: 39 funciones desplegadas en seis lotes con commit de origen reconstruido, Rules e indices identicos a HEAD, Pages en 51918ad, y los tres secretos del directorio canonico ya en version 2 con material real (el placeholder que esta fila registraba se resolvio ese dia). Hueco medido con pnpm release:delta: la web invoca 149 callables y 114 no estan desplegadas (no 25); dos desplegadas ya no existen en el codigo (searchMembers, getMemberReportSummary) y un --only functions sin nombres las borraria; ninguna funcion define BPT_SYNTHETIC_PILOT, asi que las tres de consentimiento desplegadas estan inertes. Procedimiento en docs/operations/t058-release-rollback-runbook.md. 2026-09-07: el operador tomo las cuatro decisiones abiertas segun lo recomendado -no llevar BPT_SYNTHETIC_PILOT, R2 fuera hasta tener credenciales, retirar las dos huerfanas y listRegyfitAccessRecords, y empezar por el lote sin gate de codigo- y se preparo y midio el primer lote: 35 callables por nombre (staff 9, families 3, profiles 4, crm 3, penalties 3, listPublicShopCatalog, announcements 9, listClientReminders, listRetentionAlerts, listUpcomingBirthdays). Son 35 y no 36 porque createCrmLead esta exportada pero la web no la invoca. Precondiciones medidas: puertas locales verdes (verify:mvp completo, golden path 19/19, artefacto exit 0), delta medido, secretos en version 2 habilitada, ninguna de las 35 lee process.env, billingEnabled true, y compatibilidad de datos limpia porque los contratos de dominio son identicos entre los commits desplegados y HEAD. Falta lo que no pone el asistente: la autorizacion explicita para esta release, la ventana con aviso, y las cinco alertas del 6.1. No se desplego nada.",
     [
       "tasks.md",
       "STACK.md",
@@ -2149,7 +2150,7 @@ const recoveryItems = [
     "pendiente",
     "El unico dato que le quedaba a T011 y que no era una decision. Bloquea contratos de encargado, no releases.",
     "T011",
-    "Alta 2026-09-07 al cerrar T011. El operador declaro ese dia la entidad no incorporada ni registrada, con lo que la forma juridica quedo declarada y el numero de registro cerrado por inexistencia; falta el domicilio y falta precisar sole trader o asociacion sin registrar. La distincion no es cosmetica: un sole trader es una persona fisica, y entonces el controller no es una entidad sino Vladimiro Afonso comerciando bajo el nombre. Bloquea cualquier contrato de encargado -un DPA nombra con exactitud a quien responde-, cualquier poliza y el texto legal publicado de T117; no bloquea ninguna release, ni T058 ni T059 ni el paso 2 de T106 ni T108. Se cierra con dos lineas del operador: no hay nada que el asistente pueda aportar aqui sin inventar una identidad juridica, que es justo lo que esta cadena de filas lleva evitando desde el 2026-09-05.",
+    "Alta 2026-09-07 al cerrar T011. El operador declaro ese dia la entidad no incorporada ni registrada, con lo que la forma juridica quedo declarada y el numero de registro cerrado por inexistencia; el domicilio lo aporto el operador el 2026-09-07, `Office 9, 13 Library Place, St Helier`, la misma direccion que la sede Town, y se llevo ese dia a los tres documentos que lo esperaban. Falta solo precisar sole trader o asociacion sin registrar. La distincion no es cosmetica: un sole trader es una persona fisica, y entonces el controller no es una entidad sino Vladimiro Afonso comerciando bajo el nombre. Bloquea cualquier contrato de encargado -un DPA nombra con exactitud a quien responde-, cualquier poliza y el texto legal publicado de T117; no bloquea ninguna release, ni T058 ni T059 ni el paso 2 de T106 ni T108. Se cierra con dos lineas del operador: no hay nada que el asistente pueda aportar aqui sin inventar una identidad juridica, que es justo lo que esta cadena de filas lleva evitando desde el 2026-09-05.",
     [
       "tasks.md",
       "docs/operations/t011-retention-residency-erasure-policy.md",
@@ -2207,6 +2208,7 @@ const projectData = {
     T054: "2026-08-25",
     T055: "2026-08-28",
     T057: "2026-08-30",
+    T058: "2026-09-07",
     T060: "2026-08-30",
     T062: "2026-08-31",
     T063: "2026-08-30",
