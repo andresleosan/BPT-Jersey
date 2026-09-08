@@ -6510,3 +6510,55 @@ solo cuando el resultado gusta seria no tenerla. El 100 % llega por dos caminos,
 alertas y la autorizacion desbloquean T058 y detras T059, y las rebanadas que faltan cierran T108.
 
 **Contadores sin cambio:** 117 aprobadas de 121 (97%), 4 pendientes (T058, T059, T108, T127).
+
+### Cierre de sesion: grafo de conocimiento refrescado y corte publicado - 2026-09-07
+
+`--update` incremental sobre el grafo de esta misma manana. El detect propuso 33 ficheros: 16 de
+codigo y 17 documentos, de los cuales **11 eran `graphify-out/memory/`**, que `.graphifyignore`
+excluye a proposito para que el grafo no se describa a si mismo. El filtro se volvio a aplicar a
+mano; es el tercer cierre seguido en que hace falta, asi que conviene darlo por permanente.
+
+**Un tropiezo que costo una vuelta entera, y la leccion que deja.** La primera extraccion semantica
+salio corta: instrui a los agentes para que capturasen "lo que cambio hoy", y `build_merge` **no
+anade, reemplaza**: todos los nodos de un fichero re-extraido se sustituyen por los nuevos. Resultado,
+`tasks.md` pasaba de 164 nodos a 60 y la politica de retencion de 49 a 9. El grafo habria quedado
+sabiendo mucho del 2026-09-07 y **habiendo olvidado el resto del proyecto**. Lo destapo el guard de
+encogimiento de graphify, que se nego a escribir un grafo mas pequeno que el anterior; en vez de
+forzarlo -que era la salida facil y habria congelado la perdida-, se conto de donde salian los 169
+nodos que faltaban, se confirmo que eran exactamente esos tres documentos, y se lanzo una segunda
+pasada de cobertura amplia sobre ellos. **Cuando una re-extraccion reemplaza, extraer solo lo nuevo
+es borrar lo viejo.**
+
+- **Codigo, AST y sin coste de LLM:** 16 ficheros, 232 nodos y 542 aristas. Entran las tres rebanadas
+  nuevas de T108 con sus pruebas, el adaptador Firestore del runner y el modulo de criptografia.
+- **Documentos, cuatro agentes en paralelo en dos pasadas:** 6 ficheros, 505 nodos y 729 aristas.
+  Dos agentes para lo nuevo -el ledger del dia y los cinco documentos de operaciones- y dos mas de
+  cobertura amplia sobre `tasks.md` y los dos documentos de T011, que son la espina dorsal del
+  proyecto y no admiten una extraccion fina. 522.651 tokens de entrada, 0 de salida.
+- **Fusion:** 513 nodos reemplazados de los ficheros re-extraidos y 24 deduplicados. El grafo pasa de
+  **9448 a 9823 nodos** y de 21.015 a **21.724 aristas**. Diagnostico de integridad limpio: cero
+  aristas colgantes, cero con extremo ausente, cero en bucle y cero colapsadas.
+- **Comunidades:** 486. Cinco con nombre puesto a mano -el ejecutor de bootstrap, la linea base de
+  identidad y su verificacion, el envoltorio de chunk, la identidad registrada del controller y las
+  alertas que faltan-; el resto toma el nombre de su nodo central, que es honesto y mejor que
+  "Community 231".
+- **Lo que el grafo sabe ahora y antes no:** el cierre de T126 con la forma sole trader y su
+  consecuencia -que el controller es una persona fisica-; las cuatro decisiones de T058 y el lote de
+  31 con el porque de cada exclusion; la correccion de la nota falsa del runbook sobre
+  `saveClientProfile`; los cinco umbrales de alerta; la retirada de la firma presencial de T127; y
+  las rebanadas 6, 7 y 8 de T108. **Hallazgo de paso, sin arreglar:** las secciones antiguas de
+  `tasks.md` tienen mojibake mezclado (`atÃ³mica`, `Reconciliaciï¿½n`) de una conversion de encoding
+  vieja; no rompe nada y no se toco, pero esta anotado.
+
+**Corte publicado.** El operador autorizo el push, que hasta hoy era la decision abierta numero 1.
+Van los commits de la sesion a `origin/main`. Consecuencia conocida y aceptada: **Cloudflare Pages
+publica una deployment nueva del frontend en cada push a `main`**, aunque este corte no toque
+`apps/web`; es exactamente el efecto que la decision 9 -activar "Build watch paths"- existiria para
+evitar, y sigue sin activarse.
+
+**Contadores al cierre:** 117 aprobadas de 121 (97%), 0 en revision, 0 en progreso, 4 pendientes
+(T058, T059, T108, T127), 7 canceladas, sobre 128 filas.
+
+**Sin cambios en produccion de datos.** Nada desplegado, migrado, borrado ni configurado en
+`bptjersey-f5a25`; las unicas lecturas fueron de solo lectura -`functions:list`, `secrets versions
+list`, `billing describe`- y el unico Firestore escrito fue el Emulator `demo-bpt-jersey`.
