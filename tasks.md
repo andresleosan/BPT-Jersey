@@ -6967,3 +6967,76 @@ endpoint jurisdiccional y credenciales reales, verificado en produccion. Le qued
   ellas el ciclo de facturacion manual completo -`listFinancialAccount`, `getInvoice`,
   `issueManualInvoice`, `recordManualPayment`, `voidManualInvoice`, `savePaymentInstructions`- y
   `listMemberships`. Cada lote con su autorizacion, su delta y sus precondiciones medidas por funcion.
+
+### T108 rebanada 9: el cierre del bootstrap enchufado a su runner - 2026-09-08
+
+Las piezas puras estaban desde la rebanada 8 -el MAC de linea base, la verificacion y el cierre-. Lo
+que faltaba era el cableado: las dos transacciones que terminan la operacion, su adaptador Firestore
+y el ensayo contra un Emulator de verdad. Eso es lo que existe ahora.
+
+**La pregunta que decidia la forma: de donde salen las tuplas.** La verificacion pide, por chunk, las
+tuplas `(kind,keyId,ownerStudentId,digestVersion,secretVersion)` que ese chunk reservo. Si salieran
+del artefacto congelado, la comparacion final probaria unicamente que el artefacto es igual a si
+mismo. Asi que el reparto es explicito: **el artefacto pone la pregunta y Firestore pone la
+respuesta**. El artefacto dice que reservas planifico esta operacion; el runner lee esos documentos,
+**reconstruye cada tupla desde lo que Firestore guardo**, las pliega y compara el MAC con el del
+artefacto. Una reserva ausente, ilegible o de otro inquilino termina el cierre; una con otro dueno,
+otra clase o otra version produce una tupla distinta y muere en la comparacion.
+
+**Y por eso el guarda esta en un sitio solo.** Habria sido facil anadir junto al MAC una comprobacion
+campo a campo del dueno y las versiones. Es exactamente el segundo guarda que la rebanada 8 borro: se
+pudre en silencio cuando el de abajo cambia. El runner solo rechaza antes de tiempo lo que **no puede
+expresar como tupla** -documento inexistente, invalido, o de otra academia, que la tupla no lleva-.
+
+**El artefacto tiene que ser el que esta operacion congelo.** El recibo de dry-run del padre lleva su
+propio `identityKeyBaselineMac`. Exigir que coincida con el del artefacto es la unica forma de que
+"rechaza artefactos divergentes" signifique algo: sin eso el cierre verificaria contra el artefacto
+que le pasaran. Dos almacenes independientes diciendo el mismo MAC, o no hay cierre.
+
+**La transaccion de verificacion escribe un documento, y eso obligo a una decision incomoda que se
+deja escrita.** La especificacion dice que la verificacion mueve **solo al padre** y que el estado se
+queda bloqueado, congelado y con cobertura incompleta -es lo que hace segura una caida entre las dos
+mitades-. Pero la cadena de guard tiene exactamente **un evento por revision de estado**, asi que
+acunar un evento nuevo seria mover el estado, que es justo lo prohibido. De modo que
+`statusAuditEventId` **nombra el evento en el que el plano de control esta parado**, el del ultimo
+chunk, no uno nuevo. Lo que hace honesta esa referencia es el compare-and-set: el padre se archiva
+contra una posicion del plano de control **demostrada vigente en el instante de la escritura**. Se
+prefirio esto a inventar una revision de estado que la especificacion no autoriza; queda anotado
+porque es el punto donde el nombre del campo promete un poco mas de lo que hay.
+
+**El ensayo encontro un fallo que ninguna prueba con dobles habria visto.** Tras completar, el estado
+vuelve a la tupla estable: sin congelacion, sin lease, sin operacion activa. El reintento de una
+operacion **ya completada** moria entonces en la precondicion de cierre con "Only a frozen bootstrap
+tuple", que manda a buscar una averia del plano de control donde no hay ninguna. Se reordeno: el
+runner lee al padre **antes** de exigir la precondicion, y una operacion terminal contesta "ya
+completada" y no trae prueba -y no traerla es la respuesta honesta, porque la congelacion sobre la
+que versaria ya esta abierta-. Es el mismo error de esta noche una vez mas: **el sitio donde se ve el
+sintoma no era el sitio donde estaba la causa.**
+
+**Dos definiciones que pasaron a existir una sola vez.** El formato de tupla vivia privado dentro del
+ejecutor y ahora tiene dos lectores -el que las emite y el que las reconstruye-, asi que subio a
+`member-directory-crypto.ts` con su inversa. Y la precondicion de cierre -tupla bootstrap congelada,
+esta operacion, lease vivo, cobertura incompleta- se extrajo a
+`assertMemberDirectoryBootstrapClosable`, que la verificacion y el cierre comparten. Dos copias de
+una precondicion de cuatro partes es como la segunda transaccion empieza a aceptar lo que la primera
+rechaza.
+
+**Un guarda sin prueba, encontrado por mutacion y no por lectura.** El parser de tuplas exige que el
+`keyId` lleve su propia `kind` como prefijo -es lo que ata el digest al espacio de identificadores en
+que se derivo-. Desactivarlo **no hacia fallar nada**: la regla estaba escrita y no sujeta. Ahora
+tiene su prueba. Un guarda que ninguna prueba mata es una intencion, no una regla.
+
+**Verificado:** `verify:mvp` completo en verde en una sola vuelta -275 ficheros, **2335 pruebas
+unitarias**, Rules 92/92, las ocho etapas-; **Emulator 82/83** con el ensayo nuevo -1 saltada, la de
+backup v3 que el Emulator no soporta y que ya se saltaba-. **Por mutacion, cinco reglas y cinco
+muertes:** quitar la atadura artefacto/recibo, plegar la tupla del artefacto en vez de la almacenada,
+aceptar recibos que no cuadran con los chunks planificados, dejar de comprobar la academia de la
+reserva y aflojar el prefijo del `keyId` hacen fallar una prueba cada una.
+
+**Lo que queda de T108:** el ejecutor forward y despues los otros cinco; el plan privado congelado con
+su dry-run -que es tambien quien traera el almacen real detras del puerto de artefacto que esta
+rebanada deja definido-; la cuarentena; la acunacion y el consumo de aprobaciones; y el ensayo de la
+operacion completa de punta a punta. Van **dos ejecutores de siete y nueve rebanadas** -esta no
+anadio ejecutor: cerro la operacion que el primero abre-, y la fila sigue **pendiente**.
+
+**Contadores sin cambio:** 118 aprobadas de 121 (98%), 3 pendientes (T059, T108, T127).
