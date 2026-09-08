@@ -85,6 +85,10 @@ function chunkPath(academyId: string, chunkId: string): string {
   return `academies/${academyId}/memberDirectoryMigrationChunks/${chunkId}`;
 }
 
+function operationPath(academyId: string, operationId: string): string {
+  return `academies/${academyId}/memberDirectoryMigrations/${operationId}`;
+}
+
 function requiredNumber(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value)) {
     throw new Error(`Member directory ${label} is missing or not an integer`);
@@ -103,9 +107,10 @@ async function readControlPlane(
   firestore: MemberDirectoryChunkFirestoreLike,
   input: Readonly<{ academyId: string; operationId: string; chunkId: string }>,
 ): Promise<MemberDirectoryChunkControlPlane> {
-  const [state, guard, ownReceipt, operationReceipts] = await Promise.all([
+  const [state, guard, operation, ownReceipt, operationReceipts] = await Promise.all([
     firestore.doc(statePath(input.academyId)).get(),
     firestore.doc(guardPath(input.academyId)).get(),
+    firestore.doc(operationPath(input.academyId, input.operationId)).get(),
     firestore.doc(chunkPath(input.academyId, input.chunkId)).get(),
     firestore
       .collection(`academies/${input.academyId}/memberDirectoryMigrationChunks`)
@@ -116,6 +121,10 @@ async function readControlPlane(
 
   if (!state.exists || !guard.exists) {
     throw new Error("Member directory control plane is missing");
+  }
+  if (!operation.exists) {
+    // A chunk with no parent operation has nothing that authorised it, whatever the state says.
+    throw new Error("Member directory parent operation is missing");
   }
   const guardData = guard.data();
   const event = await firestore
@@ -145,6 +154,7 @@ async function readControlPlane(
     state: state.data(),
     guard: guardData,
     event: event.data(),
+    operation: operation.data(),
     priorRowCount,
     // Spread conditionally: "no stored receipt" has to mean the property is absent, not present
     // and undefined, or the runner cannot tell a first attempt from a receipt-less replay.
@@ -162,6 +172,10 @@ async function commitChunk(
   const guardReference = firestore.doc(guardPath(write.academyId));
   const receiptReference = firestore.doc(chunkPath(write.academyId, write.chunkId));
   const eventReference = firestore.doc(eventPath(write.academyId, write.event.eventId));
+  const operationReference =
+    write.operation === undefined
+      ? undefined
+      : firestore.doc(operationPath(write.academyId, write.operation.operationId));
   const domainReferences = write.domainWrites.map((domainWrite) => ({
     reference: firestore.doc(domainWrite.path),
     data: domainWrite.data,
@@ -195,6 +209,9 @@ async function commitChunk(
 
     transaction.set(stateReference, write.nextState);
     transaction.set(guardReference, write.guard);
+    if (operationReference !== undefined) {
+      transaction.set(operationReference, write.operation);
+    }
     transaction.create(eventReference, write.event);
     transaction.create(receiptReference, write.receipt);
     for (const domainWrite of domainReferences) {

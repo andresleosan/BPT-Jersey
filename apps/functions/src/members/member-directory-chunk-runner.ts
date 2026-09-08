@@ -4,6 +4,11 @@ import {
   type MemberDirectoryChunkReceipt,
   type MemberDirectoryMigrationPhase,
 } from "@bpt-jersey/domain/members/directory-migration";
+import {
+  memberDirectoryOperationDocumentSchema,
+  planMemberDirectoryOperationChunkStatus,
+  type MemberDirectoryOperationDocument,
+} from "@bpt-jersey/domain/members/directory-operations";
 import { planMemberDirectoryChunkCommit } from "@bpt-jersey/domain/members/directory-transitions";
 
 import {
@@ -50,6 +55,8 @@ export type MemberDirectoryChunkControlPlane = Readonly<{
   state: unknown;
   guard: unknown;
   event: unknown;
+  /** The parent operation document. A chunk with no parent has nothing that authorised it. */
+  operation: unknown;
   /** The stored receipt's output MAC, when this chunk was already committed. */
   committedOutputSetMac?: string;
   /** Rows committed by earlier chunks of the same operation. */
@@ -77,6 +84,11 @@ export type MemberDirectoryChunkCommitWrite = Readonly<{
   guard: MemberDirectoryRestoreGuard;
   event: MemberDirectoryGuardEvent;
   receipt: MemberDirectoryChunkReceipt;
+  /**
+   * The parent operation, present only when this chunk moved it - which is the first chunk, and
+   * only the first. Absent means there is nothing to write rather than the same document again.
+   */
+  operation?: MemberDirectoryOperationDocument;
   /** The executor's own documents, created in the same transaction as everything above. */
   domainWrites: readonly MemberDirectoryChunkDomainWrite[];
 }>;
@@ -179,6 +191,14 @@ export async function runMemberDirectoryChunkCommit(
     throw new Error("Member directory chunk academy does not match its control plane");
   }
 
+  const parsedOperation = memberDirectoryOperationDocumentSchema.parse(controlPlane.operation);
+  if (
+    parsedOperation.operationId !== request.operationId ||
+    parsedOperation.academyId !== request.academyId
+  ) {
+    throw new Error("Member directory chunk operation does not match its parent document");
+  }
+
   const now = dependencies.now();
   const decision = planMemberDirectoryChunkCommit({
     currentState: current.state,
@@ -235,6 +255,20 @@ export async function runMemberDirectoryChunkCommit(
     integritySecretVersion: dependencies.integritySecretVersion,
   });
 
+  /**
+   * The parent's half of the same transaction. It is planned from the guard event this commit is
+   * about to write, so the operation's status change and the control-plane transition are bound to
+   * one audit entry rather than two that have to be correlated afterwards.
+   */
+  const operation = planMemberDirectoryOperationChunkStatus({
+    current: parsedOperation,
+    phase: request.phase,
+    chunkNo: request.chunkNo,
+    auditEventId: advanced.event.eventId,
+    now,
+    actorId: request.actorId,
+  });
+
   await dependencies.store.commit({
     academyId: request.academyId,
     chunkId,
@@ -242,6 +276,7 @@ export async function runMemberDirectoryChunkCommit(
     guard: advanced.guard,
     event: advanced.event,
     receipt,
+    ...(operation === undefined ? {} : { operation }),
     domainWrites,
   });
 

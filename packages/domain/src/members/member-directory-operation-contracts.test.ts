@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { memberDirectoryDryRunClassifications } from "./member-directory-migration-contracts";
 import {
   assertLeaseRecoveryWithinDeadline,
   assertLeaseRenewable,
@@ -9,9 +10,12 @@ import {
   isMemberDirectoryOperationStatusTransitionAllowed,
   maxInitialOperationDeadlineMs,
   memberDirectoryLeaseDurationSeconds,
+  memberDirectoryOperationDocumentSchema,
   memberDirectoryOperationStatuses,
   memberDirectoryOperationTypes,
   memberDirectoryTerminalStatuses,
+  planMemberDirectoryOperationChunkStatus,
+  planMemberDirectoryOperationStatusChange,
 } from "./member-directory-operation-contracts";
 import type {
   MemberDirectoryOperationStatus,
@@ -295,5 +299,196 @@ describe("member directory operation deadlines", () => {
         recoveryDeadline: "2026-09-07T12:00:00.000Z",
       });
     }).toThrow(/must be in the future/u);
+  });
+});
+
+const bootstrapReceipt = {
+  operationId: "op-bootstrap-1",
+  academyId: "academy-bpt-jersey",
+  phase: "bootstrap",
+  targetProjectClassification: "emulator",
+  codeVersion: "9a9d839",
+  schemaVersion: "1",
+  effectiveDate: "2026-09-07T10:00:00.000Z",
+  expiresAt: "2026-09-07T12:00:00.000Z",
+  sourceMac: "a".repeat(64),
+  privateManifestMac: "b".repeat(64),
+  planMac: "c".repeat(64),
+  digestVersion: "hmac-sha256-v1",
+  secretVersion: "identity-v1",
+  identityKeyBaselineMac: "d".repeat(64),
+  expectedOutputSetMacRoots: ["e".repeat(64)],
+  classificationCounts: Object.fromEntries(
+    memberDirectoryDryRunClassifications.map((classification) => [classification, 0]),
+  ),
+  preExistingAdmittedStudentCount: 100,
+  plannedNewStudentCount: 0,
+  postCutoverAdmittedStudentCount: 100,
+  maximumApprovedRows: 400,
+  integrityMacVersion: "hmac-sha256-v1",
+  integritySecretVersion: "integrity-v1",
+  operationWriteTime: "2026-09-07T10:00:00.000Z",
+  createdAt: "2026-09-07T10:00:00.000Z",
+  createdBy: "operator",
+} as const;
+
+function operationDocument(overrides: Readonly<Record<string, unknown>> = {}) {
+  return memberDirectoryOperationDocumentSchema.parse({
+    operationId: "op-bootstrap-1",
+    academyId: "academy-bpt-jersey",
+    operationType: "identity-key-bootstrap",
+    status: "frozen",
+    receipt: bootstrapReceipt,
+    statusAuditEventId: "audit-1",
+    statusChangedAt: "2026-09-07T11:00:00.000Z",
+    statusChangedBy: "runner-a",
+    schemaVersion: "1",
+    createdAt: "2026-09-07T10:00:00.000Z",
+    createdBy: "operator",
+    ...overrides,
+  });
+}
+
+describe("member directory parent operation document", () => {
+  it("binds its receipt to its own operation, academy and phase", () => {
+    expect(operationDocument().receipt.phase).toBe("bootstrap");
+
+    expect(() =>
+      operationDocument({ receipt: { ...bootstrapReceipt, operationId: "op-other" } }),
+    ).toThrow();
+    expect(() =>
+      operationDocument({ receipt: { ...bootstrapReceipt, academyId: "academy-other" } }),
+    ).toThrow();
+  });
+
+  /**
+   * A phase an operation type never runs would make the document describe work that cannot happen,
+   * and the chunk receipts filed under it would have no parent that admits them.
+   */
+  it("refuses a phase its operation type never runs", () => {
+    expect(() =>
+      operationDocument({
+        receipt: { ...bootstrapReceipt, phase: "forward" },
+      }),
+    ).toThrow(/cannot run the forward phase/u);
+  });
+
+  /** Compensation runs under the same operation as its forward, which is why both are allowed. */
+  it("lets a directory-forward operation own both its forward and its compensation", () => {
+    for (const phase of ["forward", "compensation"] as const) {
+      const document = operationDocument({
+        operationId: "op-forward-1",
+        operationType: "directory-forward",
+        receipt: { ...bootstrapReceipt, operationId: "op-forward-1", phase },
+      });
+      expect(document.receipt.phase).toBe(phase);
+    }
+  });
+
+  it("refuses global-legacy-elimination, which owns no chunk phase", () => {
+    expect(() => operationDocument({ operationType: "global-legacy-elimination" })).toThrow();
+  });
+
+  it("refuses a status change that is not in the transition table", () => {
+    expect(() =>
+      planMemberDirectoryOperationStatusChange({
+        current: operationDocument({ status: "completed" }),
+        toStatus: "applying",
+        auditEventId: "audit-2",
+        now: "2026-09-07T12:00:00.000Z",
+        actorId: "runner-a",
+      }),
+    ).toThrow(/cannot move from completed to applying/u);
+  });
+
+  /**
+   * The receipt is nested rather than spread precisely so this holds by construction: a transition
+   * has no field of the evidence block it could rewrite.
+   */
+  it("carries the receipt through a status change untouched", () => {
+    const current = operationDocument();
+    const next = planMemberDirectoryOperationStatusChange({
+      current,
+      toStatus: "applying",
+      auditEventId: "audit-2",
+      now: "2026-09-07T12:00:00.000Z",
+      actorId: "runner-a",
+    });
+
+    expect(next.status).toBe("applying");
+    expect(next.statusAuditEventId).toBe("audit-2");
+    expect(next.receipt).toEqual(current.receipt);
+    expect(next.createdAt).toBe(current.createdAt);
+  });
+
+  it("refuses a transition stamped before the one it follows", () => {
+    expect(() =>
+      planMemberDirectoryOperationStatusChange({
+        current: operationDocument(),
+        toStatus: "applying",
+        auditEventId: "audit-2",
+        now: "2026-09-07T10:30:00.000Z",
+        actorId: "runner-a",
+      }),
+    ).toThrow(/backwards in time/u);
+  });
+
+  describe("the parent's half of a chunk commit", () => {
+    const chunkStatus = (
+      current: ReturnType<typeof operationDocument>,
+      chunkNo: number,
+      phase: "bootstrap" | "compensation" = "bootstrap",
+    ) =>
+      planMemberDirectoryOperationChunkStatus({
+        current,
+        phase,
+        chunkNo,
+        auditEventId: "audit-2",
+        now: "2026-09-07T12:00:00.000Z",
+        actorId: "runner-a",
+      });
+
+    it("moves frozen to applying on the first committed chunk", () => {
+      expect(chunkStatus(operationDocument(), 1)?.status).toBe("applying");
+    });
+
+    /** Returning nothing, rather than the same document, leaves the caller with nothing to write. */
+    it("changes nothing on a later chunk", () => {
+      expect(chunkStatus(operationDocument({ status: "applying" }), 2)).toBeUndefined();
+    });
+
+    /**
+     * A compensation chunk runs under `compensating`. The phase change is what authorised it, and
+     * that already happened; moving the parent again here would file a second transition for it.
+     */
+    it("changes nothing while compensating", () => {
+      const compensating = operationDocument({
+        operationId: "op-forward-1",
+        operationType: "directory-forward",
+        status: "compensating",
+        receipt: { ...bootstrapReceipt, operationId: "op-forward-1", phase: "compensation" },
+      });
+      expect(chunkStatus(compensating, 1, "compensation")).toBeUndefined();
+    });
+
+    it("refuses a frozen operation whose first chunk is not chunk 1", () => {
+      expect(() => chunkStatus(operationDocument(), 2)).toThrow(
+        /only be moved by its first chunk/u,
+      );
+    });
+
+    it("refuses a chunk while the operation is verified, completed or failed", () => {
+      for (const status of ["verified", "completed", "failed"] as const) {
+        expect(() => chunkStatus(operationDocument({ status }), 1)).toThrow(
+          new RegExp(`cannot commit while its operation is ${status}`, "u"),
+        );
+      }
+    });
+
+    it("refuses a chunk whose phase its operation type never runs", () => {
+      expect(() => chunkStatus(operationDocument(), 1, "compensation")).toThrow(
+        /cannot commit a compensation chunk/u,
+      );
+    });
   });
 });

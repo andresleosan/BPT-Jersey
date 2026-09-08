@@ -5,6 +5,8 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { MemberDirectoryState } from "@bpt-jersey/domain/members/directory";
+import { memberDirectoryDryRunClassifications } from "@bpt-jersey/domain/members/directory-migration";
+import { memberDirectoryOperationDocumentSchema } from "@bpt-jersey/domain/members/directory-operations";
 import { planMemberDirectoryAcquisition } from "@bpt-jersey/domain/members/directory-transitions";
 
 import { planMemberDirectoryBootstrapChunk } from "../../apps/functions/src/members/member-directory-bootstrap-executor.js";
@@ -189,7 +191,53 @@ async function seedFrozenBootstrapControlPlane(database: Firestore): Promise<voi
     integritySecretVersion,
   });
 
+  const operation = memberDirectoryOperationDocumentSchema.parse({
+    operationId,
+    academyId,
+    operationType: "identity-key-bootstrap",
+    status: "frozen",
+    receipt: {
+      operationId,
+      academyId,
+      phase: "bootstrap",
+      targetProjectClassification: "emulator",
+      codeVersion: "9a9d839",
+      schemaVersion: "1",
+      effectiveDate: initializedAt,
+      expiresAt: "2026-09-07T13:00:00.000Z",
+      sourceMac: "a".repeat(64),
+      privateManifestMac: "b".repeat(64),
+      planMac: "c".repeat(64),
+      digestVersion: "hmac-sha256-v1",
+      secretVersion: identitySecretVersion,
+      identityKeyBaselineMac: "d".repeat(64),
+      expectedOutputSetMacRoots: ["e".repeat(64)],
+      classificationCounts: Object.fromEntries(
+        memberDirectoryDryRunClassifications.map((classification) => [classification, 0]),
+      ),
+      preExistingAdmittedStudentCount: 2,
+      plannedNewStudentCount: 0,
+      postCutoverAdmittedStudentCount: 2,
+      maximumApprovedRows: 400,
+      integrityMacVersion: "hmac-sha256-v1",
+      integritySecretVersion,
+      operationWriteTime: initializedAt,
+      createdAt: initializedAt,
+      createdBy: actorId,
+    },
+    statusAuditEventId: "1",
+    statusChangedAt: acquiredAt,
+    statusChangedBy: actorId,
+    schemaVersion: "1",
+    createdAt: initializedAt,
+    createdBy: actorId,
+  });
+
   const batch = database.batch();
+  batch.create(
+    database.doc(`academies/${academyId}/memberDirectoryMigrations/${operationId}`),
+    operation,
+  );
   batch.create(database.doc(`academies/${academyId}/memberDirectoryStates/current`), acquired);
   batch.create(database.doc(`memberDirectoryRestoreGuards/${academyId}`), advanced.guard);
   batch.create(database.doc(`memberDirectoryRestoreGuards/${academyId}/events/0`), initial.event);
@@ -239,6 +287,14 @@ async function readStoredControlPlane(database: Firestore): Promise<MemberDirect
     integritySecretVersion,
   });
   return verified.state;
+}
+
+async function readStoredOperation(database: Firestore) {
+  const stored = await database
+    .doc(`academies/${academyId}/memberDirectoryMigrations/${operationId}`)
+    .get();
+  // Re-parsed from what Firestore stored, not from what was sent.
+  return memberDirectoryOperationDocumentSchema.parse(stored.data());
 }
 
 async function countIdentityKeys(database: Firestore): Promise<number> {
@@ -342,6 +398,12 @@ describeLocal("member directory bootstrap chunk against the Emulator", () => {
     expect(committedState.stateRevision).toBe(2);
     expect(committedState.lastCommittedChunkNo).toBe(1);
     expect(committedState.freezeStatus).toBe("frozen");
+
+    // The parent moved in the same transaction, bound to the same guard event as the state.
+    const parent = await readStoredOperation(database);
+    expect(parent.status).toBe("applying");
+    expect(parent.statusAuditEventId).toBe(String(committedState.stateRevision));
+    expect(parent.receipt.planMac).toBe("c".repeat(64));
 
     /**
      * Re-issuing the exact commit the runner produced must fail. The receipt, the guard event and
@@ -474,6 +536,11 @@ describeLocal("member directory bootstrap chunk against the Emulator", () => {
     expect(state.stateRevision).toBe(3);
     expect(state.lastCommittedChunkNo).toBe(2);
     expect(await countIdentityKeys(database)).toBe(2);
+
+    // A later chunk does not move the parent again: it stays on the audit event of the first.
+    const parent = await readStoredOperation(database);
+    expect(parent.status).toBe("applying");
+    expect(parent.statusAuditEventId).toBe("2");
 
     // The adapter sums the operation's earlier receipts, which is how the 400-row operation budget
     // is enforced across chunks rather than per chunk.

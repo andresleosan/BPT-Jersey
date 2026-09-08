@@ -1,4 +1,9 @@
 import { memberDirectoryStateSchema } from "@bpt-jersey/domain/members/directory";
+import { memberDirectoryDryRunClassifications } from "@bpt-jersey/domain/members/directory-migration";
+import {
+  memberDirectoryOperationDocumentSchema,
+  type MemberDirectoryOperationDocument,
+} from "@bpt-jersey/domain/members/directory-operations";
 import type { MemberDirectoryState } from "@bpt-jersey/domain/members/directory";
 import {
   planMemberDirectoryAcquisition,
@@ -128,6 +133,9 @@ function createStore(
           state: plane.state,
           guard: plane.guard,
           event: plane.event,
+          operation: operationDocument(
+            lastCommittedChunkNo === 0 ? {} : { status: "applying", statusAuditEventId: "audit-2" },
+          ),
           priorRowCount: 0,
           ...overrides,
         }),
@@ -137,6 +145,64 @@ function createStore(
       },
     },
   };
+}
+
+/**
+ * The parent operation the chunks belong to. Built through its own schema, so a chunk test cannot
+ * accidentally pass with a parent shape production would reject.
+ */
+function operationDocument(
+  overrides: Readonly<Record<string, unknown>> = {},
+): MemberDirectoryOperationDocument {
+  const phase = (overrides["phase"] as string | undefined) ?? "forward";
+  const operationType = phase === "bootstrap" ? "identity-key-bootstrap" : "directory-forward";
+  // The receipt has to name the same operation as the document, so overriding one moves both: a
+  // fixture that let them drift would only ever prove the schema rejects its own fixture.
+  const operationId = (overrides["operationId"] as string | undefined) ?? "op-1";
+  const rest = { ...overrides };
+  delete rest["phase"];
+  return memberDirectoryOperationDocumentSchema.parse({
+    operationId,
+    academyId,
+    operationType,
+    status: "frozen",
+    receipt: {
+      operationId,
+      academyId,
+      phase,
+      targetProjectClassification: "emulator",
+      codeVersion: "9a9d839",
+      schemaVersion: "1",
+      effectiveDate: "2026-09-07T10:00:00.000Z",
+      expiresAt: "2026-09-07T13:00:00.000Z",
+      sourceMac: "a".repeat(64),
+      privateManifestMac: "b".repeat(64),
+      planMac: "c".repeat(64),
+      digestVersion: "hmac-sha256-v1",
+      secretVersion: "identity-v1",
+      identityKeyBaselineMac: "d".repeat(64),
+      expectedOutputSetMacRoots: ["e".repeat(64)],
+      classificationCounts: Object.fromEntries(
+        memberDirectoryDryRunClassifications.map((classification) => [classification, 0]),
+      ),
+      preExistingAdmittedStudentCount: 100,
+      plannedNewStudentCount: 0,
+      postCutoverAdmittedStudentCount: 100,
+      maximumApprovedRows: 400,
+      integrityMacVersion: "hmac-sha256-v1",
+      integritySecretVersion: "integrity-v1",
+      operationWriteTime: "2026-09-07T10:00:00.000Z",
+      createdAt: "2026-09-07T10:00:00.000Z",
+      createdBy: "operator",
+    },
+    statusAuditEventId: "audit-1",
+    statusChangedAt: acquiredAt,
+    statusChangedBy: "runner-a",
+    schemaVersion: "1",
+    createdAt: "2026-09-07T10:00:00.000Z",
+    createdBy: "operator",
+    ...rest,
+  });
 }
 
 function createBootstrapStore(): {
@@ -153,6 +219,7 @@ function createBootstrapStore(): {
           state: plane.state,
           guard: plane.guard,
           event: plane.event,
+          operation: operationDocument({ phase: "bootstrap" }),
           priorRowCount: 0,
         }),
       commit: (write) => {
@@ -282,6 +349,7 @@ describe("member directory chunk runner", () => {
           state: tampered,
           guard: plane.guard,
           event: plane.event,
+          operation: operationDocument(),
           priorRowCount: 0,
         }),
       commit: (write) => {
@@ -352,6 +420,11 @@ describe("member directory chunk runner", () => {
           state: compensating,
           guard: advanced.guard,
           event: advanced.event,
+          operation: operationDocument({
+            phase: "compensation",
+            status: "compensating",
+            statusAuditEventId: "audit-2",
+          }),
           priorRowCount: 0,
         }),
       commit: (write) => {
@@ -368,6 +441,52 @@ describe("member directory chunk runner", () => {
 
     expect(writes[0]?.receipt.sourceForwardChunkNo).toBe(8);
     expect(writes[0]?.event.transitionKind).toBe("failed-forward-compensation");
+  });
+
+  /**
+   * The parent's half of the commit. Without it an operation could have written domain documents
+   * while its own record still said `frozen`, which is the state a resume would trust.
+   */
+  it("moves the parent operation from frozen to applying on the first chunk", async () => {
+    const { store, writes } = createStore();
+
+    await runMemberDirectoryChunkCommit(dependencies(store), request);
+
+    expect(writes[0]?.operation?.status).toBe("applying");
+    // Bound to the same guard event as the state transition, not to an audit entry of its own.
+    expect(writes[0]?.operation?.statusAuditEventId).toBe(writes[0]?.event.eventId);
+    expect(writes[0]?.operation?.receipt.planMac).toBe("c".repeat(64));
+  });
+
+  it("leaves the parent alone on a later chunk, with nothing to write", async () => {
+    const { store, writes } = createStore({}, 1);
+
+    await runMemberDirectoryChunkCommit(dependencies(store), { ...request, chunkNo: 2 });
+
+    expect(writes[0]?.operation).toBeUndefined();
+  });
+
+  it("refuses a chunk whose parent document belongs to another operation", async () => {
+    const { store, writes } = createStore({
+      operation: operationDocument({ operationId: "op-other" }),
+    });
+
+    await expect(runMemberDirectoryChunkCommit(dependencies(store), request)).rejects.toThrow(
+      /does not match its parent document/u,
+    );
+    expect(writes).toHaveLength(0);
+  });
+
+  /** A parent that already finished cannot gain another chunk, whatever the control plane says. */
+  it("refuses a chunk while its parent is already completed", async () => {
+    const { store, writes } = createStore({
+      operation: operationDocument({ status: "completed", statusAuditEventId: "audit-9" }),
+    });
+
+    await expect(runMemberDirectoryChunkCommit(dependencies(store), request)).rejects.toThrow(
+      /cannot commit while its operation is completed/u,
+    );
+    expect(writes).toHaveLength(0);
   });
 
   /**
