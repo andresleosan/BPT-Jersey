@@ -1,0 +1,3076 @@
+{
+  "status": "success",
+  "result": [
+    {
+      "platform": "gcfv2",
+      "id": "approveEnrolmentRequest",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "approveEnrolmentRequest",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "approveEnrolmentRequest/function-source.zip",
+          "generation": "1788768520072558"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/approveEnrolmentRequest",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "approveEnrolmentRequest",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/approveEnrolmentRequest",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "91404bf8faf2110baf4d7624efa5f581ae829ad2",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "approveenrolmentrequest",
+      "codebase": "default",
+      "hash": "91404bf8faf2110baf4d7624efa5f581ae829ad2",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "archiveAnnouncement",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "archiveAnnouncement",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "archiveAnnouncement/function-source.zip",
+          "generation": "1788843221199727"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/archiveAnnouncement",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "archiveAnnouncement",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/archiveAnnouncement",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "archiveannouncement",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "cleanupExpiredMemberImportSessionsSchedule",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "scheduleTrigger": {},
+      "entryPoint": "cleanupExpiredMemberImportSessionsSchedule",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "cleanupExpiredMemberImportSessionsSchedule/function-source.zip",
+          "generation": "1788843405480305"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/cleanupExpiredMemberImportSessionsSchedule",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "cleanupExpiredMemberImportSessionsSchedule",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_PAGE_TOKEN_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_PAGE_TOKEN_SECRET",
+          "version": "1"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/cleanupExpiredMemberImportSessionsSchedule",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-scheduled": "true",
+        "firebase-functions-hash": "9a026f35a3126b78ecb0cde1966085fa99fec069"
+      },
+      "runServiceId": "cleanupexpiredmemberimportsessionsschedule",
+      "codebase": "default",
+      "hash": "9a026f35a3126b78ecb0cde1966085fa99fec069",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "createAnnouncement",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "createAnnouncement",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "createAnnouncement/function-source.zip",
+          "generation": "1788843312702971"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/createAnnouncement",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "createAnnouncement",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/createAnnouncement",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "createannouncement",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "createFamily",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "createFamily",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "createFamily/function-source.zip",
+          "generation": "1788843042162539"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/createFamily",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "createFamily",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/createFamily",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "b0913dc74daf3449df88cf0c5c213a065c746cd8",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "createfamily",
+      "codebase": "default",
+      "hash": "b0913dc74daf3449df88cf0c5c213a065c746cd8",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "createMember",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "createMember",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "createMember/function-source.zip",
+          "generation": "1788763886064152"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/createMember",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "createMember",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/createMember",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "createmember",
+      "codebase": "default",
+      "hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "createStaffProfile",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "createStaffProfile",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "createStaffProfile/function-source.zip",
+          "generation": "1788842854511247"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/createStaffProfile",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "createStaffProfile",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/createStaffProfile",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "createstaffprofile",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getCurrentWaiverAdmin",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getCurrentWaiverAdmin",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getCurrentWaiverAdmin/function-source.zip",
+          "generation": "1788324836037814"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getCurrentWaiverAdmin",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getCurrentWaiverAdmin",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getCurrentWaiverAdmin",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b"
+      },
+      "runServiceId": "getcurrentwaiveradmin",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getDailyOperationsDashboard",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getDailyOperationsDashboard",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getDailyOperationsDashboard/function-source.zip",
+          "generation": "1788324906858433"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getDailyOperationsDashboard",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getDailyOperationsDashboard",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getDailyOperationsDashboard",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b"
+      },
+      "runServiceId": "getdailyoperationsdashboard",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getEnrolmentRequestDetail",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getEnrolmentRequestDetail",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getEnrolmentRequestDetail/function-source.zip",
+          "generation": "1788768590991207"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getEnrolmentRequestDetail",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getEnrolmentRequestDetail",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getEnrolmentRequestDetail",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "91404bf8faf2110baf4d7624efa5f581ae829ad2"
+      },
+      "runServiceId": "getenrolmentrequestdetail",
+      "codebase": "default",
+      "hash": "91404bf8faf2110baf4d7624efa5f581ae829ad2",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getFamily",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getFamily",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getFamily/function-source.zip",
+          "generation": "1788843133870147"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getFamily",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getFamily",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getFamily",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "getfamily",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getFinancialDashboard",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getFinancialDashboard",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getFinancialDashboard/function-source.zip",
+          "generation": "1788324906967010"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getFinancialDashboard",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getFinancialDashboard",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getFinancialDashboard",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b"
+      },
+      "runServiceId": "getfinancialdashboard",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getMemberDetail",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getMemberDetail",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getMemberDetail/function-source.zip",
+          "generation": "1788763956726244"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getMemberDetail",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getMemberDetail",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getMemberDetail",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6"
+      },
+      "runServiceId": "getmemberdetail",
+      "codebase": "default",
+      "hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getMemberReportSummary",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getMemberReportSummary",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getMemberReportSummary/function-source.zip",
+          "generation": "1786591457974854"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getMemberReportSummary",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getMemberReportSummary",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_PAGE_TOKEN_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_PAGE_TOKEN_SECRET",
+          "version": "1"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getMemberReportSummary",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "e414e5d360acf770add509fe58128b302c87ecd1"
+      },
+      "runServiceId": "getmemberreportsummary",
+      "codebase": "default",
+      "hash": "e414e5d360acf770add509fe58128b302c87ecd1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getOperationalReport",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getOperationalReport",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getOperationalReport/function-source.zip",
+          "generation": "1788324906909606"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getOperationalReport",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getOperationalReport",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getOperationalReport",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "getoperationalreport",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getRegyfitMemberRecord",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getRegyfitMemberRecord",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getRegyfitMemberRecord/function-source.zip",
+          "generation": "1788551275673714"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getRegyfitMemberRecord",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getRegyfitMemberRecord",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getRegyfitMemberRecord",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "09006dd6137e35eba1163cc042274847a47ce9f2",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "getregyfitmemberrecord",
+      "codebase": "default",
+      "hash": "09006dd6137e35eba1163cc042274847a47ce9f2",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "getSessionOperationalView",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "getSessionOperationalView",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "getSessionOperationalView/function-source.zip",
+          "generation": "1788324906890142"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/getSessionOperationalView",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "getSessionOperationalView",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/getSessionOperationalView",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b"
+      },
+      "runServiceId": "getsessionoperationalview",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "grantStaffPermission",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "grantStaffPermission",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "grantStaffPermission/function-source.zip",
+          "generation": "1788842946281440"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/grantStaffPermission",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "grantStaffPermission",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/grantStaffPermission",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "grantstaffpermission",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listAnnouncements",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listAnnouncements",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listAnnouncements/function-source.zip",
+          "generation": "1788843312623408"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listAnnouncements",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listAnnouncements",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listAnnouncements",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "listannouncements",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listClasses",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listClasses",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listClasses/function-source.zip",
+          "generation": "1788324906804539"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listClasses",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listClasses",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listClasses",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listclasses",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listClientReminders",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listClientReminders",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listClientReminders/function-source.zip",
+          "generation": "1788843312788973"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listClientReminders",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listClientReminders",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listClientReminders",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "listclientreminders",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listCrmLeadTimeline",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listCrmLeadTimeline",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listCrmLeadTimeline/function-source.zip",
+          "generation": "1788843133926240"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listCrmLeadTimeline",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listCrmLeadTimeline",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listCrmLeadTimeline",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "listcrmleadtimeline",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listCrmLeads",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listCrmLeads",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listCrmLeads/function-source.zip",
+          "generation": "1788324906936403"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listCrmLeads",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listCrmLeads",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listCrmLeads",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "listcrmleads",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listEnrolmentRequests",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listEnrolmentRequests",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listEnrolmentRequests/function-source.zip",
+          "generation": "1788768591078905"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listEnrolmentRequests",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listEnrolmentRequests",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listEnrolmentRequests",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listenrolmentrequests",
+      "codebase": "default",
+      "hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listGuardianNotices",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listGuardianNotices",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listGuardianNotices/function-source.zip",
+          "generation": "1788843312608460"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listGuardianNotices",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listGuardianNotices",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listGuardianNotices",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "listguardiannotices",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listManagedShopProducts",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listManagedShopProducts",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listManagedShopProducts/function-source.zip",
+          "generation": "1788558187190761"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listManagedShopProducts",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listManagedShopProducts",
+        "LOG_EXECUTION_ID": "true"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listManagedShopProducts",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listmanagedshopproducts",
+      "codebase": "default",
+      "hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listMembers",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listMembers",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listMembers/function-source.zip",
+          "generation": "1788763956833992"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listMembers",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listMembers",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listMembers",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "listmembers",
+      "codebase": "default",
+      "hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listMyEnrolmentRequests",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listMyEnrolmentRequests",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listMyEnrolmentRequests/function-source.zip",
+          "generation": "1788768591074337"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listMyEnrolmentRequests",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listMyEnrolmentRequests",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listMyEnrolmentRequests",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listmyenrolmentrequests",
+      "codebase": "default",
+      "hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listMyShopOrders",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listMyShopOrders",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listMyShopOrders/function-source.zip",
+          "generation": "1788558267663142"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listMyShopOrders",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listMyShopOrders",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listMyShopOrders",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "911902ea2e114fc032ec2199abf105352d4818ef"
+      },
+      "runServiceId": "listmyshoporders",
+      "codebase": "default",
+      "hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listNoShowPenalties",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listNoShowPenalties",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listNoShowPenalties/function-source.zip",
+          "generation": "1788843133856176"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listNoShowPenalties",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listNoShowPenalties",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listNoShowPenalties",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "listnoshowpenalties",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listPublicShopCatalog",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listPublicShopCatalog",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listPublicShopCatalog/function-source.zip",
+          "generation": "1788843134037118"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listPublicShopCatalog",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listPublicShopCatalog",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listPublicShopCatalog",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "listpublicshopcatalog",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listRegyfitAccessRecords",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listRegyfitAccessRecords",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listRegyfitAccessRecords/function-source.zip",
+          "generation": "1788324907369560"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listRegyfitAccessRecords",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listRegyfitAccessRecords",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listRegyfitAccessRecords",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listregyfitaccessrecords",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listRegyfitMemberRecords",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listRegyfitMemberRecords",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listRegyfitMemberRecords/function-source.zip",
+          "generation": "1788551377237430"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listRegyfitMemberRecords",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listRegyfitMemberRecords",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listRegyfitMemberRecords",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "09006dd6137e35eba1163cc042274847a47ce9f2",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listregyfitmemberrecords",
+      "codebase": "default",
+      "hash": "09006dd6137e35eba1163cc042274847a47ce9f2",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listRetentionAlerts",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listRetentionAlerts",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listRetentionAlerts/function-source.zip",
+          "generation": "1788843312742078"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listRetentionAlerts",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listRetentionAlerts",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listRetentionAlerts",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listretentionalerts",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listSessions",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listSessions",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listSessions/function-source.zip",
+          "generation": "1788324906890327"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listSessions",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listSessions",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listSessions",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listsessions",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listShopCatalog",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listShopCatalog",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listShopCatalog/function-source.zip",
+          "generation": "1788558267877422"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listShopCatalog",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listShopCatalog",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listShopCatalog",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "911902ea2e114fc032ec2199abf105352d4818ef"
+      },
+      "runServiceId": "listshopcatalog",
+      "codebase": "default",
+      "hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listShopOrders",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listShopOrders",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listShopOrders/function-source.zip",
+          "generation": "1788558267891091"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listShopOrders",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listShopOrders",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listShopOrders",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "listshoporders",
+      "codebase": "default",
+      "hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listStaffPermissionGrants",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listStaffPermissionGrants",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listStaffPermissionGrants/function-source.zip",
+          "generation": "1788842946369082"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listStaffPermissionGrants",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listStaffPermissionGrants",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listStaffPermissionGrants",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "liststaffpermissiongrants",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listStaffProfiles",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listStaffProfiles",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listStaffProfiles/function-source.zip",
+          "generation": "1788842946353772"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listStaffProfiles",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listStaffProfiles",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listStaffProfiles",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "liststaffprofiles",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "listUpcomingBirthdays",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "listUpcomingBirthdays",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "listUpcomingBirthdays/function-source.zip",
+          "generation": "1788843312813675"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/listUpcomingBirthdays",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "listUpcomingBirthdays",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/listUpcomingBirthdays",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "listupcomingbirthdays",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "lookupMemberIdentity",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "lookupMemberIdentity",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "lookupMemberIdentity/function-source.zip",
+          "generation": "1788763956853138"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/lookupMemberIdentity",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "lookupMemberIdentity",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/lookupMemberIdentity",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "lookupmemberidentity",
+      "codebase": "default",
+      "hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "markAnnouncementAsRead",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "markAnnouncementAsRead",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "markAnnouncementAsRead/function-source.zip",
+          "generation": "1788843312870259"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/markAnnouncementAsRead",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "markAnnouncementAsRead",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/markAnnouncementAsRead",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "markannouncementasread",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "markNoticeAsRead",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "markNoticeAsRead",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "markNoticeAsRead/function-source.zip",
+          "generation": "1788843312686847"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/markNoticeAsRead",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "markNoticeAsRead",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/markNoticeAsRead",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "marknoticeasread",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "placeShopOrder",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "placeShopOrder",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "placeShopOrder/function-source.zip",
+          "generation": "1788558267865291"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/placeShopOrder",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "placeShopOrder",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/placeShopOrder",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "911902ea2e114fc032ec2199abf105352d4818ef"
+      },
+      "runServiceId": "placeshoporder",
+      "codebase": "default",
+      "hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "proposeNoShowPenalties",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "proposeNoShowPenalties",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "proposeNoShowPenalties/function-source.zip",
+          "generation": "1788843133985473"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/proposeNoShowPenalties",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "proposeNoShowPenalties",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/proposeNoShowPenalties",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "proposenoshowpenalties",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "publishAnnouncement",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "publishAnnouncement",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "publishAnnouncement/function-source.zip",
+          "generation": "1788843312827930"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/publishAnnouncement",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "publishAnnouncement",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/publishAnnouncement",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "publishannouncement",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "publishWaiverVersion",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "publishWaiverVersion",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "publishWaiverVersion/function-source.zip",
+          "generation": "1788324906955346"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/publishWaiverVersion",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "publishWaiverVersion",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/publishWaiverVersion",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b"
+      },
+      "runServiceId": "publishwaiverversion",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "registerShopperAccount",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "registerShopperAccount",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "registerShopperAccount/function-source.zip",
+          "generation": "1788763227866510"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/registerShopperAccount",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "registerShopperAccount",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/registerShopperAccount",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "2662402f74fed78c56235e3beae747a96e2c7378",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "registershopperaccount",
+      "codebase": "default",
+      "hash": "2662402f74fed78c56235e3beae747a96e2c7378",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "replaceStaffAssignments",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "replaceStaffAssignments",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "replaceStaffAssignments/function-source.zip",
+          "generation": "1788842946362579"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/replaceStaffAssignments",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "replaceStaffAssignments",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/replaceStaffAssignments",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "replacestaffassignments",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "replaceStaffAvailability",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "replaceStaffAvailability",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "replaceStaffAvailability/function-source.zip",
+          "generation": "1788842946383098"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/replaceStaffAvailability",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "replaceStaffAvailability",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/replaceStaffAvailability",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "replacestaffavailability",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "resolveNoShowPenalty",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "resolveNoShowPenalty",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "resolveNoShowPenalty/function-source.zip",
+          "generation": "1788843133958535"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/resolveNoShowPenalty",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "resolveNoShowPenalty",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/resolveNoShowPenalty",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "resolvenoshowpenalty",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "returnEnrolmentRequest",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "returnEnrolmentRequest",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "returnEnrolmentRequest/function-source.zip",
+          "generation": "1788768591052228"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/returnEnrolmentRequest",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "returnEnrolmentRequest",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/returnEnrolmentRequest",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "returnenrolmentrequest",
+      "codebase": "default",
+      "hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "revokeStaffPermission",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "revokeStaffPermission",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "revokeStaffPermission/function-source.zip",
+          "generation": "1788842946322508"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/revokeStaffPermission",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "revokeStaffPermission",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/revokeStaffPermission",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "revokestaffpermission",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "saveClass",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "saveClass",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "saveClass/function-source.zip",
+          "generation": "1788324906890060"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/saveClass",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "saveClass",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/saveClass",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "saveclass",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "saveSession",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "saveSession",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "saveSession/function-source.zip",
+          "generation": "1788324906940367"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/saveSession",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "saveSession",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/saveSession",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b"
+      },
+      "runServiceId": "savesession",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "saveShopProduct",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "saveShopProduct",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "saveShopProduct/function-source.zip",
+          "generation": "1788558267863079"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/saveShopProduct",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "saveShopProduct",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/saveShopProduct",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "saveshopproduct",
+      "codebase": "default",
+      "hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "searchMembers",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "searchMembers",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "searchMembers/function-source.zip",
+          "generation": "1786591531134588"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/searchMembers",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "searchMembers",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_PAGE_TOKEN_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_PAGE_TOKEN_SECRET",
+          "version": "1"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/searchMembers",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "e414e5d360acf770add509fe58128b302c87ecd1"
+      },
+      "runServiceId": "searchmembers",
+      "codebase": "default",
+      "hash": "e414e5d360acf770add509fe58128b302c87ecd1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "sendMinorNotice",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "sendMinorNotice",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "sendMinorNotice/function-source.zip",
+          "generation": "1788843312642916"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/sendMinorNotice",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "sendMinorNotice",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/sendMinorNotice",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "sendminornotice",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "setShopProductActive",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "setShopProductActive",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "setShopProductActive/function-source.zip",
+          "generation": "1788558267870425"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/setShopProductActive",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "setShopProductActive",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/setShopProductActive",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "firebase-functions-hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true"
+      },
+      "runServiceId": "setshopproductactive",
+      "codebase": "default",
+      "hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "setStaffActive",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "setStaffActive",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "setStaffActive/function-source.zip",
+          "generation": "1788842946350385"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/setStaffActive",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "setStaffActive",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/setStaffActive",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "setstaffactive",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "submitEnrolmentRequest",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "submitEnrolmentRequest",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "submitEnrolmentRequest/function-source.zip",
+          "generation": "1788768591078172"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/submitEnrolmentRequest",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "submitEnrolmentRequest",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/submitEnrolmentRequest",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "submitenrolmentrequest",
+      "codebase": "default",
+      "hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "transitionCrmLead",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "transitionCrmLead",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "transitionCrmLead/function-source.zip",
+          "generation": "1788843133967639"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/transitionCrmLead",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "transitionCrmLead",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/transitionCrmLead",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "transitioncrmlead",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "updateAnnouncement",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "updateAnnouncement",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "updateAnnouncement/function-source.zip",
+          "generation": "1788843312794829"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/updateAnnouncement",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "updateAnnouncement",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/updateAnnouncement",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "updateannouncement",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "updateCrmLead",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "updateCrmLead",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "updateCrmLead/function-source.zip",
+          "generation": "1788843133989974"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/updateCrmLead",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "updateCrmLead",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/updateCrmLead",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "updatecrmlead",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "updateFamily",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "updateFamily",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "updateFamily/function-source.zip",
+          "generation": "1788843133970409"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/updateFamily",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "updateFamily",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/updateFamily",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "b0913dc74daf3449df88cf0c5c213a065c746cd8"
+      },
+      "runServiceId": "updatefamily",
+      "codebase": "default",
+      "hash": "b0913dc74daf3449df88cf0c5c213a065c746cd8",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "updateMember",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "updateMember",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "updateMember/function-source.zip",
+          "generation": "1788763956884198"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/updateMember",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "updateMember",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "secretEnvironmentVariables": [
+        {
+          "key": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_IDENTITY_KEY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET",
+          "version": "2"
+        },
+        {
+          "key": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "projectId": "bptjersey-f5a25",
+          "secret": "MEMBER_DIRECTORY_CURSOR_SECRET",
+          "version": "2"
+        }
+      ],
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/updateMember",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6"
+      },
+      "runServiceId": "updatemember",
+      "codebase": "default",
+      "hash": "75aa277cfdfe7d79aaaa61fc4669f641a280e2a6",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "updateShopOrder",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "updateShopOrder",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "updateShopOrder/function-source.zip",
+          "generation": "1788558267799395"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/updateShopOrder",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "updateShopOrder",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/updateShopOrder",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "911902ea2e114fc032ec2199abf105352d4818ef"
+      },
+      "runServiceId": "updateshoporder",
+      "codebase": "default",
+      "hash": "911902ea2e114fc032ec2199abf105352d4818ef",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "updateStaffProfile",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "updateStaffProfile",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "updateStaffProfile/function-source.zip",
+          "generation": "1788842946335815"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/updateStaffProfile",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "updateStaffProfile",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/updateStaffProfile",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-tool": "cli-firebase",
+        "deployment-callable": "true",
+        "firebase-functions-hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1"
+      },
+      "runServiceId": "updatestaffprofile",
+      "codebase": "default",
+      "hash": "0b1ba77a6a8c5a5aba1b5f8e6e1f8868b83aebe1",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "withdrawCurrentWaiver",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "withdrawCurrentWaiver",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "withdrawCurrentWaiver/function-source.zip",
+          "generation": "1788324906920407"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/withdrawCurrentWaiver",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "withdrawCurrentWaiver",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/withdrawCurrentWaiver",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "withdrawcurrentwaiver",
+      "codebase": "default",
+      "hash": "68259972ddb436b3a8529a6492b7e4f4b022b50b",
+      "state": "ACTIVE"
+    },
+    {
+      "platform": "gcfv2",
+      "id": "withdrawEnrolmentRequest",
+      "project": "bptjersey-f5a25",
+      "region": "us-central1",
+      "callableTrigger": {},
+      "entryPoint": "withdrawEnrolmentRequest",
+      "runtime": "nodejs22",
+      "source": {
+        "storageSource": {
+          "bucket": "gcf-v2-sources-387764816359-us-central1",
+          "object": "withdrawEnrolmentRequest/function-source.zip",
+          "generation": "1788768591097411"
+        }
+      },
+      "ingressSettings": "ALLOW_ALL",
+      "environmentVariables": {
+        "FIREBASE_CONFIG": "{\"projectId\":\"bptjersey-f5a25\",\"storageBucket\":\"bptjersey-f5a25.firebasestorage.app\"}",
+        "GCLOUD_PROJECT": "bptjersey-f5a25",
+        "EVENTARC_CLOUD_EVENT_SOURCE": "projects/bptjersey-f5a25/locations/us-central1/services/withdrawEnrolmentRequest",
+        "FUNCTION_REGION": "us-central1",
+        "FUNCTION_TARGET": "withdrawEnrolmentRequest",
+        "LOG_EXECUTION_ID": "true",
+        "FUNCTION_SIGNATURE_TYPE": "http"
+      },
+      "timeoutSeconds": 60,
+      "uri": "https://us-central1-bptjersey-f5a25.cloudfunctions.net/withdrawEnrolmentRequest",
+      "serviceAccount": "387764816359-compute@developer.gserviceaccount.com",
+      "availableMemoryMb": 256,
+      "cpu": 1,
+      "maxInstances": 20,
+      "concurrency": 80,
+      "labels": {
+        "deployment-callable": "true",
+        "firebase-functions-hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+        "deployment-tool": "cli-firebase"
+      },
+      "runServiceId": "withdrawenrolmentrequest",
+      "codebase": "default",
+      "hash": "6796d3ad372a42720a51eb02829da76de990f47e",
+      "state": "ACTIVE"
+    }
+  ]
+}

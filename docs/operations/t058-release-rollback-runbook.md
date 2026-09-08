@@ -510,6 +510,7 @@ proyecto `32555940559`, que es el del propio gcloud y despista. Hubo que habilit
 | 2026-09-07 | Secretos v2, Rules e índices, 8 callables de inscripción, 5 del directorio canónico | árbol de `8a269c5` | ledger "Despliegue del circuito de inscripcion a produccion" | borrar las 13 (no existían); Rules del lote anterior                                                          |
 | 2026-09-07 | 7 callables de inscripción actualizadas con el waiver                               | `3cc108e`          | ledger "Owner aprovisionado y waiver en el alta"             | redesplegar las 7 desde `8a269c5` dejaría atascadas las solicitudes con waiver (§5.0): corregir hacia delante |
 | 2026-09-07 | Frontend `51918ad` (Pages `eb118dd6`)                                               | `51918ad`          | `wrangler pages deployment list`                             | Pages `9e083487`                                                                                              |
+| 2026-09-08 | Primer lote de T058: 31 callables (staff, families, crm, penalties, tienda, anuncios) y el redespliegue de la programada huérfana | `437e7a2` | ledger "Release 2026-09-08: las 31 callables del primer lote de T058"; `docs/operations/release-437e7a2-functions.json` | borrar las 31, no existían; la programada vuelve atrás borrando su job de Scheduler |
 
 Las releases anteriores al 2026-09-07 están reconstruidas en §2.1 a partir de producción, no de un
 registro escrito en su momento. A partir de aquí, cada fila se escribe el día de la release.

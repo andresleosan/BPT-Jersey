@@ -6562,3 +6562,139 @@ evitar, y sigue sin activarse.
 **Sin cambios en produccion de datos.** Nada desplegado, migrado, borrado ni configurado en
 `bptjersey-f5a25`; las unicas lecturas fueron de solo lectura -`functions:list`, `secrets versions
 list`, `billing describe`- y el unico Firestore escrito fue el Emulator `demo-bpt-jersey`.
+
+### Release 2026-09-08: las 31 callables del primer lote de T058 - 2026-09-08
+
+La release ocurrio. Es la primera que este runbook gobierna de principio a fin, y la fila va entera
+abajo. Antes conviene decir las tres cosas que cambiaron por el camino, porque ninguna estaba
+prevista y las tres son correcciones a lo que el propio tablero creia.
+
+**La primera: las alertas no eran del operador.** El §6.1 llevaba escrito que las cinco exigian
+"roles de facturacion o de monitorizacion que el repositorio no tiene". Nadie lo habia medido nunca.
+`testIamPermissions` contra `cloudresourcemanager` y `cloudbilling` devuelve concedidos
+`monitoring.alertPolicies.create`, `monitoring.notificationChannels.create`,
+`monitoring.uptimeCheckConfigs.create` y `billing.budgets.create` para la identidad gcloud de la
+maquina de desarrollo. Los 30 minutos de consola que bloqueaban la release eran una nota sin
+comprobar. **Una nota que declara un bloqueo sin medirlo cuesta tantas releases como una que declara
+verde algo roto**, y esta llevaba desde el 2026-09-07 sosteniendo que la release dependia de una
+tarde del operador.
+
+**La segunda: hay una funcion programada que no puede dispararse, y la destapo no poder crear una
+alerta.** La politica del §6.1.4 se rechaza con `404`: no existe descriptor para
+`cloudscheduler.googleapis.com/job/attempt_count`. La causa no era la metrica sino que **no habia
+ningun job de Cloud Scheduler en el proyecto** -comprobado a cero en siete regiones-, con
+`cleanupExpiredMemberImportSessionsSchedule` desplegada y `ACTIVE` desde el 2026-09-07 06:22. El
+diagnostico facil era el equivocado: en una `onSchedule` v2 el `eventTrigger` nulo es **normal**,
+porque la funcion se despliega como HTTPS y quien la llama es un job separado. Lo que fallaba era la
+otra mitad. `firebase functions:list` la pintaba como `scheduled` leyendo la etiqueta
+`deployment-scheduled`, no comprobando el job: **el inventario decia "scheduled" de algo que no podia
+dispararse**. Se arreglo redesplegandola como cuarto lote, con decision propia del operador por estar
+fuera de las 31. El job existe ahora, `ENABLED`, cada 15 minutos. **La comprobacion honesta de una
+funcion programada son dos lecturas: la etiqueta y el job.**
+
+**La tercera: mi propia alerta de disponibilidad ensuciaba el log de errores.** El uptime check del
+callable se creo con `GET`, siguiendo la letra del §6.1.5 -"aceptando cualquier codigo que no sea
+`5xx`"-. Funcionaba: devolvia `400`, y `400` no es `5xx`. Pero un `GET` desnudo contra un callable
+hace que este registre `Error: Invalid request, unable to process` con severidad `ERROR`, cada cinco
+minutos y desde dos regiones, para siempre. Al revisar los logs del §4.4.3 las **unicas** entradas de
+error del proyecto eran las que yo mismo acababa de fabricar. Un sondeo `POST` con sobre de callable
+devuelve `401` y no registra nada, comprobado contra las funciones recien desplegadas. La API no deja
+cambiar el metodo de un check existente, asi que se creo el v2 con `POST`, se repunto la condicion de
+la politica al nuevo `check_id` y solo entonces se borro el viejo, en ese orden, para no dejar la
+alerta apuntando a un check inexistente ni un minuto. **Un monitor que genera el error que vigila no
+es un monitor: es la primera fuente de ruido que hara ignorar el canal.**
+
+### Fila de release, plantilla del §8 completa
+
+- **Autorizacion:** el operador, el 2026-09-08, respondiendo a la pregunta que nombraba el lote:
+  "Autorizo las 31 callables" -staff 9, families 3, crm 3, penalties 3, tienda 1, announcements 9,
+  mas `listClientReminders`, `listRetentionAlerts` y `listUpcomingBirthdays`; sin las cuatro de
+  `profiles/*`-. En decision separada, redesplegar tambien la programada huerfana (§4.0.1).
+- **Commit:** `437e7a246c45ac61ef95458f157c91b6b85fc0c5`; arbol limpio: si.
+- **Gates sobre ese commit:** `verify:mvp` **no paso de una pieza**, y conviene decirlo asi en vez de
+  "verde": aborta en el primer fallo y cayo en `test:unit` con 2311/2312, por el flake conocido de
+  `deploy-runtime` bajo carga. Las cuatro etapas siguientes se corrieron aparte con el mismo entorno:
+  `test:rules`, `build:e2e-synthetic` y `test:load:synthetic` en verde, y `test:e2e:smoke` con un
+  fallo -`admin-shell` en `mobile-chromium`- que **tambien** es flake de carga: aislado da 5/5 y exit
+  0. Los dos se verificaron en aislamiento antes de seguir. Golden path **19/19 en 2,2 min**;
+  artefacto de despliegue exit 0.
+- **Delta previo:** invocado y sin desplegar 114, exportado y sin desplegar 128, huerfanas 2.
+  **Posterior:** 83 y 97 -exactamente 31 menos en ambas- y las mismas 2 huerfanas.
+- **Lotes, en orden:** `staff` (9: `createStaffProfile`, `updateStaffProfile`, `setStaffActive`,
+  `replaceStaffAvailability`, `replaceStaffAssignments`, `listStaffProfiles`,
+  `grantStaffPermission`, `revokeStaffPermission`, `listStaffPermissionGrants`); `core` (10:
+  `createFamily`, `getFamily`, `updateFamily`, `updateCrmLead`, `transitionCrmLead`,
+  `listCrmLeadTimeline`, `proposeNoShowPenalties`, `listNoShowPenalties`, `resolveNoShowPenalty`,
+  `listPublicShopCatalog`); `comms` (12: los nueve de anuncios y avisos mas `listClientReminders`,
+  `listRetentionAlerts`, `listUpcomingBirthdays`); `scheduled` (1:
+  `cleanupExpiredMemberImportSessionsSchedule`). Los cuatro con `Deploy complete!` y exit 0. Por
+  nombre, nunca `--force`, nunca `--only functions` a secas.
+- **Indices:** ninguno. **Rules:** no. Ni `firestore.rules` ni `firestore.indexes.json` cambian desde
+  `3cc108e`, el mas reciente de los commits desplegados, asi que la release es solo de Functions y el
+  §4.1 no pedia esos dos pasos.
+- **Secretos verificados:** `MEMBER_DIRECTORY_CURSOR_SECRET` v2, `MEMBER_DIRECTORY_IDENTITY_KEY_SECRET`
+  v2, `MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET` v2, las tres habilitadas.
+  **Parametros de entorno:** ninguno; ninguna de las 31 lee `process.env`.
+- **Entorno de Pages verificado:** no aplica. **Deployment de Pages:** ninguna. No se hizo `git push`
+  de nada, tampoco de la documentacion, como pide el §4.1 cuando la release no lleva frontend.
+- **Compatibilidad de datos (§5.0):** la escrita el 2026-09-07, sin cambios: los contratos de
+  `members`, `profiles`, `families`, `staff` y `crm` no se mueven entre los commits desplegados y
+  `HEAD`, y las 31 son nuevas, asi que su rollback es borrarlas.
+- **Verificacion §4.4:** `functions:list` **70 desplegadas, todas `ACTIVE`** -39 previas mas las 31-,
+  las 31 presentes, las cuatro de `profiles/*` correctamente ausentes y las dos huerfanas intactas.
+  Sondeos anonimos: **31 de 31 devuelven `401`**, ninguno `404` -todas desplegadas- y ninguno `5xx`
+  -ninguna arranca rota-. Logs: `Default STARTUP TCP probe succeeded` presente, sin `billing is
+  disabled`, `Cannot find module` ni error de secreto. **Navegador: PENDIENTE**, es el punto 4 y es
+  del operador.
+- **Baseline de rollback:** borrar las 31, que no existian antes. La programada vuelve a su estado
+  anterior borrando su job de Cloud Scheduler, que es lo unico que la release le anadio.
+- **Aviso a office y coaches: NO CONSTA.** El operador eligio la ventana "ahora mismo" sobre una
+  opcion que pedia confirmar que estaban avisados, y esa confirmacion no llego. La casilla se deja
+  vacia en vez de rellenarse por inferencia: el §8 dice que una casilla vacia es una release que no se
+  hizo como dice el runbook, y esta es la casilla vacia de esta release. Se anota, no se disimula.
+- **Inventario posterior:** `docs/operations/release-437e7a2-functions.json`.
+
+### Las alertas del §6.1, cuatro de cinco
+
+| § | Recurso | Identificador | Estado |
+| --- | --- | --- | --- |
+| 1 | Canal de correo | `notificationChannels/12257294977499398601` | vivo |
+| 2 | Presupuesto 200.000 COP/mes | `budgets/b5c93313-9397-4736-8555-d270abf20b29` | vivo, avisa y no corta |
+| 3 | 5xx en Cloud Run | `alertPolicies/14551742904807390116` | viva |
+| 4 | Fallos de Cloud Scheduler | - | **pendiente**, ver abajo |
+| 5 | Disponibilidad | `alertPolicies/136751823744566063` | viva, dos condiciones |
+
+La 2 esta en **COP**, no en libras: la cuenta de facturacion `BPT` opera en pesos y 200.000 son unos
+50 USD. Leerlo como libras seria un factor de 400. Hubo que habilitar `billingbudgets.googleapis.com`,
+apagada, y la API exige `x-goog-user-project` con credenciales de usuario o responde un `403` cuyo
+`SERVICE_DISABLED` apunta al proyecto de gcloud y despista.
+
+La 4 sigue pendiente por una razon que ya no es un bloqueo sino un plazo: el job existe desde el
+despliegue pero su primera ejecucion estaba programada a las 05:13Z y la metrica no tiene descriptor
+hasta que emita. La politica esta escrita y se crea en una llamada en cuanto haya datos.
+
+### Lo que esta release deja abierto, dicho antes de que se olvide
+
+- **La verificacion de navegador del §4.4.4.** El operador abre las pantallas de staff, familias,
+  CRM, penalizaciones y anuncios con sesion real en `https://bptjersey.pages.dev` -no en una preview,
+  por CORS- y anota `200` o errores de consola. **Hasta eso, T058 no se aprueba**: su fila pide la
+  release verificada, y "desplegado y respondiendo 401" no es "las pantallas funcionan".
+- **El aviso a office y coaches**, que no consta.
+- **La alerta 4**, en cuanto el job emita.
+- **Consecuencia conocida y aceptada del lote:** el panel de CRM funciona sobre los leads que ya
+  existan y **no hay forma de crear uno nuevo desde la web**, porque `createCrmLead` se quedo fuera
+  por no estar invocada. Sigue siendo cierto y ahora es visible en produccion.
+
+**Hallazgo de paso sobre T127, que cambia su forma.** Los secretos `R2_ACCESS_KEY_ID` y
+`R2_SECRET_ACCESS_KEY` **ya existen** en Secret Manager, con version 1 habilitada del 2026-09-04. El
+ledger venia diciendo "credenciales R2 que nadie ha creado", y eso es inexacto: lo que falta no es
+crear los secretos sino anadirles una version 2 con material real. La fecha lo sugiere con fuerza -es
+la misma de las versiones 1 de los tres `MEMBER_DIRECTORY_*`, que el ledger registra como placeholders
+sustituidos el 09-07-, pero **sugerir no es saber**: el §4.0.5 prohibe `versions access` porque
+imprimiria el valor, y la lista no distingue un placeholder de una credencial buena. Solo el operador
+puede decirlo. La fila se aclara, no se cierra.
+
+**Contadores sin cambio:** 117 aprobadas de 121 (97%), 0 en revision, 0 en progreso, 4 pendientes
+(T058, T059, T108, T127), 7 canceladas, sobre 128 filas. T058 sigue pendiente **con la release ya
+hecha**, que es una situacion nueva y deliberada: le falta la verificacion de navegador, y aprobarla
+antes seria afirmar que unas pantallas se abrieron cuando nadie las ha abierto.
