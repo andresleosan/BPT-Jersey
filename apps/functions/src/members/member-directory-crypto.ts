@@ -234,6 +234,52 @@ export function createMemberDirectoryChunkOutputSetMac(
   });
 }
 
+/**
+ * The identity-key baseline MAC (T108, bootstrap verification).
+ *
+ * It is a frozen proof of the identities that predated writer activation: the complete set of
+ * current reservation tuples `(kind,keyId,ownerStudentId,digestVersion,secretVersion)`, sorted into
+ * canonical lexical order and folded under a domain of its own. Its own domain matters - a chunk
+ * output MAC and a baseline MAC must never verify as one another, because they answer different
+ * questions: "what did this chunk write" against "what does this tenant now hold".
+ *
+ * Sorting rather than accepting the caller's order is what makes it a baseline of a *set*: the same
+ * identities discovered in a different chunk order must produce the same proof, or resuming a failed
+ * bootstrap could never reproduce it. A repeated tuple is rejected instead of folded in twice.
+ *
+ * It is deliberately not an accumulator. Normal writes never recompute it; later identities are
+ * covered by their own write receipts.
+ */
+export function createMemberDirectoryIdentityBaselineMac(
+  input: Readonly<{
+    academyId: string;
+    operationId: string;
+    secretVersion: string;
+    tuples: readonly string[];
+    secretMaterial: string;
+  }>,
+): string {
+  const seen = new Set<string>();
+  for (const tuple of input.tuples) {
+    if (seen.has(tuple)) {
+      throw new Error("A member directory identity baseline cannot list the same tuple twice");
+    }
+    seen.add(tuple);
+  }
+  const sorted = [...input.tuples].sort();
+  return createMemberDirectoryIntegrityMac({
+    domain: "bpt-member-directory-identity-baseline-v1",
+    values: [
+      requiredSafeIdentifier(input.academyId, "academy ID"),
+      requiredSafeIdentifier(input.operationId, "operation ID"),
+      requiredSafeIdentifier(input.secretVersion, "secret version"),
+      String(sorted.length),
+      ...sorted,
+    ],
+    secretMaterial: input.secretMaterial,
+  });
+}
+
 function normalizedIdentityValue(kind: StudentIdentityKeyKind, value: string): string {
   if (kind === "auth-user-id") return requiredSafeIdentifier(value, "Auth user ID");
   const normalized = normalizeAdministrativeIdentifier(value);

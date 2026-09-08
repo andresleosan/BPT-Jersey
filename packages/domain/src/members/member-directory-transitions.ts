@@ -424,3 +424,89 @@ export function planMemberDirectoryPhaseChange(
     updatedBy: input.actorId,
   });
 }
+
+/**
+ * The completion transaction of an identity-key bootstrap (T108).
+ *
+ * Verification moves only the parent: the state stays frozen with coverage incomplete, precisely so
+ * that a crash between verifying and completing cannot expose a stable tuple whose parent never
+ * finished. This is the other half - the one transaction that both records the proof and hands the
+ * directory back.
+ *
+ * It returns to the pre-cutover tuple rather than opening the canonical one. Bootstrap covers the
+ * identities that predated the writer; it does not migrate anything, so the reader it hands back is
+ * the one it took. Cutover is `directory-forward`'s job and needs its own approval.
+ */
+export function planMemberDirectoryBootstrapCompletion(
+  input: Readonly<{
+    currentState: MemberDirectoryState;
+    operationId: string;
+    identityKeyBaselineMac: string;
+    identityKeyBaselineArtifactId: string;
+    now: string;
+    actorId: string;
+  }>,
+): MemberDirectoryState {
+  const current = memberDirectoryStateSchema.parse(input.currentState);
+
+  if (
+    current.readerVersion !== "legacy-v1" ||
+    current.directoryWriteMode !== "blocked" ||
+    current.freezeStatus !== "frozen" ||
+    current.operationPhase !== "bootstrap"
+  ) {
+    throw new Error("Only a frozen bootstrap tuple can complete an identity-key bootstrap");
+  }
+  if (current.activeOperationId === undefined || current.activeOperationId !== input.operationId) {
+    throw new Error("An identity-key bootstrap completion requires its own operation");
+  }
+  if (current.leaseExpiresAt === undefined) {
+    throw new Error("An identity-key bootstrap completion requires a lease");
+  }
+  /**
+   * An expired lease does not complete an operation any more than it commits a chunk. Completion
+   * writes the baseline that every later writer trusts, so it is the last place to let the clock
+   * stand in for authorization.
+   */
+  if (isLeaseExpired({ leaseExpiresAt: current.leaseExpiresAt, now: input.now })) {
+    throw new Error("An identity-key bootstrap completion requires a live lease");
+  }
+  /**
+   * Coverage alone is enough here, and deliberately so: the state schema already ties the baseline
+   * MAC and artifact ID to coverage, so `incomplete` means no baseline is recorded. Re-checking the
+   * baseline fields would be a second guard for a rule that already holds one level down, and the
+   * kind that quietly rots when the schema changes underneath it.
+   */
+  if (current.identityKeyCoverage !== "incomplete") {
+    throw new Error("An identity-key bootstrap completes coverage that is still incomplete");
+  }
+
+  const next: Record<string, unknown> = {
+    ...current,
+    readerVersion: "legacy-v1",
+    directoryWriteMode: "legacy-v1",
+    freezeStatus: "open",
+    operationPhase: "idle",
+    identityKeyCoverage: "complete",
+    identityKeyBaselineMac: input.identityKeyBaselineMac,
+    identityKeyBaselineArtifactId: input.identityKeyBaselineArtifactId,
+    stateRevision: current.stateRevision + 1,
+    lastCommittedChunkNo: 0,
+    updatedAt: input.now,
+    updatedBy: input.actorId,
+  };
+  // A stable tuple carries no operation or lease. Deleting rather than blanking is what the schema
+  // demands, and it is also the difference between "no lease" and "a lease that is empty".
+  for (const field of [
+    "activeOperationId",
+    "leaseId",
+    "leaseOwner",
+    "leaseExpiresAt",
+    "operationDeadline",
+    "preparedOperationId",
+  ]) {
+    delete next[field];
+  }
+
+  return memberDirectoryStateSchema.parse(next);
+}

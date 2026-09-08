@@ -9,6 +9,7 @@ import {
   memberDirectoryMaxRowsPerOperation,
   planMemberDirectoryAcquisition,
   planMemberDirectoryChunkCommit,
+  planMemberDirectoryBootstrapCompletion,
   planMemberDirectoryPhaseChange,
 } from "./member-directory-transitions";
 
@@ -509,5 +510,134 @@ describe("member directory chunk commit", () => {
         now: "2026-09-07T12:02:00.000Z",
       }),
     ).toThrow(/live lease/u);
+  });
+});
+
+describe("identity-key bootstrap completion", () => {
+  const baselineMac = "f".repeat(64);
+  const artifactId = "baseline-op-1";
+
+  function frozenBootstrap(overrides: Record<string, unknown> = {}): MemberDirectoryState {
+    return state({
+      readerVersion: "legacy-v1",
+      directoryWriteMode: "blocked",
+      freezeStatus: "frozen",
+      operationPhase: "bootstrap",
+      lastCommittedChunkNo: 3,
+      activeOperationId: "op-1",
+      leaseId: "lease-1",
+      leaseOwner: "runner-a",
+      leaseExpiresAt: "2026-09-07T12:02:00.000Z",
+      operationDeadline: deadline,
+      ...overrides,
+    });
+  }
+
+  const complete = {
+    operationId: "op-1",
+    identityKeyBaselineMac: baselineMac,
+    identityKeyBaselineArtifactId: artifactId,
+    now,
+    actorId: "runner-a",
+  } as const;
+
+  /**
+   * Bootstrap hands back the reader it took. It covers identities that predated the writer; it
+   * migrates nothing, so opening the canonical tuple here would be a cutover nobody approved.
+   */
+  it("returns to the pre-cutover tuple with the baseline recorded", () => {
+    const next = planMemberDirectoryBootstrapCompletion({
+      ...complete,
+      currentState: frozenBootstrap(),
+    });
+
+    expect(next.readerVersion).toBe("legacy-v1");
+    expect(next.directoryWriteMode).toBe("legacy-v1");
+    expect(next.freezeStatus).toBe("open");
+    expect(next.operationPhase).toBe("idle");
+    expect(next.identityKeyCoverage).toBe("complete");
+    expect(next.identityKeyBaselineMac).toBe(baselineMac);
+    expect(next.identityKeyBaselineArtifactId).toBe(artifactId);
+    expect(next.stateRevision).toBe(8);
+    expect(next.lastCommittedChunkNo).toBe(0);
+  });
+
+  /** A stable tuple carries no operation or lease at all - not an emptied one. */
+  it("clears every operation and lease field", () => {
+    const next = planMemberDirectoryBootstrapCompletion({
+      ...complete,
+      currentState: frozenBootstrap(),
+    });
+
+    for (const field of [
+      "activeOperationId",
+      "leaseId",
+      "leaseOwner",
+      "leaseExpiresAt",
+      "operationDeadline",
+    ] as const) {
+      expect(Object.hasOwn(next, field)).toBe(false);
+    }
+  });
+
+  it("refuses a tuple that is not a frozen bootstrap", () => {
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({ ...complete, currentState: state() }),
+    ).toThrow(/Only a frozen bootstrap tuple/u);
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({
+        ...complete,
+        currentState: frozenBootstrap({ operationPhase: "forward" }),
+      }),
+    ).toThrow(/Only a frozen bootstrap tuple/u);
+  });
+
+  it("refuses another operation's completion", () => {
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({
+        ...complete,
+        operationId: "op-other",
+        currentState: frozenBootstrap(),
+      }),
+    ).toThrow(/requires its own operation/u);
+  });
+
+  /**
+   * Completion writes the baseline every later writer trusts, so it is the last place that could
+   * let an expired lease stand in for authorization. It does not.
+   */
+  it("refuses an expired lease", () => {
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({
+        ...complete,
+        currentState: frozenBootstrap({ leaseExpiresAt: now }),
+      }),
+    ).toThrow(/requires a live lease/u);
+  });
+
+  /**
+   * A directory that already carries a baseline is not the one this operation established. Note
+   * what makes this one test rather than two: the state schema ties the baseline MAC and artifact
+   * ID to coverage, so "already recorded" and "already complete" are the same state, and a second
+   * guard for the baseline fields would be unreachable code.
+   */
+  it("refuses to complete a directory whose baseline is already recorded", () => {
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({
+        ...complete,
+        currentState: frozenBootstrap({
+          identityKeyCoverage: "complete",
+          identityKeyBaselineMac: "a".repeat(64),
+          identityKeyBaselineArtifactId: "baseline-old",
+        }),
+      }),
+    ).toThrow(/still incomplete/u);
+  });
+
+  /** The schema is what makes the pair inseparable, and it is worth pinning here. */
+  it("cannot even describe incomplete coverage that carries a baseline", () => {
+    expect(() => frozenBootstrap({ identityKeyBaselineMac: "a".repeat(64) })).toThrow(
+      /baseline fields do not match coverage/u,
+    );
   });
 });
