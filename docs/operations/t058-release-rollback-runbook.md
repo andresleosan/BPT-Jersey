@@ -409,13 +409,26 @@ pero la misma situación se repite si la cuenta de pago cae.
 Hoy no existe ninguna alerta: ni de presupuesto, ni de errores, ni de disponibilidad. Todas requieren
 roles de facturación o de monitorización que el repositorio no tiene, así que son del operador:
 
-1. Presupuesto con alerta en `console.cloud.google.com/billing` para `bptjersey-f5a25`.
-2. Política de alerta de Cloud Monitoring sobre Cloud Run: peticiones con clase de respuesta `5xx`
-   mayor que cero en cualquier servicio del proyecto durante cinco minutos.
-3. Alerta sobre ejecuciones fallidas de Cloud Scheduler (las `onSchedule` fallan en silencio).
-4. Comprobación de disponibilidad (uptime check) contra `https://bptjersey.pages.dev/` y contra la
-   URL de un callable esperando cualquier respuesta que no sea `5xx` (un `401` anónimo es "vivo").
-5. Un canal de notificación por correo al owner para las cuatro.
+Umbrales concretos, decididos el 2026-09-07 para que sean creables sin volver a pensarlos. Se crean
+en este orden: el canal primero, porque las cuatro políticas lo necesitan al guardarse.
+
+1. **Canal de notificación.** Monitoring, Alerting, Notification channels, tipo Email, la dirección
+   del owner. Es el paso 1 y no el 5: sin canal, una política se guarda sin avisar a nadie.
+2. **Presupuesto.** `console.cloud.google.com/billing`, presupuesto mensual sobre
+   `bptjersey-f5a25` con el importe que el operador acepte gastar, y umbrales de aviso al **50 %,
+   90 % y 100 % del gasto real** más uno al **100 % del previsto**. El presupuesto **no corta el
+   gasto**: solo avisa. Cortar es lo que dejó producción caída el 2026-09-07.
+3. **5xx en Cloud Run.** Métrica `run.googleapis.com/request_count` filtrada por
+   `response_code_class = "5xx"`, agregada por `service_name`, alineación `rate` de 60 s y condición
+   **cualquier serie > 0 durante 5 min**. Sin filtrar por servicio: una función nueva que arranque
+   rota tiene que disparar sin haberla añadido a mano.
+4. **Cloud Scheduler.** Métrica `cloudscheduler.googleapis.com/job/attempt_count` filtrada por
+   `response_code != "success"`, condición **> 0 en 15 min**. Las `onSchedule` fallan en silencio y
+   hoy nadie se enteraría.
+5. **Disponibilidad.** Uptime check HTTPS cada 5 min contra `https://bptjersey.pages.dev/`
+   esperando `200`, y un segundo check contra la URL de un callable desplegado aceptando cualquier
+   código que no sea `5xx` -un `401` anónimo significa "vivo y rechazando bien"-. Ambos con alerta
+   sobre el canal del punto 1.
 
 ## 7. Registro de releases
 

@@ -1,3 +1,9 @@
+> **Enmienda del 2026-09-07 (T127).** El operador retiro la firma presencial atestiguada:
+> `recordWitnessedWaiver` y el metodo `in_person_witnessed` **no se construiran**, porque la
+> aceptacion digital que recoge la inscripcion de T121 vale tambien para el alta administrativa.
+> Lo que este documento dice sobre esa via queda como analisis historico; de T127 sigue vigente la
+> **renovacion digital**. Nada que borrar en el codigo: esa via nunca se construyo.
+
 # T106 - Integración del "Waiver and Emergency Contact Form" en el alta administrativa
 
 Fecha: 2026-09-04. Alcance: análisis y propuesta; no cambia código de consentimiento.
