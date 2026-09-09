@@ -289,4 +289,100 @@ describe("enrolment request page", () => {
     );
     expect(screen.getByRole("button", { name: /send request to the academy/i })).toBeVisible();
   });
+
+  /**
+   * ── T001V2 ────────────────────────────────────────────────────────────────────────────────
+   *
+   * El prellenado es una cortesia, no un valor que el formulario deba defender. Antes de esta
+   * fila, el efecto llevaba `form.email.length` y `form.fullName.length` en su propio array de
+   * dependencias: al borrar el ultimo caracter la longitud pasaba a 0, el efecto se volvia a
+   * ejecutar y reescribia el valor de la sesion. Borrar el campo entero era imposible.
+   */
+  it("lets the applicant empty the prefilled name and leaves it empty", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    const name = await screen.findByLabelText("Full name");
+    await waitFor(() => expect(name).toHaveValue("Alex Adult"));
+
+    await user.clear(name);
+
+    expect(name).toHaveValue("");
+    // Un re-render provocado por otro campo es lo que resucitaba el valor: el efecto se volvia a
+    // ejecutar porque la longitud habia cambiado. Se escribe en otro campo a proposito.
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    expect(name).toHaveValue("");
+  });
+
+  it("lets the applicant empty the prefilled email and leaves it empty", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    const email = await screen.findByLabelText("Email");
+    await waitFor(() => expect(email).toHaveValue("alex@example.test"));
+
+    await user.clear(email);
+
+    expect(email).toHaveValue("");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    expect(email).toHaveValue("");
+  });
+
+  /**
+   * Borrar un caracter a la vez recorre la longitud 1 -> 0, que es exactamente el borde donde
+   * fallaba. Un `clear()` salta ese camino de un golpe, asi que se comprueba tambien tecla a
+   * tecla: si alguien reintrodujera la condicion, este es el caso que la pilla.
+   */
+  it("survives deleting the last character, not only a bulk clear", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    const name = await screen.findByLabelText("Full name");
+    await waitFor(() => expect(name).toHaveValue("Alex Adult"));
+
+    await user.click(name);
+    await user.keyboard("{End}");
+    for (let index = 0; index < "Alex Adult".length; index += 1) {
+      await user.keyboard("{Backspace}");
+    }
+
+    expect(name).toHaveValue("");
+  });
+
+  /**
+   * El prellenado sigue siendo util: lo que cambia es que se siembra una sola vez. Una sesion que
+   * llega tarde -el caso real, porque el token se resuelve despues del primer render- tiene que
+   * seguir rellenando los dos campos.
+   */
+  it("still prefills once when the session arrives after the first render", async () => {
+    authState.status = "loading";
+    authState.session = undefined;
+    const view = render(<EnrolPage />);
+
+    authState.status = "signed-in";
+    authState.session = buyer;
+    view.rerender(<EnrolPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Full name")).toHaveValue("Alex Adult"));
+    expect(screen.getByLabelText("Email")).toHaveValue("alex@example.test");
+  });
+
+  /**
+   * Y una vez sembrado no se vuelve a sembrar, ni siquiera cuando la sesion se refresca con el
+   * mismo valor. Ese refresco es lo que reescribiria el campo que el solicitante acaba de vaciar.
+   */
+  it("does not re-seed an emptied field when the session refreshes unchanged", async () => {
+    const user = userEvent.setup();
+    const view = render(<EnrolPage />);
+
+    const email = await screen.findByLabelText("Email");
+    await waitFor(() => expect(email).toHaveValue("alex@example.test"));
+    await user.clear(email);
+
+    authState.session = { ...buyer };
+    view.rerender(<EnrolPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Phone (required)")).toBeVisible());
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+  });
 });

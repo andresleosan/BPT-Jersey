@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import type {
   EnrolmentRequestClientView,
@@ -375,14 +375,33 @@ function EnrolContent() {
     };
   }, [signedIn, alreadyStudent]);
 
+  /**
+   * El prellenado es una cortesía: siembra el nombre y el correo de la sesión una vez y no vuelve
+   * a tocarlos. Dejar de sembrarlos cuando el campo está vacío era el bug: `form.email.length` y
+   * `form.fullName.length` estaban en el array de dependencias, así que al borrar el último
+   * carácter la longitud pasaba a 0, el efecto se volvía a ejecutar y reescribía el valor. Vaciar
+   * el campo era imposible.
+   *
+   * La guarda es una referencia a lo ya sembrado, no la longitud del campo. Con ella un refresco
+   * de sesión que devuelve el mismo correo no reescribe lo que el solicitante acaba de vaciar, y
+   * un cambio de cuenta —correo distinto— sí siembra de nuevo, que es lo que un usuario esperaría
+   * al iniciar sesión con otra identidad.
+   */
+  const seededEmail = useRef<string | undefined>(undefined);
+  const seededFullName = useRef<string | undefined>(undefined);
+
   useEffect(() => {
-    if (session?.email && form.email.length === 0) {
-      setForm((current) => ({ ...current, email: session.email }));
+    const email = session?.email;
+    if (email && seededEmail.current !== email) {
+      seededEmail.current = email;
+      setForm((current) => ({ ...current, email }));
     }
-    if (session?.displayName && form.fullName.length === 0) {
-      setForm((current) => ({ ...current, fullName: session.displayName }));
+    const displayName = session?.displayName;
+    if (displayName && seededFullName.current !== displayName) {
+      seededFullName.current = displayName;
+      setForm((current) => ({ ...current, fullName: displayName }));
     }
-  }, [session?.email, session?.displayName, form.email.length, form.fullName.length]);
+  }, [session?.email, session?.displayName]);
 
   // Anything the applicant still holds, not only what they can still act on. A request the academy
   // is processing, or one whose approval stopped, has to show its state: dropping back to a blank

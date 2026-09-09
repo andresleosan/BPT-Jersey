@@ -102,10 +102,15 @@ const RESOLUTION_REQUIREMENTS = {
   T001V2: [
     requirement("Localizar en el código la causa exacta del re-relleno.", true),
     requirement(
-      "Quitar la longitud de los campos del array de dependencias y sembrar el valor de la sesión una sola vez, con una guarda de «ya sembrado», en vez de ensanchar la condición actual.",
+      "Quitar la longitud de los campos del array de dependencias y sembrar el valor de la sesión una sola vez, con una guarda de «ya sembrado», en vez de ensanchar la condición actual. HECHO EL 2026-09-09: dependencias en `[session?.email, session?.displayName]` y guarda por referencia a lo ya sembrado. Las dos mitades hacen falta: quitar la longitud corta el re-render que reescribía el campo, y la referencia impide que un refresco de sesión con el mismo correo lo reescriba después.",
+      true,
     ),
     requirement(
-      "Prueba que borre cada campo entero y afirme que sigue vacío después del re-render, para los dos campos.",
+      "Prueba que borre cada campo entero y afirme que sigue vacío después del re-render, para los dos campos. HECHO EL 2026-09-09: cinco pruebas, cuatro rojas contra el código anterior. Además del borrado de cada campo, una borra tecla a tecla hasta la longitud 0 -el borde exacto donde fallaba, que un `clear()` de golpe se salta- y otra comprueba que la cortesía sigue viva cuando la sesión llega después del primer render.",
+      true,
+    ),
+    requirement(
+      "Desplegar el frontend, que es lo que hace que el solicitante deje de encontrarse el bug. PENDIENTE: el arreglo está en el repositorio y probado, pero producción sigue sirviendo el formulario anterior. Mientras esta casilla esté vacía, la fila describe algo cierto en el código y falso en la web.",
     ),
   ],
   T002V2: [
@@ -631,11 +636,11 @@ const bugFormItems = [
   task(
     "T001V2",
     "Permitir vaciar por completo Nombre y Email",
-    "en-progreso",
-    "Los dos campos se vuelven a rellenar solos al intentar borrarlos.",
+    "revision",
+    "Ya se pueden vaciar: el prellenado siembra una vez y no vuelve a tocarlos.",
     "-",
-    "Causa localizada: el efecto de prellenado lleva la longitud de los propios campos en sus dependencias, así que al llegar a cero se vuelve a disparar y reescribe el valor de la sesión.",
-    [REF_TASKS, "apps/web/src/app/enrol/page.tsx:378-385"],
+    "Causa localizada: el efecto de prellenado llevaba la longitud de los propios campos en sus dependencias, así que al llegar a cero se volvía a disparar y reescribía el valor de la sesión. Arreglado el 2026-09-09: siembra una vez, con guarda por referencia a lo ya sembrado, y las dependencias quedan solo en los valores de la sesión. Cinco pruebas nuevas, cuatro rojas contra el código anterior, incluida una que borra tecla a tecla hasta la longitud 0, que es el borde exacto donde fallaba. La cortesía sigue viva: una sesión que llega tarde sigue rellenando los dos campos.",
+    [REF_TASKS, "apps/web/src/app/enrol/page.tsx", "apps/web/src/app/enrol/page.test.tsx"],
     "bug",
   ),
   task(
