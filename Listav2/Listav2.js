@@ -433,7 +433,10 @@ const RESOLUTION_REQUIREMENTS = {
       "Evidencia de que `admin.role.granted` queda escrito en la misma transacción que el documento de personal: es lo que un documento tecleado por consola no deja.",
     ),
     requirement(
-      "Aprovisionar por esa vía la cuenta de `administrator` y comprobar que después abre una fila de la cola. Es la limitación que D5 dejó declarada en T012V2.",
+      "Elegir la cuenta que será el segundo owner, y que tiene que ser de Google. Corregido el 2026-09-09: NO puede ser admin@admin.com. Leyendo Auth, esa cuenta tiene proveedor `password` y ningún displayName, y el documento de personal que exige la puerta se valida contra `authProvider: z.literal(\"google\")` y `displayName` no vacío, lo mismo que exige `requireGoogleUser` en el escritor. Escribirle `authProvider: google` sería meter una afirmación falsa en el registro de autorización.",
+    ),
+    requirement(
+      "Aprovisionar por esa vía la cuenta elegida y comprobar que después abre una fila de la cola. Es la limitación que D5 dejó declarada en T012V2.",
     ),
   ],
   T025V2: [
