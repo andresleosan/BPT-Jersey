@@ -296,38 +296,55 @@ prueba `listav2-ledger-sync` falla si el bloque se queda viejo, asi que no depen
 
 ---
 
-## Grafo de conocimiento refrescado - 2026-09-09 (cuarta vuelta, y con el aviso anterior resuelto)
+## Grafo de conocimiento refrescado - 2026-09-09 (quinta vuelta, y el aviso anterior no estaba levantado)
 
 `graphify-out/` esta en `.gitignore`, asi que el grafo no viaja en el repositorio: lo que viaja es
 esta nota.
 
-- **13 ficheros reextraidos**, 10 de codigo y 3 de documentacion. El grafo pasa de **10.479 a 10.535
-  nodos** y de **23.447 a 23.463 aristas**; las comunidades, de 515 a **520**. Coste: 116.087 tokens
-  de entrada en un solo subagente, 16 vueltas acumuladas.
+- **11 ficheros reextraidos**, 9 de codigo y 2 de documentacion -`tasksv2.md` y `Listav2.html`-. El
+  grafo pasa de **10.535 a 10.591 nodos** y de **23.463 a 23.568 aristas**; las comunidades, de 520
+  a **535**. Coste: 117.484 tokens de entrada en un solo subagente, 17 vueltas acumuladas.
 - Diagnostico de integridad: **limpio**. Cero aristas colgantes, cero extremos ausentes, cero bucles
   y cero colapsos.
-- Los nombres de las 520 comunidades **no se reinventaron**: se traspasaron por contenido, mirando
-  que nombre tenian antes los nodos de cada comunidad nueva y quedandose con el mayoritario. 519
-  salieron heredadas y solo una era nueva. Reutilizarlos por numero de comunidad habria puesto
-  nombres cruzados, porque ese numero lo asigna el agrupamiento y cambia entre vueltas.
+- Los nombres de las 535 comunidades **no se reinventaron**: se traspasaron por contenido, mirando
+  que nombre tenian antes los nodos de cada comunidad nueva y quedandose con el mayoritario. 533
+  salieron heredadas y solo dos eran nuevas -«Pruebas de Interferencia del Tablero» y «Tipos del
+  Reparto de Trabajo»-. Reutilizarlos por numero de comunidad habria puesto nombres cruzados, porque
+  ese numero lo asigna el agrupamiento y cambia entre vueltas.
 
-**El aviso de la vuelta anterior queda levantado, y conviene contar como.** Aquella nota decia que
-la etiqueta de una fila en el grafo podia estar desactualizada porque el subagente escribia
-`source_file` como ruta absoluta y el grafo las guarda relativas: graphify trataba el mismo fichero
-como dos y descartaba una de las dos etiquetas. **Volvio a pasar al primer intento de esta vuelta
--16 nodos afectados- y esta vez se arreglo en lugar de anotarse.** Tres cosas, en este orden: se
-normalizan a relativas las rutas de la extraccion antes de fusionar, lo que baja el choque de 16
-nodos entre dos ficheros a 8 dentro del mismo; se podan del grafo base los ficheros reextraidos, con
-la misma forma relativa, lo que lo baja a 3; y la etiqueta de la extraccion mas reciente se impone
-sobre la anterior, que es lo unico defendible cuando la vieja describe un estado que ya no existe.
-**Comprobado nodo a nodo al terminar**, no supuesto: `T025V2` y `T012V2` figuran como
-`(desplegada)`, y `D7` y `D8` estan en el grafo con su texto de hoy.
+**El aviso que la vuelta anterior daba por levantado volvio a aparecer, y conviene corregir aquella
+nota antes que nada.** Decia que el problema «queda levantado». No lo estaba: lo que se arreglo fue
+*aquella ejecucion*, no la herramienta. Los dos sintomas volvieron enteros en esta vuelta:
+
+1. **Rutas mezcladas.** La extraccion AST escribe `source_file` relativo y el subagente semantico lo
+   escribe absoluto, porque es lo que su propia especificacion le manda -«verbatim and absolute»,
+   confiando en que el motor lo relativice despues-. El grafo base los guarda relativos, asi que sin
+   normalizar antes de fusionar el mismo fichero cuenta como dos. Esta vuelta: **185 rutas
+   normalizadas** a relativas antes del `build_merge`.
+2. **Etiquetas cruzadas.** Aun normalizando, `build_merge` reconcilio nueve nodos quedandose con la
+   etiqueta **vieja** y descartando la de hoy, incluido `tasksv2_t022v2`, que habria quedado como
+   `T022V2 - Desplegar provisionAdminRole como callable` -sin estado- en vez de `T022V2
+   (bloqueada)`. Se volvio a imponer la extraccion mas reciente a mano.
+
+**Por que volvio:** el arreglo de la cuarta vuelta vivia en el guion de aquella sesion, no en
+graphify ni en este repositorio. Un arreglo que hay que acordarse de repetir no es un arreglo. Lo
+que lo haria duradero es un script propio en `Listav2/` o en `scripts/` que envuelva el refresco
+incremental -normalizar rutas, fusionar, imponer las etiquetas nuevas y comprobar nodo a nodo-, de
+modo que la proxima vuelta no dependa de que alguien lea esta nota. **No esta hecho**, y decirlo es
+mas util que volver a escribir que el problema esta resuelto.
+
+**Comprobado nodo a nodo al terminar**, no supuesto: `T022V2` figura como `(bloqueada)`, `T025V2` y
+`T012V2` como `(desplegada)`, `T021V2` como `(bloqueada)`, y los nodos nuevos de hoy -los niveles de
+interferencia, la distincion entre fila lista y fila libre, `TASK_SURFACES` y `parallel-report.mjs`-
+estan en el grafo con su texto de hoy. Cero rutas absolutas en el grafo final.
 
 Aun asi, **para el estado de una fila este fichero sigue mandando**. No por desconfianza en las
 etiquetas, que hoy estan bien, sino porque el grafo se refresca a mano y entre dos refrescos siempre
 va por detras.
 
 **Como se refresca:** no hay un solo comando. Es la skill `graphify` en modo incremental
--deteccion, extraccion AST, un subagente semantico por lote, normalizacion de rutas, fusion con
-`build_merge` podando los reextraidos, traspaso de nombres por contenido y `graphify export html`-,
-y el interprete que usa esta fijado en `graphify-out/.graphify_python`.
+-deteccion, extraccion AST, un subagente semantico por lote, **normalizacion de rutas a relativas**,
+fusion con `build_merge` podando los reextraidos, **reimposicion de las etiquetas recien extraidas**,
+traspaso de nombres de comunidad por contenido y `graphify export html`-, y el interprete que usa
+esta fijado en `graphify-out/.graphify_python`. Los dos pasos en negrita son los que la herramienta
+no hace sola y hay que acordarse de dar.
