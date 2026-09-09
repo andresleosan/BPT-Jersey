@@ -481,10 +481,14 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Redesplegar y volver a pulsar el botón. Es lo que queda.",
+      "Redesplegar y volver a pulsar el botón. HECHO EL 2026-09-09: la callable devuelve 200 con alreadyInitialized false y listMembers pasa de 400 a 200 en la misma pantalla. Estado, guarda, evento cero y el evento de auditoría member.directory.initialized comparten timestamp exacto, que es la prueba de que fue una sola transacción, y el evento nombra al owner como actor.",
+      true,
     ),
     requirement(
-      "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2.",
+    ),
+    requirement(
+      "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2. HECHO EL 2026-09-09: approveEnrolmentRequest devuelve 200 con role adultStudent y un studentId nuevo, la solicitud pasa de approval-failed a approved, y el directorio canónico pasa de vacío a un estudiante escrito en students, studentIdentityKeys y studentAdminProfiles.",
+      true,
     ),
   ],
   T023V2: [
@@ -728,7 +732,7 @@ const adminItems = [
   task(
     "T012V2",
     "Reparar la cola de aprobación de nuevos miembros",
-    "en-progreso",
+    "aprobada",
     "Ningún botón acepta al nuevo miembro: hoy no se puede dar de alta a nadie.",
     "T025V2",
     "Diagnosticada el 2026-09-09: la cuenta de administrator tiene claims válidos y ningún documento de personal aprovisionado, así que la cola carga y toda callable detrás de la puerta canónica responde 403. Falta la escritura en producción, que espera al operador.",
@@ -812,10 +816,10 @@ const adminItems = [
   task(
     "T025V2",
     "Inicializar el directorio canónico de miembros en producción",
-    "en-progreso",
+    "aprobada",
     "Nunca se inicializó, y sin su documento de estado no se puede dar de alta a nadie.",
     "-",
-    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Preparando el despliegue se midió que la colección members tiene 243 registros reales del PDF y era la primera de las once que la precondición exigía vacías: el botón habría fallado. members no es el directorio canónico sino el origen de la migración forward, que a su vez exige el estado que solo el inicializador escribe, así que exigirla vacía dejaba a la academia sin poder inicializar ni migrar. Decisión D7: sale de la lista y quedan diez. Desplegada en producción el mismo día y verificada: ACTIVE, 401 al sondeo anónimo, 71 funciones. Al pulsarla desde owner falló con 400 INVALID_ARGUMENT «Invalid audit event draft», sin escribir nada: la acción member.directory.initialized no estaba en el catálogo del dominio y un doble casteo impedía que el compilador lo dijera. Arreglado el mismo día. Falta redesplegar y volver a pulsar.",
+    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Preparando el despliegue se midió que la colección members tiene 243 registros reales del PDF y era la primera de las once que la precondición exigía vacías: el botón habría fallado. members no es el directorio canónico sino el origen de la migración forward, que a su vez exige el estado que solo el inicializador escribe, así que exigirla vacía dejaba a la academia sin poder inicializar ni migrar. Decisión D7: sale de la lista y quedan diez. Desplegada en producción el mismo día y verificada: ACTIVE, 401 al sondeo anónimo, 71 funciones. Al pulsarla desde owner falló con 400 INVALID_ARGUMENT «Invalid audit event draft», sin escribir nada: la acción member.directory.initialized no estaba en el catálogo del dominio y un doble casteo impedía que el compilador lo dijera. Arreglado, redesplegado y pulsado el mismo día: 200, directorio inicializado en una sola transacción y con su evento de auditoría atribuido al owner.",
     [
       REF_TASKS,
       "apps/functions/src/members/canonical-member-directory-read-service.ts:302-343",
