@@ -4,12 +4,14 @@ import { memberDirectoryStateSchema } from "./member-directory-contracts";
 import type { MemberDirectoryState } from "./member-directory-contracts";
 import { memberDirectoryMigrationPhases } from "./member-directory-migration-contracts";
 import {
+  assertMemberDirectoryForwardClosable,
   memberDirectoryMaxChunksPerOperation,
   memberDirectoryMaxRowsPerChunk,
   memberDirectoryMaxRowsPerOperation,
   planMemberDirectoryAcquisition,
   planMemberDirectoryChunkCommit,
   planMemberDirectoryBootstrapCompletion,
+  planMemberDirectoryForwardCutover,
   planMemberDirectoryPhaseChange,
 } from "./member-directory-transitions";
 
@@ -639,5 +641,134 @@ describe("identity-key bootstrap completion", () => {
     expect(() => frozenBootstrap({ identityKeyBaselineMac: "a".repeat(64) })).toThrow(
       /baseline fields do not match coverage/u,
     );
+  });
+});
+
+describe("directory-forward cutover", () => {
+  /** The tuple a forward operation stands on just before it switches the reader. */
+  function frozenForward(overrides: Record<string, unknown> = {}): MemberDirectoryState {
+    return state({
+      readerVersion: "legacy-v1",
+      directoryWriteMode: "blocked",
+      freezeStatus: "frozen",
+      operationPhase: "forward",
+      identityKeyCoverage: "complete",
+      identityKeyBaselineMac: "a".repeat(64),
+      identityKeyBaselineArtifactId: "artifact-baseline-1",
+      activeOperationId: "op-1",
+      leaseId: "lease-1",
+      leaseOwner: "runner-a",
+      leaseExpiresAt: "2026-09-07T12:02:00.000Z",
+      operationDeadline: deadline,
+      lastCommittedChunkNo: 3,
+      ...overrides,
+    });
+  }
+
+  const cutover = {
+    operationId: "op-1",
+    postCutoverAdmittedStudentCount: 40,
+    now,
+    actorId: "runner-a",
+  } as const;
+
+  it("switches the reader, releases the freeze and keeps the legacy reader retired by nobody", () => {
+    const next = planMemberDirectoryForwardCutover({ ...cutover, currentState: frozenForward() });
+
+    expect(next).toMatchObject({
+      readerVersion: "canonical-v1",
+      directoryWriteMode: "canonical-v1",
+      freezeStatus: "open",
+      operationPhase: "idle",
+      // Cutover switches the reader; it does not retire the legacy one. Only T097 may do that.
+      globalLegacyReadEliminated: false,
+      rollbackProtocolVersion: "legacy-projection-v1",
+      rollbackCapacityLimit: 400,
+      rollbackEligibleStudentCount: 40,
+      stateRevision: 8,
+      lastCommittedChunkNo: 0,
+    });
+    for (const field of [
+      "activeOperationId",
+      "leaseId",
+      "leaseOwner",
+      "leaseExpiresAt",
+      "operationDeadline",
+    ]) {
+      // Deleted, not blanked: "no lease" and "an empty lease" are different to the schema.
+      expect(next).not.toHaveProperty(field);
+    }
+  });
+
+  it("takes the rollback-eligible count from the plan rather than from the moment", () => {
+    const next = planMemberDirectoryForwardCutover({
+      ...cutover,
+      postCutoverAdmittedStudentCount: 400,
+      currentState: frozenForward(),
+    });
+
+    expect(next.rollbackEligibleStudentCount).toBe(400);
+    expect(() =>
+      planMemberDirectoryForwardCutover({
+        ...cutover,
+        postCutoverAdmittedStudentCount: 401,
+        currentState: frozenForward(),
+      }),
+    ).toThrow(/at most 400 rollback-eligible students/u);
+  });
+
+  it("refuses to lower the rollback-eligible count", () => {
+    // It only ever grows - deactivation never decrements it - so lowering it would silently make
+    // room under the rollback bound for students the plan never counted.
+    expect(() =>
+      planMemberDirectoryForwardCutover({
+        ...cutover,
+        postCutoverAdmittedStudentCount: 11,
+        currentState: frozenForward({ rollbackEligibleStudentCount: 12 }),
+      }),
+    ).toThrow(/cannot lower the rollback-eligible student count/u);
+  });
+
+  it("refuses any tuple that is not a frozen forward operation", () => {
+    expect(() => planMemberDirectoryForwardCutover({ ...cutover, currentState: state() })).toThrow(
+      /Only a frozen forward tuple/u,
+    );
+    expect(() =>
+      planMemberDirectoryForwardCutover({
+        ...cutover,
+        currentState: frozenForward({ operationPhase: "compensation" }),
+      }),
+    ).toThrow(/Only a frozen forward tuple/u);
+  });
+
+  it("refuses another operation, an expired lease and incomplete coverage", () => {
+    expect(() =>
+      planMemberDirectoryForwardCutover({
+        ...cutover,
+        operationId: "op-2",
+        currentState: frozenForward(),
+      }),
+    ).toThrow(/requires its own operation/u);
+
+    // The expiry instant already counts as expired, as everywhere else in this control plane.
+    expect(() =>
+      assertMemberDirectoryForwardClosable({
+        currentState: frozenForward({ leaseExpiresAt: now }),
+        operationId: "op-1",
+        now,
+      }),
+    ).toThrow(/requires a live lease/u);
+
+    expect(() =>
+      assertMemberDirectoryForwardClosable({
+        currentState: frozenForward({
+          identityKeyCoverage: "incomplete",
+          identityKeyBaselineMac: undefined,
+          identityKeyBaselineArtifactId: undefined,
+        }),
+        operationId: "op-1",
+        now,
+      }),
+    ).toThrow(/requires complete identity-key coverage/u);
   });
 });

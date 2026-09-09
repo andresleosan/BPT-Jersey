@@ -2,6 +2,7 @@ import {
   memberDirectoryStateSchema,
   type MemberDirectoryState,
 } from "./member-directory-contracts";
+import { memberDirectoryRollbackCapacityLimit } from "./member-directory-migration-contracts";
 import {
   isLeaseExpired,
   maxInitialOperationDeadlineMs,
@@ -517,6 +518,134 @@ export function planMemberDirectoryBootstrapCompletion(
   };
   // A stable tuple carries no operation or lease. Deleting rather than blanking is what the schema
   // demands, and it is also the difference between "no lease" and "a lease that is empty".
+  for (const field of [
+    "activeOperationId",
+    "leaseId",
+    "leaseOwner",
+    "leaseExpiresAt",
+    "operationDeadline",
+    "preparedOperationId",
+  ]) {
+    delete next[field];
+  }
+
+  return memberDirectoryStateSchema.parse(next);
+}
+
+/**
+ * The precondition both halves of a directory-forward closure share (T108).
+ *
+ * The mirror of `assertMemberDirectoryBootstrapClosable`, and separate from it on purpose: they
+ * agree on the lease and disagree on everything the tuple says. A bootstrap closes coverage that is
+ * still `incomplete`; a forward operation may only run on a tenant whose coverage is already
+ * `complete`, because every collision its plan proved absent was proved against that baseline.
+ * One shared function with a flag would be a single place where the two could be swapped by
+ * passing the wrong argument.
+ */
+export function assertMemberDirectoryForwardClosable(
+  input: Readonly<{
+    currentState: MemberDirectoryState;
+    operationId: string;
+    now: string;
+  }>,
+): MemberDirectoryState {
+  const current = memberDirectoryStateSchema.parse(input.currentState);
+
+  if (
+    current.readerVersion !== "legacy-v1" ||
+    current.directoryWriteMode !== "blocked" ||
+    current.freezeStatus !== "frozen" ||
+    current.operationPhase !== "forward"
+  ) {
+    throw new Error("Only a frozen forward tuple can close a directory-forward operation");
+  }
+  if (current.activeOperationId === undefined || current.activeOperationId !== input.operationId) {
+    throw new Error("A directory-forward closure requires its own operation");
+  }
+  if (current.leaseExpiresAt === undefined) {
+    throw new Error("A directory-forward closure requires a lease");
+  }
+  /**
+   * The cutover is the transaction that hands the whole tenant to the canonical reader. If there is
+   * one place in the migration where an expired lease must not stand in for authorization, it is
+   * this one.
+   */
+  if (isLeaseExpired({ leaseExpiresAt: current.leaseExpiresAt, now: input.now })) {
+    throw new Error("A directory-forward closure requires a live lease");
+  }
+  if (current.identityKeyCoverage !== "complete") {
+    // directory-forward never silently performs bootstrap work. Cutting over on incomplete coverage
+    // would hand the canonical reader a tenant whose pre-existing identities were never enumerated.
+    throw new Error("A directory-forward closure requires complete identity-key coverage");
+  }
+  if (current.globalLegacyReadEliminated) {
+    // The marker is T097's, set long after cutover and only on proof of zero dependencies. A forward
+    // operation running with it already true would be migrating into a directory that no longer has
+    // the legacy reader this operation is switching away from.
+    throw new Error("A directory-forward closure cannot run after global legacy-read elimination");
+  }
+
+  return current;
+}
+
+/**
+ * The administrative cutover (T108): the one transaction that switches the reader.
+ *
+ * Everything it sets is dictated by step 11 of the confirmation algorithm, and two of the values are
+ * worth saying out loud.
+ *
+ * `rollbackEligibleStudentCount` becomes the receipt's `postCutoverAdmittedStudentCount` - the exact
+ * number the dry-run bound and the capacity equation was checked against - rather than a count taken
+ * now. Taking it now would mean the rollback plan's bound was decided by whatever the directory
+ * happens to hold at cutover instead of by what a human approved.
+ *
+ * `globalLegacyReadEliminated` stays false and `rollbackProtocolVersion` stays
+ * `legacy-projection-v1`. Cutover switches the reader; it does not retire the legacy one. Only T097
+ * may do that, and only after proving zero `members` dependencies.
+ */
+export function planMemberDirectoryForwardCutover(
+  input: Readonly<{
+    currentState: MemberDirectoryState;
+    operationId: string;
+    postCutoverAdmittedStudentCount: number;
+    now: string;
+    actorId: string;
+  }>,
+): MemberDirectoryState {
+  const current = assertMemberDirectoryForwardClosable(input);
+
+  if (
+    !Number.isSafeInteger(input.postCutoverAdmittedStudentCount) ||
+    input.postCutoverAdmittedStudentCount < 0 ||
+    input.postCutoverAdmittedStudentCount > memberDirectoryRollbackCapacityLimit
+  ) {
+    throw new Error(
+      `A cutover admits at most ${String(memberDirectoryRollbackCapacityLimit)} rollback-eligible students`,
+    );
+  }
+  if (input.postCutoverAdmittedStudentCount < current.rollbackEligibleStudentCount) {
+    // The count only ever grows: deactivation never decrements it, and a cutover that lowered it
+    // would silently make room under the rollback bound for students the plan never counted.
+    throw new Error("A cutover cannot lower the rollback-eligible student count");
+  }
+
+  const next: Record<string, unknown> = {
+    ...current,
+    readerVersion: "canonical-v1",
+    directoryWriteMode: "canonical-v1",
+    freezeStatus: "open",
+    operationPhase: "idle",
+    globalLegacyReadEliminated: false,
+    rollbackProtocolVersion: "legacy-projection-v1",
+    rollbackCapacityLimit: memberDirectoryRollbackCapacityLimit,
+    rollbackEligibleStudentCount: input.postCutoverAdmittedStudentCount,
+    stateRevision: current.stateRevision + 1,
+    lastCommittedChunkNo: 0,
+    updatedAt: input.now,
+    updatedBy: input.actorId,
+  };
+  // A stable tuple carries no operation or lease, and the fields are deleted rather than blanked -
+  // "no lease" and "an empty lease" are not the same thing to the schema or to a reader.
   for (const field of [
     "activeOperationId",
     "leaseId",
