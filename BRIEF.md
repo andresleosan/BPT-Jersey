@@ -60,14 +60,33 @@ cobros online reales y mensajería externa no bloquean este piloto.
    su sede.
 2. Booking y cancelación cierran una hora antes, incluidos Open Mats. Un no-show de Town genera una
    penalización manual auditable de GBP 15, con resolución por office.
+   **Enmendada el 2026-09-09 (fila T007V2).** La penalización deja de estar limitada a Town: West
+   genera propuesta por el mismo importe de GBP 15, y el identificador de sede deja de ser una
+   constante del dominio para pasar a ser política por sede. El límite original no daba ninguna
+   razón y se leía como alcance de piloto; dos sedes con la misma regla de plaza y distinta
+   consecuencia no es defendible ante un miembro de West. La hora de cierre no cambia: sigue
+   gobernando reservas, cancelaciones y quórum, y las 12 h de cancelación sin coste que introduce
+   T007V2 son un corte distinto que se añade sin mover este.
 3. Una sesión exige al menos cuatro bookings una hora antes; owner/head coach puede elevar el
    mínimo. Si no se alcanza, una tarea idempotente cancela la sesión y emite avisos in-app.
+   **Advertencia del 2026-09-09 (fila T024V2): hoy esta decisión describe algo que no ocurre.** La
+   regla y el servicio transaccional idempotente existen y están probados, pero nada los dispara en
+   producción: `reconcileSessionQuorum` es un callable de staff que ningún cliente web invoca, y el
+   único runner en lote está restringido al emulador demo y declarado deliberadamente no programado.
+   T024V2 lo corrige programándolo.
 4. PAYG puede acumular una sesión pendiente; antes de reservar otra debe registrarse el pago manual
    de la deuda y de la nueva sesión.
 5. El radio de 50 metros es una señal de elegibilidad para check-in, no prueba absoluta. No se
    guardan coordenadas; staff puede aplicar override con motivo y auditoría.
-6. Los menores no tienen cuenta propia. El tutor gestiona registro, consentimiento, bookings y
+6. ~~Los menores no tienen cuenta propia.~~ El tutor gestiona registro, consentimiento, bookings y
    progreso. A los 12 años, head coach puede asignar Kids o Teens; Teens es la sugerencia.
+   **Enmendada el 2026-09-09 (decisión D1 del operador, fila T009V2).** El menor **sí** tiene cuenta
+   propia, con alcance recortado, **a partir de los 12 años** — la misma línea que esta decisión ya
+   traza entre Kids y Teens. Ve su progreso y sus próximas clases, reserva y marca asistencia; nunca
+   ve pagos, waiver, la ficha del representante ni datos de terceros. El representante conserva la
+   titularidad económica y legal, aporta el contacto, **crea la cuenta** y puede revocar el acceso en
+   cualquier momento. No se despliega hasta que la DPIA de T011 esté aprobada. El resto de la
+   decisión sigue vigente: el tutor sigue gestionando registro, consentimiento y responsabilidad.
 7. La comparación de progreso solo incluye adultos opt-in. Los menores ven únicamente su propio
    progreso.
 8. Las reglas de niveles generan propuestas. Solo head coach aprueba belts o stripes.

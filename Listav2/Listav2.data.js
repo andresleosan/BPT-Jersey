@@ -57,11 +57,11 @@ const RESOLUTION_NOTES = {
   T005V2:
     "Comprobado el 2026-09-09: el texto mostrado y el PDF oficial de `Varios/` coinciden. `packages/domain/src/consents/enrolment-waiver-terms.ts` tiene las diez cláusulas, los mismos encabezados y los bullets de higiene. No hay texto que escribir.",
   T006V2:
-    'Decisión D3 del operador, 2026-09-09. Auditado el mismo día: reservar exige `studentId` y `membershipId`, y ninguno de los dos existe antes de la aprobación. `requireStudentScope` (`apps/functions/src/schedule/schedule-callables.ts:64-82`) rechaza a `shopper`, y el resolutor canónico busca al alumno en `academies/{id}/students` o en `relationships`, colecciones que solo escribe la ruta de aprobación. Entre `shopper` y `adultStudent`/`guardian` no hay estado intermedio: el claim salta de golpe. Invertir el orden no es mover una comprobación, es crear la identidad de alumno antes de aprobar o abrir una ruta de reserva propia para la clase de prueba.',
+    'Decisión D3 del operador, 2026-09-09. Auditado el mismo día: reservar exige `studentId` y `membershipId`, y ninguno de los dos existe antes de la aprobación. `requireStudentScope` (`apps/functions/src/schedule/schedule-callables.ts:64-82`) rechaza a `shopper`, y el resolutor canónico busca al alumno en `academies/{id}/students` o en `relationships`, colecciones que solo escribe la ruta de aprobación. Entre `shopper` y `adultStudent`/`guardian` no hay estado intermedio: el claim salta de golpe. Invertir el orden no es mover una comprobación, es crear la identidad de alumno antes de aprobar o abrir una ruta de reserva propia para la clase de prueba. Interrogada y decidida el 2026-09-09: se crea un alumno provisional con membresía `trial` en el registro y la clase de prueba viaja por la ruta de reserva única, porque `evaluateBookingEligibility` ya acepta `trial` y así el aforo, el quórum, los cortes, la asistencia y el contador de T015V2 se aplican sin escribir nada. Se descartó la ruta propia para no crear un segundo camino que toda regla futura tendría que acordarse de cubrir. El provisional no aparece en la base de miembros hasta ser aprobado; al rechazar, su membresía pasa a `cancelled`; el límite de una clase es un cupo de la propia membresía; la reserva cuenta para el mínimo de cuatro; y el aviso al administrador es uno solo, al reservar.',
   T007V2:
-    "Hoy un único corte de una hora gobierna a la vez el cierre de reservas, el de cancelaciones y la cancelación automática por quórum. Las 12 h son un tercer concepto y hay que añadirlas aparte: mover el corte de una hora rompería el quórum. Precisado el 2026-09-09: no es una constante, es el parámetro por defecto `cutoffMinutes = 60` de `isWithinBookingCutoff` (`schedule-contracts.ts:816`), y las tres llamadas pasan `60` a mano (`booking-transaction-service.ts:598` reservas, `:806` cancelación, `decideQuorumSweep` en `schedule-contracts.ts:1024`). Y el fee no está «limitado a Town» por costumbre: está clavado en el dominio. `noShowPenaltyLocationId = \"town\"` (`packages/domain/src/penalties/no-show-penalty-contracts.ts:14`) y `decideNoShowPenalty` devuelve `skipReason: \"otherSite\"` para cualquier otra sede. GBP 15 es `noShowPenaltyAmountMinor = 1_500`. La propuesta no la genera nada automático: es el callable `proposeNoShowPenalties({ sessionId })`, que un miembro del personal ejecuta sesión por sesión.",
+    "Hoy un único corte de una hora gobierna a la vez el cierre de reservas, el de cancelaciones y la cancelación automática por quórum. Las 12 h son un tercer concepto y hay que añadirlas aparte: mover el corte de una hora rompería el quórum. Precisado el 2026-09-09: no es una constante, es el parámetro por defecto `cutoffMinutes = 60` de `isWithinBookingCutoff` (`schedule-contracts.ts:816`), y las tres llamadas pasan `60` a mano (`booking-transaction-service.ts:598` reservas, `:806` cancelación, `decideQuorumSweep` en `schedule-contracts.ts:1024`). Y el fee no está «limitado a Town» por costumbre: está clavado en el dominio. `noShowPenaltyLocationId = \"town\"` (`packages/domain/src/penalties/no-show-penalty-contracts.ts:14`) y `decideNoShowPenalty` devuelve `skipReason: \"otherSite\"` para cualquier otra sede. GBP 15 es `noShowPenaltyAmountMinor = 1_500`. La propuesta no la genera nada automático: es el callable `proposeNoShowPenalties({ sessionId })`, que un miembro del personal ejecuta sesión por sesión. Interrogada y decidida el 2026-09-09: West también genera propuesta y por los mismos GBP 15, así que el identificador de sede pasa de constante a política por sede, lo que enmienda la decisión 2 del BRIEF. La banda real es de 12 h a 1 h, no de 12 h a 0, porque esa misma decisión ya cierra la cancelación una hora antes. La propuesta nace al cancelar, no en el barrido, porque `proposeNoShowPenalties` está indexado por asistencia y una reserva cancelada no produce registro de asistencia. Vive en la misma colección `noShowPenalties` con un motivo propio, y se retira sola si la sesión se cancela después por quórum.",
   T009V2:
-    'Decisión D1 del operador, 2026-09-09. Auditado el mismo día: hoy un menor no tiene cuenta de ninguna clase. `buildMinorStudent` (`apps/functions/src/families/family-service.ts:718-757`) nunca escribe `userId`, aunque el campo existe como opcional en `StudentProfile`, así que el enganche a una cuenta ya está previsto en el contrato. Los roles de cliente son solo `shopper`, `guardian` y `adultStudent`: haría falta uno nuevo. El único umbral de edad del dominio es 18, en línea dentro de `deriveParticipantType` (`packages/domain/src/profiles/profile-contracts.ts:300-319`); no hay 16 en ninguna parte. La DPIA es un borrador sin aprobar (`docs/operations/t011-dpia-draft.md`) y el calendario de retención (`t011-retention-residency-erasure-policy.md`, tabla en las líneas 99-112) advierte en su línea 7 de que ningún plazo está implementado: hoy el sistema no borra nada al vencer.',
+    'Decisión D1 del operador, 2026-09-09. Auditado el mismo día: hoy un menor no tiene cuenta de ninguna clase. `buildMinorStudent` (`apps/functions/src/families/family-service.ts:718-757`) nunca escribe `userId`, aunque el campo existe como opcional en `StudentProfile`, así que el enganche a una cuenta ya está previsto en el contrato. Los roles de cliente son solo `shopper`, `guardian` y `adultStudent`: haría falta uno nuevo. El único umbral de edad del dominio es 18, en línea dentro de `deriveParticipantType` (`packages/domain/src/profiles/profile-contracts.ts:300-319`); no hay 16 en ninguna parte. La DPIA es un borrador sin aprobar (`docs/operations/t011-dpia-draft.md`) y el calendario de retención (`t011-retention-residency-erasure-policy.md`, tabla en las líneas 99-112) advierte en su línea 7 de que ningún plazo está implementado: hoy el sistema no borra nada al vencer. Interrogada y decidida el 2026-09-09: D1 prevalece sobre la decisión 6 del BRIEF, que decía literalmente que los menores no tienen cuenta propia y que se enmienda allí con fecha. Suelo de edad en 12, la línea que la academia ya traza entre Kids y Teens; sube a 13 si la DPIA acaba apoyándose en consentimiento. Hallazgo que le quita una pata a D1: «correo o teléfono» hoy es solo correo. Los proveedores cableados son Google y correo/contraseña; de teléfono no hay nada. Y el proyecto no puede enviar un correo a un tercero, porque `ExternalDeliveryProvider` devuelve siempre `skipped` con `provider_unconfigured` y no lo invoca ningún callable; ninguna función crea usuarios de Auth. Por eso la cuenta la crea el representante y le entrega el acceso, y eso se declara en la DPIA. Revocar quita el claim, desengancha el `userId` y deshabilita la cuenta de Auth. Se construye ya, pero no se despliega hasta que la DPIA esté aprobada.',
   T010V2:
     "Hoy `apps/web/src/content/academy.ts:154-168` lista a Miro, Eddie, Topo y Charlie. Cada entrada exige `credential`, y no tenemos la de los tres instructores nuevos. No se inventan grados ni cinturones.",
   T011V2:
@@ -71,17 +71,21 @@ const RESOLUTION_NOTES = {
   T013V2:
     'El panel ya tiene un bloque "Today\'s classes" en `apps/web/src/app/admin/overview-page.tsx`; lo que falta es su posición y el detalle de las sesiones que quedan.',
   T015V2:
-    'Open mat queda excluido por completo de esta regla. Hallazgo del 2026-09-09 que cambia lo que cuesta la fila: **hoy la exclusión no se puede ni expresar**. `SessionRecord` (`packages/domain/src/schedule/schedule-contracts.ts:165`) no tiene tipo de sesión; el vocabulario `sessionTypes = ["class", "openMat"]` vive solo en el dominio de planes (`packages/domain/src/memberships/plan-contracts.ts:27`) y no llega a la sesión. Segundo hallazgo: **no existe ningún barrido programado**. Las dos únicas funciones `onSchedule` del proyecto limpian sesiones de importación de miembros, y hasta el barrido de quórum es el callable manual `reconcileSessionQuorum`. Tercero: la asistencia no es un campo de la reserva, es un registro aparte con su propio vocabulario (`attendanceStates`, `schedule-contracts.ts:1039`) frente a `bookingStatuses = ["requested", "confirmed", "cancelled"]` (`:752`), y `no_show` ya existe ahí.',
+    'Open mat queda excluido por completo de esta regla. Hallazgo del 2026-09-09 que cambia lo que cuesta la fila: **esa afirmación era falsa, y quedó corregida el 2026-09-09**. Es cierto que `SessionRecord` (`packages/domain/src/schedule/schedule-contracts.ts:165`) no tiene tipo de sesión; el vocabulario `sessionTypes = ["class", "openMat"]` vive solo en el dominio de planes (`packages/domain/src/memberships/plan-contracts.ts:27`). Pero de ahí no se sigue que la exclusión no se pueda escribir: **ya se deriva y ya se usa**. La sesión lleva `programId`, `ProgramRecord` lleva `discipline`, `open-mat` está en el vocabulario de disciplinas, hay un programa semilla `open-mat`, y la ruta de reserva hace exactamente esa derivación en `booking-transaction-service.ts:680`. Excluir open mat no exige tipar la sesión ni migrar nada. Segundo hallazgo: **no existe ningún barrido programado**. Las dos únicas funciones `onSchedule` del proyecto limpian sesiones de importación de miembros, y hasta el barrido de quórum es el callable manual `reconcileSessionQuorum`. Tercero: la asistencia no es un campo de la reserva, es un registro aparte con su propio vocabulario (`attendanceStates`, `schedule-contracts.ts:1039`) frente a `bookingStatuses = ["requested", "confirmed", "cancelled"]` (`:752`), y `no_show` ya existe ahí. Decidido el 2026-09-09: la pérdida emite la misma propuesta que un no-show, en `noShowPenalties` y con su propio motivo, y nunca en open mat. El vencimiento lo decide una función programada, no una evaluación en lectura, porque al emitir propuesta la vía perezosa obligaría a escribir durante las lecturas y las cinco rutas transaccionales que leen sesiones para escribir no pasan por `ScheduleStore`. Open mat se excluye derivando del programa, sin añadir campo a la sesión, para no tener dos verdades que puedan divergir. El alcance de la función programada es solo el contador: el quórum es T024V2.',
   T017V2:
     "El aviso de condición médica es dato de salud: gobierna quién puede leerlo, no solo cómo se muestra.",
   T018V2:
-    "Hallazgo del 2026-09-09: `evaluateBookingEligibility` (`packages/domain/src/schedule/schedule-contracts.ts:911-953`) ya rechaza a quien no está `active` ni `trial`, es decir ya cubre `overdue`. Pero una búsqueda en `apps/` no encuentra ni una sola invocación: la regla existe en el dominio y no se aplica en ningún callable, así que hoy no bloquea a nadie.",
+    "Hallazgo del 2026-09-09: `evaluateBookingEligibility` (`packages/domain/src/schedule/schedule-contracts.ts:911-953`) ya rechaza a quien no está `active` ni `trial`, es decir ya cubre `overdue`. Pero una búsqueda en `apps/` no encuentra ni una sola invocación: la regla existe en el dominio y no se aplica en ningún callable, así que hoy no bloquea a nadie. Verificado por los dos lados el 2026-09-09: la segunda mitad está entera por construir. Lo único que transiciona una membresía a `overdue` es un administrador pulsando «Mark overdue» (`membership-callables.ts:563-565`); ni finance, ni payments, ni penalties llaman a `transitionMembership`. Y el `overdue` del panel financiero es otro concepto: un flag por factura calculado al vuelo (`financial-dashboard.ts:126`), no persistido.",
   T019V2:
-    'Comprobado el 2026-09-09: no hay concepto de retirada ni de centro en `packages/domain/src/shop`. Es construcción nueva, no un ajuste. Ampliado el mismo día: el pedido tampoco tiene referencia de pago, porque no hay pago online -`shopPaymentMethodNote` dice que se cobra en la academia al retirar-, así que «etiquetar el pago» no es añadir un campo a algo que ya existe. Del lado de finanzas, `invoiceReference` no se genera: lo teclea la oficina en el formulario de facturación y solo se valida y se usa como clave de idempotencia. Y «centro» está dicho de ocho maneras distintas en el repositorio, con dos mayúsculas incompatibles: `locationIds = ["town", "west"]` en horarios frente a `siteValues`, `trainingCenters` y `upcomingBirthdayTrainingCenters` en `["Town", "West"]`, más literales en línea en familias y en el informe operativo, más el `trainingCenter` de texto libre de la importación de Regyfit. Ya hay una traducción a mano entre las dos (`booking-transaction-service.ts:679`). Etiquetar pagos por centro sin unificar antes ese vocabulario reparte el problema en vez de resolverlo.',
+    'Comprobado el 2026-09-09: no hay concepto de retirada ni de centro en `packages/domain/src/shop`. Es construcción nueva, no un ajuste. Ampliado el mismo día: el pedido tampoco tiene referencia de pago, porque no hay pago online -`shopPaymentMethodNote` dice que se cobra en la academia al retirar-, así que «etiquetar el pago» no es añadir un campo a algo que ya existe. Del lado de finanzas, `invoiceReference` no se genera: lo teclea la oficina en el formulario de facturación y solo se valida y se usa como clave de idempotencia. Y «centro» está dicho de ocho maneras distintas en el repositorio, con dos mayúsculas incompatibles: `locationIds = ["town", "west"]` en horarios frente a `siteValues`, `trainingCenters` y `upcomingBirthdayTrainingCenters` en `["Town", "West"]`, más literales en línea en familias y en el informe operativo, más el `trainingCenter` de texto libre de la importación de Regyfit. Ya hay una traducción a mano entre las dos (`booking-transaction-service.ts:679`). Etiquetar pagos por centro sin unificar antes ese vocabulario reparte el problema en vez de resolverlo. Interrogada el 2026-09-09, y la fila resulta ser dos problemas distintos: las suscripciones sí tienen `invoices` y `payments` persistidos, con `chargeKind`; el merchandising no, porque el pedido lleva `paymentStatus` dentro de sí y no genera ni factura ni pago. Decidido: la etiqueta de una suscripción sale del `trainingCenter` del miembro, también en los planes que cruzan sedes; el centro es campo propio de la factura y no un prefijo dentro de `invoiceReference`, que es la clave de idempotencia de la emisión; el merchandising lleva el centro de retirada en el propio pedido, sin inventar factura, que es fiel a que se cobra en la academia al retirar; y la unificación del vocabulario sale de la fila y pasa a ser T023V2.',
   T020V2:
     'Comprobado el 2026-09-09: la columna "Training center" ya existe en `apps/web/src/app/admin/members/page.tsx:37-41`, y `trainingCenter` es campo persistido con valores Town/West en `apps/functions/src/profiles/profile-service.ts`.',
   T021V2:
     "No se resuelve escribiendo código ni preguntando mejor: son datos que solo tiene el operador.",
+  T023V2:
+    'Sale de la ronda del 2026-09-09 y bloquea a T019V2. «Centro» está dicho de ocho maneras con dos mayúsculas incompatibles, y tres de las capitalizadas están escritas en Firestore: `trainingCenter` en estudiantes, en el directorio de miembros y en familias, más `classSites`/`openMatSites` en los planes, más el `trainingCenter` de texto libre de la importación de Regyfit, cuyos valores son arbitrarios y no se arreglan con un `toLowerCase()`. Decidido: no se migra. La fila construye una única conversión canónica en el dominio que sustituya las cinco ternarias escritas a mano y las dos comparaciones literales, y que falle a la vista ante un valor inesperado. Ese es el bug real: `booking-transaction-service.ts:679` hace `locationId === \'town\' ? \'Town\' : \'West\'`, de modo que un tercer valor caería en silencio en West. La migración completa queda expresamente fuera de alcance.',
+  T024V2:
+    'Sale de la ronda del 2026-09-09, y no es una mejora: es el incumplimiento de una decisión aprobada. La decisión 3 del BRIEF promete que una tarea idempotente cancela la sesión que no reúne cuatro reservas una hora antes. Esa tarea no ocurre en producción: `reconcileSessionQuorum` es un callable de staff al que ningún cliente web llama, y el único runner en lote se declara en su cabecera como deliberadamente no programado, restringido al emulador demo por `assertQuorumSweepRunnerEnvironment` (`quorum-sweep-runner.ts:8-15`, `:74`). La regla pura `decideQuorumSweep` y el servicio transaccional idempotente ya existen y están probados: lo que falta es que algo los dispare.',
   T022V2:
     'Decisión D6 del operador, 2026-09-09, salida de la pregunta 6 del ledger. `provisionAdminRole` (`apps/functions/src/auth/admin-provisioning.ts:677`) es el único escritor del documento de personal que exige la puerta canónica, y `apps/functions/src/index.ts:11` la reexporta como función suelta: no está desplegada. Convertirla no es envolverla en `onCall`. El objetivo llega como segundo parámetro de la función, no en `request.data`, y `provisioningRequestSchema` es un `z.strictObject({ action })` (`:78`) que rechaza cualquier campo extra, así que hoy `uid`, `email` y `role` no caben en la petición: desplegarla es ensanchar el contrato de entrada de la superficie de autorización. Lo que ya trae hecho es la puerta del concedente, `requireAdminActor` más `requireOwner` (`:589-590`), de modo que solo `owner` concede y un `administrator` no puede ascender a nadie ni a sí mismo. Lo que le falta frente a la puerta hermana: `requireCanonicalMemberDirectoryActor` verifica App Check en el manejador (`canonical-actor.ts:83-85`) y esta no lo hace.',
 };
@@ -134,16 +138,43 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Decidir de dónde sale la identidad de alumno con la que se reserva antes de aprobar: un registro de alumno provisional, o una ruta de reserva propia para la clase de prueba que no exija `studentId` ni `membershipId`.",
-    ),
-    requirement("Invertir el orden actual, en el que la aprobación precede a cualquier reserva."),
-    requirement(
-      "Crear el estado «pendiente con reserva»: ve su reserva y no puede reservar una segunda clase.",
+      "DECIDIDO EL 2026-09-09: la identidad sale de un alumno provisional con membresía `trial` creado en el registro, y la clase de prueba viaja por la ruta de reserva única. `evaluateBookingEligibility` ya acepta `trial`, así que aforo, quórum, cortes, asistencia y el contador de T015V2 se aplican sin escribir nada. Se descartó la ruta propia para no crear un segundo camino que toda regla futura tendría que recordar.",
+      true,
     ),
     requirement(
-      "Aplicar esa restricción en reglas y callables, no solo en la interfaz: una restricción solo de cliente no restringe nada.",
+      "DECIDIDO EL 2026-09-09: el alumno provisional no aparece en la base de miembros hasta ser aprobado. El directorio canónico y `listMembers` lo excluyen por estado.",
+      true,
     ),
-    requirement("Disparar el aviso al administrador en el momento de la reserva."),
+    requirement(
+      "DECIDIDO EL 2026-09-09: si la solicitud se rechaza, la membresía pasa a `cancelled`, alcanzable desde `trial`, para que la reserva y la asistencia pasadas no queden huérfanas. Devolver al solicitante no cancela nada.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: el límite de una sola clase es un cupo de la propia membresía, no una lectura del estado de la solicitud.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: la reserva de prueba cuenta para el mínimo de cuatro, y el aviso al administrador es uno solo, en el momento de reservar.",
+      true,
+    ),
+    requirement(
+      "Crear el alumno provisional y su membresía `trial` en el registro, con su cupo de una reserva.",
+    ),
+    requirement(
+      "Invertir el orden actual, en el que la aprobación precede a cualquier reserva.",
+    ),
+    requirement(
+      "Aplicar la restricción en reglas y callables, no solo en la interfaz: una restricción solo de cliente no restringe nada.",
+    ),
+    requirement(
+      "Excluir al provisional del directorio canónico y de `listMembers` hasta que se le apruebe.",
+    ),
+    requirement(
+      "Transicionar la membresía a `cancelled` al rechazar la solicitud.",
+    ),
+    requirement(
+      "Disparar el aviso al administrador en el momento de la reserva.",
+    ),
   ],
   T007V2: [
     requirement(
@@ -155,11 +186,32 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
+      "DECIDIDO EL 2026-09-09: West también genera propuesta, y por los mismos GBP 15. `noShowPenaltyLocationId` deja de ser constante y pasa a política por sede. Enmienda la decisión 2 del BRIEF.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: la banda real de la cancelación tardía es de 12 h a 1 h, no de 12 h a 0, porque la cancelación ya cierra una hora antes. Dentro de la última hora no se puede cancelar, y quien no aparece cae por la vía del no-show.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: la propuesta nace en el instante de cancelar, no en el barrido manual, y vive en la misma colección `noShowPenalties` con un motivo que la distingue.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: si la sesión se cancela después por quórum, la propuesta se retira automáticamente. Proponer un cobro por una clase que no ocurrió es indefendible.",
+      true,
+    ),
+    requirement(
       "Añadir las 12 h como corte propio de cancelación sin coste, sin mover el corte de reservas ni el de quórum.",
     ),
-    requirement("Emitir la propuesta de penalización al cancelar dentro de las 12 h."),
     requirement(
-      "DECISIÓN PENDIENTE DEL OPERADOR: si la cancelación tardía en West también genera propuesta y por qué importe. El fee no está limitado a Town por costumbre: `noShowPenaltyLocationId` lo clava en el dominio y West sale por `skipReason: otherSite`, así que incluirla es cambiar esa regla, no configurarla.",
+      "Emitir la propuesta de penalización al cancelar dentro de la banda, con su motivo.",
+    ),
+    requirement(
+      "Convertir el identificador de sede de la penalización en política por sede, y enmendar la decisión 2 del BRIEF.",
+    ),
+    requirement(
+      "Retirar la propuesta cuando la sesión se cancele por quórum.",
     ),
   ],
   T008V2: [
@@ -177,25 +229,45 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
+      "DECIDIDO EL 2026-09-09: D1 prevalece sobre la decisión 6 del BRIEF, que decía que los menores no tienen cuenta propia y que se enmienda allí con fecha y motivo, sin borrarla.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: suelo de edad en 12, la misma línea que la academia ya traza entre Kids y Teens. Sube a 13 si la DPIA acaba apoyándose en consentimiento en vez de en contrato.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: la cuenta la crea el representante con correo y contraseña y le entrega el acceso. No hay teléfono ni forma de enviar un correo a un tercero, y ninguna función crea usuarios de Auth.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: revocar quita el claim, desengancha el `userId` y deshabilita la cuenta de Auth, porque un token ya emitido sigue valiendo hasta caducar.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: se construye ya, pero no se despliega hasta que la DPIA esté aprobada y la retención deje de ser una promesa.",
+      true,
+    ),
+    requirement(
       "Crear el rol de cliente que hoy no existe: los únicos son `shopper`, `guardian` y `adultStudent`, y enganchar la cuenta al `userId` que `StudentProfile` ya prevé y que `buildMinorStudent` nunca escribe.",
     ),
     requirement(
-      "Permitir al representante añadir correo o teléfono al hijo, y que el menor inicie sesión con eso.",
+      "Permitir al representante crear la cuenta del menor con correo y contraseña, y entregarle el acceso.",
     ),
     requirement(
       "Alcance recortado: progreso, próximas clases, reservar y marcar asistencia. Nunca pagos, waiver, ficha del representante ni datos de otros miembros.",
     ),
     requirement(
-      "El representante conserva la titularidad económica y legal y puede revocar el acceso.",
+      "Revocación que quita el claim, desengancha el `userId` y deshabilita la cuenta de Auth.",
     ),
     requirement(
-      "Actualizar la DPIA y el registro de retención de T011: es tratamiento de datos de menores nuevo.",
+      "Actualizar la DPIA y el registro de retención de T011, declarando que el representante conoce la contraseña del menor.",
     ),
     requirement(
       "Reglas de Firestore que nieguen por defecto todo lo que quede fuera del alcance recortado.",
     ),
     requirement(
-      "DECISIÓN PENDIENTE DEL OPERADOR: si hay edad mínima para que un menor tenga cuenta propia.",
+      "No desplegar hasta que la DPIA esté aprobada.",
     ),
   ],
   T010V2: [
@@ -251,10 +323,19 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T015V2: [
     requirement(
-      "Dar tipo a la sesión: hoy `SessionRecord` no distingue una clase de un open mat, así que la exclusión que pide la fila no se puede ni escribir.",
+      "Comprobar si la exclusión de open mat se puede expresar hoy. CORREGIDO EL 2026-09-09: la fila afirmaba que no, y sí se puede. La sesión lleva `programId`, `ProgramRecord` lleva `discipline`, y la ruta de reserva ya deriva open mat en `booking-transaction-service.ts:680`.",
+      true,
     ),
     requirement(
-      "Elegir cómo vence el contador sin barrido programado: el proyecto no tiene ninguno, ni siquiera para el quórum. O se añade una función `onSchedule`, o el vencimiento se evalúa en lectura por hora de sesión.",
+      "DECIDIDO EL 2026-09-09: el vencimiento lo decide una función programada, no una evaluación en lectura. Al emitir propuesta de fee, la vía perezosa obligaría a escribir durante las lecturas, y las cinco rutas transaccionales que leen sesiones para escribir no pasan por `ScheduleStore`.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: la pérdida emite la misma propuesta que un no-show, en `noShowPenalties` y con su propio motivo. Sigue siendo propuesta revisable, nunca cobro.",
+      true,
+    ),
+    requirement(
+      "Añadir la función `onSchedule` que vence el contador. Es la primera del proyecto que toca el horario; su alcance es solo el contador, y programar el quórum es T024V2.",
     ),
     requirement(
       "Contador de 20 minutos desde el inicio de la clase: sin marcaje al vencer, se pierde la clase.",
@@ -262,9 +343,8 @@ const RESOLUTION_REQUIREMENTS = {
     requirement(
       "El vencimiento lo decide el servidor por hora de sesión, no un temporizador de navegador que se pierde al cerrar la pestaña.",
     ),
-    requirement("Excluir open mat por completo."),
     requirement(
-      "DECISIÓN PENDIENTE DEL OPERADOR: si la pérdida automática emite propuesta de fee igual que una cancelación tardía, o solo libera la plaza.",
+      "Excluir open mat por completo, derivándolo del programa y sin añadir campo a la sesión: un tipo copiado se queda obsoleto si cambia la disciplina del programa.",
     ),
   ],
   T016V2: [
@@ -292,16 +372,31 @@ const RESOLUTION_REQUIREMENTS = {
     ),
   ],
   T019V2: [
-    requirement("Comprobar si el dominio de tienda ya modela centro o retirada.", true),
     requirement(
-      "Unificar el vocabulario de centro antes de etiquetar nada: hoy se dice de ocho maneras y con dos mayúsculas incompatibles, ya traducidas a mano en la ruta de reserva.",
-    ),
-    requirement("Etiquetar cada pago con el centro al que pertenece, en su referencia."),
-    requirement(
-      "Permitir elegir centro de retirada al comprar merchandising, y que esa elección etiquete el pago.",
+      "Comprobar si el dominio de tienda ya modela centro o retirada.",
+      true,
     ),
     requirement(
-      "DECISIÓN PENDIENTE DEL OPERADOR: si la etiqueta de un pago de suscripción sale del `trainingCenter` del miembro o se elige en cada cobro.",
+      "DECIDIDO EL 2026-09-09: la etiqueta de una suscripción sale del `trainingCenter` del miembro, también en los planes que cruzan sedes, donde el centro es convención y no hecho.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: el centro es campo propio de la factura, no un prefijo dentro de `invoiceReference`, que es la clave de idempotencia de la emisión y la teclea la oficina.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: el merchandising lleva el centro de retirada en el propio pedido, sin inventar una factura. Hoy un pedido solo tiene `paymentStatus` dentro de sí y no genera ni factura ni pago.",
+      true,
+    ),
+    requirement(
+      "DECIDIDO EL 2026-09-09: la unificación del vocabulario sale de esta fila y pasa a ser T023V2, de la que esta depende.",
+      true,
+    ),
+    requirement(
+      "Añadir el centro como campo de la factura, con el identificador canónico de T023V2.",
+    ),
+    requirement(
+      "Permitir elegir centro de retirada al comprar merchandising, y guardar esa elección en el pedido.",
     ),
   ],
   T020V2: [
@@ -328,6 +423,28 @@ const RESOLUTION_REQUIREMENTS = {
     ),
     requirement(
       "Aprovisionar por esa vía la cuenta de `administrator` y comprobar que después abre una fila de la cola. Es la limitación que D5 dejó declarada en T012V2.",
+    ),
+  ],
+  T023V2: [
+    requirement(
+      "Construir una única conversión canónica de centro en el dominio, que falle a la vista ante un valor inesperado en vez de elegir uno.",
+    ),
+    requirement(
+      "Sustituir con ella las cinco ternarias escritas a mano y las dos comparaciones literales. La de `booking-transaction-service.ts:679` manda hoy en silencio a West cualquier valor que no sea `town`.",
+    ),
+    requirement(
+      "Dejar expresamente fuera de alcance la migración de datos: tres representaciones capitalizadas están escritas en Firestore y el `trainingCenter` de Regyfit es texto libre con valores arbitrarios.",
+    ),
+  ],
+  T024V2: [
+    requirement(
+      "Programar el barrido de quórum reutilizando la maquinaria `onSchedule` que introduce T015V2.",
+    ),
+    requirement(
+      "No tocar la regla pura `decideQuorumSweep` ni el servicio transaccional idempotente: ya existen y están probados. Lo que falta es el disparador.",
+    ),
+    requirement(
+      "Comprobar que la decisión 3 del BRIEF pasa a cumplirse de verdad, y retirar de allí la advertencia de que describe algo que no ocurre.",
     ),
   ],
   T021V2: [
@@ -620,6 +737,16 @@ const adminItems = [
     ],
     "funcion",
   ),
+  task(
+    "T024V2",
+    "Programar el barrido de quórum, que hoy no se ejecuta nunca",
+    "pendiente",
+    "La decisión 3 del BRIEF promete una cancelación automática que no ocurre.",
+    "T015V2",
+    "La regla pura y el servicio transaccional idempotente ya existen y están probados; lo que falta es que algo los dispare. `reconcileSessionQuorum` es un callable de staff al que ningún cliente web llama, y el único runner en lote está restringido al emulador demo y declarado deliberadamente no programado. Reutiliza la maquinaria programada que introduce T015V2.",
+    [REF_TASKS, "apps/functions/src/schedule/quorum-sweep-runner.ts:8-15"],
+    "funcion",
+  ),
 ];
 
 const paymentItems = [
@@ -638,8 +765,8 @@ const paymentItems = [
     "Etiquetar cada pago con su centro y elegir dónde retirar el merchandising",
     "pendiente",
     "La referencia del pago dice si es de Town o de West.",
-    "-",
-    "Verificado que no existe hoy: no hay concepto de retirada ni de centro en el dominio de tienda. Es construcción nueva, no ajuste.",
+    "T023V2",
+    "Son dos problemas distintos: las suscripciones sí tienen facturas y pagos persistidos, y el merchandising no, porque el pedido lleva su estado de pago dentro y no genera ninguno. Decidido el 2026-09-09: la etiqueta de una suscripción sale del `trainingCenter` del miembro; el centro es campo propio de la factura y no un prefijo dentro de `invoiceReference`, que es la clave de idempotencia de la emisión; y el merchandising lleva el centro de retirada en el propio pedido, sin inventar factura.",
     [REF_TASKS, "packages/domain/src/shop"],
     "funcion",
   ),
@@ -652,6 +779,16 @@ const paymentItems = [
     "Auditado: ya existe la columna y el campo persistido. Solo falta comprobar con datos reales que se puebla para todos, incluidos los importados.",
     [REF_TASKS, "apps/web/src/app/admin/members/page.tsx:37-41"],
     "verificacion",
+  ),
+  task(
+    "T023V2",
+    "Un único conversor canónico de centro, sin migrar datos",
+    "pendiente",
+    "Hoy «centro» se dice de ocho maneras, con dos mayúsculas incompatibles.",
+    "-",
+    "Bloquea a T019V2. Se construye una sola conversión en el dominio que sustituya las cinco ternarias a mano y las dos comparaciones literales, y que falle a la vista ante un valor inesperado: hoy `booking-transaction-service.ts:679` manda en silencio a West todo lo que no sea `town`. La migración de datos queda expresamente fuera de alcance, porque tres representaciones capitalizadas están escritas en Firestore y la de Regyfit es texto libre.",
+    [REF_TASKS, "apps/functions/src/schedule/booking-transaction-service.ts:679"],
+    "funcion",
   ),
 ];
 
@@ -693,6 +830,8 @@ const projectData = {
     T020V2: "2026-09-09",
     T021V2: "2026-09-09",
     T022V2: "2026-09-09",
+    T023V2: "2026-09-09",
+    T024V2: "2026-09-09",
   },
   stages: [
     stage(
@@ -753,7 +892,7 @@ const projectData = {
     ),
   ],
   maintenanceSteps: [
-    "Interrogar la fila con /grill-me antes de escribir código cuando tenga decisiones abiertas: T006V2, T007V2, T009V2, T015V2 y T019V2.",
+    "Interrogar la fila con /grill-me antes de escribir código cuando tenga decisiones abiertas. Las cinco que lo requerían -T006V2, T007V2, T009V2, T015V2 y T019V2- se interrogaron el 2026-09-09 en tres rondas, y sus decisiones están escritas en la fila.",
     "Actualizar primero tasksv2.md, que es la fuente única de verdad del estado y la evidencia de estas filas.",
     "Actualizar Listav2/Listav2.data.js después, en el mismo cambio lógico, sin copiar datos sensibles.",
     "Reensamblar con `node Listav2/build.mjs`: Listav2.js es generado a partir de Listav2.data.js y Listav2.engine.js, y editarlo a mano se pierde en el siguiente build.",
