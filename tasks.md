@@ -7636,3 +7636,92 @@ responde `403` en `/accounts/{id}/tokens`-, asi que queda apoyado en la lectura 
 
 **La lista de pendientes que no cuentan para el tablero pierde una fila entera:** rotar la access key
 de R2 ya no esta.
+
+### Cierre de sesion 2026-09-09: tres rebanadas de T108 y R2 cerrado entero
+
+Estado exacto al terminar, escrito para que la siguiente conversacion empiece sin reconstruirlo.
+
+**Se entregaron tres rebanadas de T108, la unica fila abierta.** La **10**, el ejecutor forward -el
+segundo de los siete y el primero que escribe documentos de dominio de verdad-. La **11**, los
+contratos del plan privado congelado y la prueba que los liga al recibo. La **12**, el almacen de
+artefactos con su sobre cifrado, que cierra **los dos puertos** que estaban sin adaptador. Van **dos
+ejecutores de siete y doce rebanadas**, y la fila sigue **pendiente**: eso no cambia el tablero.
+
+**Y se cerro R2 en sus tres frentes**, que no cuenta para el tablero y llevaba semanas en la lista:
+almacen de artefactos decidido e implementado, cifrado decidido e implementado, y la **access key
+rotada de verdad** -version 3 en uso, 1 y 2 destruidas, token viejo eliminado, scope confirmado en
+`bptjersey | EU`-.
+
+**Dos correcciones al propio ledger, que es lo que mas conviene no perder.** La primera: la nota de
+la rebanada 6 decia que la cuarentena es la respuesta de la fase forward a una fila que no puede
+migrar, y **la especificacion dice lo contrario** en dos sitios; forward rechaza el plan entero, y
+`quarantinedCount` se queda en 0. La segunda: el recuento de ejecutores iba en **dos y era uno**;
+solo existia el de bootstrap. Las dos habrian hecho construir cosas que no van.
+
+**Por donde seguir, en orden.**
+
+1. **El dry-run que produce el manifiesto**: clasificar cada fila legada con cero escrituras y emitir
+   el recibo. Es lo unico que falta para cerrar el circulo -el ejecutor sabe consumir un manifiesto y
+   el almacen sabe guardarlo, pero nadie lo fabrica todavia-.
+2. El runner del forward: enlazar ejecutor, plan congelado y la verificacion del paso 4 contra la
+   linea base de bootstrap, mas las transacciones de verificacion y cutover.
+3. Los otros cinco ejecutores: compensacion, rollback-projection, rollback-readonly,
+   canonical-recovery e identity-reconcile.
+4. La acunacion y el consumo de aprobaciones.
+5. El ensayo de la operacion completa de punta a punta, que **ya no esta bloqueado por falta de
+   almacen**.
+
+**La lista viva de lo que no cuenta para el 100 %.** Pierde una fila -la rotacion de R2- y gana una:
+
+- **Los lotes de release**, lo mas grande de todo: 83 callables que la web invoca y no estan
+  desplegadas. Orden propuesto en el §5 de `docs/operations/t059-capability-gap-analysis.md`.
+- **El aviso a office y coaches**, sin enviar; §4.0(10) sigue vacio.
+- **`qa/tsconfig.json` no incluye `integration/`**: el typecheck nunca ha mirado la bateria de
+  Emulator, y esta sesion le anadio un fichero mas -el ensayo del chunk forward-.
+- **Dos `catch` que descartan la causa** y **`no-show-penalties-client.ts` sin pruebas**.
+- **NUEVO: ningun despliegue no interactivo pasa del parametro `BPT_WAIVER_REGISTRATION`.** Tiene
+  `default: "disabled"` y aun asi el CLI se niega sin TTY, no lo toma de variable de entorno y exige
+  un dotenv en el directorio fuente que el predeploy borra entero. Se probaron las tres vias.
+- **`apps/web/src/app/account/progress/peer-comparison.tsx` sigue sin versionar y sin que nada lo
+  importe** -213 lineas; solo coinciden nombres de clases CSS en `family-progress.tsx`-. Ya estaba
+  antes de esta sesion y se deja como estaba, pero anotado: un componente huerfano sin trackear es de
+  las cosas que se pierden en un `clean`.
+
+**Contadores:** 120 aprobadas de 121 (99 %), 0 en revision, 0 en progreso, 1 pendiente (T108), 7
+canceladas, sobre 128 filas. El 44 % de produccion no se movio: nada de esto fue una release.
+
+### Grafo de conocimiento refrescado - 2026-09-09
+
+`--update` incremental. 31 archivos cambiados; se extrajeron **20** y se descartaron **11** porque
+eran `graphify-out/memory/`, que `.graphifyignore` excluye a proposito para que el grafo no se
+describa a si mismo. El detect los propone igual, asi que el filtro se volvio a aplicar a mano: es el
+mismo aviso de las dos vueltas anteriores y sigue siendo necesario.
+
+- **Codigo, AST y sin coste de LLM:** 14 archivos, 412 nodos y 736 aristas. Entran las siete piezas
+  nuevas de T108 con sus pruebas, el `package.json` del dominio y `Lista.js`.
+- **Documentos, extraccion semantica en dos agentes en paralelo:** 6 archivos, 275 nodos y 536
+  aristas. Uno tomo `tasks.md`, que con 1,2 MB no se lee de una vez y se recorrio por secciones
+  fechadas -saco las **128 filas de la tabla** con sus 278 aristas de dependencia-; el otro,
+  `LECCIONES.md`, `Lista.html` y los tres documentos de operaciones. **264.871 tokens de entrada.**
+- **Fusion:** 585 nodos reemplazados de los archivos reextraidos. El grafo pasa de **10.005 a 10.104
+  nodos** y de **22.175 a 22.481 aristas**. Diagnostico de integridad limpio: sin aristas colgantes,
+  con extremo ausente, en bucle ni colapsadas.
+- **Comunidades:** 497. Veintiseis con nombre puesto a mano, incluidas las cuatro del trabajo nuevo
+  -ejecutor forward, contratos de migracion y plan privado, almacen y sobre cifrado de artefactos, y
+  el motor de migracion de punta a punta-, y 471 nombradas por su nodo central.
+- **Un aviso honesto del merge:** el ID `docs_operations_t058_release_rollback_runbook_rollback` lo
+  acunaron dos entradas del mismo documento y una se perdio. Un ID se deriva de la ruta mas el nombre
+  de la entidad, asi que ese no identifica a una sola.
+- **Lo que el grafo sabe ahora y antes no:** las tres rebanadas nuevas con sus decisiones -por que
+  forward no pone cuarentena, por que `priorAbsence` es el literal `true`, por que la jurisdiccion
+  falla cerrada en vez de caer al endpoint por defecto-; el cableado de R2 y su rotacion; el analisis
+  de brechas de T059 con el 44 %; y las once lecciones de `LECCIONES.md` ligadas cada una al
+  incidente que la produjo.
+
+**Cambio importante frente al aviso con el que empezo esta sesion:** la documentacion **si entro**
+esta vez. `tasks.md`, `LECCIONES.md` y los tres documentos de operaciones estan en el grafo al corte
+del 2026-09-09, extraidos por subagentes en vez de por una clave de LLM del entorno. Para el ledger
+ya se puede consultar el grafo, aunque leer el fichero sigue siendo lo mas seguro para lo ultimo.
+
+`graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.
+Para consultarlo: `graphify query "<pregunta>"`.
