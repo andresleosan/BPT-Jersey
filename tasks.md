@@ -8032,3 +8032,72 @@ todo lo que deshace o repara una migracion, y la autorizacion que la arranca.
 
 **Contadores sin cambio:** 120 aprobadas de 121 (99 %), 1 pendiente (T108), 7 canceladas, sobre 128
 filas.
+
+### Cierre de sesion 2026-09-09: el camino forward completo y ensayado
+
+Estado exacto al terminar, escrito para que la siguiente conversacion empiece sin reconstruirlo.
+
+**Cuatro rebanadas de T108, la unica fila abierta, y con ellas el camino forward entero.** La **13**,
+el dry-run que produce el manifiesto. La **14**, el runner que lo consume. La **15**, la verificacion
+y el cutover. La **16**, los adaptadores Firestore y **el ensayo de la operacion completa de punta a
+punta**, que llevaba en la lista de pendientes desde que se abrio la fila y ahora corre y pasa contra
+un Firestore real. Van **dos ejecutores de siete y dieciseis rebanadas**, y la fila sigue
+**pendiente**: eso no cambia el tablero.
+
+**Lo que ahora existe y antes no.** Una operacion `directory-forward` se puede planificar, ejecutar,
+verificar y cutovear entera. El dry-run clasifica cada fila legada con cero escrituras y emite los
+tres artefactos congelados; el almacen los sella; el runner los abre a traves del cifrado, lee lo que
+el plan nombra y compromete chunks; la verificacion prueba cada chunk contra el plan; y el cutover
+cambia el lector, suelta la congelacion y completa el padre. **Cada costura se ejercita contra un
+Firestore de verdad**, incluida una correspondencia revisada contra un menor existente.
+
+**Tres hallazgos que conviene no perder.**
+
+1. **Un hueco entre las rebanadas 10 y 11.** El ejecutor forward exige `trainingTimePreferences` y se
+   niega a inventarlas; el esquema del manifiesto **no tenia ese campo**. Nadie lo habia notado
+   porque las filas del ejecutor se las fabricaba a mano una prueba. Anadido al manifiesto,
+   obligatorio en un alta y prohibido en una correspondencia.
+2. **Una regla sin prueba, con doce rebanadas de antiguedad.** Que el MAC de hoja ligue **la ruta**
+   ademas del contenido no lo discriminaba ninguna prueba del repositorio. Salio al sacar la hoja a
+   su propia funcion. Al reves que en la rebanada 12, aqui el guarda es real -sin la ruta, dos
+   documentos identicos en rutas distintas pliegan a la misma hoja- asi que se le escribio la prueba.
+3. **Un fallo real en un adaptador, encontrado leyendo.** Leia las relaciones de
+   `familyRelationships` y la coleccion es `relationships`. Ninguna prueba unitaria podia verlo y el
+   primer ensayo tampoco, porque cubria solo altas y una alta no lee ninguna familia. De ahi la
+   tercera fila del ensayo.
+
+**Por donde seguir, en orden.**
+
+1. **El registro de cierre de referencias**, `member-directory-reference-closure-v1`, que la
+   compensacion necesita antes de existir. **Medido esta sesion y es mas grande de lo que la lista
+   sugeria:** hay **~25 modulos de dominio** que llevan `studentId`, y el registro tiene que decir
+   de **cada coleccion del inquilino** -la lista autoritativa esta en
+   `TENANT_BACKUP_V3_DIRECT_COLLECTIONS`, 55 directas mas 3 anidadas- si puede referenciar a un
+   estudiante y como se comprueba, o por que no puede. **Es la unica pieza de T108 donde equivocarse
+   borra datos en vez de fallar cerrado**, asi que la lista de la especificacion no vale copiada: hay
+   que auditarla contra el modelo real. Con el registro puesto, el ejecutor de compensacion.
+2. Los otros cuatro ejecutores: rollback-projection, rollback-readonly, canonical-recovery e
+   identity-reconcile.
+3. La acunacion y el consumo de aprobaciones.
+
+**La lista viva de lo que no cuenta para el 100 %.** Una fila se afina y ninguna se cierra:
+
+- **Los lotes de release**, lo mas grande de todo: 83 callables que la web invoca y no estan
+  desplegadas. Orden propuesto en el §5 de `docs/operations/t059-capability-gap-analysis.md`.
+- **El aviso a office y coaches**, sin enviar; §4.0(10) sigue vacio.
+- **`qa/tsconfig.json` no incluye `integration/`**, y esta sesion lo midio: **27 errores en 8
+  ficheros** -`waitlist-offer-transaction` 9, `firestore-adapters` 6, `membership-adapters` 3,
+  `finance-adapters` 3, `waitlist-store` 2, `backup-rehearsal` 2, `plan-adapters` 1, `consent-waiver`
+  1- de tres causas: un `scope` que falta en un argumento, `firebase-functions/v2/https` que el
+  paquete `qa` no resuelve, y un generico que ya no acepta argumento de tipo. **Ninguno es de los
+  seis ensayos del directorio de miembros**, los dos de hoy incluidos. Arreglarlos toca el
+  `package.json` de `qa`; se probo, se midio y se revirtio.
+- **Dos `catch` que descartan la causa** y **`no-show-penalties-client.ts` sin pruebas**.
+- **Ningun despliegue no interactivo pasa del parametro `BPT_WAIVER_REGISTRATION`.**
+- **`apps/web/src/app/account/progress/peer-comparison.tsx` sigue sin versionar y sin que nada lo
+  importe** -213 lineas-. Cuarta sesion que se anota igual.
+
+**Contadores:** 120 aprobadas de 121 (99 %), 0 en revision, 0 en progreso, 1 pendiente (T108), 7
+canceladas, sobre 128 filas. **283 ficheros y 2473 pruebas unitarias** -desde 280 y 2404-, y
+**`pnpm test:integration` 89/90** -desde 88/89-. El 44 % de produccion no se movio: nada de esto fue
+una release.
