@@ -76,7 +76,7 @@ const RESOLUTION_NOTES = {
   T011V2:
     "El contenido tiene un único objeto de localización, Town Office (`academy.ts:48-53`), consumido como objeto único en la landing. `BPT West / Strive` solo existe como etiqueta de tarifa (`academy.ts:144`), sin domicilio.",
   T012V2:
-    'Diagnosticado en producción el 2026-09-09, y la causa no era ninguna de las cuatro que la fila listaba. Cloud Run registra «Callable request verification passed» y acto seguido HTTP 403 en `getEnrolmentRequestDetail`, `listMembers`, `getMemberDetail` y `lookupMemberIdentity`, mientras `listEnrolmentRequests` responde 200 en la misma sesión. Lo que las separa es la puerta: las que fallan exigen, además del claim, un documento de personal aprovisionado en `academies/{academyId}/users/{uid}`. En producción la cuenta de `owner` lo tiene y pasa; la de `administrator` tiene claims válidos y ningún documento, y por eso la cola se pinta y ninguna fila se abre. Los botones no están inertes: «Approve and enrol» está `disabled` a propósito hasta que cargue el detalle, y «Send back to applicant» funciona pero exige escribir la nota. El único escritor de ese documento, `provisionAdminRole`, no está desplegado como callable.',
+    'Diagnosticado en producción el 2026-09-09, y la causa no era ninguna de las cuatro que la fila listaba. Cloud Run registra «Callable request verification passed» y acto seguido HTTP 403 en `getEnrolmentRequestDetail`, `listMembers`, `getMemberDetail` y `lookupMemberIdentity`, mientras `listEnrolmentRequests` responde 200 en la misma sesión. Lo que las separa es la puerta: las que fallan exigen, además del claim, un documento de personal aprovisionado en `academies/{academyId}/users/{uid}`. En producción la cuenta de `owner` lo tiene y pasa; la de `administrator` tiene claims válidos y ningún documento, y por eso la cola se pinta y ninguna fila se abre. Los botones no están inertes: «Approve and enrol» está `disabled` a propósito hasta que cargue el detalle, y «Send back to applicant» funciona pero exige escribir la nota. El único escritor de ese documento, `provisionAdminRole`, no está desplegado como callable. Decidido por el operador el 2026-09-09 (D5): se aprueba desde la cuenta de `owner` y no se escribe nada en producción. Teclear el documento a mano lo haría válido para la puerta y no dejaría rastro de quién concedió ese poder, porque `provisionAdminRole` lo escribe en la misma transacción que toma el cerrojo de rol y emite `admin.role.granted`; y el esquema es un `z.strictObject` de catorce campos, con dos `Timestamp` reales, donde un campo de más o de menos deja el 403 intacto. La cuenta de `administrator` queda inservible para el directorio canónico a propósito, y esa limitación la levanta T022V2 (D6).',
   T013V2:
     'El panel ya tiene un bloque "Today\'s classes" en `apps/web/src/app/admin/overview-page.tsx`; lo que falta es su posición y el detalle de las sesiones que quedan.',
   T015V2:
@@ -91,6 +91,8 @@ const RESOLUTION_NOTES = {
     'Comprobado el 2026-09-09: la columna "Training center" ya existe en `apps/web/src/app/admin/members/page.tsx:37-41`, y `trainingCenter` es campo persistido con valores Town/West en `apps/functions/src/profiles/profile-service.ts`.',
   T021V2:
     "No se resuelve escribiendo código ni preguntando mejor: son datos que solo tiene el operador.",
+  T022V2:
+    'Decisión D6 del operador, 2026-09-09, salida de la pregunta 6 del ledger. `provisionAdminRole` (`apps/functions/src/auth/admin-provisioning.ts:677`) es el único escritor del documento de personal que exige la puerta canónica, y `apps/functions/src/index.ts:11` la reexporta como función suelta: no está desplegada. Convertirla no es envolverla en `onCall`. El objetivo llega como segundo parámetro de la función, no en `request.data`, y `provisioningRequestSchema` es un `z.strictObject({ action })` (`:78`) que rechaza cualquier campo extra, así que hoy `uid`, `email` y `role` no caben en la petición: desplegarla es ensanchar el contrato de entrada de la superficie de autorización. Lo que ya trae hecho es la puerta del concedente, `requireAdminActor` más `requireOwner` (`:589-590`), de modo que solo `owner` concede y un `administrator` no puede ascender a nadie ni a sí mismo. Lo que le falta frente a la puerta hermana: `requireCanonicalMemberDirectoryActor` verifica App Check en el manejador (`canonical-actor.ts:83-85`) y esta no lo hace.',
 };
 
 /**
@@ -238,10 +240,11 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Aprovisionar en producción el documento de personal que falta para la cuenta de `administrator`, o decidir que se aprueba desde la cuenta de `owner`. DECISIÓN Y ESCRITURA PENDIENTES DEL OPERADOR: es producción y otorga escritura sobre el directorio canónico.",
+      "Decidir si se aprovisiona el documento de personal de `administrator` o se aprueba desde `owner`. DECIDIDO POR EL OPERADOR EL 2026-09-09 (D5): se aprueba desde `owner`, que ya pasa la puerta, y no se escribe nada en producción. La cuenta de `administrator` queda inservible para el directorio canónico a propósito; esa limitación la levanta T022V2.",
+      true,
     ),
     requirement(
-      "Aprobar a un solicitante real de punta a punta. No se cierra con un mensaje de error mejor.",
+      "Aprobar a un solicitante real de punta a punta desde la cuenta de `owner`. Es una acción en la sesión de producción del operador, no algo que el repositorio pueda hacer por él. No se cierra con un mensaje de error mejor.",
     ),
   ],
   T013V2: [
@@ -316,6 +319,26 @@ const RESOLUTION_REQUIREMENTS = {
       "Comprobar con datos reales que la columna se puebla para todos los miembros y no queda vacía en los importados.",
     ),
   ],
+  T022V2: [
+    requirement(
+      "Desplegar `provisionAdminRole` como callable: hoy `apps/functions/src/index.ts:11` la reexporta como función suelta y no como `onCall`, así que no existe en producción.",
+    ),
+    requirement(
+      "Ensanchar el contrato de entrada para que el objetivo viaje en `request.data`: hoy llega como segundo parámetro y `provisioningRequestSchema` es un `z.strictObject({ action })` que rechaza `uid`, `email` y `role`.",
+    ),
+    requirement(
+      "Verificar App Check en el manejador, como hace `requireCanonicalMemberDirectoryActor`: la puerta que concede el poder no puede ser más débil que la que protege ese poder.",
+    ),
+    requirement(
+      "Pruebas de que solo `owner` concede y de que un `administrator` no puede ascender a nadie ni a sí mismo.",
+    ),
+    requirement(
+      "Evidencia de que `admin.role.granted` queda escrito en la misma transacción que el documento de personal: es lo que un documento tecleado por consola no deja.",
+    ),
+    requirement(
+      "Aprovisionar por esa vía la cuenta de `administrator` y comprobar que después abre una fila de la cola. Es la limitación que D5 dejó declarada en T012V2.",
+    ),
+  ],
   T021V2: [
     requirement("Domicilio completo del segundo centro, BPT West / Strive, con código postal."),
     requirement(
@@ -350,7 +373,7 @@ const IMPLEMENTATION_OVERRIDES = {
   T012V2: {
     implementationStatus: "parcial",
     implementationEvidence:
-      "Causa localizada en producción el 2026-09-09: falta el documento de personal aprovisionado de la cuenta de administrator, y sin él toda callable detrás de la puerta canónica responde 403. Corregido ya el mensaje ciego que lo ocultaba, con pruebas. Falta la escritura en producción, que espera al operador.",
+      "Causa localizada en producción el 2026-09-09, y decidida el mismo día: se aprueba desde la cuenta de owner, que ya pasa la puerta, y no se escribe nada en producción. Corregido ya el mensaje ciego que lo ocultaba, con pruebas. Falta aprobar a un solicitante real desde owner, que es una acción en la sesión del operador.",
   },
 };
 
@@ -592,6 +615,20 @@ const adminItems = [
     [REF_TASKS],
     "funcion",
   ),
+  task(
+    "T022V2",
+    "Desplegar `provisionAdminRole` como callable, con su revisión de autorización",
+    "pendiente",
+    "Hoy no existe ninguna vía en producción para aprovisionar a un administrador.",
+    "-",
+    "Aplica D6. Es el único escritor del documento que exige la puerta canónica, y hoy se reexporta como función suelta, no como `onCall`. No es envolverla: el objetivo llega como segundo parámetro y `provisioningRequestSchema` rechaza cualquier campo extra, así que desplegarla ensancha el contrato de entrada de la superficie de autorización. Ya trae `requireOwner`; le falta verificar App Check en el manejador, como sí hace la puerta hermana.",
+    [
+      REF_TASKS,
+      "apps/functions/src/auth/admin-provisioning.ts:677",
+      "apps/functions/src/index.ts:11",
+    ],
+    "funcion",
+  ),
 ];
 
 const paymentItems = [
@@ -664,6 +701,7 @@ const projectData = {
     T019V2: "2026-09-09",
     T020V2: "2026-09-09",
     T021V2: "2026-09-09",
+    T022V2: "2026-09-09",
   },
   stages: [
     stage(
