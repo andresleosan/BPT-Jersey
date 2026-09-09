@@ -56,10 +56,12 @@ const RESOLUTION_NOTES = {
     'Bug confirmado el 2026-09-09: "Book a free class" apunta a `href="#contact"` en `apps/web/src/app/page.tsx:54` y `:230`, un ancla a su propia sección, por eso no hace nada visible. "Ask for a place" sí va a `/enrol`.',
   T005V2:
     "Comprobado el 2026-09-09: el texto mostrado y el PDF oficial de `Varios/` coinciden. `packages/domain/src/consents/enrolment-waiver-terms.ts` tiene las diez cláusulas, los mismos encabezados y los bullets de higiene. No hay texto que escribir.",
-  T006V2: "Decisión D3 del operador, 2026-09-09.",
+  T006V2:
+    'Decisión D3 del operador, 2026-09-09. Auditado el mismo día: reservar exige `studentId` y `membershipId`, y ninguno de los dos existe antes de la aprobación. `requireStudentScope` (`apps/functions/src/schedule/schedule-callables.ts:64-82`) rechaza a `shopper`, y el resolutor canónico busca al alumno en `academies/{id}/students` o en `relationships`, colecciones que solo escribe la ruta de aprobación. Entre `shopper` y `adultStudent`/`guardian` no hay estado intermedio: el claim salta de golpe. Invertir el orden no es mover una comprobación, es crear la identidad de alumno antes de aprobar o abrir una ruta de reserva propia para la clase de prueba.',
   T007V2:
-    "Hoy un único corte de una hora (`packages/domain/src/schedule/schedule-contracts.ts:813`) gobierna a la vez el cierre de reservas, el de cancelaciones y la cancelación automática por quórum (`:984`). Las 12 h son un tercer concepto y hay que añadirlas aparte: mover el corte de una hora rompería el quórum.",
-  T009V2: "Decisión D1 del operador, 2026-09-09.",
+    "Hoy un único corte de una hora gobierna a la vez el cierre de reservas, el de cancelaciones y la cancelación automática por quórum. Las 12 h son un tercer concepto y hay que añadirlas aparte: mover el corte de una hora rompería el quórum. Precisado el 2026-09-09: no es una constante, es el parámetro por defecto `cutoffMinutes = 60` de `isWithinBookingCutoff` (`schedule-contracts.ts:816`), y las tres llamadas pasan `60` a mano (`booking-transaction-service.ts:598` reservas, `:806` cancelación, `decideQuorumSweep` en `schedule-contracts.ts:1024`). Y el fee no está «limitado a Town» por costumbre: está clavado en el dominio. `noShowPenaltyLocationId = \"town\"` (`packages/domain/src/penalties/no-show-penalty-contracts.ts:14`) y `decideNoShowPenalty` devuelve `skipReason: \"otherSite\"` para cualquier otra sede. GBP 15 es `noShowPenaltyAmountMinor = 1_500`. La propuesta no la genera nada automático: es el callable `proposeNoShowPenalties({ sessionId })`, que un miembro del personal ejecuta sesión por sesión.",
+  T009V2:
+    'Decisión D1 del operador, 2026-09-09. Auditado el mismo día: hoy un menor no tiene cuenta de ninguna clase. `buildMinorStudent` (`apps/functions/src/families/family-service.ts:718-757`) nunca escribe `userId`, aunque el campo existe como opcional en `StudentProfile`, así que el enganche a una cuenta ya está previsto en el contrato. Los roles de cliente son solo `shopper`, `guardian` y `adultStudent`: haría falta uno nuevo. El único umbral de edad del dominio es 18, en línea dentro de `deriveParticipantType` (`packages/domain/src/profiles/profile-contracts.ts:300-319`); no hay 16 en ninguna parte. La DPIA es un borrador sin aprobar (`docs/operations/t011-dpia-draft.md`) y el calendario de retención (`t011-retention-residency-erasure-policy.md`, tabla en las líneas 99-112) advierte en su línea 7 de que ningún plazo está implementado: hoy el sistema no borra nada al vencer.',
   T010V2:
     "Hoy `apps/web/src/content/academy.ts:154-168` lista a Miro, Eddie, Topo y Charlie. Cada entrada exige `credential`, y no tenemos la de los tres instructores nuevos. No se inventan grados ni cinturones.",
   T011V2:
@@ -68,13 +70,14 @@ const RESOLUTION_NOTES = {
     'Diagnosticado en producción el 2026-09-09, y la causa no era ninguna de las cuatro que la fila listaba. Cloud Run registra «Callable request verification passed» y acto seguido HTTP 403 en `getEnrolmentRequestDetail`, `listMembers`, `getMemberDetail` y `lookupMemberIdentity`, mientras `listEnrolmentRequests` responde 200 en la misma sesión. Lo que las separa es la puerta: las que fallan exigen, además del claim, un documento de personal aprovisionado en `academies/{academyId}/users/{uid}`. En producción la cuenta de `owner` lo tiene y pasa; la de `administrator` tiene claims válidos y ningún documento, y por eso la cola se pinta y ninguna fila se abre. Los botones no están inertes: «Approve and enrol» está `disabled` a propósito hasta que cargue el detalle, y «Send back to applicant» funciona pero exige escribir la nota. El único escritor de ese documento, `provisionAdminRole`, no está desplegado como callable.',
   T013V2:
     'El panel ya tiene un bloque "Today\'s classes" en `apps/web/src/app/admin/overview-page.tsx`; lo que falta es su posición y el detalle de las sesiones que quedan.',
-  T015V2: "Open mat queda excluido por completo de esta regla.",
+  T015V2:
+    'Open mat queda excluido por completo de esta regla. Hallazgo del 2026-09-09 que cambia lo que cuesta la fila: **hoy la exclusión no se puede ni expresar**. `SessionRecord` (`packages/domain/src/schedule/schedule-contracts.ts:165`) no tiene tipo de sesión; el vocabulario `sessionTypes = ["class", "openMat"]` vive solo en el dominio de planes (`packages/domain/src/memberships/plan-contracts.ts:27`) y no llega a la sesión. Segundo hallazgo: **no existe ningún barrido programado**. Las dos únicas funciones `onSchedule` del proyecto limpian sesiones de importación de miembros, y hasta el barrido de quórum es el callable manual `reconcileSessionQuorum`. Tercero: la asistencia no es un campo de la reserva, es un registro aparte con su propio vocabulario (`attendanceStates`, `schedule-contracts.ts:1039`) frente a `bookingStatuses = ["requested", "confirmed", "cancelled"]` (`:752`), y `no_show` ya existe ahí.',
   T017V2:
     "El aviso de condición médica es dato de salud: gobierna quién puede leerlo, no solo cómo se muestra.",
   T018V2:
     "Hallazgo del 2026-09-09: `evaluateBookingEligibility` (`packages/domain/src/schedule/schedule-contracts.ts:911-953`) ya rechaza a quien no está `active` ni `trial`, es decir ya cubre `overdue`. Pero una búsqueda en `apps/` no encuentra ni una sola invocación: la regla existe en el dominio y no se aplica en ningún callable, así que hoy no bloquea a nadie.",
   T019V2:
-    "Comprobado el 2026-09-09: no hay concepto de retirada ni de centro en `packages/domain/src/shop`. Es construcción nueva, no un ajuste.",
+    'Comprobado el 2026-09-09: no hay concepto de retirada ni de centro en `packages/domain/src/shop`. Es construcción nueva, no un ajuste. Ampliado el mismo día: el pedido tampoco tiene referencia de pago, porque no hay pago online -`shopPaymentMethodNote` dice que se cobra en la academia al retirar-, así que «etiquetar el pago» no es añadir un campo a algo que ya existe. Del lado de finanzas, `invoiceReference` no se genera: lo teclea la oficina en el formulario de facturación y solo se valida y se usa como clave de idempotencia. Y «centro» está dicho de ocho maneras distintas en el repositorio, con dos mayúsculas incompatibles: `locationIds = ["town", "west"]` en horarios frente a `siteValues`, `trainingCenters` y `upcomingBirthdayTrainingCenters` en `["Town", "West"]`, más literales en línea en familias y en el informe operativo, más el `trainingCenter` de texto libre de la importación de Regyfit. Ya hay una traducción a mano entre las dos (`booking-transaction-service.ts:679`). Etiquetar pagos por centro sin unificar antes ese vocabulario reparte el problema en vez de resolverlo.',
   T020V2:
     'Comprobado el 2026-09-09: la columna "Training center" ya existe en `apps/web/src/app/admin/members/page.tsx:37-41`, y `trainingCenter` es campo persistido con valores Town/West en `apps/functions/src/profiles/profile-service.ts`.',
   T021V2:
@@ -128,6 +131,9 @@ const RESOLUTION_REQUIREMENTS = {
       "Decidir la identidad con la que se reserva la primera clase: crea cuenta, reserva, y luego aprobación.",
       true,
     ),
+    requirement(
+      "Decidir de dónde sale la identidad de alumno con la que se reserva antes de aprobar: un registro de alumno provisional, o una ruta de reserva propia para la clase de prueba que no exija `studentId` ni `membershipId`.",
+    ),
     requirement("Invertir el orden actual, en el que la aprobación precede a cualquier reserva."),
     requirement(
       "Crear el estado «pendiente con reserva»: ve su reserva y no puede reservar una segunda clase.",
@@ -151,7 +157,7 @@ const RESOLUTION_REQUIREMENTS = {
     ),
     requirement("Emitir la propuesta de penalización al cancelar dentro de las 12 h."),
     requirement(
-      "DECISIÓN PENDIENTE DEL OPERADOR: si la cancelación tardía en West también genera propuesta y por qué importe; el fee actual es de GBP 15 y está limitado a Town.",
+      "DECISIÓN PENDIENTE DEL OPERADOR: si la cancelación tardía en West también genera propuesta y por qué importe. El fee no está limitado a Town por costumbre: `noShowPenaltyLocationId` lo clava en el dominio y West sale por `skipReason: otherSite`, así que incluirla es cambiar esa regla, no configurarla.",
     ),
   ],
   T008V2: [
@@ -167,6 +173,9 @@ const RESOLUTION_REQUIREMENTS = {
     requirement(
       "Decidir el modelo de cuenta del menor: cuenta propia con alcance recortado.",
       true,
+    ),
+    requirement(
+      "Crear el rol de cliente que hoy no existe: los únicos son `shopper`, `guardian` y `adultStudent`, y enganchar la cuenta al `userId` que `StudentProfile` ya prevé y que `buildMinorStudent` nunca escribe.",
     ),
     requirement(
       "Permitir al representante añadir correo o teléfono al hijo, y que el menor inicie sesión con eso.",
@@ -239,6 +248,12 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T015V2: [
     requirement(
+      "Dar tipo a la sesión: hoy `SessionRecord` no distingue una clase de un open mat, así que la exclusión que pide la fila no se puede ni escribir.",
+    ),
+    requirement(
+      "Elegir cómo vence el contador sin barrido programado: el proyecto no tiene ninguno, ni siquiera para el quórum. O se añade una función `onSchedule`, o el vencimiento se evalúa en lectura por hora de sesión.",
+    ),
+    requirement(
       "Contador de 20 minutos desde el inicio de la clase: sin marcaje al vencer, se pierde la clase.",
     ),
     requirement(
@@ -275,6 +290,9 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T019V2: [
     requirement("Comprobar si el dominio de tienda ya modela centro o retirada.", true),
+    requirement(
+      "Unificar el vocabulario de centro antes de etiquetar nada: hoy se dice de ocho maneras y con dos mayúsculas incompatibles, ya traducidas a mano en la ruta de reserva.",
+    ),
     requirement("Etiquetar cada pago con el centro al que pertenece, en su referencia."),
     requirement(
       "Permitir elegir centro de retirada al comprar merchandising, y que esa elección etiquete el pago.",
