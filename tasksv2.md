@@ -43,7 +43,7 @@ y T020V2 (el centro de entrenamiento en la base de miembros).
 
 | ID   | Tarea atomica | Depende de | Estado | Evidencia de salida |
 | ---- | ------------- | ---------- | ------ | ------------------- |
-| T001V2 | Permitir vaciar por completo Nombre y Email en el formulario de inscripcion | - | revision | Causa localizada antes de abrir la fila: en `apps/web/src/app/enrol/page.tsx:378-385` el efecto de prellenado lleva `form.email.length` y `form.fullName.length` en su propio array de dependencias. Al borrar el ultimo caracter la longitud pasa a 0, el efecto se vuelve a ejecutar y reescribe el valor de la sesion. El arreglo es prellenar una sola vez -guarda de "ya sembrado" o dependencia solo de la sesion-, no ensanchar la condicion. Cierra con una prueba que borre el campo entero y afirme que sigue vacio tras el re-render. **ARREGLADO EL 2026-09-09.** El efecto ya no mira la longitud de los campos: siembra el valor de la sesion una sola vez y guarda en una referencia lo que sembro. Las dependencias quedan en `[session?.email, session?.displayName]`, y la guarda es `seededEmail.current !== email` en vez de `form.email.length === 0`. **Las dos mitades hacen falta y no son la misma:** quitar la longitud de las dependencias corta el re-render que reescribia el campo, y la referencia impide que un refresco de sesion que devuelve el mismo correo lo reescriba despues; ensanchar la condicion, que era la tentacion, no habria hecho ninguna de las dos. Un cambio de cuenta -correo distinto- si vuelve a sembrar, que es lo que un usuario espera al entrar con otra identidad. **Cinco pruebas nuevas en `apps/web/src/app/enrol/page.test.tsx`, cuatro de ellas rojas contra el codigo anterior:** vaciar Nombre y vaciar Email y seguir vacios tras escribir en otro campo, borrar tecla a tecla hasta la longitud 0 -que es el borde exacto donde fallaba, y que un `clear()` de golpe se salta-, y no resembrar un campo vaciado cuando la sesion se refresca sin cambios. La quinta afirma que la cortesia sigue viva: una sesion que llega despues del primer render -el caso real, porque el token se resuelve tarde- sigue rellenando los dos campos. Las doce pruebas que ya existian siguen verdes, incluida la que comprueba que el envio lleva `fullName` y `email` prellenados. `pnpm verify:mvp` en verde de punta a punta, codigo de salida 0. Queda en `revision`, y el tablero nombra el requisito que falta en vez de darla por cerrada: **desplegar el frontend**. Produccion sigue sirviendo el formulario anterior, asi que hoy la fila describe algo cierto en el repositorio y falso en la web. |
+| T001V2 | Permitir vaciar por completo Nombre y Email en el formulario de inscripcion | - | desplegada | Causa localizada antes de abrir la fila: en `apps/web/src/app/enrol/page.tsx:378-385` el efecto de prellenado lleva `form.email.length` y `form.fullName.length` en su propio array de dependencias. Al borrar el ultimo caracter la longitud pasa a 0, el efecto se vuelve a ejecutar y reescribe el valor de la sesion. El arreglo es prellenar una sola vez -guarda de "ya sembrado" o dependencia solo de la sesion-, no ensanchar la condicion. Cierra con una prueba que borre el campo entero y afirme que sigue vacio tras el re-render. **ARREGLADO EL 2026-09-09.** El efecto ya no mira la longitud de los campos: siembra el valor de la sesion una sola vez y guarda en una referencia lo que sembro. Las dependencias quedan en `[session?.email, session?.displayName]`, y la guarda es `seededEmail.current !== email` en vez de `form.email.length === 0`. **Las dos mitades hacen falta y no son la misma:** quitar la longitud de las dependencias corta el re-render que reescribia el campo, y la referencia impide que un refresco de sesion que devuelve el mismo correo lo reescriba despues; ensanchar la condicion, que era la tentacion, no habria hecho ninguna de las dos. Un cambio de cuenta -correo distinto- si vuelve a sembrar, que es lo que un usuario espera al entrar con otra identidad. **Cinco pruebas nuevas en `apps/web/src/app/enrol/page.test.tsx`, cuatro de ellas rojas contra el codigo anterior:** vaciar Nombre y vaciar Email y seguir vacios tras escribir en otro campo, borrar tecla a tecla hasta la longitud 0 -que es el borde exacto donde fallaba, y que un `clear()` de golpe se salta-, y no resembrar un campo vaciado cuando la sesion se refresca sin cambios. La quinta afirma que la cortesia sigue viva: una sesion que llega despues del primer render -el caso real, porque el token se resuelve tarde- sigue rellenando los dos campos. Las doce pruebas que ya existian siguen verdes, incluida la que comprueba que el envio lleva `fullName` y `email` prellenados. `pnpm verify:mvp` en verde de punta a punta, codigo de salida 0. **DESPLEGADA Y VERIFICADA EN PRODUCCION EL 2026-09-09**, y sin ningun paso manual: **el push a `main` despliega la web**. Cloudflare Pages esta conectado al repositorio por integracion de git -no hay job de despliegue en `.github/workflows/`-, asi que el propio push del commit `8805ac3` creo el despliegue `e90663bf` en Production sobre la rama `main`. Verificado leyendo produccion, no el panel: `bptjersey.pages.dev/enrol` sirve exactamente el mismo conjunto de chunks que `e90663bf.bptjersey.pages.dev/enrol`, asi que el alias de produccion apunta a ese build. **Y la prueba que de verdad cierra la fila es el marcador del bug en el bundle servido:** en el build anterior -`a6d9da7`, despliegue `39dd9b30`, todavia en pie- el trozo que contiene el formulario (`2qwekmyf1297t.js`) lleva `email.length` dos veces y `fullName.length` otras dos, que son la guarda y el array de dependencias del efecto roto; en el build que produccion sirve hoy esos cuatro marcadores **no aparecen en ningun chunk**. `.length` sobrevive a la minificacion -es un nombre de propiedad-, asi que su ausencia es una afirmacion sobre el codigo que corre, no sobre el que esta en el repositorio. **No se probo el comportamiento pulsando el formulario real**, porque exige una sesion iniciada; lo que se afirma es que el codigo desplegado es el arreglado, y el comportamiento lo cubren las cinco pruebas. |
 | T002V2 | Convertir el formulario en un asistente por pasos de 1 a 3 campos con barra de progreso | T001V2 | pendiente | El formulario actual presenta todos los campos de una vez (`apps/web/src/app/enrol/page.tsx`). Pasa a pasos de 3 campos como maximo, con barra de progreso y estado accesible en cada paso. La validacion se ejecuta por paso, no solo al enviar. Se conserva el estado ya escrito al retroceder. |
 | T003V2 | Impedir el zoom automatico de iOS al enfocar un campo | T002V2 | pendiente | En iOS Safari el navegador hace zoom cuando el campo enfocado tiene un tamano de fuente menor de 16 px. La correccion es tipografica y de viewport, no `maximum-scale=1`, que rompe el zoom por gesto y con el la accesibilidad. Cierra con evidencia en un dispositivo o emulacion movil real. |
 
@@ -221,32 +221,31 @@ ya empezo -no la cojas contra ella-; `sin empezar` es un choque futuro que se ev
 el orden; `ya cerrada` es una fila desplegada, aprobada o cancelada, que no compite con nadie
 y solo dice quien toco ese fichero el ultimo.
 
-Hoy hay **7 filas listas** de 23 abiertas, y ninguna con la superficie sin declarar. **1 fila esta en curso**: T001V2.
+Hoy hay **8 filas listas** de 22 abiertas, y ninguna con la superficie sin declarar. Ninguna fila esta en curso ahora mismo.
 
 | Fila | Estado | Toca | Puede ir a la vez que | Interfiere con |
 | ---- | ------ | ---- | --------------------- | -------------- |
-| T001V2 | **en curso** | `apps/web/src/app/enrol/page.tsx` | T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
-| T002V2 | pendiente | `apps/web/src/app/enrol/page.tsx` | espera a T001V2 | T001V2 (en curso) en `apps/web/src/app/enrol/page.tsx`<br>T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
-| T003V2 | pendiente | `apps/web/src/app/enrol/page.tsx`<br>`apps/web/src/app/enrol/enrol.css` | espera a T001V2, T002V2 | T001V2 (en curso) en `apps/web/src/app/enrol/page.tsx`<br>T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
-| T004V2 | pendiente | `apps/web/src/app/page.tsx`<br>`apps/web/src/lib/client-auth.tsx` | espera a T001V2, T002V2 | T011V2 (sin empezar) en `apps/web/src/app/page.tsx` |
-| T005V2 | lista | `packages/domain/src/consents/enrolment-waiver-terms.ts` | T001V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | - |
-| T006V2 | pendiente | `apps/functions/src/schedule/schedule-callables.ts`<br>`packages/domain/src/members/enrolment-request-contracts.ts` | espera a T001V2, T002V2, T004V2 | - |
-| T007V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/penalties/no-show-penalty-contracts.ts` | T001V2, T005V2, T008V2, T013V2, T020V2, T023V2 | T015V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T018V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts` |
-| T008V2 | lista | `apps/web/src/app/account/family/page.tsx` | T001V2, T005V2, T007V2, T013V2, T018V2, T020V2, T023V2 | - |
+| T002V2 | lista | `apps/web/src/app/enrol/page.tsx` | T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T001V2 (ya cerrada) en `apps/web/src/app/enrol/page.tsx` |
+| T003V2 | pendiente | `apps/web/src/app/enrol/page.tsx`<br>`apps/web/src/app/enrol/enrol.css` | espera a T002V2 | T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T001V2 (ya cerrada) en `apps/web/src/app/enrol/page.tsx` |
+| T004V2 | pendiente | `apps/web/src/app/page.tsx`<br>`apps/web/src/lib/client-auth.tsx` | espera a T002V2 | T011V2 (sin empezar) en `apps/web/src/app/page.tsx` |
+| T005V2 | lista | `packages/domain/src/consents/enrolment-waiver-terms.ts` | T002V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | - |
+| T006V2 | pendiente | `apps/functions/src/schedule/schedule-callables.ts`<br>`packages/domain/src/members/enrolment-request-contracts.ts` | espera a T002V2, T004V2 | - |
+| T007V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/penalties/no-show-penalty-contracts.ts` | T002V2, T005V2, T008V2, T013V2, T020V2, T023V2 | T015V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T018V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts` |
+| T008V2 | lista | `apps/web/src/app/account/family/page.tsx` | T002V2, T005V2, T007V2, T013V2, T018V2, T020V2, T023V2 | - |
 | T009V2 | pendiente | `apps/functions/src/families/family-service.ts`<br>`packages/domain/src/profiles/profile-contracts.ts`<br>`apps/web/src/lib/auth-client.ts`<br>`apps/functions/src/delivery/delivery-service.ts`<br>`docs/operations/t011-dpia-draft.md` | espera a T008V2 | - |
 | T010V2 | pendiente | `apps/web/src/content/academy.ts` | espera a T021V2 | T011V2 (sin empezar) en `apps/web/src/content/academy.ts` |
 | T011V2 | pendiente | `apps/web/src/content/academy.ts`<br>`apps/web/src/app/page.tsx` | espera a T021V2 | T004V2 (sin empezar) en `apps/web/src/app/page.tsx`<br>T010V2 (sin empezar) en `apps/web/src/content/academy.ts` |
-| T013V2 | lista | `apps/web/src/app/admin/overview-page.tsx` | T001V2, T005V2, T007V2, T008V2, T018V2, T020V2, T023V2 | T014V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T016V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T017V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
+| T013V2 | lista | `apps/web/src/app/admin/overview-page.tsx` | T002V2, T005V2, T007V2, T008V2, T018V2, T020V2, T023V2 | T014V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T016V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T017V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
 | T014V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | T013V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T016V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T017V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
 | T015V2 | pendiente | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/memberships/plan-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | espera a T013V2, T014V2 | T007V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T018V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T023V2 (sin empezar) en `apps/functions/src/schedule/booking-transaction-service.ts` |
 | T016V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | T013V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T014V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T017V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
 | T017V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | T013V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T014V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T016V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
 | T022V2 | bloqueada | `apps/functions/src/auth/admin-provisioning.ts`<br>`apps/functions/src/index.ts` | no esta lista | - |
 | T024V2 | pendiente | `apps/web/src/lib/schedule-client.ts`<br>`apps/functions/src/schedule/quorum-sweep-runner.ts` | espera a T013V2, T014V2, T015V2 | - |
-| T018V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`apps/functions/src/memberships/membership-callables.ts`<br>`packages/domain/src/finance/financial-dashboard.ts` | T001V2, T005V2, T008V2, T013V2, T020V2, T023V2 | T007V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T015V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts` |
+| T018V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`apps/functions/src/memberships/membership-callables.ts`<br>`packages/domain/src/finance/financial-dashboard.ts` | T002V2, T005V2, T008V2, T013V2, T020V2, T023V2 | T007V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T015V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts` |
 | T019V2 | pendiente | `apps/functions/src/finance/finance-service.ts`<br>`packages/domain/src/shop` | espera a T023V2 | - |
-| T020V2 | lista | `apps/web/src/app/admin/members/page.tsx`<br>`apps/functions/src/profiles/profile-service.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T023V2 | - |
-| T023V2 | lista | `packages/domain/src/families/family-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T020V2 | T015V2 (sin empezar) en `apps/functions/src/schedule/booking-transaction-service.ts` |
+| T020V2 | lista | `apps/web/src/app/admin/members/page.tsx`<br>`apps/functions/src/profiles/profile-service.ts` | T002V2, T005V2, T007V2, T008V2, T013V2, T018V2, T023V2 | - |
+| T023V2 | lista | `packages/domain/src/families/family-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | T002V2, T005V2, T007V2, T008V2, T013V2, T018V2, T020V2 | T015V2 (sin empezar) en `apps/functions/src/schedule/booking-transaction-service.ts` |
 | T021V2 | bloqueada | no toca codigo | no esta lista | - |
 
 <!-- REPARTO:FIN -->
@@ -290,53 +289,67 @@ peor que no repartir.
 tocar codigo y al terminar cada avance; despues, en el mismo cambio logico, se sincroniza
 `Listav2/Listav2.js`. Los dos archivos suben juntos.
 
+**El push a `main` despliega la web.** Cloudflare Pages esta conectado al repositorio por
+integracion de git, no por un job de `.github/workflows/`, asi que no hay un paso de despliegue que
+alguien pueda olvidar: cada push a `main` crea un despliegue de Production y el alias
+`bptjersey.pages.dev` pasa a servirlo. Tres consecuencias que conviene tener presentes. Una fila de
+frontend queda **desplegada** en cuanto su commit llega a `main`, no cuando alguien lo decida
+despues. Un commit a medias en `main` sale a produccion igual, asi que `pnpm verify:mvp` antes de
+empujar no es burocracia. Y las funciones **no** viajan en ese push: se despliegan aparte, por
+`firebase deploy --only functions:<nombre>`, con la via de `functions.configDir` que describen
+T025V2 y T022V2.
+
 Cuando el cambio afecte a que ficheros escribe una fila, se actualiza tambien su entrada en
 `TASK_SURFACES` y se regenera el bloque de reparto con `node Listav2/parallel-report.mjs`. La
 prueba `listav2-ledger-sync` falla si el bloque se queda viejo, asi que no depende de acordarse.
 
 ---
 
-## Grafo de conocimiento refrescado - 2026-09-09 (quinta vuelta, y el aviso anterior no estaba levantado)
+## Grafo de conocimiento refrescado - 2026-09-09 (sexta vuelta, y un fallo nuevo con nombre)
 
 `graphify-out/` esta en `.gitignore`, asi que el grafo no viaja en el repositorio: lo que viaja es
 esta nota.
 
-- **11 ficheros reextraidos**, 9 de codigo y 2 de documentacion -`tasksv2.md` y `Listav2.html`-. El
-  grafo pasa de **10.535 a 10.591 nodos** y de **23.463 a 23.568 aristas**; las comunidades, de 520
-  a **535**. Coste: 117.484 tokens de entrada en un solo subagente, 17 vueltas acumuladas.
-- Diagnostico de integridad: **limpio**. Cero aristas colgantes, cero extremos ausentes, cero bucles
-  y cero colapsos.
-- Los nombres de las 535 comunidades **no se reinventaron**: se traspasaron por contenido, mirando
-  que nombre tenian antes los nodos de cada comunidad nueva y quedandose con el mayoritario. 533
-  salieron heredadas y solo dos eran nuevas -«Pruebas de Interferencia del Tablero» y «Tipos del
-  Reparto de Trabajo»-. Reutilizarlos por numero de comunidad habria puesto nombres cruzados, porque
-  ese numero lo asigna el agrupamiento y cambia entre vueltas.
+- **5 ficheros reextraidos**, 4 de codigo y `tasksv2.md`. El grafo queda en **10.599 nodos** y
+  **23.579 aristas**, en **529 comunidades**. Coste: 105.531 tokens de entrada en un solo
+  subagente, 18 vueltas acumuladas.
+- Diagnostico de integridad: **limpio**. Cero aristas colgantes, cero extremos ausentes, cero
+  bucles y cero colapsos. Cero rutas absolutas en el grafo final.
+- Las 529 comunidades **heredaron todas su nombre por contenido**; ninguna era nueva.
+- Los dos pasos manuales que la vuelta anterior dejo escritos se dieron y volvieron a hacer falta:
+  **151 rutas normalizadas** a relativas antes de fusionar, y **9 etiquetas reimpuestas** despues
+  de `build_merge`. La regla de reimposicion se afino: dos de esas nueve la empeoraban, porque el
+  extractor AST nombra un fichero con su nombre pelado -`page.tsx`- donde el grafo ya tenia
+  `enrol/page.tsx`. **La extraccion mas reciente gana cuando describe un estado que cambio, no
+  cuando es la etiqueta vieja recortada.**
 
-**El aviso que la vuelta anterior daba por levantado volvio a aparecer, y conviene corregir aquella
-nota antes que nada.** Decia que el problema «queda levantado». No lo estaba: lo que se arreglo fue
-*aquella ejecucion*, no la herramienta. Los dos sintomas volvieron enteros en esta vuelta:
+**El fallo nuevo, que no es el de las vueltas anteriores: los identificadores de los nodos de
+concepto derivan de una etiqueta que el modelo elige, y esa etiqueta no es estable entre vueltas.**
+Esta vuelta el subagente llamo `tasksv2_orden_de_ejecucion_recomendado` a lo que antes era
+`tasksv2_orden_de_ejecucion`, y lo mismo con otros siete conceptos. Como `build_merge` borra del
+grafo todo lo que venia del fichero reextraido, el efecto es doble y silencioso: **un concepto
+renombrado desaparece con toda su historia de aristas y reaparece como nodo nuevo sin ninguna**, y
+**uno que el modelo simplemente no menciona esa vuelta desaparece sin dejar rastro**. Se vio porque
+el guarda de encogimiento de `to_json` se nego a escribir un grafo con 3 nodos menos; sin ese
+guarda habria pasado inadvertido, que es lo que probablemente lleva pasando varias vueltas.
 
-1. **Rutas mezcladas.** La extraccion AST escribe `source_file` relativo y el subagente semantico lo
-   escribe absoluto, porque es lo que su propia especificacion le manda -«verbatim and absolute»,
-   confiando en que el motor lo relativice despues-. El grafo base los guarda relativos, asi que sin
-   normalizar antes de fusionar el mismo fichero cuenta como dos. Esta vuelta: **185 rutas
-   normalizadas** a relativas antes del `build_merge`.
-2. **Etiquetas cruzadas.** Aun normalizando, `build_merge` reconcilio nueve nodos quedandose con la
-   etiqueta **vieja** y descartando la de hoy, incluido `tasksv2_t022v2`, que habria quedado como
-   `T022V2 - Desplegar provisionAdminRole como callable` -sin estado- en vez de `T022V2
-   (bloqueada)`. Se volvio a imponer la extraccion mas reciente a mano.
+Se arreglo sin forzar el guarda, con dos reglas y dejando la lista completa en el diff: los ocho
+pares declarados conservan el **id viejo** -que es el que tiene aristas desde otros ficheros- y
+toman la **etiqueta nueva**; y los once conceptos que la extraccion de hoy no menciono se
+restauraron con sus 27 aristas, porque el ledger de hoy no borro nada, solo crecio, asi que su
+desaparicion era una omision del modelo y no un hecho del proyecto.
 
-**Por que volvio:** el arreglo de la cuarta vuelta vivia en el guion de aquella sesion, no en
-graphify ni en este repositorio. Un arreglo que hay que acordarse de repetir no es un arreglo. Lo
-que lo haria duradero es un script propio en `Listav2/` o en `scripts/` que envuelva el refresco
-incremental -normalizar rutas, fusionar, imponer las etiquetas nuevas y comprobar nodo a nodo-, de
-modo que la proxima vuelta no dependa de que alguien lea esta nota. **No esta hecho**, y decirlo es
-mas util que volver a escribir que el problema esta resuelto.
+**Lo duradero sigue sin estar hecho, y ya son tres los pasos que habria que automatizar:**
+normalizar rutas, reimponer etiquetas -con la excepcion de la etiqueta recortada- y **pasarle al
+subagente la lista de ids que ya existen para ese fichero**, que es lo unico que corta la deriva de
+raiz en vez de repararla despues. Un guion en `Listav2/` o en `scripts/` que envuelva el refresco.
+Mientras no exista, cada vuelta depende de que alguien lea esta nota.
 
-**Comprobado nodo a nodo al terminar**, no supuesto: `T022V2` figura como `(bloqueada)`, `T025V2` y
-`T012V2` como `(desplegada)`, `T021V2` como `(bloqueada)`, y los nodos nuevos de hoy -los niveles de
-interferencia, la distincion entre fila lista y fila libre, `TASK_SURFACES` y `parallel-report.mjs`-
-estan en el grafo con su texto de hoy. Cero rutas absolutas en el grafo final.
+**Comprobado nodo a nodo al terminar**, no supuesto: `T001V2` figura como `(desplegada)`, `T012V2`
+y `T025V2` tambien, `T022V2` y `T021V2` como `(bloqueada)`, `T002V2` como `(pendiente)`. Los nodos
+nuevos de hoy -el push que despliega la web, Cloudflare Pages por integracion de git, el efecto de
+prellenado que siembra una vez- estan con su texto de hoy, y los once restaurados han vuelto con su
+etiqueta.
 
 Aun asi, **para el estado de una fila este fichero sigue mandando**. No por desconfianza en las
 etiquetas, que hoy estan bien, sino porque el grafo se refresca a mano y entre dos refrescos siempre
@@ -344,7 +357,7 @@ va por detras.
 
 **Como se refresca:** no hay un solo comando. Es la skill `graphify` en modo incremental
 -deteccion, extraccion AST, un subagente semantico por lote, **normalizacion de rutas a relativas**,
-fusion con `build_merge` podando los reextraidos, **reimposicion de las etiquetas recien extraidas**,
-traspaso de nombres de comunidad por contenido y `graphify export html`-, y el interprete que usa
-esta fijado en `graphify-out/.graphify_python`. Los dos pasos en negrita son los que la herramienta
-no hace sola y hay que acordarse de dar.
+fusion con `build_merge` podando los reextraidos, **reimposicion de las etiquetas recien
+extraidas**, **consolidacion de la deriva de ids**, traspaso de nombres de comunidad por contenido y
+`graphify export html`-, y el interprete que usa esta fijado en `graphify-out/.graphify_python`. Los
+tres pasos en negrita son los que la herramienta no hace sola.

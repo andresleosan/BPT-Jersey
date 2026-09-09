@@ -67,17 +67,17 @@ const RESOLUTION_NOTES = {
   T005V2:
     "Comprobado el 2026-09-09: el texto mostrado y el PDF oficial de `Varios/` coinciden. `packages/domain/src/consents/enrolment-waiver-terms.ts` tiene las diez cláusulas, los mismos encabezados y los bullets de higiene. No hay texto que escribir.",
   T006V2:
-    'Decisión D3 del operador, 2026-09-09. Auditado el mismo día: reservar exige `studentId` y `membershipId`, y ninguno de los dos existe antes de la aprobación. `requireStudentScope` (`apps/functions/src/schedule/schedule-callables.ts:64-82`) rechaza a `shopper`, y el resolutor canónico busca al alumno en `academies/{id}/students` o en `relationships`, colecciones que solo escribe la ruta de aprobación. Entre `shopper` y `adultStudent`/`guardian` no hay estado intermedio: el claim salta de golpe. Invertir el orden no es mover una comprobación, es crear la identidad de alumno antes de aprobar o abrir una ruta de reserva propia para la clase de prueba. Interrogada y decidida el 2026-09-09: se crea un alumno provisional con membresía `trial` en el registro y la clase de prueba viaja por la ruta de reserva única, porque `evaluateBookingEligibility` ya acepta `trial` y así el aforo, el quórum, los cortes, la asistencia y el contador de T015V2 se aplican sin escribir nada. Se descartó la ruta propia para no crear un segundo camino que toda regla futura tendría que acordarse de cubrir. El provisional no aparece en la base de miembros hasta ser aprobado; al rechazar, su membresía pasa a `cancelled`; el límite de una clase es un cupo de la propia membresía; la reserva cuenta para el mínimo de cuatro; y el aviso al administrador es uno solo, al reservar.',
+    "Decisión D3 del operador, 2026-09-09. Auditado el mismo día: reservar exige `studentId` y `membershipId`, y ninguno de los dos existe antes de la aprobación. `requireStudentScope` (`apps/functions/src/schedule/schedule-callables.ts:64-82`) rechaza a `shopper`, y el resolutor canónico busca al alumno en `academies/{id}/students` o en `relationships`, colecciones que solo escribe la ruta de aprobación. Entre `shopper` y `adultStudent`/`guardian` no hay estado intermedio: el claim salta de golpe. Invertir el orden no es mover una comprobación, es crear la identidad de alumno antes de aprobar o abrir una ruta de reserva propia para la clase de prueba. Interrogada y decidida el 2026-09-09: se crea un alumno provisional con membresía `trial` en el registro y la clase de prueba viaja por la ruta de reserva única, porque `evaluateBookingEligibility` ya acepta `trial` y así el aforo, el quórum, los cortes, la asistencia y el contador de T015V2 se aplican sin escribir nada. Se descartó la ruta propia para no crear un segundo camino que toda regla futura tendría que acordarse de cubrir. El provisional no aparece en la base de miembros hasta ser aprobado; al rechazar, su membresía pasa a `cancelled`; el límite de una clase es un cupo de la propia membresía; la reserva cuenta para el mínimo de cuatro; y el aviso al administrador es uno solo, al reservar.",
   T007V2:
-    "Hoy un único corte de una hora gobierna a la vez el cierre de reservas, el de cancelaciones y la cancelación automática por quórum. Las 12 h son un tercer concepto y hay que añadirlas aparte: mover el corte de una hora rompería el quórum. Precisado el 2026-09-09: no es una constante, es el parámetro por defecto `cutoffMinutes = 60` de `isWithinBookingCutoff` (`schedule-contracts.ts:816`), y las tres llamadas pasan `60` a mano (`booking-transaction-service.ts:598` reservas, `:806` cancelación, `decideQuorumSweep` en `schedule-contracts.ts:1024`). Y el fee no está «limitado a Town» por costumbre: está clavado en el dominio. `noShowPenaltyLocationId = \"town\"` (`packages/domain/src/penalties/no-show-penalty-contracts.ts:14`) y `decideNoShowPenalty` devuelve `skipReason: \"otherSite\"` para cualquier otra sede. GBP 15 es `noShowPenaltyAmountMinor = 1_500`. La propuesta no la genera nada automático: es el callable `proposeNoShowPenalties({ sessionId })`, que un miembro del personal ejecuta sesión por sesión. Interrogada y decidida el 2026-09-09: West también genera propuesta y por los mismos GBP 15, así que el identificador de sede pasa de constante a política por sede, lo que enmienda la decisión 2 del BRIEF. La banda real es de 12 h a 1 h, no de 12 h a 0, porque esa misma decisión ya cierra la cancelación una hora antes. La propuesta nace al cancelar, no en el barrido, porque `proposeNoShowPenalties` está indexado por asistencia y una reserva cancelada no produce registro de asistencia. Vive en la misma colección `noShowPenalties` con un motivo propio, y se retira sola si la sesión se cancela después por quórum.",
+    'Hoy un único corte de una hora gobierna a la vez el cierre de reservas, el de cancelaciones y la cancelación automática por quórum. Las 12 h son un tercer concepto y hay que añadirlas aparte: mover el corte de una hora rompería el quórum. Precisado el 2026-09-09: no es una constante, es el parámetro por defecto `cutoffMinutes = 60` de `isWithinBookingCutoff` (`schedule-contracts.ts:816`), y las tres llamadas pasan `60` a mano (`booking-transaction-service.ts:598` reservas, `:806` cancelación, `decideQuorumSweep` en `schedule-contracts.ts:1024`). Y el fee no está «limitado a Town» por costumbre: está clavado en el dominio. `noShowPenaltyLocationId = "town"` (`packages/domain/src/penalties/no-show-penalty-contracts.ts:14`) y `decideNoShowPenalty` devuelve `skipReason: "otherSite"` para cualquier otra sede. GBP 15 es `noShowPenaltyAmountMinor = 1_500`. La propuesta no la genera nada automático: es el callable `proposeNoShowPenalties({ sessionId })`, que un miembro del personal ejecuta sesión por sesión. Interrogada y decidida el 2026-09-09: West también genera propuesta y por los mismos GBP 15, así que el identificador de sede pasa de constante a política por sede, lo que enmienda la decisión 2 del BRIEF. La banda real es de 12 h a 1 h, no de 12 h a 0, porque esa misma decisión ya cierra la cancelación una hora antes. La propuesta nace al cancelar, no en el barrido, porque `proposeNoShowPenalties` está indexado por asistencia y una reserva cancelada no produce registro de asistencia. Vive en la misma colección `noShowPenalties` con un motivo propio, y se retira sola si la sesión se cancela después por quórum.',
   T009V2:
-    'Decisión D1 del operador, 2026-09-09. Auditado el mismo día: hoy un menor no tiene cuenta de ninguna clase. `buildMinorStudent` (`apps/functions/src/families/family-service.ts:718-757`) nunca escribe `userId`, aunque el campo existe como opcional en `StudentProfile`, así que el enganche a una cuenta ya está previsto en el contrato. Los roles de cliente son solo `shopper`, `guardian` y `adultStudent`: haría falta uno nuevo. El único umbral de edad del dominio es 18, en línea dentro de `deriveParticipantType` (`packages/domain/src/profiles/profile-contracts.ts:300-319`); no hay 16 en ninguna parte. La DPIA es un borrador sin aprobar (`docs/operations/t011-dpia-draft.md`) y el calendario de retención (`t011-retention-residency-erasure-policy.md`, tabla en las líneas 99-112) advierte en su línea 7 de que ningún plazo está implementado: hoy el sistema no borra nada al vencer. Interrogada y decidida el 2026-09-09: D1 prevalece sobre la decisión 6 del BRIEF, que decía literalmente que los menores no tienen cuenta propia y que se enmienda allí con fecha. Suelo de edad en 12, la línea que la academia ya traza entre Kids y Teens; sube a 13 si la DPIA acaba apoyándose en consentimiento. Hallazgo que le quita una pata a D1: «correo o teléfono» hoy es solo correo. Los proveedores cableados son Google y correo/contraseña; de teléfono no hay nada. Y el proyecto no puede enviar un correo a un tercero, porque `ExternalDeliveryProvider` devuelve siempre `skipped` con `provider_unconfigured` y no lo invoca ningún callable; ninguna función crea usuarios de Auth. Por eso la cuenta la crea el representante y le entrega el acceso, y eso se declara en la DPIA. Revocar quita el claim, desengancha el `userId` y deshabilita la cuenta de Auth. Se construye ya, pero no se despliega hasta que la DPIA esté aprobada.',
+    "Decisión D1 del operador, 2026-09-09. Auditado el mismo día: hoy un menor no tiene cuenta de ninguna clase. `buildMinorStudent` (`apps/functions/src/families/family-service.ts:718-757`) nunca escribe `userId`, aunque el campo existe como opcional en `StudentProfile`, así que el enganche a una cuenta ya está previsto en el contrato. Los roles de cliente son solo `shopper`, `guardian` y `adultStudent`: haría falta uno nuevo. El único umbral de edad del dominio es 18, en línea dentro de `deriveParticipantType` (`packages/domain/src/profiles/profile-contracts.ts:300-319`); no hay 16 en ninguna parte. La DPIA es un borrador sin aprobar (`docs/operations/t011-dpia-draft.md`) y el calendario de retención (`t011-retention-residency-erasure-policy.md`, tabla en las líneas 99-112) advierte en su línea 7 de que ningún plazo está implementado: hoy el sistema no borra nada al vencer. Interrogada y decidida el 2026-09-09: D1 prevalece sobre la decisión 6 del BRIEF, que decía literalmente que los menores no tienen cuenta propia y que se enmienda allí con fecha. Suelo de edad en 12, la línea que la academia ya traza entre Kids y Teens; sube a 13 si la DPIA acaba apoyándose en consentimiento. Hallazgo que le quita una pata a D1: «correo o teléfono» hoy es solo correo. Los proveedores cableados son Google y correo/contraseña; de teléfono no hay nada. Y el proyecto no puede enviar un correo a un tercero, porque `ExternalDeliveryProvider` devuelve siempre `skipped` con `provider_unconfigured` y no lo invoca ningún callable; ninguna función crea usuarios de Auth. Por eso la cuenta la crea el representante y le entrega el acceso, y eso se declara en la DPIA. Revocar quita el claim, desengancha el `userId` y deshabilita la cuenta de Auth. Se construye ya, pero no se despliega hasta que la DPIA esté aprobada.",
   T010V2:
     "Hoy `apps/web/src/content/academy.ts:154-168` lista a Miro, Eddie, Topo y Charlie. Cada entrada exige `credential`, y no tenemos la de los tres instructores nuevos. No se inventan grados ni cinturones.",
   T011V2:
     "El contenido tiene un único objeto de localización, Town Office (`academy.ts:48-53`), consumido como objeto único en la landing. `BPT West / Strive` solo existe como etiqueta de tarifa (`academy.ts:144`), sin domicilio.",
   T012V2:
-    'Diagnosticado en producción el 2026-09-09, y la causa no era ninguna de las cuatro que la fila listaba. Cloud Run registra «Callable request verification passed» y acto seguido HTTP 403 en `getEnrolmentRequestDetail`, `listMembers`, `getMemberDetail` y `lookupMemberIdentity`, mientras `listEnrolmentRequests` responde 200 en la misma sesión. Lo que las separa es la puerta: las que fallan exigen, además del claim, un documento de personal aprovisionado en `academies/{academyId}/users/{uid}`. En producción la cuenta de `owner` lo tiene y pasa; la de `administrator` tiene claims válidos y ningún documento, y por eso la cola se pinta y ninguna fila se abre. Los botones no están inertes: «Approve and enrol» está `disabled` a propósito hasta que cargue el detalle, y «Send back to applicant» funciona pero exige escribir la nota. El único escritor de ese documento, `provisionAdminRole`, no está desplegado como callable. Decidido por el operador el 2026-09-09 (D5): se aprueba desde la cuenta de `owner` y no se escribe nada en producción. Teclear el documento a mano lo haría válido para la puerta y no dejaría rastro de quién concedió ese poder, porque `provisionAdminRole` lo escribe en la misma transacción que toma el cerrojo de rol y emite `admin.role.granted`; y el esquema es un `z.strictObject` de catorce campos, con dos `Timestamp` reales, donde un campo de más o de menos deja el 403 intacto. La cuenta de `administrator` queda inservible para el directorio canónico a propósito, y esa limitación la levanta T022V2 (D6). CORREGIDO más tarde el mismo día: el diagnóstico estaba incompleto y la fila culpaba a quien no era. Probado en producción desde `owner`, el detalle sí abre, porque `enrolmentRequestDetail` pasa `requiresCanonicalReader: false` y se salta la comprobación de estado; pero aprobar falla igual, con `approval_write_failed`. La causa real es que el directorio canónico nunca se inicializó en producción, que es T025V2. Lo del documento de `administrator` sigue siendo cierto, pero aprovisionarlo no habría dado de alta a nadie.',
+    "Diagnosticado en producción el 2026-09-09, y la causa no era ninguna de las cuatro que la fila listaba. Cloud Run registra «Callable request verification passed» y acto seguido HTTP 403 en `getEnrolmentRequestDetail`, `listMembers`, `getMemberDetail` y `lookupMemberIdentity`, mientras `listEnrolmentRequests` responde 200 en la misma sesión. Lo que las separa es la puerta: las que fallan exigen, además del claim, un documento de personal aprovisionado en `academies/{academyId}/users/{uid}`. En producción la cuenta de `owner` lo tiene y pasa; la de `administrator` tiene claims válidos y ningún documento, y por eso la cola se pinta y ninguna fila se abre. Los botones no están inertes: «Approve and enrol» está `disabled` a propósito hasta que cargue el detalle, y «Send back to applicant» funciona pero exige escribir la nota. El único escritor de ese documento, `provisionAdminRole`, no está desplegado como callable. Decidido por el operador el 2026-09-09 (D5): se aprueba desde la cuenta de `owner` y no se escribe nada en producción. Teclear el documento a mano lo haría válido para la puerta y no dejaría rastro de quién concedió ese poder, porque `provisionAdminRole` lo escribe en la misma transacción que toma el cerrojo de rol y emite `admin.role.granted`; y el esquema es un `z.strictObject` de catorce campos, con dos `Timestamp` reales, donde un campo de más o de menos deja el 403 intacto. La cuenta de `administrator` queda inservible para el directorio canónico a propósito, y esa limitación la levanta T022V2 (D6). CORREGIDO más tarde el mismo día: el diagnóstico estaba incompleto y la fila culpaba a quien no era. Probado en producción desde `owner`, el detalle sí abre, porque `enrolmentRequestDetail` pasa `requiresCanonicalReader: false` y se salta la comprobación de estado; pero aprobar falla igual, con `approval_write_failed`. La causa real es que el directorio canónico nunca se inicializó en producción, que es T025V2. Lo del documento de `administrator` sigue siendo cierto, pero aprovisionarlo no habría dado de alta a nadie.",
   T013V2:
     'El panel ya tiene un bloque "Today\'s classes" en `apps/web/src/app/admin/overview-page.tsx`; lo que falta es su posición y el detalle de las sesiones que quedan.',
   T015V2:
@@ -93,13 +93,13 @@ const RESOLUTION_NOTES = {
   T021V2:
     "No se resuelve escribiendo código ni preguntando mejor: son datos que solo tiene el operador.",
   T023V2:
-    'Sale de la ronda del 2026-09-09 y bloquea a T019V2. «Centro» está dicho de ocho maneras con dos mayúsculas incompatibles, y tres de las capitalizadas están escritas en Firestore: `trainingCenter` en estudiantes, en el directorio de miembros y en familias, más `classSites`/`openMatSites` en los planes, más el `trainingCenter` de texto libre de la importación de Regyfit, cuyos valores son arbitrarios y no se arreglan con un `toLowerCase()`. Decidido: no se migra. La fila construye una única conversión canónica en el dominio que sustituya las cinco ternarias escritas a mano y las dos comparaciones literales, y que falle a la vista ante un valor inesperado. Ese es el bug real: `booking-transaction-service.ts:679` hace `locationId === \'town\' ? \'Town\' : \'West\'`, de modo que un tercer valor caería en silencio en West. La migración completa queda expresamente fuera de alcance.',
+    "Sale de la ronda del 2026-09-09 y bloquea a T019V2. «Centro» está dicho de ocho maneras con dos mayúsculas incompatibles, y tres de las capitalizadas están escritas en Firestore: `trainingCenter` en estudiantes, en el directorio de miembros y en familias, más `classSites`/`openMatSites` en los planes, más el `trainingCenter` de texto libre de la importación de Regyfit, cuyos valores son arbitrarios y no se arreglan con un `toLowerCase()`. Decidido: no se migra. La fila construye una única conversión canónica en el dominio que sustituya las cinco ternarias escritas a mano y las dos comparaciones literales, y que falle a la vista ante un valor inesperado. Ese es el bug real: `booking-transaction-service.ts:679` hace `locationId === 'town' ? 'Town' : 'West'`, de modo que un tercer valor caería en silencio en West. La migración completa queda expresamente fuera de alcance.",
   T025V2:
-    'Causa raíz real del alta rota, encontrada el 2026-09-09 leyendo producción: la colección `academies/demo-academy/memberDirectoryStates` está vacía y el documento `current` que toda lectura y toda escritura del directorio exigen no existe. La lectura lo pide en `assertCanonicalReader` y lanza `unavailable`, que Firebase mapea a HTTP 400: es el 400 de `listMembers` que aparece en la consola desde una sesión de `owner`. La escritura lo exige además junto al documento de guarda `memberDirectoryRestoreGuards/{academyId}`, y por eso `approveEnrolmentRequest` muere con `approval_write_failed`. No es un problema de la cuenta sino de la academia: afecta igual a `owner` y a `administrator`, así que aprovisionar al administrador nunca habría bastado. Y hoy no hay ninguna vía para arreglarlo: el inicializador es de emulador por diseño en cuatro capas -constante `demo-bpt-jersey`, `z.literal` del mismo valor, `target: \'emulator\'` y el rechazo `store.projectId !== projectId`-, su ejecutor clava el mismo proyecto y `index.ts` no lo exporta a propósito; además exige dieciocho colecciones vacías, incluida `auditEvents`, que producción ya tiene. Dato que tranquiliza: un intento fallido deja la solicitud en `approval-failed`, que sigue siendo aprobable, así que no hay nada atascado.',
+    "Causa raíz real del alta rota, encontrada el 2026-09-09 leyendo producción: la colección `academies/demo-academy/memberDirectoryStates` está vacía y el documento `current` que toda lectura y toda escritura del directorio exigen no existe. La lectura lo pide en `assertCanonicalReader` y lanza `unavailable`, que Firebase mapea a HTTP 400: es el 400 de `listMembers` que aparece en la consola desde una sesión de `owner`. La escritura lo exige además junto al documento de guarda `memberDirectoryRestoreGuards/{academyId}`, y por eso `approveEnrolmentRequest` muere con `approval_write_failed`. No es un problema de la cuenta sino de la academia: afecta igual a `owner` y a `administrator`, así que aprovisionar al administrador nunca habría bastado. Y hoy no hay ninguna vía para arreglarlo: el inicializador es de emulador por diseño en cuatro capas -constante `demo-bpt-jersey`, `z.literal` del mismo valor, `target: 'emulator'` y el rechazo `store.projectId !== projectId`-, su ejecutor clava el mismo proyecto y `index.ts` no lo exporta a propósito; además exige dieciocho colecciones vacías, incluida `auditEvents`, que producción ya tiene. Dato que tranquiliza: un intento fallido deja la solicitud en `approval-failed`, que sigue siendo aprobable, así que no hay nada atascado.",
   T024V2:
-    'Sale de la ronda del 2026-09-09, y no es una mejora: es el incumplimiento de una decisión aprobada. La decisión 3 del BRIEF promete que una tarea idempotente cancela la sesión que no reúne cuatro reservas una hora antes. Esa tarea no ocurre en producción: `reconcileSessionQuorum` es un callable de staff al que ningún cliente web llama, y el único runner en lote se declara en su cabecera como deliberadamente no programado, restringido al emulador demo por `assertQuorumSweepRunnerEnvironment` (`quorum-sweep-runner.ts:8-15`, `:74`). La regla pura `decideQuorumSweep` y el servicio transaccional idempotente ya existen y están probados: lo que falta es que algo los dispare.',
+    "Sale de la ronda del 2026-09-09, y no es una mejora: es el incumplimiento de una decisión aprobada. La decisión 3 del BRIEF promete que una tarea idempotente cancela la sesión que no reúne cuatro reservas una hora antes. Esa tarea no ocurre en producción: `reconcileSessionQuorum` es un callable de staff al que ningún cliente web llama, y el único runner en lote se declara en su cabecera como deliberadamente no programado, restringido al emulador demo por `assertQuorumSweepRunnerEnvironment` (`quorum-sweep-runner.ts:8-15`, `:74`). La regla pura `decideQuorumSweep` y el servicio transaccional idempotente ya existen y están probados: lo que falta es que algo los dispare.",
   T022V2:
-    'Decisión D6 del operador, 2026-09-09, salida de la pregunta 6 del ledger. `provisionAdminRole` (`apps/functions/src/auth/admin-provisioning.ts:677`) es el único escritor del documento de personal que exige la puerta canónica, y `apps/functions/src/index.ts:11` la reexporta como función suelta: no está desplegada. Convertirla no es envolverla en `onCall`. El objetivo llega como segundo parámetro de la función, no en `request.data`, y `provisioningRequestSchema` es un `z.strictObject({ action })` (`:78`) que rechaza cualquier campo extra, así que hoy `uid`, `email` y `role` no caben en la petición: desplegarla es ensanchar el contrato de entrada de la superficie de autorización. Lo que ya trae hecho es la puerta del concedente, `requireAdminActor` más `requireOwner` (`:589-590`), de modo que solo `owner` concede y un `administrator` no puede ascender a nadie ni a sí mismo. Lo que le falta frente a la puerta hermana: `requireCanonicalMemberDirectoryActor` verifica App Check en el manejador (`canonical-actor.ts:83-85`) y esta no lo hace.',
+    "Decisión D6 del operador, 2026-09-09, salida de la pregunta 6 del ledger. `provisionAdminRole` (`apps/functions/src/auth/admin-provisioning.ts:677`) es el único escritor del documento de personal que exige la puerta canónica, y `apps/functions/src/index.ts:11` la reexporta como función suelta: no está desplegada. Convertirla no es envolverla en `onCall`. El objetivo llega como segundo parámetro de la función, no en `request.data`, y `provisioningRequestSchema` es un `z.strictObject({ action })` (`:78`) que rechaza cualquier campo extra, así que hoy `uid`, `email` y `role` no caben en la petición: desplegarla es ensanchar el contrato de entrada de la superficie de autorización. Lo que ya trae hecho es la puerta del concedente, `requireAdminActor` más `requireOwner` (`:589-590`), de modo que solo `owner` concede y un `administrator` no puede ascender a nadie ni a sí mismo. Lo que le falta frente a la puerta hermana: `requireCanonicalMemberDirectoryActor` verifica App Check en el manejador (`canonical-actor.ts:83-85`) y esta no lo hace.",
 };
 
 /**
@@ -119,7 +119,8 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Desplegar el frontend, que es lo que hace que el solicitante deje de encontrarse el bug. PENDIENTE: el arreglo está en el repositorio y probado, pero producción sigue sirviendo el formulario anterior. Mientras esta casilla esté vacía, la fila describe algo cierto en el código y falso en la web.",
+      "Desplegar el frontend, que es lo que hace que el solicitante deje de encontrarse el bug. HECHO EL 2026-09-09, y sin ningún paso manual: **el push a `main` despliega la web**, porque Cloudflare Pages está conectado al repositorio por integración de git y no por un job de workflows. El push de `8805ac3` creó el despliegue `e90663bf` en Production, y `bptjersey.pages.dev` sirve ese build. Verificado en el bundle servido, no en el panel: el build anterior (`a6d9da7`) lleva `email.length` y `fullName.length` dos veces cada uno en el trozo que contiene el formulario, y el que producción sirve hoy no los lleva en ningún chunk. `.length` sobrevive a la minificación, así que su ausencia habla del código que corre.",
+      true,
     ),
   ],
   T002V2: [
@@ -177,27 +178,18 @@ const RESOLUTION_REQUIREMENTS = {
     requirement(
       "Crear el alumno provisional y su membresía `trial` en el registro, con su cupo de una reserva.",
     ),
-    requirement(
-      "Invertir el orden actual, en el que la aprobación precede a cualquier reserva.",
-    ),
+    requirement("Invertir el orden actual, en el que la aprobación precede a cualquier reserva."),
     requirement(
       "Aplicar la restricción en reglas y callables, no solo en la interfaz: una restricción solo de cliente no restringe nada.",
     ),
     requirement(
       "Excluir al provisional del directorio canónico y de `listMembers` hasta que se le apruebe.",
     ),
-    requirement(
-      "Transicionar la membresía a `cancelled` al rechazar la solicitud.",
-    ),
-    requirement(
-      "Disparar el aviso al administrador en el momento de la reserva.",
-    ),
+    requirement("Transicionar la membresía a `cancelled` al rechazar la solicitud."),
+    requirement("Disparar el aviso al administrador en el momento de la reserva."),
   ],
   T007V2: [
-    requirement(
-      "Localizar el corte de cancelación vigente y con qué más comparte código.",
-      true,
-    ),
+    requirement("Localizar el corte de cancelación vigente y con qué más comparte código.", true),
     requirement(
       "Decidir qué ocurre al cancelar tarde: se emite la propuesta de penalización de T111, que un administrador aprueba o descarta. Nunca cobro automático.",
       true,
@@ -227,18 +219,14 @@ const RESOLUTION_REQUIREMENTS = {
     requirement(
       "Convertir el identificador de sede de la penalización en política por sede, y enmendar la decisión 2 del BRIEF.",
     ),
-    requirement(
-      "Retirar la propuesta cuando la sesión se cancele por quórum.",
-    ),
+    requirement("Retirar la propuesta cuando la sesión se cancele por quórum."),
   ],
   T008V2: [
     requirement(
       "Marcaje de la asistencia de cada hijo desde el área de familia (`apps/web/src/app/account/family/page.tsx`).",
     ),
     requirement("Comprobar la relación tutor-menor en el servidor, no en el cliente."),
-    requirement(
-      "Evitar la doble asistencia cuando el staff ya marcó a ese mismo menor en T014V2.",
-    ),
+    requirement("Evitar la doble asistencia cuando el staff ya marcó a ese mismo menor en T014V2."),
   ],
   T009V2: [
     requirement(
@@ -283,9 +271,7 @@ const RESOLUTION_REQUIREMENTS = {
     requirement(
       "Reglas de Firestore que nieguen por defecto todo lo que quede fuera del alcance recortado.",
     ),
-    requirement(
-      "No desplegar hasta que la DPIA esté aprobada.",
-    ),
+    requirement("No desplegar hasta que la DPIA esté aprobada."),
   ],
   T010V2: [
     requirement("Localizar dónde vive hoy la lista de instructores.", true),
@@ -389,10 +375,7 @@ const RESOLUTION_REQUIREMENTS = {
     ),
   ],
   T019V2: [
-    requirement(
-      "Comprobar si el dominio de tienda ya modela centro o retirada.",
-      true,
-    ),
+    requirement("Comprobar si el dominio de tienda ya modela centro o retirada.", true),
     requirement(
       "DECIDIDO EL 2026-09-09: la etiqueta de una suscripción sale del `trainingCenter` del miembro, también en los planes que cruzan sedes, donde el centro es convención y no hecho.",
       true,
@@ -448,7 +431,7 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Elegir la cuenta que será el segundo owner, y que tiene que ser de Google. Corregido el 2026-09-09: NO puede ser admin@admin.com. Leyendo Auth, esa cuenta tiene proveedor `password` y ningún displayName, y el documento de personal que exige la puerta se valida contra `authProvider: z.literal(\"google\")` y `displayName` no vacío, lo mismo que exige `requireGoogleUser` en el escritor. Escribirle `authProvider: google` sería meter una afirmación falsa en el registro de autorización.",
+      'Elegir la cuenta que será el segundo owner, y que tiene que ser de Google. Corregido el 2026-09-09: NO puede ser admin@admin.com. Leyendo Auth, esa cuenta tiene proveedor `password` y ningún displayName, y el documento de personal que exige la puerta se valida contra `authProvider: z.literal("google")` y `displayName` no vacío, lo mismo que exige `requireGoogleUser` en el escritor. Escribirle `authProvider: google` sería meter una afirmación falsa en el registro de autorización.',
     ),
     requirement(
       "Aprovisionar por esa vía la cuenta elegida y comprobar que después abre una fila de la cola. Es la limitación que D5 dejó declarada en T012V2.",
@@ -511,8 +494,7 @@ const RESOLUTION_REQUIREMENTS = {
       "Redesplegar y volver a pulsar el botón. HECHO EL 2026-09-09: la callable devuelve 200 con alreadyInitialized false y listMembers pasa de 400 a 200 en la misma pantalla. Estado, guarda, evento cero y el evento de auditoría member.directory.initialized comparten timestamp exacto, que es la prueba de que fue una sola transacción, y el evento nombra al owner como actor.",
       true,
     ),
-    requirement(
-    ),
+    requirement(),
     requirement(
       "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2. HECHO EL 2026-09-09: approveEnrolmentRequest devuelve 200 con role adultStudent y un studentId nuevo, la solicitud pasa de approval-failed a approved, y el directorio canónico pasa de vacío a un estudiante escrito en students, studentIdentityKeys y studentAdminProfiles.",
       true,
@@ -621,7 +603,16 @@ function withImplementationDetails(item) {
   return { ...item, ...getImplementationDetails(item) };
 }
 
-function task(id, title, status, description, dependsOn = "-", evidence, references, kind = "funcion") {
+function task(
+  id,
+  title,
+  status,
+  description,
+  dependsOn = "-",
+  evidence,
+  references,
+  kind = "funcion",
+) {
   return {
     id,
     title,
@@ -645,7 +636,7 @@ const bugFormItems = [
   task(
     "T001V2",
     "Permitir vaciar por completo Nombre y Email",
-    "revision",
+    "desplegada",
     "Ya se pueden vaciar: el prellenado siembra una vez y no vuelve a tocarlos.",
     "-",
     "Causa localizada: el efecto de prellenado llevaba la longitud de los propios campos en sus dependencias, así que al llegar a cero se volvía a disparar y reescribía el valor de la sesión. Arreglado el 2026-09-09: siembra una vez, con guarda por referencia a lo ya sembrado, y las dependencias quedan solo en los valores de la sesión. Cinco pruebas nuevas, cuatro rojas contra el código anterior, incluida una que borra tecla a tecla hasta la longitud 0, que es el borde exacto donde fallaba. La cortesía sigue viva: una sesión que llega tarde sigue rellenando los dos campos.",
@@ -771,7 +762,11 @@ const adminItems = [
     "Ningún botón acepta al nuevo miembro: hoy no se puede dar de alta a nadie.",
     "T025V2",
     "Diagnosticada el 2026-09-09: la cuenta de administrator tiene claims válidos y ningún documento de personal aprovisionado, así que la cola carga y toda callable detrás de la puerta canónica responde 403. Falta la escritura en producción, que espera al operador.",
-    [REF_TASKS, "apps/web/src/app/admin/members/requests/page.tsx", "apps/web/src/lib/enrolment-client.ts"],
+    [
+      REF_TASKS,
+      "apps/web/src/app/admin/members/requests/page.tsx",
+      "apps/web/src/lib/enrolment-client.ts",
+    ],
     "bug",
   ),
   task(
@@ -982,7 +977,10 @@ const TASK_SURFACES = {
     "packages/domain/src/finance/financial-dashboard.ts",
   ],
   T019V2: ["apps/functions/src/finance/finance-service.ts", "packages/domain/src/shop"],
-  T020V2: ["apps/web/src/app/admin/members/page.tsx", "apps/functions/src/profiles/profile-service.ts"],
+  T020V2: [
+    "apps/web/src/app/admin/members/page.tsx",
+    "apps/functions/src/profiles/profile-service.ts",
+  ],
   // No toca codigo: lo que falta son datos que solo tiene el operador.
   T021V2: [],
   T022V2: ["apps/functions/src/auth/admin-provisioning.ts", "apps/functions/src/index.ts"],
@@ -1265,7 +1263,7 @@ const projectData = {
     "Ajustar Listav2.html o Listav2.css solo cuando cambie la estructura o la presentación.",
     "Subir tasksv2.md y los archivos de Listav2 juntos en el mismo cambio lógico.",
     "Refrescar el grafo de graphify al cerrar una sesión de trabajo, y dejar la nota en tasksv2.md: `graphify-out/` está en .gitignore, así que el grafo no viaja en el repositorio y la nota es lo único que queda. Para el estado de una fila manda tasksv2.md, nunca el grafo: una etiqueta suya puede quedar desactualizada.",
-    "En ese refresco hay dos pasos que graphify no da solo y que hay que dar a mano, comprobado dos vueltas seguidas: normalizar a relativas las rutas `source_file` de la extracción antes de fusionar -el subagente semántico las escribe absolutas y el grafo las guarda relativas, así que sin eso el mismo fichero cuenta como dos-, y volver a imponer las etiquetas recién extraídas después de `build_merge`, que reconcilia quedándose con la vieja. Sin el segundo paso, una fila cuyo estado cambió hoy queda en el grafo con el estado de ayer. Comprobar nodo a nodo al terminar, no suponerlo.",
+    "En ese refresco hay tres pasos que graphify no da solo y que hay que dar a mano. Uno: normalizar a relativas las rutas `source_file` de la extracción antes de fusionar, porque el subagente semántico las escribe absolutas y el grafo las guarda relativas, así que sin eso el mismo fichero cuenta como dos. Dos: volver a imponer las etiquetas recién extraídas después de `build_merge`, que reconcilia quedándose con la vieja —con una excepción, que la etiqueta nueva no gane cuando es la vieja recortada, como cuando el extractor AST llama `page.tsx` a lo que el grafo tenía como `enrol/page.tsx`—. Tres: consolidar la deriva de identificadores, porque el id de un nodo de concepto sale de la etiqueta que elige el modelo y esa etiqueta cambia entre vueltas, así que un concepto renombrado pierde toda su historia de aristas y uno no mencionado desaparece. Comprobar nodo a nodo al terminar, no suponerlo.",
   ],
 };
 
