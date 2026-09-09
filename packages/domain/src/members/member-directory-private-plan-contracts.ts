@@ -7,6 +7,8 @@ import {
   type MemberDirectoryDryRunClassification,
   type MemberDirectoryOperationReceipt,
 } from "./member-directory-migration-contracts";
+import { trainingTimePreferences } from "../profiles/profile-contracts";
+
 import {
   memberDirectoryMaxChunksPerOperation,
   memberDirectoryMaxRowsPerChunk,
@@ -75,6 +77,22 @@ const manifestFamilyBindingSchema = z
   })
   .readonly();
 
+/**
+ * The training-time preferences a created student is given.
+ *
+ * They are reviewed rather than derived because the legacy record has no equivalent field at all,
+ * so a default would be exactly the silent guess invariant 11 forbids for the training center. They
+ * belong to the manifest and not to the executor's caller because the manifest is the artifact a
+ * human approved and the MAC covers: a preference supplied at commit time would be a value nobody
+ * reviewed reaching a document the plan already claims to describe.
+ */
+const manifestTrainingTimePreferencesSchema = z
+  .array(z.enum(trainingTimePreferences))
+  .min(1)
+  .max(trainingTimePreferences.length)
+  .refine((values) => new Set(values).size === values.length, "Preferences must not repeat")
+  .readonly();
+
 const manifestRowSchema = z
   .strictObject({
     /** The `members/{sourceLegacyId}` document this row migrates. */
@@ -93,6 +111,8 @@ const manifestRowSchema = z
     reviewedReason: reviewedReasonSchema.optional(),
     /** Present for, and only for, a match against an existing minor. */
     family: manifestFamilyBindingSchema.optional(),
+    /** Present for, and only for, a row that creates a student. */
+    trainingTimePreferences: manifestTrainingTimePreferencesSchema.optional(),
   })
   .superRefine((row, context) => {
     const isMatch = row.classification !== "createable-adult";
@@ -117,6 +137,22 @@ const manifestRowSchema = z
         code: "custom",
         path: ["family"],
         message: "A created student is an adult and binds no family",
+      });
+    }
+    if (!isMatch && row.trainingTimePreferences === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["trainingTimePreferences"],
+        message: "A created student must carry its reviewed training time preferences",
+      });
+    }
+    if (isMatch && row.trainingTimePreferences !== undefined) {
+      // A match writes no student document, so preferences on one would be a reviewed value with
+      // nowhere to land - and a reader could reasonably expect them to have been applied.
+      context.addIssue({
+        code: "custom",
+        path: ["trainingTimePreferences"],
+        message: "A matched student keeps its own training time preferences",
       });
     }
     if (row.classification === "same-id-compatible" && row.targetStudentId !== row.sourceLegacyId) {

@@ -35,6 +35,7 @@ function manifestValue(overrides: Readonly<Record<string, unknown>> = {}) {
         sourceRowMac: mac("a"),
         classification: "createable-adult",
         targetStudentId: "student-new-8001",
+        trainingTimePreferences: ["evening"],
       },
       {
         sourceLegacyId: "LEGACY-8002",

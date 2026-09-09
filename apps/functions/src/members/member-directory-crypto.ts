@@ -203,6 +203,25 @@ export function createMemberDirectoryIntegrityMac(
 export type MemberDirectoryOutputWrite = Readonly<{ path: string; data: unknown }>;
 
 /**
+ * The canonical content MAC of one document a chunk writes (T108).
+ *
+ * It has two readers that must agree byte for byte: the chunk output-set MAC folds these leaves
+ * into the root a receipt carries, and the frozen output plan stores one per planned target as its
+ * `contentMac`. Two spellings of "the MAC of this document at this path" would produce a plan whose
+ * targets could never be reconciled against the receipt that approved them, and the mismatch would
+ * only surface once chunks had already written.
+ */
+export function createMemberDirectoryOutputLeafMac(
+  input: Readonly<{ path: string; data: unknown; secretMaterial: string }>,
+): string {
+  return createMemberDirectoryIntegrityMac({
+    domain: "bpt-member-directory-chunk-output-leaf-v1",
+    values: [input.path, canonicalizeMemberDirectoryValue(input.data)],
+    secretMaterial: input.secretMaterial,
+  });
+}
+
+/**
  * The output-set MAC of one migration chunk (T108): a sorted leaf-per-document MAC folded into a
  * root bound to the chunk that produced it.
  *
@@ -229,9 +248,9 @@ export function createMemberDirectoryChunkOutputSetMac(
         throw new Error("A member directory chunk cannot write the same document twice");
       }
       seenPaths.add(write.path);
-      return createMemberDirectoryIntegrityMac({
-        domain: "bpt-member-directory-chunk-output-leaf-v1",
-        values: [write.path, canonicalizeMemberDirectoryValue(write.data)],
+      return createMemberDirectoryOutputLeafMac({
+        path: write.path,
+        data: write.data,
         secretMaterial: input.secretMaterial,
       });
     })

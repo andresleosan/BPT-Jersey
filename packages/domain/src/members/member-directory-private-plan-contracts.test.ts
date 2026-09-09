@@ -27,6 +27,7 @@ function createRow(overrides: Readonly<Record<string, unknown>> = {}) {
     sourceRowMac: mac("a"),
     classification: "createable-adult",
     targetStudentId: "student-new-8001",
+    trainingTimePreferences: ["evening"],
     ...overrides,
   };
 }
@@ -163,6 +164,41 @@ describe("member directory private manifest", () => {
         }),
       ),
     ).toThrow(/may not map to one student/u);
+  });
+
+  /**
+   * The training-time preferences have no legacy counterpart at all, so a created student either
+   * carries the ones a reviewer chose or is not a row this manifest can describe. A match carries
+   * none, because it writes no student document and preferences on one would look applied.
+   */
+  it("requires reviewed preferences on a create and refuses them on a match", () => {
+    expect(() =>
+      memberDirectoryPrivateManifestSchema.parse(
+        manifestValue({
+          rows: [
+            {
+              sourceLegacyId: "LEGACY-8001",
+              sourceUpdatedAt: "2026-09-01T00:00:00.000Z",
+              sourceRowMac: mac("a"),
+              classification: "createable-adult",
+              targetStudentId: "student-new-8001",
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/must carry its reviewed training time preferences/u);
+
+    expect(() =>
+      memberDirectoryPrivateManifestSchema.parse(
+        manifestValue({ rows: [matchRow({ trainingTimePreferences: ["evening"] })] }),
+      ),
+    ).toThrow(/keeps its own training time preferences/u);
+
+    expect(() =>
+      memberDirectoryPrivateManifestSchema.parse(
+        manifestValue({ rows: [createRow({ trainingTimePreferences: ["evening", "evening"] })] }),
+      ),
+    ).toThrow(/must not repeat/u);
   });
 
   /**

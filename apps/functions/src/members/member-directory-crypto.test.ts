@@ -5,7 +5,9 @@ import {
   buildStudentIdentityKey,
   canonicalizeMemberDirectoryValue,
   constantTimeMacEquals,
+  createMemberDirectoryChunkOutputSetMac,
   createMemberDirectoryIntegrityMac,
+  createMemberDirectoryOutputLeafMac,
   buildStudentIdentityKeyTuple,
   decodeMemberDirectorySecret,
   encodeLengthPrefixedUtf8,
@@ -198,6 +200,65 @@ describe("student identity key tuples", () => {
     expect(() => parseStudentIdentityKeyTuple(crossed)).toThrow(
       /Invalid student identity key tuple/u,
     );
+  });
+
+  /**
+   * The leaf binds the path as well as the content, so the MAC answers "this document, here"
+   * rather than "some document with this body". Without it two identical documents at two paths
+   * fold to one leaf, and a chunk that wrote the right content to the wrong path would still
+   * produce a root its receipt accepts.
+   */
+  it("binds an output leaf to the path it was written at", () => {
+    const data = { studentId: "student-1", schemaVersion: "1" };
+    const here = createMemberDirectoryOutputLeafMac({
+      path: "academies/academy-1/students/student-1",
+      data,
+      secretMaterial: integritySecret,
+    });
+    const there = createMemberDirectoryOutputLeafMac({
+      path: "academies/academy-1/studentAdminProfiles/student-1",
+      data,
+      secretMaterial: integritySecret,
+    });
+    expect(here).not.toBe(there);
+
+    // And the root that folds them inherits the distinction, in both orders: the leaves are sorted,
+    // so this proves the set changed rather than the order it was emitted in.
+    const root = (paths: readonly string[]): string =>
+      createMemberDirectoryChunkOutputSetMac({
+        chunkId: "op-1:forward:1",
+        phase: "forward",
+        writes: paths.map((path) => ({ path, data })),
+        secretMaterial: integritySecret,
+      });
+    expect(root(["academies/academy-1/students/student-1"])).not.toBe(
+      root(["academies/academy-1/studentAdminProfiles/student-1"]),
+    );
+    expect(
+      root([
+        "academies/academy-1/students/student-1",
+        "academies/academy-1/studentAdminProfiles/student-1",
+      ]),
+    ).toBe(
+      root([
+        "academies/academy-1/studentAdminProfiles/student-1",
+        "academies/academy-1/students/student-1",
+      ]),
+    );
+  });
+
+  it("refuses to fold one document into an output set twice", () => {
+    expect(() =>
+      createMemberDirectoryChunkOutputSetMac({
+        chunkId: "op-1:forward:1",
+        phase: "forward",
+        writes: [
+          { path: "academies/academy-1/students/student-1", data: { a: 1 } },
+          { path: "academies/academy-1/students/student-1", data: { a: 2 } },
+        ],
+        secretMaterial: integritySecret,
+      }),
+    ).toThrow(/cannot write the same document twice/u);
   });
 
   it("refuses a tuple with the wrong number of fields or an unreadable one", () => {
