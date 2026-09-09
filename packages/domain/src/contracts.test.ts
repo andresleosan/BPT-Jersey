@@ -247,6 +247,7 @@ describe("domain contracts", () => {
       "enrolment.request.approved",
       "enrolment.request.approval.failed",
       "enrolment.request.detail.read",
+      "member.directory.initialized",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

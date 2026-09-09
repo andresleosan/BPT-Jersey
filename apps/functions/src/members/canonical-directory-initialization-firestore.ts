@@ -9,6 +9,36 @@ import {
   type CanonicalDirectoryInitializationStore,
 } from "./canonical-directory-initialization.js";
 
+/**
+ * The audit event that records who initialized the directory.
+ *
+ * It lives in its own exported function, and takes no shortcut through the type system, because the
+ * first version of this file cast the draft with `as unknown as AuditEventDraft`. The cast silenced
+ * the one error that mattered: `member.directory.initialized` was not in the domain's action
+ * catalogue, so the draft was rejected at run time and the whole initialization failed with
+ * `invalid-argument` - in production, from the operator's own click. Built here and typed honestly,
+ * an action that the domain does not know stops compiling, and the shape can be checked by a test
+ * against the real parser instead of against a fake store.
+ */
+export function buildInitializationAuditDraft(
+  input: Readonly<{
+    academyId: string;
+    actorId: string;
+    action: "member.directory.initialized";
+    auditEventId: string;
+  }>,
+): AuditEventDraft {
+  return {
+    academyId: input.academyId as AuditEventDraft["academyId"],
+    actorId: input.actorId as AuditEventDraft["actorId"],
+    action: input.action,
+    targetRef: statePath(input.academyId),
+    purpose: "canonical member directory initialization",
+    correlationId:
+      `${input.actorId}:${input.academyId}:${input.auditEventId}` as AuditEventDraft["correlationId"],
+  };
+}
+
 function statePath(academyId: string): string {
   return `academies/${academyId}/memberDirectoryStates/current`;
 }
@@ -87,14 +117,16 @@ export function createCanonicalDirectoryInitializationFirestoreStore(
           );
         }
 
-        appendAuditEventInTransaction(transaction, auditReference, {
-          academyId,
-          actorId,
-          action: auditAction,
-          targetRef: statePath(academyId),
-          purpose: "canonical member directory initialization",
-          correlationId: `${actorId}:${academyId}:${auditReference.id}`,
-        } as unknown as AuditEventDraft);
+        appendAuditEventInTransaction(
+          transaction,
+          auditReference,
+          buildInitializationAuditDraft({
+            academyId,
+            actorId,
+            action: auditAction,
+            auditEventId: auditReference.id,
+          }),
+        );
         transaction.create(stateReference, documents.state);
         transaction.create(guardReference, documents.guard);
         transaction.create(eventReference, documents.event);

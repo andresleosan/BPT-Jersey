@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { auditActions, parseAuditEventDraft } from "@bpt-jersey/domain/audit";
+
+import { buildInitializationAuditDraft } from "./canonical-directory-initialization-firestore.js";
 import {
   assertCanonicalMemberDirectoryWriterReady,
   selectAdminDirectoryReader,
@@ -137,6 +140,24 @@ describe("canonicalDirectoryRequiredEmptyCollections", () => {
     // rule would block the repair forever while protecting nothing: the log is append-only and
     // records attempts, never directory state.
     expect(canonicalDirectoryRequiredEmptyCollections).not.toContain("auditEvents");
+  });
+
+  it("writes an audit draft the domain actually accepts", () => {
+    // The regression this fixes reached production: the draft was cast with
+    // `as unknown as AuditEventDraft`, the action was missing from the domain catalogue, and the
+    // only test asserted the action's *name* against a fake store - which a fake store will always
+    // agree with. The parser is the thing that has to agree, so the parser is what is asked here.
+    const draft = buildInitializationAuditDraft({
+      academyId: "demo-academy",
+      actorId: "Y1feAnNSzGdP5sGxlA7smeGk8H32",
+      action: "member.directory.initialized",
+      auditEventId: "audit-1",
+    });
+
+    expect(auditActions).toContain("member.directory.initialized");
+    const parsed = parseAuditEventDraft(draft);
+    expect(parsed.ok).toBe(true);
+    expect(draft.targetRef).toBe("academies/demo-academy/memberDirectoryStates/current");
   });
 
   it("does not require an empty legacy member collection", () => {

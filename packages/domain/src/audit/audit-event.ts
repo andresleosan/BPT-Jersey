@@ -74,6 +74,7 @@ export const auditActions = Object.freeze([
   "enrolment.request.approved",
   "enrolment.request.approval.failed",
   "enrolment.request.detail.read",
+  "member.directory.initialized",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -189,7 +190,8 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "enrolment.request.returned"
           | "enrolment.request.withdrawn"
           | "enrolment.request.approved"
-          | "enrolment.request.approval.failed";
+          | "enrolment.request.approval.failed"
+          | "member.directory.initialized";
       }>
     | Readonly<{
         action: "invoice.created" | "invoice.voided" | "invoice.status.changed";
@@ -340,6 +342,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "enrolment.request.approved": commonFields,
   "enrolment.request.approval.failed": commonFields,
   "enrolment.request.detail.read": restrictedMemberReadFields,
+  "member.directory.initialized": commonFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
     "imported",

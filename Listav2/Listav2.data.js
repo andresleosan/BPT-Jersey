@@ -473,7 +473,15 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Que el owner pulse el botón una vez en https://bptjersey.pages.dev/admin/members. Es lo único que el repositorio no puede hacer.",
+      "Pulsar el botón desde owner. HECHO EL 2026-09-09, y falló: la callable devolvió 400 INVALID_ARGUMENT «Invalid audit event draft» y la transacción no escribió nada. La página hizo su parte entera y App Check y Auth se verificaron VALID.",
+      true,
+    ),
+    requirement(
+      "Arreglar la causa: `member.directory.initialized` no estaba en el catálogo `auditActions` del dominio, así que el propio evento de auditoría que esta fila añade era lo que impedía inicializar. No lo cazó nada porque el adaptador casteaba el borrador con `as unknown as AuditEventDraft` y la única prueba afirmaba el nombre contra un almacén falso. HECHO: la acción entra en el dominio, el casteo desaparece a favor de `buildInitializationAuditDraft` tipado de verdad, y una prueba nueva pasa el borrador por el parser real.",
+      true,
+    ),
+    requirement(
+      "Redesplegar y volver a pulsar el botón. Es lo que queda.",
     ),
     requirement(
       "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2.",
@@ -807,7 +815,7 @@ const adminItems = [
     "en-progreso",
     "Nunca se inicializó, y sin su documento de estado no se puede dar de alta a nadie.",
     "-",
-    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Preparando el despliegue se midió que la colección members tiene 243 registros reales del PDF y era la primera de las once que la precondición exigía vacías: el botón habría fallado. members no es el directorio canónico sino el origen de la migración forward, que a su vez exige el estado que solo el inicializador escribe, así que exigirla vacía dejaba a la academia sin poder inicializar ni migrar. Decisión D7: sale de la lista y quedan diez. Desplegada en producción el mismo día y verificada: ACTIVE, 401 al sondeo anónimo, 71 funciones. Falta solo que el owner pulse el botón una vez.",
+    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Preparando el despliegue se midió que la colección members tiene 243 registros reales del PDF y era la primera de las once que la precondición exigía vacías: el botón habría fallado. members no es el directorio canónico sino el origen de la migración forward, que a su vez exige el estado que solo el inicializador escribe, así que exigirla vacía dejaba a la academia sin poder inicializar ni migrar. Decisión D7: sale de la lista y quedan diez. Desplegada en producción el mismo día y verificada: ACTIVE, 401 al sondeo anónimo, 71 funciones. Al pulsarla desde owner falló con 400 INVALID_ARGUMENT «Invalid audit event draft», sin escribir nada: la acción member.directory.initialized no estaba en el catálogo del dominio y un doble casteo impedía que el compilador lo dijera. Arreglado el mismo día. Falta redesplegar y volver a pulsar.",
     [
       REF_TASKS,
       "apps/functions/src/members/canonical-member-directory-read-service.ts:302-343",
