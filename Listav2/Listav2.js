@@ -423,7 +423,8 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Desplegarla en producción, que es lo que la hace existir. PENDIENTE: declararla no la despliega, y hasta que el despliegue no esté hecho sigue sin haber ninguna vía para aprovisionar a un administrador.",
+      "Desplegarla en producción, que es lo que la hace existir. HECHO EL 2026-09-09 desde el commit 626170f, por la misma vía que T025V2: `functions.configDir` en una configuración temporal, con el valor del gate del waiver que producción ya llevaba y sin commitear ninguno. El inventario pasa de 71 a 72 funciones, el log solo registra una creación y ninguna retirada, `gcloud functions describe` la da ACTIVE, y el sondeo anónimo con cuerpo bien formado devuelve 401 UNAUTHENTICATED: la puerta se cierra antes de mirar el cuerpo.",
+      true,
     ),
     requirement(
       "Ensanchar el contrato de entrada para que el objetivo viaje en `request.data`: hoy llega como segundo parámetro y `provisioningRequestSchema` es un `z.strictObject({ action })` que rechaza `uid`, `email` y `role`. HECHO EL 2026-09-09 con una unión de dos formas estrictas, no relajando la que había: `{ action }` para la costura interna y `{ action, uid, email, role }` para el navegador. Las dos siguen rechazando cualquier campo de más, así que `{ action, uid }` no encaja en ninguna; y `action` es obligatoria en la forma del navegador, para que una concesión de poder no salga de una omisión.",
@@ -821,10 +822,10 @@ const adminItems = [
   task(
     "T022V2",
     "Desplegar `provisionAdminRole` como callable, con su revisión de autorización",
-    "en-progreso",
-    "Hoy no existe ninguna vía en producción para aprovisionar a un administrador.",
+    "bloqueada",
+    "Ya existe la vía en producción; falta que el operador diga qué cuenta de Google será el segundo owner.",
     "-",
-    "Aplica D6. Es el único escritor del documento que exige la puerta canónica, y hasta hoy se reexportaba como función suelta, no como `onCall`. No era envolverla: el objetivo llegaba como segundo parámetro y `provisioningRequestSchema` rechazaba cualquier campo extra, así que desplegarla ensancha el contrato de entrada de la superficie de autorización. Código hecho el 2026-09-09: declarada como `onCall` con `browserAdminCallableOptions`, contrato ensanchado con una unión de dos formas estrictas -ninguna de las dos acepta campos de más, así que una petición a medio camino no se cuela por la permisiva- y App Check verificada en el manejador, al entrar y en la costura interna. No se copió la sonda de actividad de la puerta hermana porque exige documento de personal a quien llama y esta función es su único escritor: heredarla dejaría a una academia nueva sin poder conceder el primer rol. Falta desplegarla, y antes el dato que solo tiene el operador: qué cuenta de Google será el segundo owner. `admin@admin.com` no puede serlo, por proveedor `password` y sin displayName.",
+    "Aplica D6. Es el único escritor del documento que exige la puerta canónica, y hasta hoy se reexportaba como función suelta, no como `onCall`. No era envolverla: el objetivo llegaba como segundo parámetro y `provisioningRequestSchema` rechazaba cualquier campo extra, así que desplegarla ensancha el contrato de entrada de la superficie de autorización. Código hecho el 2026-09-09: declarada como `onCall` con `browserAdminCallableOptions`, contrato ensanchado con una unión de dos formas estrictas -ninguna de las dos acepta campos de más, así que una petición a medio camino no se cuela por la permisiva- y App Check verificada en el manejador, al entrar y en la costura interna. No se copió la sonda de actividad de la puerta hermana porque exige documento de personal a quien llama y esta función es su único escritor: heredarla dejaría a una academia nueva sin poder conceder el primer rol. Desplegada en producción el mismo día y verificada: 72 funciones, ninguna retirada, estado ACTIVE, y 401 UNAUTHENTICATED al sondeo anónimo con cuerpo bien formado. Ya existe una vía en producción para aprovisionar a un administrador, que es lo que la fila levantaba de D5. Queda una sola cosa, y no es código: qué cuenta de Google será el segundo owner. `admin@admin.com` no puede serlo, por proveedor `password` y sin displayName.",
     [
       REF_TASKS,
       "apps/functions/src/auth/admin-provisioning.ts:677",
