@@ -200,43 +200,113 @@ pueden empezar de frente.
 T021V2 es la excepcion: no se resuelve interrogando, porque lo que falta son datos que solo tiene el
 operador. Ninguna cantidad de preguntas produce el domicilio de West.
 
+## Repartir el trabajo entre dos personas
+
+<!-- REPARTO:INICIO -->
+
+<!-- Generado por `node Listav2/parallel-report.mjs`. No lo edites a mano: la superficie de
+     cada fila se declara en TASK_SURFACES, dentro de Listav2/Listav2.data.js. -->
+
+Dos filas se pueden repartir entre dos personas cuando se cumplen **las tres** a la vez:
+ninguna encadena a la otra, las dos estan listas para empezar -sin dependencia abierta- y no
+escriben en el mismo fichero. Esto se calcula, no se afirma: si una fila cambia de superficie,
+el reparto cambia solo.
+
+**Superficie sin declarar no quiere decir compatible con todo**, quiere decir que no se puede
+afirmar nada. Esas filas no se reparten hasta que alguien declare que ficheros van a escribir.
+
+Hoy hay **9 filas listas** de 23 abiertas, y ninguna con la superficie sin declarar.
+
+| Fila | Estado | Toca | Puede ir a la vez que | Choca con |
+| ---- | ------ | ---- | --------------------- | --------- |
+| T001V2 | lista | `apps/web/src/app/enrol/page.tsx` | T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T022V2, T023V2 | - |
+| T002V2 | pendiente | `apps/web/src/app/enrol/page.tsx` | espera a T001V2 | - |
+| T003V2 | pendiente | `apps/web/src/app/enrol/page.tsx`<br>`apps/web/src/app/enrol/enrol.css` | espera a T001V2, T002V2 | - |
+| T004V2 | pendiente | `apps/web/src/app/page.tsx`<br>`apps/web/src/lib/client-auth.tsx` | espera a T001V2, T002V2 | - |
+| T005V2 | lista | `packages/domain/src/consents/enrolment-waiver-terms.ts` | T001V2, T007V2, T008V2, T013V2, T018V2, T020V2, T022V2, T023V2 | - |
+| T006V2 | pendiente | `apps/functions/src/schedule/schedule-callables.ts`<br>`packages/domain/src/members/enrolment-request-contracts.ts` | espera a T001V2, T002V2, T004V2 | - |
+| T007V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/penalties/no-show-penalty-contracts.ts` | T001V2, T005V2, T008V2, T013V2, T020V2, T022V2, T023V2 | T018V2 en `packages/domain/src/schedule/schedule-contracts.ts` |
+| T008V2 | lista | `apps/web/src/app/account/family/page.tsx` | T001V2, T005V2, T007V2, T013V2, T018V2, T020V2, T022V2, T023V2 | - |
+| T009V2 | pendiente | `apps/functions/src/families/family-service.ts`<br>`packages/domain/src/profiles/profile-contracts.ts`<br>`apps/web/src/lib/auth-client.ts`<br>`apps/functions/src/delivery/delivery-service.ts`<br>`docs/operations/t011-dpia-draft.md` | espera a T008V2 | - |
+| T010V2 | pendiente | `apps/web/src/content/academy.ts` | espera a T021V2 | - |
+| T011V2 | pendiente | `apps/web/src/content/academy.ts`<br>`apps/web/src/app/page.tsx` | espera a T021V2 | - |
+| T013V2 | lista | `apps/web/src/app/admin/overview-page.tsx` | T001V2, T005V2, T007V2, T008V2, T018V2, T020V2, T022V2, T023V2 | - |
+| T014V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | - |
+| T015V2 | pendiente | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/memberships/plan-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | espera a T013V2, T014V2 | - |
+| T016V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | - |
+| T017V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | - |
+| T022V2 | lista | `apps/functions/src/auth/admin-provisioning.ts`<br>`apps/functions/src/index.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | - |
+| T024V2 | pendiente | `apps/web/src/lib/schedule-client.ts`<br>`apps/functions/src/schedule/quorum-sweep-runner.ts` | espera a T013V2, T014V2, T015V2 | - |
+| T018V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`apps/functions/src/memberships/membership-callables.ts`<br>`packages/domain/src/finance/financial-dashboard.ts` | T001V2, T005V2, T008V2, T013V2, T020V2, T022V2, T023V2 | T007V2 en `packages/domain/src/schedule/schedule-contracts.ts` |
+| T019V2 | pendiente | `apps/functions/src/finance/finance-service.ts`<br>`packages/domain/src/shop` | espera a T023V2 | - |
+| T020V2 | lista | `apps/web/src/app/admin/members/page.tsx`<br>`apps/functions/src/profiles/profile-service.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T022V2, T023V2 | - |
+| T023V2 | lista | `packages/domain/src/families/family-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T022V2 | - |
+| T021V2 | bloqueada | no toca codigo | no esta lista | - |
+
+<!-- REPARTO:FIN -->
+
+**Como se usa.** Cada uno coge una fila de las que la tabla marca como listas, comprueba que la otra
+aparezca en su columna "Puede ir a la vez que", y adelante. Al terminar, cada uno sube lo suyo. Si
+las dos aparecen en "Choca con", la tabla dice **en que fichero**, que es lo que hace falta para
+decidir si una de las dos se puede reordenar o partir en vez de descartar el paralelo a ciegas.
+
+**Donde se declara la superficie.** En `TASK_SURFACES`, dentro de `Listav2/Listav2.data.js`. Es la
+unica excepcion a que el ledger mande: el estado y la evidencia de una fila se escriben aqui
+primero, pero la superficie vive alli porque alli ya vivian las referencias por tarea, y tenerla en
+dos sitios garantizaria que las dos copias se separen. La tabla de arriba se regenera con
+`node Listav2/parallel-report.mjs`, y una prueba falla si se queda vieja.
+
+**Cuidado con una cosa.** La superficie dice donde va a **caer el cambio**, no donde se encontro el
+problema. Una fila que arregla un bug en un fichero pero toca tres al arreglarlo tiene tres en su
+superficie, y declarar solo el primero producirian repartos afirmados con confianza y falsos, que es
+peor que no repartir.
+
+---
+
 ## Regla de continuidad
 
 `tasksv2.md` es la fuente unica de verdad del estado de estas filas. Se actualiza **antes** de
 tocar codigo y al terminar cada avance; despues, en el mismo cambio logico, se sincroniza
 `Listav2/Listav2.js`. Los dos archivos suben juntos.
 
+Cuando el cambio afecte a que ficheros escribe una fila, se actualiza tambien su entrada en
+`TASK_SURFACES` y se regenera el bloque de reparto con `node Listav2/parallel-report.mjs`. La
+prueba `listav2-ledger-sync` falla si el bloque se queda viejo, asi que no depende de acordarse.
+
 ---
 
-## Grafo de conocimiento refrescado - 2026-09-09 (tercera vuelta, esta vez con los documentos)
+## Grafo de conocimiento refrescado - 2026-09-09 (cuarta vuelta, y con el aviso anterior resuelto)
 
 `graphify-out/` esta en `.gitignore`, asi que el grafo no viaja en el repositorio: lo que viaja es
-esta nota. La vuelta anterior, registrada en `tasks.md`, aviso de que la documentacion **no** se
-habia reextraido y que para el ledger leer el fichero seguia siendo lo unico seguro. Esta vuelta
-cierra ese hueco.
+esta nota.
 
-- **25 ficheros reextraidos**, 12 de codigo y 13 de documentacion. El grafo pasa de **10.260 a
-  10.479 nodos** y de **23.001 a 23.447 aristas**; las comunidades, de 511 a **515**. Coste: 123.154
-  tokens de entrada en un solo subagente.
-- **Entran por fin `tasksv2.md` y `BRIEF.md`.** Comprobado nodo a nodo, no supuesto: estan las seis
-  decisiones D1-D6, las veinticinco filas T001V2-T025V2, y los conceptos sobre los que giran
-  -directorio canonico, cola de aprobacion, propuesta de penalizacion, barrido de quorum, cuenta del
-  menor, vocabulario de centro y la DPIA-. Tambien estan los 25 nodos del modulo de inicializacion
-  escrito hoy, `canonical-directory-initialization.ts`.
+- **13 ficheros reextraidos**, 10 de codigo y 3 de documentacion. El grafo pasa de **10.479 a 10.535
+  nodos** y de **23.447 a 23.463 aristas**; las comunidades, de 515 a **520**. Coste: 116.087 tokens
+  de entrada en un solo subagente, 16 vueltas acumuladas.
 - Diagnostico de integridad: **limpio**. Cero aristas colgantes, cero extremos ausentes, cero bucles
   y cero colapsos.
+- Los nombres de las 520 comunidades **no se reinventaron**: se traspasaron por contenido, mirando
+  que nombre tenian antes los nodos de cada comunidad nueva y quedandose con el mayoritario. 519
+  salieron heredadas y solo una era nueva. Reutilizarlos por numero de comunidad habria puesto
+  nombres cruzados, porque ese numero lo asigna el agrupamiento y cambia entre vueltas.
 
-**Lo que salio mal y conviene saber antes de fiarse de un nodo del ledger.** El subagente escribio
-`source_file` como ruta absoluta de Windows, tal y como pide la especificacion de extraccion,
-mientras que lo cacheado de vueltas anteriores lo tenia relativo. graphify no reconcilio las dos
-formas y trato el mismo fichero como dos, asi que para unos **25 nodos** -las decisiones D1 a D4 y
-las filas T001V2 a T021V2- vio dos candidatos con el mismo identificador y **descarto uno de los
-dos**. El nodo sobrevive siempre; lo que se pierde es una de las dos etiquetas, y no siempre gana la
-nueva. Consecuencia practica: **la etiqueta de una fila en el grafo puede estar desactualizada
-aunque la fila si lo este en este documento.** Para el estado de una fila, este fichero manda; el
-grafo sirve para navegar, no para citar.
+**El aviso de la vuelta anterior queda levantado, y conviene contar como.** Aquella nota decia que
+la etiqueta de una fila en el grafo podia estar desactualizada porque el subagente escribia
+`source_file` como ruta absoluta y el grafo las guarda relativas: graphify trataba el mismo fichero
+como dos y descartaba una de las dos etiquetas. **Volvio a pasar al primer intento de esta vuelta
+-16 nodos afectados- y esta vez se arreglo en lugar de anotarse.** Tres cosas, en este orden: se
+normalizan a relativas las rutas de la extraccion antes de fusionar, lo que baja el choque de 16
+nodos entre dos ficheros a 8 dentro del mismo; se podan del grafo base los ficheros reextraidos, con
+la misma forma relativa, lo que lo baja a 3; y la etiqueta de la extraccion mas reciente se impone
+sobre la anterior, que es lo unico defendible cuando la vieja describe un estado que ya no existe.
+**Comprobado nodo a nodo al terminar**, no supuesto: `T025V2` y `T012V2` figuran como
+`(desplegada)`, y `D7` y `D8` estan en el grafo con su texto de hoy.
 
-**Como se refresca**, porque la nota anterior ya se equivoco una vez con esto: no hay un solo
-comando. Es la skill `graphify` en modo incremental -deteccion, extraccion AST, un subagente
-semantico por lote, fusion con `build_merge` y `graphify export html`-, y el intérprete que usa esta
-fijado en `graphify-out/.graphify_python`.
+Aun asi, **para el estado de una fila este fichero sigue mandando**. No por desconfianza en las
+etiquetas, que hoy estan bien, sino porque el grafo se refresca a mano y entre dos refrescos siempre
+va por detras.
+
+**Como se refresca:** no hay un solo comando. Es la skill `graphify` en modo incremental
+-deteccion, extraccion AST, un subagente semantico por lote, normalizacion de rutas, fusion con
+`build_merge` podando los reextraidos, traspaso de nombres por contenido y `graphify export html`-,
+y el interprete que usa esta fijado en `graphify-out/.graphify_python`.

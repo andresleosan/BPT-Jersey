@@ -488,6 +488,11 @@ section > h2::before {
   line-height: 0.5;
 }
 
+/* Desplegada comparte el verde de aprobada: las dos dicen "esto ya no es trabajo". */
+.status-deployed {
+  color: var(--status-approved);
+}
+
 .status-approved {
   color: var(--status-approved);
 }
@@ -746,6 +751,44 @@ section > h2::before {
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 0.75rem;
   padding: 0.2rem 0.35rem;
+}
+
+/* Reparto de trabajo: quien puede ir a la vez que quien, y donde chocan cuando no pueden. */
+.task-parallel p {
+  font-size: 0.82rem;
+  margin: 0 0 var(--space-1);
+}
+
+.task-parallel p:last-child {
+  margin-bottom: 0;
+}
+
+.parallel-key {
+  color: var(--muted-ink);
+}
+
+.parallel-surface {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.parallel-ready {
+  color: var(--status-approved);
+}
+
+.parallel-blocked {
+  color: var(--status-pending);
+}
+
+/* Un choque y una superficie sin declarar se leen distinto a proposito: el primero es un hecho
+   medido, la segunda es una pregunta sin responder. */
+.parallel-conflict {
+  color: var(--status-blocked);
+}
+
+.parallel-unknown {
+  color: var(--status-review);
 }
 
 code {

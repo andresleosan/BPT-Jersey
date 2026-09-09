@@ -19,6 +19,7 @@
  */
 
 const VALID_STATUSES = [
+  "desplegada",
   "aprobada",
   "revision",
   "en-progreso",
@@ -574,6 +575,14 @@ function getImplementationDetails(item) {
   const override = IMPLEMENTATION_OVERRIDES[item.id];
   if (override) return { ...override };
 
+  if (item.status === "desplegada") {
+    return {
+      implementationStatus: "verificada",
+      implementationEvidence:
+        "Desplegada en produccion y verificada alli, con la evidencia registrada en tasksv2.md.",
+    };
+  }
+
   if (item.status === "aprobada") {
     return {
       implementationStatus: "verificada",
@@ -744,7 +753,7 @@ const adminItems = [
   task(
     "T012V2",
     "Reparar la cola de aprobación de nuevos miembros",
-    "aprobada",
+    "desplegada",
     "Ningún botón acepta al nuevo miembro: hoy no se puede dar de alta a nadie.",
     "T025V2",
     "Diagnosticada el 2026-09-09: la cuenta de administrator tiene claims válidos y ningún documento de personal aprovisionado, así que la cola carga y toda callable detrás de la puerta canónica responde 403. Falta la escritura en producción, que espera al operador.",
@@ -828,7 +837,7 @@ const adminItems = [
   task(
     "T025V2",
     "Inicializar el directorio canónico de miembros en producción",
-    "aprobada",
+    "desplegada",
     "Nunca se inicializó, y sin su documento de estado no se puede dar de alta a nadie.",
     "-",
     "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Preparando el despliegue se midió que la colección members tiene 243 registros reales del PDF y era la primera de las once que la precondición exigía vacías: el botón habría fallado. members no es el directorio canónico sino el origen de la migración forward, que a su vez exige el estado que solo el inicializador escribe, así que exigirla vacía dejaba a la academia sin poder inicializar ni migrar. Decisión D7: sale de la lista y quedan diez. Desplegada en producción el mismo día y verificada: ACTIVE, 401 al sondeo anónimo, 71 funciones. Al pulsarla desde owner falló con 400 INVALID_ARGUMENT «Invalid audit event draft», sin escribir nada: la acción member.directory.initialized no estaba en el catálogo del dominio y un doble casteo impedía que el compilador lo dijera. Arreglado, redesplegado y pulsado el mismo día: 200, directorio inicializado en una sola transacción y con su evento de auditoría atribuido al owner.",
@@ -896,6 +905,173 @@ const operatorDataItems = [
     "decision",
   ),
 ];
+
+/**
+ * La superficie de una fila: los ficheros y carpetas que su trabajo va a **escribir**.
+ *
+ * No es lo mismo que `references`. Una referencia dice donde se encontro el problema y puede ser
+ * una sola linea; la superficie dice donde va a caer el cambio, que es lo unico que decide si dos
+ * personas se pisan. Confundirlas produciria repartos de trabajo afirmados con confianza y falsos,
+ * que es peor que no repartir.
+ *
+ * Tres estados, y la diferencia importa:
+ *
+ * - una lista de rutas: superficie declarada;
+ * - `[]`: la fila **no toca codigo**, asi que no puede chocar con nadie;
+ * - `null`: **sin declarar**. No significa "compatible con todo", significa que no se puede
+ *   afirmar nada. Una fila asi nunca se propone para trabajar en paralelo, y el tablero pide que
+ *   alguien la declare antes de repartirla.
+ *
+ * Las rutas salen de lo que la propia fila de `tasksv2.md` nombra. Una carpeta cubre todo lo que
+ * cuelga de ella.
+ */
+const TASK_SURFACES = {
+  T001V2: ["apps/web/src/app/enrol/page.tsx"],
+  T002V2: ["apps/web/src/app/enrol/page.tsx"],
+  T003V2: ["apps/web/src/app/enrol/page.tsx", "apps/web/src/app/enrol/enrol.css"],
+  T004V2: ["apps/web/src/app/page.tsx", "apps/web/src/lib/client-auth.tsx"],
+  T005V2: ["packages/domain/src/consents/enrolment-waiver-terms.ts"],
+  T006V2: [
+    "apps/functions/src/schedule/schedule-callables.ts",
+    "packages/domain/src/members/enrolment-request-contracts.ts",
+  ],
+  T007V2: [
+    "packages/domain/src/schedule/schedule-contracts.ts",
+    "packages/domain/src/penalties/no-show-penalty-contracts.ts",
+  ],
+  T008V2: ["apps/web/src/app/account/family/page.tsx"],
+  T009V2: [
+    "apps/functions/src/families/family-service.ts",
+    "packages/domain/src/profiles/profile-contracts.ts",
+    "apps/web/src/lib/auth-client.ts",
+    "apps/functions/src/delivery/delivery-service.ts",
+    "docs/operations/t011-dpia-draft.md",
+  ],
+  T010V2: ["apps/web/src/content/academy.ts"],
+  T011V2: ["apps/web/src/content/academy.ts", "apps/web/src/app/page.tsx"],
+  T012V2: [
+    "apps/web/src/app/admin/members/requests/page.tsx",
+    "apps/web/src/lib/enrolment-client.ts",
+  ],
+  T013V2: ["apps/web/src/app/admin/overview-page.tsx"],
+  T014V2: ["apps/web/src/app/admin/overview-page.tsx"],
+  T015V2: [
+    "packages/domain/src/schedule/schedule-contracts.ts",
+    "packages/domain/src/memberships/plan-contracts.ts",
+    "apps/functions/src/schedule/booking-transaction-service.ts",
+  ],
+  T016V2: ["apps/web/src/app/admin/overview-page.tsx"],
+  T017V2: ["apps/web/src/app/admin/overview-page.tsx"],
+  T018V2: [
+    "packages/domain/src/schedule/schedule-contracts.ts",
+    "apps/functions/src/memberships/membership-callables.ts",
+    "packages/domain/src/finance/financial-dashboard.ts",
+  ],
+  T019V2: ["apps/functions/src/finance/finance-service.ts", "packages/domain/src/shop"],
+  T020V2: ["apps/web/src/app/admin/members/page.tsx", "apps/functions/src/profiles/profile-service.ts"],
+  // No toca codigo: lo que falta son datos que solo tiene el operador.
+  T021V2: [],
+  T022V2: ["apps/functions/src/auth/admin-provisioning.ts", "apps/functions/src/index.ts"],
+  T023V2: [
+    "packages/domain/src/families/family-contracts.ts",
+    "apps/functions/src/schedule/booking-transaction-service.ts",
+  ],
+  T024V2: [
+    "apps/web/src/lib/schedule-client.ts",
+    "apps/functions/src/schedule/quorum-sweep-runner.ts",
+  ],
+  T025V2: [
+    "apps/functions/src/members/canonical-directory-initialization.ts",
+    "apps/functions/src/members/canonical-directory-initialization-firestore.ts",
+    "packages/domain/src/audit/audit-event.ts",
+  ],
+};
+
+// `desplegada` es el estado final del ledger: una fila que ya corre en produccion no es trabajo
+// que repartir, igual que una aprobada o una cancelada.
+const CLOSED_STATUSES = new Set(["desplegada", "aprobada", "cancelada"]);
+
+/** Una carpeta cubre lo que cuelga de ella, asi que el solape no es igualdad de cadenas. */
+function pathsOverlap(left, right) {
+  return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+}
+
+function sharedPaths(left, right) {
+  const shared = [];
+  for (const leftPath of left) {
+    for (const rightPath of right) {
+      if (pathsOverlap(leftPath, rightPath)) {
+        // Se nombra la ruta mas concreta de las dos: es la que hay que mirar.
+        shared.push(leftPath.length >= rightPath.length ? leftPath : rightPath);
+      }
+    }
+  }
+  return [...new Set(shared)];
+}
+
+/**
+ * Todo lo que encadena a una fila, directo o no. Se sigue la cadena entera porque una fila cuyo
+ * bloqueo esta a dos saltos sigue sin poder empezarse, y ofrecerla seria mandar a alguien a
+ * trabajar contra una pared.
+ */
+function transitiveDependencies(id, byId, seen = new Set()) {
+  const item = byId.get(id);
+  if (!item) return seen;
+  for (const dependency of String(item.dependsOn || "").match(/T\d{3}V2/gu) || []) {
+    if (seen.has(dependency)) continue;
+    seen.add(dependency);
+    transitiveDependencies(dependency, byId, seen);
+  }
+  return seen;
+}
+
+/**
+ * Anota en cada fila con quien se puede trabajar a la vez.
+ *
+ * Dos filas van en paralelo cuando se cumplen las tres a la vez: ninguna encadena a la otra, las
+ * dos estan listas para empezar -sin dependencia abierta- y sus superficies no se solapan. Se
+ * calcula, no se afirma: si manana una fila cambia de superficie, el reparto cambia solo, que es
+ * justo lo que una etiqueta escrita a mano no hace.
+ */
+function annotateParallelWork(stages) {
+  const items = stages.flatMap((currentStage) => currentStage.items);
+  const byId = new Map(items.map((item) => [item.id, item]));
+
+  for (const item of items) {
+    const declared = TASK_SURFACES[item.id];
+    item.surface = Array.isArray(declared) ? declared : null;
+    item.open = !CLOSED_STATUSES.has(item.status);
+    item.blockedBy = [...transitiveDependencies(item.id, byId)]
+      .filter((id) => byId.get(id) && !CLOSED_STATUSES.has(byId.get(id).status))
+      .sort();
+    // `bloqueada` no es lo mismo que "con dependencias": T021V2 no espera a ninguna fila, espera un
+    // dato que solo tiene el operador. Ofrecerla como lista para empezar seria mandar a alguien a
+    // trabajar contra una pared distinta.
+    item.ready = item.open && item.status !== "bloqueada" && item.blockedBy.length === 0;
+  }
+
+  for (const item of items) {
+    item.parallelWith = [];
+    item.conflicts = [];
+    if (!item.ready || item.surface === null) continue;
+
+    for (const other of items) {
+      if (other === item || !other.ready || other.surface === null) continue;
+      const chained =
+        transitiveDependencies(item.id, byId).has(other.id) ||
+        transitiveDependencies(other.id, byId).has(item.id);
+      if (chained) continue;
+
+      const shared = sharedPaths(item.surface, other.surface);
+      if (shared.length === 0) item.parallelWith.push(other.id);
+      else item.conflicts.push({ id: other.id, files: shared });
+    }
+    item.parallelWith.sort();
+    item.conflicts.sort((left, right) => left.id.localeCompare(right.id));
+  }
+
+  return stages;
+}
 
 const projectData = {
   cutoffDate: "2026-09-09",
@@ -998,6 +1174,8 @@ const projectData = {
   ],
 };
 
+annotateParallelWork(projectData.stages);
+
 // ---------------------------------------------------------------------------
 // Motor de render (Listav2.engine.js)
 // ---------------------------------------------------------------------------
@@ -1022,6 +1200,11 @@ function flattenItems(stages) {
       track: currentStage.track,
     })),
   );
+}
+
+/** Terminadas: aprobada, desplegada y cancelada ya no son trabajo pendiente. */
+function isClosedStatus(status) {
+  return status === "aprobada" || status === "desplegada" || status === "cancelada";
 }
 
 function countStatuses(items) {
@@ -1097,6 +1280,7 @@ function itemMatches(item, filters = {}) {
 }
 
 const STATUS_LABELS = {
+  desplegada: "Desplegada",
   aprobada: "Aprobada",
   revision: "En revisión",
   "en-progreso": "En progreso",
@@ -1106,6 +1290,7 @@ const STATUS_LABELS = {
 };
 
 const STATUS_CLASSES = {
+  desplegada: "status-deployed",
   aprobada: "status-approved",
   revision: "status-review",
   "en-progreso": "status-in-progress",
@@ -1315,7 +1500,7 @@ function countChecklist(items) {
 function renderResolutionBoard(resolutionList) {
   // A cancelled row has nothing left to resolve, so it does not belong on this board either.
   const unresolvedItems = flattenItems(projectData.stages).filter(
-    (item) => item.status !== "aprobada" && item.status !== "cancelada",
+    (item) => !isClosedStatus(item.status),
   );
   resolutionList.replaceChildren();
 
@@ -1391,6 +1576,70 @@ function renderResolutionBoard(resolutionList) {
         : `${done} de ${total} requisitos resueltos en ${unresolvedItems.length} tareas.`;
   }
 }
+/**
+ * El bloque de reparto: con quien se puede trabajar a la vez y con quien no.
+ *
+ * Va detras de un guarda a proposito. El motor es el mismo que usa `Lista/`, cuyos datos no traen
+ * este campo, y ahi tiene que seguir pintando exactamente lo de siempre.
+ */
+function renderParallelWork(item) {
+  if (item.surface === undefined) return null;
+
+  const container = createElement("div", undefined, "task-detail task-parallel");
+  container.append(createElement("span", "Trabajo en paralelo", "detail-label"));
+
+  if (item.surface === null) {
+    container.append(
+      createElement(
+        "p",
+        "Superficie sin declarar: no se puede afirmar que sea paralela a nada. Declara en " +
+          "TASK_SURFACES los ficheros que va a escribir antes de repartirla.",
+        "parallel-unknown",
+      ),
+    );
+    return container;
+  }
+
+  const surface = createElement("p", undefined, "parallel-surface");
+  surface.append(
+    createElement("span", "Toca: ", "parallel-key"),
+    document.createTextNode(item.surface.length === 0 ? "no toca codigo" : item.surface.join(" · ")),
+  );
+  container.append(surface);
+
+  if (!item.ready) {
+    const reason =
+      item.blockedBy && item.blockedBy.length > 0
+        ? `No se puede empezar todavia: depende de ${item.blockedBy.join(", ")}.`
+        : "No se puede empezar todavia.";
+    container.append(createElement("p", reason, "parallel-blocked"));
+    return container;
+  }
+
+  const partners = item.parallelWith || [];
+  container.append(
+    createElement(
+      "p",
+      partners.length > 0
+        ? `Se puede hacer a la vez que: ${partners.join(", ")}.`
+        : "Ninguna otra fila lista puede ir a la vez que esta.",
+      "parallel-ready",
+    ),
+  );
+
+  for (const conflict of item.conflicts || []) {
+    container.append(
+      createElement(
+        "p",
+        `Choca con ${conflict.id} en ${conflict.files.join(", ")}.`,
+        "parallel-conflict",
+      ),
+    );
+  }
+
+  return container;
+}
+
 function renderTask(item) {
   const taskElement = createElement("article", undefined, "task");
   taskElement.dataset.taskId = item.id;
@@ -1454,7 +1703,9 @@ function renderTask(item) {
     referenceList.append(createElement("span", reference, "task-reference"));
   }
   references.append(referenceList);
+  const parallelWork = renderParallelWork(item);
   details.append(detailGrid, evidence, implementationEvidence, references);
+  if (parallelWork) details.append(parallelWork);
 
   const backlogBadge = createStatusBadge(item.status, "task-status");
   backlogBadge.textContent = `Backlog: ${STATUS_LABELS[item.status] || item.status}`;
@@ -1689,6 +1940,7 @@ globalThis.ListaV2Project = {
   projectData,
   VALID_STATUSES,
   flattenItems,
+  isClosedStatus,
   countStatuses,
   getStageProgress,
   normalizeText,
@@ -1699,10 +1951,12 @@ globalThis.ListaV2Project = {
   getGlobalProgress,
   getImplementationDetails,
   getResolutionRequirements,
+  renderParallelWork,
   renderResolutionBoard,
   setVisiblePhasesExpanded,
   renderProject,
   checklistProgress,
   countChecklist,
   RESOLUTION_NOTES,
+  TASK_SURFACES,
 };

@@ -20,6 +20,11 @@ function flattenItems(stages) {
   );
 }
 
+/** Terminadas: aprobada, desplegada y cancelada ya no son trabajo pendiente. */
+function isClosedStatus(status) {
+  return status === "aprobada" || status === "desplegada" || status === "cancelada";
+}
+
 function countStatuses(items) {
   const counts = Object.fromEntries(VALID_STATUSES.map((status) => [status, 0]));
   for (const item of items) {
@@ -93,6 +98,7 @@ function itemMatches(item, filters = {}) {
 }
 
 const STATUS_LABELS = {
+  desplegada: "Desplegada",
   aprobada: "Aprobada",
   revision: "En revisión",
   "en-progreso": "En progreso",
@@ -102,6 +108,7 @@ const STATUS_LABELS = {
 };
 
 const STATUS_CLASSES = {
+  desplegada: "status-deployed",
   aprobada: "status-approved",
   revision: "status-review",
   "en-progreso": "status-in-progress",
@@ -311,7 +318,7 @@ function countChecklist(items) {
 function renderResolutionBoard(resolutionList) {
   // A cancelled row has nothing left to resolve, so it does not belong on this board either.
   const unresolvedItems = flattenItems(projectData.stages).filter(
-    (item) => item.status !== "aprobada" && item.status !== "cancelada",
+    (item) => !isClosedStatus(item.status),
   );
   resolutionList.replaceChildren();
 
@@ -387,6 +394,70 @@ function renderResolutionBoard(resolutionList) {
         : `${done} de ${total} requisitos resueltos en ${unresolvedItems.length} tareas.`;
   }
 }
+/**
+ * El bloque de reparto: con quien se puede trabajar a la vez y con quien no.
+ *
+ * Va detras de un guarda a proposito. El motor es el mismo que usa `Lista/`, cuyos datos no traen
+ * este campo, y ahi tiene que seguir pintando exactamente lo de siempre.
+ */
+function renderParallelWork(item) {
+  if (item.surface === undefined) return null;
+
+  const container = createElement("div", undefined, "task-detail task-parallel");
+  container.append(createElement("span", "Trabajo en paralelo", "detail-label"));
+
+  if (item.surface === null) {
+    container.append(
+      createElement(
+        "p",
+        "Superficie sin declarar: no se puede afirmar que sea paralela a nada. Declara en " +
+          "TASK_SURFACES los ficheros que va a escribir antes de repartirla.",
+        "parallel-unknown",
+      ),
+    );
+    return container;
+  }
+
+  const surface = createElement("p", undefined, "parallel-surface");
+  surface.append(
+    createElement("span", "Toca: ", "parallel-key"),
+    document.createTextNode(item.surface.length === 0 ? "no toca codigo" : item.surface.join(" · ")),
+  );
+  container.append(surface);
+
+  if (!item.ready) {
+    const reason =
+      item.blockedBy && item.blockedBy.length > 0
+        ? `No se puede empezar todavia: depende de ${item.blockedBy.join(", ")}.`
+        : "No se puede empezar todavia.";
+    container.append(createElement("p", reason, "parallel-blocked"));
+    return container;
+  }
+
+  const partners = item.parallelWith || [];
+  container.append(
+    createElement(
+      "p",
+      partners.length > 0
+        ? `Se puede hacer a la vez que: ${partners.join(", ")}.`
+        : "Ninguna otra fila lista puede ir a la vez que esta.",
+      "parallel-ready",
+    ),
+  );
+
+  for (const conflict of item.conflicts || []) {
+    container.append(
+      createElement(
+        "p",
+        `Choca con ${conflict.id} en ${conflict.files.join(", ")}.`,
+        "parallel-conflict",
+      ),
+    );
+  }
+
+  return container;
+}
+
 function renderTask(item) {
   const taskElement = createElement("article", undefined, "task");
   taskElement.dataset.taskId = item.id;
@@ -450,7 +521,9 @@ function renderTask(item) {
     referenceList.append(createElement("span", reference, "task-reference"));
   }
   references.append(referenceList);
+  const parallelWork = renderParallelWork(item);
   details.append(detailGrid, evidence, implementationEvidence, references);
+  if (parallelWork) details.append(parallelWork);
 
   const backlogBadge = createStatusBadge(item.status, "task-status");
   backlogBadge.textContent = `Backlog: ${STATUS_LABELS[item.status] || item.status}`;
@@ -685,6 +758,7 @@ globalThis.ListaV2Project = {
   projectData,
   VALID_STATUSES,
   flattenItems,
+  isClosedStatus,
   countStatuses,
   getStageProgress,
   normalizeText,
@@ -695,10 +769,12 @@ globalThis.ListaV2Project = {
   getGlobalProgress,
   getImplementationDetails,
   getResolutionRequirements,
+  renderParallelWork,
   renderResolutionBoard,
   setVisiblePhasesExpanded,
   renderProject,
   checklistProgress,
   countChecklist,
   RESOLUTION_NOTES,
+  TASK_SURFACES,
 };

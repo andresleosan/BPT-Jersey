@@ -10,6 +10,7 @@ type BoardItem = { id: string; status: string };
 type ListaV2Project = {
   projectData: { stages: unknown };
   flattenItems: (stages: unknown) => BoardItem[];
+  isClosedStatus: (status: string) => boolean;
   getResolutionRequirements: (item: BoardItem) => readonly Requirement[];
   renderProject: (document: Document) => boolean;
   checklistProgress: (item: BoardItem) => { done: number; total: number };
@@ -38,10 +39,15 @@ function mount(): Document {
   return dom.window.document;
 }
 
+/**
+ * Se le pregunta al motor cual es una fila cerrada en vez de repetir aqui la lista de estados.
+ * Repetirla ya costo un fallo: al anadir `desplegada` el tablero dejo de pedir requisitos a las dos
+ * filas ya desplegadas y esta prueba seguia contandolos, porque tenia su propia copia de la regla.
+ */
 function unresolved(): BoardItem[] {
   return project
     .flattenItems(project.projectData.stages)
-    .filter((item) => item.status !== "aprobada" && item.status !== "cancelada");
+    .filter((item) => !project.isClosedStatus(item.status));
 }
 
 function requirementsOf(document: Document, taskId: string): HTMLElement[] {
@@ -136,7 +142,13 @@ describe("Listav2 resolution checklist", () => {
   it("shows the findings as a note, separate from the actions", () => {
     // A finding is a fact, not a task: it cannot be completed, so it must not sit in a list whose
     // whole purpose is to say what is left to do.
+    //
+    // Solo se afirma sobre las filas que este tablero pinta. Una fila cerrada conserva su nota
+    // -sigue siendo cierta, y su tarjeta la sigue mostrando- pero desaparece de "que falta para
+    // resolver", porque no falta nada.
+    const open = new Set(unresolved().map((item) => item.id));
     for (const [id, note] of Object.entries(project.RESOLUTION_NOTES)) {
+      if (!open.has(id)) continue;
       const rendered = document.querySelector(
         `[data-resolution-item="${id}"] .resolution-item-note`,
       );
@@ -164,7 +176,10 @@ describe("Listav2 checklist data", () => {
   });
 
   it("attaches every note to a row that exists on the board", () => {
-    const ids = new Set(unresolved().map((item) => item.id));
+    // Se compara contra TODAS las filas, no solo las abiertas: lo que hay que cazar es una nota
+    // colgada de un id que no existe. Que una fila se cierre no invalida lo que se averiguo de
+    // ella, y su tarjeta lo sigue mostrando.
+    const ids = new Set(project.flattenItems(project.projectData.stages).map((item) => item.id));
     const orphans = Object.keys(project.RESOLUTION_NOTES).filter((id) => !ids.has(id));
 
     expect(orphans, `Notes attached to unknown rows: ${orphans.join(", ")}`).toEqual([]);

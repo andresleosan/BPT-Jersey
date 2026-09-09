@@ -4,6 +4,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import "../../Listav2/Listav2.js";
+import {
+  applyParallelReport,
+  endMarker,
+  renderParallelReport,
+  startMarker,
+} from "../../Listav2/parallel-report.mjs";
 
 type BoardItem = {
   id: string;
@@ -11,6 +17,11 @@ type BoardItem = {
   dependsOn: string;
   title: string;
   resolutionRequirements: readonly string[];
+  open: boolean;
+  ready: boolean;
+  surface: readonly string[] | null;
+  parallelWith: readonly string[];
+  conflicts: readonly { id: string; files: readonly string[] }[];
 };
 
 type ListaV2Project = {
@@ -22,6 +33,8 @@ type ListaV2Project = {
   flattenItems: (stages: unknown) => BoardItem[];
   getResolutionRequirements: (item: BoardItem) => readonly string[];
   getPhaseAnchorId: (stage: { id: string; track: string }) => string | null;
+  TASK_SURFACES: Readonly<Record<string, readonly string[]>>;
+  VALID_STATUSES: readonly string[];
 };
 
 const project = (globalThis as typeof globalThis & { ListaV2Project: ListaV2Project })
@@ -49,9 +62,21 @@ const rowPattern = /^\| (T\d{3}V2) \| (.+?) \| (.+?) \| (\S+) \|/gmu;
 
 type LedgerRow = { id: string; title: string; dependsOn: string; status: string };
 
+/**
+ * El bloque de reparto se genera desde el tablero y sus filas empiezan igual que las del ledger,
+ * asi que leerlo aqui seria tomar por fuente de verdad algo que es un reflejo: cada fila acabaria
+ * declarando como estado la palabra "lista" y como dependencia una lista de ficheros.
+ */
+function withoutGeneratedBlock(ledger: string): string {
+  const start = ledger.indexOf(startMarker);
+  const end = ledger.indexOf(endMarker);
+  if (start === -1 || end === -1) return ledger;
+  return ledger.slice(0, start) + ledger.slice(end + endMarker.length);
+}
+
 function ledgerRows(ledger: string): Map<string, LedgerRow> {
   const rows = new Map<string, LedgerRow>();
-  for (const match of ledger.matchAll(rowPattern)) {
+  for (const match of withoutGeneratedBlock(ledger).matchAll(rowPattern)) {
     const [, id, title, dependsOn, status] = match;
     rows.set(id!, {
       id: id!,
@@ -64,6 +89,7 @@ function ledgerRows(ledger: string): Map<string, LedgerRow> {
 }
 
 const validStatuses = new Set([
+  "desplegada",
   "aprobada",
   "revision",
   "en-progreso",
@@ -203,9 +229,99 @@ describe("Listav2 stays in step with tasksv2.md", () => {
     ).toEqual([]);
   });
 
+  it("gives every status a card in the summary", () => {
+    // Anadir un estado sin su tarjeta lo hace invisible: las tarjetas dejan de sumar el total y las
+    // filas de ese estado no se pueden filtrar desde el resumen. Paso exactamente eso el 2026-09-09
+    // al anadir `desplegada`, y solo se vio abriendo la pagina.
+    const html = readProjectFile("Listav2/Listav2.html");
+    const declared = new Set(
+      [...html.matchAll(/<div data-status="([^"]+)" data-render-target="status-cards"/gu)].map(
+        (match) => match[1]!,
+      ),
+    );
+    const missing = project.VALID_STATUSES.filter((status) => !declared.has(status));
+
+    expect(
+      missing,
+      `Listav2.html no declara tarjeta para: ${missing.join(", ")}. Esas filas no suman en el ` +
+        "resumen ni se pueden filtrar desde el.",
+    ).toEqual([]);
+  });
+
   it("dates the board on or after the ledger's own cut", () => {
     // The board prints this date as its cut-off, so a stale value states something untrue on screen.
     expect(project.projectData.cutoffDate).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
     expect(ledger).toContain(project.projectData.cutoffDate);
+  });
+
+  /**
+   * El reparto de trabajo entre dos personas. Estas tres existen porque la tabla del ledger es una
+   * afirmacion sobre quien puede tocar que a la vez, y una afirmacion asi solo vale mientras se
+   * pueda comprobar.
+   */
+  it("keeps the ledger's work-split block generated, not hand-written", () => {
+    // Sin esto el bloque envejece en silencio y manda a dos personas al mismo fichero.
+    expect(
+      applyParallelReport(ledger, renderParallelReport()),
+      "El bloque de reparto de tasksv2.md esta desactualizado. Ejecuta: " +
+        "node Listav2/parallel-report.mjs",
+    ).toEqual(ledger);
+  });
+
+  it("makes every open row declare what it writes", () => {
+    // Una fila que nadie declaro no es una fila compatible con todo: es una pregunta sin responder,
+    // y el calculo la deja fuera del reparto. Se pide la declaracion explicita para que anadir una
+    // fila nueva sin pensar en su superficie falle nombrandola.
+    const undeclared = items
+      .filter((item) => item.open)
+      .filter((item) => !Object.hasOwn(project.TASK_SURFACES, item.id))
+      .map((item) => item.id);
+
+    expect(
+      undeclared,
+      `Estas filas no aparecen en TASK_SURFACES: ${undeclared.join(", ")}. Declara los ficheros ` +
+        "que va a escribir cada una, o [] si no toca codigo.",
+    ).toEqual([]);
+  });
+
+  it("never calls two rows parallel when they write to the same place", () => {
+    // La propiedad que hace util a la tabla, comprobada contra el resultado y no contra la
+    // intencion: si el calculo se rompiera, esto lo dice antes que un conflicto de merge.
+    const byId = new Map(items.map((item) => [item.id, item]));
+    const wrong: string[] = [];
+
+    for (const item of items) {
+      for (const partnerId of item.parallelWith ?? []) {
+        const partner = byId.get(partnerId);
+        if (!partner?.surface || !item.surface) continue;
+        const shared = item.surface.filter((left) =>
+          partner.surface!.some(
+            (right) =>
+              left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`),
+          ),
+        );
+        if (shared.length > 0) wrong.push(`${item.id}+${partnerId} en ${shared.join(", ")}`);
+      }
+    }
+
+    expect(
+      wrong,
+      `Filas declaradas paralelas que escriben en el mismo sitio: ${wrong.join("; ")}`,
+    ).toEqual([]);
+  });
+
+  it("keeps the ledger itself out of every surface", () => {
+    // tasksv2.md lo toca cualquier fila que avance, asi que contarlo como superficie haria que
+    // ninguna pareja fuese nunca paralela y la tabla no serviria para nada.
+    const offenders = Object.entries(project.TASK_SURFACES)
+      .filter(([, surface]) =>
+        (surface ?? []).some((path) => path.endsWith(".md") && path.includes("tasks")),
+      )
+      .map(([id]) => id);
+
+    expect(
+      offenders,
+      `Estas filas cuentan el ledger como superficie: ${offenders.join(", ")}`,
+    ).toEqual([]);
   });
 });
