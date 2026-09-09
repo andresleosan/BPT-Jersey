@@ -43,7 +43,7 @@ y T020V2 (el centro de entrenamiento en la base de miembros).
 
 | ID   | Tarea atomica | Depende de | Estado | Evidencia de salida |
 | ---- | ------------- | ---------- | ------ | ------------------- |
-| T001V2 | Permitir vaciar por completo Nombre y Email en el formulario de inscripcion | - | pendiente | Causa localizada antes de abrir la fila: en `apps/web/src/app/enrol/page.tsx:378-385` el efecto de prellenado lleva `form.email.length` y `form.fullName.length` en su propio array de dependencias. Al borrar el ultimo caracter la longitud pasa a 0, el efecto se vuelve a ejecutar y reescribe el valor de la sesion. El arreglo es prellenar una sola vez -guarda de "ya sembrado" o dependencia solo de la sesion-, no ensanchar la condicion. Cierra con una prueba que borre el campo entero y afirme que sigue vacio tras el re-render. |
+| T001V2 | Permitir vaciar por completo Nombre y Email en el formulario de inscripcion | - | en-progreso | Causa localizada antes de abrir la fila: en `apps/web/src/app/enrol/page.tsx:378-385` el efecto de prellenado lleva `form.email.length` y `form.fullName.length` en su propio array de dependencias. Al borrar el ultimo caracter la longitud pasa a 0, el efecto se vuelve a ejecutar y reescribe el valor de la sesion. El arreglo es prellenar una sola vez -guarda de "ya sembrado" o dependencia solo de la sesion-, no ensanchar la condicion. Cierra con una prueba que borre el campo entero y afirme que sigue vacio tras el re-render. |
 | T002V2 | Convertir el formulario en un asistente por pasos de 1 a 3 campos con barra de progreso | T001V2 | pendiente | El formulario actual presenta todos los campos de una vez (`apps/web/src/app/enrol/page.tsx`). Pasa a pasos de 3 campos como maximo, con barra de progreso y estado accesible en cada paso. La validacion se ejecuta por paso, no solo al enviar. Se conserva el estado ya escrito al retroceder. |
 | T003V2 | Impedir el zoom automatico de iOS al enfocar un campo | T002V2 | pendiente | En iOS Safari el navegador hace zoom cuando el campo enfocado tiene un tamano de fuente menor de 16 px. La correccion es tipografica y de viewport, no `maximum-scale=1`, que rompe el zoom por gesto y con el la accesibilidad. Cierra con evidencia en un dispositivo o emulacion movil real. |
 
@@ -221,13 +221,13 @@ ya empezo -no la cojas contra ella-; `sin empezar` es un choque futuro que se ev
 el orden; `ya cerrada` es una fila desplegada, aprobada o cancelada, que no compite con nadie
 y solo dice quien toco ese fichero el ultimo.
 
-Hoy hay **8 filas listas** de 23 abiertas, y ninguna con la superficie sin declarar. Ninguna fila esta en curso ahora mismo.
+Hoy hay **7 filas listas** de 23 abiertas, y ninguna con la superficie sin declarar. **1 fila esta en curso**: T001V2.
 
 | Fila | Estado | Toca | Puede ir a la vez que | Interfiere con |
 | ---- | ------ | ---- | --------------------- | -------------- |
-| T001V2 | lista | `apps/web/src/app/enrol/page.tsx` | T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
-| T002V2 | pendiente | `apps/web/src/app/enrol/page.tsx` | espera a T001V2 | T001V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
-| T003V2 | pendiente | `apps/web/src/app/enrol/page.tsx`<br>`apps/web/src/app/enrol/enrol.css` | espera a T001V2, T002V2 | T001V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
+| T001V2 | **en curso** | `apps/web/src/app/enrol/page.tsx` | T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
+| T002V2 | pendiente | `apps/web/src/app/enrol/page.tsx` | espera a T001V2 | T001V2 (en curso) en `apps/web/src/app/enrol/page.tsx`<br>T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
+| T003V2 | pendiente | `apps/web/src/app/enrol/page.tsx`<br>`apps/web/src/app/enrol/enrol.css` | espera a T001V2, T002V2 | T001V2 (en curso) en `apps/web/src/app/enrol/page.tsx`<br>T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
 | T004V2 | pendiente | `apps/web/src/app/page.tsx`<br>`apps/web/src/lib/client-auth.tsx` | espera a T001V2, T002V2 | T011V2 (sin empezar) en `apps/web/src/app/page.tsx` |
 | T005V2 | lista | `packages/domain/src/consents/enrolment-waiver-terms.ts` | T001V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | - |
 | T006V2 | pendiente | `apps/functions/src/schedule/schedule-callables.ts`<br>`packages/domain/src/members/enrolment-request-contracts.ts` | espera a T001V2, T002V2, T004V2 | - |

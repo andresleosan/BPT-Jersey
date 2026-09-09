@@ -640,7 +640,7 @@ const bugFormItems = [
   task(
     "T001V2",
     "Permitir vaciar por completo Nombre y Email",
-    "pendiente",
+    "en-progreso",
     "Los dos campos se vuelven a rellenar solos al intentar borrarlos.",
     "-",
     "Causa localizada: el efecto de prellenado lleva la longitud de los propios campos en sus dependencias, así que al llegar a cero se vuelve a disparar y reescribe el valor de la sesión.",
