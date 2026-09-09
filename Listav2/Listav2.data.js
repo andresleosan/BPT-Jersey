@@ -469,7 +469,11 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Desplegar `initializeCanonicalMemberDirectory` y que el owner pulse el botón una vez. Lo lanza el operador desde su terminal: intentado dos veces el 2026-09-09 desde una sesión no interactiva y fallado las dos en el parámetro `BPT_WAIVER_REGISTRATION`, un límite del CLI ya registrado en tasks.md. Ninguno de los dos intentos escribió nada en producción.",
+      "Desplegar `initializeCanonicalMemberDirectory`. HECHO EL 2026-09-09 desde el commit b033c23: el inventario pasa de 70 a 71 funciones, ninguna retirada, estado ACTIVE sobre nodejs22, ligando MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET@2, y el sondeo anónimo devuelve 401. Desbloqueado con `functions.configDir`, una vía del CLI que apunta el dotenv fuera del directorio que borra el predeploy; no se commiteó ningún valor del gate del waiver.",
+      true,
+    ),
+    requirement(
+      "Que el owner pulse el botón una vez en https://bptjersey.pages.dev/admin/members. Es lo único que el repositorio no puede hacer.",
     ),
     requirement(
       "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2.",
@@ -803,7 +807,7 @@ const adminItems = [
     "en-progreso",
     "Nunca se inicializó, y sin su documento de estado no se puede dar de alta a nadie.",
     "-",
-    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Preparando el despliegue se midió que la colección members tiene 243 registros reales del PDF y era la primera de las once que la precondición exigía vacías: el botón habría fallado. members no es el directorio canónico sino el origen de la migración forward, que a su vez exige el estado que solo el inicializador escribe, así que exigirla vacía dejaba a la academia sin poder inicializar ni migrar. Decisión D7: sale de la lista y quedan diez. Falta desplegar y pulsarlo una vez.",
+    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Preparando el despliegue se midió que la colección members tiene 243 registros reales del PDF y era la primera de las once que la precondición exigía vacías: el botón habría fallado. members no es el directorio canónico sino el origen de la migración forward, que a su vez exige el estado que solo el inicializador escribe, así que exigirla vacía dejaba a la academia sin poder inicializar ni migrar. Decisión D7: sale de la lista y quedan diez. Desplegada en producción el mismo día y verificada: ACTIVE, 401 al sondeo anónimo, 71 funciones. Falta solo que el owner pulse el botón una vez.",
     [
       REF_TASKS,
       "apps/functions/src/members/canonical-member-directory-read-service.ts:302-343",
