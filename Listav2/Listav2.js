@@ -991,6 +991,28 @@ const TASK_SURFACES = {
 // que repartir, igual que una aprobada o una cancelada.
 const CLOSED_STATUSES = new Set(["desplegada", "aprobada", "cancelada"]);
 
+// Una fila que alguien ya empezo: hay trabajo vivo cayendo sobre sus ficheros ahora mismo, este o
+// no commiteado. Es el unico estado en el que un solape se paga en conflictos de merge de verdad.
+const ACTIVE_STATUSES = new Set(["en-progreso", "revision"]);
+
+/**
+ * Cuanto pesa que otra fila escriba tus mismos ficheros. Tres niveles, y la diferencia es la que
+ * el operador necesita para elegir fila:
+ *
+ * - `en-curso`: alguien la esta escribiendo. Coger la tuya es pelearse por el fichero hoy.
+ * - `sin-empezar`: nadie la ha empezado. El choque es futuro y evitable coordinando el orden.
+ * - `cerrada`: ya desplegada, aprobada o cancelada. El cambio ya cayo; no compite con nadie.
+ *
+ * `desplegada` cuenta como cerrada a proposito: saber que un fichero lo toco una fila ya en
+ * produccion es informacion util -dice quien lo escribio el ultimo- pero no es un riesgo.
+ */
+function interferenceLevel(status) {
+  if (ACTIVE_STATUSES.has(status)) return "en-curso";
+  return CLOSED_STATUSES.has(status) ? "cerrada" : "sin-empezar";
+}
+
+const INTERFERENCE_SEVERITY = { "en-curso": 3, "sin-empezar": 2, cerrada: 1 };
+
 /** Una carpeta cubre lo que cuelga de ella, asi que el solape no es igualdad de cadenas. */
 function pathsOverlap(left, right) {
   return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
@@ -1070,7 +1092,57 @@ function annotateParallelWork(stages) {
     item.conflicts.sort((left, right) => left.id.localeCompare(right.id));
   }
 
+  annotateInterference(items);
   return stages;
+}
+
+/**
+ * Con quien comparte ficheros esta fila, **este quien este lista o no**.
+ *
+ * `conflicts` responde a otra pregunta -"si hoy repartimos dos filas listas, se pisan?"- y por eso
+ * solo mira filas listas y descarta las encadenadas. Eso deja fuera justo el caso que hace dano:
+ * una fila que alguien ya empezo. Si el compañero esta escribiendo T013V2 y yo cojo otra fila que
+ * toca su mismo fichero, `conflicts` no dice nada, porque T013V2 dejo de estar "lista" en cuanto
+ * paso a `en-progreso`.
+ *
+ * Aqui no se descarta nada: ni el estado de la otra fila ni la cadena de dependencias. Una fila que
+ * depende de otra y escribe su mismo fichero interfiere igual; que ademas tenga que esperarla es un
+ * hecho distinto, y lo cuenta `blockedBy`.
+ */
+function annotateInterference(items) {
+  for (const item of items) {
+    item.interference = [];
+
+    if (item.surface === null) {
+      item.interferenceLevel = "sin-declarar";
+      continue;
+    }
+    if (item.surface.length === 0) {
+      item.interferenceLevel = "no-toca";
+      continue;
+    }
+
+    for (const other of items) {
+      if (other === item || other.surface === null || other.surface.length === 0) continue;
+      const files = sharedPaths(item.surface, other.surface);
+      if (files.length === 0) continue;
+      item.interference.push({
+        id: other.id,
+        status: other.status,
+        level: interferenceLevel(other.status),
+        files,
+      });
+    }
+
+    // Lo peor primero: quien mira la insignia quiere saber si hay algo vivo, no leer una lista.
+    item.interference.sort(
+      (left, right) =>
+        INTERFERENCE_SEVERITY[right.level] - INTERFERENCE_SEVERITY[left.level] ||
+        left.id.localeCompare(right.id),
+    );
+    item.interferenceLevel =
+      item.interference.length === 0 ? "ninguna" : item.interference[0].level;
+  }
 }
 
 const projectData = {
@@ -1164,6 +1236,7 @@ const projectData = {
     "Interrogar la fila con /grill-me antes de escribir código cuando tenga decisiones abiertas. Las cinco que lo requerían -T006V2, T007V2, T009V2, T015V2 y T019V2- se interrogaron el 2026-09-09 en tres rondas, y sus decisiones están escritas en la fila.",
     "Actualizar primero tasksv2.md, que es la fuente única de verdad del estado y la evidencia de estas filas.",
     "Actualizar Listav2/Listav2.data.js después, en el mismo cambio lógico, sin copiar datos sensibles.",
+    "Poner la fila en `en-progreso` al empezarla, no solo al terminarla. Es lo que enciende el aviso de interferencia: la insignia de cada tarea y la columna «Interfiere con» del ledger leen el estado de las demás filas, así que una fila que alguien está escribiendo pero sigue puesta como `pendiente` sale como «sin empezar» y la tabla afirma que no hay nadie donde sí lo hay. Con dos personas repartiéndose el trabajo, ese paso deja de ser burocracia y pasa a ser la señal.",
     "Reensamblar con `node Listav2/build.mjs`: Listav2.js es generado a partir de Listav2.data.js y Listav2.engine.js, y editarlo a mano se pierde en el siguiente build.",
     "Marcar un requisito como resuelto se hace aquí, en RESOLUTION_REQUIREMENTS, poniendo su segundo argumento a true. No se marca desde la página: una marca es una afirmación sobre el proyecto y necesita autor, fecha y diff.",
     "Solo se marca lo que se puede demostrar. Lo que se averiguó, con su fecha, va en RESOLUTION_NOTES, que no es marcable porque un hecho no se completa.",
@@ -1224,10 +1297,22 @@ function countedItems(items) {
   return items.filter((item) => item.status !== "cancelada");
 }
 
+/**
+ * Terminada a efectos de progreso.
+ *
+ * `countedItems` ya ha quitado las canceladas, asi que aqui solo quedan `aprobada` y `desplegada`.
+ * Contar unicamente `aprobada` decia «0 de 25 completadas» con dos filas corriendo en produccion,
+ * porque en este ledger el estado final es `desplegada` y una fila desplegada nunca vuelve a pasar
+ * por `aprobada`. La barra afirmaba algo falso sobre el proyecto.
+ */
+function isCompletedStatus(status) {
+  return isClosedStatus(status);
+}
+
 function getStageProgress(currentStage) {
   const counted = countedItems(currentStage.items);
   const total = counted.length;
-  const approved = counted.filter((item) => item.status === "aprobada").length;
+  const approved = counted.filter((item) => isCompletedStatus(item.status)).length;
   return {
     approved,
     approvedCount: approved,
@@ -1299,6 +1384,64 @@ const STATUS_CLASSES = {
   cancelada: "status-cancelled",
 };
 
+/**
+ * Interferencia: si otra fila escribe los mismos ficheros que esta, y en que estado esta esa otra.
+ *
+ * La insignia de estado dice lo que le pasa a ESTA fila. Esta dice lo que le pasa a su alrededor,
+ * que es la pregunta que hay que responder antes de coger una fila trabajando en paralelo: no
+ * «¿esta desplegada?», sino «¿hay alguien escribiendo ahora mismo en los ficheros que voy a tocar?».
+ */
+const INTERFERENCE_STATE_LABELS = {
+  "en-curso": "en curso",
+  "sin-empezar": "sin empezar",
+  cerrada: "ya cerrada",
+};
+
+const INTERFERENCE_CLASSES = {
+  "en-curso": "interference-active",
+  "sin-empezar": "interference-open",
+  cerrada: "interference-closed",
+  ninguna: "interference-none",
+  "no-toca": "interference-none",
+  "sin-declarar": "interference-unknown",
+};
+
+function describeInterference(item) {
+  if (item.interferenceLevel === "sin-declarar") {
+    return "Interferencia: sin calcular, esta fila no declara qué ficheros escribe";
+  }
+  if (item.interferenceLevel === "no-toca") {
+    return "Interferencia: ninguna, no toca código";
+  }
+
+  const entries = item.interference || [];
+  if (entries.length === 0) return "Interferencia: ninguna otra fila escribe sus ficheros";
+
+  const worst = entries.filter((entry) => entry.level === item.interferenceLevel);
+  const ids = worst.map((entry) => entry.id).join(", ");
+  const rest = entries.length - worst.length;
+  const tail = rest > 0 ? ` (+${rest} más)` : "";
+
+  if (item.interferenceLevel === "en-curso") {
+    return `Interferencia: ${ids} ${worst.length === 1 ? "está" : "están"} en curso sobre sus mismos ficheros${tail}`;
+  }
+  if (item.interferenceLevel === "sin-empezar") {
+    return `Interferencia: ${ids} ${worst.length === 1 ? "escribe" : "escriben"} sus mismos ficheros, sin empezar${tail}`;
+  }
+  return `Interferencia: solo con filas ya cerradas (${ids})`;
+}
+
+function createInterferenceBadge(item) {
+  if (item.interferenceLevel === undefined) return null;
+  const badge = createElement(
+    "span",
+    describeInterference(item),
+    `task-interference ${INTERFERENCE_CLASSES[item.interferenceLevel] || ""}`.trim(),
+  );
+  badge.dataset.interference = item.interferenceLevel;
+  return badge;
+}
+
 const KIND_LABELS = {
   bug: "Bug",
   funcion: "Función nueva",
@@ -1352,7 +1495,7 @@ function getVisibleStages(stages, filters = {}) {
 
 function getGlobalProgress(items) {
   const counted = countedItems(items);
-  const approved = counted.filter((item) => item.status === "aprobada").length;
+  const approved = counted.filter((item) => isCompletedStatus(item.status)).length;
   return {
     approved,
     total: counted.length,
@@ -1497,11 +1640,19 @@ function countChecklist(items) {
   return { done, total };
 }
 
-function renderResolutionBoard(resolutionList) {
-  // A cancelled row has nothing left to resolve, so it does not belong on this board either.
-  const unresolvedItems = flattenItems(projectData.stages).filter(
-    (item) => !isClosedStatus(item.status),
+/**
+ * Este tablero obedece a los mismos filtros que el resto de la pagina.
+ *
+ * Antes se pintaba una sola vez, fuera del ciclo de filtrado, asi que al filtrar por «Desplegada»
+ * el resumen de arriba decia 2 y aqui abajo seguian saliendo las pendientes de siempre. La pagina
+ * mostraba dos respuestas distintas a la misma pregunta, y la de abajo era la vieja.
+ */
+function renderResolutionBoard(resolutionList, filters = {}) {
+  const matchedItems = flattenItems(projectData.stages).filter((item) =>
+    itemMatches(item, filters),
   );
+  // A cancelled row has nothing left to resolve, so it does not belong on this board either.
+  const unresolvedItems = matchedItems.filter((item) => !isClosedStatus(item.status));
   resolutionList.replaceChildren();
 
   for (const item of unresolvedItems) {
@@ -1568,13 +1719,25 @@ function renderResolutionBoard(resolutionList) {
   }
 
   const summary = document.querySelector("[data-checklist-summary]");
-  if (summary) {
-    const { done, total } = countChecklist(unresolvedItems);
-    summary.textContent =
-      total === 0
-        ? "No hay requisitos registrados."
-        : `${done} de ${total} requisitos resueltos en ${unresolvedItems.length} tareas.`;
+  if (summary) summary.textContent = describeChecklistSummary(matchedItems, unresolvedItems);
+}
+
+/**
+ * Una lista vacia tiene dos causas distintas y hay que decir cual, porque «no sale nada» se lee
+ * como «no hay nada que hacer»: o el filtro no encaja con ninguna fila, o encaja solo con filas ya
+ * cerradas, que por definicion no tienen nada que resolver.
+ */
+function describeChecklistSummary(matchedItems, unresolvedItems) {
+  if (unresolvedItems.length === 0) {
+    if (matchedItems.length === 0) return "Ninguna tarea coincide con los filtros seleccionados.";
+    return matchedItems.length === 1
+      ? "La única tarea que coincide con el filtro ya está cerrada: no le queda nada que resolver."
+      : `Las ${matchedItems.length} tareas que coinciden con el filtro ya están cerradas: no les queda nada que resolver.`;
   }
+
+  const { done, total } = countChecklist(unresolvedItems);
+  if (total === 0) return "No hay requisitos registrados.";
+  return `${done} de ${total} requisitos resueltos en ${unresolvedItems.length} ${unresolvedItems.length === 1 ? "tarea" : "tareas"}.`;
 }
 /**
  * El bloque de reparto: con quien se puede trabajar a la vez y con quien no.
@@ -1613,6 +1776,9 @@ function renderParallelWork(item) {
         ? `No se puede empezar todavia: depende de ${item.blockedBy.join(", ")}.`
         : "No se puede empezar todavia.";
     container.append(createElement("p", reason, "parallel-blocked"));
+    // La interferencia se pinta igual: una fila que espera sigue compartiendo ficheros con otras, y
+    // eso es lo que decide en que orden conviene cogerlas cuando se desbloquee.
+    appendInterferenceLines(container, item);
     return container;
   }
 
@@ -1637,7 +1803,33 @@ function renderParallelWork(item) {
     );
   }
 
+  appendInterferenceLines(container, item);
   return container;
+}
+
+/**
+ * El detalle de la insignia: fila a fila, con quien comparte ficheros y en que estado esta.
+ *
+ * Va aparte de «Choca con» porque responde a otra pregunta. «Choca con» solo mira filas listas, y
+ * ahi no cabe la que hace dano de verdad: la que alguien ya empezo, que dejo de estar lista justo
+ * al empezarla.
+ */
+function appendInterferenceLines(container, item) {
+  const entries = item.interference || [];
+  if (entries.length === 0) return;
+
+  container.append(
+    createElement("p", "Escriben sus mismos ficheros:", "parallel-key parallel-interference-key"),
+  );
+  for (const entry of entries) {
+    container.append(
+      createElement(
+        "p",
+        `${entry.id} (${INTERFERENCE_STATE_LABELS[entry.level] || entry.level}) en ${entry.files.join(", ")}.`,
+        `parallel-interference ${INTERFERENCE_CLASSES[entry.level] || ""}`.trim(),
+      ),
+    );
+  }
 }
 
 function renderTask(item) {
@@ -1709,7 +1901,10 @@ function renderTask(item) {
 
   const backlogBadge = createStatusBadge(item.status, "task-status");
   backlogBadge.textContent = `Backlog: ${STATUS_LABELS[item.status] || item.status}`;
-  taskElement.append(header, checklist, description, backlogBadge, details);
+  taskElement.append(header, checklist, description, backlogBadge);
+  const interferenceBadge = createInterferenceBadge(item);
+  if (interferenceBadge) taskElement.append(interferenceBadge);
+  taskElement.append(details);
   return taskElement;
 }
 
@@ -1829,7 +2024,6 @@ function renderProject(documentRoot = typeof document !== "undefined" ? document
 
   initializeFilters(statusFilter, trackFilter);
   renderMaintenance(maintenance);
-  renderResolutionBoard(resolutionList);
   if (lastUpdated) {
     lastUpdated.dateTime = projectData.cutoffDate;
     lastUpdated.textContent = new Intl.DateTimeFormat("es-ES", {
@@ -1848,6 +2042,7 @@ function renderProject(documentRoot = typeof document !== "undefined" ? document
   const update = () => {
     const currentFilters = readFilters();
     const visibleItems = filterItems(allItems, currentFilters);
+    renderResolutionBoard(resolutionList, currentFilters);
     renderSummary(
       summaryGrid,
       visibleItems,
@@ -1952,7 +2147,11 @@ globalThis.ListaV2Project = {
   getImplementationDetails,
   getResolutionRequirements,
   renderParallelWork,
+  describeInterference,
+  interferenceLevel,
+  INTERFERENCE_STATE_LABELS,
   renderResolutionBoard,
+  describeChecklistSummary,
   setVisiblePhasesExpanded,
   renderProject,
   checklistProgress,

@@ -671,6 +671,55 @@ section > h2::before {
   justify-self: start;
 }
 
+/* La interferencia ocupa el hueco vacio a la izquierda de la insignia de backlog: las dos se leen
+   juntas y la tarjeta no crece. La de estado dice que le pasa a esta fila; esta, que le pasa
+   alrededor. */
+.task > .task-interference {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+}
+
+.task-interference {
+  align-items: center;
+  border: 1px dashed currentColor;
+  display: inline-flex;
+  font-size: 0.7rem;
+  font-weight: 800;
+  gap: 0.35rem;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  padding: 0.28rem 0.45rem;
+  width: fit-content;
+}
+
+.task-interference::before {
+  content: "⇄";
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+/* Un solape con algo que alguien esta escribiendo ahora se pinta como un bloqueo, porque lo es;
+   uno con una fila sin empezar es una advertencia de orden, no un impedimento; y uno con una fila
+   ya cerrada no es ninguna de las dos cosas. */
+.interference-active {
+  border-style: solid;
+  color: var(--status-blocked);
+}
+
+.interference-open {
+  color: var(--status-pending);
+}
+
+.interference-closed,
+.interference-none {
+  color: var(--muted-ink);
+}
+
+.interference-unknown {
+  color: var(--status-review);
+}
+
 .task > .task-details {
   grid-column: 2 / -1;
 }
@@ -789,6 +838,15 @@ section > h2::before {
 
 .parallel-unknown {
   color: var(--status-review);
+}
+
+.parallel-interference-key {
+  margin-top: var(--space-2);
+}
+
+.parallel-interference {
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
 }
 
 code {
@@ -1042,6 +1100,11 @@ footer p {
     justify-self: start;
   }
 
+  .task > .task-interference {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
   .task > .task-checklist {
     grid-column: 1 / -1;
     grid-row: 1;
@@ -1134,7 +1197,8 @@ footer p {
     padding: var(--space-3);
   }
 
-  .task > .task-status {
+  .task > .task-status,
+  .task > .task-interference {
     grid-column: auto;
     grid-row: auto;
   }

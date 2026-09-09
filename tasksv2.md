@@ -215,40 +215,61 @@ el reparto cambia solo.
 **Superficie sin declarar no quiere decir compatible con todo**, quiere decir que no se puede
 afirmar nada. Esas filas no se reparten hasta que alguien declare que ficheros van a escribir.
 
-Hoy hay **9 filas listas** de 23 abiertas, y ninguna con la superficie sin declarar.
+La ultima columna responde a la otra pregunta, la que hay que hacerse antes de coger una fila:
+**quien mas escribe estos ficheros, y en que estado esta**. `en curso` es una fila que alguien
+ya empezo -no la cojas contra ella-; `sin empezar` es un choque futuro que se evita eligiendo
+el orden; `ya cerrada` es una fila desplegada, aprobada o cancelada, que no compite con nadie
+y solo dice quien toco ese fichero el ultimo.
 
-| Fila | Estado | Toca | Puede ir a la vez que | Choca con |
-| ---- | ------ | ---- | --------------------- | --------- |
-| T001V2 | lista | `apps/web/src/app/enrol/page.tsx` | T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T022V2, T023V2 | - |
-| T002V2 | pendiente | `apps/web/src/app/enrol/page.tsx` | espera a T001V2 | - |
-| T003V2 | pendiente | `apps/web/src/app/enrol/page.tsx`<br>`apps/web/src/app/enrol/enrol.css` | espera a T001V2, T002V2 | - |
-| T004V2 | pendiente | `apps/web/src/app/page.tsx`<br>`apps/web/src/lib/client-auth.tsx` | espera a T001V2, T002V2 | - |
+Hoy hay **9 filas listas** de 23 abiertas, y ninguna con la superficie sin declarar. Ninguna fila esta en curso ahora mismo.
+
+| Fila | Estado | Toca | Puede ir a la vez que | Interfiere con |
+| ---- | ------ | ---- | --------------------- | -------------- |
+| T001V2 | lista | `apps/web/src/app/enrol/page.tsx` | T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T022V2, T023V2 | T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
+| T002V2 | pendiente | `apps/web/src/app/enrol/page.tsx` | espera a T001V2 | T001V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T003V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
+| T003V2 | pendiente | `apps/web/src/app/enrol/page.tsx`<br>`apps/web/src/app/enrol/enrol.css` | espera a T001V2, T002V2 | T001V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx`<br>T002V2 (sin empezar) en `apps/web/src/app/enrol/page.tsx` |
+| T004V2 | pendiente | `apps/web/src/app/page.tsx`<br>`apps/web/src/lib/client-auth.tsx` | espera a T001V2, T002V2 | T011V2 (sin empezar) en `apps/web/src/app/page.tsx` |
 | T005V2 | lista | `packages/domain/src/consents/enrolment-waiver-terms.ts` | T001V2, T007V2, T008V2, T013V2, T018V2, T020V2, T022V2, T023V2 | - |
 | T006V2 | pendiente | `apps/functions/src/schedule/schedule-callables.ts`<br>`packages/domain/src/members/enrolment-request-contracts.ts` | espera a T001V2, T002V2, T004V2 | - |
-| T007V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/penalties/no-show-penalty-contracts.ts` | T001V2, T005V2, T008V2, T013V2, T020V2, T022V2, T023V2 | T018V2 en `packages/domain/src/schedule/schedule-contracts.ts` |
+| T007V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/penalties/no-show-penalty-contracts.ts` | T001V2, T005V2, T008V2, T013V2, T020V2, T022V2, T023V2 | T015V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T018V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts` |
 | T008V2 | lista | `apps/web/src/app/account/family/page.tsx` | T001V2, T005V2, T007V2, T013V2, T018V2, T020V2, T022V2, T023V2 | - |
 | T009V2 | pendiente | `apps/functions/src/families/family-service.ts`<br>`packages/domain/src/profiles/profile-contracts.ts`<br>`apps/web/src/lib/auth-client.ts`<br>`apps/functions/src/delivery/delivery-service.ts`<br>`docs/operations/t011-dpia-draft.md` | espera a T008V2 | - |
-| T010V2 | pendiente | `apps/web/src/content/academy.ts` | espera a T021V2 | - |
-| T011V2 | pendiente | `apps/web/src/content/academy.ts`<br>`apps/web/src/app/page.tsx` | espera a T021V2 | - |
-| T013V2 | lista | `apps/web/src/app/admin/overview-page.tsx` | T001V2, T005V2, T007V2, T008V2, T018V2, T020V2, T022V2, T023V2 | - |
-| T014V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | - |
-| T015V2 | pendiente | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/memberships/plan-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | espera a T013V2, T014V2 | - |
-| T016V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | - |
-| T017V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | - |
+| T010V2 | pendiente | `apps/web/src/content/academy.ts` | espera a T021V2 | T011V2 (sin empezar) en `apps/web/src/content/academy.ts` |
+| T011V2 | pendiente | `apps/web/src/content/academy.ts`<br>`apps/web/src/app/page.tsx` | espera a T021V2 | T004V2 (sin empezar) en `apps/web/src/app/page.tsx`<br>T010V2 (sin empezar) en `apps/web/src/content/academy.ts` |
+| T013V2 | lista | `apps/web/src/app/admin/overview-page.tsx` | T001V2, T005V2, T007V2, T008V2, T018V2, T020V2, T022V2, T023V2 | T014V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T016V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T017V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
+| T014V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | T013V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T016V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T017V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
+| T015V2 | pendiente | `packages/domain/src/schedule/schedule-contracts.ts`<br>`packages/domain/src/memberships/plan-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | espera a T013V2, T014V2 | T007V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T018V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T023V2 (sin empezar) en `apps/functions/src/schedule/booking-transaction-service.ts` |
+| T016V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | T013V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T014V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T017V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
+| T017V2 | pendiente | `apps/web/src/app/admin/overview-page.tsx` | espera a T013V2 | T013V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T014V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx`<br>T016V2 (sin empezar) en `apps/web/src/app/admin/overview-page.tsx` |
 | T022V2 | lista | `apps/functions/src/auth/admin-provisioning.ts`<br>`apps/functions/src/index.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T023V2 | - |
 | T024V2 | pendiente | `apps/web/src/lib/schedule-client.ts`<br>`apps/functions/src/schedule/quorum-sweep-runner.ts` | espera a T013V2, T014V2, T015V2 | - |
-| T018V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`apps/functions/src/memberships/membership-callables.ts`<br>`packages/domain/src/finance/financial-dashboard.ts` | T001V2, T005V2, T008V2, T013V2, T020V2, T022V2, T023V2 | T007V2 en `packages/domain/src/schedule/schedule-contracts.ts` |
+| T018V2 | lista | `packages/domain/src/schedule/schedule-contracts.ts`<br>`apps/functions/src/memberships/membership-callables.ts`<br>`packages/domain/src/finance/financial-dashboard.ts` | T001V2, T005V2, T008V2, T013V2, T020V2, T022V2, T023V2 | T007V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts`<br>T015V2 (sin empezar) en `packages/domain/src/schedule/schedule-contracts.ts` |
 | T019V2 | pendiente | `apps/functions/src/finance/finance-service.ts`<br>`packages/domain/src/shop` | espera a T023V2 | - |
 | T020V2 | lista | `apps/web/src/app/admin/members/page.tsx`<br>`apps/functions/src/profiles/profile-service.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T022V2, T023V2 | - |
-| T023V2 | lista | `packages/domain/src/families/family-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T022V2 | - |
+| T023V2 | lista | `packages/domain/src/families/family-contracts.ts`<br>`apps/functions/src/schedule/booking-transaction-service.ts` | T001V2, T005V2, T007V2, T008V2, T013V2, T018V2, T020V2, T022V2 | T015V2 (sin empezar) en `apps/functions/src/schedule/booking-transaction-service.ts` |
 | T021V2 | bloqueada | no toca codigo | no esta lista | - |
 
 <!-- REPARTO:FIN -->
 
 **Como se usa.** Cada uno coge una fila de las que la tabla marca como listas, comprueba que la otra
 aparezca en su columna "Puede ir a la vez que", y adelante. Al terminar, cada uno sube lo suyo. Si
-las dos aparecen en "Choca con", la tabla dice **en que fichero**, que es lo que hace falta para
-decidir si una de las dos se puede reordenar o partir en vez de descartar el paralelo a ciegas.
+una fila no aparece ahi pero si en "Interfiere con", la tabla dice **en que fichero**, que es lo que
+hace falta para decidir si una de las dos se puede reordenar o partir en vez de descartar el
+paralelo a ciegas.
+
+**Lo primero que hay que mirar en "Interfiere con" es el estado entre parentesis**, no el ID. `en
+curso` es una fila que alguien ya empezo: coger contra ella es escribir en un fichero que otro esta
+tocando ahora mismo. `sin empezar` es un choque futuro -nadie escribe todavia, y basta con acordar
+el orden-. `ya cerrada` no es un riesgo: la fila esta desplegada, aprobada o cancelada y su cambio
+ya cayo; la linea solo dice quien toco ese fichero el ultimo. Es la diferencia que hace util la
+columna: la pregunta de verdad no es "esta desplegada?", sino "hay alguien escribiendo ahora en lo
+que voy a tocar?".
+
+**Esta columna solo dice la verdad si el estado se actualiza al empezar.** Una fila que alguien esta
+escribiendo pero sigue puesta como `pendiente` sale como `sin empezar`, y entonces la tabla afirma
+que no hay nadie donde si lo hay. Poner la fila en `en-progreso` en `tasksv2.md` -y sincronizar el
+tablero- es lo que enciende el aviso para el otro. Con dos personas repartiendose el trabajo, ese
+paso deja de ser burocracia y pasa a ser la senal.
 
 **Donde se declara la superficie.** En `TASK_SURFACES`, dentro de `Listav2/Listav2.data.js`. Es la
 unica excepcion a que el ledger mande: el estado y la evidencia de una fila se escriben aqui

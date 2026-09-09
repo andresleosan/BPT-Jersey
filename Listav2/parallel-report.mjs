@@ -38,10 +38,23 @@ function describeParallel(item) {
   return item.parallelWith.length > 0 ? item.parallelWith.join(", ") : "ninguna";
 }
 
-function describeConflicts(item) {
-  if (!item.ready || !item.conflicts || item.conflicts.length === 0) return "-";
-  return item.conflicts
-    .map((conflict) => `${conflict.id} en \`${conflict.files.join("`, `")}\``)
+/**
+ * Con quien comparte ficheros la fila, y en que estado esta esa otra.
+ *
+ * Sustituye a la columna «Choca con», que solo miraba filas listas. Eso dejaba fuera el caso que
+ * hace dano: la fila que el compañero ya empezo, porque al pasar a `en-progreso` dejo de estar
+ * lista y desaparecia de la columna justo cuando mas importaba verla. El estado va en la celda
+ * porque un solape con algo en curso y otro con algo sin empezar no se deciden igual.
+ */
+function describeInterference(item) {
+  if (item.surface === null) return "no se puede afirmar";
+  if (!item.interference || item.interference.length === 0) return "-";
+  const labels = globalThis.ListaV2Project.INTERFERENCE_STATE_LABELS;
+  return item.interference
+    .map(
+      (entry) =>
+        `${entry.id} (${labels[entry.level] || entry.level}) en \`${entry.files.join("`, `")}\``,
+    )
     .join("<br>");
 }
 
@@ -50,6 +63,7 @@ export function renderParallelReport() {
   const items = project.flattenItems(project.projectData.stages).filter((item) => item.open);
   const ready = items.filter((item) => item.ready);
   const undeclared = items.filter((item) => item.surface === null);
+  const active = items.filter((item) => item.status === "en-progreso" || item.status === "revision");
 
   const lines = [
     startMarker,
@@ -65,19 +79,29 @@ export function renderParallelReport() {
     "**Superficie sin declarar no quiere decir compatible con todo**, quiere decir que no se puede",
     "afirmar nada. Esas filas no se reparten hasta que alguien declare que ficheros van a escribir.",
     "",
+    "La ultima columna responde a la otra pregunta, la que hay que hacerse antes de coger una fila:",
+    "**quien mas escribe estos ficheros, y en que estado esta**. `en curso` es una fila que alguien",
+    "ya empezo -no la cojas contra ella-; `sin empezar` es un choque futuro que se evita eligiendo",
+    "el orden; `ya cerrada` es una fila desplegada, aprobada o cancelada, que no compite con nadie",
+    "y solo dice quien toco ese fichero el ultimo.",
+    "",
     `Hoy hay **${ready.length} filas listas** de ${items.length} abiertas` +
       (undeclared.length > 0
         ? `, y **${undeclared.length} con la superficie sin declarar**.`
-        : ", y ninguna con la superficie sin declarar."),
+        : ", y ninguna con la superficie sin declarar.") +
+      (active.length > 0
+        ? ` **${active.length} ${active.length === 1 ? "fila esta" : "filas estan"} en curso**: ` +
+          `${active.map((item) => item.id).join(", ")}.`
+        : " Ninguna fila esta en curso ahora mismo."),
     "",
-    "| Fila | Estado | Toca | Puede ir a la vez que | Choca con |",
-    "| ---- | ------ | ---- | --------------------- | --------- |",
+    "| Fila | Estado | Toca | Puede ir a la vez que | Interfiere con |",
+    "| ---- | ------ | ---- | --------------------- | -------------- |",
   ];
 
   for (const item of items) {
     lines.push(
       `| ${item.id} | ${item.ready ? "lista" : item.status} | ${describeSurface(item)} | ` +
-        `${describeParallel(item)} | ${describeConflicts(item)} |`,
+        `${describeParallel(item)} | ${describeInterference(item)} |`,
     );
   }
 

@@ -982,6 +982,28 @@ const TASK_SURFACES = {
 // que repartir, igual que una aprobada o una cancelada.
 const CLOSED_STATUSES = new Set(["desplegada", "aprobada", "cancelada"]);
 
+// Una fila que alguien ya empezo: hay trabajo vivo cayendo sobre sus ficheros ahora mismo, este o
+// no commiteado. Es el unico estado en el que un solape se paga en conflictos de merge de verdad.
+const ACTIVE_STATUSES = new Set(["en-progreso", "revision"]);
+
+/**
+ * Cuanto pesa que otra fila escriba tus mismos ficheros. Tres niveles, y la diferencia es la que
+ * el operador necesita para elegir fila:
+ *
+ * - `en-curso`: alguien la esta escribiendo. Coger la tuya es pelearse por el fichero hoy.
+ * - `sin-empezar`: nadie la ha empezado. El choque es futuro y evitable coordinando el orden.
+ * - `cerrada`: ya desplegada, aprobada o cancelada. El cambio ya cayo; no compite con nadie.
+ *
+ * `desplegada` cuenta como cerrada a proposito: saber que un fichero lo toco una fila ya en
+ * produccion es informacion util -dice quien lo escribio el ultimo- pero no es un riesgo.
+ */
+function interferenceLevel(status) {
+  if (ACTIVE_STATUSES.has(status)) return "en-curso";
+  return CLOSED_STATUSES.has(status) ? "cerrada" : "sin-empezar";
+}
+
+const INTERFERENCE_SEVERITY = { "en-curso": 3, "sin-empezar": 2, cerrada: 1 };
+
 /** Una carpeta cubre lo que cuelga de ella, asi que el solape no es igualdad de cadenas. */
 function pathsOverlap(left, right) {
   return left === right || left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
@@ -1061,7 +1083,57 @@ function annotateParallelWork(stages) {
     item.conflicts.sort((left, right) => left.id.localeCompare(right.id));
   }
 
+  annotateInterference(items);
   return stages;
+}
+
+/**
+ * Con quien comparte ficheros esta fila, **este quien este lista o no**.
+ *
+ * `conflicts` responde a otra pregunta -"si hoy repartimos dos filas listas, se pisan?"- y por eso
+ * solo mira filas listas y descarta las encadenadas. Eso deja fuera justo el caso que hace dano:
+ * una fila que alguien ya empezo. Si el compañero esta escribiendo T013V2 y yo cojo otra fila que
+ * toca su mismo fichero, `conflicts` no dice nada, porque T013V2 dejo de estar "lista" en cuanto
+ * paso a `en-progreso`.
+ *
+ * Aqui no se descarta nada: ni el estado de la otra fila ni la cadena de dependencias. Una fila que
+ * depende de otra y escribe su mismo fichero interfiere igual; que ademas tenga que esperarla es un
+ * hecho distinto, y lo cuenta `blockedBy`.
+ */
+function annotateInterference(items) {
+  for (const item of items) {
+    item.interference = [];
+
+    if (item.surface === null) {
+      item.interferenceLevel = "sin-declarar";
+      continue;
+    }
+    if (item.surface.length === 0) {
+      item.interferenceLevel = "no-toca";
+      continue;
+    }
+
+    for (const other of items) {
+      if (other === item || other.surface === null || other.surface.length === 0) continue;
+      const files = sharedPaths(item.surface, other.surface);
+      if (files.length === 0) continue;
+      item.interference.push({
+        id: other.id,
+        status: other.status,
+        level: interferenceLevel(other.status),
+        files,
+      });
+    }
+
+    // Lo peor primero: quien mira la insignia quiere saber si hay algo vivo, no leer una lista.
+    item.interference.sort(
+      (left, right) =>
+        INTERFERENCE_SEVERITY[right.level] - INTERFERENCE_SEVERITY[left.level] ||
+        left.id.localeCompare(right.id),
+    );
+    item.interferenceLevel =
+      item.interference.length === 0 ? "ninguna" : item.interference[0].level;
+  }
 }
 
 const projectData = {
@@ -1155,6 +1227,7 @@ const projectData = {
     "Interrogar la fila con /grill-me antes de escribir código cuando tenga decisiones abiertas. Las cinco que lo requerían -T006V2, T007V2, T009V2, T015V2 y T019V2- se interrogaron el 2026-09-09 en tres rondas, y sus decisiones están escritas en la fila.",
     "Actualizar primero tasksv2.md, que es la fuente única de verdad del estado y la evidencia de estas filas.",
     "Actualizar Listav2/Listav2.data.js después, en el mismo cambio lógico, sin copiar datos sensibles.",
+    "Poner la fila en `en-progreso` al empezarla, no solo al terminarla. Es lo que enciende el aviso de interferencia: la insignia de cada tarea y la columna «Interfiere con» del ledger leen el estado de las demás filas, así que una fila que alguien está escribiendo pero sigue puesta como `pendiente` sale como «sin empezar» y la tabla afirma que no hay nadie donde sí lo hay. Con dos personas repartiéndose el trabajo, ese paso deja de ser burocracia y pasa a ser la señal.",
     "Reensamblar con `node Listav2/build.mjs`: Listav2.js es generado a partir de Listav2.data.js y Listav2.engine.js, y editarlo a mano se pierde en el siguiente build.",
     "Marcar un requisito como resuelto se hace aquí, en RESOLUTION_REQUIREMENTS, poniendo su segundo argumento a true. No se marca desde la página: una marca es una afirmación sobre el proyecto y necesita autor, fecha y diff.",
     "Solo se marca lo que se puede demostrar. Lo que se averiguó, con su fecha, va en RESOLUTION_NOTES, que no es marcable porque un hecho no se completa.",
