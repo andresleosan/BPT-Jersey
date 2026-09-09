@@ -87,12 +87,21 @@ export function assertDistinctMemberDirectorySecrets(
     identity: string;
     integrity: string;
     cursor: string;
+    /**
+     * The artifact-encryption secret, when the caller holds it. It is a fourth purpose - it seals
+     * the frozen manifest, plan and baseline - and reusing the integrity key to encrypt what that
+     * key also authenticates would make one compromise into two.
+     */
+    artifact?: string;
   }>,
 ): void {
   const decoded = [
     decodeMemberDirectorySecret(input.identity, "identity"),
     decodeMemberDirectorySecret(input.integrity, "integrity"),
     decodeMemberDirectorySecret(input.cursor, "cursor"),
+    ...(input.artifact === undefined
+      ? []
+      : [decodeMemberDirectorySecret(input.artifact, "artifact")]),
   ];
   for (let left = 0; left < decoded.length; left += 1) {
     for (let right = left + 1; right < decoded.length; right += 1) {
