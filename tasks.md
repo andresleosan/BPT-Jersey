@@ -8164,3 +8164,27 @@ backup, 20 en las primeras y no en el segundo, 3 sin ningun escritor, y **20 mod
 
 **Nada de codigo en esta entrada, a proposito.** El registro se escribe con esta auditoria delante, no
 con la lista de la especificacion copiada.
+
+### Grafo de conocimiento refrescado - 2026-09-09 (segunda vuelta, solo codigo)
+
+`graphify update .`, la via AST sin coste de LLM. **El comando del ledger anterior estaba mal
+escrito:** decia `--update` y el CLI real es `graphify update <path>`; `--update` responde `unknown
+command`. Anotado porque la nota anterior lo repetia.
+
+- **738 ficheros reextraidos**, ninguno cacheado tras el trabajo de la sesion. El grafo pasa de
+  **10.104 a 10.260 nodos** y de **22.481 a 23.001 aristas**. Entran las siete piezas nuevas de T108
+  -el dry-run, el runner del forward, el runner de cierre, el adaptador Firestore y sus pruebas, mas
+  el ensayo de la operacion completa- y el planificador del cutover del dominio.
+- **Comunidades: 511, desde 497.** El etiquetado guardado tenia 497 nombres, asi que **495 se
+  renombraron por su nodo central** y las nuevas quedan sin nombre curado. `graphify label` las
+  refresca con LLM; no se corrio.
+- **Copia de seguridad del grafo curado** en `graphify-out/2026-09-09/`, cinco ficheros.
+
+**Lo que NO entro, y conviene no confundirlo:** la documentacion. `tasks.md`, `LECCIONES.md` y los
+documentos de operaciones **no** se reextrajeron, asi que el grafo **no contiene** las cinco secciones
+nuevas de esta sesion -las rebanadas 13 a 16, el cierre y la auditoria de la 17-. La via de documentos
+es la extraccion semantica por subagentes que la nota del 2026-09-09 describe, y cuesta del orden de
+264.000 tokens de entrada; no se lanzo. **Para el ledger, leer el fichero sigue siendo lo unico
+seguro**, y hoy mas que ayer.
+
+`graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.
