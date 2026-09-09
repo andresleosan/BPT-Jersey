@@ -18,6 +18,11 @@ type BoardItem = {
   id: string;
   status: string;
   track: string;
+  open: boolean;
+  ready: boolean;
+  active: boolean;
+  available: boolean;
+  parallelWith: readonly string[];
   surface: readonly string[] | null;
   interference: readonly Interference[];
   interferenceLevel: InterferenceLevel | "ninguna" | "no-toca" | "sin-declarar";
@@ -213,6 +218,44 @@ describe("Listav2 says what else writes the same files", () => {
         expect(card.querySelector(".task-interference")!.textContent).toMatch(/^Interferencia: /u);
       }
     });
+  });
+});
+
+/**
+ * Empezable y libre no son lo mismo. Una fila que alguien ya esta escribiendo cumple las dos
+ * condiciones de `ready` -sin dependencia abierta y sin bloqueo- y anunciarla como «lista»
+ * invitaria a cogerla dos veces, que es justo lo que el reparto existe para evitar.
+ */
+describe("Listav2 tells apart a row that can be started from one that is free", () => {
+  it("marks as active exactly the rows someone has started", () => {
+    for (const item of items) {
+      expect(item.active, item.id).toBe(
+        item.status === "en-progreso" || item.status === "revision",
+      );
+    }
+  });
+
+  it("never offers an active row as free, however unblocked it is", () => {
+    for (const item of items) {
+      expect(item.available, item.id).toBe(item.ready && !item.active);
+      if (item.active) expect(item.available, item.id).toBe(false);
+    }
+  });
+
+  /**
+   * Seguir comparandola en paralelo si es correcto: quien elige la otra mitad del reparto necesita
+   * saber que no chocan. Lo que no puede es figurar como libre.
+   */
+  it("keeps comparing an active row in parallel, for whoever picks the other half", () => {
+    for (const item of items) {
+      if (!item.active || item.surface === null) continue;
+      for (const partnerId of item.parallelWith) {
+        expect(
+          byId.get(partnerId)!.parallelWith,
+          `${partnerId} no devuelve el par a ${item.id}`,
+        ).toContain(item.id);
+      }
+    }
   });
 });
 

@@ -30,6 +30,16 @@ function describeSurface(item) {
   return item.surface.map((path) => `\`${path}\``).join("<br>");
 }
 
+/**
+ * «Lista» significa libre, no solo empezable. Una fila que alguien ya esta escribiendo cumple las
+ * dos condiciones de `ready` -sin dependencia abierta y sin bloqueo- y anunciarla como lista
+ * invitaria a cogerla dos veces, que es exactamente lo que esta tabla existe para evitar.
+ */
+function describeState(item) {
+  if (item.active) return "**en curso**";
+  return item.ready ? "lista" : item.status;
+}
+
 function describeParallel(item) {
   if (item.surface === null) return "no se puede afirmar";
   if (!item.ready) {
@@ -61,9 +71,10 @@ function describeInterference(item) {
 export function renderParallelReport() {
   const project = globalThis.ListaV2Project;
   const items = project.flattenItems(project.projectData.stages).filter((item) => item.open);
-  const ready = items.filter((item) => item.ready);
+  // Libres, no solo empezables: una fila en curso ya tiene dueño y no se ofrece.
+  const ready = items.filter((item) => item.available);
   const undeclared = items.filter((item) => item.surface === null);
-  const active = items.filter((item) => item.status === "en-progreso" || item.status === "revision");
+  const active = items.filter((item) => item.active);
 
   const lines = [
     startMarker,
@@ -100,7 +111,7 @@ export function renderParallelReport() {
 
   for (const item of items) {
     lines.push(
-      `| ${item.id} | ${item.ready ? "lista" : item.status} | ${describeSurface(item)} | ` +
+      `| ${item.id} | ${describeState(item)} | ${describeSurface(item)} | ` +
         `${describeParallel(item)} | ${describeInterference(item)} |`,
     );
   }

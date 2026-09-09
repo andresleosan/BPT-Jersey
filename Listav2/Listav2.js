@@ -813,7 +813,7 @@ const adminItems = [
   task(
     "T022V2",
     "Desplegar `provisionAdminRole` como callable, con su revisión de autorización",
-    "pendiente",
+    "en-progreso",
     "Hoy no existe ninguna vía en producción para aprovisionar a un administrador.",
     "-",
     "Aplica D6. Es el único escritor del documento que exige la puerta canónica, y hoy se reexporta como función suelta, no como `onCall`. No es envolverla: el objetivo llega como segundo parámetro y `provisioningRequestSchema` rechaza cualquier campo extra, así que desplegarla ensancha el contrato de entrada de la superficie de autorización. Ya trae `requireOwner`; le falta verificar App Check en el manejador, como sí hace la puerta hermana.",
@@ -1070,6 +1070,13 @@ function annotateParallelWork(stages) {
     // dato que solo tiene el operador. Ofrecerla como lista para empezar seria mandar a alguien a
     // trabajar contra una pared distinta.
     item.ready = item.open && item.status !== "bloqueada" && item.blockedBy.length === 0;
+    // `ready` dice que la fila se puede empezar; `available`, que ademas no la ha cogido nadie. Sin
+    // esa segunda, una fila que alguien esta escribiendo salia anunciada como «lista» y el reparto
+    // invitaba a cogerla dos veces. Se separan porque las dos hacen falta: la de en curso sigue
+    // siendo comparable en paralelo -para quien elija la otra mitad del reparto-, pero ya no esta
+    // libre.
+    item.active = ACTIVE_STATUSES.has(item.status);
+    item.available = item.ready && !item.active;
   }
 
   for (const item of items) {
@@ -1780,6 +1787,19 @@ function renderParallelWork(item) {
     // eso es lo que decide en que orden conviene cogerlas cuando se desbloquee.
     appendInterferenceLines(container, item);
     return container;
+  }
+
+  // Empezable y libre no son lo mismo: esta fila cumple las dos condiciones de `ready` y aun asi
+  // ya tiene dueño. Decirlo antes de listar companeras evita que alguien la coja por segunda vez.
+  if (item.active) {
+    container.append(
+      createElement(
+        "p",
+        "Ya la está haciendo alguien: no la cojas. Lo de abajo es con qué se puede repartir " +
+          "mientras tanto.",
+        "parallel-conflict",
+      ),
+    );
   }
 
   const partners = item.parallelWith || [];

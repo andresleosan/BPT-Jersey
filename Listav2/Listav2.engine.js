@@ -527,6 +527,19 @@ function renderParallelWork(item) {
     return container;
   }
 
+  // Empezable y libre no son lo mismo: esta fila cumple las dos condiciones de `ready` y aun asi
+  // ya tiene dueño. Decirlo antes de listar companeras evita que alguien la coja por segunda vez.
+  if (item.active) {
+    container.append(
+      createElement(
+        "p",
+        "Ya la está haciendo alguien: no la cojas. Lo de abajo es con qué se puede repartir " +
+          "mientras tanto.",
+        "parallel-conflict",
+      ),
+    );
+  }
+
   const partners = item.parallelWith || [];
   container.append(
     createElement(
