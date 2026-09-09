@@ -76,7 +76,7 @@ const RESOLUTION_NOTES = {
   T011V2:
     "El contenido tiene un único objeto de localización, Town Office (`academy.ts:48-53`), consumido como objeto único en la landing. `BPT West / Strive` solo existe como etiqueta de tarifa (`academy.ts:144`), sin domicilio.",
   T012V2:
-    'Diagnosticado en producción el 2026-09-09, y la causa no era ninguna de las cuatro que la fila listaba. Cloud Run registra «Callable request verification passed» y acto seguido HTTP 403 en `getEnrolmentRequestDetail`, `listMembers`, `getMemberDetail` y `lookupMemberIdentity`, mientras `listEnrolmentRequests` responde 200 en la misma sesión. Lo que las separa es la puerta: las que fallan exigen, además del claim, un documento de personal aprovisionado en `academies/{academyId}/users/{uid}`. En producción la cuenta de `owner` lo tiene y pasa; la de `administrator` tiene claims válidos y ningún documento, y por eso la cola se pinta y ninguna fila se abre. Los botones no están inertes: «Approve and enrol» está `disabled` a propósito hasta que cargue el detalle, y «Send back to applicant» funciona pero exige escribir la nota. El único escritor de ese documento, `provisionAdminRole`, no está desplegado como callable. Decidido por el operador el 2026-09-09 (D5): se aprueba desde la cuenta de `owner` y no se escribe nada en producción. Teclear el documento a mano lo haría válido para la puerta y no dejaría rastro de quién concedió ese poder, porque `provisionAdminRole` lo escribe en la misma transacción que toma el cerrojo de rol y emite `admin.role.granted`; y el esquema es un `z.strictObject` de catorce campos, con dos `Timestamp` reales, donde un campo de más o de menos deja el 403 intacto. La cuenta de `administrator` queda inservible para el directorio canónico a propósito, y esa limitación la levanta T022V2 (D6).',
+    'Diagnosticado en producción el 2026-09-09, y la causa no era ninguna de las cuatro que la fila listaba. Cloud Run registra «Callable request verification passed» y acto seguido HTTP 403 en `getEnrolmentRequestDetail`, `listMembers`, `getMemberDetail` y `lookupMemberIdentity`, mientras `listEnrolmentRequests` responde 200 en la misma sesión. Lo que las separa es la puerta: las que fallan exigen, además del claim, un documento de personal aprovisionado en `academies/{academyId}/users/{uid}`. En producción la cuenta de `owner` lo tiene y pasa; la de `administrator` tiene claims válidos y ningún documento, y por eso la cola se pinta y ninguna fila se abre. Los botones no están inertes: «Approve and enrol» está `disabled` a propósito hasta que cargue el detalle, y «Send back to applicant» funciona pero exige escribir la nota. El único escritor de ese documento, `provisionAdminRole`, no está desplegado como callable. Decidido por el operador el 2026-09-09 (D5): se aprueba desde la cuenta de `owner` y no se escribe nada en producción. Teclear el documento a mano lo haría válido para la puerta y no dejaría rastro de quién concedió ese poder, porque `provisionAdminRole` lo escribe en la misma transacción que toma el cerrojo de rol y emite `admin.role.granted`; y el esquema es un `z.strictObject` de catorce campos, con dos `Timestamp` reales, donde un campo de más o de menos deja el 403 intacto. La cuenta de `administrator` queda inservible para el directorio canónico a propósito, y esa limitación la levanta T022V2 (D6). CORREGIDO más tarde el mismo día: el diagnóstico estaba incompleto y la fila culpaba a quien no era. Probado en producción desde `owner`, el detalle sí abre, porque `enrolmentRequestDetail` pasa `requiresCanonicalReader: false` y se salta la comprobación de estado; pero aprobar falla igual, con `approval_write_failed`. La causa real es que el directorio canónico nunca se inicializó en producción, que es T025V2. Lo del documento de `administrator` sigue siendo cierto, pero aprovisionarlo no habría dado de alta a nadie.',
   T013V2:
     'El panel ya tiene un bloque "Today\'s classes" en `apps/web/src/app/admin/overview-page.tsx`; lo que falta es su posición y el detalle de las sesiones que quedan.',
   T015V2:
@@ -93,6 +93,8 @@ const RESOLUTION_NOTES = {
     "No se resuelve escribiendo código ni preguntando mejor: son datos que solo tiene el operador.",
   T023V2:
     'Sale de la ronda del 2026-09-09 y bloquea a T019V2. «Centro» está dicho de ocho maneras con dos mayúsculas incompatibles, y tres de las capitalizadas están escritas en Firestore: `trainingCenter` en estudiantes, en el directorio de miembros y en familias, más `classSites`/`openMatSites` en los planes, más el `trainingCenter` de texto libre de la importación de Regyfit, cuyos valores son arbitrarios y no se arreglan con un `toLowerCase()`. Decidido: no se migra. La fila construye una única conversión canónica en el dominio que sustituya las cinco ternarias escritas a mano y las dos comparaciones literales, y que falle a la vista ante un valor inesperado. Ese es el bug real: `booking-transaction-service.ts:679` hace `locationId === \'town\' ? \'Town\' : \'West\'`, de modo que un tercer valor caería en silencio en West. La migración completa queda expresamente fuera de alcance.',
+  T025V2:
+    'Causa raíz real del alta rota, encontrada el 2026-09-09 leyendo producción: la colección `academies/demo-academy/memberDirectoryStates` está vacía y el documento `current` que toda lectura y toda escritura del directorio exigen no existe. La lectura lo pide en `assertCanonicalReader` y lanza `unavailable`, que Firebase mapea a HTTP 400: es el 400 de `listMembers` que aparece en la consola desde una sesión de `owner`. La escritura lo exige además junto al documento de guarda `memberDirectoryRestoreGuards/{academyId}`, y por eso `approveEnrolmentRequest` muere con `approval_write_failed`. No es un problema de la cuenta sino de la academia: afecta igual a `owner` y a `administrator`, así que aprovisionar al administrador nunca habría bastado. Y hoy no hay ninguna vía para arreglarlo: el inicializador es de emulador por diseño en cuatro capas -constante `demo-bpt-jersey`, `z.literal` del mismo valor, `target: \'emulator\'` y el rechazo `store.projectId !== projectId`-, su ejecutor clava el mismo proyecto y `index.ts` no lo exporta a propósito; además exige dieciocho colecciones vacías, incluida `auditEvents`, que producción ya tiene. Dato que tranquiliza: un intento fallido deja la solicitud en `approval-failed`, que sigue siendo aprobable, así que no hay nada atascado.',
   T024V2:
     'Sale de la ronda del 2026-09-09, y no es una mejora: es el incumplimiento de una decisión aprobada. La decisión 3 del BRIEF promete que una tarea idempotente cancela la sesión que no reúne cuatro reservas una hora antes. Esa tarea no ocurre en producción: `reconcileSessionQuorum` es un callable de staff al que ningún cliente web llama, y el único runner en lote se declara en su cabecera como deliberadamente no programado, restringido al emulador demo por `assertQuorumSweepRunnerEnvironment` (`quorum-sweep-runner.ts:8-15`, `:74`). La regla pura `decideQuorumSweep` y el servicio transaccional idempotente ya existen y están probados: lo que falta es que algo los dispare.',
   T022V2:
@@ -434,6 +436,32 @@ const RESOLUTION_REQUIREMENTS = {
       "Aprovisionar por esa vía la cuenta de `administrator` y comprobar que después abre una fila de la cola. Es la limitación que D5 dejó declarada en T012V2.",
     ),
   ],
+  T025V2: [
+    requirement(
+      "Diagnosticar por qué falla el alta desde una cuenta que sí pasa la puerta canónica. HECHO EL 2026-09-09: falta el documento de estado del directorio, y con él fallan la lectura con 400 y la escritura con approval_write_failed.",
+      true,
+    ),
+    requirement(
+      "Comprobar en producción que la colección `memberDirectoryStates` está vacía y que el documento `current` no existe. HECHO EL 2026-09-09 por lectura directa.",
+      true,
+    ),
+    requirement(
+      "Comprobar si existe alguna vía para inicializar el directorio en producción. HECHO EL 2026-09-09: no existe. El inicializador es de emulador por diseño en cuatro capas y su ejecutor clava el proyecto demo.",
+      true,
+    ),
+    requirement(
+      "DECISIÓN PENDIENTE DEL OPERADOR: abrir una vía de inicialización válida para producción, y con qué precondición de vacuidad, o escribir los tres documentos a mano una sola vez. Es escritura en producción sobre el modelo de integridad del directorio.",
+    ),
+    requirement(
+      "Crear el documento de estado `memberDirectoryStates/current` y el de guarda `memberDirectoryRestoreGuards/{academyId}` con su evento cero, en una sola transacción.",
+    ),
+    requirement(
+      "Revisar la precondición de vacuidad: la actual exige dieciocho colecciones vacías, incluida `auditEvents`, que producción ya tiene, así que hoy bloquearía la inicialización aunque se le cambiara el proyecto.",
+    ),
+    requirement(
+      "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2.",
+    ),
+  ],
   T023V2: [
     requirement(
       "Construir una única conversión canónica de centro en el dominio, que falle a la vista ante un valor inesperado en vez de elegir uno.",
@@ -490,7 +518,7 @@ const IMPLEMENTATION_OVERRIDES = {
   T012V2: {
     implementationStatus: "parcial",
     implementationEvidence:
-      "Causa localizada en producción el 2026-09-09, y decidida el mismo día: se aprueba desde la cuenta de owner, que ya pasa la puerta, y no se escribe nada en producción. Corregido ya el mensaje ciego que lo ocultaba, con pruebas. Falta aprobar a un solicitante real desde owner, que es una acción en la sesión del operador.",
+      "Probado en producción desde owner el 2026-09-09: el detalle abre y aprobar sigue fallando con approval_write_failed. La causa real no es el documento de personal de administrator sino el directorio canónico que nunca se inicializó, que es T025V2. Esta fila no se puede cerrar antes que aquella.",
   },
 };
 
@@ -677,7 +705,7 @@ const adminItems = [
     "Reparar la cola de aprobación de nuevos miembros",
     "en-progreso",
     "Ningún botón acepta al nuevo miembro: hoy no se puede dar de alta a nadie.",
-    "-",
+    "T025V2",
     "Diagnosticada el 2026-09-09: la cuenta de administrator tiene claims válidos y ningún documento de personal aprovisionado, así que la cola carga y toda callable detrás de la puerta canónica responde 403. Falta la escritura en producción, que espera al operador.",
     [REF_TASKS, "apps/web/src/app/admin/members/requests/page.tsx", "apps/web/src/lib/enrolment-client.ts"],
     "bug",
@@ -755,6 +783,20 @@ const adminItems = [
     "La regla pura y el servicio transaccional idempotente ya existen y están probados; lo que falta es que algo los dispare. `reconcileSessionQuorum` es un callable de staff al que ningún cliente web llama, y el único runner en lote está restringido al emulador demo y declarado deliberadamente no programado. Reutiliza la maquinaria programada que introduce T015V2.",
     [REF_TASKS, "apps/functions/src/schedule/quorum-sweep-runner.ts:8-15"],
     "funcion",
+  ),
+  task(
+    "T025V2",
+    "Inicializar el directorio canónico de miembros en producción",
+    "pendiente",
+    "Nunca se inicializó, y sin su documento de estado no se puede dar de alta a nadie.",
+    "-",
+    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía. La lectura del directorio devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator, porque el documento que falta es de la academia y no de la cuenta. No hay vía para arreglarlo hoy: el inicializador es de emulador por diseño en cuatro capas y su ejecutor clava el proyecto demo.",
+    [
+      REF_TASKS,
+      "apps/functions/src/members/canonical-member-directory-read-service.ts:302-343",
+      "apps/functions/src/members/member-directory-empty-initializer.ts:18",
+    ],
+    "bug",
   ),
 ];
 
@@ -841,6 +883,7 @@ const projectData = {
     T022V2: "2026-09-09",
     T023V2: "2026-09-09",
     T024V2: "2026-09-09",
+    T025V2: "2026-09-09",
   },
   stages: [
     stage(
