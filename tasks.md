@@ -7566,3 +7566,26 @@ fila sigue **pendiente**.
 
 **Contadores sin cambio:** 120 aprobadas de 121 (99 %), 1 pendiente (T108), 7 canceladas, sobre 128
 filas.
+
+### Rotacion de la access key de R2: preparada, y un recuento corregido - 2026-09-08
+
+**El ledger decia cinco funciones y es una.** La nota del 2026-09-08 sobre R2 decia que los cinco
+secretos "se ligan a las cinco funciones que abren bucket" y que rotar la clave exige redesplegarlas.
+Leido el inventario real en solo lectura -`functions:list` sobre `bptjersey-f5a25`, 70 funciones
+desplegadas-, de las que ligan secretos de R2 **solo una esta desplegada**:
+`cleanupExpiredMemberImportSessionsSchedule`. Las otras cinco -`createMemberPdfImportSession`,
+`previewMemberPdfImport`, `reviewMemberPdfImportMatches`, `confirmMemberPdfImport` y
+`cleanupExpiredCanonicalMemberImportSessionsSchedule`, todas de `canonical-member-import-callables.ts`-
+existen en el codigo, se exportan desde `index.ts` y **no estan en produccion**: son parte de los 83
+callables que la web invoca y no estan desplegados. Asi que la rotacion cuesta **un redespliegue de
+una funcion**, no de cinco.
+
+**Estado de los secretos, leido sin acceder a su valor.** `R2_ACCESS_KEY_ID` tiene las versiones 1 y
+2, ambas ENABLED, con la 2 en uso. Una rotacion limpia deja la 3 en uso y **destruye la 1 y la 2**,
+porque una version vieja habilitada sigue siendo una credencial viva.
+
+**El paso del operador, y por que no pasa por aqui.** El valor de la clave anterior acabo en el
+transcript de la sesion a traves de la notificacion de cambio de fichero del IDE; por eso las nuevas
+credenciales **no se pegan en ningun fichero del repositorio ni en el chat**. Se introducen por
+entrada estandar en `firebase functions:secrets:set`, que las pide sin escribirlas en disco. El
+redespliegue y la verificacion posterior si son de aqui.
