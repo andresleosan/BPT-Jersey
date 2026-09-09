@@ -410,19 +410,27 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T022V2: [
     requirement(
-      "Desplegar `provisionAdminRole` como callable: hoy `apps/functions/src/index.ts:11` la reexporta como función suelta y no como `onCall`, así que no existe en producción.",
+      "Declararla como función de nube en vez de reexportarla suelta. HECHO EL 2026-09-09: `export const provisionAdminRole = onCall(browserAdminCallableOptions, ...)`, y el detector del release delta la mueve de la lista de saltadas a la de funciones. `qa/unit/release-delta.test.ts` afirma ese cambio de lado.",
+      true,
     ),
     requirement(
-      "Ensanchar el contrato de entrada para que el objetivo viaje en `request.data`: hoy llega como segundo parámetro y `provisioningRequestSchema` es un `z.strictObject({ action })` que rechaza `uid`, `email` y `role`.",
+      "Desplegarla en producción, que es lo que la hace existir. PENDIENTE: declararla no la despliega, y hasta que el despliegue no esté hecho sigue sin haber ninguna vía para aprovisionar a un administrador.",
     ),
     requirement(
-      "Verificar App Check en el manejador, como hace `requireCanonicalMemberDirectoryActor`: la puerta que concede el poder no puede ser más débil que la que protege ese poder.",
+      "Ensanchar el contrato de entrada para que el objetivo viaje en `request.data`: hoy llega como segundo parámetro y `provisioningRequestSchema` es un `z.strictObject({ action })` que rechaza `uid`, `email` y `role`. HECHO EL 2026-09-09 con una unión de dos formas estrictas, no relajando la que había: `{ action }` para la costura interna y `{ action, uid, email, role }` para el navegador. Las dos siguen rechazando cualquier campo de más, así que `{ action, uid }` no encaja en ninguna; y `action` es obligatoria en la forma del navegador, para que una concesión de poder no salga de una omisión.",
+      true,
     ),
     requirement(
-      "Pruebas de que solo `owner` concede y de que un `administrator` no puede ascender a nadie ni a sí mismo.",
+      "Verificar App Check en el manejador, como hace `requireCanonicalMemberDirectoryActor`: la puerta que concede el poder no puede ser más débil que la que protege ese poder. HECHO EL 2026-09-09, dos veces a propósito: al principio de `provisionAdminRoleHandler`, para que un cliente sin atestiguar se rechace por lo que es y no por lo que manda, y dentro de `provisionAdminRoleWithServices`, que es la costura que alcanza cualquier otra vía. NO se copió la sonda de actividad de la puerta hermana: exige documento de personal a quien llama, y esta función es su único escritor, así que exigirlo dejaría a una academia nueva sin poder conceder el primer rol. La diferencia queda declarada, no heredada por descuido.",
+      true,
     ),
     requirement(
-      "Evidencia de que `admin.role.granted` queda escrito en la misma transacción que el documento de personal: es lo que un documento tecleado por consola no deja.",
+      "Pruebas de que solo `owner` concede y de que un `administrator` no puede ascender a nadie ni a sí mismo. HECHO EL 2026-09-09: el caso de ascenderse a sí mismo faltaba y ahora está, y es el mismo rechazo, porque la puerta mira el rol de quien concede y no a quién apunta la petición.",
+      true,
+    ),
+    requirement(
+      "Evidencia de que `admin.role.granted` queda escrito en la misma transacción que el documento de personal: es lo que un documento tecleado por consola no deja. YA ESTABA PROBADA, y se cita en vez de duplicarse: al fallar Firestore `services.firestore.records` queda vacío del todo -ni documento ni evento-, y al conceder los dos salen de la misma transacción enlazados por `lastRoleChangeAuditId`.",
+      true,
     ),
     requirement(
       "Elegir la cuenta que será el segundo owner, y que tiene que ser de Google. Corregido el 2026-09-09: NO puede ser admin@admin.com. Leyendo Auth, esa cuenta tiene proveedor `password` y ningún displayName, y el documento de personal que exige la puerta se valida contra `authProvider: z.literal(\"google\")` y `displayName` no vacío, lo mismo que exige `requireGoogleUser` en el escritor. Escribirle `authProvider: google` sería meter una afirmación falsa en el registro de autorización.",
@@ -807,7 +815,7 @@ const adminItems = [
     "en-progreso",
     "Hoy no existe ninguna vía en producción para aprovisionar a un administrador.",
     "-",
-    "Aplica D6. Es el único escritor del documento que exige la puerta canónica, y hoy se reexporta como función suelta, no como `onCall`. No es envolverla: el objetivo llega como segundo parámetro y `provisioningRequestSchema` rechaza cualquier campo extra, así que desplegarla ensancha el contrato de entrada de la superficie de autorización. Ya trae `requireOwner`; le falta verificar App Check en el manejador, como sí hace la puerta hermana.",
+    "Aplica D6. Es el único escritor del documento que exige la puerta canónica, y hasta hoy se reexportaba como función suelta, no como `onCall`. No era envolverla: el objetivo llegaba como segundo parámetro y `provisioningRequestSchema` rechazaba cualquier campo extra, así que desplegarla ensancha el contrato de entrada de la superficie de autorización. Código hecho el 2026-09-09: declarada como `onCall` con `browserAdminCallableOptions`, contrato ensanchado con una unión de dos formas estrictas -ninguna de las dos acepta campos de más, así que una petición a medio camino no se cuela por la permisiva- y App Check verificada en el manejador, al entrar y en la costura interna. No se copió la sonda de actividad de la puerta hermana porque exige documento de personal a quien llama y esta función es su único escritor: heredarla dejaría a una academia nueva sin poder conceder el primer rol. Falta desplegarla, y antes el dato que solo tiene el operador: qué cuenta de Google será el segundo owner. `admin@admin.com` no puede serlo, por proveedor `password` y sin displayName.",
     [
       REF_TASKS,
       "apps/functions/src/auth/admin-provisioning.ts:677",

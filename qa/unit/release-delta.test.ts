@@ -87,11 +87,14 @@ describe("listCloudFunctionExports", () => {
     expect(names).toContain("createMember");
     expect(names).toContain("cleanupExpiredMemberImportSessionsSchedule");
     expect(names).not.toContain("createCanonicalMember");
+    // T022V2: `provisionAdminRole` dejo de estar en la lista de saltadas el 2026-09-09, y ese
+    // cambio de lado es lo que significa la fila. Mientras estuvo aqui, el unico escritor del
+    // documento de personal que exige la puerta canonica no existia en produccion.
+    expect(names).toContain("provisionAdminRole");
     expect(skipped).toEqual([
       "assertAcademyScope",
       "bootstrapEmulatorOwner",
       "getRegyfitProjectionScope",
-      "provisionAdminRole",
       "requireAdminActor",
     ]);
   });

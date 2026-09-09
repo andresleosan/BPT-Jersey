@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getAuth } from "firebase-admin/auth";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
 
 import {
@@ -16,6 +16,7 @@ import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { assertAcademyScope, requireAdminActor } from "./admin-authorization.js";
 import type { AdminActor } from "./admin-authorization.js";
+import { browserAdminCallableOptions } from "./callable-options.js";
 
 export type FirestoreDocumentData = Record<string, unknown>;
 
@@ -75,7 +76,37 @@ const targetSchema = z.strictObject({
   role: adminRoleSchema,
 });
 const actionSchema = z.enum(["grant", "revoke"]);
-const provisioningRequestSchema = z.strictObject({ action: actionSchema });
+
+/**
+ * ── El contrato de entrada de la superficie de autorizacion ───────────────────────────────────
+ *
+ * Hasta que esta funcion se desplego como callable, el objetivo viajaba como segundo parametro de
+ * la funcion y `request.data` solo llevaba la accion. Un cliente no puede pasar parametros de
+ * funcion, asi que desplegarla obliga a que `uid`, `email` y `role` quepan en la peticion: no es
+ * envolver nada en `onCall`, es ensanchar lo que se acepta desde fuera.
+ *
+ * Se ensancha con una **union de dos formas estrictas**, no relajando la que habia. Las dos siguen
+ * rechazando cualquier campo de mas, asi que una peticion a medio camino -`{ action, uid }`, por
+ * ejemplo- no encaja en ninguna de las dos y se rechaza, en vez de colarse por la mas permisiva:
+ *
+ * - `{ action }`: el objetivo viaja por parametro. Es la costura interna, la que usan las pruebas.
+ * - `{ action, uid, email, role }`: todo viaja en la peticion. Es lo que manda el navegador.
+ *
+ * `action` es obligatoria en la forma del navegador a proposito. Conceder y revocar no se
+ * distinguen por omision: un `grant` implicito convertiria una peticion mal formada en una
+ * concesion de poder.
+ */
+const provisioningActionSchema = z.strictObject({ action: actionSchema });
+const callableProvisioningRequestSchema = z.strictObject({
+  action: actionSchema,
+  uid: z.string().trim().min(1).max(128),
+  email: z.string().email().max(320),
+  role: adminRoleSchema,
+});
+const provisioningRequestSchema = z.union([
+  provisioningActionSchema,
+  callableProvisioningRequestSchema,
+]);
 const roleLockLeaseMs = 30_000;
 const roleLockMaxLifetimeMs = roleLockLeaseMs * 5;
 const roleLockRenewalIntervalMs = Math.floor(roleLockLeaseMs / 3);
@@ -132,6 +163,21 @@ function currentAction(request: CallableRequest): "grant" | "revoke" {
 function requireOwner(actor: AdminActor): void {
   if (actor.role !== "owner") {
     throw new HttpsError("permission-denied", "Only an owner can manage administrative roles");
+  }
+}
+
+/**
+ * App Check verificada **en el manejador**, no solo en las opciones del `onCall`.
+ *
+ * Es la misma comprobacion que hace `requireCanonicalMemberDirectoryActor`, y esta aqui por la
+ * misma razon: un manejador alcanzado por otra via -una prueba, otro modulo, un callable futuro
+ * que se olvide de la opcion- no puede quedar accesible desde un cliente sin atestiguar. La
+ * asimetria importa mas en esta puerta que en aquella: esta es la que **concede** el poder que
+ * aquella protege, y una puerta que reparte llaves no puede ser mas debil que la que abren.
+ */
+function requireVerifiedAppCheck(request: CallableRequest): void {
+  if (request.app === undefined) {
+    throw new HttpsError("unauthenticated", "Verified App Check is required");
   }
 }
 
@@ -587,6 +633,7 @@ export async function provisionAdminRoleWithServices(
   services: AdminProvisioningServices,
 ): Promise<void> {
   const actor = requireAdminActor(request);
+  requireVerifiedAppCheck(request);
   requireOwner(actor);
   const target = parseOrThrow(targetSchema.safeParse(targetInput), "Invalid administrative target");
   const action = currentAction(request);
@@ -674,12 +721,46 @@ function defaultServices(): AdminProvisioningServices {
   };
 }
 
-export async function provisionAdminRole(
+export type AdminProvisioningResult = Readonly<{
+  uid: string;
+  role: AdminRole;
+  action: "grant" | "revoke";
+}>;
+
+/**
+ * El manejador del callable: saca el objetivo de `request.data` y delega en la misma maquinaria de
+ * siempre -cerrojo de rol, claims, documento de personal y auditoria en una transaccion-.
+ *
+ * No hay una segunda via de escritura. Lo unico que hace esta capa es traducir la peticion del
+ * navegador a la llamada interna, para que lo que se despliega y lo que ya estaba probado sean el
+ * mismo codigo.
+ *
+ * Devuelve a quien y que se hizo, no el documento: la respuesta confirma la operacion sin sacar el
+ * registro de autorizacion por el cable.
+ */
+export async function provisionAdminRoleHandler(
   request: CallableRequest,
-  target: { uid: string; email: string; role: AdminRole },
-): Promise<void> {
-  return provisionAdminRoleWithServices(request, target, defaultServices());
+  services: AdminProvisioningServices,
+): Promise<AdminProvisioningResult> {
+  // Antes de mirar el cuerpo: un cliente sin atestiguar se rechaza por lo que es, no por lo que
+  // manda. `provisionAdminRoleWithServices` vuelve a comprobarlo, y esa repeticion es deliberada:
+  // alli protege a quien llame por otra via, aqui fija el orden en la puerta desplegada.
+  requireVerifiedAppCheck(request);
+  const payload = parseOrThrow(
+    callableProvisioningRequestSchema.safeParse(request.data),
+    "A valid administrative provisioning request is required",
+  );
+  await provisionAdminRoleWithServices(
+    request,
+    { uid: payload.uid, email: payload.email, role: payload.role },
+    services,
+  );
+  return Object.freeze({ uid: payload.uid, role: payload.role, action: payload.action });
 }
+
+export const provisionAdminRole = onCall(browserAdminCallableOptions, async (request) =>
+  provisionAdminRoleHandler(request, defaultServices()),
+);
 
 function isLoopbackEmulatorHost(value: unknown): boolean {
   if (typeof value !== "string") {

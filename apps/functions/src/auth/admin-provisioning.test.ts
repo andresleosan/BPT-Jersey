@@ -1,8 +1,11 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdminProvisioningServices, SyntheticFirestore } from "./admin-provisioning.js";
 import {
   bootstrapEmulatorOwner,
+  provisionAdminRoleHandler,
   provisionAdminRoleWithServices,
   renewRoleLock,
   withSharedRoleLock,
@@ -56,6 +59,11 @@ type SyntheticServicesOptions = Readonly<{
   onTransactionCommitted?: (transactionCount: number) => void;
 }>;
 
+/**
+ * `app` viaja siempre salvo que una prueba lo quite a proposito: desde que esta funcion se
+ * despliega como callable, el manejador exige App Check verificada, igual que la puerta que
+ * protege lo que esta concede.
+ */
 function callableRequest(
   role: "owner" | "administrator",
   academyId: string,
@@ -66,7 +74,42 @@ function callableRequest(
       uid: "owner-1",
       token: { academyId, role, firebase: { sign_in_second_factor: "totp" } },
     },
+    app: { appId: "1:1:web:admin-console", token: {} },
     data: { action },
+  } as never;
+}
+
+/** La misma peticion pero con el objetivo dentro, que es como la manda el navegador. */
+function callableProvisioningRequest(
+  role: "owner" | "administrator",
+  academyId: string,
+  data: Record<string, unknown>,
+) {
+  return {
+    auth: {
+      uid: "owner-1",
+      token: { academyId, role, firebase: { sign_in_second_factor: "totp" } },
+    },
+    app: { appId: "1:1:web:admin-console", token: {} },
+    data,
+  } as never;
+}
+
+/**
+ * Todo correcto menos `app`. El cuerpo es valido a proposito: asi lo que rechaza la peticion es la
+ * falta de atestacion y no un fallo de forma que la habria parado de todos modos.
+ */
+function unattestedRequest(
+  role: "owner" | "administrator",
+  academyId: string,
+  data: Record<string, unknown>,
+) {
+  return {
+    auth: {
+      uid: "owner-1",
+      token: { academyId, role, firebase: { sign_in_second_factor: "totp" } },
+    },
+    data,
   } as never;
 }
 
@@ -1172,5 +1215,160 @@ describe("administrative role provisioning", () => {
         process.env.FIRESTORE_EMULATOR_HOST = previousFirestoreEmulator;
       }
     }
+  });
+});
+
+/**
+ * ── La superficie que se despliega ────────────────────────────────────────────────────────────
+ *
+ * Hasta T022V2 esta funcion no existia en produccion: `index.ts` la reexportaba como funcion
+ * suelta, no como `onCall`, asi que no habia ninguna via para aprovisionar a un administrador.
+ * Desplegarla obliga a que el objetivo quepa en `request.data` y a que la puerta que concede el
+ * poder no sea mas debil que la que ese poder abre.
+ */
+describe("administrative role provisioning as a deployed callable", () => {
+  it("refuses an unattested caller, even one whose claims say owner", async () => {
+    // App Check se comprueba en el manejador, no solo en las opciones del `onCall`: un manejador
+    // alcanzado por otra via no puede quedar accesible desde un cliente sin atestiguar.
+    const target = googleUser();
+    const services = createSyntheticServices([target]);
+
+    await expect(
+      provisionAdminRoleHandler(
+        unattestedRequest("owner", "academy-1", {
+          action: "grant",
+          uid: target.uid,
+          email: target.email,
+          role: "administrator",
+        }),
+        services,
+      ),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+    expect(target.customClaims).toEqual({});
+    expect(services.firestore.records).toEqual(new Map());
+  });
+
+  it("takes the target from the request body, which is the only place a browser can put it", async () => {
+    const target = googleUser();
+    const services = createSyntheticServices([target]);
+
+    const result = await provisionAdminRoleHandler(
+      callableProvisioningRequest("owner", "academy-1", {
+        action: "grant",
+        uid: target.uid,
+        email: target.email,
+        role: "administrator",
+      }),
+      services,
+    );
+
+    expect(result).toEqual({ uid: target.uid, role: "administrator", action: "grant" });
+    expect(target.customClaims).toEqual({ academyId: "academy-1", role: "administrator" });
+    expect(services.firestore.records.get(`academies/academy-1/users/${target.uid}`)).toMatchObject(
+      { accountType: "staff", adminRole: "administrator", authProvider: "google" },
+    );
+  });
+
+  it("revokes through the same body, and never by omitting the action", async () => {
+    const target = googleUser();
+    target.customClaims = { academyId: "academy-1", role: "administrator" };
+    const services = createSyntheticServices([target]);
+
+    const result = await provisionAdminRoleHandler(
+      callableProvisioningRequest("owner", "academy-1", {
+        action: "revoke",
+        uid: target.uid,
+        email: target.email,
+        role: "administrator",
+      }),
+      services,
+    );
+
+    expect(result.action).toBe("revoke");
+    expect(target.customClaims).toEqual({});
+  });
+
+  /**
+   * La forma se ensancho con una union de dos formas estrictas, no relajando la que habia. Una
+   * peticion a medio camino no encaja en ninguna de las dos, que es lo que impide que el hueco
+   * entre ambas se convierta en la via permisiva.
+   */
+  it("rejects a half-formed body instead of falling through to the looser shape", async () => {
+    const target = googleUser();
+    const services = createSyntheticServices([target]);
+    const bodies: Record<string, unknown>[] = [
+      { action: "grant" },
+      { action: "grant", uid: target.uid },
+      { uid: target.uid, email: target.email, role: "administrator" },
+      { action: "grant", uid: target.uid, email: target.email, role: "coach" },
+      { action: "grant", uid: target.uid, email: "not-an-email", role: "administrator" },
+      { action: "grant", uid: "", email: target.email, role: "administrator" },
+      {
+        action: "grant",
+        uid: target.uid,
+        email: target.email,
+        role: "administrator",
+        academyId: "academy-2",
+      },
+    ];
+
+    for (const data of bodies) {
+      await expect(
+        provisionAdminRoleHandler(
+          callableProvisioningRequest("owner", "academy-1", data),
+          services,
+        ),
+        JSON.stringify(data),
+      ).rejects.toMatchObject({ code: "invalid-argument" });
+    }
+
+    expect(target.customClaims).toEqual({});
+    expect(services.firestore.records).toEqual(new Map());
+  });
+
+  it("never lets an administrator grant a role, to anyone or to themselves", async () => {
+    const target = googleUser();
+    const services = createSyntheticServices([target]);
+
+    await expect(
+      provisionAdminRoleHandler(
+        callableProvisioningRequest("administrator", "academy-1", {
+          action: "grant",
+          uid: target.uid,
+          email: target.email,
+          role: "administrator",
+        }),
+        services,
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+
+    // Y ascenderse a si mismo es el mismo rechazo: la puerta mira el rol de quien concede, no a
+    // quien apunta la peticion.
+    const self = googleUser();
+    self.uid = "owner-1";
+    const selfServices = createSyntheticServices([self]);
+    await expect(
+      provisionAdminRoleHandler(
+        callableProvisioningRequest("administrator", "academy-1", {
+          action: "grant",
+          uid: "owner-1",
+          email: self.email,
+          role: "owner",
+        }),
+        selfServices,
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+
+    expect(target.customClaims).toEqual({});
+    expect(self.customClaims).toEqual({});
+    expect(selfServices.firestore.records).toEqual(new Map());
+  });
+
+  it("is declared as a cloud function, which is what makes it exist in production", () => {
+    // La fila T022V2 no se cierra con el manejador: se cierra cuando `index.ts` la despliega. El
+    // detector del release delta lee exactamente esta forma, asi que se comprueba aqui tambien.
+    const source = readFileSync(new URL("./admin-provisioning.ts", import.meta.url), "utf8");
+    expect(source).toMatch(/^export const provisionAdminRole = onCall\(/mu);
+    expect(source).toContain("browserAdminCallableOptions");
   });
 });
