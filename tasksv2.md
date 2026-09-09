@@ -200,3 +200,38 @@ operador. Ninguna cantidad de preguntas produce el domicilio de West.
 `tasksv2.md` es la fuente unica de verdad del estado de estas filas. Se actualiza **antes** de
 tocar codigo y al terminar cada avance; despues, en el mismo cambio logico, se sincroniza
 `Listav2/Listav2.js`. Los dos archivos suben juntos.
+
+---
+
+## Grafo de conocimiento refrescado - 2026-09-09 (tercera vuelta, esta vez con los documentos)
+
+`graphify-out/` esta en `.gitignore`, asi que el grafo no viaja en el repositorio: lo que viaja es
+esta nota. La vuelta anterior, registrada en `tasks.md`, aviso de que la documentacion **no** se
+habia reextraido y que para el ledger leer el fichero seguia siendo lo unico seguro. Esta vuelta
+cierra ese hueco.
+
+- **25 ficheros reextraidos**, 12 de codigo y 13 de documentacion. El grafo pasa de **10.260 a
+  10.479 nodos** y de **23.001 a 23.447 aristas**; las comunidades, de 511 a **515**. Coste: 123.154
+  tokens de entrada en un solo subagente.
+- **Entran por fin `tasksv2.md` y `BRIEF.md`.** Comprobado nodo a nodo, no supuesto: estan las seis
+  decisiones D1-D6, las veinticinco filas T001V2-T025V2, y los conceptos sobre los que giran
+  -directorio canonico, cola de aprobacion, propuesta de penalizacion, barrido de quorum, cuenta del
+  menor, vocabulario de centro y la DPIA-. Tambien estan los 25 nodos del modulo de inicializacion
+  escrito hoy, `canonical-directory-initialization.ts`.
+- Diagnostico de integridad: **limpio**. Cero aristas colgantes, cero extremos ausentes, cero bucles
+  y cero colapsos.
+
+**Lo que salio mal y conviene saber antes de fiarse de un nodo del ledger.** El subagente escribio
+`source_file` como ruta absoluta de Windows, tal y como pide la especificacion de extraccion,
+mientras que lo cacheado de vueltas anteriores lo tenia relativo. graphify no reconcilio las dos
+formas y trato el mismo fichero como dos, asi que para unos **25 nodos** -las decisiones D1 a D4 y
+las filas T001V2 a T021V2- vio dos candidatos con el mismo identificador y **descarto uno de los
+dos**. El nodo sobrevive siempre; lo que se pierde es una de las dos etiquetas, y no siempre gana la
+nueva. Consecuencia practica: **la etiqueta de una fila en el grafo puede estar desactualizada
+aunque la fila si lo este en este documento.** Para el estado de una fila, este fichero manda; el
+grafo sirve para navegar, no para citar.
+
+**Como se refresca**, porque la nota anterior ya se equivoco una vez con esto: no hay un solo
+comando. Es la skill `graphify` en modo incremental -deteccion, extraccion AST, un subagente
+semantico por lote, fusion con `build_merge` y `graphify export html`-, y el intérprete que usa esta
+fijado en `graphify-out/.graphify_python`.

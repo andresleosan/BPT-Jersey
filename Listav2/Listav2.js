@@ -967,6 +967,7 @@ const projectData = {
     "No tocar tasks.md ni Lista/: conservan la verdad de todo el trabajo anterior a esta segunda versión.",
     "Ajustar Listav2.html o Listav2.css solo cuando cambie la estructura o la presentación.",
     "Subir tasksv2.md y los archivos de Listav2 juntos en el mismo cambio lógico.",
+    "Refrescar el grafo de graphify al cerrar una sesión de trabajo, y dejar la nota en tasksv2.md: `graphify-out/` está en .gitignore, así que el grafo no viaja en el repositorio y la nota es lo único que queda. Para el estado de una fila manda tasksv2.md, nunca el grafo: una etiqueta suya puede quedar desactualizada.",
   ],
 };
 
