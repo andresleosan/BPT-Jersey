@@ -478,7 +478,7 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Desplegar `initializeCanonicalMemberDirectory` y que el owner pulse el botón una vez. Es lo único que el repositorio no puede hacer.",
+      "Desplegar `initializeCanonicalMemberDirectory` y que el owner pulse el botón una vez. Lo lanza el operador desde su terminal: intentado dos veces el 2026-09-09 desde una sesión no interactiva y fallado las dos en el parámetro `BPT_WAIVER_REGISTRATION`, un límite del CLI ya registrado en tasks.md. Ninguno de los dos intentos escribió nada en producción.",
     ),
     requirement(
       "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2.",
