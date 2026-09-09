@@ -74,7 +74,7 @@ const RESOLUTION_NOTES = {
   T011V2:
     "El contenido tiene un único objeto de localización, Town Office (`academy.ts:48-53`), consumido como objeto único en la landing. `BPT West / Strive` solo existe como etiqueta de tarifa (`academy.ts:144`), sin domicilio.",
   T012V2:
-    'Comprobado el 2026-09-09: los callables de detalle, aprobación y devolución existen y están cableados en `apps/web/src/lib/enrolment-client.ts`. El fallo está en la ejecución, no en código ausente, así que la fila empieza por diagnosticar y no por rehacer la pantalla.',
+    'Diagnosticado en producción el 2026-09-09, y la causa no era ninguna de las cuatro que la fila listaba. Cloud Run registra «Callable request verification passed» y acto seguido HTTP 403 en `getEnrolmentRequestDetail`, `listMembers`, `getMemberDetail` y `lookupMemberIdentity`, mientras `listEnrolmentRequests` responde 200 en la misma sesión. Lo que las separa es la puerta: las que fallan exigen, además del claim, un documento de personal aprovisionado en `academies/{academyId}/users/{uid}`. En producción la cuenta de `owner` lo tiene y pasa; la de `administrator` tiene claims válidos y ningún documento, y por eso la cola se pinta y ninguna fila se abre. Los botones no están inertes: «Approve and enrol» está `disabled` a propósito hasta que cargue el detalle, y «Send back to applicant» funciona pero exige escribir la nota. El único escritor de ese documento, `provisionAdminRole`, no está desplegado como callable.',
   T013V2:
     'El panel ya tiene un bloque "Today\'s classes" en `apps/web/src/app/admin/overview-page.tsx`; lo que falta es su posición y el detalle de las sesiones que quedan.',
   T015V2: "Open mat queda excluido por completo de esta regla.",
@@ -217,13 +217,22 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      'Diagnosticar en producción qué error devuelve realmente la callable detrás de "Unable to open this request.".',
+      'Diagnosticar en producción qué error devuelve realmente la callable detrás de "Unable to open this request.": HTTP 403, permission-denied, en la puerta del actor canónico.',
+      true,
     ),
     requirement(
-      "Descartar en orden: parámetro de entorno cerrado, App Check, claims del administrador y reglas de Firestore.",
+      "Descartar en orden: parámetro de entorno cerrado, App Check, claims del administrador y reglas de Firestore. Ninguna de las cuatro es la causa.",
+      true,
     ),
     requirement(
-      "Corregir la causa y aprobar a un solicitante real de punta a punta. No se cierra con un mensaje de error mejor.",
+      "Dejar de colapsar el 403 en una sola frase ciega: el cliente ya nombra la causa que un revisor puede accionar.",
+      true,
+    ),
+    requirement(
+      "Aprovisionar en producción el documento de personal que falta para la cuenta de `administrator`, o decidir que se aprueba desde la cuenta de `owner`. DECISIÓN Y ESCRITURA PENDIENTES DEL OPERADOR: es producción y otorga escritura sobre el directorio canónico.",
+    ),
+    requirement(
+      "Aprobar a un solicitante real de punta a punta. No se cierra con un mensaje de error mejor.",
     ),
   ],
   T013V2: [
@@ -323,7 +332,7 @@ const IMPLEMENTATION_OVERRIDES = {
   T012V2: {
     implementationStatus: "parcial",
     implementationEvidence:
-      "Los callables de detalle, aprobación y devolución existen y están cableados; en producción la pantalla falla y no aprueba a nadie.",
+      "Causa localizada en producción el 2026-09-09: falta el documento de personal aprovisionado de la cuenta de administrator, y sin él toda callable detrás de la puerta canónica responde 403. Corregido ya el mensaje ciego que lo ocultaba, con pruebas. Falta la escritura en producción, que espera al operador.",
   },
 };
 
@@ -508,10 +517,10 @@ const adminItems = [
   task(
     "T012V2",
     "Reparar la cola de aprobación de nuevos miembros",
-    "pendiente",
+    "en-progreso",
     "Ningún botón acepta al nuevo miembro: hoy no se puede dar de alta a nadie.",
     "-",
-    "La fila más urgente del tablero. Los callables existen y están cableados, así que el fallo está en la ejecución. Empieza por diagnosticar el error real en producción, no por cambiar la interfaz.",
+    "Diagnosticada el 2026-09-09: la cuenta de administrator tiene claims válidos y ningún documento de personal aprovisionado, así que la cola carga y toda callable detrás de la puerta canónica responde 403. Falta la escritura en producción, que espera al operador.",
     [REF_TASKS, "apps/web/src/app/admin/members/requests/page.tsx", "apps/web/src/lib/enrolment-client.ts"],
     "bug",
   ),

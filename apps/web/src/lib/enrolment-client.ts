@@ -184,6 +184,32 @@ const detailError = "Unable to open this request.";
 const approvalError = "Unable to approve this request.";
 
 /**
+ * Why the office door refused, when the reason is one a reviewer can act on.
+ *
+ * These two callables demand more than the queue does: an administrative claim is not enough, the
+ * academy must also hold a provisioned staff document for the reviewer. An account that has the
+ * claim and not the document loads the queue and then fails on every row - which is exactly how
+ * this surface failed in production on 2026-09-08, silently, because both failures collapsed to a
+ * single sentence that named no cause. A reviewer who is told "permission denied" can ask an owner
+ * to re-grant their role; a reviewer told "unable to open this request" can only file a bug.
+ */
+function officeFailure(error: unknown, fallback: string): Error {
+  const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+  if (code.endsWith("permission-denied")) {
+    return new Error(
+      "Your administrator account is not fully provisioned for the member directory, so this " +
+        "request cannot be opened. Ask an owner to grant your administrative role again.",
+    );
+  }
+  if (code.endsWith("resource-exhausted")) {
+    return new Error(
+      "You have opened too many confidential records in a short time. Wait a few minutes and try again.",
+    );
+  }
+  return new Error(fallback);
+}
+
+/**
  * The Confidential detail of one request. Read on demand and never for a whole page: it is
  * purpose-bound, audited, and spends from the same per-actor budget as reading a member record, so
  * fetching one per row would burn a reviewer's allowance just by opening the queue.
@@ -210,8 +236,8 @@ export async function getEnrolmentRequestDetail(
       throw new Error(detailError);
     }
     return data as unknown as EnrolmentRequestDetail;
-  } catch {
-    throw new Error(detailError);
+  } catch (error) {
+    throw officeFailure(error, detailError);
   }
 }
 
@@ -268,6 +294,6 @@ export async function approveEnrolmentRequest(
       const message = typeof error.message === "string" ? error.message : "";
       if (message) throw new Error(message);
     }
-    throw new Error(approvalError);
+    throw officeFailure(error, approvalError);
   }
 }

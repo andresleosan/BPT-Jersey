@@ -373,6 +373,35 @@ describe("enrolment office callables", () => {
     expect(current.approvals.approve).not.toHaveBeenCalled();
   });
 
+  it("splits the two doors: the queue takes a claim, the detail wants a provisioned account", async () => {
+    // The production failure of 2026-09-08, pinned. `academies/demo-academy/users/<administrator>`
+    // was never written, so an account whose token said `administrator` loaded the queue and was
+    // refused on every row behind it. Reading it as "the buttons are dead" cost a day; the split is
+    // deliberate - approving writes to the canonical directory - so it is worth a test that says
+    // out loud that these two gates disagree by design, and which one gives way.
+    const unprovisioned = officeServices({
+      isActorActive: vi.fn().mockResolvedValue(false),
+    } as Partial<EnrolmentOfficeCallableServices>);
+
+    await expect(
+      listEnrolmentRequestsHandler(request(null, "administrator", "office-1"), services()),
+    ).resolves.toMatchObject({ truncated: false });
+
+    for (const handler of [getEnrolmentRequestDetailHandler, approveEnrolmentRequestHandler]) {
+      await expect(
+        handler(
+          officeRequest(
+            handler === getEnrolmentRequestDetailHandler ? detailPayload : approvalPayload,
+            { role: "administrator", uid: "office-1" },
+          ),
+          unprovisioned,
+        ),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+    }
+    expect(unprovisioned.reader.enrolmentRequestDetail).not.toHaveBeenCalled();
+    expect(unprovisioned.approvals.approve).not.toHaveBeenCalled();
+  });
+
   it("refuses a payload that does not declare its purpose or names a foreign field", async () => {
     const current = officeServices();
 
