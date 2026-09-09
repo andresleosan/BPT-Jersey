@@ -7626,10 +7626,13 @@ seria que el artefacto emitiera el dotenv desde un valor versionado, pero eso co
 waiver en un valor commiteado y es decision del operador, no un cambio a colar en mitad de una
 rotacion. Queda anotado sin hacer.
 
-**Lo que sigue abierto de esto.** Revocar el token viejo en Cloudflare, que es del operador y ya no
-tiene ninguna funcion apuntandole. Y confirmar el **scope del token nuevo**: se pidio *Object Read &
-Write* acotado solo a `bptjersey`, pero la pantalla mostraba *Apply to all buckets in this account* y
-no quedo confirmado si se cambio. Desde aqui no se puede leer -la credencial OAuth local no tiene
-permiso de gestion de tokens, `403` en `/accounts/{id}/tokens`-, asi que lo comprueba el operador en
-el panel. Si quedo en todos los buckets, la rotacion es igualmente valida y lo que falta es estrechar
-el scope, no repetirla.
+**Cerrado del todo el 2026-09-09.** El operador **elimino el token viejo** y confirmo en el panel el
+scope del nuevo: `BPTJersey`, *Applied to* **`bptjersey | EU`**, permiso *Object Read & Write*,
+estado Active, y ningun otro token en la lista. Es decir, la credencial que hoy usa produccion ve
+**un solo bucket, el de la jurisdiccion EU**, con permisos de objeto y no de administracion: el
+minimo privilegio que pedia la especificacion, y no la version ancha que la pantalla de creacion
+traia por defecto. Desde el repositorio esto no se puede verificar -la credencial OAuth local
+responde `403` en `/accounts/{id}/tokens`-, asi que queda apoyado en la lectura del panel.
+
+**La lista de pendientes que no cuentan para el tablero pierde una fila entera:** rotar la access key
+de R2 ya no esta.
