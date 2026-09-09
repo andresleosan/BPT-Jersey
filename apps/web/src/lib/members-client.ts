@@ -43,6 +43,54 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Names the two directory failures a reviewer can actually act on, instead of collapsing every
+ * cause into one sentence.
+ *
+ * This exists because of the day it cost: with the canonical directory never initialized, every
+ * read answered `failed-precondition` and the page said only "please try again", so the real cause
+ * lived in the browser console and nowhere else. A message that cannot be acted on is not safer
+ * than a specific one - it just moves the diagnosis somewhere nobody looks.
+ */
+/**
+ * Its own type, because this is the one directory failure with a remedy attached: an owner can fix
+ * it from the page. Everything else is a message; this one is a button.
+ */
+export class MemberDirectoryUninitializedError extends Error {
+  constructor() {
+    super(
+      "The member directory of this academy has not been initialized, so no member can be read " +
+        "or enrolled. An owner has to initialize it once before this page can work.",
+    );
+    this.name = "MemberDirectoryUninitializedError";
+  }
+}
+
+/**
+ * The 403 the enrolment queue already learned to name, said here too: a claim without the staff
+ * document the canonical directory insists on.
+ */
+export class MemberDirectoryNotProvisionedError extends Error {
+  constructor() {
+    super(
+      "Your administrator account is not fully provisioned for the member directory. Ask an owner " +
+        "to grant your administrative role again.",
+    );
+    this.name = "MemberDirectoryNotProvisionedError";
+  }
+}
+
+function directoryFailure(error: unknown, fallback: string): Error {
+  const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+  if (code.endsWith("failed-precondition")) {
+    return new MemberDirectoryUninitializedError();
+  }
+  if (code.endsWith("permission-denied")) {
+    return new MemberDirectoryNotProvisionedError();
+  }
+  return new Error(fallback);
+}
+
 function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
@@ -157,8 +205,55 @@ export async function listMembers(
       ...(cursor === undefined ? {} : { cursor }),
     });
     return parseDirectoryPage(result.data);
-  } catch {
-    throw new Error(safeListError);
+  } catch (error) {
+    throw directoryFailure(error, safeListError);
+  }
+}
+
+export type CanonicalDirectoryInitializationOutcome = Readonly<{
+  academyId: string;
+  alreadyInitialized: boolean;
+}>;
+
+const safeInitializeError = "Unable to initialize the member directory. Please try again.";
+
+/**
+ * Initializes this academy's canonical member directory. Owner only, and takes no arguments: the
+ * academy comes from the verified claim, never from here.
+ *
+ * Running it twice is safe and reports `alreadyInitialized` rather than failing.
+ */
+export async function initializeMemberDirectory(): Promise<CanonicalDirectoryInitializationOutcome> {
+  try {
+    const callable = httpsCallable<Record<string, never>, unknown>(
+      getFirebaseFunctions(),
+      "initializeCanonicalMemberDirectory",
+    );
+    const result = await callable({});
+    if (
+      !isRecord(result.data) ||
+      !hasExactKeys(result.data, ["academyId", "alreadyInitialized"]) ||
+      typeof result.data.academyId !== "string" ||
+      typeof result.data.alreadyInitialized !== "boolean"
+    ) {
+      throw new Error(safeInitializeError);
+    }
+    return Object.freeze({
+      academyId: result.data.academyId,
+      alreadyInitialized: result.data.alreadyInitialized,
+    });
+  } catch (error) {
+    // `failed-precondition` here means the academy is not empty, and the server's message names the
+    // collections that stopped it. That detail is the whole answer, so it is passed through: a
+    // directory with members in it needs a migration, not an initialization.
+    const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+    if (code.endsWith("failed-precondition") && error instanceof Error) {
+      throw new Error(error.message);
+    }
+    if (code.endsWith("permission-denied")) {
+      throw new Error("Only an owner can initialize the member directory.");
+    }
+    throw new Error(safeInitializeError);
   }
 }
 

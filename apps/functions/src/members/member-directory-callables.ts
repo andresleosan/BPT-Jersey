@@ -9,8 +9,15 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import {
   createMemberDirectoryActorActivityCheck,
   requireCanonicalMemberDirectoryActor,
+  requireCanonicalMemberDirectoryOwner,
   type MemberDirectoryActorActivityCheck,
 } from "./canonical-actor.js";
+import {
+  CanonicalDirectoryInitializationError,
+  createCanonicalDirectoryInitializationService,
+  type CanonicalDirectoryInitializationService,
+} from "./canonical-directory-initialization.js";
+import { createCanonicalDirectoryInitializationFirestoreStore } from "./canonical-directory-initialization-firestore.js";
 import {
   CanonicalMemberDirectoryReadError,
   createCanonicalMemberDirectoryReadService,
@@ -155,6 +162,56 @@ export async function lookupMemberIdentityHandler(
   }
 }
 
+export type CanonicalDirectoryInitializationCallableServices = Readonly<{
+  initializer: CanonicalDirectoryInitializationService;
+  isActorActive: MemberDirectoryActorActivityCheck;
+  now: () => string;
+}>;
+
+/**
+ * Initializes the canonical member directory of the caller's own academy.
+ *
+ * The academy is taken from the verified claim and never from the payload, so this cannot be
+ * pointed at somebody else's tenant, and the payload is required to be empty for the same reason:
+ * there is nothing here for a caller to choose.
+ */
+export async function initializeCanonicalMemberDirectoryHandler(
+  request: CallableRequest<unknown>,
+  services: CanonicalDirectoryInitializationCallableServices,
+) {
+  const actor = await requireCanonicalMemberDirectoryOwner(request, services.isActorActive);
+  const data = request.data;
+  if (data !== undefined && data !== null && Object.keys(data as object).length !== 0) {
+    throw new HttpsError("invalid-argument", "Initialization takes no arguments");
+  }
+  try {
+    const outcome = await services.initializer.initialize({
+      academyId: actor.academyId,
+      actorId: actor.actorId,
+      now: services.now(),
+    });
+    return Object.freeze({
+      academyId: actor.academyId,
+      alreadyInitialized: outcome.alreadyInitialized,
+    });
+  } catch (error) {
+    if (error instanceof CanonicalDirectoryInitializationError) {
+      switch (error.code) {
+        case "not-empty":
+          // The message names the collections that stopped it, and that detail is the point: a
+          // directory with members in it needs a migration, not an initialization.
+          throw new HttpsError("failed-precondition", error.message);
+        case "invalid":
+          throw new HttpsError("internal", "Member directory documents could not be built");
+        default:
+          throw new HttpsError("failed-precondition", "Member directory is unavailable");
+      }
+    }
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Member directory initialization failed");
+  }
+}
+
 function requiredProjectId(): string {
   const projectId = getApp().options.projectId;
   if (typeof projectId !== "string" || projectId.length === 0) {
@@ -193,6 +250,27 @@ function defaultServices(): MemberDirectoryCallableServices {
   });
 }
 
+function defaultInitializationServices(): CanonicalDirectoryInitializationCallableServices {
+  const firestore = getFirestore();
+  const auth = getAuth();
+  return Object.freeze({
+    initializer: createCanonicalDirectoryInitializationService({
+      store: createCanonicalDirectoryInitializationFirestoreStore(firestore),
+      projectId: requiredProjectId(),
+      // The same constants the readers and the writer compare against, so an initialized directory
+      // is readable by construction instead of by coincidence.
+      identitySecretVersion,
+      integritySecretMaterial: migrationIntegritySecret.value(),
+      integritySecretVersion,
+    }),
+    isActorActive: createMemberDirectoryActorActivityCheck({
+      getAuthUser: (uid) => auth.getUser(uid),
+      getDocument: (path) => firestore.doc(path).get(),
+    }),
+    now: serverTimestamp,
+  });
+}
+
 export { createMemberDirectoryActorActivityCheck };
 
 const memberDirectoryCallableOptions = {
@@ -210,6 +288,16 @@ export const updateCanonicalMember = onCall(memberDirectoryCallableOptions, asyn
 
 export const listMembers = onCall(memberDirectoryCallableOptions, async (request) =>
   listMembersHandler(request, defaultServices()),
+);
+
+/**
+ * Owner-only, and it only needs the integrity secret: the state it writes declares the identity
+ * secret *version*, never the material, so the identity and cursor secrets stay out of this path.
+ */
+export const initializeCanonicalMemberDirectory = onCall(
+  { enforceAppCheck: true, secrets: [migrationIntegritySecret] },
+  async (request) =>
+    initializeCanonicalMemberDirectoryHandler(request, defaultInitializationServices()),
 );
 
 export const getMemberDetail = onCall(memberDirectoryCallableOptions, async (request) =>

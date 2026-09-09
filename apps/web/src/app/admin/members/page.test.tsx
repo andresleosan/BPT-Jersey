@@ -2,7 +2,24 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const clientMocks = vi.hoisted(() => ({ listMembers: vi.fn() }));
+const clientMocks = vi.hoisted(() => ({
+  listMembers: vi.fn(),
+  initializeMemberDirectory: vi.fn(),
+  // Declared in here because the mock factory runs before the module body: a class declared
+  // outside would still be in its temporal dead zone when the factory asks for it.
+  MemberDirectoryUninitializedError: class extends Error {
+    constructor() {
+      super("The member directory of this academy has not been initialized.");
+      this.name = "MemberDirectoryUninitializedError";
+    }
+  },
+  MemberDirectoryNotProvisionedError: class extends Error {
+    constructor() {
+      super("Your administrator account is not fully provisioned.");
+      this.name = "MemberDirectoryNotProvisionedError";
+    }
+  },
+}));
 
 vi.mock("../../../lib/members-client", () => clientMocks);
 
@@ -29,6 +46,7 @@ describe("members landing page", () => {
   afterEach(() => {
     cleanup();
     clientMocks.listMembers.mockReset();
+    clientMocks.initializeMemberDirectory.mockReset();
   });
 
   it("loads only the minimized canonical directory columns", async () => {
@@ -101,6 +119,68 @@ describe("members landing page", () => {
     const error = await screen.findByRole("alert");
     expect(error).toHaveTextContent("Unable to load members. Please try again.");
     expect(error).not.toHaveTextContent("private Firebase detail");
+    expect(
+      screen.queryByRole("button", { name: "Initialize the member directory" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers to initialize the directory only when that is the actual cause", async () => {
+    clientMocks.listMembers.mockRejectedValue(new clientMocks.MemberDirectoryUninitializedError());
+
+    render(<MembersPage />);
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("has not been initialized");
+    expect(
+      screen.getByRole("button", { name: "Initialize the member directory" }),
+    ).toBeInTheDocument();
+  });
+
+  it("reloads the directory after initializing it", async () => {
+    const user = userEvent.setup();
+    clientMocks.listMembers.mockRejectedValueOnce(
+      new clientMocks.MemberDirectoryUninitializedError(),
+    );
+    clientMocks.initializeMemberDirectory.mockResolvedValue({
+      academyId: "demo-academy",
+      alreadyInitialized: false,
+    });
+    clientMocks.listMembers.mockResolvedValue({ rows: [member] });
+
+    render(<MembersPage />);
+    await user.click(
+      await screen.findByRole("button", { name: "Initialize the member directory" }),
+    );
+
+    expect(await screen.findByText("Alex Johnson")).toBeInTheDocument();
+    expect(clientMocks.initializeMemberDirectory).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows why initializing was refused instead of failing silently", async () => {
+    const user = userEvent.setup();
+    clientMocks.listMembers.mockRejectedValue(new clientMocks.MemberDirectoryUninitializedError());
+    clientMocks.initializeMemberDirectory.mockRejectedValue(
+      new Error("Member directory is not empty: students"),
+    );
+
+    render(<MembersPage />);
+    await user.click(
+      await screen.findByRole("button", { name: "Initialize the member directory" }),
+    );
+
+    expect(await screen.findByText("Member directory is not empty: students")).toBeInTheDocument();
+  });
+
+  it("names an unprovisioned account without offering a button that would not help", async () => {
+    clientMocks.listMembers.mockRejectedValue(new clientMocks.MemberDirectoryNotProvisionedError());
+
+    render(<MembersPage />);
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("not fully provisioned");
+    expect(
+      screen.queryByRole("button", { name: "Initialize the member directory" }),
+    ).not.toBeInTheDocument();
   });
 
   it("requests the next page using only the opaque next cursor", async () => {

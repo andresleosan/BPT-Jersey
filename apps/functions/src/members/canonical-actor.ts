@@ -78,6 +78,22 @@ export function createMemberDirectoryActorActivityCheck(
   };
 }
 
+/**
+ * The same door, narrowed to the owner. Initializing the canonical directory is not member
+ * management: it fixes the integrity posture every later write is checked against, so it is not
+ * something an administrator should be able to do on their own.
+ */
+export async function requireCanonicalMemberDirectoryOwner(
+  request: CallableRequest<unknown>,
+  isActorActive: MemberDirectoryActorActivityCheck,
+): Promise<CanonicalMemberDirectoryActor> {
+  const actor = await requireCanonicalMemberDirectoryActor(request, isActorActive);
+  if (actor.role !== "owner") {
+    throw new HttpsError("permission-denied", "Owner access is required");
+  }
+  return actor;
+}
+
 export async function requireCanonicalMemberDirectoryActor(
   request: CallableRequest<unknown>,
   isActorActive: MemberDirectoryActorActivityCheck,

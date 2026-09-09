@@ -32,6 +32,7 @@ export {
 export {
   createCanonicalMember as createMember,
   getMemberDetail,
+  initializeCanonicalMemberDirectory,
   listMembers,
   lookupMemberIdentity,
   updateCanonicalMember as updateMember,

@@ -5,7 +5,13 @@ import { startTransition, useEffect, useState, type FormEvent } from "react";
 
 import type { AdminDirectoryRow } from "@bpt-jersey/domain/members/directory";
 
-import { listMembers, type MemberDirectoryPage } from "../../../lib/members-client";
+import {
+  initializeMemberDirectory,
+  listMembers,
+  MemberDirectoryNotProvisionedError,
+  MemberDirectoryUninitializedError,
+  type MemberDirectoryPage,
+} from "../../../lib/members-client";
 import { getHealthAdminProfile, saveHealthProfile } from "../../../lib/health-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
@@ -13,7 +19,9 @@ import { AdminDataTable } from "../admin-data-table";
 import "../admin.css";
 
 type MembersState =
-  { status: "loading" } | { status: "ready"; result: MemberDirectoryPage } | { status: "error" };
+  | { status: "loading" }
+  | { status: "ready"; result: MemberDirectoryPage }
+  | { status: "error"; message: string; uninitialized: boolean };
 
 const memberPageSize = 50;
 
@@ -88,8 +96,29 @@ function MembersDirectory({
   );
 }
 
+/**
+ * Only messages this page recognises reach the screen.
+ *
+ * The client already sanitizes, but the page does not take that on trust: rendering whatever string
+ * an error happens to carry is how a Firebase stack detail ends up in front of a reviewer. So the
+ * two diagnosable causes are named types, and everything else keeps the safe sentence.
+ */
+function failureState(error: unknown): MembersState {
+  const diagnosable =
+    error instanceof MemberDirectoryUninitializedError ||
+    error instanceof MemberDirectoryNotProvisionedError;
+  return {
+    status: "error",
+    message: diagnosable ? (error as Error).message : "Unable to load members. Please try again.",
+    uninitialized: error instanceof MemberDirectoryUninitializedError,
+  };
+}
+
 export function MembersPage() {
   const [state, setState] = useState<MembersState>({ status: "loading" });
+  const [reloadToken, setReloadToken] = useState(0);
+  const [initializing, setInitializing] = useState(false);
+  const [initializeError, setInitializeError] = useState<string>();
 
   useEffect(() => {
     let active = true;
@@ -98,14 +127,32 @@ export function MembersPage() {
       .then((result) => {
         if (active) startTransition(() => setState({ status: "ready", result }));
       })
-      .catch(() => {
-        if (active) startTransition(() => setState({ status: "error" }));
+      .catch((error: unknown) => {
+        if (active) startTransition(() => setState(failureState(error)));
       });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadToken]);
+
+  async function handleInitialize(): Promise<void> {
+    setInitializing(true);
+    setInitializeError(undefined);
+    try {
+      await initializeMemberDirectory();
+      setReloadToken((current) => current + 1);
+      startTransition(() => setState({ status: "loading" }));
+    } catch (error) {
+      setInitializeError(
+        error instanceof Error
+          ? error.message
+          : "Unable to initialize the member directory. Please try again.",
+      );
+    } finally {
+      setInitializing(false);
+    }
+  }
 
   function handleNextPage(): void {
     if (state.status !== "ready" || !state.result.nextCursor) return;
@@ -114,7 +161,7 @@ export function MembersPage() {
     startTransition(() => setState({ status: "loading" }));
     void listMembers(memberPageSize, cursor)
       .then((result) => startTransition(() => setState({ status: "ready", result })))
-      .catch(() => startTransition(() => setState({ status: "error" })));
+      .catch((error: unknown) => startTransition(() => setState(failureState(error))));
   }
 
   return (
@@ -149,9 +196,33 @@ export function MembersPage() {
             Loading members...
           </p>
         ) : state.status === "error" ? (
-          <p aria-live="assertive" className="admin-no-results" role="alert">
-            Unable to load members. Please try again.
-          </p>
+          <div className="admin-no-results">
+            <p aria-live="assertive" role="alert">
+              {state.message}
+            </p>
+            {/*
+              Only shown for the one failure that has a remedy here. The callable is owner-only, so
+              an administrator who presses it is told so instead of being left guessing - which is
+              the whole reason this page stopped hiding the cause behind "please try again".
+            */}
+            {state.uninitialized ? (
+              <>
+                <button
+                  className="button"
+                  disabled={initializing}
+                  onClick={() => void handleInitialize()}
+                  type="button"
+                >
+                  {initializing ? "Initializing..." : "Initialize the member directory"}
+                </button>
+                {initializeError === undefined ? null : (
+                  <p aria-live="assertive" role="alert">
+                    {initializeError}
+                  </p>
+                )}
+              </>
+            ) : null}
+          </div>
         ) : (
           <MembersDirectory result={state.result} onNextPage={handleNextPage} />
         )}

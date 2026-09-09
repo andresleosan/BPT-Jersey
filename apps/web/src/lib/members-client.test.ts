@@ -17,8 +17,10 @@ vi.mock("firebase/functions", () => ({
 import {
   createMember,
   getMemberDetail,
+  initializeMemberDirectory,
   listMembers,
   lookupMemberIdentity,
+  MemberDirectoryUninitializedError,
   updateMember,
 } from "./members-client";
 
@@ -206,6 +208,91 @@ describe("canonical members web client", () => {
     await expect(listMembers()).rejects.not.toThrow("private Firebase stack detail");
     await expect(listMembers(51)).rejects.toThrow(
       "Unable to load members. Please try again.",
+    );
+  });
+
+  it("names an uninitialized directory instead of hiding it behind a retry", async () => {
+    // The failure that cost a day: every read answered failed-precondition, the page said "please
+    // try again", and the real cause was only visible in the browser console.
+    mocks.callable.mockRejectedValue(
+      Object.assign(new Error("boom"), { code: "functions/failed-precondition" }),
+    );
+
+    await expect(listMembers()).rejects.toThrow(MemberDirectoryUninitializedError);
+    await expect(listMembers()).rejects.toThrow(/has not been initialized/u);
+  });
+
+  it("still hides the cause of a permission failure behind an actionable sentence", async () => {
+    mocks.callable.mockRejectedValue(
+      Object.assign(new Error("boom"), { code: "functions/permission-denied" }),
+    );
+
+    await expect(listMembers()).rejects.toThrow(/not fully provisioned/u);
+  });
+});
+
+describe("initializeMemberDirectory", () => {
+  it("calls the callable with no arguments and reports the outcome", async () => {
+    mocks.callable.mockResolvedValueOnce({
+      data: { academyId: "demo-academy", alreadyInitialized: false },
+    });
+
+    await expect(initializeMemberDirectory()).resolves.toEqual({
+      academyId: "demo-academy",
+      alreadyInitialized: false,
+    });
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "initializeCanonicalMemberDirectory");
+    expect(mocks.callable).toHaveBeenCalledWith({});
+  });
+
+  it("reports an already initialized directory as success", async () => {
+    mocks.callable.mockResolvedValueOnce({
+      data: { academyId: "demo-academy", alreadyInitialized: true },
+    });
+
+    await expect(initializeMemberDirectory()).resolves.toMatchObject({
+      alreadyInitialized: true,
+    });
+  });
+
+  it("passes through the server's reason when the academy is not empty", async () => {
+    // The server names the collections that stopped it, and that is the entire answer: a directory
+    // with members in it needs a migration, not an initialization.
+    mocks.callable.mockRejectedValueOnce(
+      Object.assign(new Error("Member directory is not empty: students, studentIdentityKeys"), {
+        code: "functions/failed-precondition",
+      }),
+    );
+
+    await expect(initializeMemberDirectory()).rejects.toThrow(
+      "Member directory is not empty: students, studentIdentityKeys",
+    );
+  });
+
+  it("says plainly that only an owner can do this", async () => {
+    mocks.callable.mockRejectedValueOnce(
+      Object.assign(new Error("boom"), { code: "functions/permission-denied" }),
+    );
+
+    await expect(initializeMemberDirectory()).rejects.toThrow(
+      "Only an owner can initialize the member directory.",
+    );
+  });
+
+  it("sanitizes anything else", async () => {
+    mocks.callable.mockRejectedValueOnce(new Error("private Firebase stack detail"));
+
+    await expect(initializeMemberDirectory()).rejects.toThrow(
+      "Unable to initialize the member directory. Please try again.",
+    );
+    await expect(initializeMemberDirectory()).rejects.not.toThrow("private Firebase stack detail");
+  });
+
+  it("refuses a response whose shape it does not recognize", async () => {
+    mocks.callable.mockResolvedValue({ data: { academyId: "demo-academy" } });
+
+    await expect(initializeMemberDirectory()).rejects.toThrow(
+      "Unable to initialize the member directory. Please try again.",
     );
   });
 });

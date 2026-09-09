@@ -441,13 +441,27 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "DECISIÓN PENDIENTE DEL OPERADOR: abrir una vía de inicialización válida para producción, y con qué precondición de vacuidad, o escribir los tres documentos a mano una sola vez. Es escritura en producción sobre el modelo de integridad del directorio.",
+      "DECIDIDO EL 2026-09-09: se construye la vía de producción en vez de escribir los documentos a mano. El guardarraíl de emulador se deja intacto y se añade una vía propia al lado.",
+      true,
     ),
     requirement(
-      "Crear el documento de estado `memberDirectoryStates/current` y el de guarda `memberDirectoryRestoreGuards/{academyId}` con su evento cero, en una sola transacción.",
+      "Crear el documento de estado, el de guarda y su evento cero en una sola transacción create-only, con el evento de auditoría `member.directory.initialized` dentro de la misma. HECHO: callable `initializeCanonicalMemberDirectory`, solo para owner y con App Check, con la academia tomada del claim y nunca del payload.",
+      true,
     ),
     requirement(
-      "Revisar la precondición de vacuidad: la actual exige dieciocho colecciones vacías, incluida `auditEvents`, que producción ya tiene, así que hoy bloquearía la inicialización aunque se le cambiara el proyecto.",
+      "Revisar la precondición de vacuidad. HECHO: pasa de dieciocho colecciones a once, las que de verdad harían falsa la frase «directorio vacío». `auditEvents` sale, porque es un registro de solo añadir que describe intentos y no estado, y era lo único que bloqueaba el arreglo para siempre sin proteger nada.",
+      true,
+    ),
+    requirement(
+      "Derivar la línea base de identidad vacía. Corregido el 2026-09-09: NO era prescindible, porque el esquema rechaza la cobertura completa sin ella y sin cobertura completa ni el lector ni el escritor aceptan el estado. Se deriva byte a byte como el flujo del artefacto.",
+      true,
+    ),
+    requirement(
+      "Dejar de esconder la causa en el directorio. HECHO: `listMembers` nombra las dos causas accionables con tipos propios en vez de colapsarlas en «please try again», que es por lo que el 400 solo se veía en la consola, y la página ofrece el botón únicamente cuando esa es la causa.",
+      true,
+    ),
+    requirement(
+      "Desplegar las funciones y que el owner pulse el botón una vez. Es lo único que el repositorio no puede hacer.",
     ),
     requirement(
       "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2.",
@@ -781,7 +795,7 @@ const adminItems = [
     "pendiente",
     "Nunca se inicializó, y sin su documento de estado no se puede dar de alta a nadie.",
     "-",
-    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía. La lectura del directorio devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator, porque el documento que falta es de la academia y no de la cuenta. No hay vía para arreglarlo hoy: el inicializador es de emulador por diseño en cuatro capas y su ejecutor clava el proyecto demo.",
+    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Falta desplegar y pulsarlo una vez.",
     [
       REF_TASKS,
       "apps/functions/src/members/canonical-member-directory-read-service.ts:302-343",
