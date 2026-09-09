@@ -46,7 +46,7 @@ import {
  *    collections, `auditEvents` included. An append-only audit log says nothing about directory
  *    integrity, and production has one the moment anybody tries anything - so that rule would block
  *    the fix forever while protecting nothing. What is checked instead is every collection whose
- *    contents would make "initialize as empty" a lie: the members themselves, their profiles and
+ *    contents would make "initialize as empty" a lie: the canonical students, their profiles and
  *    identity keys, and any migration, approval, receipt or cursor state that a half-run operation
  *    could have left behind.
  */
@@ -61,9 +61,17 @@ const initializationActorAction = "member.directory.initialized" as const;
  * zero members, or because a later operation would treat leftovers as its own. Deliberately absent:
  * `auditEvents`, which is append-only and describes attempts rather than state; and the family,
  * profile and import receipts, which belong to writers outside the canonical directory.
+ *
+ * `members` is deliberately absent too, and that one cost a production reading to get right. It is
+ * not the canonical directory - the directory's own members are `students`, `studentIdentityKeys`
+ * and `studentAdminProfiles`, all three of which are checked here. `members` is the *legacy source*
+ * the forward migration reads (`sourceCollection: "members"`), and that migration refuses to run
+ * without `identityKeyCoverage: "complete"` and a baseline to verify against
+ * (`assertMemberDirectoryForwardBaseline`), which is exactly what this module writes. So requiring
+ * it empty deadlocks the only path a legacy roster has: the academy can neither initialize nor
+ * migrate, forever. Production's 243 PDF-imported rows are precisely that roster.
  */
 export const canonicalDirectoryRequiredEmptyCollections = Object.freeze([
-  "members",
   "students",
   "studentAdminProfiles",
   "studentIdentityKeys",

@@ -449,7 +449,7 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Revisar la precondición de vacuidad. HECHO: pasa de dieciocho colecciones a once, las que de verdad harían falsa la frase «directorio vacío». `auditEvents` sale, porque es un registro de solo añadir que describe intentos y no estado, y era lo único que bloqueaba el arreglo para siempre sin proteger nada.",
+      "Revisar la precondición de vacuidad. HECHO: pasa de dieciocho colecciones a diez. `auditEvents` sale porque es un registro de solo añadir que describe intentos y no estado; `members` sale por la decisión D7 del 2026-09-09, ya con la medición de producción delante.",
       true,
     ),
     requirement(
@@ -461,7 +461,15 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
     requirement(
-      "Desplegar las funciones y que el owner pulse el botón una vez. Es lo único que el repositorio no puede hacer.",
+      "Medir producción antes de desplegar. HECHO EL 2026-09-09: `academies/demo-academy/members` tiene 243 registros reales (`source: member-pdf-import`, evento `member.import.confirmed` del 2026-08-13) y era la primera de las once colecciones exigidas vacías, así que el botón habría devuelto `failed-precondition`. El directorio canónico sí está vacío: `students`, `studentIdentityKeys`, `studentAdminProfiles` y `memberDirectoryStates`, las cuatro a cero.",
+      true,
+    ),
+    requirement(
+      "Sacar `members` de la precondición. HECHO: no es el directorio canónico sino la colección origen de la migración forward, y esa migración exige la cobertura completa y la línea base que solo el inicializador escribe, así que exigirla vacía era un cerrojo circular. Decisión D7 del operador, con una prueba propia que lo fija.",
+      true,
+    ),
+    requirement(
+      "Desplegar `initializeCanonicalMemberDirectory` y que el owner pulse el botón una vez. Es lo único que el repositorio no puede hacer.",
     ),
     requirement(
       "Aprobar a un solicitante real de punta a punta después de inicializar, que es lo que cierra también T012V2.",
@@ -792,10 +800,10 @@ const adminItems = [
   task(
     "T025V2",
     "Inicializar el directorio canónico de miembros en producción",
-    "pendiente",
+    "en-progreso",
     "Nunca se inicializó, y sin su documento de estado no se puede dar de alta a nadie.",
     "-",
-    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Falta desplegar y pulsarlo una vez.",
+    "Causa raíz real del alta rota, verificada en producción el 2026-09-09: la colección memberDirectoryStates está vacía, así que la lectura devuelve 400 y la aprobación muere con approval_write_failed, para owner igual que para administrator. Vía de producción construida y probada el mismo día, sin tocar el guardarraíl de emulador: callable solo para owner que escribe estado, guarda y evento cero en una transacción create-only, con auditoría dentro. Preparando el despliegue se midió que la colección members tiene 243 registros reales del PDF y era la primera de las once que la precondición exigía vacías: el botón habría fallado. members no es el directorio canónico sino el origen de la migración forward, que a su vez exige el estado que solo el inicializador escribe, así que exigirla vacía dejaba a la academia sin poder inicializar ni migrar. Decisión D7: sale de la lista y quedan diez. Falta desplegar y pulsarlo una vez.",
     [
       REF_TASKS,
       "apps/functions/src/members/canonical-member-directory-read-service.ts:302-343",

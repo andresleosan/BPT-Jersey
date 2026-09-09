@@ -138,6 +138,13 @@ describe("canonicalDirectoryRequiredEmptyCollections", () => {
     // records attempts, never directory state.
     expect(canonicalDirectoryRequiredEmptyCollections).not.toContain("auditEvents");
   });
+
+  it("does not require an empty legacy member collection", () => {
+    // `members` is the forward migration's source, not the canonical directory, and that migration
+    // cannot run without the complete coverage and baseline this module writes. Requiring it empty
+    // deadlocks any academy that already has a legacy roster - which is every real one.
+    expect(canonicalDirectoryRequiredEmptyCollections).not.toContain("members");
+  });
 });
 
 describe("createCanonicalDirectoryInitializationService", () => {
