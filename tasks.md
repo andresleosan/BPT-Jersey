@@ -7589,3 +7589,47 @@ transcript de la sesion a traves de la notificacion de cambio de fichero del IDE
 credenciales **no se pegan en ningun fichero del repositorio ni en el chat**. Se introducen por
 entrada estandar en `firebase functions:secrets:set`, que las pide sin escribirlas en disco. El
 redespliegue y la verificacion posterior si son de aqui.
+
+### Rotacion de la access key de R2: completada - 2026-09-09
+
+**Hecho.** `R2_ACCESS_KEY_ID` y `R2_SECRET_ACCESS_KEY` pasaron a **version 3** con un token de R2 nuevo
+creado por el operador desde el panel; `cleanupExpiredMemberImportSessionsSchedule` -la unica funcion
+desplegada que liga secretos de R2- se redesplego y quedo atada a la 3, `ACTIVE`, a las
+2026-09-09T03:33:39Z, viniendo de la 2. Las versiones **1 y 2 de ambos secretos estan DESTROYED**.
+
+**El 200 no probaba nada, y por poco se da por bueno.** La primera corrida tras el redespliegue
+devolvio HTTP 200 sin errores, que es lo que uno querria ver. Pero leyendo el codigo, la limpieza
+**solo llama a S3 cuando hay sesiones caducadas que borrar**, y las cuatro colecciones que alimenta
+-`memberImportSessions`, `memberImportPreviews`, `memberReportExports`,
+`memberImportCleanupJournal`- estaban **vacias**. De modo que ese 200 probaba que el despliegue
+estaba sano y **no que la credencial funcionase**: no hubo ni una llamada a R2.
+
+**Por que eso importaba tanto.** Destruir las versiones 1 y 2 sin probar la 3 era el movimiento
+irreversible: Cloudflare muestra el Secret Access Key **una sola vez**, asi que el valor viejo ya no
+se puede recuperar de ningun sitio. Un token nuevo mal scopeado -sin ver el bucket EU, que es el
+error facil en ese selector- habria dejado el sistema sin ninguna credencial valida y sin vuelta
+atras. Asi que la destruccion se aplazo hasta tener prueba real.
+
+**La prueba.** Un `ListObjectsV2` autentico contra `https://<account>.eu.r2.cloudflarestorage.com`
+sobre el bucket `bptjersey`, con la credencial nueva. Los dos valores se introdujeron por **prompt
+oculto**: no tocaron disco, ni el historial del shell, ni el transcript -que es exactamente como se
+filtro la clave anterior-. Resultado: alcanza el bucket EU. Solo entonces se destruyeron las
+versiones 1 y 2, y una corrida posterior a la destruccion, a las 03:44:17Z, volvio a dar **200**, que
+es la comprobacion de que la instancia arranca teniendo disponible unicamente la version 3.
+
+**Un hallazgo que afecta al runbook de release y a cualquier CI.** Ningun despliegue **no interactivo**
+puede pasar del parametro `BPT_WAIVER_REGISTRATION`: aunque tiene `default: "disabled"`, el CLI se
+niega a asumirlo sin TTY, no lo toma de una variable de entorno y exige un fichero dotenv en el
+directorio fuente -que el predeploy borra entero en `clean-deploy-target.mjs`-. Se probaron las tres
+vias y las tres fallan igual, asi que el despliegue lo lanzo el operador desde su terminal. El arreglo
+seria que el artefacto emitiera el dotenv desde un valor versionado, pero eso convierte el gate del
+waiver en un valor commiteado y es decision del operador, no un cambio a colar en mitad de una
+rotacion. Queda anotado sin hacer.
+
+**Lo que sigue abierto de esto.** Revocar el token viejo en Cloudflare, que es del operador y ya no
+tiene ninguna funcion apuntandole. Y confirmar el **scope del token nuevo**: se pidio *Object Read &
+Write* acotado solo a `bptjersey`, pero la pantalla mostraba *Apply to all buckets in this account* y
+no quedo confirmado si se cambio. Desde aqui no se puede leer -la credencial OAuth local no tiene
+permiso de gestion de tokens, `403` en `/accounts/{id}/tokens`-, asi que lo comprueba el operador en
+el panel. Si quedo en todos los buckets, la rotacion es igualmente valida y lo que falta es estrechar
+el scope, no repetirla.
