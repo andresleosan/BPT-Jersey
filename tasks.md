@@ -8,6 +8,15 @@ El alcance vinculante del piloto es el de `BRIEF.md` y `STACK.md` revisado el 20
 histÃ³ricos se conservan para no perder trazabilidad; las filas marcadas post-piloto no bloquean
 `T056` y se reubicarÃ¡n al convertir las fases aprobadas en el plan atÃ³mico de implementaciÃ³n.
 
+## Continuacion: la segunda version del ledger
+
+El 2026-09-09 se abrio `tasksv2.md`, un ledger aparte para los bugs y las funciones nuevas que el
+operador levanto ese dia. Sus filas se numeran `T001V2` en adelante y su tablero es `Listav2/`.
+
+Este fichero **no queda sustituido**: sigue siendo la fuente de verdad de todo lo anterior,
+incluidas las filas que continuan abiertas aqui (T010, T011, T125, T126, T127). Un ID de este
+fichero nunca reaparece alli, porque el sufijo `V2` los mantiene separados: `T001V2` no es `T001`.
+
 ## M0 - Fundaciones y decisiones operativas
 
 | ID   | Tarea atÃ³mica                                                                         | Depende de | Estado   | Evidencia de salida                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -8186,5 +8195,59 @@ nuevas de esta sesion -las rebanadas 13 a 16, el cierre y la auditoria de la 17-
 es la extraccion semantica por subagentes que la nota del 2026-09-09 describe, y cuesta del orden de
 264.000 tokens de entrada; no se lanzo. **Para el ledger, leer el fichero sigue siendo lo unico
 seguro**, y hoy mas que ayer.
+
+`graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.
+
+### Cierre de sesion 2026-09-09 - segunda version del ledger y su tablero
+
+**Lo que se creo, y por que aparte.** El operador levanto catorce peticiones nuevas -bugs de la
+solicitud, reserva de la primera clase, familias y menores, landing, panel de administracion y
+pagos-. En vez de mezclarlas con las filas historicas se abrio `tasksv2.md` con 21 filas,
+`T001V2` a `T021V2`, y su tablero `Listav2/`. Este fichero no cambia de alcance.
+
+**Lo que la auditoria previa encontro, y cambio el plan.** Tres cosas que no se sabian al empezar:
+
+- **El waiver ya es el correcto.** Se extrajo el PDF oficial de `Varios/` y se comparo con
+  `packages/domain/src/consents/enrolment-waiver-terms.ts`: coinciden las diez clausulas, los
+  encabezados y los bullets de higiene. La fila dejo de ser construccion y paso a ser verificacion.
+- **El centro de entrenamiento ya se muestra** en el directorio de miembros, y `trainingCenter` es
+  campo persistido. Misma conversion a verificacion.
+- **La regla de impagos existe y no la aplica nadie.** `evaluateBookingEligibility` ya rechaza a
+  quien no esta `active` ni `trial` -es decir, ya cubre `overdue`-, pero una busqueda en `apps/` no
+  encuentra ni una sola invocacion. Hoy no bloquea a nadie. Es el hallazgo con mas consecuencia de
+  la sesion y no estaba en la lista del operador.
+
+**Lo mas urgente, por si se lee esto con prisa:** la cola de aprobacion de nuevos miembros no
+funciona en produccion, asi que **no se puede dar de alta a nadie**. Los callables existen y estan
+cableados; el fallo esta en la ejecucion. Es `T012V2` y empieza por diagnosticar, no por rehacer la
+pantalla.
+
+**Herramienta nueva.** Se instalaron `grill-me` y `grilling` de `mattpocock/skills` (MIT) con el
+instalador que ya usaba el repo, registradas en `skills-lock.json`. Se leyo la skill entera antes:
+es disciplina de preguntas, sin codigo ni red. Cinco filas quedan marcadas para interrogar antes de
+tocarlas, porque su decision cambia lo que se construye.
+
+**Pruebas.** Dos ficheros nuevos, `qa/unit/listav2-ledger-sync.test.ts` y
+`qa/unit/listav2-checklist.test.ts`, 22 casos. Los dos se probaron contra mutaciones deliberadas
+-deriva de estado y de dependencia; casilla devuelta a control interactivo; persistencia rota- y
+fallaron donde debian antes de restaurarse. La suite de los dos tableros pasa 33/33.
+
+**Lo que este cierre NO afirma:** ninguna fila de `tasksv2.md` esta implementada. De sus 70
+requisitos hay 14 resueltos, y son todos diagnosticos o decisiones, no codigo.
+
+### Grafo de conocimiento refrescado - 2026-09-09 (tercera vuelta, solo codigo)
+
+`graphify update .`, la via AST sin coste de LLM, como registra la nota anterior.
+
+- **742 ficheros reextraidos.** El grafo pasa de **10.260 a 10.401 nodos** y de **23.001 a 23.232
+  aristas**. Entran `Listav2/` y las dos suites de pruebas nuevas.
+- **Comunidades: 524, desde 511.** 155 se renombraron por su nodo central; las nuevas quedan sin
+  nombre curado. `graphify label` las refresca con LLM; no se corrio.
+- **Copia de seguridad del grafo curado** en `graphify-out/2026-09-09/`.
+
+**Lo que NO entro, otra vez:** la documentacion. Sin clave de LLM, `graphify update` solo reextrae
+codigo, asi que **`tasksv2.md` no esta en el grafo** y tampoco esta esta nota. Preguntarle al grafo
+por la segunda version devolvera nada o algo viejo. **Para el ledger, leer el fichero sigue siendo
+lo unico seguro.**
 
 `graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.

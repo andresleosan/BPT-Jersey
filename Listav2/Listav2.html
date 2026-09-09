@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BPT Jersey | Revisión del proyecto · v2</title>
+    <link rel="stylesheet" href="Listav2.css">
+    <script src="Listav2.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Saltar al contenido principal</a>
+
+    <div id="app">
+      <header>
+        <p>Revisión del proyecto · segunda versión</p>
+        <h1>BPT Jersey</h1>
+        <p>
+          Fecha de corte:
+          <time id="last-updated" datetime="2026-09-09">9 de septiembre de 2026</time>
+        </p>
+        <p>
+          Este tablero sigue <strong>solo</strong> los bugs y las funciones nuevas levantados el 9 de
+          septiembre de 2026. Todo el trabajo anterior sigue en <code>Lista/</code> y en
+          <code>tasks.md</code>, que no quedan sustituidos por este.
+        </p>
+
+        <nav aria-label="Navegación de líneas de trabajo">
+          <ul>
+            <li><a href="#bugs-formulario">Formulario</a></li>
+            <li><a href="#reserva">Reserva</a></li>
+            <li><a href="#miembros">Miembros</a></li>
+            <li><a href="#landing">Landing</a></li>
+            <li><a href="#admin">Administración</a></li>
+            <li><a href="#pagos">Pagos</a></li>
+            <li><a href="#datos">Datos</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <main id="main-content">
+        <section aria-labelledby="summary-heading">
+          <h2 id="summary-heading">Resumen de la segunda versión</h2>
+          <div id="summary-grid">
+            <div data-status="aprobada" data-render-target="status-cards"></div>
+            <div data-status="revision" data-render-target="status-cards"></div>
+            <div data-status="en-progreso" data-render-target="status-cards"></div>
+            <div data-status="pendiente" data-render-target="status-cards"></div>
+            <div data-status="bloqueada" data-render-target="status-cards"></div>
+            <div data-status="cancelada" data-render-target="status-cards"></div>
+            <div data-render-target="total-card"></div>
+            <div data-render-target="global-progress" aria-label="Progreso global"></div>
+          </div>
+        </section>
+
+        <section id="resolution-board" aria-labelledby="resolution-heading">
+          <h2 id="resolution-heading">Qu&#233; falta para resolver</h2>
+          <p class="resolution-intro">
+            Requisitos concretos para cerrar cada fila pendiente o bloqueada.
+            <strong>X</strong> es lo ya resuelto; la casilla vacía es lo que falta.
+          </p>
+          <div class="checklist-bar">
+            <p data-checklist-summary role="status" aria-live="polite"></p>
+          </div>
+          <p class="checklist-note">
+            Las marcas no se ponen desde esta página: se registran en
+            <code>Listav2/Listav2.data.js</code> conforme el trabajo se resuelve, y viajan en el
+            repositorio con autor y fecha. El estado de cada tarea vive en <code>tasksv2.md</code>,
+            que es la fuente única de verdad.
+          </p>
+          <div id="resolution-list"></div>
+        </section>
+
+        <section id="filters" aria-labelledby="filters-heading">
+          <h2 id="filters-heading">Filtrar seguimiento</h2>
+          <form>
+            <div>
+              <label for="search-input">Buscar</label>
+              <input id="search-input" name="search" type="search" autocomplete="off">
+            </div>
+            <div>
+              <label for="status-filter">Estado</label>
+              <select id="status-filter" name="status">
+                <option value="">Todos los estados</option>
+              </select>
+            </div>
+            <div>
+              <label for="track-filter">Línea de trabajo</label>
+              <select id="track-filter" name="track">
+                <option value="">Todas las líneas</option>
+              </select>
+            </div>
+            <button type="reset">Limpiar filtros</button>
+          </form>
+          <p id="filter-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <div id="bugs-formulario" class="phase-anchor" aria-hidden="true"></div>
+        <div id="reserva" class="phase-anchor" aria-hidden="true"></div>
+        <div id="miembros" class="phase-anchor" aria-hidden="true"></div>
+        <div id="landing" class="phase-anchor" aria-hidden="true"></div>
+        <div id="admin" class="phase-anchor" aria-hidden="true"></div>
+        <div id="pagos" class="phase-anchor" aria-hidden="true"></div>
+        <div id="datos" class="phase-anchor" aria-hidden="true"></div>
+
+        <section aria-labelledby="phases-heading">
+          <h2 id="phases-heading">Líneas de trabajo y progreso</h2>
+          <div id="phase-controls" aria-label="Controles globales de líneas">
+            <button id="expand-all" type="button">Expandir todo</button>
+            <button id="collapse-all" type="button">Contraer todo</button>
+          </div>
+          <div id="phase-list"></div>
+          <p id="empty-state" role="status" aria-live="polite" hidden>
+            No hay tareas que coincidan con los filtros seleccionados.
+          </p>
+        </section>
+
+        <section id="maintenance" aria-labelledby="maintenance-heading">
+          <h2 id="maintenance-heading">Mantenimiento</h2>
+          <p>
+            <code>tasksv2.md</code> es la fuente única de verdad de estas filas. Registra allí cada
+            avance antes de trabajar, actualiza estado y evidencia al terminar, y después sincroniza
+            <code>Listav2.data.js</code>. <code>tasks.md</code> y <code>Lista/</code> no se tocan
+            desde aquí: conservan la verdad de todo lo anterior.
+          </p>
+        </section>
+      </main>
+
+      <button id="back-to-top" class="back-to-top" type="button" aria-label="Volver al inicio" hidden>
+        <img src="../apps/web/public/bpt-jersey-logo.png" alt="">
+        <span>Inicio</span>
+      </button>
+
+      <footer>
+        <p>BPT Jersey · seguimiento de progreso · segunda versión</p>
+      </footer>
+    </div>
+  </body>
+</html>

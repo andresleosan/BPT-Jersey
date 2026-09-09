@@ -38,5 +38,11 @@ export default defineConfig([
     "**/node_modules/**",
     "**/out/**",
     "apps/web/next-env.d.ts",
+    // Las dos mitades de Listav2 no son modulos: son fragmentos que `Listav2/build.mjs` concatena.
+    // Leidas por separado, cada una parece declarar cosas que nadie usa -los datos definen lo que
+    // consume el motor, y el motor usa lo que definen los datos-, asi que producen avisos falsos.
+    // El artefacto real, `Listav2/Listav2.js`, si se lintea y pasa limpio.
+    "Listav2/Listav2.data.js",
+    "Listav2/Listav2.engine.js",
   ]),
 ]);

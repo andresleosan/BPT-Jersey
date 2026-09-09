@@ -2408,6 +2408,7 @@ const projectData = {
     ),
   ],
   maintenanceSteps: [
+    "Los bugs y las funciones nuevas del 2026-09-09 viven aparte, en tasksv2.md y Listav2/: este tablero no los cuenta y su progreso no los incluye.",
     "Actualizar primero tasks.md porque es la fuente única de verdad del estado y la evidencia de las tareas.",
     "Actualizar Lista/Lista.js después, en el mismo cambio lógico, con el estado y la evidencia registrados, sin copiar datos sensibles.",
     "Ajustar Lista.html o Lista.css solo cuando cambie la estructura o la presentación del panel.",
