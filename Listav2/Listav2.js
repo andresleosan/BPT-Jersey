@@ -822,8 +822,8 @@ const adminItems = [
   task(
     "T022V2",
     "Desplegar `provisionAdminRole` como callable, con su revisión de autorización",
-    "bloqueada",
-    "Ya existe la vía en producción; falta que el operador diga qué cuenta de Google será el segundo owner.",
+    "en-progreso",
+    "En curso el 2026-09-09. Ya existe la vía en producción; falta que el operador diga qué cuenta de Google será el segundo owner.",
     "-",
     "Aplica D6. Es el único escritor del documento que exige la puerta canónica, y hasta hoy se reexportaba como función suelta, no como `onCall`. No era envolverla: el objetivo llegaba como segundo parámetro y `provisioningRequestSchema` rechazaba cualquier campo extra, así que desplegarla ensancha el contrato de entrada de la superficie de autorización. Código hecho el 2026-09-09: declarada como `onCall` con `browserAdminCallableOptions`, contrato ensanchado con una unión de dos formas estrictas -ninguna de las dos acepta campos de más, así que una petición a medio camino no se cuela por la permisiva- y App Check verificada en el manejador, al entrar y en la costura interna. No se copió la sonda de actividad de la puerta hermana porque exige documento de personal a quien llama y esta función es su único escritor: heredarla dejaría a una academia nueva sin poder conceder el primer rol. Desplegada en producción el mismo día y verificada: 72 funciones, ninguna retirada, estado ACTIVE, y 401 UNAUTHENTICATED al sondeo anónimo con cuerpo bien formado. Ya existe una vía en producción para aprovisionar a un administrador, que es lo que la fila levantaba de D5. Queda una sola cosa, y no es código: qué cuenta de Google será el segundo owner. `admin@admin.com` no puede serlo, por proveedor `password` y sin displayName.",
     [
