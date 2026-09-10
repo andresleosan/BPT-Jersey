@@ -1,14 +1,30 @@
 "use client";
 
+import { useMemo } from "react";
+
+import { createCalendarRepository, type CalendarRole } from "../../lib/calendar";
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../lib/client-auth";
-import { ClientRemindersPanel } from "./client-reminders";
-import { GuardianNoticesPanel } from "./guardian-notices";
 import { requireClientSession } from "../../lib/login-flow";
+import { MemberCalendar } from "./calendar/member-calendar";
+
+import "./account.css";
+
+function calendarRole(role: string | undefined): CalendarRole | undefined {
+  return role === "guardian" || role === "adultStudent" || role === "teenStudent"
+    ? role
+    : undefined;
+}
 
 function AccountContent() {
   const { session, signOut } = useClientSession();
+  const role = calendarRole(session?.role);
+  const displayName = session?.displayName || "Member";
+  const repository = useMemo(
+    () => (role ? createCalendarRepository({ role, displayName }) : undefined),
+    [role, displayName],
+  );
 
-  if (!session) {
+  if (!session || !role || !repository) {
     return null;
   }
 
@@ -18,65 +34,11 @@ function AccountContent() {
   }
 
   return (
-    <main className="client-destination" aria-labelledby="account-title">
-      <p className="account-eyebrow">BPT Jersey / Client</p>
-      <h1 id="account-title">Your account</h1>
-      <p className="client-destination-intro">
-        Complete each step with your authenticated account. The academy controls memberships,
-        billing and attendance; you control your profile, waivers and bookings.
-      </p>
-      <ClientRemindersPanel />
-      <GuardianNoticesPanel />
-      {session.role === "guardian" ? (
-        <a className="button button-primary profile-account-link" href="/account/guardian-profile">
-          Complete guardian profile
-        </a>
-      ) : (
-        <a className="button button-primary profile-account-link" href="/account/profile">
-          Complete adult student profile
-        </a>
-      )}
-      {session.role !== "adultStudent" ? (
-        <a className="button button-secondary profile-account-link" href="/account/family">
-          View linked students
-        </a>
-      ) : null}
-      <a className="button button-secondary profile-account-link" href="/account/waiver">
-        Review and sign waiver
-      </a>
-      <a className="button button-secondary profile-account-link" href="/account/membership">
-        View membership and plans
-      </a>
-      <a className="button button-secondary profile-account-link" href="/account/classes">
-        Browse and book classes
-      </a>
-      <a className="button button-secondary profile-account-link" href="/account/waitlist">
-        Manage class waitlists
-      </a>
-      <a className="button button-secondary profile-account-link" href="/account/billing">
-        View invoices and payments
-      </a>
-      <a className="button button-secondary profile-account-link" href="/account/progress">
-        View IBJJF Levels & Progress
-      </a>
-      <dl className="client-identity">
-        <div>
-          <dt>Name</dt>
-          <dd>{session.displayName || "Client account"}</dd>
-        </div>
-        <div>
-          <dt>Email</dt>
-          <dd>{session.email}</dd>
-        </div>
-      </dl>
-      <button
-        className="button button-secondary client-signout"
-        onClick={() => void handleSignOut()}
-        type="button"
-      >
-        Sign out
-      </button>
-    </main>
+    <MemberCalendar
+      onSignOut={() => void handleSignOut()}
+      repository={repository}
+      session={{ role, displayName }}
+    />
   );
 }
 

@@ -15,14 +15,14 @@ export type CalendarEntry = Readonly<{
   session: SessionRecord;
   program: ProgramRecord;
   derived: DerivedSessionStatus;
-  booking?: BookingRecord;
+  booking?: BookingRecord | undefined;
 }>;
 
 type SessionCardProps = Readonly<{
   entry: CalendarEntry;
   now: Date;
   busy: boolean;
-  note?: string;
+  note?: string | undefined;
   onBook: (entry: CalendarEntry) => void;
   onCancelRequest: (entry: CalendarEntry) => void;
 }>;
