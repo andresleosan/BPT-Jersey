@@ -91,7 +91,11 @@ export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }:
   }
 
   return (
-    <li className={`session-card session-card--${status}`} data-status={status}>
+    <li
+      className={`session-card session-card--${status}`}
+      data-session-id={session.sessionId}
+      data-status={status}
+    >
       <span className="session-time">{formatSessionTimeRange(session)}</span>
       <p className="session-title">{session.title}</p>
       <p className="session-site">{site}</p>
