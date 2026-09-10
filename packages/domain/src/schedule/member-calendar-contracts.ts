@@ -250,8 +250,8 @@ export function deriveSessionStatus(input: {
   session: SessionRecord;
   program: ProgramRecord;
   member: CalendarMemberContext;
-  booking?: BookingRecord;
-  attendance?: AttendanceRecord;
+  booking?: BookingRecord | undefined;
+  attendance?: AttendanceRecord | undefined;
   bookedCount: number;
   now: Date;
 }): DerivedSessionStatus {

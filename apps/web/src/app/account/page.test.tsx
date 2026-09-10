@@ -1,19 +1,13 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const authState = vi.hoisted(() => ({
-  session: undefined as { email: string; displayName: string; uid: string } | undefined,
+  session: undefined as
+    { email: string; displayName: string; uid: string; role?: string } | undefined,
   status: "signed-out" as "signed-in" | "signed-out",
   signOut: vi.fn(),
 }));
 
-vi.mock("./guardian-notices", () => ({
-  GuardianNoticesPanel: () => <section aria-label="Family notices" />,
-}));
-vi.mock("./client-reminders", () => ({
-  ClientRemindersPanel: () => <section aria-label="Account reminders" />,
-}));
 vi.mock("../../lib/client-auth", async () => {
   const { requireClientSession } =
     await vi.importActual<typeof import("../../lib/login-flow")>("../../lib/login-flow");
@@ -36,54 +30,52 @@ vi.mock("../../lib/client-auth", async () => {
   };
 });
 
+vi.mock("./calendar/member-calendar", () => ({
+  MemberCalendar: ({ session }: { session: { role: string; displayName: string } }) => (
+    <main data-testid="member-calendar">{`${session.role}:${session.displayName}`}</main>
+  ),
+}));
+
 import AccountPage from "./page";
 
-describe("account destination", () => {
+describe("account home", () => {
   afterEach(() => {
     cleanup();
     authState.status = "signed-out";
     authState.session = undefined;
     vi.clearAllMocks();
-    vi.unstubAllGlobals();
   });
 
-  it("requires a client session before showing account content", () => {
+  it("requires a client session before showing the calendar", () => {
     render(<AccountPage />);
-
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
       "href",
       "/login?returnTo=%2Faccount",
     );
-    expect(screen.queryByRole("heading", { name: "Your account" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("member-calendar")).not.toBeInTheDocument();
   });
 
-  it("shows safe identity fields and logout for a signed-in client", async () => {
+  it("mounts the member calendar for a signed-in teen", () => {
     authState.status = "signed-in";
     authState.session = {
-      displayName: "Client Name",
-      email: "client@example.test",
-      uid: "safe-uid",
+      email: "teen@bpt.test",
+      displayName: "Sam Demo",
+      uid: "u1",
+      role: "teenStudent",
     };
-    const user = userEvent.setup();
-    const locationAssign = vi.fn();
-    vi.stubGlobal("location", { ...window.location, assign: locationAssign });
     render(<AccountPage />);
+    expect(screen.getByTestId("member-calendar")).toHaveTextContent("teenStudent:Sam Demo");
+  });
 
-    expect(screen.getByRole("heading", { name: "Your account" })).toBeVisible();
-    expect(screen.getByText("Client Name")).toBeVisible();
-    expect(screen.getByText("client@example.test")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Review and sign waiver" })).toHaveAttribute(
-      "href",
-      "/account/waiver",
-    );
-    expect(screen.getByRole("link", { name: "Manage class waitlists" })).toHaveAttribute(
-      "href",
-      "/account/waitlist",
-    );
-    expect(screen.queryByText(/safe-uid|academyId|claim|ip address/i)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
-    expect(authState.signOut).toHaveBeenCalledOnce();
-    expect(locationAssign).toHaveBeenCalledWith("/login?returnTo=%2Faccount");
+  it("has no links to the legacy account pages", () => {
+    authState.status = "signed-in";
+    authState.session = {
+      email: "a@bpt.test",
+      displayName: "Alex",
+      uid: "u2",
+      role: "adultStudent",
+    };
+    render(<AccountPage />);
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });
