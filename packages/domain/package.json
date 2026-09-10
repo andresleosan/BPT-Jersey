@@ -210,6 +210,11 @@
       "import": "./src/schedule/pre-class-contracts.ts",
       "default": "./lib/schedule/pre-class-contracts.js"
     },
+    "./schedule/member-calendar": {
+      "types": "./src/schedule/member-calendar-contracts.ts",
+      "import": "./src/schedule/member-calendar-contracts.ts",
+      "default": "./lib/schedule/member-calendar-contracts.js"
+    },
     "./consents/enrolment-waiver": {
       "types": "./src/consents/enrolment-waiver-terms.ts",
       "import": "./src/consents/enrolment-waiver-terms.ts",
