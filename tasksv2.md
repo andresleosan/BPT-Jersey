@@ -307,59 +307,76 @@ prueba `listav2-ledger-sync` falla si el bloque se queda viejo, asi que no depen
 
 ---
 
-## Grafo de conocimiento refrescado - 2026-09-09 (sexta vuelta, y un fallo nuevo con nombre)
+## Grafo de conocimiento refrescado - 2026-09-10 (septima vuelta, y la deriva de ids cortada de raiz)
 
 `graphify-out/` esta en `.gitignore`, asi que el grafo no viaja en el repositorio: lo que viaja es
 esta nota.
 
-- **5 ficheros reextraidos**, 4 de codigo y `tasksv2.md`. El grafo queda en **10.599 nodos** y
-  **23.579 aristas**, en **529 comunidades**. Coste: 105.531 tokens de entrada en un solo
-  subagente, 18 vueltas acumuladas.
+- **6 ficheros reextraidos**, 5 de codigo y `tasksv2.md`. El grafo queda en **10.604 nodos** y
+  **23.612 aristas**, en **519 comunidades**. Coste: 138.926 tokens de entrada en un solo
+  subagente, 19 vueltas acumuladas y 3.888.282 tokens de entrada en total.
+- Diferencia contra la vuelta anterior: **5 nodos nuevos, 88 aristas nuevas, 55 retiradas**. Las
+  retiradas son el reemplazo normal de los ficheros reextraidos, no una perdida: el neto de aristas
+  sube en 33.
+- Los cinco nodos nuevos son `D9`, `T026V2`, el bloque de identidad de `AdminShell`, la dependencia
+  de una sola cuenta administrativa que D9 deja declarada, y -con algo de ironia- la propia deriva
+  de ids que esta nota describia la vuelta pasada.
 - Diagnostico de integridad: **limpio**. Cero aristas colgantes, cero extremos ausentes, cero
-  bucles y cero colapsos. Cero rutas absolutas en el grafo final.
-- Las 529 comunidades **heredaron todas su nombre por contenido**; ninguna era nueva.
-- Los dos pasos manuales que la vuelta anterior dejo escritos se dieron y volvieron a hacer falta:
-  **151 rutas normalizadas** a relativas antes de fusionar, y **9 etiquetas reimpuestas** despues
-  de `build_merge`. La regla de reimposicion se afino: dos de esas nueve la empeoraban, porque el
-  extractor AST nombra un fichero con su nombre pelado -`page.tsx`- donde el grafo ya tenia
-  `enrol/page.tsx`. **La extraccion mas reciente gana cuando describe un estado que cambio, no
-  cuando es la etiqueta vieja recortada.**
+  bucles, cero colapsos y cero duplicados exactos. Cero rutas absolutas en el grafo final.
+- Las 519 comunidades **heredaron todas su nombre por contenido**; ninguna era nueva.
 
-**El fallo nuevo, que no es el de las vueltas anteriores: los identificadores de los nodos de
-concepto derivan de una etiqueta que el modelo elige, y esa etiqueta no es estable entre vueltas.**
-Esta vuelta el subagente llamo `tasksv2_orden_de_ejecucion_recomendado` a lo que antes era
-`tasksv2_orden_de_ejecucion`, y lo mismo con otros siete conceptos. Como `build_merge` borra del
-grafo todo lo que venia del fichero reextraido, el efecto es doble y silencioso: **un concepto
-renombrado desaparece con toda su historia de aristas y reaparece como nodo nuevo sin ninguna**, y
-**uno que el modelo simplemente no menciona esa vuelta desaparece sin dejar rastro**. Se vio porque
-el guarda de encogimiento de `to_json` se nego a escribir un grafo con 3 nodos menos; sin ese
-guarda habria pasado inadvertido, que es lo que probablemente lleva pasando varias vueltas.
+**Lo que cambia de verdad esta vuelta: el fallo de la deriva de ids se corrigio en el origen, no
+despues.** La vuelta anterior lo dejo escrito -los ids de los nodos de concepto derivan de una
+etiqueta que el modelo elige, y esa etiqueta no es estable entre vueltas, asi que un concepto
+renombrado desaparece con toda su historia de aristas y reaparece sin ninguna-, y dejo escrito
+tambien cual era el arreglo duradero: **pasarle al subagente la lista de ids que ya existen para ese
+fichero**. Eso es lo que se hizo. Al subagente se le dio la lista de los **86 ids** que el grafo ya
+tenia para `tasksv2.md`, con la regla explicita de que **la etiqueta puede cambiar y el id no**, y
+la advertencia de que el documento solo habia crecido, asi que no omitiera nada por no haberlo
+mencionado en esa lectura.
 
-Se arreglo sin forzar el guarda, con dos reglas y dejando la lista completa en el diff: los ocho
-pares declarados conservan el **id viejo** -que es el que tiene aristas desde otros ficheros- y
-toman la **etiqueta nueva**; y los once conceptos que la extraccion de hoy no menciono se
-restauraron con sus 27 aristas, porque el ledger de hoy no borro nada, solo crecio, asi que su
-desaparicion era una omision del modelo y no un hecho del proyecto.
+El resultado, comprobado y no supuesto: **86 de 86 ids conservados, cero desaparecidos, 5 nuevos**,
+todos de material que de verdad es nuevo. Las vueltas anteriores necesitaron consolidar ocho pares
+de ids y restaurar once conceptos con sus 27 aristas **despues** de la fusion; esta vuelta no hubo
+nada que reparar. El guarda de encogimiento de `to_json`, que la vuelta pasada fue lo unico que
+delato el problema, no tuvo que saltar.
 
-**Lo duradero sigue sin estar hecho, y ya son tres los pasos que habria que automatizar:**
-normalizar rutas, reimponer etiquetas -con la excepcion de la etiqueta recortada- y **pasarle al
-subagente la lista de ids que ya existen para ese fichero**, que es lo unico que corta la deriva de
-raiz en vez de repararla despues. Un guion en `Listav2/` o en `scripts/` que envuelva el refresco.
-Mientras no exista, cada vuelta depende de que alguien lea esta nota.
+**De los tres pasos manuales, uno queda resuelto por construccion y los otros dos siguen ahi:**
 
-**Comprobado nodo a nodo al terminar**, no supuesto: `T001V2` figura como `(desplegada)`, `T012V2`
-y `T025V2` tambien, `T022V2` y `T021V2` como `(bloqueada)`, `T002V2` como `(pendiente)`. Los nodos
-nuevos de hoy -el push que despliega la web, Cloudflare Pages por integracion de git, el efecto de
-prellenado que siembra una vez- estan con su texto de hoy, y los once restaurados han vuelto con su
-etiqueta.
+1. **Normalizar rutas a relativas antes de fusionar: sigue haciendo falta.** 264 esta vuelta, mas
+   que las 151 de la anterior porque se toco mas fichero. Sin este paso las rutas absolutas entran
+   en el grafo.
+2. **Reimponer las etiquetas recien extraidas: esta vuelta fue un no-op, y conviene entender por
+   que.** Solo **una** etiqueta difirio tras la fusion, y era exactamente el caso que la vuelta
+   pasada documento: el extractor AST proponia `page.test.tsx` pelado donde el grafo ya tenia
+   `admin/page.test.tsx`. Gano el grafo. La regla sigue siendo la misma -la extraccion mas reciente
+   gana cuando describe un estado que cambio, no cuando es la etiqueta vieja recortada- y sigue
+   siendo necesaria, aunque hoy no haya tenido trabajo que hacer.
+3. **Consolidar la deriva de ids: resuelto en el origen.** Lo que habria que automatizar ya no es la
+   reparacion, es el paso previo: extraer del grafo los ids del fichero que se va a reextraer y
+   metérselos al subagente en el prompt. Son diez lineas de Python y quitan la parte fragil del
+   proceso.
+
+**Lo duradero sigue sin estar hecho:** un guion en `Listav2/` o en `scripts/` que envuelva el
+refresco y haga esos tres pasos solo. Mientras no exista, cada vuelta depende de que alguien lea
+esta nota.
+
+**Una cifra que baja y no es una perdida:** las comunidades pasan de 529 a 519 aunque el grafo
+crecio en 5 nodos. El agrupamiento se recalcula entero en cada vuelta sobre un grafo que cambio, y
+a esa granularidad no es estable; ningun nodo se perdio -el recuento total lo confirma- y las 519
+heredaron nombre. Conviene no leer ese numero como si midiera contenido.
+
+**Comprobado nodo a nodo al terminar**, no supuesto: `T001V2`, `T012V2`, `T022V2` y `T025V2`
+figuran como `(desplegada)`, `T026V2` como `(revision)`, `T021V2` como `(bloqueada)` y `T002V2`
+como `(pendiente)`. `D8` y `D9` estan los dos, con su texto de hoy.
 
 Aun asi, **para el estado de una fila este fichero sigue mandando**. No por desconfianza en las
 etiquetas, que hoy estan bien, sino porque el grafo se refresca a mano y entre dos refrescos siempre
 va por detras.
 
 **Como se refresca:** no hay un solo comando. Es la skill `graphify` en modo incremental
--deteccion, extraccion AST, un subagente semantico por lote, **normalizacion de rutas a relativas**,
-fusion con `build_merge` podando los reextraidos, **reimposicion de las etiquetas recien
-extraidas**, **consolidacion de la deriva de ids**, traspaso de nombres de comunidad por contenido y
-`graphify export html`-, y el interprete que usa esta fijado en `graphify-out/.graphify_python`. Los
-tres pasos en negrita son los que la herramienta no hace sola.
+-deteccion, extraccion AST, un subagente semantico por lote **al que se le pasan los ids ya
+existentes**, **normalizacion de rutas a relativas**, fusion con `build_merge` podando los
+reextraidos, **reimposicion de las etiquetas recien extraidas salvo la recortada**, traspaso de
+nombres de comunidad por contenido y `graphify export html`-, y el interprete que usa esta fijado en
+`graphify-out/.graphify_python`. Los pasos en negrita son los que la herramienta no hace sola.
