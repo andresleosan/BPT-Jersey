@@ -90,6 +90,13 @@ export function AdminShell({
         : session.role === "headCoach"
           ? "Head coach operational access"
           : "Coach attendance access";
+  /**
+   * The name can arrive empty, and that is not hypothetical: `admin-auth` stores
+   * `user.displayName?.trim() ?? ""`, and production has an administrative account with no
+   * `displayName` - the password-provider one. When it is missing the email takes the name line
+   * instead of leaving a gap, and is not repeated underneath.
+   */
+  const personName = session.displayName.trim();
   const allowedRoutes = isStaffRole(session.role) ? coachRoutes[session.role] : undefined;
   const visibleGroups = navigationGroups
     .map((group) => ({
@@ -264,7 +271,12 @@ export function AdminShell({
             <div className="admin-header-actions">
               <p className="admin-header-status">
                 <span className="admin-status-dot" aria-hidden="true" />
-                Authenticated shell - {roleLabel}
+                <span className="admin-identity" data-testid="admin-identity">
+                  <span className="admin-identity-name">{personName || session.email}</span>
+                  <span className="admin-identity-meta">
+                    {personName ? `${roleLabel} - ${session.email}` : roleLabel}
+                  </span>
+                </span>
               </p>
               {allowedRoutes ? (
                 <Link className="admin-home-link" href="/coach">

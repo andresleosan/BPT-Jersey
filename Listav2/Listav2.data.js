@@ -91,6 +91,8 @@ const RESOLUTION_NOTES = {
     "Sale de la ronda del 2026-09-09, y no es una mejora: es el incumplimiento de una decisión aprobada. La decisión 3 del BRIEF promete que una tarea idempotente cancela la sesión que no reúne cuatro reservas una hora antes. Esa tarea no ocurre en producción: `reconcileSessionQuorum` es un callable de staff al que ningún cliente web llama, y el único runner en lote se declara en su cabecera como deliberadamente no programado, restringido al emulador demo por `assertQuorumSweepRunnerEnvironment` (`quorum-sweep-runner.ts:8-15`, `:74`). La regla pura `decideQuorumSweep` y el servicio transaccional idempotente ya existen y están probados: lo que falta es que algo los dispare.",
   T022V2:
     "Decisión D6 del operador, 2026-09-09, salida de la pregunta 6 del ledger. `provisionAdminRole` (`apps/functions/src/auth/admin-provisioning.ts:677`) es el único escritor del documento de personal que exige la puerta canónica, y `apps/functions/src/index.ts:11` la reexporta como función suelta: no está desplegada. Convertirla no es envolverla en `onCall`. El objetivo llega como segundo parámetro de la función, no en `request.data`, y `provisioningRequestSchema` es un `z.strictObject({ action })` (`:78`) que rechaza cualquier campo extra, así que hoy `uid`, `email` y `role` no caben en la petición: desplegarla es ensanchar el contrato de entrada de la superficie de autorización. Lo que ya trae hecho es la puerta del concedente, `requireAdminActor` más `requireOwner` (`:589-590`), de modo que solo `owner` concede y un `administrator` no puede ascender a nadie ni a sí mismo. Lo que le falta frente a la puerta hermana: `requireCanonicalMemberDirectoryActor` verifica App Check en el manejador (`canonical-actor.ts:83-85`) y esta no lo hace. Leído en producción el 2026-09-09: el `owner` real es una cuenta de Google con documento de personal completo -`accountType: staff`, `adminRole: owner`, `createdBy: system:admin-bootstrap`-, y es la única que pasa la puerta canónica. De ahí sale un hallazgo que la fila no había previsto: toda cuenta que haya usado la plataforma como cliente lleva ya un claim no administrativo, y `requireTargetAdminClaims` rechaza cualquier objetivo cuyo claim no sea administrativo, así que hoy la callable solo acepta cuentas sin claim ninguno o cuentas que ya son administrativas. No existe vía auditada para ascender a un cliente, y si debe existir es una decisión de producto.",
+  T026V2:
+    "Pedido por el operador el 2026-09-10. La cabecera decía `Authenticated shell - Owner access`: el rol sí, la persona no. `AdminSession` y `StaffSession` ya llevaban `displayName` y `email`, así que era presentación y no plomería. El caso borde está verificado contra producción, no supuesto: `admin-auth` guarda el nombre recortado o cadena vacía, y hay una cuenta administrativa de proveedor `password` sin `displayName`, leída con `accounts:lookup`.",
 };
 
 /**
@@ -394,6 +396,23 @@ const RESOLUTION_REQUIREMENTS = {
     requirement("Comprobar si la base de miembros ya muestra el centro de entrenamiento.", true),
     requirement(
       "Comprobar con datos reales que la columna se puebla para todos los miembros y no queda vacía en los importados.",
+    ),
+  ],
+  T026V2: [
+    requirement(
+      "Pintar nombre, rol y correo de quien entra, en la cabecera del turno administrativo y del de entrenador. HECHO EL 2026-09-10: `AdminShell` es la misma para los dos, así que la cabecera los cubre a la vez; el nombre va en una línea y `rol - correo` debajo. El bloque lleva `data-testid` porque el rol se pinta en más de un sitio y la página tiene más de un `<header>`: sin él las pruebas no distinguen la cabecera.",
+      true,
+    ),
+    requirement(
+      "Resolver el nombre vacío sin dejar un hueco. HECHO EL 2026-09-10, y no es un caso teórico: en producción hay una cuenta administrativa de proveedor `password` sin `displayName`. Cuando falta, el correo ocupa la línea del nombre y no se repite debajo; hay una prueba unitaria que afirma justamente que no se duplica.",
+      true,
+    ),
+    requirement(
+      "Que el correo no rompa la cabecera en móvil. HECHO EL 2026-09-10: es texto largo sin espacios donde partir, así que la pastilla pasa a `flex: 0 1 auto` con `min-width: 0` y las dos líneas llevan `overflow-wrap: anywhere`. Lo vigila el humo e2e, que comprueba que no haya desbordamiento horizontal en varios anchos.",
+      true,
+    ),
+    requirement(
+      "Verlo funcionando en producción con las dos cuentas administrativas reales, que es lo único que esta sesión no puede hacer por el operador: una tiene nombre de Google y la otra no.",
     ),
   ],
   T022V2: [
@@ -850,6 +869,16 @@ const adminItems = [
     ],
     "bug",
   ),
+  task(
+    "T026V2",
+    "Decir quién ha iniciado sesión en la cabecera: nombre, rol y correo",
+    "revision",
+    "La cabecera decía el rol y no la persona. Falta verlo en producción con las dos cuentas reales.",
+    "-",
+    "Pedido por el operador el 2026-09-10. En una plataforma donde cada cambio se registra con quién lo hizo, no saber con qué cuenta estás dentro es un riesgo real de operar con la equivocada, y este ledger ya tiene el caso: la sesión del 2026-09-09 confundió dos cuentas de Google del propio operador. No hubo que traer ningún dato: `AdminSession` y `StaffSession` ya llevaban `displayName` y `email`, así que es presentación y no plomería. Cubre el turno administrativo y el de entrenador, que comparten `AdminShell`; el portal de cliente no entra y así queda declarado. El caso borde lleva prueba propia porque está verificado contra producción: hay una cuenta administrativa de proveedor `password` sin `displayName`, y cuando el nombre falta el correo ocupa su línea sin repetirse debajo. El correo es texto largo sin espacios donde partir, así que la pastilla encoge en vez de desbordar y las líneas parten en cualquier punto.",
+    [REF_TASKS, "apps/web/src/app/admin/admin-shell.tsx:267", "apps/web/src/lib/admin-auth.tsx:15-21"],
+    "funcion",
+  ),
 ];
 
 const paymentItems = [
@@ -977,6 +1006,7 @@ const TASK_SURFACES = {
   // No toca codigo: lo que falta son datos que solo tiene el operador.
   T021V2: [],
   T022V2: ["apps/functions/src/auth/admin-provisioning.ts", "apps/functions/src/index.ts"],
+  T026V2: ["apps/web/src/app/admin/admin-shell.tsx", "apps/web/src/app/admin/admin.css"],
   T023V2: [
     "packages/domain/src/families/family-contracts.ts",
     "apps/functions/src/schedule/booking-transaction-service.ts",
@@ -1185,6 +1215,7 @@ const projectData = {
     T023V2: "2026-09-09",
     T024V2: "2026-09-09",
     T025V2: "2026-09-09",
+    T026V2: "2026-09-10",
   },
   stages: [
     stage(

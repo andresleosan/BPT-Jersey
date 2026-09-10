@@ -852,14 +852,42 @@
   align-items: center;
   border: 1px solid var(--line);
   display: inline-flex;
-  flex: 0 0 auto;
+  /* Shrink rather than overflow: an email is long and has no spaces to break on. */
+  flex: 0 1 auto;
   font-size: 0.78rem;
   font-weight: 700;
   gap: 0.5rem;
   letter-spacing: 0.04em;
   margin: 0;
+  min-width: 0;
   padding: 0.65rem 0.8rem;
   text-transform: uppercase;
+}
+
+/* Who is signed in: name on top, role and email underneath. */
+.admin-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  text-align: left;
+}
+
+.admin-identity-name {
+  font-size: 0.82rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.admin-identity-meta {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  opacity: 0.72;
+  overflow-wrap: anywhere;
+  /* Emails are not written in capitals. */
+  text-transform: none;
 }
 
 .admin-home-link {

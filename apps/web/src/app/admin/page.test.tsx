@@ -93,6 +93,33 @@ describe("administrative shell", () => {
     expect(screen.getByText("Shell content")).toBeVisible();
   });
 
+  it("names who is signed in, with the role and the email, in the header", () => {
+    renderAuthenticatedPreview();
+
+    // The role also appears in the sidebar footer, so the question is scoped to the identity block.
+    const header = within(screen.getByTestId("admin-identity"));
+    expect(header.getByText("Synthetic Administrator")).toBeVisible();
+    expect(header.getByText("Owner access - admin@example.test")).toBeVisible();
+  });
+
+  it("falls back to the email when the account has no display name", () => {
+    // Not hypothetical: production has a password-provider administrative account with no
+    // `displayName`, and `admin-auth` hands it over as an empty string.
+    render(
+      <AdminGateSessionProvider session={{ ...syntheticSession, displayName: "" }}>
+        <AdminShell session={{ ...syntheticSession, displayName: "" }}>
+          <p>Shell content</p>
+        </AdminShell>
+      </AdminGateSessionProvider>,
+    );
+
+    const header = within(screen.getByTestId("admin-identity"));
+    expect(header.getByText("admin@example.test")).toBeVisible();
+    // The email takes the name line, so it is not repeated underneath next to the role.
+    expect(header.getByText("Owner access")).toBeVisible();
+    expect(header.queryByText("Owner access - admin@example.test")).not.toBeInTheDocument();
+  });
+
   it("opens and closes the logo-led mobile navigation drawer with Escape", async () => {
     const user = userEvent.setup();
     renderAuthenticatedPreview();

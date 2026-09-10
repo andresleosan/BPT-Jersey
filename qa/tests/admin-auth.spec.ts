@@ -102,8 +102,9 @@ test.describe("admin authentication boundary", () => {
         expect(new URL(page.url()).searchParams.get("adminTestRole")).toBe(role);
         await expect(page.getByTestId("admin-shell")).toBeVisible();
         const roleLabel = role === "owner" ? "Owner access" : "Administrator access";
+        await expect(page.getByText(`Synthetic ${role}`, { exact: true })).toBeVisible();
         await expect(
-          page.getByText(`Authenticated shell - ${roleLabel}`, { exact: true }),
+          page.getByText(`${roleLabel} - ${role}@example.test`, { exact: true }),
         ).toBeVisible();
         if (pathname === "/admin/reports") {
           await expect(page.getByRole("heading", { name: "Reports", level: 2 })).toBeVisible();
