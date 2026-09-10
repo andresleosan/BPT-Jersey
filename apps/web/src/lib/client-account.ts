@@ -8,9 +8,9 @@ import { getFirebaseFunctions } from "./firebase-client";
  * backend decides what to grant: a buyer-only `shopper` when the account has no role, and the role
  * the academy already granted otherwise. Nothing here can ask for a particular role.
  */
-export type ClientAccountRole = "guardian" | "adultStudent" | "shopper";
+export type ClientAccountRole = "guardian" | "adultStudent" | "teenStudent" | "shopper";
 
-const clientRoles: readonly string[] = ["guardian", "adultStudent", "shopper"];
+const clientRoles: readonly string[] = ["guardian", "adultStudent", "teenStudent", "shopper"];
 
 export async function registerShopperAccount(): Promise<ClientAccountRole | undefined> {
   try {

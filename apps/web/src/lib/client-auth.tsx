@@ -12,7 +12,11 @@ import { requireClientSession } from "./login-flow";
 import type { AuthDestination } from "./login-flow";
 
 /** Roles that belong to somebody with a student record. A `shopper` is a buyer and has none. */
-export const studentClientRoles: readonly ClientAccountRole[] = ["guardian", "adultStudent"];
+export const studentClientRoles: readonly ClientAccountRole[] = [
+  "guardian",
+  "adultStudent",
+  "teenStudent",
+];
 
 export type ClientSession = Readonly<{
   uid: string;
@@ -37,7 +41,10 @@ type ClientSessionContextValue = Readonly<{
 const ClientSessionContext = createContext<ClientSessionContextValue | undefined>(undefined);
 
 function clientRole(value: unknown): ClientAccountRole | undefined {
-  return value === "guardian" || value === "adultStudent" || value === "shopper"
+  return value === "guardian" ||
+    value === "adultStudent" ||
+    value === "teenStudent" ||
+    value === "shopper"
     ? value
     : undefined;
 }
