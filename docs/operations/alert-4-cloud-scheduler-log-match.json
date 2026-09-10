@@ -1,0 +1,26 @@
+{
+  "displayName": "Fallos de Cloud Scheduler - T058 6.1 punto 4 (log match)",
+  "documentation": {
+    "content": "Alerta 4 del §6.1 del runbook de T058, en su forma de coincidencia de registro.\n\nPor qué no es la de umbral: la métrica cloudscheduler.googleapis.com/job/attempt_count no tiene descriptor publicado en bptjersey-f5a25. Medido el 2026-09-08 con el job ENABLED y ejecutando cada 15 minutos con éxito: la familia cloudscheduler.googleapis.com devuelve 0 descriptores, mientras run.googleapis.com devuelve 53 y cloudfunctions.googleapis.com 7. Una política de umbral sobre una métrica sin descriptor se rechaza con 404.\n\nUna condición de coincidencia de registro no valida contra ningún descriptor, así que se puede crear hoy y dispara la primera vez que un intento falle, que es exactamente lo que la alerta 4 vigila.\n\nQué hacer cuando dispare: leer la entrada, que nombra el job y el código de respuesta del destino. Un job de firebase-schedule-* que falla significa que la función programada que invoca no se está ejecutando. La comprobación honesta de una función programada son dos lecturas: la etiqueta deployment-scheduled dice que se desplegó con intención de programarse, y solo 'gcloud scheduler jobs list --location <región>' dice si algo la va a llamar.",
+    "mimeType": "text/markdown"
+  },
+  "conditions": [
+    {
+      "displayName": "Un intento de Cloud Scheduler registra un error",
+      "conditionMatchedLog": {
+        "filter": "resource.type=\"cloud_scheduler_job\" AND severity>=ERROR"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": {
+      "period": "900s"
+    },
+    "autoClose": "604800s"
+  },
+  "combiner": "OR",
+  "enabled": true,
+  "notificationChannels": [
+    "projects/bptjersey-f5a25/notificationChannels/12257294977499398601"
+  ]
+}

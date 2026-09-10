@@ -1,0 +1,75 @@
+# Base de 1 Titán — Cronos la completa con lo específico del stack elegido (STACK.md).
+
+# Secretos y credenciales — nunca deben llegar al repo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.cer
+secrets/
+credentials/
+
+# Google Cloud / Firebase / Apps Script
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+.clasprc.json
+.firebase/
+.firebase-functions/
+.firebase-config/
+.firebase-emulators/
+firebase-debug.log
+
+# Estado y binarios locales de Playwright/MCP
+.playwright-browsers/
+.playwright-mcp/
+
+# Dependencias e instalación
+node_modules/
+vendor/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Builds y artefactos
+.next/
+dist/
+build/
+out/
+lib/
+!apps/web/src/lib/
+!apps/web/src/lib/**
+*.log
+*.tsbuildinfo
+apps/web/next-env.d.ts
+coverage/
+
+# Reportes de QA (browser-qa-e2e, v3.3.0) — se regeneran en cada corrida, no se versionan
+qa/reports/
+qa/visuals/
+task-*-report.md
+playwright-report/
+test-results/
+
+# Estado local de herramientas de análisis y brainstorming
+.superpowers/
+graphify-out/
+.tmp/
+
+# Editor / sistema operativo
+.DS_Store
+.vscode/
+.idea/
+Thumbs.db
+
+# Bases de datos locales
+*.sqlite3
+*.db
+
+# Backups que dejan los scripts de la agencia al actualizar
+*.bak-*
+
+# T103/T104: el dataset real de miembros nunca debe volver al repo (ver tasks.md T107)
+apps/web/src/app/admin/real-members-data.ts

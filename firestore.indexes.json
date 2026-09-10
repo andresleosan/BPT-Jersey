@@ -1,0 +1,262 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "startAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "locationId", "order": "ASCENDING" },
+        { "fieldPath": "startAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "programId", "order": "ASCENDING" },
+        { "fieldPath": "startAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sessionId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "attendance",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sessionId", "order": "ASCENDING" },
+        { "fieldPath": "state", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "memberships",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "studentId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "memberships",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "nextBillingAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "invoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "familyId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dueAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "familyId", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "nextActionAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "nextActionAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "audienceId", "order": "ASCENDING" },
+        { "fieldPath": "sentAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auditEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetRef", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auditEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "actorId", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "relationships",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "adultUserId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "memberImportPreviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "memberDirectoryCursorStates",
+      "fieldPath": "afterLegacyDocumentId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "birthDate",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "email",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "frequency",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "fullName",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "idCardNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "importRunId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "membershipNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "mobileNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "source",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "members",
+      "fieldPath": "vatNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "emergencyContact.alternatePhoneNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "emergencyContact.fullName",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "emergencyContact.phoneNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "emergencyContact.relationship",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "frequencyNote",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "idCardNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "legacyMemberId",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "membershipNumber",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "postalAddress.line",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "postalAddress.postCode",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentAdminProfiles",
+      "fieldPath": "vatNumber",
+      "indexes": []
+    }
+  ]
+}

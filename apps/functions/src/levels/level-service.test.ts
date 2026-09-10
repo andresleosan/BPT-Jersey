@@ -1,0 +1,357 @@
+import { describe, expect, it } from "vitest";
+
+import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
+import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
+import { normalizeLevelCatalogSource } from "./level-source";
+import { createInMemoryLevelStore } from "./level-service";
+
+describe("Level Service & Store", () => {
+  const normalized = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
+
+  it("seeds the full catalog into Firestore store and lists published catalog", async () => {
+    const store = createInMemoryLevelStore();
+
+    const seedResult = await store.seed({
+      academyId: "demo-academy",
+      normalized,
+    });
+
+    expect(seedResult.systemId).toBe("ibjjf-v1");
+    expect(seedResult.definitionCount).toBe(171);
+    expect(seedResult.beltCount).toBe(27);
+    expect(seedResult.stripeCount).toBe(144);
+    expect(seedResult.skillCount).toBe(11);
+    expect(seedResult.requirementCount).toBe(165);
+    expect(seedResult.idempotent).toBe(false);
+
+    const catalog = await store.listPublished("demo-academy");
+    expect(catalog.system.systemId).toBe("ibjjf-v1");
+    expect(catalog.definitions).toHaveLength(171);
+    expect(catalog.skills).toHaveLength(11);
+    expect(catalog.requirements).toHaveLength(165);
+    expect(catalog.sourceHash).toBe(normalized.sourceHash);
+  });
+
+  it("is idempotent when re-seeded with identical hash", async () => {
+    const store = createInMemoryLevelStore();
+
+    await store.seed({
+      academyId: "demo-academy",
+      normalized,
+    });
+
+    const secondSeed = await store.seed({
+      academyId: "demo-academy",
+      normalized,
+    });
+
+    expect(secondSeed.idempotent).toBe(true);
+  });
+
+  it("fails closed on immutable version conflict (same systemId, different sourceHash)", async () => {
+    const store = createInMemoryLevelStore();
+
+    await store.seed({
+      academyId: "demo-academy",
+      normalized,
+    });
+
+    const conflicting = {
+      ...normalized,
+      sourceHash: "different-hash-1234567890abcdef1234567890abcdef1234567890abcdef12345678",
+    };
+
+    await expect(
+      store.seed({
+        academyId: "demo-academy",
+        normalized: conflicting,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rolls back seeded system by deleting all its documents", async () => {
+    const store = createInMemoryLevelStore();
+
+    await store.seed({
+      academyId: "demo-academy",
+      normalized,
+    });
+
+    const rollbackResult = await store.rollback({
+      academyId: "demo-academy",
+      systemId: "ibjjf-v1",
+      normalized,
+    });
+
+    expect(rollbackResult.deletedDefinitions).toBe(171);
+    expect(rollbackResult.deletedRequirements).toBe(165);
+    expect(rollbackResult.deletedSystems).toBe(1);
+
+    await expect(store.listPublished("demo-academy")).rejects.toThrow();
+  });
+
+  it("enforces tenant boundary on listPublished", async () => {
+    const store = createInMemoryLevelStore();
+
+    await store.seed({
+      academyId: "academy-1",
+      normalized,
+    });
+
+    await expect(store.listPublished("academy-2")).rejects.toThrow();
+  });
+
+  describe("Student Technical Evaluations Store (T039)", () => {
+    it("records evaluation with audit event and retrieves student evaluations", async () => {
+      const store = createInMemoryLevelStore();
+
+      const evaluation = await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          sessionId: "session-1",
+          definitionKey: "white-1",
+          skillKey: "guard-pass-knee-cut",
+          score: 4,
+          evidenceNotes: "Solid pressure pass executed during sparring session.",
+        },
+        evaluatorId: "coach-1",
+        evaluatorStaffId: "staff-1",
+        evaluatorRole: "coach",
+      });
+
+      expect(evaluation.evaluationId.startsWith("eval_student-1_guard-pass-knee-cut_")).toBe(true);
+      expect(evaluation.score).toBe(4);
+      expect(evaluation.evaluatorId).toBe("coach-1");
+      expect(evaluation.evaluatorRole).toBe("coach");
+
+      const studentEvals = await store.listStudentEvaluations("demo-academy", "student-1");
+      expect(studentEvals).toHaveLength(1);
+      expect(studentEvals[0]?.evaluationId).toBe(evaluation.evaluationId);
+      expect(studentEvals[0]?.score).toBe(4);
+
+      // Other student has empty list
+      const otherEvals = await store.listStudentEvaluations("demo-academy", "student-2");
+      expect(otherEvals).toHaveLength(0);
+    });
+
+    it("aggregates student skill summary across multiple evaluations", async () => {
+      const store = createInMemoryLevelStore();
+
+      await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          sessionId: "session-1",
+          definitionKey: "white-1",
+          skillKey: "guard-pass-knee-cut",
+          score: 2,
+          evidenceNotes: "First attempt in fundamental class.",
+        },
+        evaluatorId: "coach-1",
+        evaluatorStaffId: "staff-1",
+        evaluatorRole: "coach",
+        evaluatedAt: "2026-08-01T10:00:00Z",
+      });
+
+      await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          sessionId: "session-2",
+          definitionKey: "white-1",
+          skillKey: "guard-pass-knee-cut",
+          score: 4,
+          evidenceNotes: "Much improved guard pass under resistance.",
+        },
+        evaluatorId: "headcoach-1",
+        evaluatorStaffId: "staff-head-1",
+        evaluatorRole: "headCoach",
+        evaluatedAt: "2026-08-15T10:00:00Z",
+      });
+
+      const summary = await store.getStudentSkillSummary("demo-academy", "student-1");
+      expect(summary["guard-pass-knee-cut"]).toBeDefined();
+      expect(summary["guard-pass-knee-cut"]?.count).toBe(2);
+      expect(summary["guard-pass-knee-cut"]?.maxScore).toBe(4);
+      expect(summary["guard-pass-knee-cut"]?.latestScore).toBe(4);
+      expect(summary["guard-pass-knee-cut"]?.lastEvaluatedAt).toBe("2026-08-15T10:00:00Z");
+    });
+
+    it("aggregates student progress summary with published catalog and attendance count", async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId: "demo-academy", normalized });
+
+      await store.recordEvaluation({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          sessionId: "session-1",
+          definitionKey: "white-0",
+          skillKey: "guard-pass-knee-cut",
+          score: 5,
+          evidenceNotes: "Mastery achieved.",
+        },
+        evaluatorId: "coach-1",
+        evaluatorStaffId: "staff-1",
+        evaluatorRole: "coach",
+      });
+
+      const progress = await store.getStudentProgressSummary("demo-academy", "student-1");
+
+      expect(progress.studentId).toBe("student-1");
+      expect(progress.state).toBe("uninitialized");
+    });
+
+    it("records and lists medical leaves and generates candidates in store", async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId: "demo-academy", normalized });
+
+      const leave = await store.recordMedicalLeave({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          startDate: "2026-07-01T00:00:00Z",
+          endDate: "2026-07-20T00:00:00Z",
+          reasonCode: "recovery",
+        },
+        recordedBy: "admin-1",
+        actorRole: "administrator",
+        actorStaffId: null,
+      });
+
+      expect(leave.studentId).toBe("student-1");
+      expect(leave.reasonCode).toBe("recovery");
+
+      const leaves = await store.listMedicalLeaves("demo-academy", "student-1");
+      expect(leaves).toHaveLength(1);
+
+      const candidates = await store.listRecognitionCandidates("demo-academy");
+      expect(candidates).toEqual([]);
+    });
+
+    it("approves and rejects promotions and lists graduation history", async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId: "demo-academy", normalized });
+
+      const approved = await store.approvePromotion({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          fromDefinitionKey: "white-0",
+          toDefinitionKey: "white-1",
+          decisionNotes: "Strong technical consistency and leadership during sparring sessions.",
+          ceremonyDate: "2026-09-01T18:00:00Z",
+        },
+        decidedBy: "headcoach-1",
+        decidedByStaffId: "staff-head-1",
+        decidedByRole: "headCoach",
+      });
+
+      expect(approved.status).toBe("approved");
+      expect(approved.studentId).toBe("student-1");
+      expect(approved.toDefinitionKey).toBe("white-1");
+      expect(approved.decidedByRole).toBe("headCoach");
+
+      const rejected = await store.rejectPromotion({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-2",
+          targetDefinitionKey: "white-1",
+          decisionNotes: "Requires further refinement of guard recovery techniques.",
+        },
+        decidedBy: "headcoach-1",
+        decidedByStaffId: "staff-head-1",
+        decidedByRole: "headCoach",
+      });
+
+      expect(rejected.status).toBe("rejected");
+      expect(rejected.studentId).toBe("student-2");
+
+      const student1Grads = await store.listGraduations("demo-academy", "student-1");
+      expect(student1Grads).toHaveLength(1);
+      expect(student1Grads[0]?.status).toBe("approved");
+
+      const allGrads = await store.listGraduations("demo-academy");
+      expect(allGrads).toHaveLength(2);
+    });
+  });
+
+  describe("Student level opening (T097)", () => {
+    it("opens a belt once per student and refuses stripes and unknown definitions", async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId: "demo-academy", normalized });
+      const catalog = await store.listPublished("demo-academy");
+      const belts = [...catalog.definitions]
+        .filter((definition) => definition.kind === "belt")
+        .sort((left, right) => left.sequence - right.sequence);
+      const stripe = catalog.definitions.find((definition) => definition.kind === "stripe");
+      const belt = belts[0]!;
+
+      const { head, ageBand } = await store.openStudentLevel({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-1",
+          definitionKey: belt.definitionKey,
+          decisionNotes: "Opened.",
+        },
+        openedBy: "headcoach-1",
+        openedByStaffId: "staff-head-1",
+        openedByRole: "headCoach",
+        openedAt: "2026-09-05T10:00:00.000Z",
+      });
+      expect(head).toMatchObject({
+        studentId: "student-1",
+        currentDefinitionKey: belt.definitionKey,
+        systemId: belt.systemId,
+        currentLevelStartedAt: "2026-09-05T10:00:00.000Z",
+        lastApprovedPromotionId: null,
+        state: "initialized",
+      });
+      // T113: the band travels with the opening as numbers, never as a date.
+      expect(ageBand).toMatchObject({ met: expect.any(Boolean) });
+      expect(Object.keys(ageBand).sort()).toEqual([
+        "ageYears",
+        "met",
+        "requiredMaxAge",
+        "requiredMinAge",
+      ]);
+
+      await expect(
+        store.openStudentLevel({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-1",
+            definitionKey: belt.definitionKey,
+            decisionNotes: "Twice.",
+          },
+          openedBy: "headcoach-1",
+          openedByStaffId: "staff-head-1",
+          openedByRole: "headCoach",
+        }),
+      ).rejects.toMatchObject({ code: "conflict" });
+      await expect(
+        store.openStudentLevel({
+          academyId: "demo-academy",
+          input: {
+            studentId: "student-2",
+            definitionKey: stripe!.definitionKey,
+            decisionNotes: "Stripes are earned.",
+          },
+          openedBy: "headcoach-1",
+          openedByStaffId: "staff-head-1",
+          openedByRole: "headCoach",
+        }),
+      ).rejects.toMatchObject({ code: "conflict" });
+      await expect(
+        store.openStudentLevel({
+          academyId: "demo-academy",
+          input: { studentId: "student-3", definitionKey: "unknown-belt", decisionNotes: "Nope." },
+          openedBy: "headcoach-1",
+          openedByStaffId: "staff-head-1",
+          openedByRole: "headCoach",
+        }),
+      ).rejects.toMatchObject({ code: "conflict" });
+    });
+  });
+});

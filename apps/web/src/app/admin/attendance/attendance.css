@@ -1,0 +1,343 @@
+.attendance-page {
+  --attendance-green: #175f46;
+  --attendance-green-soft: #e5f2ec;
+  --attendance-alert: #9f2f25;
+}
+
+.attendance-credential-note {
+  align-items: center;
+  background: var(--mat-ink);
+  color: var(--gi-white);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 1rem 1.15rem;
+}
+
+.attendance-credential-mark {
+  align-items: center;
+  border: 1px solid rgb(255 255 255 / 45%);
+  display: inline-flex;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.35rem;
+  height: 3rem;
+  justify-content: center;
+  letter-spacing: 0.04em;
+  width: 3rem;
+}
+
+.attendance-credential-note strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.attendance-credential-note p {
+  color: rgb(255 255 255 / 76%);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  margin: 0.3rem 0 0;
+  max-width: 58rem;
+}
+
+.attendance-session-strip {
+  background: var(--gi-white);
+  border-left: 0.3rem solid var(--bpt-purple);
+  padding: 1.1rem;
+}
+
+.attendance-session-strip-heading {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.attendance-session-strip-heading h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.55rem, 3vw, 2.4rem);
+  line-height: 0.92;
+  margin: 0.3rem 0 0;
+  text-transform: uppercase;
+}
+
+.attendance-session-strip-heading > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.attendance-session-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.attendance-session-item {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(12rem, 1fr) auto auto;
+  padding-top: 0.7rem;
+}
+
+.attendance-session-item div,
+.attendance-session-item p {
+  display: grid;
+  gap: 0.18rem;
+  margin: 0;
+}
+
+.attendance-session-item div > span,
+.attendance-session-item p {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.attendance-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 12rem;
+}
+
+.attendance-action-button,
+.attendance-button,
+.attendance-close-button {
+  border: 1px solid var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  min-height: 2.35rem;
+  padding: 0.55rem 0.7rem;
+  text-transform: uppercase;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.attendance-action-button {
+  background: var(--gi-white);
+  color: var(--mat-ink);
+}
+
+.attendance-action-button-primary,
+.attendance-button-primary {
+  background: var(--mat-ink);
+  color: var(--gi-white);
+}
+
+.attendance-action-button:hover,
+.attendance-action-button:focus-visible,
+.attendance-button:hover,
+.attendance-button:focus-visible,
+.attendance-close-button:hover,
+.attendance-close-button:focus-visible {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.attendance-action-button:focus-visible,
+.attendance-button:focus-visible,
+.attendance-close-button:focus-visible,
+.attendance-field input:focus-visible,
+.attendance-field select:focus-visible,
+.attendance-field textarea:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.attendance-action-button:disabled,
+.attendance-button:disabled,
+.attendance-close-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.attendance-operation-message {
+  border-left: 0.3rem solid currentColor;
+  font-size: 0.84rem;
+  font-weight: 700;
+  margin: 0;
+  padding: 0.8rem 1rem;
+}
+
+.attendance-operation-error {
+  background: #f8e8e6;
+  color: var(--attendance-alert);
+}
+
+.attendance-operation-success {
+  background: var(--attendance-green-soft);
+  color: var(--attendance-green);
+}
+
+.attendance-dialog-backdrop {
+  align-items: center;
+  background: rgb(14 12 17 / 70%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 80;
+}
+
+.attendance-dialog {
+  background: var(--gi-white);
+  border-top: 0.38rem solid var(--bpt-purple);
+  box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 30%);
+  max-height: calc(100vh - 2rem);
+  max-width: 42rem;
+  overflow-y: auto;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.attendance-dialog-heading {
+  align-items: start;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+}
+
+.attendance-dialog-heading h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  line-height: 0.88;
+  margin: 0.35rem 0;
+  text-transform: uppercase;
+}
+
+.attendance-dialog-heading p:last-child {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.attendance-close-button {
+  background: transparent;
+  color: var(--mat-ink);
+}
+
+.attendance-dialog-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.attendance-dialog-context {
+  background: var(--canvas);
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0.75rem;
+}
+
+.attendance-field,
+.attendance-field-grid {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.attendance-field {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.attendance-field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.attendance-field input,
+.attendance-field select,
+.attendance-field textarea {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  min-height: 2.8rem;
+  padding: 0.65rem 0.7rem;
+  text-transform: none;
+  width: 100%;
+}
+
+.attendance-field textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.attendance-dialog-error {
+  background: #f8e8e6;
+  color: var(--attendance-alert);
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin: 0;
+  padding: 0.75rem;
+}
+
+.attendance-dialog-actions {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.attendance-button-secondary {
+  background: var(--gi-white);
+  color: var(--mat-ink);
+}
+
+@media (max-width: 720px) {
+  .attendance-session-item {
+    align-items: start;
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-session-item .attendance-action-button {
+    width: 100%;
+  }
+
+  .attendance-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-dialog-heading {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .attendance-close-button,
+  .attendance-dialog-actions,
+  .attendance-dialog-actions .attendance-button {
+    width: 100%;
+  }
+
+  .attendance-dialog-actions {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attendance-action-button,
+  .attendance-button,
+  .attendance-close-button {
+    transition: none;
+  }
+}

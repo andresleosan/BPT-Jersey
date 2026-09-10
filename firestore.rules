@@ -1,0 +1,254 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /academies/{academyId}/regyfitAccessRecords/{recordId} {
+      allow create, update, delete: if false;
+    }
+
+    match /academies/{academyId}/regyfitMemberRecords/{recordId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/members/{memberId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/enrolmentRequests/{enrolmentRequestId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/enrolmentRequestHolds/{holdId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/students/{studentId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/studentAdminProfiles/{studentId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/studentIdentityKeys/{keyId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/studentRestrictedReadLimits/{actorId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryCursorStates/{cursorId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryStates/{stateId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryMigrations/{operationId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryMigrationChunks/{chunkId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryApprovals/{approvalId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryApprovalConsumptions/{approvalId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryWriteReceipts/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/familyWriteReceipts/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/profileWriteReceipts/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryImportReceipts/{receiptId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberDirectoryImportSessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/staff/{staffId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/staffAvailability/{windowId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/staffAssignments/{assignmentId} {
+      allow read, write: if false;
+    }
+
+    // T116: a delegated permission is an administrative record. No client reads it - not even the
+    // coach who holds one - because knowing who may do what is itself administrative information.
+    match /academies/{academyId}/staffPermissionGrants/{grantId} {
+      allow read, write: if false;
+    }
+
+    // T117: disclaimers and their acceptances are reached only through the callables, which decide
+    // who may act for which participant. A client reading the collection directly would see every
+    // other participant's acceptance.
+    match /academies/{academyId}/disclaimers/{disclaimerId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/disclaimerAcceptances/{acceptanceId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/adminRoleLocks/{uid} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/levelSystems/{systemId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/levelDefinitions/{definitionKey} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/levelRequirements/{requirementKey} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/levelCatalogManifests/{manifestId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/locations/{locationId} {
+      allow read, write: if false;
+    }
+
+    // T010/T035: academy-level settings such as the bank transfer instructions. Members receive
+    // them through the finance callables; nobody reads or writes the document directly.
+    match /academies/{academyId}/settings/{settingId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/programs/{programId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/classes/{classId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/sessions/{sessionId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/bookings/{bookingId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/waitlistEntries/{waitlistId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/sessionCapacityStates/{sessionId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/bookingQuotaStates/{quotaId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/waitlistPositionStates/{sessionId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/attendance/{attendanceId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/retentionAlerts/{alertId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/notificationPreferences/{preferenceId} {
+      allow read, write: if false;
+    }
+    match /academies/{academyId}/techniqueLibraries/{libraryVersionId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/lessonPlans/{planId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/familyGoals/{goalId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/familyAchievements/{achievementId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/familyAchievementSnapshots/{snapshotId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/auditEvents/{auditEventId} {
+      allow read, write: if false;
+    }
+    match /academies/{academyId}/waiverVersions/{waiverVersionId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/consents/{consentId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/documents/{documentId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/shopProducts/{productId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/shopOrders/{orderId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/noShowPenalties/{penaltyId} {
+      allow read, write: if false;
+    }
+
+    match /memberDirectoryRestoreGuards/{academyId} {
+      allow read, write: if false;
+    }
+
+    match /memberDirectoryRestoreGuards/{academyId}/events/{stateRevision} {
+      allow read, write: if false;
+    }
+
+    match /memberDirectoryRestoreAttestations/{attestationId} {
+      allow read, write: if false;
+    }
+
+    match /memberDirectoryRestoreAttestationConsumptions/{attestationId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

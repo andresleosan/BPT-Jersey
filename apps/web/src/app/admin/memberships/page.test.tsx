@@ -1,0 +1,253 @@
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const membershipApi = vi.hoisted(() => ({
+  cancelMembership: vi.fn(),
+  createMembership: vi.fn(),
+  listManagedPlans: vi.fn(),
+  listMemberships: vi.fn(),
+  saveMembershipPlan: vi.fn(),
+  setMembershipPlanActive: vi.fn(),
+  transitionMembership: vi.fn(),
+}));
+
+const membersApi = vi.hoisted(() => ({ listMembers: vi.fn() }));
+
+vi.mock("../../../lib/membership-admin-client", () => membershipApi);
+vi.mock("../../../lib/members-client", () => membersApi);
+
+import { MembershipsAdminPage } from "./page";
+
+const activePlan = {
+  planId: "town-adult" as const,
+  displayName: "Town Adult",
+  priceMinor: 8_500,
+  currency: "GBP" as const,
+  billingPeriod: "monthly" as const,
+  eligibleParticipantTypes: ["adult"] as const,
+  classSites: ["Town"] as const,
+  weeklyClassLimit: null,
+  openMatSites: ["Town"] as const,
+  openMatFeeMinor: null,
+  active: true,
+};
+
+const inactivePlan = {
+  ...activePlan,
+  planId: "west-adult" as const,
+  displayName: "West Adult",
+  priceMinor: 6_500,
+  classSites: ["West"] as const,
+  openMatSites: ["Town", "West"] as const,
+  active: false,
+};
+
+const activeMembership = {
+  membershipId: "membership-1",
+  familyId: "family-1",
+  studentId: "student-1",
+  planId: "town-adult" as const,
+  status: "active" as const,
+  startsAt: "2026-09-03T10:00:00.000Z",
+  endsAt: null,
+  nextBillingAt: null,
+};
+
+const directoryRows = [
+  {
+    studentId: "student-1",
+    fullName: "Synthetic One",
+    participantType: "adult",
+    trainingCenter: "Town",
+    active: true,
+    status: "active",
+  },
+  {
+    studentId: "student-2",
+    fullName: "Synthetic Two",
+    participantType: "adult",
+    trainingCenter: "Town",
+    active: true,
+    status: "active",
+  },
+  {
+    studentId: "student-3",
+    fullName: "Synthetic Inactive",
+    participantType: "adult",
+    trainingCenter: "West",
+    active: false,
+    status: "inactive",
+  },
+];
+
+describe("memberships admin page", () => {
+  afterEach(() => {
+    cleanup();
+    Object.values(membershipApi).forEach((mock) => mock.mockReset());
+    membersApi.listMembers.mockReset();
+  });
+
+  it("manages connected plans and only valid membership operations", async () => {
+    const user = userEvent.setup();
+    membershipApi.listManagedPlans.mockResolvedValue([activePlan, inactivePlan]);
+    membershipApi.listMemberships.mockResolvedValue([activeMembership]);
+    membersApi.listMembers.mockResolvedValue({ rows: directoryRows });
+    membershipApi.saveMembershipPlan.mockImplementation(async (plan) => ({
+      ...plan,
+      active: false,
+    }));
+    membershipApi.setMembershipPlanActive.mockResolvedValue({
+      ...inactivePlan,
+      displayName: "West Adults Plus",
+      active: true,
+    });
+    membershipApi.createMembership.mockResolvedValue({
+      ...activeMembership,
+      membershipId: "membership-2",
+      familyId: "family-2",
+      studentId: "student-2",
+      status: "trial",
+    });
+    membershipApi.transitionMembership.mockResolvedValue({
+      ...activeMembership,
+      status: "paused",
+    });
+    membershipApi.cancelMembership.mockResolvedValue({
+      ...activeMembership,
+      status: "cancelled",
+      endsAt: "2026-09-03T11:00:00.000Z",
+    });
+
+    render(<MembershipsAdminPage />);
+
+    const plansTable = await screen.findByRole("table", { name: "Membership plan catalog" });
+    expect(within(plansTable).getByText("West Adult")).toBeVisible();
+    expect(within(plansTable).getByText("Inactive")).toBeVisible();
+
+    await user.selectOptions(screen.getByLabelText("Plan to edit"), "west-adult");
+    await user.clear(screen.getByLabelText("Display name"));
+    await user.type(screen.getByLabelText("Display name"), "West Adults Plus");
+    await user.click(screen.getByRole("button", { name: "Save plan" }));
+
+    await waitFor(() => expect(membershipApi.saveMembershipPlan).toHaveBeenCalledOnce());
+    expect(membershipApi.saveMembershipPlan).toHaveBeenCalledWith({
+      planId: "west-adult",
+      displayName: "West Adults Plus",
+      priceMinor: 6_500,
+      currency: "GBP",
+      billingPeriod: "monthly",
+      eligibleParticipantTypes: ["adult"],
+      classSites: ["West"],
+      weeklyClassLimit: null,
+      openMatSites: ["Town", "West"],
+      openMatFeeMinor: null,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Activate plan" }));
+    await waitFor(() =>
+      expect(membershipApi.setMembershipPlanActive).toHaveBeenCalledWith("west-adult", true),
+    );
+
+    // Students come from the canonical directory; inactive rows are never offered and no free-text
+    // identifier is accepted.
+    const studentSelect = await screen.findByLabelText("Student");
+    expect(within(studentSelect).queryByRole("option", { name: /Synthetic Inactive/u })).toBeNull();
+    expect(screen.queryByLabelText("Family ID")).toBeNull();
+    expect(screen.queryByLabelText("Student ID")).toBeNull();
+    await user.selectOptions(studentSelect, "student-2");
+    await user.selectOptions(screen.getByLabelText("Membership plan"), "town-adult");
+    await user.selectOptions(screen.getByLabelText("Initial status"), "trial");
+    await user.click(screen.getByRole("button", { name: "Create membership" }));
+    await waitFor(() =>
+      expect(membershipApi.createMembership).toHaveBeenCalledWith({
+        studentId: "student-2",
+        planId: "town-adult",
+        status: "trial",
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pause membership membership-1" }));
+    await waitFor(() =>
+      expect(membershipApi.transitionMembership).toHaveBeenCalledWith({
+        membershipId: "membership-1",
+        targetStatus: "paused",
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Mark cancelled membership membership-1/i }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel membership membership-1" }));
+    await waitFor(() =>
+      expect(membershipApi.cancelMembership).toHaveBeenCalledWith("membership-1"),
+    );
+  });
+
+  it("follows the directory cursor and narrows the selector with a search", async () => {
+    const user = userEvent.setup();
+    membershipApi.listManagedPlans.mockResolvedValue([activePlan]);
+    membershipApi.listMemberships.mockResolvedValue([]);
+    const secondPage = [
+      {
+        studentId: "student-4",
+        fullName: "Jose Ramirez",
+        participantType: "adult",
+        trainingCenter: "West",
+        active: true,
+        status: "active",
+      },
+      {
+        studentId: "student-5",
+        fullName: "Marta Silva",
+        participantType: "minor",
+        trainingCenter: "West",
+        active: true,
+        status: "active",
+      },
+    ];
+    membersApi.listMembers.mockImplementation(async (pageSize: number, cursor?: string) => {
+      expect(pageSize).toBe(50);
+      return cursor === undefined
+        ? { rows: directoryRows, nextCursor: "cursor-2" }
+        : { rows: secondPage };
+    });
+
+    render(<MembershipsAdminPage />);
+
+    // Every page of the directory is loaded, not just the first, and inactive rows stay out.
+    const studentSelect = await screen.findByLabelText("Student");
+    await waitFor(() =>
+      expect(within(studentSelect).getByRole("option", { name: /Jose Ramirez/u })).toBeDefined(),
+    );
+    expect(membersApi.listMembers).toHaveBeenCalledTimes(2);
+    expect(membersApi.listMembers).toHaveBeenLastCalledWith(50, "cursor-2");
+    expect(within(studentSelect).queryByRole("option", { name: /Synthetic Inactive/u })).toBeNull();
+    expect(screen.getByTestId("membership-directory-count").textContent).toContain(
+      "Showing 4 of 4 active students.",
+    );
+
+    // The search narrows the options, ignoring accents and case, and reports the count.
+    await user.type(screen.getByLabelText("Search students"), "josé");
+    await waitFor(() =>
+      expect(within(studentSelect).queryByRole("option", { name: /Synthetic One/u })).toBeNull(),
+    );
+    expect(within(studentSelect).getByRole("option", { name: /Jose Ramirez/u })).toBeDefined();
+    expect(screen.getByTestId("membership-directory-count").textContent).toContain(
+      "Showing 1 of 4 active students.",
+    );
+
+    // A student selected before the search stays selectable instead of silently disappearing.
+    await user.selectOptions(studentSelect, "student-4");
+    await user.clear(screen.getByLabelText("Search students"));
+    await user.type(screen.getByLabelText("Search students"), "marta");
+    await waitFor(() =>
+      expect(
+        within(studentSelect).getByRole("option", {
+          name: "Selected student (hidden by the search)",
+        }),
+      ).toBeDefined(),
+    );
+    expect((studentSelect as HTMLSelectElement).value).toBe("student-4");
+  });
+});

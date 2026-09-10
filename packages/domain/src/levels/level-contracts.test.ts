@@ -1,0 +1,706 @@
+import { describe, expect, it } from "vitest";
+
+import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
+import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
+import {
+  buildEvaluationId,
+  buildGraduationId,
+  buildPeerComparison,
+  buildStudentProgressSummary,
+  calculateAttendanceStreak,
+  generateRecognitionCandidates,
+  parseApprovePromotionInput,
+  parseOpenStudentLevelInput,
+  parseLevelCatalogProjection,
+  parseLevelCatalogSource,
+  parseRecordEvaluationInput,
+  parseRecordMedicalLeaveInput,
+  parseRejectPromotionInput,
+  type CanonicalLevelCatalog,
+  type EvaluationRecord,
+  type EvaluationScore,
+  type LevelCatalogProjection,
+  type MedicalLeaveRecord,
+  type PeerComparisonStudent,
+  type RecordEvaluationInput,
+  type StudentProgressSummary,
+} from "./level-contracts";
+
+describe("Level Contracts", () => {
+  it("parses valid observed and business criteria JSON into canonical catalog", () => {
+    const result = parseLevelCatalogSource(observedJson, businessCriteriaJson);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected ok result");
+
+    const catalog: CanonicalLevelCatalog = result.value;
+    expect(catalog.system.displayName).toBe("JIU-JITSU - IBJJF");
+    expect(catalog.system.schemaVersion).toBe(1);
+    expect(catalog.definitions).toHaveLength(171);
+
+    const belts = catalog.definitions.filter((d) => d.kind === "belt");
+    const stripes = catalog.definitions.filter((d) => d.kind === "stripe");
+    expect(belts).toHaveLength(27);
+    expect(stripes).toHaveLength(144);
+
+    expect(catalog.skills).toHaveLength(11);
+    expect(catalog.requirements).toHaveLength(165);
+  });
+
+  it("prioritizes DOCX criteria while retaining observedCriteria", () => {
+    const customBusiness = {
+      ...businessCriteriaJson,
+      levels: {
+        ...businessCriteriaJson.levels,
+        "white-belt-kids-4-5-and-5-7-yo": {
+          minAge: 4,
+          maxAge: 7,
+          minClasses: 10,
+          minimumTime: { years: 0, months: 1, days: 0 },
+        },
+      },
+    };
+
+    const result = parseLevelCatalogSource(observedJson, customBusiness);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected ok result");
+
+    const target = result.value.definitions.find(
+      (d) => d.definitionKey === "white-belt-kids-4-5-and-5-7-yo",
+    );
+    expect(target).toBeDefined();
+    expect(target?.criteria.minClasses).toBe(10);
+    expect(target?.criteria.minAge).toBe(4);
+    expect(target?.observedCriteria.minClasses).toBe(4);
+  });
+
+  it("rejects missing DOCX criteria for a level key", () => {
+    const incompleteBusiness = {
+      ...businessCriteriaJson,
+      levels: { ...businessCriteriaJson.levels },
+    };
+    // @ts-expect-error test deletion of key
+    delete incompleteBusiness.levels["white-belt-kids-4-5-and-5-7-yo"];
+
+    const result = parseLevelCatalogSource(observedJson, incompleteBusiness);
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects orphan parentKey", () => {
+    const badObserved = {
+      ...observedJson,
+      levels: observedJson.levels.map((l) =>
+        l.key === "white-4-5-and-5-7yo-1st-stripe" ? { ...l, parentKey: "non-existent-parent" } : l,
+      ),
+    };
+
+    const result = parseLevelCatalogSource(badObserved, businessCriteriaJson);
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects duplicate level keys", () => {
+    const badObserved = {
+      ...observedJson,
+      levels: [...observedJson.levels, { ...observedJson.levels[0] }],
+    };
+
+    const result = parseLevelCatalogSource(badObserved, businessCriteriaJson);
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects invalid visual color format", () => {
+    const badObserved = {
+      ...observedJson,
+      levels: observedJson.levels.map((l, index) =>
+        index === 0
+          ? { ...l, visual: { ...l.visual, colors: ["invalid-color", "#ffffff", "#ffffff"] } }
+          : l,
+      ),
+    };
+
+    const result = parseLevelCatalogSource(badObserved, businessCriteriaJson);
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects invalid skill minimumRating (out of 1-5)", () => {
+    const badObserved = {
+      ...observedJson,
+      skillCatalog: observedJson.skillCatalog.map((s, idx) =>
+        idx === 0 ? { ...s, minimumRating: 6 } : s,
+      ),
+    };
+
+    const result = parseLevelCatalogSource(badObserved, businessCriteriaJson);
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects prototype pollution and hostile getters", () => {
+    const hostileObject = Object.create({ malicious: true });
+    hostileObject.schemaVersion = 1;
+
+    const result = parseLevelCatalogSource(hostileObject, businessCriteriaJson);
+    expect(result.ok).toBe(false);
+  });
+
+  it("parses and freezes safe level catalog projection", () => {
+    const catalogResult = parseLevelCatalogSource(observedJson, businessCriteriaJson);
+    if (!catalogResult.ok) throw new Error("Catalog source parsing failed");
+
+    const rawProjection: LevelCatalogProjection = {
+      system: catalogResult.value.system,
+      definitions: catalogResult.value.definitions,
+      skills: catalogResult.value.skills,
+      requirements: catalogResult.value.requirements,
+      sourceHash: "test-hash-123456",
+    };
+
+    const projectionResult = parseLevelCatalogProjection(rawProjection);
+    expect(projectionResult.ok).toBe(true);
+    if (!projectionResult.ok) throw new Error("Projection parsing failed");
+
+    expect(Object.isFrozen(projectionResult.value)).toBe(true);
+    expect(Object.isFrozen(projectionResult.value.definitions)).toBe(true);
+  });
+
+  describe("Technical Evaluations (T039)", () => {
+    it("builds valid deterministic/traceable evaluation ID", () => {
+      const id1 = buildEvaluationId("std-1", "guard-pass", "2026-09-01T10:00:00Z");
+      expect(id1).toBe("eval_std-1_guard-pass_2026-09-01T10:00:00Z");
+
+      const id2 = buildEvaluationId("std-2", "armbar");
+      expect(id2.startsWith("eval_std-2_armbar_")).toBe(true);
+    });
+
+    it("parses and validates valid evaluation input", () => {
+      const validInput: RecordEvaluationInput = {
+        studentId: "student-1",
+        sessionId: "session-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass-knee-cut",
+        score: 4,
+        evidenceNotes: "Excellent weight distribution and head control during sparring.",
+      };
+
+      const result = parseRecordEvaluationInput(validInput);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected ok result");
+      expect(result.value.score).toBe(4);
+      expect(result.value.studentId).toBe("student-1");
+      expect(Object.isFrozen(result.value)).toBe(true);
+    });
+
+    it("rejects score outside 1-5 range", () => {
+      const invalid0 = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 0 as unknown as EvaluationScore,
+        evidenceNotes: "Too low",
+      });
+      expect(invalid0.ok).toBe(false);
+
+      const invalid6 = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 6 as unknown as EvaluationScore,
+        evidenceNotes: "Too high",
+      });
+      expect(invalid6.ok).toBe(false);
+
+      const nonInt = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 3.5 as unknown as EvaluationScore,
+        evidenceNotes: "Non integer",
+      });
+      expect(nonInt.ok).toBe(false);
+    });
+
+    it("rejects missing or too short evidence notes", () => {
+      const shortNotes = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 3,
+        evidenceNotes: "ok",
+      });
+      expect(shortNotes.ok).toBe(false);
+
+      const emptyNotes = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 3,
+        evidenceNotes: "   ",
+      });
+      expect(emptyNotes.ok).toBe(false);
+    });
+
+    it("rejects invalid studentId or skillKey format", () => {
+      const badStudent = parseRecordEvaluationInput({
+        studentId: "bad/student id",
+        definitionKey: "white-1",
+        skillKey: "guard-pass",
+        score: 3,
+        evidenceNotes: "Good technique shown.",
+      });
+      expect(badStudent.ok).toBe(false);
+
+      const badSkill = parseRecordEvaluationInput({
+        studentId: "student-1",
+        definitionKey: "white-1",
+        skillKey: "bad skill spaces",
+        score: 3,
+        evidenceNotes: "Good technique shown.",
+      });
+      expect(badSkill.ok).toBe(false);
+    });
+  });
+
+  describe("Student Progress Summary & Skill Checklist (T040)", () => {
+    const catalogResult = parseLevelCatalogSource(observedJson, businessCriteriaJson);
+    if (!catalogResult.ok) throw new Error("Catalog source parsing failed");
+    const catalog = catalogResult.value;
+
+    it("calculates progress toward next belt/stripe and builds skill checklist", () => {
+      // Suppose student is currently white belt 0 (or first level: white-0 / sequence 1)
+      const firstDef = catalog.definitions[0]!;
+      const secondDef = catalog.definitions[1]!;
+      const req =
+        catalog.requirements.find((r) => r.definitionKey === secondDef.definitionKey) ??
+        catalog.requirements[0]!;
+
+      // Mock student evaluations: 1 skill evaluated at score 4
+      const evaluations: EvaluationRecord[] = [
+        {
+          evaluationId: "eval-1",
+          academyId: "acad-1",
+          studentId: "std-1",
+          sessionId: "session-1",
+          definitionKey: firstDef.definitionKey,
+          skillKey: req.skillKey,
+          score: 4,
+          evidenceNotes: "Solid execution during sparring.",
+          evaluatorId: "coach-1",
+          evaluatorRole: "coach",
+          evaluatedAt: "2026-08-10T10:00:00Z",
+          schemaVersion: "1",
+          createdAt: "2026-08-10T10:00:00Z",
+          createdBy: "coach-1",
+          updatedAt: "2026-08-10T10:00:00Z",
+          updatedBy: "coach-1",
+        },
+      ];
+
+      const summary: StudentProgressSummary = buildStudentProgressSummary({
+        catalog,
+        studentId: "std-1",
+        currentDefinitionKey: firstDef.definitionKey,
+        evaluations,
+        attendedClassesCount: 15,
+        totalHours: 22.5,
+        currentLevelStartedAt: "2026-06-01T00:00:00Z",
+        now: "2026-09-01T00:00:00Z",
+      });
+
+      expect(summary.studentId).toBe("std-1");
+      expect(summary.currentDefinition.definitionKey).toBe(firstDef.definitionKey);
+      expect(summary.targetDefinition?.definitionKey).toBe(secondDef.definitionKey);
+      expect(summary.totalAttendedClasses).toBe(15);
+      expect(summary.totalHours).toBe(22.5);
+
+      // Check skill checklist
+      expect(summary.skillChecklist.length).toBeGreaterThan(0);
+      const item = summary.skillChecklist.find((i) => i.skillKey === req.skillKey);
+      expect(item).toBeDefined();
+      expect(item?.currentScore).toBe(4);
+      expect(item?.isCompleted).toBe(true);
+
+      // Check criteria
+      expect(summary.criteria.classes.completed).toBe(15);
+      expect(summary.criteria.time.elapsedDays).toBe(92); // ~92 days between June 1 and Sept 1
+    });
+
+    it("handles max rank student where targetDefinition is null", () => {
+      const lastDef = catalog.definitions[catalog.definitions.length - 1]!;
+
+      const summary = buildStudentProgressSummary({
+        catalog,
+        studentId: "master-1",
+        currentDefinitionKey: lastDef.definitionKey,
+        evaluations: [],
+        attendedClassesCount: 500,
+        totalHours: 750,
+      });
+
+      expect(summary.currentDefinition.definitionKey).toBe(lastDef.definitionKey);
+      expect(summary.targetDefinition).toBeNull();
+      expect(summary.criteria.overallEligible).toBe(true);
+      expect(summary.skillChecklist).toHaveLength(0);
+    });
+  });
+
+  describe("Attendance Streaks & Medical Leaves (T041)", () => {
+    it("calculates weekly attendance streak correctly", () => {
+      // 4 consecutive weeks of attendance (Aug 2026)
+      const dates = [
+        "2026-08-03T10:00:00Z", // week 1
+        "2026-08-10T10:00:00Z", // week 2
+        "2026-08-17T10:00:00Z", // week 3
+        "2026-08-24T10:00:00Z", // week 4
+      ];
+
+      const streak = calculateAttendanceStreak({
+        attendanceDates: dates,
+        now: "2026-08-25T00:00:00Z",
+      });
+
+      expect(streak.currentStreakWeeks).toBe(4);
+      expect(streak.longestStreakWeeks).toBe(4);
+      expect(streak.activeMedicalLeave).toBe(false);
+    });
+
+    it("preserves attendance streak across justified medical leave", () => {
+      // Attended weeks 1 & 2, medical leave weeks 3 & 4, attended week 5
+      const dates = [
+        "2026-07-01T10:00:00Z",
+        "2026-07-08T10:00:00Z",
+        // absence July 15 - July 30 (covered by medical leave)
+        "2026-08-01T10:00:00Z",
+        "2026-08-08T10:00:00Z",
+      ];
+
+      const medicalLeaves: MedicalLeaveRecord[] = [
+        {
+          leaveId: "leave-1",
+          academyId: "acad-1",
+          studentId: "std-1",
+          startDate: "2026-07-12T00:00:00Z",
+          endDate: "2026-07-31T23:59:59Z",
+          reasonCode: "injury",
+          status: "active",
+          schemaVersion: "1",
+          recordedBy: "coach-1",
+          recordedAt: "2026-07-12T00:00:00Z",
+          createdAt: "2026-07-12T00:00:00Z",
+          createdBy: "coach-1",
+          updatedAt: "2026-07-12T00:00:00Z",
+          updatedBy: "coach-1",
+        },
+      ];
+
+      const streak = calculateAttendanceStreak({
+        attendanceDates: dates,
+        medicalLeaves,
+        now: "2026-08-09T00:00:00Z",
+      });
+
+      expect(streak.currentStreakWeeks).toBe(4); // 2 weeks before leave + 2 weeks after leave
+      expect(streak.longestStreakWeeks).toBe(4);
+      expect(streak.activeMedicalLeave).toBe(false);
+    });
+
+    it("resets streak on unjustified gap", () => {
+      const dates = [
+        "2026-06-01T10:00:00Z", // week 1
+        "2026-06-08T10:00:00Z", // week 2
+        // gap with NO medical leave for 3 weeks
+        "2026-08-01T10:00:00Z", // new streak week 1
+      ];
+
+      const streak = calculateAttendanceStreak({
+        attendanceDates: dates,
+        now: "2026-08-02T00:00:00Z",
+      });
+
+      expect(streak.currentStreakWeeks).toBe(1);
+      expect(streak.longestStreakWeeks).toBe(2);
+    });
+
+    it("validates and parses medical leave input", () => {
+      const valid = parseRecordMedicalLeaveInput({
+        studentId: "std-1",
+        startDate: "2026-08-01T00:00:00Z",
+        endDate: "2026-08-15T00:00:00Z",
+        reasonCode: "recovery",
+      });
+
+      expect(valid.ok).toBe(true);
+      if (!valid.ok) throw new Error("Expected ok result");
+      expect(valid.value.reasonCode).toBe("recovery");
+
+      const invalidDateOrder = parseRecordMedicalLeaveInput({
+        studentId: "std-1",
+        startDate: "2026-08-15T00:00:00Z",
+        endDate: "2026-08-01T00:00:00Z",
+        reasonCode: "recovery",
+      });
+      expect(invalidDateOrder.ok).toBe(false);
+    });
+  });
+
+  describe("Explainable Recognition Candidates Generation (T041)", () => {
+    const catalogResult = parseLevelCatalogSource(observedJson, businessCriteriaJson);
+    if (!catalogResult.ok) throw new Error("Catalog parsing failed");
+    const catalog = catalogResult.value;
+
+    it("generates and ranks recognition candidates with explanations", () => {
+      const firstDef = catalog.definitions[0]!;
+      const secondDef = catalog.definitions[1]!;
+      const req =
+        catalog.requirements.find((r) => r.definitionKey === secondDef.definitionKey) ??
+        catalog.requirements[0]!;
+
+      const candidates = generateRecognitionCandidates({
+        catalog,
+        students: [
+          {
+            studentId: "std-ready",
+            studentName: "Carlos Gracie",
+            currentDefinitionKey: firstDef.definitionKey,
+            currentLevelStartedAt: "2026-01-01T00:00:00Z",
+          },
+          {
+            studentId: "std-not-ready",
+            studentName: "Junior Silva",
+            currentDefinitionKey: firstDef.definitionKey,
+            currentLevelStartedAt: "2026-08-01T00:00:00Z",
+          },
+        ],
+        evaluations: [
+          {
+            evaluationId: "ev-1",
+            academyId: "acad-1",
+            studentId: "std-ready",
+            sessionId: "session-1",
+            definitionKey: firstDef.definitionKey,
+            skillKey: req.skillKey,
+            score: 4,
+            evidenceNotes: "Excellent guard passing technique.",
+            evaluatorId: "coach-1",
+            evaluatorRole: "coach",
+            evaluatedAt: "2026-08-15T00:00:00Z",
+            schemaVersion: "1",
+            createdAt: "2026-08-15T00:00:00Z",
+            createdBy: "coach-1",
+            updatedAt: "2026-08-15T00:00:00Z",
+            updatedBy: "coach-1",
+          },
+        ],
+        attendances: [
+          { studentId: "std-ready", attendedAt: "2026-07-01T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-07-08T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-07-15T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-07-22T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-08-01T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-08-08T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-08-15T10:00:00Z" },
+          { studentId: "std-ready", attendedAt: "2026-08-22T10:00:00Z" },
+        ],
+        medicalLeaves: [],
+        now: "2026-08-23T00:00:00Z",
+      });
+
+      expect(candidates.length).toBeGreaterThan(0);
+      const top = candidates[0]!;
+      expect(top.studentId).toBe("std-ready");
+      expect(top.studentName).toBe("Carlos Gracie");
+      expect(top.currentDefinitionKey).toBe(firstDef.definitionKey);
+      expect(top.targetDefinitionKey).toBe(secondDef.definitionKey);
+      expect(top.reasons.length).toBeGreaterThan(0);
+      expect(top.readinessPercentage).toBeGreaterThanOrEqual(50);
+    });
+  });
+
+  describe("Head Coach Promotion & Graduation Contracts (T042)", () => {
+    it("builds deterministic and traceable graduation ID", () => {
+      const gradId = buildGraduationId("std-1", "white-1", "2026-08-23T12:00:00Z");
+      expect(gradId).toBe("grad_std-1_white-1_2026-08-23T12:00:00Z");
+    });
+
+    it("validates and parses valid approve promotion input", () => {
+      const result = parseApprovePromotionInput({
+        studentId: "std-1",
+        fromDefinitionKey: "white-0",
+        toDefinitionKey: "white-1",
+        decisionNotes:
+          "Demonstrated solid mastery of fundamentals and consistent sparring presence.",
+        ceremonyDate: "2026-09-01T18:00:00Z",
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected ok result");
+      expect(result.value.studentId).toBe("std-1");
+      expect(result.value.toDefinitionKey).toBe("white-1");
+      expect(result.value.ceremonyDate).toBe("2026-09-01T18:00:00Z");
+    });
+
+    it("rejects promotion approval with short or empty decision notes", () => {
+      const shortNotes = parseApprovePromotionInput({
+        studentId: "std-1",
+        fromDefinitionKey: "white-0",
+        toDefinitionKey: "white-1",
+        decisionNotes: "ok",
+      });
+      expect(shortNotes.ok).toBe(false);
+    });
+
+    it("validates and parses reject promotion input", () => {
+      const result = parseRejectPromotionInput({
+        studentId: "std-1",
+        targetDefinitionKey: "white-1",
+        decisionNotes: "Needs more sparring rounds against senior practitioners before stripe.",
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected ok result");
+      expect(result.value.studentId).toBe("std-1");
+      expect(result.value.decisionNotes).toContain("Needs more sparring");
+    });
+  });
+
+  describe("buildPeerComparison (2 above, 2 below)", () => {
+    const students: PeerComparisonStudent[] = [
+      {
+        studentId: "std-1",
+        studentName: "Lucas Silva",
+        beltName: "Blue Belt",
+        stripes: 2,
+        streakWeeks: 12,
+        techniquesLearned: 9,
+        totalTechniques: 11,
+        sequence: 20,
+        classesInRank: 75,
+      },
+      {
+        studentId: "std-2",
+        studentName: "Mateo Rossi",
+        beltName: "Blue Belt",
+        stripes: 1,
+        streakWeeks: 8,
+        techniquesLearned: 7,
+        totalTechniques: 11,
+        sequence: 19,
+        classesInRank: 55,
+      },
+      {
+        studentId: "std-3",
+        studentName: "Alex Le Brocq",
+        beltName: "White Belt",
+        stripes: 4,
+        streakWeeks: 10,
+        techniquesLearned: 6,
+        totalTechniques: 11,
+        sequence: 14,
+        classesInRank: 40,
+      },
+      {
+        studentId: "std-4",
+        studentName: "Chloe Martin",
+        beltName: "White Belt",
+        stripes: 3,
+        streakWeeks: 5,
+        techniquesLearned: 5,
+        totalTechniques: 11,
+        sequence: 13,
+        classesInRank: 32,
+      },
+      {
+        studentId: "std-5",
+        studentName: "David De La Haye",
+        beltName: "White Belt",
+        stripes: 2,
+        streakWeeks: 4,
+        techniquesLearned: 4,
+        totalTechniques: 11,
+        sequence: 12,
+        classesInRank: 20,
+      },
+    ];
+
+    it("returns 2 peers above and 2 peers below for a middle-ranked student", () => {
+      const result = buildPeerComparison({
+        currentStudentId: "std-3",
+        students,
+      });
+
+      expect(result).not.toBeNull();
+      if (!result) return;
+
+      expect(result.currentStudent.studentId).toBe("std-3");
+      expect(result.peersAbove).toHaveLength(2);
+      expect(result.peersAbove.map((p) => p.studentId)).toEqual(["std-1", "std-2"]);
+      expect(result.peersBelow).toHaveLength(2);
+      expect(result.peersBelow.map((p) => p.studentId)).toEqual(["std-4", "std-5"]);
+    });
+
+    it("handles top-ranked student with no peers above and up to 2 below", () => {
+      const result = buildPeerComparison({
+        currentStudentId: "std-1",
+        students,
+      });
+
+      expect(result).not.toBeNull();
+      if (!result) return;
+
+      expect(result.peersAbove).toHaveLength(0);
+      expect(result.peersBelow).toHaveLength(2);
+      expect(result.peersBelow.map((p) => p.studentId)).toEqual(["std-2", "std-3"]);
+    });
+
+    it("handles lowest-ranked student with up to 2 peers above and no peers below", () => {
+      const result = buildPeerComparison({
+        currentStudentId: "std-5",
+        students,
+      });
+
+      expect(result).not.toBeNull();
+      if (!result) return;
+
+      expect(result.peersAbove).toHaveLength(2);
+      expect(result.peersAbove.map((p) => p.studentId)).toEqual(["std-3", "std-4"]);
+      expect(result.peersBelow).toHaveLength(0);
+    });
+
+    it("returns null when current student is not found", () => {
+      const result = buildPeerComparison({
+        currentStudentId: "non-existent",
+        students,
+      });
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("parseOpenStudentLevelInput", () => {
+    it("accepts a closed belt opening payload and trims text", () => {
+      const result = parseOpenStudentLevelInput({
+        studentId: "student-1",
+        definitionKey: "white-0",
+        decisionNotes: "  Holds a white belt from a previous academy.  ",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toEqual({
+          studentId: "student-1",
+          definitionKey: "white-0",
+          decisionNotes: "Holds a white belt from a previous academy.",
+        });
+      }
+    });
+
+    it("rejects unknown fields, unsafe identifiers and short notes", () => {
+      for (const raw of [
+        null,
+        [],
+        { studentId: "student-1", definitionKey: "white-0", decisionNotes: "ok", state: "x" },
+        { studentId: "../x", definitionKey: "white-0", decisionNotes: "Valid notes" },
+        { studentId: "student-1", definitionKey: "", decisionNotes: "Valid notes" },
+        { studentId: "student-1", definitionKey: "white-0", decisionNotes: "no" },
+      ]) {
+        expect(parseOpenStudentLevelInput(raw).ok).toBe(false);
+      }
+    });
+  });
+});

@@ -1,0 +1,243 @@
+{
+  "name": "@bpt-jersey/domain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./audit": {
+      "types": "./src/audit/audit-event.ts",
+      "import": "./src/audit/audit-event.ts",
+      "default": "./lib/audit/audit-event.js"
+    },
+    "./migration/regyfit-access": {
+      "types": "./src/migration/regyfit-access.ts",
+      "import": "./src/migration/regyfit-access.ts",
+      "default": "./lib/migration/regyfit-access.js"
+    },
+    "./auth/admin-contracts": {
+      "types": "./src/auth/admin-contracts.ts",
+      "import": "./src/auth/admin-contracts.ts",
+      "default": "./lib/auth/admin-contracts.js"
+    },
+    "./authorization/access-policy": {
+      "types": "./src/authorization/access-policy.ts",
+      "import": "./src/authorization/access-policy.ts",
+      "default": "./lib/authorization/access-policy.js"
+    },
+    "./members": {
+      "types": "./src/members/member-contracts.ts",
+      "import": "./src/members/member-contracts.ts",
+      "default": "./lib/members/member-contracts.js"
+    },
+    "./members/directory": {
+      "types": "./src/members/member-directory-contracts.ts",
+      "import": "./src/members/member-directory-contracts.ts",
+      "default": "./lib/members/member-directory-contracts.js"
+    },
+    "./members/directory-migration": {
+      "types": "./src/members/member-directory-migration-contracts.ts",
+      "import": "./src/members/member-directory-migration-contracts.ts",
+      "default": "./lib/members/member-directory-migration-contracts.js"
+    },
+    "./members/directory-private-plan": {
+      "types": "./src/members/member-directory-private-plan-contracts.ts",
+      "import": "./src/members/member-directory-private-plan-contracts.ts",
+      "default": "./lib/members/member-directory-private-plan-contracts.js"
+    },
+    "./members/directory-operations": {
+      "types": "./src/members/member-directory-operation-contracts.ts",
+      "import": "./src/members/member-directory-operation-contracts.ts",
+      "default": "./lib/members/member-directory-operation-contracts.js"
+    },
+    "./members/directory-transitions": {
+      "types": "./src/members/member-directory-transitions.ts",
+      "import": "./src/members/member-directory-transitions.ts",
+      "default": "./lib/members/member-directory-transitions.js"
+    },
+    "./members/enrolment-requests": {
+      "types": "./src/members/enrolment-request-contracts.ts",
+      "import": "./src/members/enrolment-request-contracts.ts",
+      "default": "./lib/members/enrolment-request-contracts.js"
+    },
+    "./members/regyfit-records": {
+      "types": "./src/members/regyfit-member-record-contracts.ts",
+      "import": "./src/members/regyfit-member-record-contracts.ts",
+      "default": "./lib/members/regyfit-member-record-contracts.js"
+    },
+    "./profiles": {
+      "types": "./src/profiles/profile-contracts.ts",
+      "import": "./src/profiles/profile-contracts.ts",
+      "default": "./lib/profiles/profile-contracts.js"
+    },
+    "./staff": {
+      "types": "./src/staff/staff-contracts.ts",
+      "import": "./src/staff/staff-contracts.ts",
+      "default": "./lib/staff/staff-contracts.js"
+    },
+    "./families": {
+      "types": "./src/families/family-contracts.ts",
+      "import": "./src/families/family-contracts.ts",
+      "default": "./lib/families/family-contracts.js"
+    },
+    "./memberships": {
+      "types": "./src/memberships/plan-contracts.ts",
+      "import": "./src/memberships/plan-contracts.ts",
+      "default": "./lib/memberships/plan-contracts.js"
+    },
+    "./memberships/lifecycle": {
+      "types": "./src/memberships/membership-contracts.ts",
+      "import": "./src/memberships/membership-contracts.ts",
+      "default": "./lib/memberships/membership-contracts.js"
+    },
+    "./finance": {
+      "types": "./src/finance/finance-contracts.ts",
+      "import": "./src/finance/finance-contracts.ts",
+      "default": "./lib/finance/finance-contracts.js"
+    },
+    "./finance/access": {
+      "types": "./src/finance/financial-access.ts",
+      "import": "./src/finance/financial-access.ts",
+      "default": "./lib/finance/financial-access.js"
+    },
+    "./finance/dashboard": {
+      "types": "./src/finance/financial-dashboard.ts",
+      "import": "./src/finance/financial-dashboard.ts",
+      "default": "./lib/finance/financial-dashboard.js"
+    },
+    "./levels": {
+      "types": "./src/levels/level-contracts.ts",
+      "import": "./src/levels/level-contracts.ts",
+      "default": "./lib/levels/level-contracts.js"
+    },
+    "./levels/lesson-planning": {
+      "types": "./src/levels/lesson-planning-contracts.ts",
+      "import": "./src/levels/lesson-planning-contracts.ts",
+      "default": "./lib/levels/lesson-planning-contracts.js"
+    },
+    "./levels/achievements": {
+      "types": "./src/levels/achievement-contracts.ts",
+      "import": "./src/levels/achievement-contracts.ts",
+      "default": "./lib/levels/achievement-contracts.js"
+    },
+    "./attendance/offline-queue": {
+      "types": "./src/attendance/offline-queue.ts",
+      "import": "./src/attendance/offline-queue.ts",
+      "default": "./lib/attendance/offline-queue.js"
+    },
+    "./schedule": {
+      "types": "./src/schedule/schedule-contracts.ts",
+      "import": "./src/schedule/schedule-contracts.ts",
+      "default": "./lib/schedule/schedule-contracts.js"
+    },
+    "./schedule/advanced-booking": {
+      "types": "./src/schedule/advanced-booking-contracts.ts",
+      "import": "./src/schedule/advanced-booking-contracts.ts",
+      "default": "./lib/schedule/advanced-booking-contracts.js"
+    },
+    "./announcements": {
+      "types": "./src/announcements/announcement-contracts.ts",
+      "import": "./src/announcements/announcement-contracts.ts",
+      "default": "./lib/announcements/announcement-contracts.js"
+    },
+    "./reminders": {
+      "types": "./src/reminders/reminder-contracts.ts",
+      "import": "./src/reminders/reminder-contracts.ts",
+      "default": "./lib/reminders/reminder-contracts.js"
+    },
+    "./retention": {
+      "types": "./src/retention-contracts.ts",
+      "import": "./src/retention-contracts.ts",
+      "default": "./lib/retention-contracts.js"
+    },
+    "./delivery": {
+      "types": "./src/delivery/delivery-contracts.ts",
+      "import": "./src/delivery/delivery-contracts.ts",
+      "default": "./lib/delivery/delivery-contracts.js"
+    },
+    "./delivery/notification-policy": {
+      "types": "./src/delivery/notification-policy.ts",
+      "import": "./src/delivery/notification-policy.ts",
+      "default": "./lib/delivery/notification-policy.js"
+    },
+    "./documents": {
+      "types": "./src/documents/document-contracts.ts",
+      "import": "./src/documents/document-contracts.ts",
+      "default": "./lib/documents/document-contracts.js"
+    },
+    "./consents": {
+      "types": "./src/consents/consent-contracts.ts",
+      "import": "./src/consents/consent-contracts.ts",
+      "default": "./lib/consents/consent-contracts.js"
+    },
+    "./crm": {
+      "types": "./src/crm/crm-contracts.ts",
+      "import": "./src/crm/crm-contracts.ts",
+      "default": "./lib/crm/crm-contracts.js"
+    },
+    "./payments": {
+      "types": "./src/payments/payment-contracts.ts",
+      "import": "./src/payments/payment-contracts.ts",
+      "default": "./lib/payments/payment-contracts.js"
+    },
+    "./reports": {
+      "types": "./src/reports/operational-report.ts",
+      "import": "./src/reports/operational-report.ts",
+      "default": "./lib/reports/operational-report.js"
+    },
+    "./health": {
+      "types": "./src/health/health-contracts.ts",
+      "import": "./src/health/health-contracts.ts",
+      "default": "./lib/health/health-contracts.js"
+    },
+    "./shop": {
+      "types": "./src/shop/shop-contracts.ts",
+      "import": "./src/shop/shop-contracts.ts",
+      "default": "./lib/shop/shop-contracts.js"
+    },
+    "./exports": {
+      "types": "./src/exports/aggregate-report-export.ts",
+      "import": "./src/exports/aggregate-report-export.ts",
+      "default": "./lib/exports/aggregate-report-export.js"
+    },
+    "./penalties": {
+      "types": "./src/penalties/no-show-penalty-contracts.ts",
+      "import": "./src/penalties/no-show-penalty-contracts.ts",
+      "default": "./lib/penalties/no-show-penalty-contracts.js"
+    },
+    "./schedule/pre-class": {
+      "types": "./src/schedule/pre-class-contracts.ts",
+      "import": "./src/schedule/pre-class-contracts.ts",
+      "default": "./lib/schedule/pre-class-contracts.js"
+    },
+    "./consents/enrolment-waiver": {
+      "types": "./src/consents/enrolment-waiver-terms.ts",
+      "import": "./src/consents/enrolment-waiver-terms.ts",
+      "default": "./lib/consents/enrolment-waiver-terms.js"
+    },
+    "./consents/disclaimers": {
+      "types": "./src/consents/disclaimer-contracts.ts",
+      "import": "./src/consents/disclaimer-contracts.ts",
+      "default": "./lib/consents/disclaimer-contracts.js"
+    },
+    "./staff/permission-grants": {
+      "types": "./src/staff/permission-grant-contracts.ts",
+      "import": "./src/staff/permission-grant-contracts.ts",
+      "default": "./lib/staff/permission-grant-contracts.js"
+    },
+    "./birthdays": {
+      "types": "./src/birthdays/upcoming-birthday-contracts.ts",
+      "import": "./src/birthdays/upcoming-birthday-contracts.ts",
+      "default": "./lib/birthdays/upcoming-birthday-contracts.js"
+    }
+  },
+  "scripts": {
+    "build:runtime": "tsc -p tsconfig.runtime.json && node scripts/prepare-runtime.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
+    "zod": "catalog:"
+  }
+}

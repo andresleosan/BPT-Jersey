@@ -1,0 +1,12 @@
+.agents/
+.claude/
+.cronos/
+**/.next/
+**/build/
+**/coverage/
+**/dist/
+**/graphify-out/
+**/lib/
+**/node_modules/
+**/out/
+pnpm-lock.yaml

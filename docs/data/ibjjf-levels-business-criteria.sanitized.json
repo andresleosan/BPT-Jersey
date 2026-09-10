@@ -1,0 +1,1720 @@
+{
+  "schemaVersion": 1,
+  "sourceDocuments": [
+    "BPTJ FUNCTIONS APP.docx",
+    "BPT-memberships.docx"
+  ],
+  "precedence": "DOCX",
+  "levels": {
+    "white-belt-kids-4-5-and-5-7-yo": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-1st-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-2nd-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-3rd-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-4th-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-5th-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-6th-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-7th-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-8th-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-9th-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-10th-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-4-5-and-5-7yo-11th-stripe": {
+      "minAge": null,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-belt-4-5-and-5-7-yo": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-1st-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-2nd-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-3rd-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-4th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-5th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-6th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-7th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-8th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-9th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-10th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-white-4-5-and-5-7yo-11th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-belt-4-5-and-5-7-yo": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-1st-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-2nd-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-3rd-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-4th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-5th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-6th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-7th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-8th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-9th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-10th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-4-5-and-5-7yo-11th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-belt-4-5-and-5-7-yo": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-1st-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-2nd-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-3rd-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-4th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-5th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-6th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-7th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-8th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-9th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-10th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "grey-and-black-4-5-and-5-7yo-11th-stripe": {
+      "minAge": 4,
+      "maxAge": 7,
+      "minClasses": 4,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 30
+      }
+    },
+    "white-belt-kids-7-8-and-8-10-yo": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-7-8-and-8-10yo-1st-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-7-8-and-8-10yo-2nd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-7-8-and-8-10yo-3rd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-7-8-and-8-10yo-4th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-7-8-and-8-10yo-5th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-7-8-and-8-10yo-6th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-7-8-and-8-10yo-7th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-7-8-and-8-10yo-8th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-belt-7-8-and-8-10-yo": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-7-8-and-8-10yo-1st-stripe": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-7-8-and-8-10yo-2nd-stripe": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-7-8-and-8-10yo-3rd-stripe": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-7-8-and-8-10yo-4th-stripe": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-7-8-and-8-10yo-5th-stripe": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-7-8-and-8-10yo-6th-stripe": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-7-8-and-8-10yo-7th-stripe": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-and-white-7-8-and-8-10yo-8th-stripe": {
+      "minAge": 7,
+      "maxAge": 8,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-belt-7-8-and-8-10-yo": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-7-8-and-8-10yo-1st-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-7-8-and-8-10yo-2nd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-7-8-and-8-10yo-3rd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-7-8-and-8-10yo-4th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-7-8-and-8-10yo-5th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-7-8-and-8-10yo-6th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-7-8-and-8-10yo-7th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "grey-7-8-and-8-10yo-8th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-belt-7-8-and-8-10-yo": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-7-8-and-8-10yo-1st-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-7-8-and-8-10yo-2nd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-7-8-and-8-10yo-3rd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-7-8-and-8-10yo-4th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-7-8-and-8-10yo-5th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-7-8-and-8-10yo-6th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-7-8-and-8-10yo-7th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-white-7-8-and-8-10yo-8th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-belt-7-8-and-8-10-yo": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-7-8-and-8-10yo-1st-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-7-8-and-8-10yo-2nd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-7-8-and-8-10yo-3rd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-7-8-and-8-10yo-4th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-7-8-and-8-10yo-5th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-7-8-and-8-10yo-6th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-7-8-and-8-10yo-7th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-7-8-and-8-10yo-8th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-belt-7-8-and-8-10-yo": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-7-8-and-8-10yo-1st-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-7-8-and-8-10yo-2nd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-7-8-and-8-10yo-3rd-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-7-8-and-8-10yo-4th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-7-8-and-8-10yo-5th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-7-8-and-8-10yo-6th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-7-8-and-8-10yo-7th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "yellow-and-black-7-8-and-8-10yo-8th-stripe": {
+      "minAge": 7,
+      "maxAge": 10,
+      "minClasses": 6,
+      "minimumTime": {
+        "years": 0,
+        "months": 1,
+        "days": 14
+      }
+    },
+    "white-belt-teens-10-12-and-13-15-yo": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "white-teens-10-12-and-13-15yo-1st-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "white-teens-10-12-and-13-15yo-2nd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "white-teens-10-12-and-13-15yo-3rd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "white-teens-10-12-and-13-15yo-4th-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "grey-belt-teens-10-12-and-13-15-yo": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "grey-teens-10-12-and-13-15yo-1st-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "grey-teens-10-12-and-13-15yo-2nd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "grey-teens-10-12-and-13-15yo-3rd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "grey-teens-10-12-and-13-15yo-4th-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "yellow-belt-teens-10-12-and-13-15-yo": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "yellow-teens-10-12-and-13-15yo-1st-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "yellow-teens-10-12-and-13-15yo-2nd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "yellow-teens-10-12-and-13-15yo-3rd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "yellow-teens-10-12-and-13-15yo-4th-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-white-belt": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-white-1st-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-white-2nd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-white-3rd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-white-4th-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-belt": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-1st-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-2nd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-3rd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-4th-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-black-belt": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-black-1st-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-black-2nd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-black-3rd-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "orange-and-black-4th-stripe": {
+      "minAge": 10,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-white-belt": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-white-1st-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-white-2nd-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-white-3rd-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-white-4th-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-belt": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-1st-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-2nd-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-3rd-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-4th-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-black-belt": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-black-1st-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-black-2nd-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-black-3rd-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "green-and-black-4th-stripe": {
+      "minAge": 13,
+      "maxAge": 15,
+      "minClasses": 10,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 0
+      }
+    },
+    "white-belt": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 25,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 30
+      }
+    },
+    "white-1st-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 25,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 15
+      }
+    },
+    "white-2nd-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 25,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 15
+      }
+    },
+    "white-3rd-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 25,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 15
+      }
+    },
+    "white-4th-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 25,
+      "minimumTime": {
+        "years": 0,
+        "months": 2,
+        "days": 15
+      }
+    },
+    "blue-belt": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 50,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "blue-1st-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 50,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "blue-2nd-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 50,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "blue-3rd-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 50,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "blue-4th-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 50,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "purple-belt": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 55,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "purple-1st-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 55,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "purple-2nd-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 55,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "purple-3rd-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 55,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "purple-4th-stripe": {
+      "minAge": 16,
+      "maxAge": null,
+      "minClasses": 55,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "brown-belt": {
+      "minAge": 18,
+      "maxAge": null,
+      "minClasses": 60,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "brown-1st-stripe": {
+      "minAge": 18,
+      "maxAge": null,
+      "minClasses": 60,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "brown-2nd-stripe": {
+      "minAge": 18,
+      "maxAge": null,
+      "minClasses": 60,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "brown-3rd-stripe": {
+      "minAge": 18,
+      "maxAge": null,
+      "minClasses": 60,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "brown-4th-stripe": {
+      "minAge": 18,
+      "maxAge": null,
+      "minClasses": 60,
+      "minimumTime": {
+        "years": 0,
+        "months": 5,
+        "days": 28
+      }
+    },
+    "black-belt": {
+      "minAge": 19,
+      "maxAge": null,
+      "minClasses": 150,
+      "minimumTime": {
+        "years": 2,
+        "months": 11,
+        "days": 30
+      }
+    },
+    "red-and-black-belt": {
+      "minAge": 50,
+      "maxAge": null,
+      "minClasses": null,
+      "minimumTime": {
+        "years": 6,
+        "months": 11,
+        "days": 29
+      }
+    },
+    "red-and-white-belt": {
+      "minAge": 57,
+      "maxAge": null,
+      "minClasses": null,
+      "minimumTime": {
+        "years": 6,
+        "months": 11,
+        "days": 29
+      }
+    },
+    "red-belt": {
+      "minAge": 67,
+      "maxAge": null,
+      "minClasses": null,
+      "minimumTime": {
+        "years": 0,
+        "months": 0,
+        "days": 0
+      }
+    }
+  }
+}

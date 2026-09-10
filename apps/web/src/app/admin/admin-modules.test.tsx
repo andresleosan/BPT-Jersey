@@ -1,0 +1,43 @@
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { AttendancePage } from "./attendance/page";
+import { CrmPage } from "./crm/page";
+import { ReportsPage } from "./reports/page";
+
+vi.mock("../../lib/schedule-client", () => ({
+  listClasses: vi.fn().mockResolvedValue([]),
+  listSessions: vi.fn().mockResolvedValue([]),
+  getSessionOperationalView: vi.fn(),
+  saveClass: vi.fn(),
+  saveSession: vi.fn(),
+}));
+
+vi.mock("../../lib/crm-client", () => ({
+  listCrmLeads: vi.fn().mockResolvedValue([]),
+}));
+
+describe("administrative connected modules", () => {
+  afterEach(() => cleanup());
+
+  it("does not render preview attendance when the connected source is empty", async () => {
+    render(<AttendancePage />);
+    expect(
+      await screen.findByText("No connected attendance records match these filters."),
+    ).toBeVisible();
+    expect(screen.queryByText("Taylor Morgan")).not.toBeInTheDocument();
+  });
+
+  it("does not render preview CRM leads when the connected source is empty", async () => {
+    render(<CrmPage />);
+    expect(await screen.findByText("No leads available.")).toBeVisible();
+    expect(screen.queryByText("Morgan family")).not.toBeInTheDocument();
+  });
+
+  it("renders the connected operational and export report cards", () => {
+    render(<ReportsPage />);
+    expect(screen.getByRole("article", { name: "Operational reports" })).toBeVisible();
+    expect(screen.getByRole("article", { name: "Progress coverage report" })).toBeVisible();
+    expect(screen.getByRole("article", { name: "Authorized aggregate export" })).toBeVisible();
+  });
+});

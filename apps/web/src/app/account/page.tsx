@@ -1,0 +1,91 @@
+"use client";
+
+import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../lib/client-auth";
+import { ClientRemindersPanel } from "./client-reminders";
+import { GuardianNoticesPanel } from "./guardian-notices";
+import { requireClientSession } from "../../lib/login-flow";
+
+function AccountContent() {
+  const { session, signOut } = useClientSession();
+
+  if (!session) {
+    return null;
+  }
+
+  async function handleSignOut(): Promise<void> {
+    await signOut();
+    window.location.assign(requireClientSession("/account").loginPath);
+  }
+
+  return (
+    <main className="client-destination" aria-labelledby="account-title">
+      <p className="account-eyebrow">BPT Jersey / Client</p>
+      <h1 id="account-title">Your account</h1>
+      <p className="client-destination-intro">
+        Complete each step with your authenticated account. The academy controls memberships,
+        billing and attendance; you control your profile, waivers and bookings.
+      </p>
+      <ClientRemindersPanel />
+      <GuardianNoticesPanel />
+      {session.role === "guardian" ? (
+        <a className="button button-primary profile-account-link" href="/account/guardian-profile">
+          Complete guardian profile
+        </a>
+      ) : (
+        <a className="button button-primary profile-account-link" href="/account/profile">
+          Complete adult student profile
+        </a>
+      )}
+      {session.role !== "adultStudent" ? (
+        <a className="button button-secondary profile-account-link" href="/account/family">
+          View linked students
+        </a>
+      ) : null}
+      <a className="button button-secondary profile-account-link" href="/account/waiver">
+        Review and sign waiver
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/membership">
+        View membership and plans
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/classes">
+        Browse and book classes
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/waitlist">
+        Manage class waitlists
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/billing">
+        View invoices and payments
+      </a>
+      <a className="button button-secondary profile-account-link" href="/account/progress">
+        View IBJJF Levels & Progress
+      </a>
+      <dl className="client-identity">
+        <div>
+          <dt>Name</dt>
+          <dd>{session.displayName || "Client account"}</dd>
+        </div>
+        <div>
+          <dt>Email</dt>
+          <dd>{session.email}</dd>
+        </div>
+      </dl>
+      <button
+        className="button button-secondary client-signout"
+        onClick={() => void handleSignOut()}
+        type="button"
+      >
+        Sign out
+      </button>
+    </main>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <ClientAuthProvider>
+      <ClientAuthGate returnPath="/account">
+        <AccountContent />
+      </ClientAuthGate>
+    </ClientAuthProvider>
+  );
+}

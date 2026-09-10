@@ -1,0 +1,238 @@
+"use client";
+
+import { getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
+import {
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  type AppCheck,
+} from "firebase/app-check";
+import {
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  browserSessionPersistence,
+  connectAuthEmulator,
+  getIdTokenResult,
+  getAuth,
+  GoogleAuthProvider,
+  indexedDBLocalPersistence,
+  initializeAuth,
+  onIdTokenChanged,
+  signInWithPopup,
+  signOut,
+  type Auth,
+  type IdTokenResult,
+  type Unsubscribe,
+  type User,
+  type UserCredential,
+} from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore, type Firestore } from "firebase/firestore";
+import {
+  connectFunctionsEmulator,
+  getFunctions,
+  type Functions,
+} from "firebase/functions";
+
+const firestoreEmulatorHost = "127.0.0.1";
+
+export function resolveLocalEmulatorPort(
+  rawPort: string | undefined,
+  defaultPort: number,
+): number {
+  if (rawPort === undefined) return defaultPort;
+  if (!/^[1-9]\d{0,4}$/u.test(rawPort)) {
+    throw new Error("Firebase emulator ports must be decimal integers.");
+  }
+
+  const port = Number(rawPort);
+  if (!Number.isSafeInteger(port) || port < 1_024 || port > 65_535) {
+    throw new Error("Firebase emulator ports must be between 1024 and 65535.");
+  }
+
+  return port;
+}
+
+const authEmulatorPort = resolveLocalEmulatorPort(
+  process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT,
+  9_099,
+);
+const functionsEmulatorPort = resolveLocalEmulatorPort(
+  process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_EMULATOR_PORT,
+  5_001,
+);
+const firestoreEmulatorPort = resolveLocalEmulatorPort(
+  process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
+  8_080,
+);
+const authEmulatorUrl = `http://${firestoreEmulatorHost}:${authEmulatorPort}`;
+
+let authEmulatorConnected = false;
+let firestoreEmulatorConnected = false;
+let functionsEmulatorConnected = false;
+let firebaseAppCheck: AppCheck | undefined;
+let firebaseAuth: Auth | undefined;
+
+function shouldUseFirebaseEmulators(): boolean {
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS !== "true") {
+    return false;
+  }
+
+  const firebaseEnvironment =
+    process.env.NEXT_PUBLIC_FIREBASE_ENV ??
+    (process.env.NODE_ENV === "development" ? "local" : "production");
+
+  if (firebaseEnvironment !== "local") {
+    throw new Error("Firebase emulators are local-only and cannot run in this environment.");
+  }
+
+  return true;
+}
+
+function requiredPublicValue(value: string | undefined): string {
+  if (!value?.trim()) {
+    throw new Error("Firebase public configuration is incomplete.");
+  }
+
+  return value;
+}
+
+function optionalPublicValue(value: string | undefined): string | undefined {
+  const normalizedValue = value?.trim();
+  return normalizedValue ? normalizedValue : undefined;
+}
+
+function initializeFirebaseAppCheck(useFirebaseEmulators: boolean): void {
+  const siteKey = optionalPublicValue(
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
+  );
+  const debugToken = optionalPublicValue(
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN,
+  );
+
+  if (debugToken && !useFirebaseEmulators) {
+    throw new Error("Firebase App Check debug tokens are local Emulator-only.");
+  }
+
+  if (!siteKey) {
+    if (useFirebaseEmulators && !debugToken) return;
+
+    throw new Error(
+      "A Firebase App Check site key is required before using Firebase Functions.",
+    );
+  }
+
+  if (typeof window === "undefined") {
+    throw new Error("Firebase App Check is browser-only.");
+  }
+
+  if (firebaseAppCheck) return;
+
+  if (debugToken) {
+    (
+      globalThis as typeof globalThis & {
+        FIREBASE_APPCHECK_DEBUG_TOKEN?: string;
+      }
+    ).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+  }
+
+  firebaseAppCheck = initializeAppCheck(getFirebaseClient(), {
+    provider: new ReCaptchaEnterpriseProvider(siteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
+
+function publicFirebaseOptions(): FirebaseOptions {
+  const options: FirebaseOptions = {
+    apiKey: requiredPublicValue(process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
+    authDomain: requiredPublicValue(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
+    projectId: requiredPublicValue(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
+    storageBucket: requiredPublicValue(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET),
+    messagingSenderId: requiredPublicValue(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID),
+    appId: requiredPublicValue(process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
+  };
+
+  return options;
+}
+
+export function getFirebaseClient(): FirebaseApp {
+  return getApps()[0] ?? initializeApp(publicFirebaseOptions());
+}
+
+export function getFirebaseAuth(): Auth {
+  if (!firebaseAuth) {
+    const app = getFirebaseClient();
+
+    try {
+      firebaseAuth = initializeAuth(app, {
+        persistence: [
+          indexedDBLocalPersistence,
+          browserLocalPersistence,
+          browserSessionPersistence,
+        ],
+      });
+    } catch (error) {
+      if (
+        typeof error !== "object" ||
+        error === null ||
+        !("code" in error) ||
+        error.code !== "auth/already-initialized"
+      ) {
+        throw error;
+      }
+
+      firebaseAuth = getAuth(app);
+    }
+  }
+
+  const auth = firebaseAuth;
+
+  if (shouldUseFirebaseEmulators() && !authEmulatorConnected) {
+    connectAuthEmulator(auth, authEmulatorUrl, { disableWarnings: true });
+    authEmulatorConnected = true;
+  }
+
+  return auth;
+}
+
+export function getFirebaseFirestore(): Firestore {
+  const firestore = getFirestore(getFirebaseClient());
+
+  if (shouldUseFirebaseEmulators() && !firestoreEmulatorConnected) {
+    connectFirestoreEmulator(firestore, firestoreEmulatorHost, firestoreEmulatorPort);
+    firestoreEmulatorConnected = true;
+  }
+
+  return firestore;
+}
+
+export function getFirebaseFunctions(): Functions {
+  const useFirebaseEmulators = shouldUseFirebaseEmulators();
+  initializeFirebaseAppCheck(useFirebaseEmulators);
+  const functions = getFunctions(getFirebaseClient());
+
+  if (useFirebaseEmulators && !functionsEmulatorConnected) {
+    connectFunctionsEmulator(functions, firestoreEmulatorHost, functionsEmulatorPort);
+    functionsEmulatorConnected = true;
+  }
+
+  return functions;
+}
+
+export function subscribeToIdTokenChanges(listener: (user: User | null) => void): Unsubscribe {
+  return onIdTokenChanged(getFirebaseAuth(), listener);
+}
+
+export function signInWithGoogle(): Promise<UserCredential> {
+  return signInWithPopup(
+    getFirebaseAuth(),
+    new GoogleAuthProvider(),
+    browserPopupRedirectResolver,
+  );
+}
+
+export function signOutFromFirebase(): Promise<void> {
+  return signOut(getFirebaseAuth());
+}
+
+export function refreshAuthToken(user: User): Promise<IdTokenResult> {
+  return getIdTokenResult(user, true);
+}

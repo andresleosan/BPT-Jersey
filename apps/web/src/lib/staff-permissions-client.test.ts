@@ -1,0 +1,134 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const callable = vi.hoisted(() => vi.fn());
+// El doble anterior era `() => callable` y descartaba los argumentos, asi que no podia ver con que
+// opciones se crea el callable. Ahora los registra, que es lo unico que permite fijar la de App
+// Check.
+const httpsCallableSpy = vi.hoisted(() => vi.fn(() => callable));
+vi.mock("firebase/functions", () => ({ httpsCallable: httpsCallableSpy }));
+vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
+
+import {
+  grantStaffPermission,
+  listStaffPermissionGrants,
+  permissionGrantLabel,
+  permissionGrantStatusLabel,
+  revokeStaffPermission,
+  type PermissionGrantView,
+} from "./staff-permissions-client";
+
+const grant: PermissionGrantView = {
+  grantId: "grant-1",
+  academyId: "academy-1",
+  subjectUserId: "coach-1",
+  permission: "reviewPenalties",
+  reason: "Covers the office desk while Ana is away",
+  grantedBy: "owner-1",
+  grantedAt: "2026-09-05T12:00:00.000Z",
+  expiresAt: "2026-10-05T12:00:00.000Z",
+  revokedAt: null,
+  revokedBy: null,
+  revocationReason: null,
+  schemaVersion: "1",
+  status: "active",
+};
+
+describe("staff permissions client (T116)", () => {
+  beforeEach(() => {
+    // Block body on purpose: `() => callable.mockReset()` returns the mock, and Vitest treats
+    // a function returned from a hook as its teardown, so it would call the mock after the
+    // test - outside any try/catch - and report the raw error as a failure.
+    callable.mockReset();
+  });
+
+  it("returns a well-formed list and sends no filter when none was asked for", async () => {
+    callable.mockResolvedValue({ data: { grants: [grant] } });
+    await expect(listStaffPermissionGrants()).resolves.toEqual([grant]);
+    expect(callable).toHaveBeenCalledWith(null);
+
+    await listStaffPermissionGrants({ subjectUserId: "coach-1" });
+    expect(callable).toHaveBeenLastCalledWith({ subjectUserId: "coach-1" });
+  });
+
+  it("refuses a payload carrying a permission outside the closed list", async () => {
+    callable.mockResolvedValue({
+      data: { grants: [{ ...grant, permission: "manageStaff" }] },
+    });
+    await expect(listStaffPermissionGrants()).rejects.toThrow(
+      "Unable to load permission grants. Please try again.",
+    );
+  });
+
+  it("refuses a malformed shape and an unknown status", async () => {
+    for (const data of [
+      {},
+      { grants: null },
+      { grants: [{ grantId: "grant-1" }] },
+      { grants: [{ ...grant, status: "pending" }] },
+    ]) {
+      callable.mockResolvedValue({ data });
+      await expect(listStaffPermissionGrants()).rejects.toThrow("Unable to load permission grants");
+    }
+  });
+
+  it("never leaks the underlying failure of a grant or a revoke", async () => {
+    // Thrown synchronously: a floating rejected promise would be reported as an unhandled
+    // rejection even though the client catches it, which reads as a failure that is not one.
+    callable.mockImplementation(() => {
+      throw new Error("FIRESTORE precondition academies/academy-1/staff");
+    });
+    await expect(
+      grantStaffPermission({
+        subjectUserId: "coach-1",
+        permission: "reviewPenalties",
+        reason: "Covers the office desk",
+        expiresAt: "2026-10-05T12:00:00.000Z",
+      }),
+    ).rejects.toThrow("Unable to grant that permission. Please try again.");
+    await expect(
+      revokeStaffPermission({ grantId: "grant-1", reason: "Ana is back" }),
+    ).rejects.toThrow("Unable to revoke that grant. Please try again.");
+  });
+
+  it("returns the grant a successful call produced", async () => {
+    callable.mockResolvedValue({ data: { grant } });
+    await expect(
+      grantStaffPermission({
+        subjectUserId: "coach-1",
+        permission: "reviewPenalties",
+        reason: "Covers the office desk",
+        expiresAt: "2026-10-05T12:00:00.000Z",
+      }),
+    ).resolves.toEqual(grant);
+    await expect(
+      revokeStaffPermission({ grantId: "grant-1", reason: "Ana is back" }),
+    ).resolves.toEqual(grant);
+  });
+
+  it("labels a grant without printing a raw contract value", () => {
+    expect(permissionGrantLabel("reviewPenalties")).toBe("Review no-show penalties");
+    expect(permissionGrantLabel("manageClasses")).toBe("Manage classes");
+    expect(permissionGrantStatusLabel(grant)).toBe("Active until 2026-10-05");
+    expect(permissionGrantStatusLabel({ ...grant, status: "revoked" })).toBe("Revoked");
+    expect(permissionGrantStatusLabel({ ...grant, status: "expired" })).toBe("Expired");
+  });
+
+  /**
+   * Estas tres se despliegan con `consumeAppCheckToken`, asi que su token de App Check es de un solo
+   * uso y el cliente tiene que pedir uno limited-use. Con el token normal en cache el servidor
+   * rechaza la llamada, y un rechazo de App Check llega al navegador como `401`: identico a "sin
+   * sesion", de modo que la pantalla parece un problema de permisos y no de configuracion. Visto en
+   * produccion el 2026-09-08 con sesion real de administrador, donde listStaffPermissionGrants
+   * devolvia 401 mientras listStaffProfiles -que no consume token- devolvia 200 en la misma pagina.
+   */
+  it("pide token de App Check de un solo uso en las tres callables", async () => {
+    callable.mockResolvedValue({ data: { grants: [] } });
+    httpsCallableSpy.mockClear();
+
+    await listStaffPermissionGrants();
+
+    expect(httpsCallableSpy).toHaveBeenCalledWith({}, "listStaffPermissionGrants", {
+      limitedUseAppCheckTokens: true,
+    });
+  });
+});

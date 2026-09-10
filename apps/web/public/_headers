@@ -1,0 +1,12 @@
+# Cloudflare Pages header rules. The staff, admin and coach surfaces are reached by URL only and
+# must not be indexed; access itself is enforced by Firebase claims, callables and Rules.
+/staff/*
+  X-Robots-Tag: noindex, nofollow
+/admin
+  X-Robots-Tag: noindex, nofollow
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+/coach
+  X-Robots-Tag: noindex, nofollow
+/coach/*
+  X-Robots-Tag: noindex, nofollow

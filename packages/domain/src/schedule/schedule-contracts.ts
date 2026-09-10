@@ -1,0 +1,1657 @@
+import { err, ok, type Result } from "../result";
+
+export const locationIds = Object.freeze(["town", "west"] as const);
+export type LocationId = (typeof locationIds)[number];
+
+export const ageBands = Object.freeze(["kids", "teens", "adult", "all"] as const);
+export type AgeBand = (typeof ageBands)[number];
+
+export const disciplines = Object.freeze(["bjj", "mma", "self-defence", "open-mat"] as const);
+export type Discipline = (typeof disciplines)[number];
+
+export const classLevels = Object.freeze(["all-levels", "fundamentals", "advanced"] as const);
+export type ClassLevel = (typeof classLevels)[number];
+
+export const sessionStatuses = Object.freeze([
+  "scheduled",
+  "active",
+  "cancelled",
+  "completed",
+] as const);
+export type SessionStatus = (typeof sessionStatuses)[number];
+
+export const daysOfWeek = Object.freeze([1, 2, 3, 4, 5, 6, 7] as const);
+export type DayOfWeek = (typeof daysOfWeek)[number];
+
+/**
+ * Coordinates of an academy site, used only to judge whether a check-in was measured at the venue.
+ * These are the academy's own premises, never a person's location, and no member coordinate is ever
+ * accepted or stored (BRIEF decision 5).
+ */
+export type LocationGeofence = Readonly<{
+  latitude: number;
+  longitude: number;
+}>;
+
+export type LocationRecord = Readonly<{
+  locationId: LocationId;
+  academyId: string;
+  name: string;
+  address: string;
+  timezone: string;
+  active: boolean;
+  /** Absent or null until an administrator records the site coordinates. */
+  geofence?: LocationGeofence | null;
+  schemaVersion: "1";
+}>;
+
+/** The check-in eligibility radius fixed by BRIEF decision 5. It is not configurable per site. */
+export const checkInProximityRadiusMeters = 50;
+
+/** How stale a device measurement may be and still be considered for the signal. */
+export const checkInProximityMaxAgeMs = 10 * 60 * 1000;
+
+export type SaveLocationGeofenceInput = Readonly<{
+  locationId: LocationId;
+  /** Null clears the site coordinates and returns every later check-in to `unavailable`. */
+  geofence: LocationGeofence | null;
+}>;
+
+const coordinateDecimals = 6;
+
+function finiteCoordinate(value: unknown, limit: number): boolean {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Math.abs(value) <= limit &&
+    Number(value.toFixed(coordinateDecimals)) === value
+  );
+}
+
+export function parseSaveLocationGeofenceInput(
+  input: unknown,
+): Result<SaveLocationGeofenceInput, string> {
+  if (!isRecord(input)) {
+    return err("Geofence input must be an object");
+  }
+  const keys = Object.keys(input);
+  if (keys.length !== 2 || !keys.includes("locationId") || !keys.includes("geofence")) {
+    return err("Geofence input accepts exactly locationId and geofence");
+  }
+  const { locationId, geofence } = input;
+  if (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId)) {
+    return err("Invalid locationId (must be 'town' or 'west')");
+  }
+  if (geofence === null) {
+    return ok(Object.freeze({ locationId: locationId as LocationId, geofence: null }));
+  }
+  if (!isRecord(geofence)) {
+    return err("geofence must be an object or null");
+  }
+  const geofenceKeys = Object.keys(geofence);
+  if (
+    geofenceKeys.length !== 2 ||
+    !geofenceKeys.includes("latitude") ||
+    !geofenceKeys.includes("longitude")
+  ) {
+    return err("geofence accepts exactly latitude and longitude");
+  }
+  if (!finiteCoordinate(geofence.latitude, 90) || !finiteCoordinate(geofence.longitude, 180)) {
+    return err("geofence coordinates must be finite with at most six decimals");
+  }
+  return ok(
+    Object.freeze({
+      locationId: locationId as LocationId,
+      geofence: Object.freeze({
+        latitude: geofence.latitude as number,
+        longitude: geofence.longitude as number,
+      }),
+    }),
+  );
+}
+
+/**
+ * Great-circle distance in metres. Used by the client to turn its own position and the site
+ * coordinates into a single distance, so no member coordinate ever leaves the device.
+ */
+export function distanceInMetres(from: LocationGeofence, to: LocationGeofence): number {
+  const earthRadiusMetres = 6_371_008.8;
+  const toRadians = (degrees: number): number => (degrees * Math.PI) / 180;
+  const deltaLatitude = toRadians(to.latitude - from.latitude);
+  const deltaLongitude = toRadians(to.longitude - from.longitude);
+  const halfChord =
+    Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(toRadians(from.latitude)) *
+      Math.cos(toRadians(to.latitude)) *
+      Math.sin(deltaLongitude / 2) ** 2;
+  return 2 * earthRadiusMetres * Math.asin(Math.min(1, Math.sqrt(halfChord)));
+}
+
+export type ProgramRecord = Readonly<{
+  programId: string;
+  academyId: string;
+  name: string;
+  ageBand: AgeBand;
+  discipline: Discipline;
+  level: ClassLevel;
+  active: boolean;
+  schemaVersion: "1";
+}>;
+
+export type ClassRecurrenceRule = Readonly<{
+  dayOfWeek: DayOfWeek;
+  startTime: string; // HH:mm format
+  durationMinutes: number; // e.g. 45, 60, 90
+}>;
+
+export type ClassRecord = Readonly<{
+  classId: string;
+  academyId: string;
+  programId: string;
+  locationId: LocationId;
+  name: string;
+  recurrenceRule: ClassRecurrenceRule;
+  instructorIds: readonly string[];
+  capacity: number;
+  minParticipants: number;
+  active: boolean;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type SessionRecord = Readonly<{
+  sessionId: string;
+  academyId: string;
+  classId: string | null;
+  programId: string;
+  locationId: LocationId;
+  instructorId: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+  capacity: number;
+  minParticipants: number;
+  status: SessionStatus;
+  isSeminar: boolean;
+  cancellationReason: string | null;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type CreateClassInput = Readonly<{
+  programId: string;
+  locationId: LocationId;
+  name: string;
+  recurrenceRule: ClassRecurrenceRule;
+  instructorIds: readonly string[];
+  capacity: number;
+  minParticipants?: number;
+}>;
+
+export type UpdateClassInput = Readonly<{
+  classId: string;
+  name?: string;
+  instructorIds?: readonly string[];
+  capacity?: number;
+  minParticipants?: number;
+  active?: boolean;
+}>;
+
+export type CreateSessionInput = Readonly<{
+  classId?: string | null;
+  programId: string;
+  locationId: LocationId;
+  instructorId: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+  capacity: number;
+  minParticipants?: number;
+  isSeminar?: boolean;
+}>;
+
+export type CancelSessionInput = Readonly<{
+  sessionId: string;
+  reason: string;
+}>;
+
+export type ListSessionsQuery = Readonly<{
+  from: string; // ISO 8601 UTC
+  to: string; // ISO 8601 UTC
+  locationId?: LocationId;
+  programId?: string;
+}>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isIsoDate(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u.test(value)
+  ) {
+    return false;
+  }
+  const timestamp = Date.parse(value);
+  return !Number.isNaN(timestamp);
+}
+
+function isValidTimeFormat(value: unknown): value is string {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/u.test(value);
+}
+
+export function parseRecurrenceRule(input: unknown): Result<ClassRecurrenceRule, string> {
+  if (!isRecord(input)) {
+    return err("Recurrence rule must be an object");
+  }
+
+  const { dayOfWeek, startTime, durationMinutes } = input;
+
+  if (typeof dayOfWeek !== "number" || !daysOfWeek.includes(dayOfWeek as DayOfWeek)) {
+    return err("Invalid dayOfWeek (must be an integer 1..7)");
+  }
+
+  if (!isValidTimeFormat(startTime)) {
+    return err("Invalid startTime (must be HH:mm 24h format)");
+  }
+
+  if (
+    typeof durationMinutes !== "number" ||
+    !Number.isInteger(durationMinutes) ||
+    durationMinutes < 15 ||
+    durationMinutes > 480
+  ) {
+    return err("Invalid durationMinutes (must be between 15 and 480 minutes)");
+  }
+
+  return ok(
+    Object.freeze({
+      dayOfWeek: dayOfWeek as DayOfWeek,
+      startTime,
+      durationMinutes,
+    }),
+  );
+}
+
+export function parseCreateClassInput(input: unknown): Result<CreateClassInput, string> {
+  if (!isRecord(input)) {
+    return err("Class input must be an object");
+  }
+
+  const {
+    programId,
+    locationId,
+    name,
+    recurrenceRule,
+    instructorIds,
+    capacity,
+    minParticipants = 4,
+  } = input;
+
+  if (typeof programId !== "string" || programId.trim().length === 0) {
+    return err("programId is required");
+  }
+
+  if (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId)) {
+    return err("Invalid locationId (must be 'town' or 'west')");
+  }
+
+  if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
+    return err("name must be between 2 and 100 characters");
+  }
+
+  const recurrenceResult = parseRecurrenceRule(recurrenceRule);
+  if (!recurrenceResult.ok) {
+    return err(recurrenceResult.error);
+  }
+
+  if (
+    !Array.isArray(instructorIds) ||
+    instructorIds.length === 0 ||
+    instructorIds.some((id) => typeof id !== "string" || id.trim().length === 0)
+  ) {
+    return err("instructorIds must be a non-empty array of strings");
+  }
+
+  if (
+    typeof capacity !== "number" ||
+    !Number.isInteger(capacity) ||
+    capacity < 1 ||
+    capacity > 200
+  ) {
+    return err("capacity must be an integer between 1 and 200");
+  }
+
+  if (
+    typeof minParticipants !== "number" ||
+    !Number.isInteger(minParticipants) ||
+    minParticipants < 0 ||
+    minParticipants > capacity
+  ) {
+    return err("minParticipants must be an integer between 0 and capacity");
+  }
+
+  return ok(
+    Object.freeze({
+      programId: programId.trim(),
+      locationId: locationId as LocationId,
+      name: name.trim(),
+      recurrenceRule: recurrenceResult.value,
+      instructorIds: Object.freeze([...new Set(instructorIds.map((id: string) => id.trim()))]),
+      capacity,
+      minParticipants,
+    }),
+  );
+}
+
+export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, string> {
+  if (!isRecord(input)) {
+    return err("Class update input must be an object");
+  }
+
+  const { classId, name, instructorIds, capacity, minParticipants, active } = input;
+  if (typeof classId !== "string" || classId.trim().length === 0) {
+    return err("classId is required");
+  }
+  if (
+    name === undefined &&
+    instructorIds === undefined &&
+    capacity === undefined &&
+    minParticipants === undefined &&
+    active === undefined
+  ) {
+    return err("At least one class field must be updated");
+  }
+  if (
+    name !== undefined &&
+    (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100)
+  ) {
+    return err("name must be between 2 and 100 characters");
+  }
+  if (
+    instructorIds !== undefined &&
+    (!Array.isArray(instructorIds) ||
+      instructorIds.length === 0 ||
+      instructorIds.some((id) => typeof id !== "string" || id.trim().length === 0))
+  ) {
+    return err("instructorIds must be a non-empty array of strings");
+  }
+  if (
+    capacity !== undefined &&
+    (typeof capacity !== "number" || !Number.isInteger(capacity) || capacity < 1 || capacity > 200)
+  ) {
+    return err("capacity must be an integer between 1 and 200");
+  }
+  if (
+    minParticipants !== undefined &&
+    (typeof minParticipants !== "number" ||
+      !Number.isInteger(minParticipants) ||
+      minParticipants < 0 ||
+      minParticipants > 200)
+  ) {
+    return err("minParticipants must be an integer between 0 and 200");
+  }
+  if (
+    typeof capacity === "number" &&
+    typeof minParticipants === "number" &&
+    minParticipants > capacity
+  ) {
+    return err("minParticipants cannot exceed capacity");
+  }
+  if (active !== undefined && typeof active !== "boolean") {
+    return err("active must be a boolean");
+  }
+
+  const result: {
+    classId: string;
+    name?: string;
+    instructorIds?: readonly string[];
+    capacity?: number;
+    minParticipants?: number;
+    active?: boolean;
+  } = { classId: classId.trim() };
+  if (typeof name === "string") result.name = name.trim();
+  if (Array.isArray(instructorIds)) {
+    result.instructorIds = Object.freeze([
+      ...new Set(instructorIds.map((id) => (id as string).trim())),
+    ]);
+  }
+  if (typeof capacity === "number") result.capacity = capacity;
+  if (typeof minParticipants === "number") result.minParticipants = minParticipants;
+  if (typeof active === "boolean") result.active = active;
+  return ok(Object.freeze(result));
+}
+
+export function parseCreateSessionInput(input: unknown): Result<CreateSessionInput, string> {
+  if (!isRecord(input)) {
+    return err("Session input must be an object");
+  }
+
+  const {
+    classId = null,
+    programId,
+    locationId,
+    instructorId,
+    title,
+    startAt,
+    endAt,
+    capacity,
+    minParticipants = 4,
+    isSeminar = false,
+  } = input;
+
+  if (
+    classId !== null &&
+    classId !== undefined &&
+    (typeof classId !== "string" || classId.trim().length === 0)
+  ) {
+    return err("classId must be a non-empty string or null");
+  }
+
+  if (typeof programId !== "string" || programId.trim().length === 0) {
+    return err("programId is required");
+  }
+
+  if (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId)) {
+    return err("Invalid locationId (must be 'town' or 'west')");
+  }
+
+  if (typeof instructorId !== "string" || instructorId.trim().length === 0) {
+    return err("instructorId is required");
+  }
+
+  if (typeof title !== "string" || title.trim().length < 2 || title.trim().length > 120) {
+    return err("title must be between 2 and 120 characters");
+  }
+
+  if (!isIsoDate(startAt) || !isIsoDate(endAt)) {
+    return err("startAt and endAt must be valid ISO 8601 UTC date strings");
+  }
+
+  const startTimestamp = Date.parse(startAt);
+  const endTimestamp = Date.parse(endAt);
+
+  if (endTimestamp <= startTimestamp) {
+    return err("endAt must be strictly after startAt");
+  }
+
+  if (
+    typeof capacity !== "number" ||
+    !Number.isInteger(capacity) ||
+    capacity < 1 ||
+    capacity > 300
+  ) {
+    return err("capacity must be an integer between 1 and 300");
+  }
+
+  if (
+    typeof minParticipants !== "number" ||
+    !Number.isInteger(minParticipants) ||
+    minParticipants < 0 ||
+    minParticipants > capacity
+  ) {
+    return err("minParticipants must be an integer between 0 and capacity");
+  }
+
+  return ok(
+    Object.freeze({
+      classId: typeof classId === "string" ? classId.trim() : null,
+      programId: programId.trim(),
+      locationId: locationId as LocationId,
+      instructorId: instructorId.trim(),
+      title: title.trim(),
+      startAt,
+      endAt,
+      capacity,
+      minParticipants,
+      isSeminar: Boolean(isSeminar),
+    }),
+  );
+}
+
+export function parseListSessionsQuery(input: unknown): Result<ListSessionsQuery, string> {
+  if (!isRecord(input)) {
+    return err("Query must be an object");
+  }
+
+  const { from, to, locationId, programId } = input;
+
+  if (!isIsoDate(from) || !isIsoDate(to)) {
+    return err("from and to must be valid ISO 8601 UTC date strings");
+  }
+
+  const fromTime = Date.parse(from);
+  const toTime = Date.parse(to);
+
+  if (toTime < fromTime) {
+    return err("to must be after or equal to from");
+  }
+
+  // Max query range: 90 days
+  const maxRangeMs = 90 * 24 * 60 * 60 * 1000;
+  if (toTime - fromTime > maxRangeMs) {
+    return err("Date range cannot exceed 90 days");
+  }
+
+  if (
+    locationId !== undefined &&
+    (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId))
+  ) {
+    return err("Invalid locationId");
+  }
+
+  if (programId !== undefined && (typeof programId !== "string" || programId.trim().length === 0)) {
+    return err("Invalid programId");
+  }
+
+  const query: {
+    from: string;
+    to: string;
+    locationId?: LocationId;
+    programId?: string;
+  } = { from, to };
+
+  if (locationId !== undefined) {
+    query.locationId = locationId as LocationId;
+  }
+
+  if (typeof programId === "string" && programId.trim().length > 0) {
+    query.programId = programId.trim();
+  }
+
+  return ok(Object.freeze(query));
+}
+
+// ── Program input parser ──
+
+export type CreateProgramInput = Readonly<{
+  name: string;
+  ageBand: AgeBand;
+  discipline: Discipline;
+  level: ClassLevel;
+}>;
+
+export function parseCreateProgramInput(input: unknown): Result<CreateProgramInput, string> {
+  if (!isRecord(input)) {
+    return err("Program input must be an object");
+  }
+
+  const { name, ageBand, discipline, level } = input;
+
+  if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100) {
+    return err("name must be between 2 and 100 characters");
+  }
+
+  if (typeof ageBand !== "string" || !ageBands.includes(ageBand as AgeBand)) {
+    return err("Invalid ageBand (must be 'kids', 'teens', 'adult', or 'all')");
+  }
+
+  if (typeof discipline !== "string" || !disciplines.includes(discipline as Discipline)) {
+    return err("Invalid discipline (must be 'bjj', 'mma', 'self-defence', or 'open-mat')");
+  }
+
+  if (typeof level !== "string" || !classLevels.includes(level as ClassLevel)) {
+    return err("Invalid level (must be 'all-levels', 'fundamentals', or 'advanced')");
+  }
+
+  return ok(
+    Object.freeze({
+      name: name.trim(),
+      ageBand: ageBand as AgeBand,
+      discipline: discipline as Discipline,
+      level: level as ClassLevel,
+    }),
+  );
+}
+
+// ── Session generation from class recurrence ──
+
+/**
+ * Pure function: generates `SessionRecord` drafts for each occurrence of a
+ * recurring class within a date range, converting local start times to UTC
+ * using the supplied IANA timezone.
+ *
+ * Session IDs are deterministic: `{classId}__{YYYY-MM-DD}` to allow
+ * idempotent batch generation (the store can skip existing IDs).
+ */
+export function generateSessionsFromClass(
+  classRecord: ClassRecord,
+  fromDate: string, // YYYY-MM-DD inclusive
+  toDate: string, // YYYY-MM-DD inclusive
+  timezone: string,
+): Omit<SessionRecord, "createdAt" | "createdBy" | "updatedAt" | "updatedBy">[] {
+  const {
+    recurrenceRule,
+    classId,
+    academyId,
+    programId,
+    locationId,
+    instructorIds,
+    capacity,
+    minParticipants,
+    name,
+  } = classRecord;
+  const { dayOfWeek, startTime, durationMinutes } = recurrenceRule;
+
+  const timeParts = startTime.split(":").map(Number);
+  const startHour = timeParts[0] ?? 0;
+  const startMinute = timeParts[1] ?? 0;
+  const sessions: Omit<SessionRecord, "createdAt" | "createdBy" | "updatedAt" | "updatedBy">[] = [];
+
+  // Walk each day in the range
+  const from = new Date(`${fromDate}T00:00:00Z`);
+  const to = new Date(`${toDate}T23:59:59Z`);
+
+  const current = new Date(from);
+  while (current <= to) {
+    // ISO dayOfWeek: 1=Mon...7=Sun; JS getUTCDay: 0=Sun...6=Sat
+    const jsDay = current.getUTCDay();
+    const isoDay = jsDay === 0 ? 7 : jsDay;
+
+    if (isoDay === dayOfWeek) {
+      const localDateStr = current.toISOString().slice(0, 10); // YYYY-MM-DD
+
+      // Build a local datetime string and convert to UTC using timezone offset
+      const startUtc = localToUtc(localDateStr, startHour, startMinute, timezone);
+      const endUtc = new Date(startUtc.getTime() + durationMinutes * 60 * 1000);
+
+      sessions.push(
+        Object.freeze({
+          sessionId: `${classId}__${localDateStr}`,
+          academyId,
+          classId,
+          programId,
+          locationId,
+          instructorId: instructorIds[0] ?? "",
+          title: name,
+          startAt: endWithZ(startUtc),
+          endAt: endWithZ(endUtc),
+          capacity,
+          minParticipants,
+          status: "scheduled" as const,
+          isSeminar: false,
+          cancellationReason: null,
+          schemaVersion: "1" as const,
+        }),
+      );
+    }
+
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return sessions;
+}
+
+/**
+ * Converts a local date+time in the given IANA timezone to a UTC Date.
+ * Uses the ECMAScript Intl API to resolve the timezone offset, which
+ * correctly handles DST transitions without external dependencies.
+ */
+function localToUtc(dateStr: string, hour: number, minute: number, timezone: string): Date {
+  // Create a date in UTC, then use Intl to find the offset in the target timezone
+  const tentativeUtc = new Date(`${dateStr}T${pad(hour)}:${pad(minute)}:00Z`);
+
+  // Get the offset of the target timezone at this UTC instant
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(tentativeUtc);
+  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? "0");
+
+  const localAtUtc = new Date(
+    Date.UTC(
+      get("year"),
+      get("month") - 1,
+      get("day"),
+      get("hour") === 24 ? 0 : get("hour"),
+      get("minute"),
+      get("second"),
+    ),
+  );
+
+  // The offset is: localAtUtc - tentativeUtc (in ms)
+  const offsetMs = localAtUtc.getTime() - tentativeUtc.getTime();
+
+  // We want the UTC time such that when converted to the timezone, it reads hour:minute on dateStr
+  // So: utcResult + offset = local => utcResult = local - offset
+  // "local" as UTC = Date.UTC(year, month-1, day, hour, minute, 0)
+  const dateParts = dateStr.split("-").map(Number);
+  const y = dateParts[0] ?? 0;
+  const m = dateParts[1] ?? 1;
+  const d = dateParts[2] ?? 1;
+  const localAsUtcMs = Date.UTC(y, m - 1, d, hour, minute, 0);
+
+  return new Date(localAsUtcMs - offsetMs);
+}
+
+function pad(n: number): string {
+  return n.toString().padStart(2, "0");
+}
+
+function endWithZ(d: Date): string {
+  return d.toISOString().replace(/\.\d{3}Z$/u, "Z");
+}
+
+// ── Booking Contracts & Types ──
+
+export const bookingStatuses = Object.freeze(["requested", "confirmed", "cancelled"] as const);
+export type BookingStatus = (typeof bookingStatuses)[number];
+
+export type BookingRecord = Readonly<{
+  bookingId: string; // canonical v2 length-prefixed ID; legacy pair IDs remain read-compatible
+  academyId: string;
+  sessionId: string;
+  studentId: string;
+  membershipId: string;
+  status: BookingStatus;
+  requestedAt: string;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type RequestBookingInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  membershipId: string;
+}>;
+
+export type CancelBookingInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  reason: string;
+}>;
+
+/** Builds the legacy identifier retained for explicit compatibility reads. */
+export function buildLegacyBookingId(sessionId: string, studentId: string): string {
+  return `${sessionId.trim()}__${studentId.trim()}`;
+}
+
+/** Builds the canonical injective identifier for new booking writes. */
+export function buildBookingIdV2(sessionId: string, studentId: string): string {
+  const normalizedSessionId = sessionId.trim();
+  const normalizedStudentId = studentId.trim();
+  return `v2:${normalizedSessionId.length}:${normalizedSessionId}:${normalizedStudentId.length}:${normalizedStudentId}`;
+}
+
+/** Canonical builder for new booking writes. */
+export function buildBookingId(sessionId: string, studentId: string): string {
+  return buildBookingIdV2(sessionId, studentId);
+}
+
+/** Ordered document IDs for compatibility reads: canonical first, legacy second. */
+export function buildBookingIdCandidates(
+  sessionId: string,
+  studentId: string,
+): readonly [string, string] {
+  return Object.freeze([
+    buildBookingIdV2(sessionId, studentId),
+    buildLegacyBookingId(sessionId, studentId),
+  ]);
+}
+
+/**
+ * Validates the 1-hour cutoff rule for bookings and student cancellations.
+ * Returns true if the session start is at least `cutoffMinutes` in the future.
+ */
+export function isWithinBookingCutoff(
+  sessionStartAtIso: string,
+  nowIso?: string,
+  cutoffMinutes = 60,
+): boolean {
+  const startMs = Date.parse(sessionStartAtIso);
+  const nowMs = nowIso ? Date.parse(nowIso) : Date.now();
+
+  if (Number.isNaN(startMs) || Number.isNaN(nowMs)) {
+    return false;
+  }
+
+  const diffMs = startMs - nowMs;
+  const cutoffMs = cutoffMinutes * 60 * 1000;
+
+  return diffMs >= cutoffMs;
+}
+
+export function parseRequestBookingInput(input: unknown): Result<RequestBookingInput, string> {
+  if (!isRecord(input)) {
+    return err("Booking request input must be an object");
+  }
+
+  const { sessionId, studentId, membershipId } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof membershipId !== "string" || membershipId.trim().length === 0) {
+    return err("membershipId is required");
+  }
+
+  return ok(
+    Object.freeze({
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+      membershipId: membershipId.trim(),
+    }),
+  );
+}
+
+export function parseCancelBookingInput(input: unknown): Result<CancelBookingInput, string> {
+  if (!isRecord(input)) {
+    return err("Cancel booking input must be an object");
+  }
+
+  const { sessionId, studentId, reason } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof reason !== "string" || reason.trim().length < 2 || reason.trim().length > 200) {
+    return err("reason must be between 2 and 200 characters");
+  }
+
+  return ok(
+    Object.freeze({
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+      reason: reason.trim(),
+    }),
+  );
+}
+
+// ── Multi-criteria Booking Eligibility Evaluation ──
+
+export type BookingEligibilityInput = Readonly<{
+  membershipStatus: "draft" | "trial" | "active" | "paused" | "overdue" | "cancelled";
+  planLocations: readonly LocationId[];
+  weeklyClassesLimit: number | null; // null = unlimited
+  currentWeekBookingsCount: number;
+  isPayg: boolean;
+  paygUnpaidSessionsCount: number;
+  sessionLocationId: LocationId;
+}>;
+
+export type BookingEligibilityResult = { eligible: true } | { eligible: false; reason: string };
+
+/**
+ * Pure function: Evaluates whether a student is eligible to book a session based on:
+ * 1. Membership status (must be active or trial)
+ * 2. Plan location coverage (must include the session's location)
+ * 3. Weekly class quota (if limited by plan, e.g. 1x/wk or 2x/wk)
+ * 4. PAYG debt policy (max 1 unpaid session allowed before booking is blocked)
+ */
+export function evaluateBookingEligibility(
+  input: BookingEligibilityInput,
+): BookingEligibilityResult {
+  const {
+    membershipStatus,
+    planLocations,
+    weeklyClassesLimit,
+    currentWeekBookingsCount,
+    isPayg,
+    paygUnpaidSessionsCount,
+    sessionLocationId,
+  } = input;
+
+  if (membershipStatus !== "active" && membershipStatus !== "trial") {
+    return {
+      eligible: false,
+      reason: `Membership is in '${membershipStatus}' status; active or trial required to book.`,
+    };
+  }
+
+  if (!planLocations.includes(sessionLocationId)) {
+    return {
+      eligible: false,
+      reason: `Location not covered: plan only grants access to [${planLocations.join(", ")}], but session is in '${sessionLocationId}'.`,
+    };
+  }
+
+  if (weeklyClassesLimit !== null && currentWeekBookingsCount >= weeklyClassesLimit) {
+    return {
+      eligible: false,
+      reason: `Weekly class limit reached: plan allows ${weeklyClassesLimit} classes per week (${currentWeekBookingsCount} already booked).`,
+    };
+  }
+
+  if (isPayg && paygUnpaidSessionsCount > 1) {
+    return {
+      eligible: false,
+      reason: `PAYG debt: student has ${paygUnpaidSessionsCount} unpaid sessions; maximum 1 allowed before new bookings are blocked.`,
+    };
+  }
+
+  return { eligible: true };
+}
+
+// ── Quorum Sweep Contracts (T110) ──
+
+/**
+ * The reason recorded on a session cancelled because it never reached its minimum. It is a fixed
+ * sentence so members, staff and the audit trail all read the same cause (BRIEF decision 3).
+ */
+export const quorumCancellationReason =
+  "Cancelled automatically: the minimum number of bookings was not reached one hour before the start.";
+
+export const quorumSweepOutcomes = Object.freeze([
+  "cancelled",
+  "quorumMet",
+  "beforeCutoff",
+  "notScheduled",
+  "alreadyCancelledForQuorum",
+] as const);
+export type QuorumSweepOutcome = (typeof quorumSweepOutcomes)[number];
+
+export type QuorumSweepDecision = Readonly<{
+  outcome: QuorumSweepOutcome;
+  confirmedCount: number;
+  minParticipants: number;
+  /** True only for the outcome that must write: cancel the session and its bookings. */
+  cancels: boolean;
+}>;
+
+/**
+ * Decides what a quorum sweep must do with one session, without touching any store.
+ *
+ * A session is cancelled only once the booking cutoff has passed (one hour before the start, the
+ * same cutoff that closes booking and cancellation) and the confirmed bookings are still below the
+ * minimum. The minimum is the session's own `minParticipants`, so a minimum raised by an owner or
+ * head coach when the session was created is respected. Sessions that already reached quorum, that
+ * are not `scheduled`, or that were already cancelled for this very reason are left untouched, which
+ * is what makes a repeated sweep idempotent.
+ */
+export function decideQuorumSweep(
+  input: Readonly<{
+    session: Readonly<{
+      startAt: string;
+      status: string;
+      minParticipants: number;
+      cancellationReason?: string | null;
+    }>;
+    confirmedCount: number;
+    now?: string;
+  }>,
+): QuorumSweepDecision {
+  const minParticipants = Number.isSafeInteger(input.session.minParticipants)
+    ? input.session.minParticipants
+    : 0;
+  const confirmedCount = Number.isSafeInteger(input.confirmedCount)
+    ? Math.max(0, input.confirmedCount)
+    : 0;
+  const base = { confirmedCount, minParticipants };
+
+  if (input.session.status === "cancelled") {
+    return Object.freeze({
+      ...base,
+      outcome:
+        input.session.cancellationReason === quorumCancellationReason
+          ? ("alreadyCancelledForQuorum" as const)
+          : ("notScheduled" as const),
+      cancels: false,
+    });
+  }
+  if (input.session.status !== "scheduled") {
+    return Object.freeze({ ...base, outcome: "notScheduled" as const, cancels: false });
+  }
+  if (isWithinBookingCutoff(input.session.startAt, input.now)) {
+    return Object.freeze({ ...base, outcome: "beforeCutoff" as const, cancels: false });
+  }
+  if (confirmedCount >= minParticipants) {
+    return Object.freeze({ ...base, outcome: "quorumMet" as const, cancels: false });
+  }
+  return Object.freeze({ ...base, outcome: "cancelled" as const, cancels: true });
+}
+
+// ── Attendance & Check-In Contracts ──
+
+export const checkInMethods = Object.freeze(["qr", "pin", "nameSearch", "manual"] as const);
+export type CheckInMethod = (typeof checkInMethods)[number];
+
+export const attendanceStates = Object.freeze([
+  "attended",
+  "late",
+  "absent",
+  "no_show",
+  "excused",
+] as const);
+export type AttendanceState = (typeof attendanceStates)[number];
+
+export const checkInProximitySignals = Object.freeze(["within", "outside", "unavailable"] as const);
+export type CheckInProximitySignal = (typeof checkInProximitySignals)[number];
+
+/**
+ * What the device measured, reduced to a distance before it leaves the browser. Coordinates are
+ * never sent or stored: only how far the measurement was from the site and how precise it was.
+ */
+export type CheckInProximityMeasurement = Readonly<{
+  distanceMeters: number;
+  accuracyMeters: number;
+  measuredAt: string;
+}>;
+
+/** The signal as recorded with the attendance. `unavailable` is a state, not a failure. */
+export type AttendanceProximity = Readonly<{
+  signal: CheckInProximitySignal;
+  distanceMeters: number | null;
+  accuracyMeters: number | null;
+  /** Required, and only allowed, when the measurement placed the check-in outside the radius. */
+  overrideReason: string | null;
+}>;
+
+export type AttendanceRecord = Readonly<{
+  attendanceId: string; // deterministic: `${sessionId}__${studentId}` or correction `corr_...`
+  academyId: string;
+  sessionId: string;
+  studentId: string;
+  method: CheckInMethod;
+  state: AttendanceState;
+  occurredAt: string;
+  notes: string | null;
+  correctionOf: string | null;
+  /**
+   * Present only on a check-in. Corrections and no-shows never measured anything, so they carry no
+   * proximity at all rather than a fabricated `unavailable`.
+   */
+  proximity?: AttendanceProximity;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type CheckInInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  method: CheckInMethod;
+  pin?: string;
+  notes?: string;
+  proximity?: CheckInProximityMeasurement;
+  overrideReason?: string;
+}>;
+
+export const checkInOverrideReasonMinLength = 10;
+export const checkInOverrideReasonMaxLength = 280;
+
+/** True while a device reading is recent enough to say something about `nowMs`. */
+export function isCheckInProximityMeasurementFresh(
+  measurement: CheckInProximityMeasurement,
+  nowMs: number,
+): boolean {
+  const measuredMs = Date.parse(measurement.measuredAt);
+  return !Number.isNaN(measuredMs) && Math.abs(nowMs - measuredMs) <= checkInProximityMaxAgeMs;
+}
+
+/**
+ * Turns a device measurement into the recorded signal. The radius never blocks a check-in on its
+ * own (BRIEF decision 5): it decides whether staff must justify the check-in.
+ *
+ * A measurement is only usable when the site has coordinates, the reading is fresh and its accuracy
+ * is finer than the radius itself; anything else is honestly `unavailable`, which needs no reason.
+ * A reason supplied when none is needed (the reading expired, or turned out to be inside) is not
+ * recorded and never refused: refusing it would let the radius block a check-in after all.
+ */
+export function resolveCheckInProximity(
+  input: Readonly<{
+    measurement?: CheckInProximityMeasurement;
+    siteHasGeofence: boolean;
+    overrideReason?: string;
+    nowMs: number;
+  }>,
+): Result<AttendanceProximity, string> {
+  const reason = input.overrideReason?.trim() ?? "";
+  const measurement = input.measurement;
+  const usable =
+    measurement !== undefined &&
+    input.siteHasGeofence &&
+    isCheckInProximityMeasurementFresh(measurement, input.nowMs) &&
+    measurement.accuracyMeters <= checkInProximityRadiusMeters;
+
+  if (!usable) {
+    return ok(
+      Object.freeze({
+        signal: "unavailable" as const,
+        distanceMeters: null,
+        accuracyMeters: null,
+        overrideReason: null,
+      }),
+    );
+  }
+
+  const distanceMeters = Math.round(measurement.distanceMeters);
+  const accuracyMeters = Math.round(measurement.accuracyMeters);
+  if (distanceMeters <= checkInProximityRadiusMeters) {
+    return ok(
+      Object.freeze({
+        signal: "within" as const,
+        distanceMeters,
+        accuracyMeters,
+        overrideReason: null,
+      }),
+    );
+  }
+
+  if (
+    reason.length < checkInOverrideReasonMinLength ||
+    reason.length > checkInOverrideReasonMaxLength
+  ) {
+    return err("A check-in outside the radius requires an override reason from staff");
+  }
+  return ok(
+    Object.freeze({
+      signal: "outside" as const,
+      distanceMeters,
+      accuracyMeters,
+      overrideReason: reason,
+    }),
+  );
+}
+
+export type CorrectAttendanceInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  newState: AttendanceState;
+  reason: string;
+}>;
+
+/**
+ * Builds the deterministic canonical identifier for attendance: `${sessionId}__${studentId}`.
+ */
+export function buildAttendanceId(sessionId: string, studentId: string): string {
+  return `${sessionId.trim()}__${studentId.trim()}`;
+}
+
+/**
+ * Generates an opaque backend ID for an attendance correction: `corr_${timestamp}_${rand}`.
+ */
+export function buildCorrectionAttendanceId(suffix?: string): string {
+  const ts = Date.now().toString(36);
+  const rand = suffix ?? Math.random().toString(36).slice(2, 8);
+  return `corr_${ts}_${rand}`;
+}
+
+/**
+ * Determines punctuality state based on check-in timestamp relative to session start.
+ * If check-in occurs within `lateThresholdMinutes` (default 15m) of startAt, returns 'attended', else 'late'.
+ */
+export function determinePunctuality(
+  sessionStartAtIso: string,
+  checkInAtIso?: string,
+  lateThresholdMinutes = 15,
+): AttendanceState {
+  const startMs = Date.parse(sessionStartAtIso);
+  const checkInMs = checkInAtIso ? Date.parse(checkInAtIso) : Date.now();
+
+  if (Number.isNaN(startMs) || Number.isNaN(checkInMs)) {
+    return "attended";
+  }
+
+  const lateCutoffMs = startMs + lateThresholdMinutes * 60 * 1000;
+  return checkInMs > lateCutoffMs ? "late" : "attended";
+}
+
+export function parseCheckInInput(input: unknown): Result<CheckInInput, string> {
+  if (!isRecord(input)) {
+    return err("Check-in input must be an object");
+  }
+
+  const { sessionId, studentId, method, pin, notes, proximity, overrideReason } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof method !== "string" || !checkInMethods.includes(method as CheckInMethod)) {
+    return err(`Invalid check-in method. Expected one of: ${checkInMethods.join(", ")}`);
+  }
+
+  const result: {
+    sessionId: string;
+    studentId: string;
+    method: CheckInMethod;
+    pin?: string;
+    notes?: string;
+    proximity?: CheckInProximityMeasurement;
+    overrideReason?: string;
+  } = {
+    sessionId: sessionId.trim(),
+    studentId: studentId.trim(),
+    method: method as CheckInMethod,
+  };
+
+  if (typeof pin === "string" && pin.trim().length > 0) {
+    result.pin = pin.trim();
+  }
+
+  if (typeof notes === "string" && notes.trim().length > 0) {
+    result.notes = notes.trim();
+  }
+
+  if (proximity !== undefined) {
+    const parsedProximity = parseCheckInProximityMeasurement(proximity);
+    if (!parsedProximity.ok) return parsedProximity;
+    result.proximity = parsedProximity.value;
+  }
+
+  if (overrideReason !== undefined) {
+    if (typeof overrideReason !== "string") {
+      return err("overrideReason must be a string");
+    }
+    const trimmed = overrideReason.trim();
+    if (
+      trimmed.length < checkInOverrideReasonMinLength ||
+      trimmed.length > checkInOverrideReasonMaxLength
+    ) {
+      return err("overrideReason length is out of range");
+    }
+    result.overrideReason = trimmed;
+  }
+
+  return ok(Object.freeze(result));
+}
+
+/**
+ * Sanity bound for a device distance. Anything further is still simply "outside"; the client clamps
+ * to this value so a measurement taken far away is refused for its reason, never for its size.
+ */
+export const maxCheckInProximityMeters = 100_000;
+const maxProximityMeters = maxCheckInProximityMeters;
+
+export function parseCheckInProximityMeasurement(
+  input: unknown,
+): Result<CheckInProximityMeasurement, string> {
+  if (!isRecord(input)) {
+    return err("proximity must be an object");
+  }
+  const keys = Object.keys(input);
+  const expected = ["distanceMeters", "accuracyMeters", "measuredAt"];
+  if (keys.length !== expected.length || !expected.every((key) => keys.includes(key))) {
+    return err("proximity accepts exactly distanceMeters, accuracyMeters and measuredAt");
+  }
+  const { distanceMeters, accuracyMeters, measuredAt } = input;
+  if (
+    typeof distanceMeters !== "number" ||
+    !Number.isFinite(distanceMeters) ||
+    distanceMeters < 0 ||
+    distanceMeters > maxProximityMeters
+  ) {
+    return err("proximity.distanceMeters must be a finite non-negative distance");
+  }
+  if (
+    typeof accuracyMeters !== "number" ||
+    !Number.isFinite(accuracyMeters) ||
+    accuracyMeters < 0 ||
+    accuracyMeters > maxProximityMeters
+  ) {
+    return err("proximity.accuracyMeters must be a finite non-negative distance");
+  }
+  if (
+    typeof measuredAt !== "string" ||
+    measuredAt.trim().length === 0 ||
+    Number.isNaN(Date.parse(measuredAt))
+  ) {
+    return err("proximity.measuredAt must be an ISO timestamp");
+  }
+  return ok(
+    Object.freeze({
+      distanceMeters,
+      accuracyMeters,
+      measuredAt: measuredAt.trim(),
+    }),
+  );
+}
+
+export function parseCorrectAttendanceInput(
+  input: unknown,
+): Result<CorrectAttendanceInput, string> {
+  if (!isRecord(input)) {
+    return err("Correct attendance input must be an object");
+  }
+
+  const { sessionId, studentId, newState, reason } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof newState !== "string" || !attendanceStates.includes(newState as AttendanceState)) {
+    return err(`Invalid attendance state. Expected one of: ${attendanceStates.join(", ")}`);
+  }
+
+  if (typeof reason !== "string" || reason.trim().length === 0) {
+    return err("reason is required for attendance correction");
+  }
+
+  return ok(
+    Object.freeze({
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+      newState: newState as AttendanceState,
+      reason: reason.trim(),
+    }),
+  );
+}
+
+// ── Child Check-Out & Release Contracts ──
+
+export const checkoutMethods = Object.freeze([
+  "authorizedAdult",
+  "independentRelease",
+  "staffOverride",
+] as const);
+export type CheckoutMethod = (typeof checkoutMethods)[number];
+
+export type CheckoutRecord = Readonly<{
+  checkoutId: string; // deterministic: `${sessionId}__${studentId}`
+  academyId: string;
+  sessionId: string;
+  studentId: string;
+  method: CheckoutMethod;
+  authorizedAdultId: string | null;
+  authorizedAdultName: string | null;
+  notes: string | null;
+  checkedOutAt: string;
+  schemaVersion: "1";
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}>;
+
+export type RecordCheckoutInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  method: CheckoutMethod;
+  authorizedAdultId?: string;
+  authorizedAdultName?: string;
+  notes?: string;
+}>;
+
+/**
+ * Builds the deterministic canonical identifier for child check-out: `${sessionId}__${studentId}`.
+ */
+export function buildCheckoutId(sessionId: string, studentId: string): string {
+  return `${sessionId.trim()}__${studentId.trim()}`;
+}
+
+export function parseRecordCheckoutInput(input: unknown): Result<RecordCheckoutInput, string> {
+  if (!isRecord(input)) {
+    return err("Checkout input must be an object");
+  }
+
+  const { sessionId, studentId, method, authorizedAdultId, authorizedAdultName, notes } = input;
+
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+
+  if (typeof method !== "string" || !checkoutMethods.includes(method as CheckoutMethod)) {
+    return err(`Invalid checkout method. Expected one of: ${checkoutMethods.join(", ")}`);
+  }
+
+  if (method === "staffOverride") {
+    if (typeof notes !== "string" || notes.trim().length === 0) {
+      return err("notes are required for staffOverride checkout");
+    }
+  }
+
+  const result: {
+    sessionId: string;
+    studentId: string;
+    method: CheckoutMethod;
+    authorizedAdultId?: string;
+    authorizedAdultName?: string;
+    notes?: string;
+  } = {
+    sessionId: sessionId.trim(),
+    studentId: studentId.trim(),
+    method: method as CheckoutMethod,
+  };
+
+  if (typeof authorizedAdultId === "string" && authorizedAdultId.trim().length > 0) {
+    result.authorizedAdultId = authorizedAdultId.trim();
+  }
+
+  if (typeof authorizedAdultName === "string" && authorizedAdultName.trim().length > 0) {
+    result.authorizedAdultName = authorizedAdultName.trim();
+  }
+
+  if (typeof notes === "string" && notes.trim().length > 0) {
+    result.notes = notes.trim();
+  }
+
+  return ok(Object.freeze(result));
+}
+
+// ── Live Session Operational View Contracts & Pure Aggregator ──
+
+export const sessionOperationalStatuses = Object.freeze([
+  "booked_not_arrived",
+  "attended",
+  "late",
+  "absent",
+  "no_show",
+  "checked_out",
+] as const);
+export type SessionOperationalStatus = (typeof sessionOperationalStatuses)[number];
+
+export type SessionOperationalStudent = Readonly<{
+  studentId: string;
+  booking: BookingRecord;
+  attendance: AttendanceRecord | null;
+  checkout: CheckoutRecord | null;
+  computedStatus: SessionOperationalStatus;
+}>;
+
+export type SessionOperationalSummary = Readonly<{
+  capacity: number;
+  minParticipants: number;
+  quorumMet: boolean;
+  totalBookings: number;
+  totalCheckedIn: number;
+  totalCheckedOut: number;
+  totalNoShows: number;
+  totalPendingArrival: number;
+}>;
+
+export type SessionOperationalView = Readonly<{
+  session: SessionRecord;
+  summary: SessionOperationalSummary;
+  roster: readonly SessionOperationalStudent[];
+  unbookedCheckIns: readonly AttendanceRecord[];
+  refreshedAt: string;
+}>;
+
+export type DailyOperationsSnapshot = Readonly<{
+  session: SessionRecord;
+  summary: SessionOperationalSummary;
+  refreshedAt: string;
+}>;
+
+export type DailyOperationsDashboard = Readonly<{
+  query: ListSessionsQuery;
+  sessions: readonly DailyOperationsSnapshot[];
+  refreshedAt: string;
+}>;
+
+export function buildDailyOperationsDashboard(input: {
+  query: ListSessionsQuery;
+  views: readonly SessionOperationalView[];
+  now?: string;
+}): DailyOperationsDashboard {
+  const refreshedAt = input.now ?? new Date().toISOString();
+  const sessions = input.views
+    .map((view) =>
+      Object.freeze({
+        session: view.session,
+        summary: view.summary,
+        refreshedAt: view.refreshedAt,
+      }),
+    )
+    .sort((left, right) => left.session.startAt.localeCompare(right.session.startAt));
+
+  return Object.freeze({
+    query: input.query,
+    sessions: Object.freeze(sessions),
+    refreshedAt,
+  });
+}
+
+/**
+ * Pure projection function that aggregates canonical session, bookings, attendance,
+ * and checkouts into a unified real-time operational roster without duplicating data.
+ */
+export function buildSessionOperationalView(input: {
+  session: SessionRecord;
+  bookings: readonly BookingRecord[];
+  attendance: readonly AttendanceRecord[];
+  checkouts: readonly CheckoutRecord[];
+  now?: string;
+}): SessionOperationalView {
+  const { session, bookings, attendance, checkouts, now } = input;
+  const refreshedAt = now ?? new Date().toISOString();
+
+  // Index active (confirmed) bookings
+  const confirmedBookings = bookings.filter((b) => b.status === "confirmed");
+  const bookedStudentIds = new Set(confirmedBookings.map((b) => b.studentId));
+
+  // Index canonical attendance by studentId (ignoring corrections which are linked to canonical)
+  const canonicalAttendanceMap = new Map<string, AttendanceRecord>();
+  for (const att of attendance) {
+    if (att.correctionOf === null) {
+      canonicalAttendanceMap.set(att.studentId, att);
+    }
+  }
+
+  // Index checkouts by studentId
+  const checkoutMap = new Map<string, CheckoutRecord>();
+  for (const co of checkouts) {
+    checkoutMap.set(co.studentId, co);
+  }
+
+  // Build roster for booked students
+  const roster: SessionOperationalStudent[] = confirmedBookings.map((booking) => {
+    const studentAttendance = canonicalAttendanceMap.get(booking.studentId) ?? null;
+    const studentCheckout = checkoutMap.get(booking.studentId) ?? null;
+
+    let computedStatus: SessionOperationalStatus = "booked_not_arrived";
+    if (studentCheckout) {
+      computedStatus = "checked_out";
+    } else if (studentAttendance) {
+      switch (studentAttendance.state) {
+        case "attended":
+          computedStatus = "attended";
+          break;
+        case "late":
+          computedStatus = "late";
+          break;
+        case "absent":
+          computedStatus = "absent";
+          break;
+        case "no_show":
+          computedStatus = "no_show";
+          break;
+        case "excused":
+          computedStatus = "absent";
+          break;
+      }
+    }
+
+    return Object.freeze({
+      studentId: booking.studentId,
+      booking,
+      attendance: studentAttendance,
+      checkout: studentCheckout,
+      computedStatus,
+    });
+  });
+
+  // Identify unbooked walk-ins (students who checked in but were not in confirmed bookings roster)
+  const unbookedCheckIns: AttendanceRecord[] = [];
+  for (const [studentId, att] of canonicalAttendanceMap.entries()) {
+    if (!bookedStudentIds.has(studentId) && (att.state === "attended" || att.state === "late")) {
+      unbookedCheckIns.push(att);
+    }
+  }
+
+  // Calculate live operational metrics
+  const totalBookings = confirmedBookings.length;
+  let totalCheckedIn = 0;
+  let totalCheckedOut = 0;
+  let totalNoShows = 0;
+  let totalPendingArrival = 0;
+
+  for (const item of roster) {
+    if (item.computedStatus === "checked_out") {
+      totalCheckedIn += 1;
+      totalCheckedOut += 1;
+    } else if (item.computedStatus === "attended" || item.computedStatus === "late") {
+      totalCheckedIn += 1;
+    } else if (item.computedStatus === "no_show") {
+      totalNoShows += 1;
+    } else if (item.computedStatus === "booked_not_arrived") {
+      totalPendingArrival += 1;
+    }
+  }
+
+  const quorumMet = totalBookings >= session.minParticipants;
+
+  const summary: SessionOperationalSummary = Object.freeze({
+    capacity: session.capacity,
+    minParticipants: session.minParticipants,
+    quorumMet,
+    totalBookings,
+    totalCheckedIn,
+    totalCheckedOut,
+    totalNoShows,
+    totalPendingArrival,
+  });
+
+  return Object.freeze({
+    session,
+    summary,
+    roster: Object.freeze(roster),
+    unbookedCheckIns: Object.freeze(unbookedCheckIns),
+    refreshedAt,
+  });
+}

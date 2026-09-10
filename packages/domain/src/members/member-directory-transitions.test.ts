@@ -1,0 +1,774 @@
+import { describe, expect, it } from "vitest";
+
+import { memberDirectoryStateSchema } from "./member-directory-contracts";
+import type { MemberDirectoryState } from "./member-directory-contracts";
+import { memberDirectoryMigrationPhases } from "./member-directory-migration-contracts";
+import {
+  assertMemberDirectoryForwardClosable,
+  memberDirectoryMaxChunksPerOperation,
+  memberDirectoryMaxRowsPerChunk,
+  memberDirectoryMaxRowsPerOperation,
+  planMemberDirectoryAcquisition,
+  planMemberDirectoryChunkCommit,
+  planMemberDirectoryBootstrapCompletion,
+  planMemberDirectoryForwardCutover,
+  planMemberDirectoryPhaseChange,
+} from "./member-directory-transitions";
+
+const now = "2026-09-07T12:00:00.000Z";
+const deadline = "2026-09-07T12:25:00.000Z";
+
+function state(overrides: Record<string, unknown> = {}): MemberDirectoryState {
+  return memberDirectoryStateSchema.parse({
+    stateId: "current",
+    academyId: "academy-bpt-jersey",
+    readerVersion: "legacy-v1",
+    directoryWriteMode: "legacy-v1",
+    freezeStatus: "open",
+    stateRevision: 7,
+    globalLegacyReadEliminated: false,
+    identityKeyCoverage: "incomplete",
+    digestVersion: "hmac-sha256-v1",
+    secretVersion: "2",
+    rollbackProtocolVersion: "legacy-projection-v1",
+    rollbackCapacityLimit: 400,
+    rollbackEligibleStudentCount: 12,
+    operationPhase: "idle",
+    lastCommittedChunkNo: 0,
+    schemaVersion: "1",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdBy: "system",
+    updatedAt: "2026-09-06T00:00:00.000Z",
+    updatedBy: "system",
+    ...overrides,
+  });
+}
+
+const acquire = {
+  operationId: "op-1",
+  leaseId: "lease-1",
+  leaseOwner: "runner-a",
+  operationDeadline: deadline,
+  now,
+  actorId: "runner-a",
+} as const;
+
+describe("member directory acquisition", () => {
+  it("freezes the pre-cutover baseline into a forward operation", () => {
+    const next = planMemberDirectoryAcquisition({
+      ...acquire,
+      currentState: state(),
+      phase: "forward",
+    });
+
+    expect(next.readerVersion).toBe("legacy-v1");
+    expect(next.directoryWriteMode).toBe("blocked");
+    expect(next.freezeStatus).toBe("frozen");
+    expect(next.operationPhase).toBe("forward");
+    expect(next.stateRevision).toBe(8);
+    expect(next.lastCommittedChunkNo).toBe(0);
+    expect(next.activeOperationId).toBe("op-1");
+    // 120 seconds after now, to the millisecond.
+    expect(next.leaseExpiresAt).toBe("2026-09-07T12:02:00.000Z");
+  });
+
+  /**
+   * The administrative reader stays legacy through the whole forward operation. If acquisition
+   * moved it, partially written students would become visible before the cutover transaction, which
+   * is the failure mode the frozen tuple exists to prevent.
+   */
+  it("never moves the reader while acquiring a forward", () => {
+    const next = planMemberDirectoryAcquisition({
+      ...acquire,
+      currentState: state(),
+      phase: "forward",
+    });
+    expect(next.readerVersion).toBe(state().readerVersion);
+  });
+
+  it("refuses to acquire from the wrong tuple", () => {
+    expect(() =>
+      planMemberDirectoryAcquisition({
+        ...acquire,
+        currentState: state({
+          readerVersion: "canonical-v1",
+          directoryWriteMode: "canonical-v1",
+        }),
+        phase: "forward",
+      }),
+    ).toThrow(/cannot be acquired from/u);
+  });
+
+  it("refuses to acquire twice: a tuple with a live lease is not stable", () => {
+    const frozenForward = planMemberDirectoryAcquisition({
+      ...acquire,
+      currentState: state(),
+      phase: "forward",
+    });
+
+    expect(() =>
+      planMemberDirectoryAcquisition({
+        ...acquire,
+        currentState: frozenForward,
+        phase: "forward",
+        operationId: "op-2",
+        leaseId: "lease-2",
+      }),
+    ).toThrow(/cannot be acquired from/u);
+  });
+
+  /**
+   * Rollback projection only makes sense while a legacy reader could still serve it. After the
+   * global marker the protocol is disabled for good, so acquiring would build a projection that
+   * nothing is ever allowed to read.
+   */
+  it("refuses rollback projection once the global marker is set", () => {
+    expect(() =>
+      planMemberDirectoryAcquisition({
+        ...acquire,
+        currentState: state({
+          readerVersion: "canonical-v1",
+          directoryWriteMode: "canonical-v1",
+          globalLegacyReadEliminated: true,
+          rollbackProtocolVersion: "disabled",
+        }),
+        phase: "rollback-projection",
+      }),
+    ).toThrow(/globalLegacyReadEliminated=false/u);
+  });
+
+  it("allows identity reconcile on either side of the global marker", () => {
+    for (const marker of [false, true]) {
+      const next = planMemberDirectoryAcquisition({
+        ...acquire,
+        currentState: state({
+          readerVersion: "canonical-v1",
+          directoryWriteMode: "canonical-v1",
+          globalLegacyReadEliminated: marker,
+          rollbackProtocolVersion: marker ? "disabled" : "legacy-projection-v1",
+        }),
+        phase: "identity-reconcile",
+      });
+      expect(next.operationPhase).toBe("identity-reconcile");
+    }
+  });
+
+  /**
+   * Canonical recovery is one of the two already-frozen exceptions: it starts from the stable
+   * read-only tuple and must not pass through an open one, because reopening writes even for a
+   * single transaction is exactly what the read-only state is protecting against.
+   */
+  it("acquires canonical recovery from stable read-only without reopening writes", () => {
+    const next = planMemberDirectoryAcquisition({
+      ...acquire,
+      currentState: state({
+        readerVersion: "legacy-rollback-v1",
+        directoryWriteMode: "blocked",
+        freezeStatus: "frozen",
+        operationPhase: "rollback-readonly",
+      }),
+      phase: "canonical-recovery",
+    });
+
+    expect(next.operationPhase).toBe("canonical-recovery");
+    expect(next.directoryWriteMode).toBe("blocked");
+    expect(next.freezeStatus).toBe("frozen");
+  });
+
+  it("consumes the prepared operation on restore acquire, and only its own", () => {
+    const prepared = state({
+      readerVersion: "canonical-v1",
+      directoryWriteMode: "blocked",
+      freezeStatus: "frozen",
+      operationPhase: "restore-prepared",
+      preparedOperationId: "op-1",
+    });
+
+    const next = planMemberDirectoryAcquisition({
+      ...acquire,
+      currentState: prepared,
+      phase: "restore-recovery",
+    });
+    expect(next.operationPhase).toBe("restore-recovery");
+    expect(next.preparedOperationId).toBeUndefined();
+
+    expect(() =>
+      planMemberDirectoryAcquisition({
+        ...acquire,
+        currentState: prepared,
+        phase: "restore-recovery",
+        operationId: "op-9",
+      }),
+    ).toThrow(/its own prepared operation/u);
+  });
+});
+
+describe("member directory acquisition deadlines", () => {
+  it("refuses a deadline beyond the 30-minute initial window", () => {
+    expect(() =>
+      planMemberDirectoryAcquisition({
+        ...acquire,
+        currentState: state(),
+        phase: "forward",
+        operationDeadline: "2026-09-07T12:30:00.001Z",
+      }),
+    ).toThrow(/maximum initial window/u);
+  });
+
+  it("refuses a deadline that leaves no room for a full lease", () => {
+    expect(() =>
+      planMemberDirectoryAcquisition({
+        ...acquire,
+        currentState: state(),
+        phase: "forward",
+        operationDeadline: "2026-09-07T12:01:00.000Z",
+      }),
+    ).toThrow(/cannot outlive its operation deadline/u);
+  });
+
+  it("refuses a deadline in the past", () => {
+    expect(() =>
+      planMemberDirectoryAcquisition({
+        ...acquire,
+        currentState: state(),
+        phase: "forward",
+        operationDeadline: "2026-09-07T11:59:00.000Z",
+      }),
+    ).toThrow(/must be in the future/u);
+  });
+});
+
+describe("member directory phase change", () => {
+  function frozenForward(): MemberDirectoryState {
+    return planMemberDirectoryAcquisition({
+      ...acquire,
+      currentState: state(),
+      phase: "forward",
+    });
+  }
+
+  it("moves forward to compensation under the same operation and resets the chunk counter", () => {
+    const applying = memberDirectoryStateSchema.parse({
+      ...frozenForward(),
+      lastCommittedChunkNo: 5,
+    });
+
+    const next = planMemberDirectoryPhaseChange({
+      currentState: applying,
+      toPhase: "compensation",
+      operationId: "op-1",
+      now: "2026-09-07T12:01:00.000Z",
+      actorId: "runner-a",
+    });
+
+    expect(next.operationPhase).toBe("compensation");
+    expect(next.lastCommittedChunkNo).toBe(0);
+    expect(next.stateRevision).toBe(applying.stateRevision + 1);
+    expect(next.activeOperationId).toBe("op-1");
+  });
+
+  it("refuses a phase change from a different operation", () => {
+    expect(() =>
+      planMemberDirectoryPhaseChange({
+        currentState: frozenForward(),
+        toPhase: "compensation",
+        operationId: "op-2",
+        now: "2026-09-07T12:01:00.000Z",
+        actorId: "runner-a",
+      }),
+    ).toThrow(/its own operation/u);
+  });
+
+  it("refuses a phase change once the lease has expired", () => {
+    expect(() =>
+      planMemberDirectoryPhaseChange({
+        currentState: frozenForward(),
+        toPhase: "compensation",
+        operationId: "op-1",
+        now: "2026-09-07T12:02:00.000Z",
+        actorId: "runner-a",
+      }),
+    ).toThrow(/live lease/u);
+  });
+
+  it("permits no phase change other than forward to compensation", () => {
+    expect(() =>
+      planMemberDirectoryPhaseChange({
+        currentState: frozenForward(),
+        toPhase: "bootstrap",
+        operationId: "op-1",
+        now: "2026-09-07T12:01:00.000Z",
+        actorId: "runner-a",
+      }),
+    ).toThrow(/is not permitted/u);
+  });
+});
+
+describe("member directory phase vocabularies", () => {
+  /** The reader each phase's valid tuple uses, so every case below is tested on a legal tuple. */
+  const readerByPhase: Readonly<Record<string, MemberDirectoryState["readerVersion"]>> = {
+    bootstrap: "legacy-v1",
+    forward: "legacy-v1",
+    compensation: "legacy-v1",
+    "identity-reconcile": "canonical-v1",
+    "rollback-projection": "canonical-v1",
+    "canonical-recovery": "legacy-rollback-v1",
+    "restore-recovery": "canonical-v1",
+    "rollback-readonly": "legacy-rollback-v1",
+    "restore-prepared": "canonical-v1",
+    "restore-rehearsal-complete": "canonical-v1",
+  };
+
+  const coordination = {
+    activeOperationId: "op-1",
+    leaseId: "lease-1",
+    leaseOwner: "runner-a",
+    leaseExpiresAt: "2026-09-07T12:02:00.000Z",
+    operationDeadline: deadline,
+  };
+
+  function frozenTuple(
+    phase: string,
+    extra: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      ...state(),
+      readerVersion: readerByPhase[phase],
+      directoryWriteMode: "blocked",
+      freezeStatus: "frozen",
+      operationPhase: phase,
+      ...extra,
+    };
+  }
+
+  /**
+   * The phases that own chunks and the phases the state schema treats as active must be the same
+   * set. If they drift, either a chunk gets written under a tuple that carries no lease, or an
+   * active operation exists that can commit nothing - both silent failures, so this pins them.
+   *
+   * "Active" is tested by its actual consequence rather than by reading a list: an active phase
+   * *requires* the coordination envelope and a stable one *forbids* it.
+   */
+  it("requires a lease for exactly the chunk-owning phases", () => {
+    for (const phase of memberDirectoryMigrationPhases) {
+      expect(memberDirectoryStateSchema.safeParse(frozenTuple(phase, coordination)).success).toBe(
+        true,
+      );
+      expect(memberDirectoryStateSchema.safeParse(frozenTuple(phase)).success).toBe(false);
+    }
+  });
+
+  it("forbids a lease on every stable phase, including the frozen ones", () => {
+    const stablePhases = ["rollback-readonly", "restore-rehearsal-complete"] as const;
+    for (const phase of stablePhases) {
+      expect(memberDirectoryStateSchema.safeParse(frozenTuple(phase)).success).toBe(true);
+      expect(memberDirectoryStateSchema.safeParse(frozenTuple(phase, coordination)).success).toBe(
+        false,
+      );
+    }
+
+    // restore-prepared is stable too, but carries the prepared operation instead of a lease.
+    expect(
+      memberDirectoryStateSchema.safeParse(
+        frozenTuple("restore-prepared", { preparedOperationId: "op-1" }),
+      ).success,
+    ).toBe(true);
+    expect(
+      memberDirectoryStateSchema.safeParse(
+        frozenTuple("restore-prepared", { preparedOperationId: "op-1", ...coordination }),
+      ).success,
+    ).toBe(false);
+  });
+});
+
+describe("member directory chunk commit", () => {
+  function frozenForward(lastCommittedChunkNo = 0): MemberDirectoryState {
+    const acquired = planMemberDirectoryAcquisition({
+      ...acquire,
+      currentState: state(),
+      phase: "forward",
+    });
+    return memberDirectoryStateSchema.parse({ ...acquired, lastCommittedChunkNo });
+  }
+
+  const commit = {
+    operationId: "op-1",
+    phase: "forward",
+    rowCount: 50,
+    priorRowCount: 0,
+    outputSetMac: "a".repeat(64),
+    now: "2026-09-07T12:01:00.000Z",
+    actorId: "runner-a",
+  } as const;
+
+  it("commits the next chunk and advances both counters together", () => {
+    const decision = planMemberDirectoryChunkCommit({
+      ...commit,
+      currentState: frozenForward(3),
+      chunkNo: 4,
+      priorRowCount: 150,
+    });
+
+    expect(decision.kind).toBe("commit");
+    if (decision.kind !== "commit") {
+      return;
+    }
+    expect(decision.nextState.lastCommittedChunkNo).toBe(4);
+    expect(decision.nextState.stateRevision).toBe(frozenForward(3).stateRevision + 1);
+  });
+
+  it("refuses a gap in the chunk sequence", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({ ...commit, currentState: frozenForward(3), chunkNo: 5 }),
+    ).toThrow(/without gaps/u);
+  });
+
+  /**
+   * The replay rule. An already-committed chunk arriving again with the same receipt is a no-op,
+   * which is what makes a crashed runner safe to restart. The same chunk with a different receipt
+   * is not a replay at all - it is a second, different write under an identifier that already means
+   * something else, and it fails closed.
+   */
+  it("no-ops an exact replay and refuses a divergent one", () => {
+    const replay = planMemberDirectoryChunkCommit({
+      ...commit,
+      currentState: frozenForward(4),
+      chunkNo: 4,
+      committedOutputSetMac: commit.outputSetMac,
+    });
+    expect(replay.kind).toBe("noop");
+
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(4),
+        chunkNo: 4,
+        committedOutputSetMac: "b".repeat(64),
+      }),
+    ).toThrow(/different content under the same receipt/u);
+  });
+
+  it("refuses a replay with no stored receipt to compare against", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({ ...commit, currentState: frozenForward(4), chunkNo: 4 }),
+    ).toThrow(/no stored receipt/u);
+  });
+
+  it("enforces the row and chunk budgets", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(0),
+        chunkNo: 1,
+        rowCount: memberDirectoryMaxRowsPerChunk + 1,
+      }),
+    ).toThrow(/at most 50 rows/u);
+
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(memberDirectoryMaxChunksPerOperation),
+        chunkNo: memberDirectoryMaxChunksPerOperation + 1,
+      }),
+    ).toThrow(/at most 8 chunks/u);
+
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(7),
+        chunkNo: 8,
+        rowCount: 1,
+        priorRowCount: memberDirectoryMaxRowsPerOperation,
+      }),
+    ).toThrow(/at most 400 rows/u);
+  });
+
+  it("refuses a chunk whose phase does not match the state", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(0),
+        chunkNo: 1,
+        phase: "compensation",
+      }),
+    ).toThrow(/while the state is in forward/u);
+  });
+
+  it("refuses a chunk from another operation, or on an expired lease", () => {
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(0),
+        chunkNo: 1,
+        operationId: "op-2",
+      }),
+    ).toThrow(/its own operation/u);
+
+    expect(() =>
+      planMemberDirectoryChunkCommit({
+        ...commit,
+        currentState: frozenForward(0),
+        chunkNo: 1,
+        now: "2026-09-07T12:02:00.000Z",
+      }),
+    ).toThrow(/live lease/u);
+  });
+});
+
+describe("identity-key bootstrap completion", () => {
+  const baselineMac = "f".repeat(64);
+  const artifactId = "baseline-op-1";
+
+  function frozenBootstrap(overrides: Record<string, unknown> = {}): MemberDirectoryState {
+    return state({
+      readerVersion: "legacy-v1",
+      directoryWriteMode: "blocked",
+      freezeStatus: "frozen",
+      operationPhase: "bootstrap",
+      lastCommittedChunkNo: 3,
+      activeOperationId: "op-1",
+      leaseId: "lease-1",
+      leaseOwner: "runner-a",
+      leaseExpiresAt: "2026-09-07T12:02:00.000Z",
+      operationDeadline: deadline,
+      ...overrides,
+    });
+  }
+
+  const complete = {
+    operationId: "op-1",
+    identityKeyBaselineMac: baselineMac,
+    identityKeyBaselineArtifactId: artifactId,
+    now,
+    actorId: "runner-a",
+  } as const;
+
+  /**
+   * Bootstrap hands back the reader it took. It covers identities that predated the writer; it
+   * migrates nothing, so opening the canonical tuple here would be a cutover nobody approved.
+   */
+  it("returns to the pre-cutover tuple with the baseline recorded", () => {
+    const next = planMemberDirectoryBootstrapCompletion({
+      ...complete,
+      currentState: frozenBootstrap(),
+    });
+
+    expect(next.readerVersion).toBe("legacy-v1");
+    expect(next.directoryWriteMode).toBe("legacy-v1");
+    expect(next.freezeStatus).toBe("open");
+    expect(next.operationPhase).toBe("idle");
+    expect(next.identityKeyCoverage).toBe("complete");
+    expect(next.identityKeyBaselineMac).toBe(baselineMac);
+    expect(next.identityKeyBaselineArtifactId).toBe(artifactId);
+    expect(next.stateRevision).toBe(8);
+    expect(next.lastCommittedChunkNo).toBe(0);
+  });
+
+  /** A stable tuple carries no operation or lease at all - not an emptied one. */
+  it("clears every operation and lease field", () => {
+    const next = planMemberDirectoryBootstrapCompletion({
+      ...complete,
+      currentState: frozenBootstrap(),
+    });
+
+    for (const field of [
+      "activeOperationId",
+      "leaseId",
+      "leaseOwner",
+      "leaseExpiresAt",
+      "operationDeadline",
+    ] as const) {
+      expect(Object.hasOwn(next, field)).toBe(false);
+    }
+  });
+
+  it("refuses a tuple that is not a frozen bootstrap", () => {
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({ ...complete, currentState: state() }),
+    ).toThrow(/Only a frozen bootstrap tuple/u);
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({
+        ...complete,
+        currentState: frozenBootstrap({ operationPhase: "forward" }),
+      }),
+    ).toThrow(/Only a frozen bootstrap tuple/u);
+  });
+
+  it("refuses another operation's completion", () => {
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({
+        ...complete,
+        operationId: "op-other",
+        currentState: frozenBootstrap(),
+      }),
+    ).toThrow(/requires its own operation/u);
+  });
+
+  /**
+   * Completion writes the baseline every later writer trusts, so it is the last place that could
+   * let an expired lease stand in for authorization. It does not.
+   */
+  it("refuses an expired lease", () => {
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({
+        ...complete,
+        currentState: frozenBootstrap({ leaseExpiresAt: now }),
+      }),
+    ).toThrow(/requires a live lease/u);
+  });
+
+  /**
+   * A directory that already carries a baseline is not the one this operation established. Note
+   * what makes this one test rather than two: the state schema ties the baseline MAC and artifact
+   * ID to coverage, so "already recorded" and "already complete" are the same state, and a second
+   * guard for the baseline fields would be unreachable code.
+   */
+  it("refuses to complete a directory whose baseline is already recorded", () => {
+    expect(() =>
+      planMemberDirectoryBootstrapCompletion({
+        ...complete,
+        currentState: frozenBootstrap({
+          identityKeyCoverage: "complete",
+          identityKeyBaselineMac: "a".repeat(64),
+          identityKeyBaselineArtifactId: "baseline-old",
+        }),
+      }),
+    ).toThrow(/still incomplete/u);
+  });
+
+  /** The schema is what makes the pair inseparable, and it is worth pinning here. */
+  it("cannot even describe incomplete coverage that carries a baseline", () => {
+    expect(() => frozenBootstrap({ identityKeyBaselineMac: "a".repeat(64) })).toThrow(
+      /baseline fields do not match coverage/u,
+    );
+  });
+});
+
+describe("directory-forward cutover", () => {
+  /** The tuple a forward operation stands on just before it switches the reader. */
+  function frozenForward(overrides: Record<string, unknown> = {}): MemberDirectoryState {
+    return state({
+      readerVersion: "legacy-v1",
+      directoryWriteMode: "blocked",
+      freezeStatus: "frozen",
+      operationPhase: "forward",
+      identityKeyCoverage: "complete",
+      identityKeyBaselineMac: "a".repeat(64),
+      identityKeyBaselineArtifactId: "artifact-baseline-1",
+      activeOperationId: "op-1",
+      leaseId: "lease-1",
+      leaseOwner: "runner-a",
+      leaseExpiresAt: "2026-09-07T12:02:00.000Z",
+      operationDeadline: deadline,
+      lastCommittedChunkNo: 3,
+      ...overrides,
+    });
+  }
+
+  const cutover = {
+    operationId: "op-1",
+    postCutoverAdmittedStudentCount: 40,
+    now,
+    actorId: "runner-a",
+  } as const;
+
+  it("switches the reader, releases the freeze and keeps the legacy reader retired by nobody", () => {
+    const next = planMemberDirectoryForwardCutover({ ...cutover, currentState: frozenForward() });
+
+    expect(next).toMatchObject({
+      readerVersion: "canonical-v1",
+      directoryWriteMode: "canonical-v1",
+      freezeStatus: "open",
+      operationPhase: "idle",
+      // Cutover switches the reader; it does not retire the legacy one. Only T097 may do that.
+      globalLegacyReadEliminated: false,
+      rollbackProtocolVersion: "legacy-projection-v1",
+      rollbackCapacityLimit: 400,
+      rollbackEligibleStudentCount: 40,
+      stateRevision: 8,
+      lastCommittedChunkNo: 0,
+    });
+    for (const field of [
+      "activeOperationId",
+      "leaseId",
+      "leaseOwner",
+      "leaseExpiresAt",
+      "operationDeadline",
+    ]) {
+      // Deleted, not blanked: "no lease" and "an empty lease" are different to the schema.
+      expect(next).not.toHaveProperty(field);
+    }
+  });
+
+  it("takes the rollback-eligible count from the plan rather than from the moment", () => {
+    const next = planMemberDirectoryForwardCutover({
+      ...cutover,
+      postCutoverAdmittedStudentCount: 400,
+      currentState: frozenForward(),
+    });
+
+    expect(next.rollbackEligibleStudentCount).toBe(400);
+    expect(() =>
+      planMemberDirectoryForwardCutover({
+        ...cutover,
+        postCutoverAdmittedStudentCount: 401,
+        currentState: frozenForward(),
+      }),
+    ).toThrow(/at most 400 rollback-eligible students/u);
+  });
+
+  it("refuses to lower the rollback-eligible count", () => {
+    // It only ever grows - deactivation never decrements it - so lowering it would silently make
+    // room under the rollback bound for students the plan never counted.
+    expect(() =>
+      planMemberDirectoryForwardCutover({
+        ...cutover,
+        postCutoverAdmittedStudentCount: 11,
+        currentState: frozenForward({ rollbackEligibleStudentCount: 12 }),
+      }),
+    ).toThrow(/cannot lower the rollback-eligible student count/u);
+  });
+
+  it("refuses any tuple that is not a frozen forward operation", () => {
+    expect(() => planMemberDirectoryForwardCutover({ ...cutover, currentState: state() })).toThrow(
+      /Only a frozen forward tuple/u,
+    );
+    expect(() =>
+      planMemberDirectoryForwardCutover({
+        ...cutover,
+        currentState: frozenForward({ operationPhase: "compensation" }),
+      }),
+    ).toThrow(/Only a frozen forward tuple/u);
+  });
+
+  it("refuses another operation, an expired lease and incomplete coverage", () => {
+    expect(() =>
+      planMemberDirectoryForwardCutover({
+        ...cutover,
+        operationId: "op-2",
+        currentState: frozenForward(),
+      }),
+    ).toThrow(/requires its own operation/u);
+
+    // The expiry instant already counts as expired, as everywhere else in this control plane.
+    expect(() =>
+      assertMemberDirectoryForwardClosable({
+        currentState: frozenForward({ leaseExpiresAt: now }),
+        operationId: "op-1",
+        now,
+      }),
+    ).toThrow(/requires a live lease/u);
+
+    expect(() =>
+      assertMemberDirectoryForwardClosable({
+        currentState: frozenForward({
+          identityKeyCoverage: "incomplete",
+          identityKeyBaselineMac: undefined,
+          identityKeyBaselineArtifactId: undefined,
+        }),
+        operationId: "op-1",
+        now,
+      }),
+    ).toThrow(/requires complete identity-key coverage/u);
+  });
+});
