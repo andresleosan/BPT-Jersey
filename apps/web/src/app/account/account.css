@@ -1,0 +1,389 @@
+/* /account member app — immersive purple header, light traffic-light calendar. Radius 1rem here only. */
+.member-app {
+  --radius: 1rem;
+  --status-open: #ffe66d;
+  --status-booked: #d7f0e2;
+  --status-attended: #e7f6ee;
+  --status-missed: #ffe1e6;
+  --status-grey: #e8e7e3;
+  background: var(--canvas);
+  color: var(--mat-ink);
+  min-height: 100dvh;
+}
+
+.member-header {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+  padding: 1.25rem clamp(1rem, 4vw, 3rem) 1.5rem;
+}
+
+.member-header-top {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.member-eyebrow {
+  color: var(--bpt-lime);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.member-signout {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  color: var(--gi-white);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+}
+
+.member-name {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2.4rem, 8vw, 4rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  margin: 0.5rem 0 1rem;
+  text-transform: uppercase;
+}
+
+.member-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.member-chip {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  color: var(--gi-white);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.1rem;
+}
+
+.member-chip--active {
+  background: var(--bpt-lime);
+  border-color: var(--bpt-lime);
+  color: var(--mat-ink);
+}
+
+.day-strip-row {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.day-nav {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  color: var(--gi-white);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 1.4rem;
+  height: 2.75rem;
+  justify-content: center;
+  line-height: 1;
+  width: 2.75rem;
+}
+
+.day-nav:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.day-strip {
+  display: grid;
+  gap: 0.5rem;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.day-pill {
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  justify-content: center;
+  min-height: 3.6rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.day-pill span:first-child {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  text-transform: uppercase;
+}
+
+.day-pill span:last-child {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.day-pill--today {
+  background: var(--bpt-lime);
+  border-color: var(--bpt-lime);
+  color: var(--mat-ink);
+}
+
+.penalty-banner {
+  background: var(--status-missed);
+  border-left: 0.35rem solid #8d1c2f;
+  color: #5f1020;
+  margin: 1rem clamp(1rem, 4vw, 3rem) 0;
+  padding: 0.9rem 1rem;
+}
+
+.member-body {
+  padding: 1rem clamp(1rem, 4vw, 3rem) 3rem;
+}
+
+.member-week {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.day-column {
+  min-width: 0;
+}
+
+.day-heading {
+  color: var(--bpt-purple);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin: 0 0 0.6rem;
+  text-transform: uppercase;
+}
+
+.day-column--today .day-heading {
+  background: var(--bpt-purple);
+  border-radius: var(--radius);
+  color: var(--gi-white);
+  padding: 0.35rem 0.8rem;
+}
+
+.day-empty {
+  color: var(--muted);
+  margin: 0;
+}
+
+.day-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.session-card {
+  background: var(--status-grey);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+}
+
+.session-card--open {
+  background: var(--status-open);
+}
+
+.session-card--booked {
+  background: var(--status-booked);
+  box-shadow: inset 0.35rem 0 0 #176b49;
+}
+
+.session-card--attended {
+  background: var(--status-attended);
+  color: var(--muted);
+}
+
+.session-card--missed {
+  background: var(--status-missed);
+  box-shadow: inset 0.35rem 0 0 #8d1c2f;
+}
+
+.session-card--closed,
+.session-card--full,
+.session-card--locked {
+  color: var(--muted);
+}
+
+.session-time {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.session-title {
+  font-weight: 700;
+  margin: 0;
+}
+
+.session-site {
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.session-action {
+  background: var(--mat-ink);
+  border: 0;
+  border-radius: 999px;
+  color: var(--gi-white);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  justify-self: start;
+  margin-top: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.1rem;
+  transition: transform 160ms ease;
+}
+
+.session-action:hover {
+  transform: translateY(-2px);
+}
+
+.session-action:active {
+  transform: translateY(0);
+}
+
+.session-action:disabled,
+.session-action--static {
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  transform: none;
+}
+
+.session-action--cancel {
+  background: transparent;
+  border: 1px solid #176b49;
+  color: #0f4a31;
+}
+
+.session-note,
+.session-reason {
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0;
+}
+
+.session-reason {
+  font-weight: 600;
+}
+
+.calendar-error {
+  background: var(--gi-white);
+  border-left: 0.35rem solid #8d1c2f;
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.skeleton-card {
+  animation: skeleton-shimmer 1.4s ease infinite;
+  background: linear-gradient(90deg, #e8e7e3 25%, #f2f1ed 50%, #e8e7e3 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius);
+  height: 6.5rem;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.cancel-dialog {
+  border: 0;
+  border-radius: var(--radius);
+  max-width: 24rem;
+  padding: 1.5rem;
+  width: calc(100% - 2rem);
+}
+
+.cancel-dialog::backdrop {
+  background: rgba(26, 26, 24, 0.6);
+}
+
+.cancel-dialog h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.6rem;
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.cancel-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.cancel-dialog .button {
+  border-radius: 999px;
+}
+
+.cancel-dialog .button-primary {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.cancel-dialog .button-secondary {
+  border-color: var(--mat-ink);
+  color: var(--mat-ink);
+}
+
+@media (min-width: 58rem) {
+  .member-week {
+    grid-template-columns: var(--week-columns, repeat(6, minmax(0, 1fr)));
+  }
+
+  .day-strip {
+    max-width: 40rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-card {
+    animation: none;
+  }
+
+  .session-action {
+    transition: none;
+  }
+}
