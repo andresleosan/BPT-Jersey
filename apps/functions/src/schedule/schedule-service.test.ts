@@ -484,7 +484,7 @@ describe("Schedule Service (In-Memory Store)", () => {
       expect(checkIn2.state).toBe("late");
       expect(checkIn2.method).toBe("pin");
 
-      // Student 3: Name Search check-in by front desk (18:05 -> on-time)
+      // Student 3: Name Search check-in by front desk (18:05 -> five minutes late)
       const checkIn3 = await store.recordCheckIn(
         "academy-1",
         {
@@ -495,10 +495,10 @@ describe("Schedule Service (In-Memory Store)", () => {
         "staff-1",
         "2026-09-01T18:05:00Z",
       );
-      expect(checkIn3.state).toBe("attended");
+      expect(checkIn3.state).toBe("late");
       expect(checkIn3.method).toBe("nameSearch");
 
-      // Student 4: Manual check-in by coach (18:10 -> on-time with notes)
+      // Student 4: Manual check-in by coach (18:10 -> late, with notes)
       const checkIn4 = await store.recordCheckIn(
         "academy-1",
         {
@@ -510,7 +510,7 @@ describe("Schedule Service (In-Memory Store)", () => {
         "coach-1",
         "2026-09-01T18:10:00Z",
       );
-      expect(checkIn4.state).toBe("attended");
+      expect(checkIn4.state).toBe("late");
       expect(checkIn4.method).toBe("manual");
       expect(checkIn4.notes).toBe("Walk-in approved");
 
