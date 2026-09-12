@@ -13,6 +13,7 @@ vi.mock("./firebase-client", () => ({
 
 import {
   getHealthAdminProfile,
+  listHealthReferences,
   reviewHealthProfileChangeRequest,
   saveHealthProfile,
 } from "./health-client";
@@ -86,6 +87,20 @@ describe("health admin client", () => {
     });
     await expect(reviewHealthProfileChangeRequest("../private", "approve")).rejects.toThrow(
       "Unable to review the health support request",
+    );
+  });
+
+  it("lists the reference labels and refuses a row that carries more than the label", async () => {
+    const row = { studentId: "student-1", displayName: "Ana Coelho", staffReferenceLabel: "ASTHMA-INHALER" };
+    callableState.call.mockResolvedValueOnce({ data: { references: [row] } });
+    await expect(listHealthReferences()).resolves.toEqual([row]);
+    expect(callableState.call).toHaveBeenCalledWith(null);
+
+    callableState.call.mockResolvedValueOnce({
+      data: { references: [{ ...row, conditionSummary: "leak" }] },
+    });
+    await expect(listHealthReferences()).rejects.toThrow(
+      "Unable to load the reference labels. Please try again.",
     );
   });
 });
