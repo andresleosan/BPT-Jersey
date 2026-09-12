@@ -6,10 +6,15 @@ import {
   getHealthAdminProfile,
   listHealthReferences,
   saveHealthProfile,
+  saveHealthReferenceLabel,
   type HealthReferenceRow,
 } from "../../../../lib/health-client";
+import { useAdminOrStaffSession } from "../../admin-gate";
 
 export function MedicalReviewSection() {
+  const session = useAdminOrStaffSession();
+  // ADR-010: the mat retypes the 25-character label; the medical record stays with the office.
+  const office = session.role === "owner" || session.role === "administrator";
   const [studentId, setStudentId] = useState("");
   const [referenceLabel, setReferenceLabel] = useState("");
   const [conditionSummary, setConditionSummary] = useState("");
@@ -80,6 +85,32 @@ export function MedicalReviewSection() {
     }
   }
 
+  async function handleSaveLabel(e: FormEvent) {
+    e.preventDefault();
+    const id = studentId.trim();
+    if (!id) return;
+    const label = referenceLabel.trim();
+    if (label.length > 25) {
+      setError("Staff reference label must be 25 characters or fewer.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      await saveHealthReferenceLabel(id, label || null);
+      setSuccess(`Reference label saved for student ${id}.`);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to save the reference label. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function toggleReferences(): Promise<void> {
     if (references.status === "ready") {
       setReferences({ status: "hidden" });
@@ -105,20 +136,27 @@ export function MedicalReviewSection() {
 
   function selectReference(row: HealthReferenceRow): void {
     setStudentId(row.studentId);
-    void loadProfile(row.studentId);
+    if (office) {
+      void loadProfile(row.studentId);
+      return;
+    }
+    setReferenceLabel(row.staffReferenceLabel);
+    setError("");
+    setSuccess("");
   }
 
   return (
     <section className="admin-panel-card" aria-labelledby="medical-review-title">
       <div className="admin-panel-card-heading">
         <div>
-          <p className="admin-eyebrow">Safeguarding & Support</p>
-          <h3 id="medical-review-title">Medical Conditions & Staff Reference Review</h3>
+          <p className="admin-eyebrow">Safeguarding &amp; Support</p>
+          <h3 id="medical-review-title">Medical Conditions &amp; Staff Reference Review</h3>
         </div>
       </div>
       <p className="admin-medical-intro">
-        Review declared medical conditions for students and assign a short staff reference label
-        (max 25 characters) for mat coaches.
+        {office
+          ? "Review declared medical conditions for students and assign a short staff reference label (max 25 characters) for mat coaches."
+          : "Maintain the short staff reference label (max 25 characters) coaches read on the mat. Declared medical conditions stay with the office."}
       </p>
 
       {error && (
@@ -132,24 +170,44 @@ export function MedicalReviewSection() {
         </p>
       )}
 
-      <form className="admin-medical-form" onSubmit={handleLoad}>
-        <label className="admin-filter-control admin-medical-field" htmlFor="medical-student-id">
-          Student ID
-          <input
-            id="medical-student-id"
-            onChange={(e) => setStudentId(e.target.value)}
-            placeholder="e.g. stu_12345"
-            required
-            type="text"
-            value={studentId}
-          />
-        </label>
-        <button className="admin-auth-button" disabled={loading || !studentId.trim()} type="submit">
-          {loading ? "Checking..." : "Look up Medical Record"}
-        </button>
-      </form>
+      {office ? (
+        <form className="admin-medical-form" onSubmit={handleLoad}>
+          <label className="admin-filter-control admin-medical-field" htmlFor="medical-student-id">
+            Student ID
+            <input
+              id="medical-student-id"
+              onChange={(e) => setStudentId(e.target.value)}
+              placeholder="e.g. stu_12345"
+              required
+              type="text"
+              value={studentId}
+            />
+          </label>
+          <button
+            className="admin-auth-button"
+            disabled={loading || !studentId.trim()}
+            type="submit"
+          >
+            {loading ? "Checking..." : "Look up Medical Record"}
+          </button>
+        </form>
+      ) : null}
 
-      <form className="admin-medical-form" onSubmit={handleSave}>
+      <form className="admin-medical-form" onSubmit={office ? handleSave : handleSaveLabel}>
+        {office ? null : (
+          <label className="admin-filter-control admin-medical-field" htmlFor="medical-student-id">
+            Student ID
+            <input
+              id="medical-student-id"
+              onChange={(e) => setStudentId(e.target.value)}
+              placeholder="e.g. stu_12345"
+              required
+              type="text"
+              value={studentId}
+            />
+          </label>
+        )}
+
         <label className="admin-filter-control admin-medical-field" htmlFor="medical-ref-label">
           Staff reference label (max 25 characters)
           <input
@@ -163,17 +221,19 @@ export function MedicalReviewSection() {
           <span className="admin-medical-count">{referenceLabel.length} / 25 characters</span>
         </label>
 
-        <label className="admin-filter-control admin-medical-field" htmlFor="medical-summary">
-          Condition summary (max 1000 characters)
-          <textarea
-            id="medical-summary"
-            maxLength={1000}
-            onChange={(e) => setConditionSummary(e.target.value)}
-            placeholder="Operational notes regarding member medical conditions or emergency precautions."
-            rows={3}
-            value={conditionSummary}
-          />
-        </label>
+        {office ? (
+          <label className="admin-filter-control admin-medical-field" htmlFor="medical-summary">
+            Condition summary (max 1000 characters)
+            <textarea
+              id="medical-summary"
+              maxLength={1000}
+              onChange={(e) => setConditionSummary(e.target.value)}
+              placeholder="Operational notes regarding member medical conditions or emergency precautions."
+              rows={3}
+              value={conditionSummary}
+            />
+          </label>
+        ) : null}
 
         <div>
           <button
@@ -181,7 +241,7 @@ export function MedicalReviewSection() {
             disabled={saving || !studentId.trim()}
             type="submit"
           >
-            {saving ? "Saving..." : "Save Staff Reference Label"}
+            {saving ? "Saving..." : office ? "Save Staff Reference Label" : "Save reference label"}
           </button>
         </div>
       </form>

@@ -16,6 +16,7 @@ import {
   listHealthReferences,
   reviewHealthProfileChangeRequest,
   saveHealthProfile,
+  saveHealthReferenceLabel,
 } from "./health-client";
 
 const request = {
@@ -101,6 +102,38 @@ describe("health admin client", () => {
     });
     await expect(listHealthReferences()).rejects.toThrow(
       "Unable to load the reference labels. Please try again.",
+    );
+  });
+
+  it("saves the reference label alone and refuses anything else on the wire", async () => {
+    callableState.call.mockResolvedValueOnce({
+      data: { studentId: "student-1", staffReferenceLabel: "ASTHMA-INHALER" },
+    });
+    await expect(saveHealthReferenceLabel("student-1", "ASTHMA-INHALER")).resolves.toEqual({
+      studentId: "student-1",
+      staffReferenceLabel: "ASTHMA-INHALER",
+    });
+    expect(callableState.call).toHaveBeenCalledWith({
+      studentId: "student-1",
+      staffReferenceLabel: "ASTHMA-INHALER",
+    });
+
+    await expect(saveHealthReferenceLabel("../private", null)).rejects.toThrow(
+      "Unable to save the reference label. Please try again.",
+    );
+    await expect(saveHealthReferenceLabel("student-1", "a".repeat(26))).rejects.toThrow(
+      "Unable to save the reference label. Please try again.",
+    );
+
+    callableState.call.mockResolvedValueOnce({
+      data: {
+        studentId: "student-1",
+        staffReferenceLabel: "ASTHMA-INHALER",
+        conditionSummary: "leak",
+      },
+    });
+    await expect(saveHealthReferenceLabel("student-1", "ASTHMA-INHALER")).rejects.toThrow(
+      "Unable to save the reference label. Please try again.",
     );
   });
 });

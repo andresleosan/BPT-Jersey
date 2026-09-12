@@ -74,6 +74,26 @@ function parseReviewPayload(raw: unknown): { requestId: string; decision: "appro
     return invalidPayload();
   return { requestId: value.requestId, decision: value.decision };
 }
+function parseReferenceLabelPayload(raw: unknown): {
+  studentId: string;
+  staffReferenceLabel: string | null;
+} {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return invalidPayload();
+  const value = raw as Record<string, unknown>;
+  const keys = Reflect.ownKeys(value);
+  if (
+    keys.length !== 2 ||
+    !keys.includes("studentId") ||
+    !keys.includes("staffReferenceLabel") ||
+    typeof value.studentId !== "string" ||
+    (value.staffReferenceLabel !== null && typeof value.staffReferenceLabel !== "string")
+  )
+    return invalidPayload();
+  return {
+    studentId: value.studentId,
+    staffReferenceLabel: value.staffReferenceLabel as string | null,
+  };
+}
 function requireRole(request: CallableRequest<unknown>, allowed: readonly HealthActorRole[]) {
   const actor = requireUserActor(request);
   if (!allowed.includes(actor.role as HealthActorRole))
@@ -119,11 +139,32 @@ export async function saveHealthProfileHandler(
   services: HealthCallableServices,
 ) {
   pilot(services);
-  // The mat keeps the 25-character label (operator decision 2026-09-12, ADR-010).
-  const actor = requireRole(request, staffRoles);
+  const actor = requireRole(request, ["owner", "administrator"]);
   const payload = parseInput<HealthProfileSaveInput>(request.data, parseHealthProfileSaveInput);
   try {
     return await services.store.saveHealthProfile({
+      academyId: actor.academyId,
+      actorId: actor.userId,
+      now: services.now?.() ?? new Date().toISOString(),
+      ...payload,
+    });
+  } catch (error) {
+    return mapError(error, "write");
+  }
+}
+/**
+ * The mat keeps the 25-character label and nothing else (ADR-010). The clinical note never enters
+ * or leaves this callable: only the stored profile carries it.
+ */
+export async function saveHealthReferenceLabelHandler(
+  request: CallableRequest<unknown>,
+  services: HealthCallableServices,
+) {
+  pilot(services);
+  const actor = requireRole(request, staffRoles);
+  const payload = parseReferenceLabelPayload(request.data);
+  try {
+    return await services.store.saveReferenceLabel({
       academyId: actor.academyId,
       actorId: actor.userId,
       now: services.now?.() ?? new Date().toISOString(),
@@ -248,4 +289,7 @@ export const reviewHealthProfileChangeRequest = onCall(healthCallableOptions, (r
 );
 export const listHealthReferences = onCall(healthCallableOptions, (request) =>
   listHealthReferencesHandler(request, callableServices()),
+);
+export const saveHealthReferenceLabel = onCall(healthCallableOptions, (request) =>
+  saveHealthReferenceLabelHandler(request, callableServices()),
 );

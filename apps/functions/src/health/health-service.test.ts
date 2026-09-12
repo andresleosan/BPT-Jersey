@@ -325,6 +325,66 @@ describe("health support store", () => {
     ]);
   });
 
+  it("saves only the reference label and keeps the clinical note untouched", async () => {
+    const seeded = createFakeFirestore({
+      "academies/academy-1/students/student-1": student,
+    });
+    const store = createHealthStore({ firestore: seeded.firestore });
+    await store.saveHealthProfile({ ...saveInput, conditionSummary: "Inhaler in bag." });
+
+    await expect(
+      store.saveReferenceLabel({
+        academyId: "academy-1",
+        actorId: "coach-1",
+        now: "2026-08-24T13:00:00Z",
+        studentId: "student-1",
+        staffReferenceLabel: "ASTHMA-INHALER",
+      }),
+    ).resolves.toEqual({ studentId: "student-1", staffReferenceLabel: "ASTHMA-INHALER" });
+
+    expect(seeded.records.get("academies/academy-1/healthProfiles/student-1")).toMatchObject({
+      conditionSummary: "Inhaler in bag.",
+      minimumOperationalSupport: ["mobility"],
+      staffReferenceLabel: "ASTHMA-INHALER",
+      updatedAt: "2026-08-24T13:00:00Z",
+      updatedBy: "coach-1",
+    });
+  });
+
+  it("refuses a label save without an active profile and refuses an over-long label", async () => {
+    const seeded = createFakeFirestore({
+      "academies/academy-1/students/student-1": student,
+    });
+    const store = createHealthStore({ firestore: seeded.firestore });
+    const label = {
+      academyId: "academy-1",
+      actorId: "coach-1",
+      now: "2026-08-24T13:00:00Z",
+      studentId: "student-1",
+      staffReferenceLabel: "KNEE-BRACE",
+    };
+
+    const missing = await store.saveReferenceLabel(label).catch((error: unknown) => error);
+    expect(missing).toBeInstanceOf(HealthStoreError);
+    expect((missing as HealthStoreError).code).toBe("precondition");
+
+    await store.saveHealthProfile(saveInput);
+    await store.deactivateHealthProfile({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      studentId: "student-1",
+    });
+    const inactive = await store.saveReferenceLabel(label).catch((error: unknown) => error);
+    expect(inactive).toBeInstanceOf(HealthStoreError);
+    expect((inactive as HealthStoreError).code).toBe("precondition");
+
+    const tooLong = await store
+      .saveReferenceLabel({ ...label, staffReferenceLabel: "a".repeat(26) })
+      .catch((error: unknown) => error);
+    expect(tooLong).toBeInstanceOf(HealthStoreError);
+    expect((tooLong as HealthStoreError).code).toBe("invalid");
+  });
+
   it("refuses to list more than one page of health profiles", async () => {
     const seeded = createFakeFirestore();
     for (let index = 0; index < 2001; index += 1) {
