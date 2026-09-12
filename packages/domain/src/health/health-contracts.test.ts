@@ -3,6 +3,8 @@ import {
   parseHealthProfileSaveInput,
   parseHealthProfileChangeRequestInput,
   toHealthProfileProjection,
+  isHealthReferenceRow,
+  healthReferenceLabelMaxLength,
   type HealthProfile,
 } from "./health-contracts.js";
 
@@ -122,5 +124,27 @@ describe("health contracts", () => {
         }).ok,
       ).toBe(false);
     });
+  });
+});
+
+describe("isHealthReferenceRow", () => {
+  const row = {
+    studentId: "student-1",
+    displayName: "Ana Coelho",
+    staffReferenceLabel: "ASTHMA-INHALER",
+  };
+
+  it("accepts exactly the three public fields", () => {
+    expect(healthReferenceLabelMaxLength).toBe(25);
+    expect(isHealthReferenceRow(row)).toBe(true);
+  });
+
+  it("refuses anything that could leak more than the label", () => {
+    expect(isHealthReferenceRow({ ...row, conditionSummary: "x" })).toBe(false);
+    expect(isHealthReferenceRow({ ...row, staffReferenceLabel: null })).toBe(false);
+    expect(isHealthReferenceRow({ ...row, staffReferenceLabel: "a".repeat(26) })).toBe(false);
+    expect(isHealthReferenceRow({ ...row, studentId: "../x" })).toBe(false);
+    expect(isHealthReferenceRow({ ...row, displayName: "" })).toBe(false);
+    expect(isHealthReferenceRow(null)).toBe(false);
   });
 });
