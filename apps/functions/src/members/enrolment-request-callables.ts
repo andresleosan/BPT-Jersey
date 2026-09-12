@@ -88,7 +88,9 @@ export type EnrolmentOfficeCallableServices = Readonly<{
 }>;
 
 const clientRoles = new Set(["shopper", "guardian", "adultStudent"]);
-const officeRoles = new Set(["owner", "administrator"]);
+// The queue and the send-back are office work the mat shares (operator decision 2026-09-12,
+// ADR-010). The confidential detail and the approval keep the canonical directory door.
+const officeRoles = new Set(["owner", "administrator", "headCoach", "coach"]);
 
 function actorWithRole(request: CallableRequest<unknown>, roles: Set<string>, message: string) {
   const actor = requireUserActor(request);
