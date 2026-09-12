@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createHealthStore,
+  HealthStoreError,
   type HealthDocumentData,
   type HealthFirestore,
 } from "./health-service.js";
@@ -322,5 +323,24 @@ describe("health support store", () => {
     await expect(store.listReferences({ academyId: "academy-1" })).resolves.toEqual([
       { studentId: "student-1", displayName: "Ana Coelho", staffReferenceLabel: "ASTHMA-INHALER" },
     ]);
+  });
+
+  it("refuses to list more than one page of health profiles", async () => {
+    const seeded = createFakeFirestore();
+    for (let index = 0; index < 2001; index += 1) {
+      seeded.records.set(`academies/academy-1/healthProfiles/student-${index}`, {
+        healthProfileId: `student-${index}`,
+        studentId: `student-${index}`,
+        academyId: "academy-1",
+        staffReferenceLabel: "LABEL",
+        status: "active",
+      });
+    }
+    const store = createHealthStore({ firestore: seeded.firestore });
+
+    const failure = await store.listReferences({ academyId: "academy-1" }).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(HealthStoreError);
+    expect((failure as HealthStoreError).code).toBe("precondition");
   });
 });
