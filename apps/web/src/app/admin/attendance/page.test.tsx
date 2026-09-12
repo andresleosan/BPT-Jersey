@@ -1,3 +1,5 @@
+import { StrictMode } from "react";
+
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -489,5 +491,16 @@ describe("attendance page", () => {
       "aria-checked",
       "true",
     );
+  });
+
+  it("still fills the roster under the StrictMode double mount", async () => {
+    render(
+      <StrictMode>
+        <AttendancePage />
+      </StrictMode>,
+    );
+
+    expect(await screen.findByText("Ana Ready")).toBeVisible();
+    expect(screen.getByText("Ben Booked")).toBeVisible();
   });
 });

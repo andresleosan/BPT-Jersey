@@ -269,9 +269,11 @@ export function OverviewPage() {
               <p className="admin-eyebrow">Connected schedule</p>
               <h3 id="today-classes-title">Today&apos;s classes</h3>
             </div>
-            <Link className="admin-text-link" href="/admin/classes">
-              Manage classes and sessions
-            </Link>
+            {office || session.role === "headCoach" ? (
+              <Link className="admin-text-link" href="/admin/classes">
+                Manage classes and sessions
+              </Link>
+            ) : null}
           </div>
           {classes.length === 0 ? (
             <p className="admin-empty-state">No connected sessions are scheduled for today.</p>
