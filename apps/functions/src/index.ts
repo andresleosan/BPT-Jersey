@@ -178,6 +178,7 @@ export {
   createHealthProfileChangeRequest,
   cancelHealthProfileChangeRequest,
   reviewHealthProfileChangeRequest,
+  listHealthReferences,
 } from "./health/health-callables.js";
 export {
   createPrivateWaiverUpload,

@@ -12,6 +12,7 @@ import {
   type HealthProfileRedactedProjection,
   type HealthProfileSaveInput,
   type HealthProfileStaffProjection,
+  type HealthReferenceRow,
 } from "@bpt-jersey/domain/health";
 import { toHealthProfileProjection } from "@bpt-jersey/domain/health";
 
@@ -88,6 +89,9 @@ export type HealthStore = Readonly<{
       decision: "approve" | "reject";
     }>,
   ) => Promise<HealthProfileChangeRequest>;
+  listReferences: (
+    input: Readonly<{ academyId: string }>,
+  ) => Promise<readonly HealthReferenceRow[]>;
 }>;
 
 export class HealthStoreError extends Error {
@@ -103,6 +107,8 @@ export class HealthStoreError extends Error {
 const safePath = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
 const MAX_RECORDS = 100;
+/** One page. Above it the list refuses rather than showing a partial academy (same rule as pre-class). */
+const MAX_REFERENCES = 2_000;
 function segment(value: string, label: string): string {
   if (!safePath.test(value)) throw new HealthStoreError("invalid", "Invalid " + label);
   return value;
@@ -111,6 +117,9 @@ function nowValue(value: string): string {
   if (!iso.test(value) || Number.isNaN(Date.parse(value)))
     throw new HealthStoreError("invalid", "Invalid timestamp");
   return value;
+}
+function healthCollection(academyId: string): string {
+  return "academies/" + segment(academyId, "academy") + "/healthProfiles";
 }
 function healthPath(academyId: string, studentId: string): string {
   return (
@@ -513,6 +522,41 @@ export function createHealthStore(dependencies: HealthStoreDependencies): Health
         }
         transaction.set(requestReference, parsedRequest.value);
         return parsedRequest.value;
+      });
+    },
+    async listReferences({ academyId }) {
+      return dependencies.firestore.runTransaction(async (transaction) => {
+        const query = dependencies.firestore
+          .collection(healthCollection(academyId))
+          .where("status", "==", "active")
+          .limit(MAX_REFERENCES + 1);
+        const page = asQuery(await transaction.get(query));
+        if (page.docs.length > MAX_REFERENCES)
+          throw new HealthStoreError("precondition", "Too many health profiles to list");
+        const rows: HealthReferenceRow[] = [];
+        for (const snapshot of page.docs) {
+          const parsed = parseHealthProfile(snapshot.data());
+          if (!parsed.ok || parsed.value.academyId !== academyId) continue;
+          const label = parsed.value.staffReferenceLabel;
+          if (label === null) continue;
+          const student = asDocument(
+            await transaction.get(
+              dependencies.firestore.doc(studentPath(academyId, parsed.value.studentId)),
+            ),
+          );
+          const fullName = student.exists ? student.data()?.fullName : undefined;
+          if (typeof fullName !== "string" || fullName.trim().length === 0) continue;
+          rows.push(
+            Object.freeze({
+              studentId: parsed.value.studentId,
+              displayName: fullName.trim(),
+              staffReferenceLabel: label,
+            }),
+          );
+        }
+        return Object.freeze(
+          rows.sort((left, right) => left.displayName.localeCompare(right.displayName)),
+        );
       });
     },
   });

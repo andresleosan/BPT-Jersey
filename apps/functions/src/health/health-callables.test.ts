@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   getHealthProfileHandler,
+  listHealthReferencesHandler,
   saveHealthProfileHandler,
   type HealthCallableServices,
 } from "./health-callables.js";
+const row = {
+  studentId: "student-1",
+  displayName: "Ana Coelho",
+  staffReferenceLabel: "ASTHMA-INHALER",
+} as const;
 const projection = {
   healthProfileId: "student-1",
   studentId: "student-1",
@@ -36,6 +42,7 @@ function services(pilotEnabled = true): HealthCallableServices {
       createChangeRequest: vi.fn(),
       cancelChangeRequest: vi.fn(),
       reviewChangeRequest: vi.fn(),
+      listReferences: vi.fn(async () => [row]),
     } as never,
   };
 }
@@ -74,5 +81,38 @@ describe("health callables", () => {
         current,
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  it("lists the references for every staff role and for nobody else", async () => {
+    const current = services();
+    for (const role of ["owner", "administrator", "headCoach", "coach"]) {
+      await expect(listHealthReferencesHandler(request(null, role), current)).resolves.toEqual({
+        references: [row],
+      });
+    }
+    await expect(
+      listHealthReferencesHandler(request(null, "guardian"), current),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      listHealthReferencesHandler(request({ studentId: "x" }), current),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(listHealthReferencesHandler(request(null), services(false))).rejects.toMatchObject(
+      { code: "failed-precondition" },
+    );
+  });
+
+  it("lets the mat save the staff reference label", async () => {
+    const payload = {
+      studentId: "student-1",
+      minimumOperationalSupport: ["mobility"],
+      conditionSummary: null,
+      staffReferenceLabel: "ASTHMA-INHALER",
+      expiresAt: null,
+    };
+    for (const role of ["headCoach", "coach"]) {
+      await expect(
+        saveHealthProfileHandler(request(payload, role), services()),
+      ).resolves.toMatchObject({ studentId: "student-1" });
+    }
   });
 });
