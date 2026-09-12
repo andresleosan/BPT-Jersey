@@ -47,7 +47,16 @@ const applicants = [
   { key: "concurrent", displayName: "Synthetic T121 Concurrent Applicant" },
   { key: "guardian", displayName: "Synthetic T121 Guardian Applicant" },
   { key: "nameless", displayName: undefined },
+  // Only the coach case touches this one, so no other test can approve it out from under it.
+  { key: "coach-target", displayName: "Synthetic T121 Coach Target Applicant" },
 ];
+
+// The coach the office-powers case signs in as. Same academy, the one role that reads the queue
+// and sends a request back without ever seeing the detail or approving it.
+const coachEmail = required("T121_COACH_EMAIL");
+if (!coachEmail.endsWith("@example.test")) {
+  throw new Error("T121 coach seed requires a synthetic @example.test address.");
+}
 
 const app = initializeApp({ projectId }, "t121-enrolment-applicant-seed");
 const auth = getAuth(app);
@@ -77,7 +86,27 @@ try {
     await auth.setCustomUserClaims(user.uid, { academyId, role: "shopper" });
     seeded.push({ key: applicant.key, uid: user.uid, email });
   }
-  console.log(JSON.stringify({ academyId, applicants: seeded }));
+  let coach;
+  try {
+    coach = await auth.getUserByEmail(coachEmail);
+    coach = await auth.updateUser(coach.uid, {
+      password,
+      displayName: "Synthetic T121 Coach",
+    });
+  } catch (error) {
+    if (error?.code !== "auth/user-not-found") throw error;
+    coach = await auth.createUser({
+      email: coachEmail,
+      password,
+      emailVerified: true,
+      displayName: "Synthetic T121 Coach",
+    });
+  }
+  await auth.setCustomUserClaims(coach.uid, { academyId, role: "coach" });
+
+  console.log(
+    JSON.stringify({ academyId, applicants: seeded, coach: { uid: coach.uid, email: coachEmail } }),
+  );
 } finally {
   await deleteApp(app);
 }

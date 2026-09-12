@@ -91,6 +91,7 @@ async function call(
 const applicantPassword = process.env.T121_APPLICANT_PASSWORD ?? "";
 const ownerEmail = process.env.AUTH_EMULATOR_E2E_EMAIL ?? "";
 const ownerPassword = process.env.AUTH_EMULATOR_E2E_PASSWORD ?? "";
+const coachEmail = process.env.T121_COACH_EMAIL ?? "";
 
 function applicantEmail(key: string): string {
   return `t121-${key}@example.test`;
@@ -132,7 +133,7 @@ async function countMembers(request: APIRequestContext, idToken: string): Promis
 
 test.describe("T121 enrolment approval with Firebase Emulators", () => {
   test.skip(
-    !enabled || !applicantPassword || !ownerEmail || !ownerPassword,
+    !enabled || !applicantPassword || !ownerEmail || !ownerPassword || !coachEmail,
     "Synthetic T121/T093 Emulator credentials and directory state are required.",
   );
 
@@ -399,5 +400,63 @@ test.describe("T121 enrolment approval with Firebase Emulators", () => {
       { idToken: applicantToken },
     );
     expect(detailAsClient.body.error?.status).toBe("PERMISSION_DENIED");
+  });
+
+  test("a coach reads the queue and sends a request back, but is refused the detail and the approval @critical", async ({
+    request,
+  }) => {
+    // A request nothing else in this suite touches, so the coach always finds it pending.
+    const applicantToken = await signIn(request, applicantEmail("coach-target"), applicantPassword);
+    const submitted = await call(
+      request,
+      "submitEnrolmentRequest",
+      {
+        ...adultSubmission(randomUUID()),
+        applicant: {
+          ...adultSubmission(randomUUID()).applicant,
+          fullName: "Synthetic T121 Coach Target Applicant",
+        },
+      },
+      { idToken: applicantToken },
+    );
+    expect(submitted.status, JSON.stringify(submitted.body)).toBe(200);
+    const enrolmentRequestId = (submitted.body.result as { enrolmentRequestId: string })
+      .enrolmentRequestId;
+
+    const coachToken = await signIn(request, coachEmail, applicantPassword);
+
+    // The coach sees the queue: that is the whole of their reading power here.
+    const queue = await call(request, "listEnrolmentRequests", null, { idToken: coachToken });
+    expect(queue.status, JSON.stringify(queue.body)).toBe(200);
+    const rows = (queue.body.result as { requests: readonly { enrolmentRequestId: string }[] })
+      .requests;
+    expect(rows.some((row) => row.enrolmentRequestId === enrolmentRequestId)).toBe(true);
+
+    // And nothing beyond it: the Confidential detail and the approval are both shut.
+    const detail = await call(
+      request,
+      "getEnrolmentRequestDetail",
+      { enrolmentRequestId, purpose: "enrolment-request-review" },
+      { idToken: coachToken },
+    );
+    expect(detail.body.error?.status, JSON.stringify(detail.body)).toBe("PERMISSION_DENIED");
+
+    const approval = await call(
+      request,
+      "approveEnrolmentRequest",
+      { enrolmentRequestId, requestId: randomUUID(), purpose: "enrolment-request-review" },
+      { idToken: coachToken },
+    );
+    expect(approval.body.error?.status, JSON.stringify(approval.body)).toBe("PERMISSION_DENIED");
+
+    // Sending it back is the one thing the coach may do to it.
+    const returned = await call(
+      request,
+      "returnEnrolmentRequest",
+      { enrolmentRequestId, note: "Coach: add the emergency contact." },
+      { idToken: coachToken },
+    );
+    expect(returned.status, JSON.stringify(returned.body)).toBe(200);
+    expect((returned.body.result as { status: string }).status).toBe("returned");
   });
 });
