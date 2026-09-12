@@ -11,6 +11,19 @@ const enrolmentApi = vi.hoisted(() => ({
 
 vi.mock("../../../../lib/enrolment-client", () => enrolmentApi);
 
+const gate = vi.hoisted(() => ({
+  role: "owner" as "owner" | "administrator" | "headCoach" | "coach",
+}));
+vi.mock("../../admin-gate", () => ({
+  useAdminOrStaffSession: () => ({
+    uid: "u-1",
+    email: "u@example.test",
+    displayName: "Synthetic",
+    academyId: "academy-1",
+    role: gate.role,
+  }),
+}));
+
 import EnrolmentRequestQueuePage from "./page";
 
 const waiting = {
@@ -78,6 +91,10 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+});
+
+beforeEach(() => {
+  gate.role = "owner";
 });
 
 describe("enrolment request queue", () => {
@@ -235,5 +252,28 @@ describe("enrolment request queue", () => {
     await userEvent.click(firstButton(/approve and enrol/i));
 
     expect(await screen.findByText(/applicant_account_incomplete/)).toBeVisible();
+  });
+
+  it("explains what each button does before anybody presses it", async () => {
+    render(<EnrolmentRequestQueuePage />);
+    const help = await screen.findByRole("region", { name: "What the buttons do" });
+    expect(help).toHaveTextContent("Read the full request");
+    expect(help).toHaveTextContent("Send back to applicant");
+    expect(help).toHaveTextContent("Approve and enrol");
+    expect(help).toHaveTextContent("audited");
+  });
+
+  it("lets a coach see the queue and send a request back, but not open or approve it", async () => {
+    gate.role = "coach";
+    render(<EnrolmentRequestQueuePage />);
+    await screen.findByText("Alex Adult");
+    expect(screen.queryByRole("button", { name: /Read the full request/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Approve and enrol/ })).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /Send back to applicant/ }).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("region", { name: "What the buttons do" })).toHaveTextContent(
+      "Opening the full request and enrolling somebody is office work.",
+    );
   });
 });
