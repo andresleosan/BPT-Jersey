@@ -6,12 +6,14 @@ import {
   parseHealthProfile,
   parseHealthProfileSaveInput,
   parseHealthProfileChangeRequestInput,
+  isHealthReferenceRow,
   type HealthChangeRequestStatus,
   type HealthProfileChangeRequest,
   type HealthProfileAdminProjection,
   type HealthProfileChangeRequestInput,
   type HealthProfileSaveInput,
   type HealthProfileRedactedProjection,
+  type HealthReferenceRow,
   type MinimumOperationalSupportCode,
 } from "@bpt-jersey/domain/health";
 
@@ -20,6 +22,7 @@ import { getFirebaseFunctions } from "./firebase-client";
 export type {
   HealthProfileAdminProjection,
   HealthProfileRedactedProjection,
+  HealthReferenceRow,
   MinimumOperationalSupportCode,
 } from "@bpt-jersey/domain/health";
 
@@ -217,5 +220,20 @@ export async function reviewHealthProfileChangeRequest(
     return parseRequest(result.data, safeReviewError);
   } catch {
     throw new Error(safeReviewError);
+  }
+}
+
+const safeReferencesError = "Unable to load the reference labels. Please try again.";
+
+export async function listHealthReferences(): Promise<readonly HealthReferenceRow[]> {
+  try {
+    const callable = httpsCallable<null, unknown>(getFirebaseFunctions(), "listHealthReferences");
+    const result = await callable(null);
+    const data = result.data;
+    if (!isPlainRecord(data) || !Array.isArray(data.references)) throw new Error(safeReferencesError);
+    if (!data.references.every(isHealthReferenceRow)) throw new Error(safeReferencesError);
+    return Object.freeze([...data.references]);
+  } catch {
+    throw new Error(safeReferencesError);
   }
 }
