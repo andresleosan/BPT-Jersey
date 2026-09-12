@@ -14,11 +14,17 @@ import { usePathname } from "next/navigation";
 
 import { AdminAuthProvider, useAdminSession, type AdminSession } from "../../lib/admin-auth";
 import { requireStaffSession } from "../../lib/login-flow";
-import { adminSessionForTestRole, isAdminE2EEnabled } from "../../lib/admin-test-bootstrap";
+import {
+  adminSessionForTestRole,
+  isAdminE2EEnabled,
+  staffSessionForTestRole,
+  type StaffE2ERole,
+} from "../../lib/admin-test-bootstrap";
 import { StaffAuthProvider, useStaffSession, type StaffSession } from "../../lib/staff-auth";
 import { AdminShell } from "./admin-shell";
+import { isStaffRouteAllowed } from "./admin-routes";
 
-type AdminTestRole = AdminRole | "coach" | "guardian" | "adultStudent";
+type AdminTestRole = AdminRole | "coach" | "headCoach" | "guardian" | "adultStudent";
 type GateStatus = "loading" | "signed-out" | "denied" | "authorized";
 
 const AdminGateSessionContext = createContext<AdminSession | undefined>(undefined);
@@ -81,24 +87,12 @@ function AuthorizedStaffWaitlistContent({
   );
 }
 
-function isLessonPlanningRoute(pathname: string): boolean {
-  return pathname === "/admin/lesson-plans" || pathname.startsWith("/admin/lesson-plans/");
-}
-function isWaitlistRoute(pathname: string): boolean {
-  return pathname === "/admin/waitlists" || pathname.startsWith("/admin/waitlists/");
-}
-function isAttendanceRoute(pathname: string): boolean {
-  return pathname === "/admin/attendance" || pathname.startsWith("/admin/attendance/");
-}
-function isClassesRoute(pathname: string): boolean {
-  return pathname === "/admin/classes" || pathname.startsWith("/admin/classes/");
-}
-
 function isAdminTestRole(value: string | null): value is AdminTestRole {
   return (
     value === "owner" ||
     value === "administrator" ||
     value === "coach" ||
+    value === "headCoach" ||
     value === "guardian" ||
     value === "adultStudent"
   );
@@ -168,10 +162,7 @@ function FirebaseAdminGate({ children }: { children: ReactNode }) {
   if (
     staff.status === "signed-in" &&
     staff.session &&
-    (isWaitlistRoute(pathname) ||
-      isLessonPlanningRoute(pathname) ||
-      isAttendanceRoute(pathname) ||
-      (isClassesRoute(pathname) && staff.session.role === "headCoach"))
+    isStaffRouteAllowed(pathname, staff.session.role)
   ) {
     return (
       <AuthorizedStaffWaitlistContent onSignOut={staff.signOut} session={staff.session}>
@@ -197,6 +188,7 @@ function E2EAdminGate({ children }: { children: ReactNode }) {
     | { status: "signed-out" }
     | { status: "denied" }
     | { status: "authorized"; role: Extract<AdminRole, "owner" | "administrator"> }
+    | { status: "authorized-staff"; role: StaffE2ERole }
   >({ status: "loading" });
 
   useEffect(() => {
@@ -204,6 +196,11 @@ function E2EAdminGate({ children }: { children: ReactNode }) {
 
     if (!isAdminTestRole(role)) {
       startTransition(() => setState({ status: "signed-out" }));
+      return;
+    }
+
+    if (role === "coach" || role === "headCoach") {
+      startTransition(() => setState({ status: "authorized-staff", role }));
       return;
     }
 
@@ -220,6 +217,17 @@ function E2EAdminGate({ children }: { children: ReactNode }) {
       <AuthorizedAdminContent session={adminSessionForTestRole(state.role)}>
         {children}
       </AuthorizedAdminContent>
+    );
+  }
+
+  if (state.status === "authorized-staff") {
+    return (
+      <AuthorizedStaffWaitlistContent
+        onSignOut={async () => {}}
+        session={staffSessionForTestRole(state.role)}
+      >
+        {children}
+      </AuthorizedStaffWaitlistContent>
     );
   }
 

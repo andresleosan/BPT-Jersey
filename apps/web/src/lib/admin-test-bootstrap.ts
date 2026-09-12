@@ -1,8 +1,11 @@
 import type { AdminRole } from "@bpt-jersey/domain";
 
 import type { AdminSession } from "./admin-auth";
+import type { StaffSession } from "./staff-auth";
 
 type AdminE2ERole = Extract<AdminRole, "owner" | "administrator">;
+
+export type StaffE2ERole = StaffSession["role"];
 
 const adminE2EFlagBaked = process.env.NEXT_PUBLIC_ADMIN_E2E === "true";
 
@@ -31,6 +34,16 @@ export function isAdminE2EEnabled(
 export function adminSessionForTestRole(role: AdminE2ERole): AdminSession {
   return Object.freeze({
     uid: `synthetic-admin-${role}`,
+    email: `${role}@example.test`,
+    displayName: `Synthetic ${role}`,
+    academyId: "synthetic-academy",
+    role,
+  });
+}
+
+export function staffSessionForTestRole(role: StaffE2ERole): StaffSession {
+  return Object.freeze({
+    uid: `synthetic-staff-${role}`,
     email: `${role}@example.test`,
     displayName: `Synthetic ${role}`,
     academyId: "synthetic-academy",
