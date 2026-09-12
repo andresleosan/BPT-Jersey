@@ -13,7 +13,7 @@ import { err, ok, type Result } from "../result";
  * member record, which is where the full date lives and is audited.
  */
 export const upcomingBirthdayDefaultWindowDays = 7;
-export const upcomingBirthdayMaxWindowDays = 31;
+export const upcomingBirthdayMaxWindowDays = 366;
 
 export const upcomingBirthdayTrainingCenters = Object.freeze(["Town", "West"] as const);
 export type UpcomingBirthdayTrainingCenter = (typeof upcomingBirthdayTrainingCenters)[number];
@@ -145,6 +145,8 @@ export function deriveUpcomingBirthdays(
 
   const found: UpcomingBirthday[] = [];
   const seen = new Set<string>();
+  // ponytail: O(ventana x candidatos) = 366 x 2000 como techo; precalcular el proximo cumpleanos
+  // por candidato si alguna vez pesa.
   for (let offset = 0; offset <= input.windowDays; offset += 1) {
     const day = addDays(input.today, offset);
     if (day === undefined) break;

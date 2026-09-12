@@ -178,6 +178,16 @@ describe("deriveUpcomingBirthdays", () => {
     ).toHaveLength(1);
   });
 
+  it("finds a birthday almost a year away, so the office always has three to greet", () => {
+    expect(upcomingBirthdayMaxWindowDays).toBe(366);
+    const result = deriveUpcomingBirthdays({
+      today: "2026-06-15",
+      windowDays: upcomingBirthdayMaxWindowDays,
+      candidates: [candidate({ studentId: "s-far", dateOfBirth: "1990-06-10" })],
+    });
+    expect(result.map((entry) => [entry.studentId, entry.daysAway])).toEqual([["s-far", 360]]);
+  });
+
   it("returns nothing for an invalid day or window", () => {
     const candidates = [candidate({ studentId: "s-1", dateOfBirth: "1994-06-15" })];
     expect(deriveUpcomingBirthdays({ today: "2026-13-01", windowDays: 7, candidates })).toEqual([]);
