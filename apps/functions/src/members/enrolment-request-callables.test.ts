@@ -211,6 +211,27 @@ describe("enrolment request callables", () => {
     ).rejects.toMatchObject({ code: "invalid-argument" });
   });
 
+  it("lets the mat read the queue and send a request back, but not open or approve it", async () => {
+    for (const role of ["headCoach", "coach"]) {
+      const current = services();
+      await expect(
+        listEnrolmentRequestsHandler(request(null, role, "staff-1"), current),
+      ).resolves.toMatchObject({
+        truncated: false,
+      });
+      await expect(
+        returnEnrolmentRequestHandler(
+          request(
+            { enrolmentRequestId: "enrolment-1", note: "Add the emergency contact." },
+            role,
+            "staff-1",
+          ),
+          current,
+        ),
+      ).resolves.toMatchObject({ enrolmentRequestId: "enrolment-1" });
+    }
+  });
+
   it("lets an applicant withdraw a request by id and nothing else", async () => {
     const current = services();
 
@@ -350,13 +371,24 @@ describe("enrolment office callables", () => {
   });
 
   it("refuses a client account, however well formed the payload", async () => {
-    for (const role of ["shopper", "guardian", "adultStudent", "coach"]) {
+    for (const role of ["shopper", "guardian", "adultStudent", "coach", "headCoach"]) {
       const current = officeServices();
 
       await expect(
         approveEnrolmentRequestHandler(officeRequest(approvalPayload, { role }), current),
       ).rejects.toMatchObject({ code: "permission-denied" });
       expect(current.approvals.approve).not.toHaveBeenCalled();
+    }
+  });
+
+  it("keeps the confidential detail behind the office door", async () => {
+    for (const role of ["coach", "headCoach"]) {
+      await expect(
+        getEnrolmentRequestDetailHandler(
+          officeRequest({ enrolmentRequestId: "enrolment-1" }, { role }),
+          officeServices(),
+        ),
+      ).rejects.toMatchObject({ code: "permission-denied" });
     }
   });
 
