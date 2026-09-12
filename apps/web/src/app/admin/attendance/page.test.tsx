@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -400,5 +400,94 @@ describe("attendance page", () => {
     expect(details).not.toHaveAttribute("open");
     await userEvent.click(screen.getByText("Corrections and closeout"));
     expect(screen.getByRole("table", { name: "Attendance roster" })).toBeVisible();
+  });
+
+  it("keeps today's classes visible after changing the date and clocking someone in", async () => {
+    render(<AttendancePage />);
+    await screen.findByRole("button", { name: "Clock in Ben Booked" });
+
+    fireEvent.change(screen.getByLabelText("Attendance date"), {
+      target: { value: "2026-09-04" },
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Clock in Ben Booked" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Clock-in recorded for Ben Booked.",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Connected fundamentals · Coach coach-1" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Loading today's classes...")).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale roster response that resolves after a newer one issued later", async () => {
+    let resolveStale: (value: typeof preClass) => void = () => {};
+    let call = 0;
+    schedule.getPreClassView.mockImplementation(() => {
+      call += 1;
+      if (call === 1) return Promise.resolve(preClass);
+      if (call === 2) {
+        return new Promise((resolve) => {
+          resolveStale = resolve;
+        });
+      }
+      return Promise.resolve({
+        ...preClass,
+        attendees: preClass.attendees.map((a) =>
+          a.studentId === "student-pending" ? { ...a, displayName: "Fresh Ben" } : a,
+        ),
+      });
+    });
+    schedule.recordCheckIn.mockResolvedValue(attended);
+
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<AttendancePage />);
+      await waitFor(() => expect(schedule.getPreClassView).toHaveBeenCalledTimes(1));
+      await screen.findByRole("button", { name: "Clock in Ben Booked" });
+
+      // The thirty-second poll fires and issues the stale (slow) request.
+      await vi.advanceTimersByTimeAsync(30_000);
+      await waitFor(() => expect(schedule.getPreClassView).toHaveBeenCalledTimes(2));
+
+      // The clock-in issues a newer request that resolves immediately.
+      await user.click(screen.getByRole("button", { name: "Clock in Ben Booked" }));
+      await waitFor(() => expect(schedule.getPreClassView).toHaveBeenCalledTimes(3));
+      expect(await screen.findByText("Fresh Ben")).toBeVisible();
+
+      // The stale poll response arrives last; it must not overwrite the newer roster.
+      resolveStale(preClass);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(screen.getByText("Fresh Ben")).toBeVisible();
+      expect(screen.queryByText("Ben Booked")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("seeds the chosen premises from storage after mount without a hydration mismatch", async () => {
+    localStorage.setItem("bpt_coach_premises", "west");
+    const west = {
+      ...session,
+      sessionId: "session-west",
+      locationId: "west" as const,
+      title: "West Kids",
+    };
+    schedule.listSessions.mockResolvedValue([session, west]);
+    schedule.getSessionOperationalView.mockImplementation((sessionId: string) =>
+      Promise.resolve(sessionId === "session-west" ? { ...view(), session: west } : view()),
+    );
+    render(<AttendancePage />);
+
+    expect(await screen.findByRole("heading", { name: "West Kids · Coach coach-1" })).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Connected fundamentals · Coach coach-1" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "West (St Peter)" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 });
