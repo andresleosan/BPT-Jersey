@@ -341,3 +341,193 @@
     transition: none;
   }
 }
+
+.attendance-premises {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.5rem 0 1rem;
+}
+
+.attendance-premises-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.attendance-premises-button {
+  background: var(--gi-white);
+  border: 1px solid var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  text-transform: uppercase;
+}
+
+.attendance-premises-button[aria-checked="true"] {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.attendance-premises-button:focus-visible,
+.attendance-clock-in:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+
+.attendance-session-blocks {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+}
+
+.attendance-session-block {
+  background: var(--gi-white);
+  border-top: 0.3rem solid var(--mat-ink);
+  min-width: 0;
+  padding: 1.15rem;
+}
+
+.attendance-session-block-heading {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+
+.attendance-session-block h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  line-height: 0.92;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.attendance-session-block-heading p {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  gap: 0.6rem;
+  margin: 0.35rem 0 0;
+}
+
+.attendance-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.attendance-counters span {
+  border-left: 0.35rem solid currentColor;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.6rem;
+  text-transform: uppercase;
+}
+
+.attendance-counter-ready {
+  background: #e7f6ee;
+  color: #176b49;
+}
+
+.attendance-counter-waiting {
+  background: #e8e7e3;
+  color: #65635d;
+}
+
+.attendance-counter-late {
+  background: #fff0f2;
+  color: #8d1c2f;
+}
+
+.attendance-roster {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.attendance-roster li {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 0.6rem 1rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 3.6rem;
+  padding: 0.45rem 0;
+}
+
+.attendance-roster-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.attendance-tag {
+  border-left: 0.35rem solid currentColor;
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.6rem;
+  text-transform: uppercase;
+}
+
+.attendance-tag-ready {
+  background: #e7f6ee;
+  color: #176b49;
+}
+
+.attendance-tag-booked {
+  background: #e8e7e3;
+  color: #65635d;
+}
+
+.attendance-tag-late,
+.attendance-tag-no_show,
+.attendance-tag-absent {
+  background: #fff0f2;
+  color: #8d1c2f;
+}
+
+.attendance-clock-in {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
+}
+
+.attendance-corrections > summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+}
+
+@media (max-width: 700px) {
+  .attendance-roster li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .attendance-roster li .attendance-clock-in {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
