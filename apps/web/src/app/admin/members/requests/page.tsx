@@ -13,6 +13,7 @@ import {
   listEnrolmentRequests,
   returnEnrolmentRequest,
 } from "../../../../lib/enrolment-client";
+import { useAdminOrStaffSession } from "../../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
 
 import "../../admin.css";
@@ -82,6 +83,8 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
 }
 
 export default function EnrolmentRequestQueuePage() {
+  const session = useAdminOrStaffSession();
+  const office = session.role === "owner" || session.role === "administrator";
   const [state, setState] = useState<QueueState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
@@ -203,6 +206,34 @@ export default function EnrolmentRequestQueuePage() {
         title="Enrolment requests"
       />
 
+      <section className="admin-panel-card admin-request-help" aria-labelledby="request-help-title">
+        <h3 id="request-help-title">What the buttons do</h3>
+        <dl>
+          <dt>Read the full request</dt>
+          <dd>
+            Loads the confidential detail: date of birth, phone, address, emergency contact and the
+            children. Every read is audited and counted, so the detail is kept on screen once
+            loaded.
+          </dd>
+          <dt>Send back to applicant</dt>
+          <dd>
+            Needs a note. The request goes back to the applicant, who sees the note in their
+            account, fixes it and sends it again.
+          </dd>
+          <dt>Approve and enrol</dt>
+          <dd>
+            Creates the member record (and the children&apos;s), links the account to its role and
+            marks the request approved. Only available after the detail has been read.
+          </dd>
+        </dl>
+        {office ? null : (
+          <p>
+            Opening the full request and enrolling somebody is office work. You can read the queue
+            and send a request back.
+          </p>
+        )}
+      </section>
+
       {notice ? (
         <p
           className={`admin-panel-card shop-admin-notice shop-admin-notice-${notice.tone}`}
@@ -266,16 +297,18 @@ export default function EnrolmentRequestQueuePage() {
                 </p>
                 {open ? (
                   <div className="admin-request-actions">
-                    <button
-                      className="button button-secondary"
-                      disabled={busyId === request.enrolmentRequestId}
-                      onClick={() => void openDetail(request)}
-                      type="button"
-                    >
-                      {openDetailId === request.enrolmentRequestId
-                        ? "Hide detail"
-                        : "Read the full request"}
-                    </button>
+                    {office ? (
+                      <button
+                        className="button button-secondary"
+                        disabled={busyId === request.enrolmentRequestId}
+                        onClick={() => void openDetail(request)}
+                        type="button"
+                      >
+                        {openDetailId === request.enrolmentRequestId
+                          ? "Hide detail"
+                          : "Read the full request"}
+                      </button>
+                    ) : null}
                     <label className="shop-admin-field" htmlFor={noteId}>
                       What needs to change
                       <input
@@ -304,25 +337,28 @@ export default function EnrolmentRequestQueuePage() {
                       previously able to approve somebody while looking at a name and a centre,
                       which is the gap this slice exists to close.
                     */}
-                    <button
-                      className="button"
-                      disabled={
-                        busyId === request.enrolmentRequestId ||
-                        !details[request.enrolmentRequestId]
-                      }
-                      onClick={() => void approve(request)}
-                      title={
-                        details[request.enrolmentRequestId]
-                          ? undefined
-                          : "Read the full request before enrolling somebody."
-                      }
-                      type="button"
-                    >
-                      Approve and enrol
-                    </button>
+                    {office ? (
+                      <button
+                        className="button"
+                        disabled={
+                          busyId === request.enrolmentRequestId ||
+                          !details[request.enrolmentRequestId]
+                        }
+                        onClick={() => void approve(request)}
+                        title={
+                          details[request.enrolmentRequestId]
+                            ? undefined
+                            : "Read the full request before enrolling somebody."
+                        }
+                        type="button"
+                      >
+                        Approve and enrol
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
-                {openDetailId === request.enrolmentRequestId &&
+                {office &&
+                openDetailId === request.enrolmentRequestId &&
                 details[request.enrolmentRequestId] ? (
                   <DetailPanel
                     detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
