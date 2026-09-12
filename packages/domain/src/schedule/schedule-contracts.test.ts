@@ -615,18 +615,19 @@ describe("Schedule Domain Contracts", () => {
     const sessionStart = "2026-09-01T18:00:00Z";
 
     it("returns 'attended' when checking in before session start", () => {
-      const checkIn = "2026-09-01T17:50:00Z";
-      expect(determinePunctuality(sessionStart, checkIn)).toBe("attended");
+      expect(determinePunctuality(sessionStart, "2026-09-01T17:50:00Z")).toBe("attended");
     });
 
-    it("returns 'attended' when checking in within 15 minutes after session start", () => {
-      const checkIn = "2026-09-01T18:14:59Z";
-      expect(determinePunctuality(sessionStart, checkIn)).toBe("attended");
+    it("returns 'attended' exactly at session start", () => {
+      expect(determinePunctuality(sessionStart, "2026-09-01T18:00:00Z")).toBe("attended");
     });
 
-    it("returns 'late' when checking in more than 15 minutes after session start", () => {
-      const checkIn = "2026-09-01T18:16:00Z";
-      expect(determinePunctuality(sessionStart, checkIn)).toBe("late");
+    it("returns 'late' one second after session start: the class has begun", () => {
+      expect(determinePunctuality(sessionStart, "2026-09-01T18:00:01Z")).toBe("late");
+    });
+
+    it("keeps an explicit threshold for callers that pass one", () => {
+      expect(determinePunctuality(sessionStart, "2026-09-01T18:10:00Z", 15)).toBe("attended");
     });
   });
 

@@ -1200,12 +1200,13 @@ export function buildCorrectionAttendanceId(suffix?: string): string {
 
 /**
  * Determines punctuality state based on check-in timestamp relative to session start.
- * If check-in occurs within `lateThresholdMinutes` (default 15m) of startAt, returns 'attended', else 'late'.
+ * A check-in at or before `startAt` is 'attended'; anything after it is 'late'. The office asked
+ * (2026-09-12) for the class start to be the line, so the default threshold is 0 minutes.
  */
 export function determinePunctuality(
   sessionStartAtIso: string,
   checkInAtIso?: string,
-  lateThresholdMinutes = 15,
+  lateThresholdMinutes = 0,
 ): AttendanceState {
   const startMs = Date.parse(sessionStartAtIso);
   const checkInMs = checkInAtIso ? Date.parse(checkInAtIso) : Date.now();
