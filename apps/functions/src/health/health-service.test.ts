@@ -271,4 +271,56 @@ describe("health support store", () => {
       staffReferenceLabel: "Visual cue",
     });
   });
+
+  it("lists active profiles with a label, named from the canonical student, and nothing else", async () => {
+    const seeded = createFakeFirestore({
+      "academies/academy-1/students/student-1": {
+        ...student,
+        studentId: "student-1",
+        fullName: "Ana Coelho",
+      },
+      "academies/academy-1/students/student-2": {
+        ...student,
+        studentId: "student-2",
+        fullName: "Bo Silva",
+      },
+      "academies/academy-1/students/student-3": {
+        ...student,
+        studentId: "student-3",
+        fullName: "Cai Marques",
+      },
+    });
+    const store = createHealthStore({ firestore: seeded.firestore });
+    await store.saveHealthProfile({
+      ...saveInput,
+      studentId: "student-1",
+      staffReferenceLabel: "ASTHMA-INHALER",
+    });
+    await store.saveHealthProfile({
+      ...saveInput,
+      studentId: "student-2",
+      staffReferenceLabel: null,
+    });
+    await store.saveHealthProfile({
+      ...saveInput,
+      studentId: "student-3",
+      staffReferenceLabel: "KNEE-BRACE",
+    });
+    await store.deactivateHealthProfile({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      studentId: "student-3",
+    });
+    // student-4 has an active health profile but no canonical student document (deleted after the fact).
+    seeded.records.set("academies/academy-1/healthProfiles/student-4", {
+      ...seeded.records.get("academies/academy-1/healthProfiles/student-1"),
+      healthProfileId: "student-4",
+      studentId: "student-4",
+      staffReferenceLabel: "NO-STUDENT-DOC",
+    });
+
+    await expect(store.listReferences({ academyId: "academy-1" })).resolves.toEqual([
+      { studentId: "student-1", displayName: "Ana Coelho", staffReferenceLabel: "ASTHMA-INHALER" },
+    ]);
+  });
 });

@@ -21,6 +21,7 @@ export type HealthCallableServices = Readonly<{
   now?: () => string;
 }>;
 const roles = ["owner", "administrator", "headCoach", "coach", "guardian"] as const;
+const staffRoles = ["owner", "administrator", "headCoach", "coach"] as const;
 
 function pilot(services: HealthCallableServices): void {
   if (services.pilotEnabled !== true)
@@ -118,7 +119,8 @@ export async function saveHealthProfileHandler(
   services: HealthCallableServices,
 ) {
   pilot(services);
-  const actor = requireRole(request, ["owner", "administrator"]);
+  // The mat keeps the 25-character label (operator decision 2026-09-12, ADR-010).
+  const actor = requireRole(request, staffRoles);
   const payload = parseInput<HealthProfileSaveInput>(request.data, parseHealthProfileSaveInput);
   try {
     return await services.store.saveHealthProfile({
@@ -202,6 +204,19 @@ export async function reviewHealthProfileChangeRequestHandler(
     return mapError(error, "write");
   }
 }
+export async function listHealthReferencesHandler(
+  request: CallableRequest<unknown>,
+  services: HealthCallableServices,
+) {
+  pilot(services);
+  const actor = requireRole(request, staffRoles);
+  if (request.data !== null && request.data !== undefined) invalidPayload();
+  try {
+    return { references: await services.store.listReferences({ academyId: actor.academyId }) };
+  } catch (error) {
+    return mapError(error, "read");
+  }
+}
 function callableServices(): HealthCallableServices {
   return {
     pilotEnabled: process.env.BPT_SYNTHETIC_PILOT === "true",
@@ -230,4 +245,7 @@ export const cancelHealthProfileChangeRequest = onCall(healthCallableOptions, (r
 );
 export const reviewHealthProfileChangeRequest = onCall(healthCallableOptions, (request) =>
   reviewHealthProfileChangeRequestHandler(request, callableServices()),
+);
+export const listHealthReferences = onCall(healthCallableOptions, (request) =>
+  listHealthReferencesHandler(request, callableServices()),
 );
