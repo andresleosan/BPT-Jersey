@@ -346,7 +346,7 @@ export function ShopAdminPage() {
                   <h3 id="shop-products-title">Products</h3>
                 </div>
                 <button
-                  className="admin-quick-action"
+                  className="button button-secondary"
                   onClick={startNewProduct}
                   type="button"
                   disabled={busy !== undefined}
