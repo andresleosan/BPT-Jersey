@@ -97,6 +97,74 @@
   font-weight: 900;
 }
 
+.admin-birthday-today {
+  background: #f0efff;
+  border: 1px solid #d9d6ff;
+  border-left: 0.35rem solid var(--bpt-purple);
+  margin: 1.5rem 0 0;
+  padding: 1rem 1.15rem;
+}
+
+.admin-birthday-today h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  line-height: 0.92;
+  margin: 0.3rem 0 0.6rem;
+  text-transform: uppercase;
+}
+
+.admin-birthday-today-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-birthday-badge {
+  background: #d9f36a;
+  color: var(--mat-ink);
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.55rem;
+  text-transform: uppercase;
+}
+
+.admin-birthday-list {
+  display: grid;
+  gap: 0.7rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-birthday-list li {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 0.2rem 0.8rem;
+  grid-template-columns: minmax(6.5rem, auto) minmax(0, 1fr);
+  padding-bottom: 0.7rem;
+}
+
+.admin-birthday-date {
+  color: var(--bpt-purple);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-birthday-age {
+  color: var(--muted);
+  font-size: 0.85rem;
+  grid-column: 2;
+}
+
 .admin-icon-button:hover,
 .admin-icon-button:focus-visible {
   background: var(--bpt-purple);
