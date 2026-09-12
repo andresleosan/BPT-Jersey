@@ -4,42 +4,6 @@
   --attendance-alert: #9f2f25;
 }
 
-.attendance-credential-note {
-  align-items: center;
-  background: var(--mat-ink);
-  color: var(--gi-white);
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: auto minmax(0, 1fr);
-  padding: 1rem 1.15rem;
-}
-
-.attendance-credential-mark {
-  align-items: center;
-  border: 1px solid rgb(255 255 255 / 45%);
-  display: inline-flex;
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: 1.35rem;
-  height: 3rem;
-  justify-content: center;
-  letter-spacing: 0.04em;
-  width: 3rem;
-}
-
-.attendance-credential-note strong {
-  font-size: 0.78rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.attendance-credential-note p {
-  color: rgb(255 255 255 / 76%);
-  font-size: 0.85rem;
-  line-height: 1.55;
-  margin: 0.3rem 0 0;
-  max-width: 58rem;
-}
-
 .attendance-session-strip {
   background: var(--gi-white);
   border-left: 0.3rem solid var(--bpt-purple);
