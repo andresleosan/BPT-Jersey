@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type {
   AttendanceState as CanonicalAttendanceState,
   LocationId,
@@ -121,11 +121,26 @@ export function AttendancePage() {
   const [operationError, setOperationError] = useState("");
   const [notice, setNotice] = useState("");
   const [busyKey, setBusyKey] = useState<string>();
-  const [premises, setPremises] = useState<LocationId>(savedPremises);
+  // "town" on the server-prerendered markup and until the effect below seeds the saved choice
+  // after mount, so the static export never hydration-mismatches against localStorage.
+  const [premises, setPremises] = useState<LocationId>("town");
   const [sessionsOfDay, setSessionsOfDay] = useState<readonly SessionRecord[]>(EMPTY_SESSIONS);
   const [rosters, setRosters] = useState<Readonly<Record<string, SessionRosterState>>>({});
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [busyStudentId, setBusyStudentId] = useState<string>();
+  const mountedRef = useRef(true);
+  const rosterRequests = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    setPremises(savedPremises());
+  }, []);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -168,13 +183,17 @@ export function AttendancePage() {
   );
 
   const loadRoster = useCallback(async (sessionId: string) => {
+    const seq = (rosterRequests.current[sessionId] = (rosterRequests.current[sessionId] ?? 0) + 1);
+    const isCurrent = () => mountedRef.current && rosterRequests.current[sessionId] === seq;
     try {
       const view = await getPreClassView(sessionId);
+      if (!isCurrent()) return;
       setRosters((current) => ({
         ...current,
         [sessionId]: { status: "ready", attendees: view.attendees },
       }));
     } catch {
+      if (!isCurrent()) return;
       setRosters((current) => ({ ...current, [sessionId]: { status: "error" } }));
     }
   }, []);
@@ -194,9 +213,11 @@ export function AttendancePage() {
     );
     readAll();
     const timer = setInterval(readAll, rosterPollMs);
+    document.addEventListener("visibilitychange", readAll);
     return () => {
       active = false;
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", readAll);
     };
   }, [siteSessionIds, loadRoster]);
 
@@ -208,6 +229,24 @@ export function AttendancePage() {
       // Ignore storage errors; the choice still applies to this visit.
     }
   }
+
+  const refreshAfterSuccess = useCallback(
+    async (successMessage: string): Promise<void> => {
+      setData({ status: "loading", date });
+      try {
+        const nextViews = await loadAttendanceViews(date);
+        setData({ status: "ready", date, views: nextViews });
+        setSessionsOfDay(nextViews.map((view) => view.session));
+        setNotice(successMessage);
+      } catch {
+        setData({ status: "error", date });
+        setOperationError(
+          `${successMessage} The connected roster could not be refreshed; reload before another action.`,
+        );
+      }
+    },
+    [date],
+  );
 
   const handleClockIn = useCallback(
     async (sessionId: string, studentId: string, displayName: string): Promise<void> => {
@@ -227,8 +266,7 @@ export function AttendancePage() {
         setBusyKey(undefined);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshAfterSuccess and date are stable per date/render cycle
-    [loadRoster],
+    [loadRoster, refreshAfterSuccess],
   );
   const rows = useMemo(() => rowsFromViews(views), [views]);
   const sessionOptions = useMemo(
@@ -255,21 +293,6 @@ export function AttendancePage() {
       (stateFilter === "All states" || item.stateLabel === stateFilter),
   );
   const busy = busyKey !== undefined;
-
-  async function refreshAfterSuccess(successMessage: string): Promise<void> {
-    setData({ status: "loading", date });
-    try {
-      const nextViews = await loadAttendanceViews(date);
-      setData({ status: "ready", date, views: nextViews });
-      setSessionsOfDay(nextViews.map((view) => view.session));
-      setNotice(successMessage);
-    } catch {
-      setData({ status: "error", date });
-      setOperationError(
-        `${successMessage} The connected roster could not be refreshed; reload before another action.`,
-      );
-    }
-  }
 
   async function handleCheckIn(row: AttendanceRow): Promise<void> {
     setBusyKey(`check-in:${row.sessionId}:${row.studentId}`);
