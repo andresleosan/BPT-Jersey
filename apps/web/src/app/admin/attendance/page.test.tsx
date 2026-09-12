@@ -10,6 +10,7 @@ import type {
 
 const schedule = vi.hoisted(() => ({
   correctAttendance: vi.fn(),
+  getPreClassView: vi.fn(),
   getSessionOperationalView: vi.fn(),
   listSessions: vi.fn(),
   reconcileSessionNoShows: vi.fn(),
@@ -135,10 +136,42 @@ function view(
   };
 }
 
+const preClass = {
+  session,
+  attendees: [
+    {
+      studentId: "student-attended",
+      displayName: "Ana Ready",
+      source: "booked" as const,
+      status: "attended" as const,
+      attendedCount: 0,
+      comparableSessionCount: 0,
+      lastAttendedAt: null,
+    },
+    {
+      studentId: "student-pending",
+      displayName: "Ben Booked",
+      source: "booked" as const,
+      status: "booked_not_arrived" as const,
+      attendedCount: 0,
+      comparableSessionCount: 0,
+      lastAttendedAt: null,
+    },
+  ],
+  evidence: {
+    open: true,
+    windowDays: 56,
+    bookedCount: 2,
+    suggestedCount: 0,
+    comparableSessionCount: 0,
+  },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   schedule.listSessions.mockResolvedValue([session]);
   schedule.getSessionOperationalView.mockResolvedValue(view());
+  schedule.getPreClassView.mockResolvedValue(preClass);
   schedule.recordCheckIn.mockResolvedValue(attended);
   schedule.reconcileSessionNoShows.mockResolvedValue({ noShowsMarked: 1, records: [] });
   schedule.correctAttendance.mockResolvedValue({
@@ -165,6 +198,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
 });
 
 describe("attendance page", () => {
@@ -175,9 +209,9 @@ describe("attendance page", () => {
       .mockResolvedValueOnce(view("attended"))
       .mockResolvedValueOnce(view("no_show"));
     render(<AttendancePage />);
+    await user.click(await screen.findByText("Corrections and closeout"));
 
     expect(await screen.findByText("student-pending")).toBeVisible();
-    expect(screen.getByText(/QR and PIN check-in are unavailable/i)).toBeVisible();
     expect(
       screen.queryByRole("button", { name: /Check out student-pending/i }),
     ).not.toBeInTheDocument();
@@ -296,8 +330,75 @@ describe("attendance page", () => {
     schedule.listSessions.mockResolvedValue([]);
     render(<AttendancePage />);
     expect(screen.getByRole("heading", { name: "Attendance" })).toBeVisible();
+    await userEvent.click(await screen.findByText("Corrections and closeout"));
     expect(screen.getByLabelText("Attendance state")).toBeVisible();
     expect(await screen.findByText(/No connected attendance records/i)).toBeVisible();
     expect(screen.queryByText("student-pending")).not.toBeInTheDocument();
+  });
+
+  it("stacks one roster block per session of the chosen premises and hides the rest", async () => {
+    const west = {
+      ...session,
+      sessionId: "session-west",
+      locationId: "west" as const,
+      title: "West Kids",
+    };
+    schedule.listSessions.mockResolvedValue([session, west]);
+    schedule.getSessionOperationalView.mockImplementation((sessionId: string) =>
+      Promise.resolve(sessionId === "session-west" ? { ...view(), session: west } : view()),
+    );
+    render(<AttendancePage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Connected fundamentals · Coach coach-1" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("heading", { name: /West Kids/ })).not.toBeInTheDocument();
+    expect(schedule.getPreClassView).toHaveBeenCalledWith("session-connected-1");
+    expect(schedule.getPreClassView).not.toHaveBeenCalledWith("session-west");
+
+    await userEvent.click(screen.getByRole("radio", { name: "West (St Peter)" }));
+    expect(await screen.findByRole("heading", { name: "West Kids · Coach coach-1" })).toBeVisible();
+    expect(window.localStorage.getItem("bpt_coach_premises")).toBe("west");
+  });
+
+  it("clocks a booked member in manually and refreshes that roster", async () => {
+    schedule.recordCheckIn.mockResolvedValue(attended);
+    render(<AttendancePage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Clock in Ben Booked" }));
+
+    expect(schedule.recordCheckIn).toHaveBeenCalledWith({
+      sessionId: "session-connected-1",
+      studentId: "student-pending",
+      method: "manual",
+    });
+    await waitFor(() =>
+      expect(schedule.getPreClassView.mock.calls.length).toBeGreaterThanOrEqual(2),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Clock-in recorded for Ben Booked.",
+    );
+  });
+
+  it("re-reads the rosters every thirty seconds while the page is open", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(<AttendancePage />);
+      await waitFor(() => expect(schedule.getPreClassView).toHaveBeenCalledTimes(1));
+      await vi.advanceTimersByTimeAsync(30_000);
+      await waitFor(() =>
+        expect(schedule.getPreClassView.mock.calls.length).toBeGreaterThanOrEqual(2),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the corrections table, folded under a summary", async () => {
+    render(<AttendancePage />);
+    const details = (await screen.findByText("Corrections and closeout")).closest("details");
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute("open");
+    await userEvent.click(screen.getByText("Corrections and closeout"));
+    expect(screen.getByRole("table", { name: "Attendance roster" })).toBeVisible();
   });
 });

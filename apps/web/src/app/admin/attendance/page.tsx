@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import type {
   AttendanceState as CanonicalAttendanceState,
+  LocationId,
   RecordCheckoutInput,
   SessionOperationalStatus,
   SessionOperationalView,
+  SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
 import {
   correctAttendance,
+  getPreClassView,
   getSessionOperationalView,
   listSessions,
   reconcileSessionNoShows,
@@ -19,6 +22,7 @@ import {
 import { AdminFilterBar, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
 import { AttendanceDialog, type AttendanceDialogState } from "./attendance-dialog";
+import { SessionRoster, type SessionRosterState } from "./session-roster";
 
 import "../admin.css";
 import "./attendance.css";
@@ -87,6 +91,20 @@ function correctionInitialState(status: SessionOperationalStatus): CanonicalAtte
 }
 
 const EMPTY_VIEWS: readonly SessionOperationalView[] = Object.freeze([]);
+const EMPTY_SESSIONS: readonly SessionRecord[] = Object.freeze([]);
+
+const premisesStorageKey = "bpt_coach_premises"; // shared with /coach so both remember the same site
+const rosterPollMs = 30_000;
+
+function savedPremises(): LocationId {
+  try {
+    const saved = localStorage.getItem(premisesStorageKey);
+    if (saved === "town" || saved === "west") return saved;
+  } catch {
+    // Storage can be unavailable; Town is the default site.
+  }
+  return "town";
+}
 
 export function AttendancePage() {
   const [date, setDate] = useState(todayDate);
@@ -103,6 +121,11 @@ export function AttendancePage() {
   const [operationError, setOperationError] = useState("");
   const [notice, setNotice] = useState("");
   const [busyKey, setBusyKey] = useState<string>();
+  const [premises, setPremises] = useState<LocationId>(savedPremises);
+  const [sessionsOfDay, setSessionsOfDay] = useState<readonly SessionRecord[]>(EMPTY_SESSIONS);
+  const [rosters, setRosters] = useState<Readonly<Record<string, SessionRosterState>>>({});
+  const [clockMs, setClockMs] = useState(() => Date.now());
+  const [busyStudentId, setBusyStudentId] = useState<string>();
 
   useEffect(() => {
     let active = true;
@@ -110,8 +133,10 @@ export function AttendancePage() {
     setOperationError("");
     setNotice("");
     void loadAttendanceViews(date).then(
-      (views) => {
-        if (active) setData({ status: "ready", date, views });
+      (nextViews) => {
+        if (!active) return;
+        setData({ status: "ready", date, views: nextViews });
+        setSessionsOfDay(nextViews.map((view) => view.session));
       },
       () => {
         if (active) setData({ status: "error", date });
@@ -126,6 +151,84 @@ export function AttendancePage() {
   const views = useMemo(
     () => (!isLoading && data.status === "ready" ? data.views : EMPTY_VIEWS),
     [isLoading, data],
+  );
+  // Kept from the last ready load or refresh, on purpose: `views` resets to empty while the
+  // table reloads, and deriving the roster blocks from it would unmount and flash every one.
+  const siteSessions = useMemo(
+    () =>
+      sessionsOfDay
+        .filter((s) => s.locationId === premises)
+        .slice()
+        .sort((a, b) => a.startAt.localeCompare(b.startAt)),
+    [sessionsOfDay, premises],
+  );
+  const siteSessionIds = useMemo(
+    () => siteSessions.map((s) => s.sessionId).join(","),
+    [siteSessions],
+  );
+
+  const loadRoster = useCallback(async (sessionId: string) => {
+    try {
+      const view = await getPreClassView(sessionId);
+      setRosters((current) => ({
+        ...current,
+        [sessionId]: { status: "ready", attendees: view.attendees },
+      }));
+    } catch {
+      setRosters((current) => ({ ...current, [sessionId]: { status: "error" } }));
+    }
+  }, []);
+
+  // Rosters of the chosen site, re-read every thirty seconds while the tab is visible.
+  useEffect(() => {
+    if (siteSessionIds.length === 0) return;
+    const ids = siteSessionIds.split(",");
+    let active = true;
+    const readAll = () => {
+      if (!active || document.hidden) return;
+      setClockMs(Date.now());
+      ids.forEach((id) => void loadRoster(id));
+    };
+    setRosters((current) =>
+      Object.fromEntries(ids.map((id) => [id, current[id] ?? { status: "loading" }])),
+    );
+    readAll();
+    const timer = setInterval(readAll, rosterPollMs);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [siteSessionIds, loadRoster]);
+
+  function choosePremises(next: LocationId): void {
+    setPremises(next);
+    try {
+      localStorage.setItem(premisesStorageKey, next);
+    } catch {
+      // Ignore storage errors; the choice still applies to this visit.
+    }
+  }
+
+  const handleClockIn = useCallback(
+    async (sessionId: string, studentId: string, displayName: string): Promise<void> => {
+      setBusyStudentId(studentId);
+      setBusyKey(`clock-in:${sessionId}:${studentId}`);
+      setOperationError("");
+      setNotice("");
+      try {
+        await recordCheckIn({ sessionId, studentId, method: "manual" });
+        await loadRoster(sessionId);
+        setClockMs(Date.now());
+        await refreshAfterSuccess(`Clock-in recorded for ${displayName}.`);
+      } catch {
+        setOperationError("Unable to record the clock-in. Nothing was changed.");
+      } finally {
+        setBusyStudentId(undefined);
+        setBusyKey(undefined);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshAfterSuccess and date are stable per date/render cycle
+    [loadRoster],
   );
   const rows = useMemo(() => rowsFromViews(views), [views]);
   const sessionOptions = useMemo(
@@ -158,6 +261,7 @@ export function AttendancePage() {
     try {
       const nextViews = await loadAttendanceViews(date);
       setData({ status: "ready", date, views: nextViews });
+      setSessionsOfDay(nextViews.map((view) => view.session));
       setNotice(successMessage);
     } catch {
       setData({ status: "error", date });
@@ -381,20 +485,20 @@ export function AttendancePage() {
         title="Attendance"
       />
 
-      <aside className="attendance-credential-note" aria-labelledby="credential-note-title">
-        <span aria-hidden="true" className="attendance-credential-mark">
-          ID
-        </span>
-        <div>
-          <strong id="credential-note-title">Verified check-in only</strong>
-          <p>
-            QR and PIN check-in are unavailable until the backend exposes verifiable credentials.
-            Use manual roster check-in; no code entered here is treated as identity proof.
-          </p>
-        </div>
-      </aside>
-
-      <AdminFilterBar>
+      <div className="attendance-premises" role="radiogroup" aria-label="Premises">
+        <span className="attendance-premises-label">Premises</span>
+        {(["town", "west"] as const).map((site) => (
+          <button
+            aria-checked={premises === site}
+            className="attendance-premises-button"
+            key={site}
+            onClick={() => choosePremises(site)}
+            role="radio"
+            type="button"
+          >
+            {site === "town" ? "Town (St Helier)" : "West (St Peter)"}
+          </button>
+        ))}
         <label className="admin-filter-control">
           Date
           <input
@@ -405,97 +509,7 @@ export function AttendancePage() {
             value={date}
           />
         </label>
-        <label className="admin-filter-control">
-          Session
-          <select
-            aria-label="Attendance session"
-            onChange={(event) => setSession(event.target.value)}
-            value={session}
-          >
-            <option>All sessions</option>
-            {sessionOptions.slice(1).map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-filter-control">
-          Session ID
-          <select
-            aria-label="Attendance group"
-            onChange={(event) => setGroup(event.target.value)}
-            value={group}
-          >
-            <option>All sessions</option>
-            {groupOptions.slice(1).map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-filter-control">
-          Instructor
-          <select
-            aria-label="Attendance coach"
-            onChange={(event) => setCoach(event.target.value)}
-            value={coach}
-          >
-            <option>All instructors</option>
-            {coachOptions.slice(1).map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-filter-control">
-          State
-          <select
-            aria-label="Attendance state"
-            onChange={(event) => setStateFilter(event.target.value)}
-            value={stateFilter}
-          >
-            <option>All states</option>
-            {stateOptions.slice(1).map((option) => (
-              <option key={option}>{option}</option>
-            ))}
-          </select>
-        </label>
-      </AdminFilterBar>
-
-      {views.length > 0 ? (
-        <section className="attendance-session-strip" aria-labelledby="session-operations-title">
-          <div className="attendance-session-strip-heading">
-            <div>
-              <p className="admin-eyebrow">Session closeout</p>
-              <h3 id="session-operations-title">Mark no-shows by session</h3>
-            </div>
-            <span>{views.length} connected</span>
-          </div>
-          <div className="attendance-session-list">
-            {views.map((view) => (
-              <article className="attendance-session-item" key={view.session.sessionId}>
-                <div>
-                  <strong>{view.session.title}</strong>
-                  <span>
-                    {view.session.startAt.slice(11, 16)} / {view.session.sessionId}
-                  </span>
-                </div>
-                <p>
-                  {view.summary.totalPendingArrival} pending · {view.summary.totalNoShows} no-show
-                </p>
-                <button
-                  aria-label={`Mark no-shows for ${view.session.title}`}
-                  className="attendance-action-button attendance-action-button-primary"
-                  disabled={busy || view.session.status === "cancelled"}
-                  onClick={() => void handleNoShows(view)}
-                  type="button"
-                >
-                  {busyKey === `no-shows:${view.session.sessionId}`
-                    ? "Marking..."
-                    : "Mark no-shows"}
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      </div>
 
       {operationError ? (
         <p className="attendance-operation-message attendance-operation-error" role="alert">
@@ -508,38 +522,161 @@ export function AttendancePage() {
         </p>
       ) : null}
 
-      <section className="admin-panel-card" aria-labelledby="attendance-table-title">
-        <div className="admin-panel-card-heading">
-          <div>
-            <p className="admin-eyebrow">Canonical daily roster</p>
-            <h3 id="attendance-table-title">Today&apos;s attendance</h3>
-          </div>
-          <span className="admin-status-badge admin-status-active">
-            {data.status === "ready"
-              ? "Connected"
-              : data.status === "error"
-                ? "Unavailable"
-                : "Loading"}
-          </span>
-        </div>
-        {isLoading ? <p role="status">Loading connected attendance...</p> : null}
-        {!isLoading && data.status === "error" ? (
-          <p className="admin-report-state" role="alert">
-            Unable to load connected attendance. No synthetic data was displayed.
-          </p>
-        ) : null}
-        {!isLoading && data.status === "ready" && filteredRows.length > 0 ? (
-          <AdminDataTable
-            caption="Attendance roster"
-            columns={columns}
-            rowKey={(item) => `${item.sessionId}-${item.studentId}`}
-            rows={filteredRows}
+      {isLoading ? <p role="status">Loading today&apos;s classes...</p> : null}
+      {!isLoading && data.status === "ready" && siteSessions.length === 0 ? (
+        <p className="admin-empty-state">
+          No classes at {premises === "town" ? "Town" : "West"} on this date.
+        </p>
+      ) : null}
+      <div className="attendance-session-blocks">
+        {siteSessions.map((s) => (
+          <SessionRoster
+            {...(busyStudentId !== undefined ? { busyStudentId } : {})}
+            key={s.sessionId}
+            nowMs={clockMs}
+            onClockIn={(studentId, displayName) =>
+              void handleClockIn(s.sessionId, studentId, displayName)
+            }
+            roster={rosters[s.sessionId] ?? { status: "loading" }}
+            session={s}
           />
+        ))}
+      </div>
+      <p className="admin-sidebar-note">
+        Late is judged by the server at clock-in; the red tag is a reminder, not a record.
+      </p>
+
+      <details className="attendance-corrections">
+        <summary>Corrections and closeout</summary>
+
+        <AdminFilterBar>
+          <label className="admin-filter-control">
+            Session
+            <select
+              aria-label="Attendance session"
+              onChange={(event) => setSession(event.target.value)}
+              value={session}
+            >
+              <option>All sessions</option>
+              {sessionOptions.slice(1).map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-filter-control">
+            Session ID
+            <select
+              aria-label="Attendance group"
+              onChange={(event) => setGroup(event.target.value)}
+              value={group}
+            >
+              <option>All sessions</option>
+              {groupOptions.slice(1).map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-filter-control">
+            Instructor
+            <select
+              aria-label="Attendance coach"
+              onChange={(event) => setCoach(event.target.value)}
+              value={coach}
+            >
+              <option>All instructors</option>
+              {coachOptions.slice(1).map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-filter-control">
+            State
+            <select
+              aria-label="Attendance state"
+              onChange={(event) => setStateFilter(event.target.value)}
+              value={stateFilter}
+            >
+              <option>All states</option>
+              {stateOptions.slice(1).map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+        </AdminFilterBar>
+
+        {views.length > 0 ? (
+          <section className="attendance-session-strip" aria-labelledby="session-operations-title">
+            <div className="attendance-session-strip-heading">
+              <div>
+                <p className="admin-eyebrow">Session closeout</p>
+                <h3 id="session-operations-title">Mark no-shows by session</h3>
+              </div>
+              <span>{views.length} connected</span>
+            </div>
+            <div className="attendance-session-list">
+              {views.map((view) => (
+                <article className="attendance-session-item" key={view.session.sessionId}>
+                  <div>
+                    <strong>{view.session.title}</strong>
+                    <span>
+                      {view.session.startAt.slice(11, 16)} / {view.session.sessionId}
+                    </span>
+                  </div>
+                  <p>
+                    {view.summary.totalPendingArrival} pending · {view.summary.totalNoShows} no-show
+                  </p>
+                  <button
+                    aria-label={`Mark no-shows for ${view.session.title}`}
+                    className="attendance-action-button attendance-action-button-primary"
+                    disabled={busy || view.session.status === "cancelled"}
+                    onClick={() => void handleNoShows(view)}
+                    type="button"
+                  >
+                    {busyKey === `no-shows:${view.session.sessionId}`
+                      ? "Marking..."
+                      : "Mark no-shows"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
         ) : null}
-        {!isLoading && data.status === "ready" && filteredRows.length === 0 ? (
-          <p className="admin-empty-state">No connected attendance records match these filters.</p>
-        ) : null}
-      </section>
+
+        <section className="admin-panel-card" aria-labelledby="attendance-table-title">
+          <div className="admin-panel-card-heading">
+            <div>
+              <p className="admin-eyebrow">Canonical daily roster</p>
+              <h3 id="attendance-table-title">Today&apos;s attendance</h3>
+            </div>
+            <span className="admin-status-badge admin-status-active">
+              {data.status === "ready"
+                ? "Connected"
+                : data.status === "error"
+                  ? "Unavailable"
+                  : "Loading"}
+            </span>
+          </div>
+          {isLoading ? <p role="status">Loading connected attendance...</p> : null}
+          {!isLoading && data.status === "error" ? (
+            <p className="admin-report-state" role="alert">
+              Unable to load connected attendance. No synthetic data was displayed.
+            </p>
+          ) : null}
+          {!isLoading && data.status === "ready" && filteredRows.length > 0 ? (
+            <AdminDataTable
+              caption="Attendance roster"
+              columns={columns}
+              rowKey={(item) => `${item.sessionId}-${item.studentId}`}
+              rows={filteredRows}
+            />
+          ) : null}
+          {!isLoading && data.status === "ready" && filteredRows.length === 0 ? (
+            <p className="admin-empty-state">
+              No connected attendance records match these filters.
+            </p>
+          ) : null}
+        </section>
+      </details>
 
       {dialog ? (
         <AttendanceDialog
