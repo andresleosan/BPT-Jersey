@@ -44,20 +44,18 @@ describe("operational report callable", () => {
 
     await expect(handler(request(query, "owner"))).resolves.toEqual({ report });
     await expect(handler(request(query, "administrator"))).resolves.toEqual({ report });
+    await expect(handler(request(query, "headCoach"))).resolves.toEqual({ report });
+    await expect(handler(request(query, "coach"))).resolves.toEqual({ report });
   });
 
-  it("rejects non-financial roles, unauthenticated calls and invalid ranges", async () => {
+  it("rejects client roles, unauthenticated calls and invalid ranges", async () => {
     const store: OperationalReportStore = {
       getOperationalReport: async () => report,
     };
     const handler = createGetOperationalReportHandler({ store });
 
-    await expect(handler(request(query, "coach"))).rejects.toThrow(
-      /Owner or administrator access required/,
-    );
-    await expect(handler(request(query, "guardian"))).rejects.toThrow(
-      /Owner or administrator access required/,
-    );
+    await expect(handler(request(query, "guardian"))).rejects.toThrow(/Staff access required/);
+    await expect(handler(request(query, "adultStudent"))).rejects.toThrow(/Staff access required/);
     await expect(handler(request(query, "owner", null))).rejects.toThrow();
     await expect(
       handler(
