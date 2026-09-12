@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AdminSession } from "../../lib/admin-auth";
 import type { StaffSession } from "../../lib/staff-auth";
 import { AdminIcon } from "./admin-icons";
+import { staffRoutes } from "./admin-routes";
 
 import "./admin.css";
 
@@ -19,7 +20,9 @@ type NavigationGroup = Readonly<{ label: string; items: readonly NavigationItem[
  * The pilot navigation: what the office and the coaches use in a normal day, grouped by job.
  * Working modules outside the pilot scope (class waitlists, CRM, retention, lesson plans) keep
  * their routes, callables and tests but are not listed here; Families is reached from Members and
- * the finance dashboard from Billing.
+ * the finance dashboard from Billing. Memberships and waivers keep their routes
+ * (`/admin/memberships`, `/admin/waivers`) and tests but left the menu on 2026-09-12 at the
+ * operator's request.
  */
 const navigationGroups: readonly NavigationGroup[] = [
   {
@@ -34,8 +37,7 @@ const navigationGroups: readonly NavigationGroup[] = [
     items: [
       { label: "Members", href: "/admin/members" },
       { label: "Enrolment requests", href: "/admin/members/requests" },
-      { label: "Memberships", href: "/admin/memberships" },
-      { label: "Waivers", href: "/admin/waivers" },
+      { label: "Medical conditions", href: "/admin/members/medical" },
     ],
   },
   {
@@ -60,11 +62,6 @@ const navigationGroups: readonly NavigationGroup[] = [
     ],
   },
 ];
-
-const coachRoutes: Readonly<Record<StaffSession["role"], readonly string[]>> = {
-  headCoach: ["/admin/attendance", "/admin/classes"],
-  coach: ["/admin/attendance"],
-};
 
 function isStaffRole(
   role: AdminSession["role"] | StaffSession["role"],
@@ -97,7 +94,7 @@ export function AdminShell({
    * instead of leaving a gap, and is not repeated underneath.
    */
   const personName = session.displayName.trim();
-  const allowedRoutes = isStaffRole(session.role) ? coachRoutes[session.role] : undefined;
+  const allowedRoutes = isStaffRole(session.role) ? staffRoutes[session.role] : undefined;
   const visibleGroups = navigationGroups
     .map((group) => ({
       ...group,

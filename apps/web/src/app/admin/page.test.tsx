@@ -25,8 +25,7 @@ const pilotNavigation = [
   "Attendance",
   "Members",
   "Enrolment requests",
-  "Memberships",
-  "Waivers",
+  "Medical conditions",
   "Classes",
   "Levels",
   "Billing",
@@ -212,7 +211,7 @@ describe("administrative shell", () => {
     ).toBeNull();
   });
 
-  it("shows a coach only the attendance module plus a way back to the coach portal", () => {
+  it("shows a coach the mat modules plus a way back to the coach portal", () => {
     const coachSession = {
       ...syntheticSession,
       role: "coach" as const,
@@ -230,7 +229,7 @@ describe("administrative shell", () => {
       within(navigation)
         .queryAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["->Attendance"]);
+    ).toEqual(["->Overview", "->Attendance", "->Enrolment requests", "->Medical conditions"]);
     expect(screen.getByRole("link", { name: "Coach portal" })).toHaveAttribute("href", "/coach");
     expect(screen.getByText("Coach attendance access")).toBeVisible();
   });
@@ -253,7 +252,28 @@ describe("administrative shell", () => {
       within(navigation)
         .queryAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["->Attendance", "->Classes"]);
+    ).toEqual([
+      "->Overview",
+      "->Attendance",
+      "->Enrolment requests",
+      "->Medical conditions",
+      "->Classes",
+    ]);
+  });
+
+  it("no longer lists memberships or waivers, though their routes still exist", () => {
+    render(
+      <AdminShell session={syntheticSession}>
+        <p>Content</p>
+      </AdminShell>,
+    );
+    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    expect(within(navigation).queryByRole("link", { name: "Memberships" })).toBeNull();
+    expect(within(navigation).queryByRole("link", { name: "Waivers" })).toBeNull();
+    expect(within(navigation).getByRole("link", { name: "Medical conditions" })).toHaveAttribute(
+      "href",
+      "/admin/members/medical",
+    );
   });
 
   it("marks Members active without leaving legacy hash links", () => {
