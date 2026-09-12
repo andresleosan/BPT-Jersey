@@ -85,3 +85,37 @@ export function birthdayWhenLabel(daysAway: number): string {
   if (daysAway === 1) return "Tomorrow";
   return `In ${daysAway} days`;
 }
+
+const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const monthLabels = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+const jerseyDay = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Jersey",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * "Sun 20 Sep": the day of the birthday, counted from today's civil date in Jersey. The backend
+ * only says how many days away it is; the year of birth still never reaches the browser.
+ * ponytail: fixed weekday/month tables because en-GB Intl prints "Sept", and the office asked
+ * for "Sep".
+ */
+export function birthdayDateLabel(daysAway: number, nowMs: number = Date.now()): string {
+  const [year, month, day] = jerseyDay.format(new Date(nowMs)).split("-").map(Number);
+  const target = new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, (day ?? 1) + daysAway));
+  return `${weekdayLabels[target.getUTCDay()]} ${target.getUTCDate()} ${monthLabels[target.getUTCMonth()]}`;
+}
