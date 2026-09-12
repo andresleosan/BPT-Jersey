@@ -3,6 +3,7 @@ import {
   getHealthProfileHandler,
   listHealthReferencesHandler,
   saveHealthProfileHandler,
+  saveHealthReferenceLabelHandler,
   type HealthCallableServices,
 } from "./health-callables.js";
 const row = {
@@ -43,6 +44,10 @@ function services(pilotEnabled = true): HealthCallableServices {
       cancelChangeRequest: vi.fn(),
       reviewChangeRequest: vi.fn(),
       listReferences: vi.fn(async () => [row]),
+      saveReferenceLabel: vi.fn(async () => ({
+        studentId: "student-1",
+        staffReferenceLabel: "ASTHMA-INHALER",
+      })),
     } as never,
   };
 }
@@ -101,7 +106,7 @@ describe("health callables", () => {
     );
   });
 
-  it("lets the mat save the staff reference label", async () => {
+  it("keeps the whole medical record behind the office", async () => {
     const payload = {
       studentId: "student-1",
       minimumOperationalSupport: ["mobility"],
@@ -112,7 +117,26 @@ describe("health callables", () => {
     for (const role of ["headCoach", "coach"]) {
       await expect(
         saveHealthProfileHandler(request(payload, role), services()),
-      ).resolves.toMatchObject({ studentId: "student-1" });
+      ).rejects.toMatchObject({ code: "permission-denied" });
     }
+  });
+
+  it("lets every staff role save the reference label and nothing else", async () => {
+    const current = services();
+    const payload = { studentId: "student-1", staffReferenceLabel: "ASTHMA-INHALER" };
+    for (const role of ["owner", "administrator", "headCoach", "coach"]) {
+      await expect(
+        saveHealthReferenceLabelHandler(request(payload, role), current),
+      ).resolves.toEqual({ studentId: "student-1", staffReferenceLabel: "ASTHMA-INHALER" });
+    }
+    await expect(
+      saveHealthReferenceLabelHandler(request(payload, "guardian"), current),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      saveHealthReferenceLabelHandler(request({ ...payload, conditionSummary: "leak" }), current),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(
+      saveHealthReferenceLabelHandler(request(payload), services(false)),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 });

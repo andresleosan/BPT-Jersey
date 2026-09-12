@@ -6,8 +6,22 @@ const health = vi.hoisted(() => ({
   getHealthAdminProfile: vi.fn(),
   saveHealthProfile: vi.fn(),
   listHealthReferences: vi.fn(),
+  saveHealthReferenceLabel: vi.fn(),
 }));
 vi.mock("../../../../lib/health-client", () => health);
+
+const gate = vi.hoisted(() => ({
+  role: "owner" as "owner" | "administrator" | "headCoach" | "coach",
+}));
+vi.mock("../../admin-gate", () => ({
+  useAdminOrStaffSession: () => ({
+    uid: "u-1",
+    email: "u@example.test",
+    displayName: "Synthetic",
+    academyId: "academy-1",
+    role: gate.role,
+  }),
+}));
 
 import MedicalConditionsRoute from "./page";
 
@@ -17,6 +31,11 @@ const rows = [
 ];
 
 beforeEach(() => {
+  gate.role = "owner";
+  health.saveHealthReferenceLabel.mockResolvedValue({
+    studentId: "student-1",
+    staffReferenceLabel: "ASTHMA-INHALER",
+  });
   health.listHealthReferences.mockResolvedValue(rows);
   health.getHealthAdminProfile.mockResolvedValue({
     staffReferenceLabel: "ASTHMA-INHALER",
@@ -70,5 +89,31 @@ describe("medical conditions route", () => {
     health.listHealthReferences.mockResolvedValueOnce([]);
     await userEvent.click(screen.getByRole("button", { name: "Show all references" }));
     expect(await screen.findByText("No reference labels recorded yet.")).toBeVisible();
+  });
+
+  it("gives a coach the label form alone and never reads the medical record", async () => {
+    gate.role = "coach";
+    render(<MedicalConditionsRoute />);
+    expect(screen.queryByLabelText(/Condition summary/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Look up Medical Record" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Show all references" }));
+    const table = await screen.findByRole("table", { name: "Staff reference labels" });
+    const bodyRows = within(table).getAllByRole("row").slice(1);
+    await userEvent.click(
+      within(bodyRows[0] as HTMLElement).getByRole("button", { name: "Use student-1" }),
+    );
+    expect(health.getHealthAdminProfile).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Student ID")).toHaveValue("student-1");
+    expect(screen.getByRole("textbox", { name: /Staff reference label/ })).toHaveValue(
+      "ASTHMA-INHALER",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Save reference label" }));
+    expect(health.saveHealthReferenceLabel).toHaveBeenCalledWith("student-1", "ASTHMA-INHALER");
+    expect(health.saveHealthProfile).not.toHaveBeenCalled();
+    expect(await screen.findByText("Reference label saved for student student-1.")).toBeVisible();
   });
 });

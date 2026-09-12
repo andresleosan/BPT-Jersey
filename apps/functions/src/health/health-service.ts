@@ -5,6 +5,7 @@ import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/pro
 import {
   parseHealthProfile,
   parseHealthProfileChangeRequest,
+  healthReferenceLabelMaxLength,
   type HealthProfile,
   type HealthProfileAdminProjection,
   type HealthProfileChangeRequest,
@@ -89,6 +90,15 @@ export type HealthStore = Readonly<{
       decision: "approve" | "reject";
     }>,
   ) => Promise<HealthProfileChangeRequest>;
+  saveReferenceLabel: (
+    input: Readonly<{
+      academyId: string;
+      actorId: string;
+      now: string;
+      studentId: string;
+      staffReferenceLabel: string | null;
+    }>,
+  ) => Promise<Readonly<{ studentId: string; staffReferenceLabel: string | null }>>;
   listReferences: (
     input: Readonly<{ academyId: string }>,
   ) => Promise<readonly HealthReferenceRow[]>;
@@ -296,6 +306,21 @@ function buildProfile(
   const parsed = parseHealthProfile(base);
   if (!parsed.ok) throw new HealthStoreError("invalid", "Health profile contract rejected");
   return parsed.value;
+}
+/**
+ * The mat may only retype the short label. Same rule as `parseHealthProfileSaveInput` applies to
+ * `staffReferenceLabel`: trimmed, at most 25 characters, no angle brackets, empty means none.
+ */
+function referenceLabelValue(value: string | null): string | null {
+  if (value === null) return null;
+  if (
+    typeof value !== "string" ||
+    value.trim().length > healthReferenceLabelMaxLength ||
+    /[<>]/u.test(value)
+  )
+    throw new HealthStoreError("invalid", "Invalid staff reference label");
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
 }
 function buildRequest(
   input: Readonly<
@@ -522,6 +547,33 @@ export function createHealthStore(dependencies: HealthStoreDependencies): Health
         }
         transaction.set(requestReference, parsedRequest.value);
         return parsedRequest.value;
+      });
+    },
+    async saveReferenceLabel(input) {
+      const academyId = segment(input.academyId, "academy");
+      const actorId = segment(input.actorId, "actor");
+      const studentId = segment(input.studentId, "student");
+      nowValue(input.now);
+      const staffReferenceLabel = referenceLabelValue(input.staffReferenceLabel);
+      return dependencies.firestore.runTransaction(async (transaction) => {
+        const reference = dependencies.firestore.doc(healthPath(academyId, studentId));
+        const snapshot = asDocument(await transaction.get(reference));
+        if (!snapshot.exists)
+          throw new HealthStoreError("precondition", "Health profile is not available");
+        const current = storedProfile(snapshot, academyId, studentId);
+        if (current.status !== "active")
+          throw new HealthStoreError("precondition", "Health profile is not available");
+        // Every other field, the clinical note above all, comes back from the stored profile.
+        const next = {
+          ...current,
+          staffReferenceLabel,
+          updatedAt: input.now,
+          updatedBy: actorId,
+        };
+        const parsed = parseHealthProfile(next);
+        if (!parsed.ok) throw new HealthStoreError("invalid", "Health profile contract rejected");
+        transaction.set(reference, parsed.value);
+        return Object.freeze({ studentId, staffReferenceLabel });
       });
     },
     async listReferences({ academyId }) {

@@ -7,6 +7,7 @@ import {
   parseHealthProfileSaveInput,
   parseHealthProfileChangeRequestInput,
   isHealthReferenceRow,
+  healthReferenceLabelMaxLength,
   type HealthChangeRequestStatus,
   type HealthProfileChangeRequest,
   type HealthProfileAdminProjection,
@@ -235,5 +236,47 @@ export async function listHealthReferences(): Promise<readonly HealthReferenceRo
     return Object.freeze([...data.references]);
   } catch {
     throw new Error(safeReferencesError);
+  }
+}
+
+const safeReferenceLabelError = "Unable to save the reference label. Please try again.";
+
+/** The mat saves the 25-character label alone: the clinical note never crosses this boundary. */
+export async function saveHealthReferenceLabel(
+  studentId: string,
+  staffReferenceLabel: string | null,
+): Promise<Readonly<{ studentId: string; staffReferenceLabel: string | null }>> {
+  try {
+    const callable = httpsCallable<
+      { studentId: string; staffReferenceLabel: string | null },
+      unknown
+    >(getFirebaseFunctions(), "saveHealthReferenceLabel");
+    if (typeof studentId !== "string" || !safeIdPattern.test(studentId)) {
+      throw new Error(safeReferenceLabelError);
+    }
+    if (
+      staffReferenceLabel !== null &&
+      (typeof staffReferenceLabel !== "string" ||
+        staffReferenceLabel.trim().length > healthReferenceLabelMaxLength)
+    ) {
+      throw new Error(safeReferenceLabelError);
+    }
+    const result = await callable({ studentId, staffReferenceLabel });
+    const data = result.data;
+    if (
+      !isPlainRecord(data) ||
+      !hasExactFields(data, ["studentId", "staffReferenceLabel"]) ||
+      typeof data.studentId !== "string" ||
+      !safeIdPattern.test(data.studentId) ||
+      (data.staffReferenceLabel !== null && typeof data.staffReferenceLabel !== "string")
+    ) {
+      throw new Error(safeReferenceLabelError);
+    }
+    return Object.freeze({
+      studentId: data.studentId,
+      staffReferenceLabel: data.staffReferenceLabel,
+    });
+  } catch {
+    throw new Error(safeReferenceLabelError);
   }
 }

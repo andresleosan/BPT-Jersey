@@ -15,7 +15,8 @@ de cada pantalla estaban limitados a `owner | administrator`.
 Se abre a `headCoach` y `coach`:
 
 - `listEnrolmentRequests` y `returnEnrolmentRequest` (ver la cola y devolver con nota).
-- `saveHealthProfile` (guardar la etiqueta de referencia) y el nuevo `listHealthReferences`.
+- El nuevo `saveHealthReferenceLabel` (solo la etiqueta de 25 caracteres, sobre un perfil de salud
+  ya activo) y el nuevo `listHealthReferences`, ambos con alcance de academia.
 - Rutas `/admin`, `/admin/attendance`, `/admin/members/requests`, `/admin/members/medical`
   (`apps/web/src/app/admin/admin-routes.ts`).
 
@@ -29,6 +30,8 @@ No se abre:
   `receivedMinor`, `outstandingMinor`); sigue siendo de owner/administrator (T038). El Overview del
   coach no lo llama y oculta la metrica «Overdue memberships», las lineas de vencidas y no-shows de
   «Needs attention» y el enlace «Review finance».
+- `saveHealthProfile`: escribe el expediente completo, incluida la nota clinica
+  (`conditionSummary`); sigue siendo de owner/administrator.
 - El directorio de miembros, finanzas, staff, retencion, `deactivateHealthProfile` y
   `reviewHealthProfileChangeRequest`.
 
@@ -39,5 +42,8 @@ No se abre:
   pendientes, la tabla del dia y los cumpleanos.
 - Ocultar botones en el cliente no es el control: la autorizacion se repite en cada callable, y
   los tests de callables fijan que rol pasa y cual no.
+- `listHealthReferences` y `saveHealthReferenceLabel` son de alcance de academia: cualquier staff
+  ve y mantiene la etiqueta de cualquier alumno, a diferencia de `getHealthProfile`, que para
+  headCoach y coach exige una asignacion vigente con ese alumno.
 - Si en el futuro se abre la aprobacion a coaches, hara falta una sonda de cuenta activa para staff
   equivalente a la de `canonical-actor.ts` y una enmienda a ADR-009.
