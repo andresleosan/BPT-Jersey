@@ -231,7 +231,7 @@ describe("administrative shell", () => {
         .map((link) => link.textContent),
     ).toEqual(["->Overview", "->Attendance", "->Enrolment requests", "->Medical conditions"]);
     expect(screen.getByRole("link", { name: "Coach portal" })).toHaveAttribute("href", "/coach");
-    expect(screen.getByText("Coach attendance access")).toBeVisible();
+    expect(screen.getByText("Coach operational access")).toBeVisible();
   });
 
   it("adds the classes module for a head coach", () => {

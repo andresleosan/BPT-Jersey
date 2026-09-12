@@ -145,6 +145,7 @@ describe("isHealthReferenceRow", () => {
     expect(isHealthReferenceRow({ ...row, staffReferenceLabel: "a".repeat(26) })).toBe(false);
     expect(isHealthReferenceRow({ ...row, studentId: "../x" })).toBe(false);
     expect(isHealthReferenceRow({ ...row, displayName: "" })).toBe(false);
+    expect(isHealthReferenceRow({ ...row, displayName: "a".repeat(161) })).toBe(false);
     expect(isHealthReferenceRow(null)).toBe(false);
   });
 });

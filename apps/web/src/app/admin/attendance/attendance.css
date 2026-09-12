@@ -459,7 +459,8 @@
   color: #176b49;
 }
 
-.attendance-tag-booked {
+.attendance-tag-booked,
+.attendance-tag-cancelled {
   background: #e8e7e3;
   color: #65635d;
 }
