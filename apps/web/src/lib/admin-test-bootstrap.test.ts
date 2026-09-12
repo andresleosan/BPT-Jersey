@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { adminSessionForTestRole, isAdminE2EEnabled } from "./admin-test-bootstrap";
+import {
+  adminSessionForTestRole,
+  isAdminE2EEnabled,
+  staffSessionForTestRole,
+} from "./admin-test-bootstrap";
 
 describe("controlled admin E2E bootstrap", () => {
   it.each(["127.0.0.1", "localhost", "::1", "[::1]"])(
@@ -32,5 +36,18 @@ describe("controlled admin E2E bootstrap", () => {
       role: "administrator",
     });
     expect(Object.isFrozen(session)).toBe(true);
+  });
+
+  it("builds a frozen synthetic staff session for the coach roles", () => {
+    const session = staffSessionForTestRole("coach");
+    expect(session).toEqual({
+      uid: "synthetic-staff-coach",
+      email: "coach@example.test",
+      displayName: "Synthetic coach",
+      academyId: "synthetic-academy",
+      role: "coach",
+    });
+    expect(Object.isFrozen(session)).toBe(true);
+    expect(staffSessionForTestRole("headCoach").role).toBe("headCoach");
   });
 });
