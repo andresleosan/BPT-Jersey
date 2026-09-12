@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
@@ -76,5 +76,92 @@ describe("admin overview", () => {
     expect(screen.queryByText("126")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Add new member" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Quick actions")).not.toBeInTheDocument();
+  });
+
+  it("lists at most the three nearest birthdays with their day, and never a year of birth", async () => {
+    api.listUpcomingBirthdays.mockResolvedValue([
+      {
+        studentId: "s-1",
+        displayName: "Ana Coelho",
+        daysAway: 2,
+        turningAge: 30,
+        participantType: "adult",
+        trainingCenter: "Town",
+      },
+      {
+        studentId: "s-2",
+        displayName: "Ben Kid",
+        daysAway: 5,
+        turningAge: 9,
+        participantType: "minor",
+        trainingCenter: "West",
+      },
+      {
+        studentId: "s-3",
+        displayName: "Cara Lima",
+        daysAway: 40,
+        turningAge: 41,
+        participantType: "adult",
+        trainingCenter: "Town",
+      },
+      {
+        studentId: "s-4",
+        displayName: "Dan Extra",
+        daysAway: 90,
+        turningAge: 22,
+        participantType: "adult",
+        trainingCenter: "Town",
+      },
+    ]);
+    render(<OverviewPage />);
+
+    const card = await screen.findByRole("region", { name: "Next birthdays" });
+    expect(api.listUpcomingBirthdays).toHaveBeenCalledWith({ windowDays: 366 });
+    const items = within(card).getAllByRole("listitem");
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent(/Ana Coelho/);
+    expect(items[0]).toHaveTextContent(/turns 30/);
+    expect(items[0]).toHaveTextContent(/^\S+ \d{1,2} \S{3}/); // e.g. "Mon 14 Sep" before the name
+    expect(card).not.toHaveTextContent("Dan Extra");
+    expect(card).not.toHaveTextContent(/19\d\d|20\d\d/);
+    expect(screen.queryByRole("status", { name: "Birthday today" })).not.toBeInTheDocument();
+  });
+
+  it("announces a birthday that is today", async () => {
+    api.listUpcomingBirthdays.mockResolvedValue([
+      {
+        studentId: "s-1",
+        displayName: "Ana Coelho",
+        daysAway: 0,
+        turningAge: 30,
+        participantType: "adult",
+        trainingCenter: "Town",
+      },
+    ]);
+    render(<OverviewPage />);
+
+    const band = await screen.findByRole("status", { name: "Birthday today" });
+    expect(band).toHaveTextContent("Ana Coelho turns 30 today");
+    expect(within(band).getByText("Ana Coelho")).toBeVisible();
+  });
+
+  it("keeps the rest of the overview when birthdays cannot be read", async () => {
+    api.listUpcomingBirthdays.mockRejectedValue(new Error("unavailable"));
+    render(<OverviewPage />);
+
+    expect(await screen.findByRole("article", { name: "0 Classes today" })).toBeVisible();
+    expect(screen.getByText("Birthdays are temporarily unavailable.")).toBeVisible();
+  });
+
+  it("hides finance-derived items and skips the report for a coach session", async () => {
+    gate.role = "coach";
+    render(<OverviewPage />);
+
+    expect(await screen.findByRole("article", { name: "0 Classes today" })).toBeVisible();
+    expect(screen.getByText("No arrivals pending for today's sessions")).toBeVisible();
+    expect(await screen.findByRole("region", { name: "Next birthdays" })).toBeVisible();
+    expect(screen.queryByRole("article", { name: /Overdue memberships/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Review finance" })).not.toBeInTheDocument();
+    expect(api.getOperationalReport).not.toHaveBeenCalled();
   });
 });

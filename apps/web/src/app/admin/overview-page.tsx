@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { DailyOperationsDashboard } from "@bpt-jersey/domain/schedule";
 import type { OperationalReport } from "@bpt-jersey/domain/reports";
+import { upcomingBirthdayMaxWindowDays, type UpcomingBirthday } from "@bpt-jersey/domain/birthdays";
 
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "./admin-ui";
 import { AdminDataTable } from "./admin-data-table";
 import { useAdminOrStaffSession } from "./admin-gate";
 import { getOperationalReport } from "../../lib/reports-client";
 import { getDailyOperationsDashboard } from "../../lib/schedule-client";
+import { birthdayDateLabel, listUpcomingBirthdays } from "../../lib/birthdays-client";
 
 import "./admin.css";
 
@@ -30,6 +32,13 @@ type OverviewData = Readonly<{
 
 type OverviewState =
   { status: "loading" } | { status: "ready"; data: OverviewData } | { status: "error" };
+
+type BirthdayState =
+  | Readonly<{ status: "loading" }>
+  | Readonly<{ status: "ready"; entries: readonly UpcomingBirthday[] }>
+  | Readonly<{ status: "error" }>;
+
+const nextBirthdaysShown = 3;
 
 const classColumns = [
   { key: "name", label: "Activity", render: (item: OverviewClass) => <strong>{item.name}</strong> },
@@ -68,10 +77,67 @@ function toClassRows(dashboard: DailyOperationsDashboard): readonly OverviewClas
   }));
 }
 
+function BirthdayTodayBand({ entries }: { entries: readonly UpcomingBirthday[] }) {
+  const today = entries.filter((entry) => entry.daysAway === 0);
+  if (today.length === 0) return null;
+  const [first] = today;
+  return (
+    <aside className="admin-birthday-today" aria-label="Birthday today" role="status">
+      <p className="admin-eyebrow">Birthday today</p>
+      <h3>
+        {today.length === 1 && first
+          ? `${first.displayName} turns ${first.turningAge} today`
+          : `${today.length} birthdays today`}
+      </h3>
+      <ul className="admin-birthday-today-names">
+        {today.map((entry) => (
+          <li key={entry.studentId}>
+            <span className="admin-birthday-badge">{entry.displayName}</span>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
+function NextBirthdaysCard({ state }: { state: BirthdayState }) {
+  return (
+    <section className="admin-panel-card" aria-labelledby="next-birthdays-title">
+      <div className="admin-panel-card-heading">
+        <div>
+          <p className="admin-eyebrow">People</p>
+          <h3 id="next-birthdays-title">Next birthdays</h3>
+        </div>
+      </div>
+      {state.status === "loading" ? <p role="status">Loading birthdays...</p> : null}
+      {state.status === "error" ? (
+        <p className="admin-report-state">Birthdays are temporarily unavailable.</p>
+      ) : null}
+      {state.status === "ready" && state.entries.length === 0 ? (
+        <p className="admin-empty-state">No birthdays recorded for the year ahead.</p>
+      ) : null}
+      {state.status === "ready" && state.entries.length > 0 ? (
+        <ol className="admin-birthday-list">
+          {state.entries.map((entry) => (
+            <li key={entry.studentId}>
+              <span className="admin-birthday-date">
+                {entry.daysAway === 0 ? "Today" : birthdayDateLabel(entry.daysAway)}
+              </span>
+              <strong>{entry.displayName}</strong>
+              <span className="admin-birthday-age">turns {entry.turningAge}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </section>
+  );
+}
+
 export function OverviewPage() {
   const session = useAdminOrStaffSession();
   const office = session.role === "owner" || session.role === "administrator";
   const [state, setState] = useState<OverviewState>({ status: "loading" });
+  const [birthdays, setBirthdays] = useState<BirthdayState>({ status: "loading" });
 
   useEffect(() => {
     let active = true;
@@ -90,6 +156,22 @@ export function OverviewPage() {
       active = false;
     };
   }, [office]);
+
+  useEffect(() => {
+    let active = true;
+    void listUpcomingBirthdays({ windowDays: upcomingBirthdayMaxWindowDays }).then(
+      (entries) => {
+        if (active)
+          setBirthdays({ status: "ready", entries: entries.slice(0, nextBirthdaysShown) });
+      },
+      () => {
+        if (active) setBirthdays({ status: "error" });
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (state.status === "loading") {
     return (
@@ -154,6 +236,8 @@ export function OverviewPage() {
         title="Today's academy view"
         description="Live schedule and canonical student, membership and attendance aggregates for the authenticated academy."
       />
+
+      {birthdays.status === "ready" ? <BirthdayTodayBand entries={birthdays.entries} /> : null}
 
       <div className="admin-metrics-grid" aria-label="Academy metrics">
         <AdminMetric
@@ -222,6 +306,8 @@ export function OverviewPage() {
             </Link>
           ) : null}
         </section>
+
+        <NextBirthdaysCard state={birthdays} />
       </div>
     </section>
   );
