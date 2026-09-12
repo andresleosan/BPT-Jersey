@@ -64,7 +64,7 @@ export function SessionRoster({
           <p>
             {timeOf(session.startAt)} - {timeOf(session.endAt)} · {booked.length} booked
             {cancelled ? (
-              <span className="attendance-tag attendance-tag-late">Cancelled</span>
+              <span className="attendance-tag attendance-tag-cancelled">Cancelled</span>
             ) : null}
           </p>
         </div>

@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AttendancePage } from "./attendance/page";
@@ -22,6 +23,8 @@ describe("administrative connected modules", () => {
 
   it("does not render preview attendance when the connected source is empty", async () => {
     render(<AttendancePage />);
+    // The empty state lives inside the closed "Corrections and closeout" disclosure.
+    await userEvent.click(screen.getByText("Corrections and closeout"));
     expect(
       await screen.findByText("No connected attendance records match these filters."),
     ).toBeVisible();

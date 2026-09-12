@@ -86,7 +86,7 @@ export function AdminShell({
         ? "Administrator access"
         : session.role === "headCoach"
           ? "Head coach operational access"
-          : "Coach attendance access";
+          : "Coach operational access";
   /**
    * The name can arrive empty, and that is not hypothetical: `admin-auth` stores
    * `user.displayName?.trim() ?? ""`, and production has an administrative account with no
