@@ -10,7 +10,9 @@ import {
   type OperationalReportStore,
 } from "./operational-report-service.js";
 
-const reportRoles = Object.freeze(["owner", "administrator"] as const);
+// The office and the mat read the same counts: the coach's Overview is the administrator's
+// Overview (operator decision 2026-09-12, ADR-010). Counts only, never amounts.
+const reportRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
 
 export function createGetOperationalReportHandler(options: { store: OperationalReportStore }) {
   return async (request: CallableRequest<unknown>): Promise<{ report: OperationalReport }> => {
@@ -18,7 +20,7 @@ export function createGetOperationalReportHandler(options: { store: OperationalR
     if (!reportRoles.includes(actor.role as (typeof reportRoles)[number])) {
       throw new HttpsError(
         "permission-denied",
-        "Owner or administrator access required to view operational reports",
+        "Staff access required to view operational reports",
       );
     }
 
