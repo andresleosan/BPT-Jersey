@@ -427,3 +427,30 @@ export function toHealthProfileProjection(
     schemaVersion: profile.schemaVersion,
   });
 }
+
+/**
+ * One line of "Show all references": who, and the 25-character label a coach reads on the mat.
+ * Nothing else travels - not the condition summary, not the support codes.
+ */
+export const healthReferenceLabelMaxLength = 25;
+export type HealthReferenceRow = Readonly<{
+  studentId: string;
+  displayName: string;
+  staffReferenceLabel: string;
+}>;
+const healthReferenceFields = ["studentId", "displayName", "staffReferenceLabel"] as const;
+
+export function isHealthReferenceRow(value: unknown): value is HealthReferenceRow {
+  if (!isPlainRecord(value) || !exactFields(value, healthReferenceFields)) return false;
+  const { studentId, displayName, staffReferenceLabel } = value;
+  return (
+    typeof studentId === "string" &&
+    safeIdPattern.test(studentId) &&
+    typeof displayName === "string" &&
+    displayName.trim().length > 0 &&
+    displayName.length <= 160 &&
+    typeof staffReferenceLabel === "string" &&
+    staffReferenceLabel.trim().length > 0 &&
+    staffReferenceLabel.length <= healthReferenceLabelMaxLength
+  );
+}
