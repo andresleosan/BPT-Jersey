@@ -287,3 +287,32 @@ export function parsePreClassViewQuery(input: unknown): Result<PreClassViewQuery
   if (!identifierPattern.test(input.sessionId)) return err("sessionId is invalid");
   return ok(Object.freeze({ sessionId: input.sessionId }));
 }
+
+/**
+ * The tag a coach sees beside a booked member on the attendance list. Green "ready" for any
+ * recorded check-in, whatever the method; grey "booked" until the class starts; red "late" from
+ * the start on. The persisted state still belongs to the server: this only colours the list.
+ */
+export const rosterTags = Object.freeze(["ready", "booked", "late", "no_show", "absent"] as const);
+export type RosterTag = (typeof rosterTags)[number];
+
+export function deriveRosterTag(
+  status: SessionOperationalStatus | null,
+  startAtIso: string,
+  nowMs: number,
+): RosterTag {
+  switch (status) {
+    case "attended":
+    case "late":
+    case "checked_out":
+      return "ready";
+    case "no_show":
+      return "no_show";
+    case "absent":
+      return "absent";
+    default: {
+      const startMs = Date.parse(startAtIso);
+      return Number.isNaN(startMs) || nowMs < startMs ? "booked" : "late";
+    }
+  }
+}

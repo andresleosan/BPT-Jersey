@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildPreClassView,
+  deriveRosterTag,
   isComparablePreClassSession,
   isPreClassSessionOpen,
   parsePreClassViewQuery,
@@ -418,5 +419,34 @@ describe("parsePreClassViewQuery (T114)", () => {
     ]) {
       expect(parsePreClassViewQuery(payload).ok, JSON.stringify(payload)).toBe(false);
     }
+  });
+});
+
+describe("deriveRosterTag", () => {
+  const startAt = "2026-09-08T18:00:00.000Z";
+  const before = Date.parse("2026-09-08T17:59:59.000Z");
+  const atStart = Date.parse(startAt);
+
+  it("is ready for anybody with a recorded check-in, whatever the method", () => {
+    for (const status of ["attended", "late", "checked_out"] as const) {
+      expect(deriveRosterTag(status, startAt, before)).toBe("ready");
+      expect(deriveRosterTag(status, startAt, atStart)).toBe("ready");
+    }
+  });
+
+  it("is booked before the class starts and late from the start on", () => {
+    expect(deriveRosterTag("booked_not_arrived", startAt, before)).toBe("booked");
+    expect(deriveRosterTag(null, startAt, before)).toBe("booked");
+    expect(deriveRosterTag("booked_not_arrived", startAt, atStart)).toBe("late");
+    expect(deriveRosterTag(null, startAt, atStart + 60_000)).toBe("late");
+  });
+
+  it("keeps a persisted no-show or absence as what it is", () => {
+    expect(deriveRosterTag("no_show", startAt, before)).toBe("no_show");
+    expect(deriveRosterTag("absent", startAt, atStart)).toBe("absent");
+  });
+
+  it("never marks somebody late against an unparseable start", () => {
+    expect(deriveRosterTag(null, "not-a-date", atStart)).toBe("booked");
   });
 });
