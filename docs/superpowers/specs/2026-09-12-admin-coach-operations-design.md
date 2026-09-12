@@ -22,7 +22,7 @@ Decisiones tomadas con el operador en el chat (2026-09-12):
 
 | Tema | Decisión |
 | --- | --- |
-| Rol | Los cambios son en `/admin` para todos, y `coach`/`headCoach` ganan acceso a Overview, Attendance, Enrolment requests y Medical conditions con **los mismos poderes que la oficina** (aprobar, devolver, guardar etiqueta). Es una excepción consciente al modelo T007/T121 y se registra en `docs/adr/ADR-010-coach-office-powers.md`. |
+| Rol | Los cambios son en `/admin` para todos, y `coach`/`headCoach` ganan acceso a Overview, Attendance, Enrolment requests y Medical conditions. Poderes del coach: los de oficina en Overview (reporte operativo), Attendance y Medical (guardar etiqueta); en Enrolment requests el coach **ve la cola y devuelve con nota**, pero leer el detalle confidencial y aprobar siguen siendo de owner/administrator (decisión revisada el 2026-09-12 tras comprobar que la aprobación pasa por cinco cerrojos del directorio canónico, ADR-009). Se registra en `docs/adr/ADR-010-coach-office-powers.md`. |
 | Cumpleaños | La ventana máxima del backend pasa de 31 a **366 días** para que siempre haya tres. La fecha se calcula en cliente a partir de `daysAway`; el año de nacimiento sigue sin salir del backend. |
 | "Late" | Rojo en la lista desde la hora de inicio (reloj local). Un clock-in posterior al inicio se persiste como `late`: el umbral de `determinePunctuality` pasa de 15 a **0 minutos**. Quien nunca llega sigue quedando `no_show` con "Mark no-shows". |
 | "Ready for Jiu Jitsu" | El botón del miembro no existe y **no entra** en este trabajo. La etiqueta verde refleja cualquier check-in registrado, sea cual sea el método; cuando exista el botón del miembro la lista no cambia. |
@@ -48,10 +48,10 @@ Decisiones tomadas con el operador en el chat (2026-09-12):
 
 | Capa | Cambios |
 | --- | --- |
-| `packages/domain` | `birthdays`: `upcomingBirthdayMaxWindowDays = 366`. `schedule`: `determinePunctuality(..., lateThresholdMinutes = 0)`. `schedule/pre-class`: nueva `deriveRosterTag` (la vista no cambia; el `instructorId` ya viaja en `session`). `health`: nuevo contrato `HealthReferenceRow` y `parseHealthReferenceQuery` (payload vacío). |
-| `apps/functions` | `reports`: `reportRoles` += `headCoach`, `coach`. `members/enrolment-request-callables.ts`: `officeRoles` += `headCoach`, `coach` (lista, detalle, devolver, aprobar). `health`: `saveHealthProfileHandler` acepta `headCoach`/`coach`; nuevo `listHealthReferencesHandler` + `listHealthReferences` en `index.ts`. `schedule`: tests de punctuality y de servicio ajustados al umbral 0. |
+| `packages/domain` | `birthdays`: `upcomingBirthdayMaxWindowDays = 366`. `schedule`: `determinePunctuality(..., lateThresholdMinutes = 0)`. `schedule/pre-class`: nueva `deriveRosterTag` (la vista no cambia; el `instructorId` ya viaja en `session`). `health`: nuevo contrato `HealthReferenceRow` + guarda `isHealthReferenceRow`. |
+| `apps/functions` | `reports`: `reportRoles` += `headCoach`, `coach`. `members/enrolment-request-callables.ts`: `officeRoles` += `headCoach`, `coach` (solo lista y devolver; detalle y aprobación conservan `requireCanonicalMemberDirectoryActor`). `health`: `saveHealthProfileHandler` acepta `headCoach`/`coach`; nuevo `listHealthReferencesHandler` + `listHealthReferences` en `index.ts`. `schedule`: tests de punctuality y de servicio ajustados al umbral 0. |
 | `apps/web/src/lib` | `health-client.ts`: `listHealthReferences()`. `birthdays-client.ts`: `birthdayDateLabel(daysAway, now)` → "Sat 20 Sep" en `Europe/Jersey`. |
-| `apps/web/src/app/admin` | `overview-page.tsx`, `attendance/page.tsx` (+ nuevo `attendance/session-roster.tsx`), `members/requests/page.tsx` (texto de ayuda), nueva ruta `members/medical/page.tsx` (sección movida desde `members/page.tsx`), `admin-shell.tsx` (menú y `coachRoutes`), `admin-gate.tsx` (rutas de staff), `admin-test-bootstrap.ts` + `E2EAdminGate` (rol sintético `coach`). |
+| `apps/web/src/app/admin` | `overview-page.tsx`, `attendance/page.tsx` (+ nuevo `attendance/session-roster.tsx`), `members/requests/page.tsx` (texto de ayuda), nueva ruta `members/medical/page.tsx` (sección movida desde `members/page.tsx`), `admin-shell.tsx` (menú y `coachRoutes`), `admin-gate.tsx` (rutas de staff, vía nuevo `admin-routes.ts` compartido con el shell), `admin-test-bootstrap.ts` + `E2EAdminGate` (rol sintético `coach`). |
 | `qa/tests` | Nuevos specs de UI con sesión sintética y callables interceptados; ejecución del spec T121 contra emuladores. |
 | `docs` | Este diseño, el plan, `ADR-010`, entradas en `tasksv2.md`. |
 
@@ -167,11 +167,16 @@ Contadores del bloque: Ready = filas `ready`; Waiting = `booked`; Late = `late`+
   - **Approve and enrol**: crea el registro de miembro (y los de los hijos), enlaza la cuenta con su
     rol y marca la solicitud `approved`. Solo se habilita tras leer el detalle. Si falla a medias, la
     solicitud queda `approval-failed` con el código y se puede devolver.
-- Roles: `officeRoles` en `enrolment-request-callables.ts` pasa a
-  `owner | administrator | headCoach | coach`. Tests de callables: cada rol de staff pasa; `guardian`
-  sigue rechazado.
+- Roles: `officeRoles` en `enrolment-request-callables.ts` pasa a `owner | administrator | headCoach | coach`
+  y gobierna **solo** `listEnrolmentRequests` y `returnEnrolmentRequest`. `getEnrolmentRequestDetail` y
+  `approveEnrolmentRequest` siguen detrás de `requireCanonicalMemberDirectoryActor` (owner/admin con
+  cuenta provisionada activa). Tests de callables: coach lista y devuelve; coach sigue rechazado en
+  detalle y aprobación; `guardian` rechazado en todo.
+- UI por rol: la página lee la sesión con `useAdminOrStaffSession()`. Para `headCoach`/`coach` no se
+  renderizan "Read the full request" ni "Approve and enrol"; queda la nota y "Send back to applicant",
+  y el párrafo de ayuda dice que aprobar es de oficina.
 - Verificación (evidencia obligatoria en el ledger): (a) `qa/tests/enrolment-approval-auth-emulator.spec.ts`
-  contra emuladores, incluyendo un caso nuevo con actor `coach`; (b) nuevo
+  contra emuladores, incluyendo un caso nuevo con actor `coach` (lista y devuelve; rechazado en detalle y aprobación); (b) nuevo
   `qa/tests/enrolment-requests-ui.spec.ts` con sesión sintética `administrator` y callables
   interceptados: pulsa los tres botones y comprueba el payload enviado y el estado en pantalla.
   Cualquier defecto encontrado se corrige dentro de este trabajo y se anota.
@@ -188,8 +193,11 @@ Contadores del bloque: Ready = filas `ready`; Waiting = `booked`; Late = `late`+
   clic: "Hide references". Vacío: "No reference labels recorded yet." Error: "Unable to load the
   reference labels. Please try again."
 - Contrato (`packages/domain/src/health/health-contracts.ts`):
-  `HealthReferenceRow = { studentId, displayName, staffReferenceLabel }` y
-  `parseHealthReferenceQuery` (acepta solo `null`/`undefined`).
+  `HealthReferenceRow = { studentId, displayName, staffReferenceLabel }` y la guarda
+  `isHealthReferenceRow(value)` que usan cliente y tests. El handler acepta solo payload `null`/`undefined`.
+- Como el resto de callables de salud, `listHealthReferences` está detrás del piloto sintético
+  (`BPT_SYNTHETIC_PILOT=true`); si producción no lo tiene, la sección entera de Medical ya falla hoy,
+  no solo el botón nuevo. Se deja anotado para el operador.
 - Callable `listHealthReferences` (`health-callables.ts`, roles `owner | administrator | headCoach |
   coach`; `guardian` rechazado): lee `academies/{academyId}/healthProfiles` con `status == "active"`,
   descarta `staffReferenceLabel === null`, resuelve `displayName` desde
@@ -204,17 +212,17 @@ Contadores del bloque: Ready = filas `ready`; Waiting = `booked`; Late = `late`+
 ## 8. Menú y acceso
 
 - `navigationGroups`: People = Members, Enrolment requests, Medical conditions. Memberships y Waivers
-  se quitan. `coachRoutes`: `coach` = `/admin`, `/admin/attendance`, `/admin/members/requests`,
-  `/admin/members/medical`; `headCoach` = los mismos + `/admin/classes`.
-- `admin-gate.tsx`: la condición de staff acepta además `pathname === "/admin"`,
-  `/admin/members/requests` y `/admin/members/medical` (helpers `isOverviewRoute`,
-  `isEnrolmentRequestsRoute`, `isMedicalRoute`). `/admin/members` (directorio) sigue siendo de
-  oficina.
+  se quitan. Nuevo `admin-routes.ts` con `staffRoutes` (`coach` = `/admin`, `/admin/attendance`,
+  `/admin/members/requests`, `/admin/members/medical`; `headCoach` = los mismos + `/admin/classes`) e
+  `isStaffRouteAllowed(pathname, role)`, que además admite las rutas fuera de menú que el gate ya
+  permitía a staff (`/admin/waitlists`, `/admin/lesson-plans`). Shell y gate leen de ahí.
+  `/admin/members` (directorio) sigue siendo de oficina.
 - Sesión sintética e2e: `AdminE2ERole` admite `coach` y `headCoach`; `E2EAdminGate` construye una
   `StaffSession` en ese caso y usa `AuthorizedStaffWaitlistContent`. Sigue exigiendo la bandera
   bakeada y loopback.
 - `ADR-010-coach-office-powers.md`: contexto (petición del operador 2026-09-12), decisión (coach y
-  head coach comparten con oficina: reporte operativo, cola de inscripción completa, etiqueta médica),
+  head coach comparten con oficina: reporte operativo, cola de inscripción en lectura y devolución,
+  etiqueta médica; detalle y aprobación de inscripciones siguen siendo de oficina),
   consecuencias (auditoría existente cubre cada acción con `actorId`; el riesgo de que un coach
   apruebe a alguien sin leer el detalle queda mitigado por el botón deshabilitado hasta leer), y lo
   que **no** se abre (directorio de miembros, finanzas, staff, retención, desactivar perfil médico).
@@ -224,8 +232,8 @@ Contadores del bloque: Ready = filas `ready`; Waiting = `booked`; Late = `late`+
 Unitarias (vitest, TDD por tarea):
 
 - Dominio: ventana 366; `determinePunctuality` umbral 0; `deriveRosterTag` (5 ramas + frontera
-  `nowMs === startAt`); `parseHealthReferenceQuery`.
-- Functions: roles de reporte, enrolment y health; `listHealthReferencesHandler` (omite sin
+  `nowMs === startAt`); `isHealthReferenceRow`.
+- Functions: roles de reporte, enrolment (coach lista y devuelve, no lee detalle ni aprueba) y health; `listHealthReferencesHandler` (omite sin
   etiqueta, omite inactivo, omite sin alumno, nunca devuelve `conditionSummary`).
 - Web: `birthdayDateLabel`; Overview (sin atajos, sin "Members", 3 cumpleaños máximo, banda de hoy,
   fallo aislado); Attendance (bloque por sesión, título con coach, etiquetas por estado, botón solo
@@ -246,16 +254,17 @@ Playwright (UI, sesión sintética + `page.route`):
 - `qa/tests/medical-references.spec.ts`: Show all references.
 - `qa/tests/admin-shell.spec.ts`: se actualiza (menú) y se añade el caso `role=coach`.
 
-Emuladores: `enrolment-approval-auth-emulator.spec.ts` (+ caso `coach`) y una nueva prueba de
-`listHealthReferences` en el mismo estilo (`health-references-auth-emulator.spec.ts`).
+Emuladores (exigen JDK 21, que esta máquina no tiene: se instala o se corre en otra): `enrolment-approval-auth-emulator.spec.ts`
+(+ caso `coach` que lista y devuelve, y es rechazado en detalle/aprobación).
 
 Cierre: `corepack pnpm verify:mvp` verde; evidencia (comandos y salida resumida) en `tasksv2.md`
 bajo una tarea nueva por sección (T130V2..T134V2 o la numeración libre siguiente).
 
 ## 10. Riesgos y cómo se cubren
 
-- **Privilegio del coach** (aprobar inscripciones, etiqueta médica): decisión del operador,
-  ADR-010, acciones auditadas con actor. No se abre nada más.
+- **Privilegio del coach** (devolver inscripciones, etiqueta médica, reporte operativo): decisión
+  del operador, ADR-010, acciones auditadas con actor. La aprobación y el detalle confidencial no se
+  abren: siguen tras los cinco cerrojos de ADR-009.
 - **Datos sensibles en Overview**: cumpleaños sin fecha de nacimiento; solo día/mes y edad.
 - **Reloj del navegador desviado**: el rojo es orientativo; el estado persistido lo decide el
   servidor con `occurredAt`. Se documenta en la ayuda del bloque: "Late is judged by the server at
