@@ -21,38 +21,6 @@
     color 160ms ease;
 }
 
-.admin-quick-actions {
-  background: var(--mat-ink);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  margin: 1.5rem 0;
-  padding: 0.35rem;
-}
-
-.admin-quick-action {
-  align-items: center;
-  color: var(--gi-white);
-  display: inline-flex;
-  font-size: 0.75rem;
-  font-weight: 700;
-  gap: 0.45rem;
-  letter-spacing: 0.04em;
-  min-height: 2.5rem;
-  padding: 0.55rem 0.75rem;
-  text-transform: uppercase;
-  transition:
-    background-color 160ms ease,
-    color 160ms ease;
-}
-
-.admin-quick-action:hover,
-.admin-quick-action:focus-visible {
-  background: var(--bpt-purple);
-  color: var(--gi-white);
-}
-
-.admin-quick-action:focus-visible,
 .admin-text-link:focus-visible {
   outline: 3px solid var(--bpt-purple);
   outline-offset: 3px;
@@ -61,7 +29,7 @@
 .admin-metrics-grid {
   display: grid;
   gap: 0.8rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 1.5rem 0;
 }
 

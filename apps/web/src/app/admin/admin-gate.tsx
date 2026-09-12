@@ -41,7 +41,11 @@ export function AdminGateSessionProvider({
   session: AdminSession;
 }) {
   return (
-    <AdminGateSessionContext.Provider value={session}>{children}</AdminGateSessionContext.Provider>
+    <AdminGateSessionContext.Provider value={session}>
+      <AdminGateAnySessionContext.Provider value={session}>
+        {children}
+      </AdminGateAnySessionContext.Provider>
+    </AdminGateSessionContext.Provider>
   );
 }
 
