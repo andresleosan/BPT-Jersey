@@ -7,6 +7,7 @@ import type { OperationalReport } from "@bpt-jersey/domain/reports";
 
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "./admin-ui";
 import { AdminDataTable } from "./admin-data-table";
+import { useAdminOrStaffSession } from "./admin-gate";
 import { getOperationalReport } from "../../lib/reports-client";
 import { getDailyOperationsDashboard } from "../../lib/schedule-client";
 
@@ -24,7 +25,7 @@ type OverviewClass = Readonly<{
 
 type OverviewData = Readonly<{
   dashboard: DailyOperationsDashboard;
-  report: OperationalReport;
+  report: OperationalReport | null;
 }>;
 
 type OverviewState =
@@ -45,15 +46,6 @@ const classColumns = [
     label: "Status",
     render: (item: OverviewClass) => <AdminStatusBadge status={item.status} />,
   },
-] as const;
-
-const quickActions = [
-  { label: "Add new member", href: "/admin/members/add" },
-  { label: "Search members", href: "/admin/members/search" },
-  { label: "Classes and sessions", href: "/admin/classes" },
-  { label: "Attendance", href: "/admin/attendance" },
-  { label: "Billing", href: "/admin/billing" },
-  { label: "Reports", href: "/admin/reports" },
 ] as const;
 
 function getTodayQuery() {
@@ -77,12 +69,16 @@ function toClassRows(dashboard: DailyOperationsDashboard): readonly OverviewClas
 }
 
 export function OverviewPage() {
+  const session = useAdminOrStaffSession();
+  const office = session.role === "owner" || session.role === "administrator";
   const [state, setState] = useState<OverviewState>({ status: "loading" });
 
   useEffect(() => {
     let active = true;
     const query = getTodayQuery();
-    void Promise.all([getDailyOperationsDashboard(query), getOperationalReport(query)]).then(
+    const dashboardPromise = getDailyOperationsDashboard(query);
+    const reportPromise = office ? getOperationalReport(query) : Promise.resolve(null);
+    void Promise.all([dashboardPromise, reportPromise]).then(
       ([dashboard, report]) => {
         if (active) setState({ status: "ready", data: { dashboard, report } });
       },
@@ -93,7 +89,7 @@ export function OverviewPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [office]);
 
   if (state.status === "loading") {
     return (
@@ -132,15 +128,23 @@ export function OverviewPage() {
     0,
   );
   const attention = [
-    report.memberships.overdue > 0
-      ? `${report.memberships.overdue} overdue memberships`
-      : "No overdue memberships",
+    ...(office && report
+      ? [
+          report.memberships.overdue > 0
+            ? `${report.memberships.overdue} overdue memberships`
+            : "No overdue memberships",
+        ]
+      : []),
     attendancePending > 0
       ? `${attendancePending} arrivals pending across today's sessions`
       : "No arrivals pending for today's sessions",
-    report.attendance.noShow > 0
-      ? `${report.attendance.noShow} no-shows in today's window`
-      : "No no-shows in today's window",
+    ...(office && report
+      ? [
+          report.attendance.noShow > 0
+            ? `${report.attendance.noShow} no-shows in today's window`
+            : "No no-shows in today's window",
+        ]
+      : []),
   ];
 
   return (
@@ -151,15 +155,6 @@ export function OverviewPage() {
         description="Live schedule and canonical student, membership and attendance aggregates for the authenticated academy."
       />
 
-      <div className="admin-quick-actions" aria-label="Quick actions">
-        {quickActions.map((action) => (
-          <Link className="admin-quick-action" href={action.href} key={action.href}>
-            <span aria-hidden="true">-&gt;</span>
-            {action.label}
-          </Link>
-        ))}
-      </div>
-
       <div className="admin-metrics-grid" aria-label="Academy metrics">
         <AdminMetric
           detail="Connected sessions for today"
@@ -167,20 +162,17 @@ export function OverviewPage() {
           value={dashboard.sessions.length}
         />
         <AdminMetric
-          detail="Active student profiles"
-          label="Members"
-          value={report.students.activeStudents}
-        />
-        <AdminMetric
           detail="Pending arrival in today's sessions"
           label="Attendance pending"
           value={attendancePending}
         />
-        <AdminMetric
-          detail="Membership records marked overdue"
-          label="Overdue memberships"
-          value={report.memberships.overdue}
-        />
+        {office && report ? (
+          <AdminMetric
+            detail="Membership records marked overdue"
+            label="Overdue memberships"
+            value={report.memberships.overdue}
+          />
+        ) : null}
       </div>
 
       <div className="admin-overview-grid">
@@ -224,9 +216,11 @@ export function OverviewPage() {
               </li>
             ))}
           </ul>
-          <Link className="admin-text-link" href="/admin/finance">
-            Review finance
-          </Link>
+          {office ? (
+            <Link className="admin-text-link" href="/admin/finance">
+              Review finance
+            </Link>
+          ) : null}
         </section>
       </div>
     </section>
