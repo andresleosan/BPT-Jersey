@@ -135,12 +135,14 @@ export function AttendancePage() {
     setPremises(savedPremises());
   }, []);
 
-  useEffect(
-    () => () => {
+  // StrictMode mounts, unmounts and mounts again: re-arm on every mount, or the second mount
+  // starts with a ref the first teardown already cleared and no roster ever renders.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;

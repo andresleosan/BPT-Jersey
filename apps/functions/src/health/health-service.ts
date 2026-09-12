@@ -585,27 +585,35 @@ export function createHealthStore(dependencies: HealthStoreDependencies): Health
         const page = asQuery(await transaction.get(query));
         if (page.docs.length > MAX_REFERENCES)
           throw new HealthStoreError("precondition", "Too many health profiles to list");
-        const rows: HealthReferenceRow[] = [];
+        // Build the candidates first, then read every student document in one round trip.
+        const candidates: { studentId: string; staffReferenceLabel: string }[] = [];
         for (const snapshot of page.docs) {
           const parsed = parseHealthProfile(snapshot.data());
           if (!parsed.ok || parsed.value.academyId !== academyId) continue;
           const label = parsed.value.staffReferenceLabel;
           if (label === null) continue;
-          const student = asDocument(
-            await transaction.get(
-              dependencies.firestore.doc(studentPath(academyId, parsed.value.studentId)),
+          candidates.push({ studentId: parsed.value.studentId, staffReferenceLabel: label });
+        }
+        const students = await Promise.all(
+          candidates.map((candidate) =>
+            transaction.get(
+              dependencies.firestore.doc(studentPath(academyId, candidate.studentId)),
             ),
-          );
+          ),
+        );
+        const rows: HealthReferenceRow[] = [];
+        candidates.forEach((candidate, index) => {
+          const student = asDocument(students[index] as Awaited<(typeof students)[number]>);
           const fullName = student.exists ? student.data()?.fullName : undefined;
-          if (typeof fullName !== "string" || fullName.trim().length === 0) continue;
+          if (typeof fullName !== "string" || fullName.trim().length === 0) return;
           rows.push(
             Object.freeze({
-              studentId: parsed.value.studentId,
+              studentId: candidate.studentId,
               displayName: fullName.trim(),
-              staffReferenceLabel: label,
+              staffReferenceLabel: candidate.staffReferenceLabel,
             }),
           );
-        }
+        });
         return Object.freeze(
           rows.sort((left, right) => left.displayName.localeCompare(right.displayName)),
         );

@@ -163,5 +163,15 @@ describe("admin overview", () => {
     expect(screen.queryByRole("article", { name: /Overdue memberships/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Review finance" })).not.toBeInTheDocument();
     expect(api.getOperationalReport).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("link", { name: "Manage classes and sessions" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the classes shortcut for a head coach", async () => {
+    gate.role = "headCoach";
+    render(<OverviewPage />);
+
+    expect(await screen.findByRole("link", { name: "Manage classes and sessions" })).toBeVisible();
   });
 });
