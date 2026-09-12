@@ -8,7 +8,7 @@ const api = vi.hoisted(() => ({
 vi.mock("firebase/functions", () => ({ httpsCallable: api.httpsCallable }));
 vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
-import { birthdayWhenLabel, listUpcomingBirthdays } from "./birthdays-client";
+import { birthdayDateLabel, birthdayWhenLabel, listUpcomingBirthdays } from "./birthdays-client";
 
 const birthday = {
   studentId: "student-1",
@@ -64,5 +64,16 @@ describe("birthdays client (T112)", () => {
     expect(birthdayWhenLabel(0)).toBe("Today");
     expect(birthdayWhenLabel(1)).toBe("Tomorrow");
     expect(birthdayWhenLabel(6)).toBe("In 6 days");
+  });
+
+  it("prints the calendar day in Jersey time, never the year of birth", () => {
+    // Saturday 12 September 2026, 10:00 UTC.
+    const now = Date.UTC(2026, 8, 12, 10);
+    expect(birthdayDateLabel(0, now)).toBe("Sat 12 Sep");
+    expect(birthdayDateLabel(8, now)).toBe("Sun 20 Sep");
+    // Across a year boundary.
+    expect(birthdayDateLabel(3, Date.UTC(2026, 11, 30, 12))).toBe("Sat 2 Jan");
+    // 00:30 BST on the night the clocks go back: still counts from Sunday 25 October.
+    expect(birthdayDateLabel(1, Date.UTC(2026, 9, 24, 23, 30))).toBe("Mon 26 Oct");
   });
 });
