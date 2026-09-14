@@ -3,7 +3,8 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { UserActorContext } from "@bpt-jersey/domain";
-import { parsePaymentInstructionsInput } from "@bpt-jersey/domain/finance";
+import { parsePaymentInstructionsInput, recentPaymentsLimit } from "@bpt-jersey/domain/finance";
+import type { RecentPaymentRow } from "@bpt-jersey/domain/finance";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
@@ -13,6 +14,7 @@ import {
   FinanceStoreError,
   createFinanceStore,
   type FinanceReadScope,
+  type FinancialAccountView,
   type FinanceStore,
   type IssueManualInvoiceInput,
   type RecordManualPaymentInput,
@@ -159,7 +161,10 @@ function parseManualInvoicePayload(
   if (chargeKind !== "membership" && chargeKind !== "manual_adjustment") return invalidPayload();
   return Object.freeze({
     familyId: parseId(descriptorValue(value, "familyId")),
-    membershipId: parseId(descriptorValue(value, "membershipId")),
+    membershipId:
+      descriptorValue(value, "membershipId") === null
+        ? null
+        : parseId(descriptorValue(value, "membershipId")),
     totalMinor: parseAmount(descriptorValue(value, "totalMinor")),
     dueAt: parseDateTime(descriptorValue(value, "dueAt")),
     chargeKind,
@@ -192,6 +197,11 @@ function parseInvoiceIdPayload(value: unknown): string {
 
 function parseNoPayload(value: unknown): void {
   if (value !== null) invalidPayload();
+}
+
+function parseFamilyIdPayload(value: unknown): string {
+  if (!isPlainRecord(value) || !exactFields(value, ["familyId"])) return invalidPayload();
+  return parseId(descriptorValue(value, "familyId"));
 }
 
 async function requireActiveActor(
@@ -368,6 +378,37 @@ export async function getInvoiceHandler(
   }
 }
 
+export async function listRecentPaymentsHandler(
+  request: CallableRequest<unknown>,
+  services: FinanceCallableServices,
+): Promise<{ payments: readonly RecentPaymentRow[] }> {
+  const actor = await requireAdministrator(request, services);
+  parseNoPayload(request.data);
+  try {
+    return {
+      payments: await services.store.listRecentPayments(actor.academyId, recentPaymentsLimit),
+    };
+  } catch (error) {
+    return mapStoreError(error, "read");
+  }
+}
+
+export async function getFamilyFinancialAccountHandler(
+  request: CallableRequest<unknown>,
+  services: FinanceCallableServices,
+): Promise<FinancialAccountView> {
+  const actor = await requireAdministrator(request, services);
+  const familyId = parseFamilyIdPayload(request.data);
+  try {
+    return await services.store.listFinancialAccount({
+      academyId: actor.academyId,
+      familyIds: [familyId],
+    });
+  } catch (error) {
+    return mapStoreError(error, "read");
+  }
+}
+
 async function findStudentByUserId(
   academyId: string,
   userId: string,
@@ -441,4 +482,10 @@ export const listFinancialAccount = onCall(financeCallableOptions, async (reques
 );
 export const getInvoice = onCall(financeCallableOptions, async (request) =>
   getInvoiceHandler(request, financeCallableServices()),
+);
+export const listRecentPayments = onCall(financeCallableOptions, async (request) =>
+  listRecentPaymentsHandler(request, financeCallableServices()),
+);
+export const getFamilyFinancialAccount = onCall(financeCallableOptions, async (request) =>
+  getFamilyFinancialAccountHandler(request, financeCallableServices()),
 );

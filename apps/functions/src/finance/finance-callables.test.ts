@@ -7,9 +7,11 @@ import type { GuardianFamilyProjection } from "@bpt-jersey/domain/families";
 import {
   FinanceCallableError,
   financeCallableOptions,
+  getFamilyFinancialAccountHandler,
   getInvoiceHandler,
   issueManualInvoiceHandler,
   listFinancialAccountHandler,
+  listRecentPaymentsHandler,
   savePaymentInstructionsHandler,
   recordManualPaymentHandler,
   voidManualInvoiceHandler,
@@ -73,6 +75,7 @@ function services(overrides: Partial<FinanceCallableServices> = {}): FinanceCall
     }),
     getInvoice: vi.fn(),
     savePaymentInstructions: vi.fn().mockResolvedValue({ accountNumber: "12345678" }),
+    listRecentPayments: vi.fn().mockResolvedValue([]),
   } as unknown as FinanceStore;
   return {
     store,
@@ -307,5 +310,61 @@ describe("savePaymentInstructions (T010/T035 re-scope)", () => {
     }
     const store = finance.store as unknown as { savePaymentInstructions: ReturnType<typeof vi.fn> };
     expect(store.savePaymentInstructions).not.toHaveBeenCalled();
+  });
+
+  it("issues an invoice with membershipId null and rejects a missing key", async () => {
+    const s = services();
+    (s.store.issueManualInvoice as ReturnType<typeof vi.fn>).mockResolvedValue({ invoiceId: "i1" });
+    const payload = {
+      familyId: "family-1",
+      membershipId: null,
+      totalMinor: 1500,
+      dueAt: "2026-10-01T23:59:59.000Z",
+      chargeKind: "manual_adjustment",
+      invoiceReference: "INV-SEM-1",
+      description: "Seminar",
+    };
+    await expect(issueManualInvoiceHandler(request(payload, actor("owner")), s)).resolves.toEqual({
+      invoiceId: "i1",
+    });
+    expect(s.store.issueManualInvoice).toHaveBeenCalledWith(
+      expect.objectContaining({ membershipId: null }),
+    );
+    const missing: Record<string, unknown> = { ...payload };
+    delete missing.membershipId;
+    await expect(
+      issueManualInvoiceHandler(request(missing, actor("owner")), s),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
+  it("lists recent payments for office roles only", async () => {
+    const s = services();
+    await expect(
+      listRecentPaymentsHandler(request(null, actor("administrator")), s),
+    ).resolves.toEqual({ payments: [] });
+    expect(s.store.listRecentPayments).toHaveBeenCalledWith(academyId, 20);
+    await expect(listRecentPaymentsHandler(request(null, actor("coach")), s)).rejects.toMatchObject(
+      { code: "permission-denied" },
+    );
+    await expect(listRecentPaymentsHandler(request({}, actor("owner")), s)).rejects.toMatchObject({
+      code: "invalid-argument",
+    });
+  });
+
+  it("reads one family's account for the office and refuses guardians", async () => {
+    const s = services();
+    await expect(
+      getFamilyFinancialAccountHandler(request({ familyId: "family-9" }, actor("owner")), s),
+    ).resolves.toMatchObject({ invoices: [] });
+    expect(s.store.listFinancialAccount).toHaveBeenCalledWith({
+      academyId,
+      familyIds: ["family-9"],
+    });
+    await expect(
+      getFamilyFinancialAccountHandler(request({ familyId: "family-9" }, actor("guardian")), s),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      getFamilyFinancialAccountHandler(request({ familyId: "bad id" }, actor("owner")), s),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
   });
 });
