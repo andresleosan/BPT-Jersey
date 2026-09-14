@@ -1,0 +1,37 @@
+# Sidecar Caddy del banco de trabajo de /account (:9471), TLS reusando el cert del host.
+{
+	admin off
+	auto_https disable_redirects
+	servers {
+		protocols h1 h2
+	}
+}
+
+optimyze-vps-de-prod.tail29c816.ts.net:9471 {
+	tls /certs/optimyze-vps-de-prod.tail29c816.ts.net.crt /certs/optimyze-vps-de-prod.tail29c816.ts.net.key
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	encode gzip
+
+	# ponytail: la raíz manda a /account; el resto pasa (assets y HMR de Next lo necesitan)
+	redir / /account 302
+
+	reverse_proxy bpt-account-app:9471 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+# Emulador de Auth de Firebase con TLS (:9472). La página va por https, así que el
+# emulador también: si no, el navegador bloquea la llamada por contenido mixto.
+optimyze-vps-de-prod.tail29c816.ts.net:9472 {
+	tls /certs/optimyze-vps-de-prod.tail29c816.ts.net.crt /certs/optimyze-vps-de-prod.tail29c816.ts.net.key
+	encode gzip
+	reverse_proxy bpt-account-auth:9099
+}
