@@ -45,6 +45,7 @@ function transactionalFirestore(seed: ReadonlyMap<string, Data>) {
       collection: (path: string) => query(path),
       runTransaction: async <T>(callback: (transaction: unknown) => Promise<T>) => {
         const staged = new Map(documents);
+        let writesStarted = false;
         const snapshot = (reference: Reference) => ({
           id: reference.id,
           exists: staged.has(reference.path),
@@ -52,6 +53,9 @@ function transactionalFirestore(seed: ReadonlyMap<string, Data>) {
         });
         const transaction = {
           get: async (target: Reference | Query) => {
+            if (writesStarted) {
+              throw new Error("Firestore transactions must read before writing");
+            }
             if ("filters" in target) {
               const prefix = target.path + "/";
               const docs = [...staged.entries()]
@@ -70,11 +74,16 @@ function transactionalFirestore(seed: ReadonlyMap<string, Data>) {
             return snapshot(target);
           },
           create: (reference: Reference, data: Data) => {
+            writesStarted = true;
             if (staged.has(reference.path)) throw new Error("already exists");
             staged.set(reference.path, data);
           },
-          set: (reference: Reference, data: Data) => staged.set(reference.path, data),
+          set: (reference: Reference, data: Data) => {
+            writesStarted = true;
+            staged.set(reference.path, data);
+          },
           update: (reference: Reference, data: Data) => {
+            writesStarted = true;
             const current = staged.get(reference.path);
             if (current === undefined) throw new Error("missing update target");
             staged.set(reference.path, { ...current, ...data });
@@ -539,5 +548,231 @@ describe("site geofence writer at the transaction boundary (T109)", () => {
       geofence: null,
       name: "BPT Town",
     });
+  });
+});
+
+describe("member self check-in at the transaction boundary (T032V2)", () => {
+  const town = { latitude: 49.183954, longitude: -2.107142 };
+  const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
+  const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
+
+  function selfCheckInFixture(extra: ReadonlyArray<readonly [string, Data]> = []) {
+    const sessionId = "session-self";
+    const studentId = "adult-self";
+    return {
+      sessionId,
+      studentId,
+      attendanceId: `${sessionId}__${studentId}`,
+      fixture: transactionalFirestore(
+        new Map<string, Data>([
+          [
+            `academies/${academyId}/sessions/${sessionId}`,
+            {
+              sessionId,
+              academyId,
+              programId: "adult-fundamentals",
+              locationId: "town",
+              startAt: "2026-09-03T18:00:00.000Z",
+              endAt: "2026-09-03T19:00:00.000Z",
+              status: "scheduled",
+            },
+          ],
+          [
+            `academies/${academyId}/students/${studentId}`,
+            {
+              studentId,
+              academyId,
+              userId: "adult-user-1",
+              fullName: "Synthetic Adult",
+              dateOfBirth: "1990-01-01",
+              trainingCenter: "Town",
+              trainingTimePreferences: ["evening"],
+              participantType: "adult",
+              ...auditFields(),
+            },
+          ],
+          [
+            `academies/${academyId}/bookings/v2:12:session-self:10:adult-self`,
+            {
+              bookingId: "v2:12:session-self:10:adult-self",
+              academyId,
+              sessionId,
+              studentId,
+              membershipId: "membership-1",
+              status: "confirmed",
+            },
+          ],
+          [
+            `academies/${academyId}/locations/town`,
+            { locationId: "town", academyId, geofence: town },
+          ],
+          [
+            `academies/${academyId}/programs/adult-fundamentals`,
+            { programId: "adult-fundamentals", academyId, discipline: "bjj" },
+          ],
+          ...extra,
+        ]),
+      ),
+    };
+  }
+
+  it("records an inside member self check-in as late without coordinates and replays its audited fact", async () => {
+    const { fixture, sessionId, studentId, attendanceId } = selfCheckInFixture();
+    const service = createTransactionalAttendanceService({
+      firestore: fixture.firestore as never,
+      now: () => now,
+    });
+    const context = {
+      academyId,
+      input: { sessionId, studentId, position: near },
+      actorId: "adult-user-1",
+      actorRole: "adultStudent" as const,
+    };
+    const record = await service.recordSelfCheckIn(context);
+    expect(record).toMatchObject({
+      attendanceId,
+      method: "self",
+      state: "late",
+      createdBy: "adult-user-1",
+      proximity: { signal: "within", distanceMeters: 30, accuracyMeters: 12, overrideReason: null },
+    });
+    const stored = fixture.documents.get(`academies/${academyId}/attendance/${attendanceId}`);
+    const audit = fixture.documents.get(
+      `academies/${academyId}/auditEvents/attendance-check-in-${attendanceId}`,
+    );
+    expect(audit).toMatchObject({ action: "attendance.checked_in", actorId: "adult-user-1" });
+    for (const written of [JSON.stringify(stored), JSON.stringify(audit)]) {
+      expect(written).not.toContain("49.18");
+      expect(written).not.toContain("-2.107");
+      expect(written).not.toContain("latitude");
+    }
+    const beforeReplay = new Map(fixture.documents);
+    await expect(service.recordSelfCheckIn(context)).resolves.toEqual(record);
+    expect(fixture.documents).toEqual(beforeReplay);
+  });
+
+  it("refuses member replays whose audit evidence differs without writing", async () => {
+    const { fixture, sessionId, studentId, attendanceId } = selfCheckInFixture();
+    const service = createTransactionalAttendanceService({
+      firestore: fixture.firestore as never,
+      now: () => now,
+    });
+    const context = {
+      academyId,
+      input: { sessionId, studentId, position: near },
+      actorId: "adult-user-1",
+      actorRole: "adultStudent" as const,
+    };
+    await service.recordSelfCheckIn(context);
+    const auditPath = `academies/${academyId}/auditEvents/attendance-check-in-${attendanceId}`;
+    fixture.documents.set(auditPath, {
+      ...(fixture.documents.get(auditPath) as Data),
+      actorId: "other",
+    });
+    const beforeRefusal = new Map(fixture.documents);
+    await expect(service.recordSelfCheckIn(context)).rejects.toMatchObject({
+      reason: "already_checked_in",
+    });
+    expect(fixture.documents).toEqual(beforeRefusal);
+  });
+
+  it("refuses bad position or authority without coordinates or writes", async () => {
+    const { fixture, sessionId, studentId } = selfCheckInFixture();
+    const service = createTransactionalAttendanceService({
+      firestore: fixture.firestore as never,
+      now: () => now,
+    });
+    const attempt = (position: typeof near, actorRole: "adultStudent" | "coach" = "adultStudent") =>
+      service.recordSelfCheckIn({
+        academyId,
+        input: { sessionId, studentId, position },
+        actorId: "adult-user-1",
+        actorRole,
+      });
+
+    const beforeRefusals = new Map(fixture.documents);
+    await expect(attempt(far)).rejects.toMatchObject({
+      name: "SelfCheckInRefusedError",
+      reason: "outside",
+      distanceMeters: 120,
+    });
+    await expect(attempt({ ...near, accuracyMeters: 101 })).rejects.toMatchObject({
+      reason: "imprecise",
+    });
+    await expect(attempt(near, "coach")).rejects.toMatchObject({ code: "credential" });
+    await expect(attempt(far)).rejects.not.toThrow(/49\.18|-2\.10/u);
+    expect(fixture.documents).toEqual(beforeRefusals);
+  });
+
+  it("refuses a closed window, an unready site, an unbooked member, and a coach record", async () => {
+    const closed = selfCheckInFixture();
+    const closedService = createTransactionalAttendanceService({
+      firestore: closed.fixture.firestore as never,
+      now: () => "2026-09-03T18:21:00.000Z",
+    });
+    await expect(
+      closedService.recordSelfCheckIn({
+        academyId,
+        input: { sessionId: closed.sessionId, studentId: closed.studentId, position: near },
+        actorId: "adult-user-1",
+        actorRole: "adultStudent",
+      }),
+    ).rejects.toMatchObject({ reason: "window_closed" });
+
+    const noSite = selfCheckInFixture();
+    noSite.fixture.documents.set(`academies/${academyId}/locations/town`, {
+      locationId: "town",
+      academyId,
+      geofence: null,
+    });
+    const noSiteService = createTransactionalAttendanceService({
+      firestore: noSite.fixture.firestore as never,
+      now: () => now,
+    });
+    await expect(
+      noSiteService.recordSelfCheckIn({
+        academyId,
+        input: { sessionId: noSite.sessionId, studentId: noSite.studentId, position: near },
+        actorId: "adult-user-1",
+        actorRole: "adultStudent",
+      }),
+    ).rejects.toMatchObject({ reason: "site_not_ready" });
+
+    const unbooked = selfCheckInFixture();
+    unbooked.fixture.documents.delete(
+      `academies/${academyId}/bookings/v2:12:session-self:10:adult-self`,
+    );
+    const unbookedService = createTransactionalAttendanceService({
+      firestore: unbooked.fixture.firestore as never,
+      now: () => now,
+    });
+    await expect(
+      unbookedService.recordSelfCheckIn({
+        academyId,
+        input: { sessionId: unbooked.sessionId, studentId: unbooked.studentId, position: near },
+        actorId: "adult-user-1",
+        actorRole: "adultStudent",
+      }),
+    ).rejects.toMatchObject({ reason: "not_booked" });
+
+    const coachFirst = selfCheckInFixture();
+    const coachService = createTransactionalAttendanceService({
+      firestore: coachFirst.fixture.firestore as never,
+      now: () => now,
+    });
+    await coachService.recordCheckIn({
+      academyId,
+      input: { sessionId: coachFirst.sessionId, studentId: coachFirst.studentId, method: "manual" },
+      actorId: "coach-user-1",
+      actorRole: "coach",
+    });
+    await expect(
+      coachService.recordSelfCheckIn({
+        academyId,
+        input: { sessionId: coachFirst.sessionId, studentId: coachFirst.studentId, position: near },
+        actorId: "adult-user-1",
+        actorRole: "adultStudent",
+      }),
+    ).rejects.toMatchObject({ reason: "already_checked_in" });
   });
 });
