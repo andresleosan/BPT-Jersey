@@ -36,6 +36,11 @@ import {
   normalizeClassRecord,
   legacySessionId,
 } from "@bpt-jersey/domain/schedule";
+import {
+  decideSelfCheckIn,
+  isOpenMatProgram,
+  type SelfCheckInInput,
+} from "@bpt-jersey/domain/schedule/self-check-in";
 
 import {
   createBookingTransactionService,
@@ -52,6 +57,7 @@ import {
 import {
   createTransactionalAttendanceService,
   ScheduleAttendanceError,
+  SelfCheckInRefusedError,
   type AttendanceFirestore,
   type ScheduleMutationActorRole,
 } from "./attendance-transaction-service.js";
@@ -244,6 +250,13 @@ export type ScheduleStore = Readonly<{
   recordCheckIn: (
     academyId: string,
     input: CheckInInput,
+    actorId: string,
+    occurredAt?: string,
+    actorRole?: ScheduleMutationActorRole,
+  ) => Promise<AttendanceRecord>;
+  recordSelfCheckIn: (
+    academyId: string,
+    input: SelfCheckInInput,
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
@@ -1005,6 +1018,22 @@ export function createFirestoreScheduleStore(options: {
       actorRole?: ScheduleMutationActorRole,
     ): Promise<AttendanceRecord> {
       return attendanceTransactions.recordCheckIn({
+        academyId,
+        input,
+        actorId,
+        actorRole: requireAttendanceActorRole(actorRole),
+        ...(occurredAt === undefined ? {} : { occurredAt }),
+      });
+    },
+
+    async recordSelfCheckIn(
+      academyId: string,
+      input: SelfCheckInInput,
+      actorId: string,
+      occurredAt?: string,
+      actorRole?: ScheduleMutationActorRole,
+    ): Promise<AttendanceRecord> {
+      return attendanceTransactions.recordSelfCheckIn({
         academyId,
         input,
         actorId,
@@ -1938,6 +1967,81 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       });
 
       aMap.set(attendanceId, record);
+      return record;
+    },
+
+    async recordSelfCheckIn(
+      academyId: string,
+      input: SelfCheckInInput,
+      actorId: string,
+      occurredAt?: string,
+      actorRole?: ScheduleMutationActorRole,
+    ): Promise<AttendanceRecord> {
+      if (
+        actorRole === undefined ||
+        !["adultStudent", "teenStudent", "guardian"].includes(actorRole)
+      ) {
+        throw new ScheduleAttendanceError(
+          "credential",
+          "Member authority is required for self check-in",
+        );
+      }
+      const session = sessionsMap.get(academyId)?.get(input.sessionId);
+      if (!session) throw new Error(`Session ${input.sessionId} does not exist`);
+      if (session.status === "cancelled") {
+        throw new Error(`Cannot check in to cancelled session ${input.sessionId}`);
+      }
+      const booked = [...(bookingsMap.get(academyId)?.values() ?? [])].some(
+        (booking) =>
+          booking.sessionId === input.sessionId &&
+          booking.studentId === input.studentId &&
+          booking.status === "confirmed",
+      );
+      if (!booked) throw new SelfCheckInRefusedError("not_booked");
+      if (!attendanceMap.has(academyId)) attendanceMap.set(academyId, new Map());
+      const attendance = attendanceMap.get(academyId)!;
+      const attendanceId = buildAttendanceId(input.sessionId, input.studentId);
+      const existing = attendance.get(attendanceId);
+      if (existing) {
+        if (existing.method === "self" && existing.createdBy === actorId) return existing;
+        throw new SelfCheckInRefusedError("already_checked_in");
+      }
+      const checkInTime = occurredAt ?? new Date().toISOString();
+      const site = (
+        locationsMap.get(academyId) ??
+        defaultLocations.map((location) => ({ ...location, academyId }))
+      ).find((location) => location.locationId === session.locationId);
+      const program = (programsMap.get(academyId) ?? defaultPrograms).find(
+        (candidate) => candidate.programId === session.programId,
+      );
+      const decision = decideSelfCheckIn({
+        session,
+        isOpenMat: isOpenMatProgram(program),
+        site: site?.geofence ?? null,
+        position: input.position,
+        nowMs: Date.parse(checkInTime),
+      });
+      if (!decision.ok) {
+        throw new SelfCheckInRefusedError(decision.error.reason, decision.error.distanceMeters);
+      }
+      const record: AttendanceRecord = Object.freeze({
+        attendanceId,
+        academyId,
+        sessionId: input.sessionId,
+        studentId: input.studentId,
+        method: "self",
+        state: determinePunctuality(session.startAt, checkInTime),
+        occurredAt: checkInTime,
+        notes: null,
+        correctionOf: null,
+        proximity: decision.value,
+        schemaVersion: "1",
+        createdAt: checkInTime,
+        createdBy: actorId,
+        updatedAt: checkInTime,
+        updatedBy: actorId,
+      });
+      attendance.set(attendanceId, record);
       return record;
     },
 

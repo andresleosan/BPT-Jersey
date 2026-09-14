@@ -13,11 +13,18 @@ import {
   type AttendanceProximity,
   type AttendanceRecord,
   type CheckInInput,
+  type LocationGeofence,
   type LocationId,
   type CheckoutRecord,
   type CorrectAttendanceInput,
   type RecordCheckoutInput,
 } from "@bpt-jersey/domain/schedule";
+import {
+  decideSelfCheckIn,
+  isOpenMatProgram,
+  type SelfCheckInInput,
+  type SelfCheckInRefusal,
+} from "@bpt-jersey/domain/schedule/self-check-in";
 
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 import type {
@@ -41,6 +48,17 @@ export class ScheduleAttendanceError extends Error {
   ) {
     super(message);
     this.name = "ScheduleAttendanceError";
+  }
+}
+
+/** A member self check-in that the server refused; the reason is safe to send to the client. */
+export class SelfCheckInRefusedError extends Error {
+  public constructor(
+    public readonly reason: SelfCheckInRefusal,
+    public readonly distanceMeters?: number,
+  ) {
+    super(`Self check-in refused: ${reason}`);
+    this.name = "SelfCheckInRefusedError";
   }
 }
 
@@ -70,6 +88,7 @@ type MutationContext<Input> = Readonly<{
 
 export type TransactionalAttendanceService = Readonly<{
   recordCheckIn: (context: MutationContext<CheckInInput>) => Promise<AttendanceRecord>;
+  recordSelfCheckIn: (context: MutationContext<SelfCheckInInput>) => Promise<AttendanceRecord>;
   correctAttendance: (
     context: MutationContext<CorrectAttendanceInput>,
   ) => Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }>;
@@ -84,6 +103,7 @@ const staffRoles = new Set<ScheduleMutationActorRole>([
   "headCoach",
   "coach",
 ]);
+const memberRoles = new Set<ScheduleMutationActorRole>(["adultStudent", "teenStudent", "guardian"]);
 const maximumRelationships = 100;
 
 function fail(code: ScheduleAttendanceErrorCode, message: string): never {
@@ -150,6 +170,15 @@ function siteHasGeofence(snapshot: BookingDocumentSnapshot): boolean {
     typeof candidate.longitude === "number" &&
     Number.isFinite(candidate.longitude)
   );
+}
+
+function siteGeofence(snapshot: BookingDocumentSnapshot): LocationGeofence | null {
+  const value = data(snapshot)?.geofence;
+  if (typeof value !== "object" || value === null) return null;
+  const candidate = value as Readonly<{ latitude?: unknown; longitude?: unknown }>;
+  return typeof candidate.latitude === "number" && typeof candidate.longitude === "number"
+    ? { latitude: candidate.latitude, longitude: candidate.longitude }
+    : null;
 }
 
 /**
@@ -454,6 +483,117 @@ export function createTransactionalAttendanceService(
         if (proximity.signal === "outside") {
           appendAuditEventInTransaction(transaction, overrideAuditRef, overrideDraft);
         }
+        return record;
+      });
+    },
+
+    /**
+     * The member path judges its window, site, accuracy and distance transactionally with server
+     * data and time. Position is used only for that decision and is never persisted or audited.
+     */
+    async recordSelfCheckIn(context) {
+      const academyId = segment(context.academyId, "academyId");
+      const actorId = segment(context.actorId, "actorId");
+      const sessionId = segment(context.input.sessionId, "sessionId");
+      const studentId = segment(context.input.studentId, "studentId");
+      if (!memberRoles.has(context.actorRole)) {
+        return fail("credential", "Member authority is required for self check-in");
+      }
+      const occurredAt = currentTime(context.occurredAt);
+      const attendanceId = buildAttendanceId(sessionId, studentId);
+      const sessionRef = options.firestore.doc(path(academyId, "sessions", sessionId));
+      const studentRef = options.firestore.doc(path(academyId, "students", studentId));
+      const attendanceRef = options.firestore.doc(path(academyId, "attendance", attendanceId));
+      const auditRef = options.firestore.doc(
+        path(academyId, "auditEvents", `attendance-check-in-${attendanceId}`),
+      );
+      const draft = auditDraft(
+        academyId,
+        actorId,
+        "attendance.checked_in",
+        path(academyId, "attendance", attendanceId),
+        attendanceId,
+      );
+
+      return options.firestore.runTransaction(async (transaction) => {
+        const [sessionSnapshot, studentSnapshot, bookings, attendanceSnapshot, auditSnapshot] =
+          await Promise.all([
+            transaction.get(sessionRef),
+            transaction.get(studentRef),
+            bookingSnapshots(options.firestore, transaction, academyId, sessionId, studentId),
+            transaction.get(attendanceRef),
+            transaction.get(auditRef),
+          ]);
+        const session = requireSession(sessionSnapshot, academyId, sessionId, false);
+        requireStudent(studentSnapshot, academyId, studentId);
+        try {
+          requireConfirmedBooking(bookings, academyId, sessionId, studentId);
+        } catch (error) {
+          if (error instanceof ScheduleAttendanceError) {
+            throw new SelfCheckInRefusedError("not_booked");
+          }
+          throw error;
+        }
+
+        const existing = storedAttendance(attendanceSnapshot, academyId, sessionId, studentId);
+        if (existing !== undefined) {
+          const replay =
+            existing.method === "self" &&
+            existing.createdBy === actorId &&
+            auditSnapshot.exists &&
+            matchesAuditEventReplay(auditSnapshot.data(), auditRef.id, draft);
+          if (replay) return existing;
+          throw new SelfCheckInRefusedError("already_checked_in");
+        }
+        if (auditSnapshot.exists) return fail("conflict", "Attendance evidence already exists");
+
+        const raw = data(sessionSnapshot) ?? {};
+        const endAt = typeof raw.endAt === "string" ? raw.endAt : session.startAt;
+        const programId = typeof raw.programId === "string" ? raw.programId : null;
+        const [locationSnapshot, programSnapshot] = await Promise.all([
+          session.locationId === null
+            ? Promise.resolve(undefined)
+            : transaction.get(
+                options.firestore.doc(path(academyId, "locations", session.locationId)),
+              ),
+          programId === null
+            ? Promise.resolve(undefined)
+            : transaction.get(options.firestore.doc(path(academyId, "programs", programId))),
+        ]);
+        const decision = decideSelfCheckIn({
+          session: { startAt: session.startAt, endAt },
+          isOpenMat: isOpenMatProgram(
+            programSnapshot === undefined
+              ? undefined
+              : { discipline: data(programSnapshot)?.discipline as never },
+          ),
+          site: locationSnapshot === undefined ? null : siteGeofence(locationSnapshot),
+          position: context.input.position,
+          nowMs: Date.parse(occurredAt),
+        });
+        if (!decision.ok) {
+          throw new SelfCheckInRefusedError(decision.error.reason, decision.error.distanceMeters);
+        }
+
+        const record: AttendanceRecord = Object.freeze({
+          attendanceId,
+          academyId,
+          sessionId,
+          studentId,
+          method: "self",
+          state: determinePunctuality(session.startAt, occurredAt),
+          occurredAt,
+          notes: null,
+          correctionOf: null,
+          proximity: decision.value,
+          schemaVersion: "1",
+          createdAt: occurredAt,
+          createdBy: actorId,
+          updatedAt: occurredAt,
+          updatedBy: actorId,
+        });
+        transaction.create(attendanceRef, record as unknown as BookingDocumentData);
+        appendAuditEventInTransaction(transaction, auditRef, draft);
         return record;
       });
     },
