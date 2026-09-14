@@ -13,6 +13,7 @@ import type { AdminDirectoryRow } from "@bpt-jersey/domain/members/directory";
 
 import { listMemberships, type AdminMembership } from "../../../lib/membership-admin-client";
 import { listMembers } from "../../../lib/members-client";
+import { getLevelCatalog } from "../../../lib/levels-client";
 import {
   cancelBooking,
   cancelSession,
@@ -21,20 +22,30 @@ import {
   listClasses,
   listSessionBookings,
   listSessions,
+  removeClass,
   requestBooking,
   saveClass,
   saveSession,
   updateClass,
+  updateSession,
   type ScheduleCatalogResponse,
 } from "../../../lib/schedule-client";
 import { listStaffProfiles, type StaffProfileProjection } from "../../../lib/staff-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { useAdminOrStaffSession } from "../admin-gate";
 import { SiteGeofencePanel } from "./site-geofence-panel";
 import {
+  draftFromClass,
+  draftToCreateInput,
+  draftToUpdateInput,
+  emptyClassDraft,
+  type BeltOption,
+} from "./class-form";
+import {
   ScheduleDialog,
-  type ClassDraft,
   type ScheduleDialogState,
   type SessionDraft,
+  type SessionEditDraft,
 } from "./classes-dialog";
 
 import "../admin.css";
@@ -90,35 +101,6 @@ function mergeSessions(
   );
 }
 
-function newClassDraft(record?: ClassRecord): ClassDraft {
-  if (record) {
-    return Object.freeze({
-      name: record.name,
-      programId: record.programId,
-      locationId: record.locationId,
-      dayOfWeek: record.recurrenceRules[0]!.dayOfWeek,
-      startTime: record.recurrenceRules[0]!.startTime,
-      durationMinutes: record.recurrenceRules[0]!.durationMinutes,
-      instructorIds: Object.freeze([...record.instructorIds]),
-      capacity: record.capacity,
-      minParticipants: record.minParticipants,
-      active: record.active,
-    });
-  }
-  return Object.freeze({
-    name: "",
-    programId: "",
-    locationId: "",
-    dayOfWeek: 1,
-    startTime: "",
-    durationMinutes: 60,
-    instructorIds: Object.freeze([]),
-    capacity: 20,
-    minParticipants: 4,
-    active: true,
-  });
-}
-
 function newSessionDraft(): SessionDraft {
   return Object.freeze({
     classId: "",
@@ -131,6 +113,7 @@ function newSessionDraft(): SessionDraft {
     capacity: 20,
     minParticipants: 4,
     isSeminar: false,
+    description: "",
   });
 }
 
@@ -138,6 +121,30 @@ function localDateTimeToIso(value: string): string {
   const result = new Date(value);
   if (value.length === 0 || Number.isNaN(result.getTime())) throw new Error("Invalid date");
   return result.toISOString();
+}
+
+function pad(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function isoToLocalDateTime(iso: string): string {
+  const date = new Date(iso);
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
+}
+
+function sessionEditDraft(session: SessionRecord): SessionEditDraft {
+  return Object.freeze({
+    title: session.title,
+    instructorId: session.instructorId,
+    startAt: isoToLocalDateTime(session.startAt),
+    endAt: isoToLocalDateTime(session.endAt),
+    capacity: session.capacity,
+    minParticipants: session.minParticipants,
+    description: session.description ?? "",
+  });
 }
 
 function formatSessionStart(value: string, timezone?: string): string {
@@ -163,6 +170,7 @@ export function ClassesPage() {
   const [memberPagePartial, setMemberPagePartial] = useState(false);
   const [memberships, setMemberships] = useState<readonly AdminMembership[]>([]);
   const [staff, setStaff] = useState<readonly StaffProfileProjection[]>([]);
+  const [belts, setBelts] = useState<readonly BeltOption[] | null>(null);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>("loading");
   const [sessionStatus, setSessionStatus] = useState<LoadStatus>("ready");
   const [notice, setNotice] = useState<Notice>();
@@ -205,6 +213,22 @@ export function ClassesPage() {
       active = false;
     };
   }, [initialRange]);
+
+  useEffect(() => {
+    void getLevelCatalog()
+      .then((catalog) =>
+        setBelts(
+          catalog.definitions
+            .filter((d) => d.kind === "belt")
+            .sort((a, b) => a.sequence - b.sequence)
+            .map((d) => ({ key: d.definitionKey, name: d.name, sequence: d.sequence })),
+        ),
+      )
+      .catch(() => setBelts(null));
+  }, []);
+
+  const session = useAdminOrStaffSession();
+  const canManage = session.role !== "coach";
 
   const programNames = useMemo(
     () => new Map(catalog?.programs.map((item) => [item.programId, item.name]) ?? []),
@@ -258,49 +282,23 @@ export function ClassesPage() {
   async function submitClass(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (dialog?.kind !== "class") return;
-    const { draft } = dialog;
-    if (
-      !draft.programId ||
-      !draft.locationId ||
-      draft.instructorIds.length === 0 ||
-      draft.minParticipants > draft.capacity
-    ) {
-      setDialogError("Complete the connected program, location, coach, and capacity fields.");
+    const input =
+      dialog.mode === "create"
+        ? draftToCreateInput(dialog.draft, belts ?? [])
+        : draftToUpdateInput(dialog.classId!, dialog.draft, belts ?? []);
+    if (typeof input === "string") {
+      setDialogError(input);
       return;
     }
     setDialogBusy(true);
     setDialogError("");
     try {
       if (dialog.mode === "create") {
-        const input: CreateClassInput = {
-          programId: draft.programId,
-          locationId: draft.locationId,
-          name: draft.name.trim(),
-          recurrenceRules: [
-            {
-              dayOfWeek: draft.dayOfWeek,
-              startTime: draft.startTime,
-              durationMinutes: draft.durationMinutes,
-            },
-          ],
-          instructorIds: draft.instructorIds,
-          capacity: draft.capacity,
-          minParticipants: draft.minParticipants,
-        };
-        const created = await saveClass(input);
+        const created = await saveClass(input as CreateClassInput);
         setClasses((current) => replaceById(current, created, (item) => item.classId));
         setNotice({ kind: "success", message: "Class created." });
       } else {
-        if (!dialog.classId) throw new Error("Missing class");
-        const input: UpdateClassInput = {
-          classId: dialog.classId,
-          name: draft.name.trim(),
-          instructorIds: draft.instructorIds,
-          capacity: draft.capacity,
-          minParticipants: draft.minParticipants,
-          active: draft.active,
-        };
-        const updated = await updateClass(input);
+        const updated = await updateClass(input as UpdateClassInput);
         setClasses((current) => replaceById(current, updated, (item) => item.classId));
         setNotice({ kind: "success", message: "Class updated." });
       }
@@ -311,6 +309,59 @@ export function ClassesPage() {
           ? "Unable to create the class. Review the fields and try again."
           : "Unable to update the class. Review the fields and try again.",
       );
+    } finally {
+      setDialogBusy(false);
+    }
+  }
+
+  async function submitSessionEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (dialog?.kind !== "session-edit") return;
+    const { draft } = dialog;
+    if (draft.minParticipants > draft.capacity) {
+      setDialogError("Minimum participants cannot exceed capacity.");
+      return;
+    }
+    setDialogBusy(true);
+    setDialogError("");
+    try {
+      const updated = await updateSession({
+        sessionId: dialog.sessionId,
+        title: draft.title.trim(),
+        instructorId: draft.instructorId,
+        startAt: localDateTimeToIso(draft.startAt),
+        endAt: localDateTimeToIso(draft.endAt),
+        capacity: draft.capacity,
+        minParticipants: draft.minParticipants,
+        description: draft.description.trim(),
+      });
+      setSessions((current) => replaceById(current, updated, (item) => item.sessionId));
+      setNotice({ kind: "success", message: "Session updated." });
+      setDialog(undefined);
+    } catch {
+      setDialogError("Unable to update the session. Only scheduled sessions can be edited.");
+    } finally {
+      setDialogBusy(false);
+    }
+  }
+
+  async function submitRemoveClass(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (dialog?.kind !== "remove-class") return;
+    setDialogBusy(true);
+    setDialogError("");
+    try {
+      const result = await removeClass({ classId: dialog.classId, reason: dialog.reason.trim() });
+      setClasses((current) => replaceById(current, result.class, (item) => item.classId));
+      setSessions((current) => mergeSessions(current, result.cancelledSessions));
+      const count = result.cancelledSessions.length;
+      setNotice({
+        kind: "success",
+        message: `Class removed. ${count} upcoming ${count === 1 ? "session" : "sessions"} cancelled.`,
+      });
+      setDialog(undefined);
+    } catch {
+      setDialogError("Unable to remove the class. Refresh and try again.");
     } finally {
       setDialogBusy(false);
     }
@@ -343,6 +394,7 @@ export function ClassesPage() {
         capacity: draft.capacity,
         minParticipants: draft.minParticipants,
         isSeminar: draft.isSeminar,
+        description: draft.description.trim(),
       };
       const created = await saveSession(input);
       setSessions((current) => replaceById(current, created, (item) => item.sessionId));
@@ -499,22 +551,26 @@ export function ClassesPage() {
     <section className="admin-module-page schedule-admin-page" aria-labelledby="classes-title">
       <AdminSectionHeader
         actions={
-          <>
-            <button
-              className="schedule-admin-button schedule-admin-button-secondary"
-              onClick={() => openDialog({ kind: "session", draft: newSessionDraft() })}
-              type="button"
-            >
-              Create session
-            </button>
-            <button
-              className="schedule-admin-button"
-              onClick={() => openDialog({ kind: "class", mode: "create", draft: newClassDraft() })}
-              type="button"
-            >
-              Create class
-            </button>
-          </>
+          canManage ? (
+            <>
+              <button
+                className="schedule-admin-button schedule-admin-button-secondary"
+                onClick={() => openDialog({ kind: "session", draft: newSessionDraft() })}
+                type="button"
+              >
+                New session
+              </button>
+              <button
+                className="schedule-admin-button"
+                onClick={() =>
+                  openDialog({ kind: "class", mode: "create", draft: emptyClassDraft() })
+                }
+                type="button"
+              >
+                New class
+              </button>
+            </>
+          ) : undefined
         }
         description="Configure recurring classes, materialize sessions, and manage connected reservations."
         eyebrow="Schedule / Live operations"
@@ -631,7 +687,7 @@ export function ClassesPage() {
                               kind: "class",
                               mode: "edit",
                               classId: item.classId,
-                              draft: newClassDraft(item),
+                              draft: draftFromClass(item),
                             })
                           }
                           type="button"
@@ -654,6 +710,23 @@ export function ClassesPage() {
                         >
                           Generate
                         </button>
+                        {canManage ? (
+                          <button
+                            aria-label={"Remove " + item.name}
+                            className="schedule-admin-text-button schedule-admin-danger-text"
+                            onClick={() =>
+                              openDialog({
+                                kind: "remove-class",
+                                classId: item.classId,
+                                label: item.name,
+                                reason: "",
+                              })
+                            }
+                            type="button"
+                          >
+                            Remove
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -773,6 +846,22 @@ export function ClassesPage() {
                         >
                           Reservations
                         </button>
+                        {canManage && session.status === "scheduled" ? (
+                          <button
+                            aria-label={"Edit " + session.title}
+                            className="schedule-admin-text-button"
+                            onClick={() =>
+                              openDialog({
+                                kind: "session-edit",
+                                sessionId: session.sessionId,
+                                draft: sessionEditDraft(session),
+                              })
+                            }
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                        ) : null}
                         {session.status === "scheduled" || session.status === "active" ? (
                           <button
                             aria-label={"Cancel " + session.title}
@@ -919,6 +1008,7 @@ export function ClassesPage() {
       {dialog ? (
         <ScheduleDialog
           activeStaff={activeStaff}
+          belts={belts}
           busy={dialogBusy}
           catalog={catalog}
           classes={classes}
@@ -929,7 +1019,9 @@ export function ClassesPage() {
           onSubmitCancellation={(event) => void submitCancellation(event)}
           onSubmitClass={(event) => void submitClass(event)}
           onSubmitGenerate={(event) => void submitGenerate(event)}
+          onSubmitRemoveClass={(event) => void submitRemoveClass(event)}
           onSubmitSession={(event) => void submitSession(event)}
+          onSubmitSessionEdit={(event) => void submitSessionEdit(event)}
         />
       ) : null}
     </section>

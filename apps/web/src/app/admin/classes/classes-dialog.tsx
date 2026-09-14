@@ -1,21 +1,12 @@
 import type { FormEvent } from "react";
-import type { ClassRecord, DayOfWeek, LocationId } from "@bpt-jersey/domain/schedule";
+import type { ClassRecord, LocationId } from "@bpt-jersey/domain/schedule";
+import { classDescriptionMaxLength } from "@bpt-jersey/domain/schedule";
 
 import type { StaffProfileProjection } from "../../../lib/staff-client";
 import type { ScheduleCatalogResponse } from "../../../lib/schedule-client";
+import { ClassForm, type BeltOption, type ClassDraft } from "./class-form";
 
-export type ClassDraft = Readonly<{
-  name: string;
-  programId: string;
-  locationId: "" | LocationId;
-  dayOfWeek: DayOfWeek;
-  startTime: string;
-  durationMinutes: number;
-  instructorIds: readonly string[];
-  capacity: number;
-  minParticipants: number;
-  active: boolean;
-}>;
+export type { ClassDraft, BeltOption };
 
 export type SessionDraft = Readonly<{
   classId: string;
@@ -28,12 +19,25 @@ export type SessionDraft = Readonly<{
   capacity: number;
   minParticipants: number;
   isSeminar: boolean;
+  description: string;
+}>;
+
+export type SessionEditDraft = Readonly<{
+  title: string;
+  instructorId: string;
+  startAt: string;
+  endAt: string;
+  capacity: number;
+  minParticipants: number;
+  description: string;
 }>;
 
 export type ScheduleDialogState =
   | Readonly<{ kind: "class"; mode: "create" | "edit"; classId?: string; draft: ClassDraft }>
   | Readonly<{ kind: "session"; draft: SessionDraft }>
+  | Readonly<{ kind: "session-edit"; sessionId: string; draft: SessionEditDraft }>
   | Readonly<{ kind: "generate"; classId: string; fromDate: string; toDate: string }>
+  | Readonly<{ kind: "remove-class"; classId: string; label: string; reason: string }>
   | Readonly<{ kind: "cancel-session"; sessionId: string; label: string; reason: string }>
   | Readonly<{
       kind: "cancel-booking";
@@ -45,29 +49,18 @@ export type ScheduleDialogState =
       reason: string;
     }>;
 
-const dayLabels = Object.freeze([
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-]);
-
-function selectedValues(select: HTMLSelectElement): readonly string[] {
-  return Object.freeze(Array.from(select.selectedOptions, (option) => option.value));
-}
-
 function title(dialog: ScheduleDialogState): string {
   if (dialog.kind === "class") return dialog.mode === "edit" ? "Edit class" : "Create class";
   if (dialog.kind === "session") return "Create session";
+  if (dialog.kind === "session-edit") return "Edit session";
   if (dialog.kind === "generate") return "Generate sessions";
+  if (dialog.kind === "remove-class") return "Remove class";
   return dialog.kind === "cancel-session" ? "Cancel session" : "Cancel reservation";
 }
 
 type DialogProps = Readonly<{
   activeStaff: readonly StaffProfileProjection[];
+  belts: readonly BeltOption[] | null;
   busy: boolean;
   catalog: ScheduleCatalogResponse;
   classes: readonly ClassRecord[];
@@ -78,7 +71,9 @@ type DialogProps = Readonly<{
   onSubmitCancellation: (event: FormEvent<HTMLFormElement>) => void;
   onSubmitClass: (event: FormEvent<HTMLFormElement>) => void;
   onSubmitGenerate: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmitRemoveClass: (event: FormEvent<HTMLFormElement>) => void;
   onSubmitSession: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmitSessionEdit: (event: FormEvent<HTMLFormElement>) => void;
 }>;
 
 function DialogActions({
@@ -115,6 +110,7 @@ function DialogActions({
 
 export function ScheduleDialog({
   activeStaff,
+  belts,
   busy,
   catalog,
   classes,
@@ -125,7 +121,9 @@ export function ScheduleDialog({
   onSubmitCancellation,
   onSubmitClass,
   onSubmitGenerate,
+  onSubmitRemoveClass,
   onSubmitSession,
+  onSubmitSessionEdit,
 }: DialogProps) {
   const dialogTitle = title(dialog);
   return (
@@ -154,198 +152,14 @@ export function ScheduleDialog({
 
         {dialog.kind === "class" ? (
           <form aria-label={dialogTitle} className="schedule-admin-form" onSubmit={onSubmitClass}>
-            <label className="schedule-admin-field">
-              Class name
-              <input
-                autoFocus
-                maxLength={100}
-                minLength={2}
-                onChange={(event) =>
-                  onChange({ ...dialog, draft: { ...dialog.draft, name: event.target.value } })
-                }
-                required
-                value={dialog.draft.name}
-              />
-            </label>
-            {dialog.mode === "create" ? (
-              <>
-                <label className="schedule-admin-field">
-                  Program
-                  <select
-                    onChange={(event) =>
-                      onChange({
-                        ...dialog,
-                        draft: { ...dialog.draft, programId: event.target.value },
-                      })
-                    }
-                    required
-                    value={dialog.draft.programId}
-                  >
-                    <option value="">Select a program</option>
-                    {catalog.programs
-                      .filter((program) => program.active)
-                      .map((program) => (
-                        <option key={program.programId} value={program.programId}>
-                          {program.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label className="schedule-admin-field">
-                  Training center
-                  <select
-                    onChange={(event) =>
-                      onChange({
-                        ...dialog,
-                        draft: {
-                          ...dialog.draft,
-                          locationId: event.target.value as LocationId | "",
-                        },
-                      })
-                    }
-                    required
-                    value={dialog.draft.locationId}
-                  >
-                    <option value="">Select a center</option>
-                    {catalog.locations
-                      .filter((location) => location.active)
-                      .map((location) => (
-                        <option key={location.locationId} value={location.locationId}>
-                          {location.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label className="schedule-admin-field">
-                  Day
-                  <select
-                    onChange={(event) =>
-                      onChange({
-                        ...dialog,
-                        draft: {
-                          ...dialog.draft,
-                          dayOfWeek: Number(event.target.value) as DayOfWeek,
-                        },
-                      })
-                    }
-                    value={dialog.draft.dayOfWeek}
-                  >
-                    {dayLabels.map((label, index) => (
-                      <option key={label} value={index + 1}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="schedule-admin-field">
-                  Start time
-                  <input
-                    onChange={(event) =>
-                      onChange({
-                        ...dialog,
-                        draft: { ...dialog.draft, startTime: event.target.value },
-                      })
-                    }
-                    required
-                    type="time"
-                    value={dialog.draft.startTime}
-                  />
-                </label>
-                <label className="schedule-admin-field">
-                  Duration (minutes)
-                  <input
-                    max={480}
-                    min={15}
-                    onChange={(event) =>
-                      onChange({
-                        ...dialog,
-                        draft: { ...dialog.draft, durationMinutes: Number(event.target.value) },
-                      })
-                    }
-                    required
-                    type="number"
-                    value={dialog.draft.durationMinutes}
-                  />
-                </label>
-              </>
-            ) : (
-              <p className="schedule-admin-form-note">
-                Program, center, and recurrence remain fixed by the existing update contract.
-              </p>
-            )}
-            <label className="schedule-admin-field schedule-admin-field-wide">
-              Coaches
-              <select
-                multiple
-                onChange={(event) =>
-                  onChange({
-                    ...dialog,
-                    draft: { ...dialog.draft, instructorIds: selectedValues(event.target) },
-                  })
-                }
-                required
-                size={Math.min(Math.max(activeStaff.length, 2), 5)}
-                value={[...dialog.draft.instructorIds]}
-              >
-                {[
-                  ...activeStaff.map((profile) => profile.staffKey),
-                  ...dialog.draft.instructorIds.filter(
-                    (id) => !activeStaff.some((profile) => profile.staffKey === id),
-                  ),
-                ].map((staffKey) => (
-                  <option key={staffKey} value={staffKey}>
-                    {staffKey}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="schedule-admin-field">
-              Capacity
-              <input
-                max={200}
-                min={1}
-                onChange={(event) =>
-                  onChange({
-                    ...dialog,
-                    draft: { ...dialog.draft, capacity: Number(event.target.value) },
-                  })
-                }
-                required
-                type="number"
-                value={dialog.draft.capacity}
-              />
-            </label>
-            <label className="schedule-admin-field">
-              Minimum participants
-              <input
-                max={dialog.draft.capacity}
-                min={0}
-                onChange={(event) =>
-                  onChange({
-                    ...dialog,
-                    draft: { ...dialog.draft, minParticipants: Number(event.target.value) },
-                  })
-                }
-                required
-                type="number"
-                value={dialog.draft.minParticipants}
-              />
-            </label>
-            {dialog.mode === "edit" ? (
-              <label className="schedule-admin-check">
-                <input
-                  checked={dialog.draft.active}
-                  onChange={(event) =>
-                    onChange({
-                      ...dialog,
-                      draft: { ...dialog.draft, active: event.target.checked },
-                    })
-                  }
-                  type="checkbox"
-                />
-                Class is active
-              </label>
-            ) : null}
+            <ClassForm
+              activeStaff={activeStaff}
+              belts={belts}
+              catalog={catalog}
+              draft={dialog.draft}
+              mode={dialog.mode}
+              onChange={(draft) => onChange({ ...dialog, draft })}
+            />
             {error ? (
               <p
                 className="schedule-admin-notice schedule-admin-notice-error schedule-admin-field-wide"
@@ -532,6 +346,20 @@ export function ScheduleDialog({
               />
               Seminar or special event
             </label>
+            <label className="schedule-admin-field schedule-admin-field-wide">
+              Description
+              <textarea
+                maxLength={classDescriptionMaxLength}
+                onChange={(event) =>
+                  onChange({
+                    ...dialog,
+                    draft: { ...dialog.draft, description: event.target.value },
+                  })
+                }
+                rows={3}
+                value={dialog.draft.description}
+              />
+            </label>
             {error ? (
               <p
                 className="schedule-admin-notice schedule-admin-notice-error schedule-admin-field-wide"
@@ -541,6 +369,133 @@ export function ScheduleDialog({
               </p>
             ) : null}
             <DialogActions busy={busy} label="Create session" onClose={onClose} />
+          </form>
+        ) : null}
+
+        {dialog.kind === "session-edit" ? (
+          <form
+            aria-label={dialogTitle}
+            className="schedule-admin-form"
+            onSubmit={onSubmitSessionEdit}
+          >
+            <label className="schedule-admin-field schedule-admin-field-wide">
+              Session title
+              <input
+                maxLength={120}
+                minLength={2}
+                onChange={(event) =>
+                  onChange({ ...dialog, draft: { ...dialog.draft, title: event.target.value } })
+                }
+                required
+                value={dialog.draft.title}
+              />
+            </label>
+            <label className="schedule-admin-field">
+              Coach
+              <select
+                onChange={(event) =>
+                  onChange({
+                    ...dialog,
+                    draft: { ...dialog.draft, instructorId: event.target.value },
+                  })
+                }
+                required
+                value={dialog.draft.instructorId}
+              >
+                {[
+                  ...activeStaff.map((profile) => profile.staffKey),
+                  ...(activeStaff.some((profile) => profile.staffKey === dialog.draft.instructorId)
+                    ? []
+                    : [dialog.draft.instructorId]),
+                ].map((staffKey) => (
+                  <option key={staffKey} value={staffKey}>
+                    {staffKey}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="schedule-admin-field">
+              Starts on this device
+              <input
+                onChange={(event) =>
+                  onChange({ ...dialog, draft: { ...dialog.draft, startAt: event.target.value } })
+                }
+                required
+                type="datetime-local"
+                value={dialog.draft.startAt}
+              />
+            </label>
+            <label className="schedule-admin-field">
+              Ends on this device
+              <input
+                onChange={(event) =>
+                  onChange({ ...dialog, draft: { ...dialog.draft, endAt: event.target.value } })
+                }
+                required
+                type="datetime-local"
+                value={dialog.draft.endAt}
+              />
+            </label>
+            <label className="schedule-admin-field">
+              Capacity
+              <input
+                inputMode="numeric"
+                max={300}
+                min={1}
+                onChange={(event) =>
+                  onChange({
+                    ...dialog,
+                    draft: { ...dialog.draft, capacity: Number(event.target.value) },
+                  })
+                }
+                required
+                type="number"
+                value={dialog.draft.capacity}
+              />
+            </label>
+            <label className="schedule-admin-field">
+              Minimum participants
+              <input
+                inputMode="numeric"
+                max={dialog.draft.capacity}
+                min={0}
+                onChange={(event) =>
+                  onChange({
+                    ...dialog,
+                    draft: { ...dialog.draft, minParticipants: Number(event.target.value) },
+                  })
+                }
+                required
+                type="number"
+                value={dialog.draft.minParticipants}
+              />
+            </label>
+            <label className="schedule-admin-field schedule-admin-field-wide">
+              Description
+              <textarea
+                maxLength={classDescriptionMaxLength}
+                onChange={(event) =>
+                  onChange({
+                    ...dialog,
+                    draft: { ...dialog.draft, description: event.target.value },
+                  })
+                }
+                rows={3}
+                value={dialog.draft.description}
+              />
+            </label>
+            <p className="schedule-admin-form-note schedule-admin-field-wide">
+              Existing bookings are kept. Members are not notified of the change.
+            </p>
+            {error ? (
+              <p
+                className="schedule-admin-notice schedule-admin-notice-error schedule-admin-field-wide"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
+            <DialogActions busy={busy} label="Save session" onClose={onClose} />
           </form>
         ) : null}
 
@@ -581,6 +536,42 @@ export function ScheduleDialog({
               </p>
             ) : null}
             <DialogActions busy={busy} label="Generate sessions" onClose={onClose} />
+          </form>
+        ) : null}
+
+        {dialog.kind === "remove-class" ? (
+          <form
+            aria-label={dialogTitle}
+            className="schedule-admin-form"
+            onSubmit={onSubmitRemoveClass}
+          >
+            <p className="schedule-admin-form-note schedule-admin-field-wide">
+              You are removing <strong>{dialog.label}</strong>. Its upcoming sessions will be
+              cancelled and members with bookings will see them cancelled. Past sessions and
+              attendance are kept.
+            </p>
+            <label className="schedule-admin-field schedule-admin-field-wide">
+              Reason
+              <textarea
+                aria-label="Reason"
+                autoFocus
+                maxLength={200}
+                minLength={2}
+                onChange={(event) => onChange({ ...dialog, reason: event.target.value })}
+                required
+                rows={4}
+                value={dialog.reason}
+              />
+            </label>
+            {error ? (
+              <p
+                className="schedule-admin-notice schedule-admin-notice-error schedule-admin-field-wide"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
+            <DialogActions busy={busy} destructive label="Remove class" onClose={onClose} />
           </form>
         ) : null}
 

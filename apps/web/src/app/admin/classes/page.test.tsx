@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ClassesPage } from "./page";
 
@@ -8,16 +8,20 @@ const mocks = vi.hoisted(() => ({
   cancelSession: vi.fn(),
   generateSessions: vi.fn(),
   getScheduleCatalog: vi.fn(),
+  getLevelCatalog: vi.fn(),
   listClasses: vi.fn(),
   listMembers: vi.fn(),
   listMemberships: vi.fn(),
   listSessionBookings: vi.fn(),
   listSessions: vi.fn(),
   listStaffProfiles: vi.fn(),
+  removeClass: vi.fn(),
   requestBooking: vi.fn(),
   saveClass: vi.fn(),
   saveSession: vi.fn(),
   updateClass: vi.fn(),
+  updateSession: vi.fn(),
+  useAdminOrStaffSession: vi.fn(),
 }));
 
 vi.mock("../../../lib/schedule-client", () => ({
@@ -28,10 +32,12 @@ vi.mock("../../../lib/schedule-client", () => ({
   listClasses: mocks.listClasses,
   listSessionBookings: mocks.listSessionBookings,
   listSessions: mocks.listSessions,
+  removeClass: mocks.removeClass,
   requestBooking: mocks.requestBooking,
   saveClass: mocks.saveClass,
   saveSession: mocks.saveSession,
   updateClass: mocks.updateClass,
+  updateSession: mocks.updateSession,
 }));
 
 vi.mock("../../../lib/members-client", () => ({
@@ -46,12 +52,80 @@ vi.mock("../../../lib/staff-client", () => ({
   listStaffProfiles: mocks.listStaffProfiles,
 }));
 
+vi.mock("../../../lib/levels-client", () => ({
+  getLevelCatalog: mocks.getLevelCatalog,
+}));
+
+vi.mock("../admin-gate", () => ({
+  useAdminOrStaffSession: mocks.useAdminOrStaffSession,
+}));
+
 const academyId = "academy-test";
 const now = "2026-09-03T10:00:00.000Z";
 
+const classFixture = {
+  classId: "class-adults",
+  academyId,
+  programId: "program-adults",
+  locationId: "town",
+  name: "Adult Fundamentals",
+  recurrenceRules: [{ dayOfWeek: 2, startTime: "18:00", durationMinutes: 60 }],
+  description: "",
+  ageRange: null,
+  levelRange: null,
+  instructorIds: ["coach-1"],
+  capacity: 24,
+  minParticipants: 4,
+  active: true,
+  schemaVersion: "2",
+  createdAt: now,
+  createdBy: "admin-test",
+  updatedAt: now,
+  updatedBy: "admin-test",
+} as const;
+
+const sessionFixture = {
+  sessionId: "session-adults",
+  academyId,
+  classId: "class-adults",
+  programId: "program-adults",
+  locationId: "town",
+  instructorId: "coach-1",
+  title: "Adult Fundamentals · Tuesday",
+  startAt: "2026-09-08T17:00:00.000Z",
+  endAt: "2026-09-08T18:00:00.000Z",
+  capacity: 24,
+  minParticipants: 4,
+  status: "scheduled",
+  isSeminar: false,
+  cancellationReason: null,
+  schemaVersion: "1",
+  createdAt: now,
+  createdBy: "admin-test",
+  updatedAt: now,
+  updatedBy: "admin-test",
+} as const;
+
 describe("classes administration", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.useAdminOrStaffSession.mockReturnValue({ role: "owner" });
+    mocks.getLevelCatalog.mockResolvedValue({
+      system: {
+        systemId: "ibjjf",
+        displayName: "IBJJF",
+        schemaVersion: 1,
+        precedence: {},
+        counts: { definitions: 0, belts: 0, stripes: 0 },
+        skillCatalog: [],
+      },
+      definitions: [],
+      skills: [],
+      requirements: [],
+      sourceHash: "test",
+    });
     mocks.getScheduleCatalog.mockResolvedValue({
       locations: [
         {
@@ -86,51 +160,8 @@ describe("classes administration", () => {
         },
       ],
     });
-    mocks.listClasses.mockResolvedValue([
-      {
-        classId: "class-adults",
-        academyId,
-        programId: "program-adults",
-        locationId: "town",
-        name: "Adult Fundamentals",
-        recurrenceRules: [{ dayOfWeek: 2, startTime: "18:00", durationMinutes: 60 }],
-        description: "",
-        ageRange: null,
-        levelRange: null,
-        instructorIds: ["coach-ada"],
-        capacity: 24,
-        minParticipants: 4,
-        active: true,
-        schemaVersion: "2",
-        createdAt: now,
-        createdBy: "admin-test",
-        updatedAt: now,
-        updatedBy: "admin-test",
-      },
-    ]);
-    mocks.listSessions.mockResolvedValue([
-      {
-        sessionId: "session-adults",
-        academyId,
-        classId: "class-adults",
-        programId: "program-adults",
-        locationId: "town",
-        instructorId: "coach-ada",
-        title: "Adult Fundamentals · Tuesday",
-        startAt: "2026-09-08T17:00:00.000Z",
-        endAt: "2026-09-08T18:00:00.000Z",
-        capacity: 24,
-        minParticipants: 4,
-        status: "scheduled",
-        isSeminar: false,
-        cancellationReason: null,
-        schemaVersion: "1",
-        createdAt: now,
-        createdBy: "admin-test",
-        updatedAt: now,
-        updatedBy: "admin-test",
-      },
-    ]);
+    mocks.listClasses.mockResolvedValue([classFixture]);
+    mocks.listSessions.mockResolvedValue([sessionFixture]);
     mocks.listMembers.mockResolvedValue({
       rows: [
         {
@@ -158,7 +189,7 @@ describe("classes administration", () => {
     ]);
     mocks.listStaffProfiles.mockResolvedValue([
       {
-        staffKey: "coach-ada",
+        staffKey: "coach-1",
         role: "coach",
         active: true,
         status: "active",
@@ -189,10 +220,14 @@ describe("classes administration", () => {
       expect(mocks.updateClass).toHaveBeenCalledWith({
         classId: "class-adults",
         name: "Adult Fundamentals Plus",
-        instructorIds: ["coach-ada"],
+        recurrenceRules: [{ dayOfWeek: 2, startTime: "18:00", durationMinutes: 60 }],
+        instructorIds: ["coach-1"],
         capacity: 24,
         minParticipants: 4,
         active: true,
+        description: "",
+        ageRange: null,
+        levelRange: null,
       }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -201,5 +236,136 @@ describe("classes administration", () => {
     expect(screen.getByRole("dialog", { name: "Edit class" })).toBeVisible();
     expect(screen.queryByText("Class updated.")).not.toBeInTheDocument();
     expect(screen.queryByText("private backend detail")).not.toBeInTheDocument();
+  });
+
+  it("creates a two-day class with ranges through the new form", async () => {
+    mocks.getLevelCatalog.mockResolvedValue({
+      system: {
+        systemId: "ibjjf",
+        displayName: "IBJJF",
+        schemaVersion: 1,
+        precedence: {},
+        counts: { definitions: 2, belts: 2, stripes: 0 },
+        skillCatalog: [],
+      },
+      definitions: [
+        {
+          definitionKey: "k-white",
+          systemId: "ibjjf",
+          kind: "belt",
+          parentDefinitionKey: null,
+          name: "White",
+          sequence: 1,
+          stripeNumber: null,
+          criteria: { minAge: 4, maxAge: 15, minClasses: null, minimumTime: null },
+          observedCriteria: { minAge: null, maxAge: null, minClasses: null, minimumTime: null },
+          visual: {
+            colorMode: 1,
+            colors: ["#ffffff"],
+            stripeColor: null,
+            stripeCenter: null,
+            stripeWidth: null,
+            stripePosition: null,
+          },
+          observedSkillRequirementSetKey: null,
+          observedSkillRequirementsState: "none",
+          anomalyFlags: [],
+          schemaVersion: 1,
+        },
+        {
+          definitionKey: "k-grey",
+          systemId: "ibjjf",
+          kind: "belt",
+          parentDefinitionKey: null,
+          name: "Grey",
+          sequence: 2,
+          stripeNumber: null,
+          criteria: { minAge: 4, maxAge: 15, minClasses: null, minimumTime: null },
+          observedCriteria: { minAge: null, maxAge: null, minClasses: null, minimumTime: null },
+          visual: {
+            colorMode: 1,
+            colors: ["#8a8880"],
+            stripeColor: null,
+            stripeCenter: null,
+            stripeWidth: null,
+            stripePosition: null,
+          },
+          observedSkillRequirementSetKey: null,
+          observedSkillRequirementsState: "none",
+          anomalyFlags: [],
+          schemaVersion: 1,
+        },
+      ],
+      skills: [],
+      requirements: [],
+      sourceHash: "test",
+    });
+    mocks.saveClass.mockImplementation(async (input) => ({
+      ...input,
+      classId: "class-new",
+      academyId,
+      active: true,
+      schemaVersion: "2",
+      createdAt: now,
+      createdBy: "u",
+      updatedAt: now,
+      updatedBy: "u",
+    }));
+    render(<ClassesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "New class" }));
+    fireEvent.change(screen.getByLabelText("Class name"), { target: { value: "Kids BJJ" } });
+    fireEvent.change(screen.getByLabelText("Program"), {
+      target: { value: "program-adults" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "BPT Town" }));
+    fireEvent.click(screen.getByRole("button", { name: "Monday" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wednesday" }));
+    fireEvent.click(screen.getByRole("radio", { name: "8–11" }));
+    fireEvent.change(screen.getByLabelText("From belt"), { target: { value: "k-white" } });
+    fireEvent.change(screen.getByLabelText("To belt"), { target: { value: "k-grey" } });
+    fireEvent.click(screen.getByLabelText("coach-1"));
+    fireEvent.click(screen.getByRole("button", { name: "Create class" }));
+    await waitFor(() => expect(mocks.saveClass).toHaveBeenCalledTimes(1));
+    expect(mocks.saveClass.mock.calls[0]![0]).toMatchObject({
+      recurrenceRules: [
+        { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+        { dayOfWeek: 3, startTime: "18:00", durationMinutes: 60 },
+      ],
+      ageRange: { minAge: 8, maxAge: 11 },
+      levelRange: { fromKey: "k-white", toKey: "k-grey", fromName: "White", toName: "Grey" },
+    });
+    expect(await screen.findByText("Class created.")).toBeInTheDocument();
+  });
+
+  it("edits a session and removes a class with a reason", async () => {
+    mocks.updateSession.mockImplementation(async (input) => ({ ...sessionFixture, ...input }));
+    mocks.removeClass.mockResolvedValue({
+      class: { ...classFixture, active: false },
+      cancelledSessions: [sessionFixture, sessionFixture],
+    });
+    render(<ClassesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: `Edit ${sessionFixture.title}` }));
+    fireEvent.change(screen.getByLabelText("Session title"), {
+      target: { value: "Adults Gi" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save session" }));
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: sessionFixture.sessionId, title: "Adults Gi" }),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: `Remove ${classFixture.name}` }));
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Coach left" } });
+    fireEvent.click(screen.getByRole("button", { name: "Remove class" }));
+    await waitFor(() =>
+      expect(mocks.removeClass).toHaveBeenCalledWith({
+        classId: classFixture.classId,
+        reason: "Coach left",
+      }),
+    );
+    expect(
+      await screen.findByText("Class removed. 2 upcoming sessions cancelled."),
+    ).toBeInTheDocument();
   });
 });
