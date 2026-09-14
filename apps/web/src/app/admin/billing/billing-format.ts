@@ -1,3 +1,11 @@
+import type { ManualPaymentMethod } from "@bpt-jersey/domain/finance";
+
+export const methodLabel: Readonly<Record<ManualPaymentMethod, string>> = Object.freeze({
+  cash: "Cash",
+  bank_transfer: "Bank transfer",
+  other: "Other",
+});
+
 const moneyFormatter = new Intl.NumberFormat("en-GB", {
   style: "currency",
   currency: "GBP",

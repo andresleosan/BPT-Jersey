@@ -167,6 +167,82 @@ describe("billing page", () => {
     );
   });
 
+  it("resolves the member's name in the All invoices table, falling back to the description", async () => {
+    membershipApi.listMemberships.mockResolvedValue([
+      {
+        membershipId: "membership-1",
+        familyId: "f1",
+        studentId: "s1",
+        planId: "town-adult",
+        status: "active",
+        startsAt: "2026-09-01T00:00:00.000Z",
+        endsAt: null,
+        nextBillingAt: null,
+      },
+    ]);
+    billingApi.listFinancialAccount.mockResolvedValue({
+      invoices: [
+        {
+          balanceMinor: 5_000,
+          invoice: {
+            invoiceId: "invoice-1",
+            academyId: "academy-1",
+            familyId: "f1",
+            membershipId: "membership-1",
+            status: "open",
+            totalMinor: 5_000,
+            currency: "GBP",
+            dueAt: "2026-09-20T12:00:00.000Z",
+            paidAt: null,
+            schemaVersion: 1,
+            createdAt: "2026-09-03T12:00:00.000Z",
+            createdBy: "owner-1",
+            updatedAt: "2026-09-03T12:00:00.000Z",
+            updatedBy: "owner-1",
+            chargeKind: "membership",
+            sourceRef: null,
+            invoiceReference: "INV-001",
+            description: "September membership",
+          },
+          payments: [],
+        },
+        {
+          balanceMinor: 2_000,
+          invoice: {
+            invoiceId: "invoice-2",
+            academyId: "academy-1",
+            familyId: "f2",
+            membershipId: null,
+            status: "open",
+            totalMinor: 2_000,
+            currency: "GBP",
+            dueAt: "2026-09-21T12:00:00.000Z",
+            paidAt: null,
+            schemaVersion: 1,
+            createdAt: "2026-09-03T12:00:00.000Z",
+            createdBy: "owner-1",
+            updatedAt: "2026-09-03T12:00:00.000Z",
+            updatedBy: "owner-1",
+            chargeKind: "manual_adjustment",
+            sourceRef: null,
+            invoiceReference: "INV-002",
+            description: "One-off gi replacement charge",
+          },
+          payments: [],
+        },
+      ],
+      balanceMinor: 7_000,
+      paygDebtMinor: 0,
+      paymentInstructions: null,
+    });
+    render(<BillingPage />);
+    await screen.findByRole("group", { name: "All invoices" });
+    fireEvent.click(screen.getByText("All invoices", { selector: "summary" }));
+    const table = await screen.findByRole("table", { name: "All invoices" });
+    expect(within(table).getByText("Ana Coelho")).toBeInTheDocument();
+    expect(within(table).getByText("One-off gi replacement charge")).toBeInTheDocument();
+  });
+
   it("keeps the page usable when the member list fails", async () => {
     membersApi.listMemberNames.mockRejectedValue(
       new Error("The member list is unavailable. Please try again."),
