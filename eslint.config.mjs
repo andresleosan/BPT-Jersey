@@ -32,6 +32,8 @@ export default defineConfig([
     "**/coverage/**",
     "**/dist/**",
     ".firebase-functions/**",
+    // Chromium cache that `playwright install` writes here (git-ignored, see run-e2e.mjs).
+    ".playwright-browsers/**",
     // Build output only. `apps/web/src/lib` is source and must stay linted.
     "apps/functions/lib/**",
     "packages/*/lib/**",
