@@ -1547,6 +1547,38 @@ describe("class record v2", () => {
     expect(() => normalizeClassRecord({ classId: "c" })).toThrow();
   });
 
+  it("drops unknown or stale keys instead of leaking them through", () => {
+    const withStaleKey = { ...v1, legacyNote: "x" };
+    const normalized = normalizeClassRecord(withStaleKey);
+    expect(normalized).not.toHaveProperty("legacyNote");
+    expect(normalized).toEqual({
+      classId: "c1",
+      academyId: "a",
+      programId: "p",
+      locationId: "town",
+      name: "Kids BJJ",
+      recurrenceRules: [{ dayOfWeek: 1, startTime: "17:00", durationMinutes: 60 }],
+      description: "",
+      ageRange: null,
+      levelRange: null,
+      instructorIds: ["coach-a"],
+      capacity: 20,
+      minParticipants: 4,
+      active: true,
+      schemaVersion: "2",
+      ...audit,
+    });
+  });
+
+  it("throws on a v2 document missing its rules or holding an empty rule list", () => {
+    const { recurrenceRule: _omit, ...v2WithoutRules } = v1;
+    void _omit;
+    expect(() => normalizeClassRecord({ ...v2WithoutRules, schemaVersion: "2" })).toThrow();
+    expect(() =>
+      normalizeClassRecord({ ...v2WithoutRules, schemaVersion: "2", recurrenceRules: [] }),
+    ).toThrow();
+  });
+
   it("parses one to seven rules, sorted, and rejects a duplicate day and time", () => {
     const rules = [
       { dayOfWeek: 3, startTime: "18:00", durationMinutes: 60 },
