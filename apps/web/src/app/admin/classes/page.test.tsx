@@ -69,10 +69,13 @@ const classFixture = {
   programId: "program-adults",
   locationId: "town",
   name: "Adult Fundamentals",
-  recurrenceRules: [{ dayOfWeek: 2, startTime: "18:00", durationMinutes: 60 }],
+  recurrenceRules: [
+    { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+    { dayOfWeek: 3, startTime: "18:00", durationMinutes: 60 },
+  ],
   description: "",
-  ageRange: null,
-  levelRange: null,
+  ageRange: { minAge: 8, maxAge: 11 },
+  levelRange: { fromKey: "k-white", toKey: "k-grey", fromName: "White", toName: "Grey" },
   instructorIds: ["coach-1"],
   capacity: 24,
   minParticipants: 4,
@@ -118,10 +121,57 @@ describe("classes administration", () => {
         displayName: "IBJJF",
         schemaVersion: 1,
         precedence: {},
-        counts: { definitions: 0, belts: 0, stripes: 0 },
+        counts: { definitions: 2, belts: 2, stripes: 0 },
         skillCatalog: [],
       },
-      definitions: [],
+      definitions: [
+        {
+          definitionKey: "k-white",
+          systemId: "ibjjf",
+          kind: "belt",
+          parentDefinitionKey: null,
+          name: "White",
+          sequence: 1,
+          stripeNumber: null,
+          criteria: { minAge: 4, maxAge: 15, minClasses: null, minimumTime: null },
+          observedCriteria: { minAge: null, maxAge: null, minClasses: null, minimumTime: null },
+          visual: {
+            colorMode: 1,
+            colors: ["#ffffff"],
+            stripeColor: null,
+            stripeCenter: null,
+            stripeWidth: null,
+            stripePosition: null,
+          },
+          observedSkillRequirementSetKey: null,
+          observedSkillRequirementsState: "none",
+          anomalyFlags: [],
+          schemaVersion: 1,
+        },
+        {
+          definitionKey: "k-grey",
+          systemId: "ibjjf",
+          kind: "belt",
+          parentDefinitionKey: null,
+          name: "Grey",
+          sequence: 2,
+          stripeNumber: null,
+          criteria: { minAge: 4, maxAge: 15, minClasses: null, minimumTime: null },
+          observedCriteria: { minAge: null, maxAge: null, minClasses: null, minimumTime: null },
+          visual: {
+            colorMode: 1,
+            colors: ["#8a8880"],
+            stripeColor: null,
+            stripeCenter: null,
+            stripeWidth: null,
+            stripePosition: null,
+          },
+          observedSkillRequirementSetKey: null,
+          observedSkillRequirementsState: "none",
+          anomalyFlags: [],
+          schemaVersion: 1,
+        },
+      ],
       skills: [],
       requirements: [],
       sourceHash: "test",
@@ -220,14 +270,17 @@ describe("classes administration", () => {
       expect(mocks.updateClass).toHaveBeenCalledWith({
         classId: "class-adults",
         name: "Adult Fundamentals Plus",
-        recurrenceRules: [{ dayOfWeek: 2, startTime: "18:00", durationMinutes: 60 }],
+        recurrenceRules: [
+          { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+          { dayOfWeek: 3, startTime: "18:00", durationMinutes: 60 },
+        ],
         instructorIds: ["coach-1"],
         capacity: 24,
         minParticipants: 4,
         active: true,
         description: "",
-        ageRange: null,
-        levelRange: null,
+        ageRange: { minAge: 8, maxAge: 11 },
+        levelRange: { fromKey: "k-white", toKey: "k-grey", fromName: "White", toName: "Grey" },
       }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -366,6 +419,34 @@ describe("classes administration", () => {
     );
     expect(
       await screen.findByText("Class removed. 2 upcoming sessions cancelled."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows every weekly rule, the age and level ranges, and hides actions from a coach", async () => {
+    render(<ClassesPage />);
+    expect(await screen.findByText("Mon 18:00 · Wed 18:00")).toBeInTheDocument();
+    expect(screen.getByText("Ages 8–11 · White → Grey")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: `Remove ${classFixture.name}` })).toBeInTheDocument();
+  });
+
+  it("renders read-only for a coach", async () => {
+    mocks.useAdminOrStaffSession.mockReturnValue({
+      uid: "c",
+      email: "c@x",
+      displayName: "Coach",
+      academyId,
+      role: "coach",
+    });
+    render(<ClassesPage />);
+    await screen.findByText(classFixture.name);
+    expect(screen.queryByRole("button", { name: "New class" })).toBeNull();
+    expect(screen.queryByRole("button", { name: `Edit ${classFixture.name}` })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: `Generate sessions for ${classFixture.name}` }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: `Cancel ${sessionFixture.title}` })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: `View reservations for ${sessionFixture.title}` }),
     ).toBeInTheDocument();
   });
 });
