@@ -1,6 +1,6 @@
 # Ready for Jiu Jitsu — member self check-in (`/account`) — design spec
 
-Date: 2026-09-14 · Status: approved in brainstorm, pending written-spec review · Path: architectural ·
+Date: 2026-09-14 · Status: spec reviewed and grilled 2026-09-15 (decisions 14–20) · Path: architectural ·
 Ledger row to open: **T040V2** (T032V2–T039V2 are reserved by the 2026-09-14 classes plan)
 
 ## 1. Goal
@@ -37,6 +37,13 @@ Out of scope: the coach-side check-in screen (another team is building it on the
 | 11 | Location prompt | Requested **only after the slide commits**, never on page load | Least privilege; the prompt is tied to a user gesture |
 | 12 | Refusals | One reason code per refusal, shown as one plain sentence with a red left rule, plus "a coach can check you in" | DESIGN.md: honest, short failure copy |
 | 13 | Done means | Domain + server + component tests, Playwright on `:9471` at 390 and 1280 px with real browser geolocation, then the review skills | Operator's requested sequence |
+| 14 | Reading precision | Accept readings with accuracy **≤ 100 m**; the distance itself must still be **≤ 50 m** | Fewer refusals at the door (grill, 2026-09-15) |
+| 15 | Site coordinates | Town **49.1839542, −2.1071416** (Brazilian Power Team Jersey pin); West **49.2058242, −2.1858174** (Strive Health Club pin). Seeded in the fixture; in production an admin records them in the existing site geofence panel before rollout | Operator supplied both Google Maps pins (grill) |
+| 16 | Already checked in | Show a **confirmation card** ("YOU'RE IN · 17:52 · On time/Late") built from the attendance record, whatever the method, until the window closes; survives reloads | Grill |
+| 17 | Typeface weight | Confirmed **700**, Mat Ink; no new font file | Grill |
+| 18 | Guardian with two children in window | One slider for the selected child + a hint line naming the other child with an open window ("Leo is ready too — switch to Leo") | One audited record per child (grill) |
+| 19 | Where it is built | **Same worktree and branch** (`/root/BPT-Jersey`, `feature/admin-classes-billing-levels`), visible on `:9471`. Another session edits `admin/classes` on this branch: keep this feature in new files, commit small, never touch `admin/*` | Operator's choice (grill) |
+| 20 | Open mat window | For programs with `discipline === "open-mat"` the window closes at **`endAt`**, not +20 min | T015V2 excludes open mats from the 20-minute loss (grill) |
 
 Amendments this creates, to be written with the date where they live (not silently):
 - **BRIEF decision 5**: add that *member self check-in* is a hard 50 m gate with no override; staff
@@ -51,20 +58,27 @@ Amendments this creates, to be written with the date where they live (not silent
 export const selfCheckInOpensBeforeStartMs = 60 * 60 * 1000;
 export const selfCheckInClosesAfterStartMs = 20 * 60 * 1000;
 
-export function isSelfCheckInWindowOpen(session: Pick<SessionRecord, "startAt">, nowMs: number): boolean;
-// startAt - 60 min <= now <= startAt + 20 min; invalid dates → false
+export const selfCheckInMaxAccuracyMeters = 100;
 
-export function selfCheckInWindowLabels(session: Pick<SessionRecord, "startAt">): { opens: string; closes: string };
-// "17:00" / "18:20" in Europe/Jersey
+export function selfCheckInWindow(session: Pick<SessionRecord, "startAt" | "endAt">, isOpenMat: boolean):
+  { opensAtMs: number; closesAtMs: number };
+// opens = startAt − 60 min; closes = isOpenMat ? endAt : startAt + 20 min
+export function isSelfCheckInWindowOpen(session, isOpenMat, nowMs): boolean;  // invalid dates → false
+export function selfCheckInWindowLabels(session, isOpenMat): { opens: string; closes: string }; // "17:00" / "18:20", Europe/Jersey
+
+export type SelfCheckInCandidate =
+  | { kind: "ready"; session: SessionRecord }
+  | { kind: "checkedIn"; session: SessionRecord; attendance: AttendanceRecord };
 
 export function nextSelfCheckInSession(input: {
   sessions: readonly SessionRecord[];
-  bookings: readonly BookingRecord[];   // for the selected student
+  programs: readonly ProgramRecord[];      // to know open mats
+  bookings: readonly BookingRecord[];      // for the selected student
   attendance: readonly AttendanceRecord[]; // for the selected student, any method
   nowMs: number;
-}): SessionRecord | undefined;
-// earliest by startAt where: status is not cancelled/completed, a booking with status "confirmed"
-// exists, no attendance record exists, and the window is open
+}): SelfCheckInCandidate | undefined;
+// earliest by startAt where status is not cancelled, a booking with status "confirmed" exists and the
+// window is open. With an attendance record (any method) → "checkedIn" (decision 16); otherwise "ready".
 
 export type SelfCheckInPosition = Readonly<{ latitude: number; longitude: number; accuracyMeters: number }>;
 export const selfCheckInRefusals = ["window_closed", "site_not_ready", "imprecise", "outside",
@@ -77,12 +91,13 @@ export function parseSelfCheckInInput(input: unknown):
 // finite; |lat| <= 90, |lng| <= 180, 0 <= accuracy <= 100_000; identifiers non-empty, trimmed
 
 export function decideSelfCheckIn(input: {
-  session: Pick<SessionRecord, "startAt">;
+  session: Pick<SessionRecord, "startAt" | "endAt">;
+  isOpenMat: boolean;
   site: LocationGeofence | null | undefined;
   position: SelfCheckInPosition;
   nowMs: number;
 }): Result<AttendanceProximity /* signal "within", overrideReason null */, SelfCheckInRefusal>;
-// order: window_closed → site_not_ready → imprecise (accuracy > 50) → outside (distance > 50)
+// order: window_closed → site_not_ready → imprecise (accuracy > 100) → outside (distance > 50)
 // distance = Math.round(distanceInMetres(position, site))
 ```
 
@@ -112,7 +127,8 @@ Handler order:
 `recordSelfCheckIn`, sharing helpers with `recordCheckIn`:
 - Allowed actor roles: `adultStudent`, `teenStudent`, `guardian`; anything else → `credential`.
 - Reads in one transaction: session, student, confirmed booking, existing attendance, audit doc,
-  session location.
+  session location, and the session's program (for `discipline === "open-mat"`, the same derivation
+  `booking-transaction-service.ts` already does).
 - `requireSession` (not cancelled), `requireStudent`; no confirmed booking → refusal `not_booked`.
 - Existing attendance: same `createdBy` and method `self` → return it (replay); otherwise refusal
   `already_checked_in` (this is how a coach check-in wins).
@@ -135,7 +151,7 @@ clockIn(input: { sessionId: string; studentId: string; position: SelfCheckInPosi
 
 - **firebase**: `httpsCallable("selfCheckIn")`; errors keep `details.reason` so the UI can map it.
   Marked unverified until the emulator run in §7 passes.
-- **fixture**: sites get coordinates (Town and West test points); `clockIn` applies
+- **fixture**: sites get the real coordinates from decision 15; `clockIn` applies
   `decideSelfCheckIn` with real `Date.now()`, requires a confirmed booking, rejects a second record,
   and appends the attendance so the UI round-trips. Seed one confirmed booking starting 30 min from
   load for each participant so the slider is visible on the workbench.
@@ -154,11 +170,12 @@ Coordinates exist only in this call and the request body.
 | idle | Card: READY / FOR JIU JITSU; range track with purple fill and lime thumb; "Teens BJJ · 18:00 · Town"; "Opens 17:00 · closes 18:20" |
 | locating | Thumb held at end; "Checking you're at the gym…" (no spinner) |
 | sending | Same, input disabled |
-| done | "YOU'RE IN" / "17:52 · On time" or "17:52 · Late"; stays until the window closes |
+| done | "YOU'RE IN" / "17:52 · On time" or "17:52 · Late", from the attendance record (own slide or a coach's check-in, decision 16); stays until the window closes |
+| sibling hint | Under the card, when the guardian has another child with an open window: "Leo is ready too — switch to Leo" (decision 18) |
 | refused | Thumb snaps back; red-rule line with the sentence for the reason; retry allowed |
 
 Refusal sentences: `outside` "You're {n} m away. Get to the gym and try again."; `imprecise` "Your
-location isn't precise enough yet. Step outside or wait a moment and try again."; `denied` "Location
+location isn't precise enough yet. Turn on Precise Location, step near the entrance and try again."; `denied` "Location
 is off. Allow it for this site, or ask a coach to check you in."; `site_not_ready` "This gym can't take
 self check-ins yet. Ask a coach to check you in."; `window_closed` "Check-in for this class has
 closed."; `not_booked` "You need a confirmed booking for this class."; `already_checked_in` "You're
@@ -184,7 +201,8 @@ solid var(--bpt-purple)`, no blur shadows, Barlow Condensed 700 uppercase headli
   family relationship.
 - Coordinates: sent over HTTPS, never persisted, logged, audited or echoed. A test asserts the written
   attendance, audit event and error messages contain neither value.
-- Residual risk accepted (decision 2): a member faking browser GPS can pass the gate. Self check-ins
+- Residual risk accepted (decisions 2 and 14): a member faking browser GPS, or a reading up to 100 m
+  wide that happens to centre near the mat, can pass the gate. Self check-ins
   carry `method: "self"` so staff can spot patterns.
 - No new dependency. No `dangerouslySetInnerHTML`. Location permission only after a user gesture.
 
@@ -192,7 +210,8 @@ solid var(--bpt-purple)`, no blur shadows, Barlow Condensed 700 uppercase headli
 
 - **Domain** (`self-check-in-contracts.test.ts`): window at −60 min, −60 min −1 s, +20 min, +20 min +1 s;
   next-session pick (no booking, requested-only booking, cancelled, attended by coach, two overlapping);
-  every refusal order case; exactly 50 m and exactly 50 m accuracy pass; parser rejects extra keys,
+  every refusal order case; exactly 50 m distance and exactly 100 m accuracy pass, 51 m and 101 m fail;
+  open mat window closes at `endAt`; `checkedIn` candidate when a coach record exists; parser rejects extra keys,
   strings, NaN, out-of-range.
 - **Functions** (handler with fake store, existing pattern): staff refused; adult/teen/guardian with a
   foreign student refused; each refusal code mapped to `failed-precondition` + reason; happy path
@@ -201,8 +220,9 @@ solid var(--bpt-purple)`, no blur shadows, Barlow Condensed 700 uppercase headli
 - **Web** (vitest + jsdom): hidden without a window session; rendered as the first child of `main`;
   follows the child chip; keyboard End commits, early release snaps back; each state and sentence;
   geolocation requested only after commit.
-- **Playwright** (`qa/tests/account-self-check-in.spec.ts`, against `:9471` fixture, projects
-  desktop-chromium and mobile-chromium): `context.grantPermissions(["geolocation"])` +
+- **Playwright** (`qa/tests/account-self-check-in.spec.ts`, against the `:9471` fixture through
+  `BASE_URL=https://optimyze-vps-de-prod.tail29c816.ts.net:9471`, projects desktop-chromium and
+  mobile-chromium): `context.grantPermissions(["geolocation"])` +
   `setGeolocation` inside 50 m → done; 120 m → refused sentence; permissions denied → denied sentence;
   keyboard-only flow; no console errors; screenshots of idle/locating/done/refused at 390 and 1280 px.
 - **Emulator** (best effort): the callable end-to-end in a throwaway container with Java, following
@@ -210,3 +230,14 @@ solid var(--bpt-purple)`, no blur shadows, Barlow Condensed 700 uppercase headli
   report says so and the firebase adapter stays marked unverified.
 - **Reviews** after green tests: `impeccable`, `taste-skill`, `redesign-skill` (screen);
   `security-best-practices`, `frontend-security-coder` (callable + component); `ponytail` (whole diff).
+
+## 8. Rollout note
+
+Production has no site coordinates yet. Before the slider goes live, an owner/admin records the two
+pins of decision 15 in `/admin/classes` (site geofence panel). Until then every self check-in answers
+`site_not_ready` and the card says to ask a coach, which is the intended fail-closed behaviour. The
+`selfCheckIn` function deploys separately (`firebase deploy --only functions:selfCheckIn`).
+
+Ledger: row **T040V2** in `tasksv2.md`, mirrored in `Listav2/Listav2.data.js` (`TASK_SURFACES`
+declares the files above so the parallel report stays honest; `qa/unit/listav2-ledger-sync.test.ts`
+fails otherwise).
