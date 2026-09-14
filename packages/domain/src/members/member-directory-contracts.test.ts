@@ -7,6 +7,7 @@ import {
   memberDirectoryStateSchema,
   memberDirectoryOperationPhases,
   maskMembershipReference,
+  memberNameRowSchema,
   memberRecordMaintenanceDetailSchema,
   publicAdminIdentifierLookupKinds,
   parseAdminCreateStudentInput,
@@ -581,6 +582,21 @@ describe("canonical member directory contracts", () => {
       ok: false,
       error: [{ path: ["effectiveDate"], code: "invalid_effective_date" }],
     });
+  });
+
+  it("parses a member name row", () => {
+    expect(
+      memberNameRowSchema.safeParse({ studentId: "s1", fullName: "Ana Coelho", familyId: null })
+        .success,
+    ).toBe(true);
+    expect(
+      memberNameRowSchema.safeParse({
+        studentId: "s1",
+        fullName: "Ana Coelho",
+        familyId: "f1",
+        email: "x",
+      }).success,
+    ).toBe(false);
   });
 });
 
