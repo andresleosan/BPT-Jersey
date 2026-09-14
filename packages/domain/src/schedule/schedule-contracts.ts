@@ -25,8 +25,9 @@ export type DayOfWeek = (typeof daysOfWeek)[number];
 
 /**
  * Coordinates of an academy site, used only to judge whether a check-in was measured at the venue.
- * These are the academy's own premises, never a person's location, and no member coordinate is ever
- * accepted or stored (BRIEF decision 5).
+ * These are the academy’s own premises. Coordinates from a member are accepted by exactly one path,
+ * `selfCheckIn` (2026-09-15, decision 2 of the self check-in spec): they are reduced to a distance
+ * in memory and never stored, logged or audited. Staff check-in still receives only a distance.
  */
 export type LocationGeofence = Readonly<{
   latitude: number;
@@ -1442,7 +1443,7 @@ export function decideQuorumSweep(
 
 // ── Attendance & Check-In Contracts ──
 
-export const checkInMethods = Object.freeze(["qr", "pin", "nameSearch", "manual"] as const);
+export const checkInMethods = Object.freeze(["qr", "pin", "nameSearch", "manual", "self"] as const);
 export type CheckInMethod = (typeof checkInMethods)[number];
 
 export const attendanceStates = Object.freeze([

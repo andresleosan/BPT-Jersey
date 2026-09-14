@@ -2,12 +2,18 @@
  * Ready for Jiu Jitsu — member self check-in (/account). Pure rules only; nothing here touches
  * Firebase. Spec: docs/superpowers/specs/2026-09-14-ready-for-jiu-jitsu-self-check-in-design.md
  */
-import type {
-  AttendanceRecord,
-  BookingRecord,
-  ProgramRecord,
-  SessionRecord,
+import {
+  checkInProximityRadiusMeters,
+  distanceInMetres,
+  maxCheckInProximityMeters,
+  type AttendanceProximity,
+  type AttendanceRecord,
+  type BookingRecord,
+  type LocationGeofence,
+  type ProgramRecord,
+  type SessionRecord,
 } from "./schedule-contracts";
+import { err, ok, type Result } from "../result";
 
 export const selfCheckInOpensBeforeStartMs = 60 * 60 * 1000;
 export const selfCheckInClosesAfterStartMs = 20 * 60 * 1000;
@@ -96,4 +102,129 @@ export function nextSelfCheckInSession(input: {
   if (!session) return undefined;
   const record = attendance.get(session.sessionId);
   return record ? { kind: "checkedIn", session, attendance: record } : { kind: "ready", session };
+}
+
+/** Decision 14: readings wider than this are refused; the distance itself must still be ≤ 50 m. */
+export const selfCheckInMaxAccuracyMeters = 100;
+
+export type SelfCheckInPosition = Readonly<{
+  latitude: number;
+  longitude: number;
+  accuracyMeters: number;
+}>;
+
+export type SelfCheckInInput = Readonly<{
+  sessionId: string;
+  studentId: string;
+  position: SelfCheckInPosition;
+}>;
+
+export const selfCheckInRefusals = Object.freeze([
+  "window_closed",
+  "site_not_ready",
+  "imprecise",
+  "outside",
+  "not_booked",
+  "already_checked_in",
+] as const);
+export type SelfCheckInRefusal = (typeof selfCheckInRefusals)[number];
+
+export type SelfCheckInDecisionError = Readonly<{
+  reason: SelfCheckInRefusal;
+  /** Only with outside, so the member can be told how far they are. Never a coordinate. */
+  distanceMeters?: number;
+}>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const present = Object.keys(value);
+  return present.length === keys.length && keys.every((key) => present.includes(key));
+}
+
+function finiteWithin(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+}
+
+/** Strict: exactly the three fields, exactly the three coordinates, finite and in range. */
+export function parseSelfCheckInInput(input: unknown): Result<SelfCheckInInput, string> {
+  if (!isRecord(input) || !exactKeys(input, ["sessionId", "studentId", "position"])) {
+    return err("Self check-in accepts exactly sessionId, studentId and position");
+  }
+  const { sessionId, studentId, position } = input;
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+  if (!isRecord(position) || !exactKeys(position, ["latitude", "longitude", "accuracyMeters"])) {
+    return err("position accepts exactly latitude, longitude and accuracyMeters");
+  }
+  if (
+    !finiteWithin(position.latitude, -90, 90) ||
+    !finiteWithin(position.longitude, -180, 180) ||
+    !finiteWithin(position.accuracyMeters, 0, maxCheckInProximityMeters)
+  ) {
+    return err("position is out of range");
+  }
+  return ok(
+    Object.freeze({
+      sessionId: sessionId.trim(),
+      studentId: studentId.trim(),
+      position: Object.freeze({
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: position.accuracyMeters,
+      }),
+    }),
+  );
+}
+
+/**
+ * Decisions 1, 2, 14: the hard gate, judged on the server with server time. Order: window → site
+ * coordinates → accuracy → distance. The returned proximity is what the attendance record stores;
+ * the position itself is used here and nowhere else.
+ */
+export function decideSelfCheckIn(input: {
+  session: WindowSession;
+  isOpenMat: boolean;
+  site: LocationGeofence | null | undefined;
+  position: SelfCheckInPosition;
+  nowMs: number;
+}): Result<AttendanceProximity, SelfCheckInDecisionError> {
+  if (!isSelfCheckInWindowOpen(input.session, input.isOpenMat, input.nowMs)) {
+    return err({ reason: "window_closed" });
+  }
+  if (
+    input.site === null ||
+    input.site === undefined ||
+    !finiteWithin(input.site.latitude, -90, 90) ||
+    !finiteWithin(input.site.longitude, -180, 180)
+  ) {
+    return err({ reason: "site_not_ready" });
+  }
+  if (input.position.accuracyMeters > selfCheckInMaxAccuracyMeters) {
+    return err({ reason: "imprecise" });
+  }
+  const accuracyMeters = Math.round(input.position.accuracyMeters);
+  const distanceMeters = Math.round(
+    distanceInMetres(
+      { latitude: input.position.latitude, longitude: input.position.longitude },
+      input.site,
+    ),
+  );
+  if (distanceMeters > checkInProximityRadiusMeters) {
+    return err({ reason: "outside", distanceMeters });
+  }
+  return ok(
+    Object.freeze({
+      signal: "within" as const,
+      distanceMeters,
+      accuracyMeters,
+      overrideReason: null,
+    }),
+  );
 }
