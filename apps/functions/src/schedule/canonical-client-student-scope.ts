@@ -2,11 +2,12 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 
 export type CanonicalClientStudentScopeInput = Readonly<{
   academyId: string;
   actorUserId: string;
-  actorRole: "guardian" | "adultStudent";
+  actorRole: "guardian" | "adultStudent" | "teenStudent";
   requestedStudentId: string;
 }>;
 
@@ -33,6 +34,20 @@ export type CanonicalClientStudentScopeDependencies = Readonly<{
 
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const maximumRelationships = 100;
+
+/** D1 / T032V2: a minor holds their own account from 12, the Kids/Teens line. */
+export const teenAccountMinimumAge = 12;
+
+function ageInYears(dateOfBirth: string, todayKey: string): number {
+  const birth = new Date(`${dateOfBirth}T00:00:00.000Z`);
+  const today = new Date(`${todayKey}T00:00:00.000Z`);
+  if (Number.isNaN(birth.getTime()) || Number.isNaN(today.getTime())) return -1;
+  const years = today.getUTCFullYear() - birth.getUTCFullYear();
+  const beforeBirthday =
+    today.getUTCMonth() < birth.getUTCMonth() ||
+    (today.getUTCMonth() === birth.getUTCMonth() && today.getUTCDate() < birth.getUTCDate());
+  return beforeBirthday ? years - 1 : years;
+}
 
 function safeIdentifier(value: unknown): value is string {
   return typeof value === "string" && identifierPattern.test(value);
@@ -72,6 +87,32 @@ export function createCanonicalClientStudentScopeResolver(
           parsed.value.participantType === "adult" &&
           parsed.value.active &&
           parsed.value.status === "active"
+        );
+      }
+
+      if (input.actorRole === "teenStudent") {
+        const matches = await dependencies.queryDocuments(
+          `academies/${input.academyId}/students`,
+          "userId",
+          input.actorUserId,
+          2,
+        );
+        if (matches.length !== 1) return false;
+        const document = matches[0]!;
+        const parsed = document.data === undefined ? undefined : parseStudentProfile(document.data);
+        if (!document.exists || parsed === undefined || !parsed.ok) return false;
+        const todayKey = dateKeyInJersey(
+          new Date(dependencies.now?.() ?? new Date().toISOString()),
+        );
+        return (
+          document.id === parsed.value.studentId &&
+          parsed.value.studentId === input.requestedStudentId &&
+          parsed.value.academyId === input.academyId &&
+          parsed.value.userId === input.actorUserId &&
+          parsed.value.participantType === "minor" &&
+          parsed.value.active &&
+          parsed.value.status === "active" &&
+          ageInYears(parsed.value.dateOfBirth, todayKey) >= teenAccountMinimumAge
         );
       }
 

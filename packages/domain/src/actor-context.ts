@@ -13,6 +13,7 @@ export const userRoles = Object.freeze([
   "coach",
   "guardian",
   "adultStudent",
+  "teenStudent",
   "shopper",
 ] as const);
 

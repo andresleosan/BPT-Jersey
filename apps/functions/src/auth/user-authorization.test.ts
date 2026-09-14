@@ -23,6 +23,7 @@ const userRoles = Object.freeze([
   "coach",
   "guardian",
   "adultStudent",
+  "teenStudent",
 ] as const);
 
 function accessInput(actorActive = true): AccessEvaluationInput {

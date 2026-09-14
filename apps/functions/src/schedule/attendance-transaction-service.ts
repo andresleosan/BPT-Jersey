@@ -29,7 +29,7 @@ import type {
 } from "./booking-transaction-service.js";
 
 export type ScheduleMutationActorRole =
-  "owner" | "administrator" | "headCoach" | "coach" | "guardian" | "adultStudent";
+  "owner" | "administrator" | "headCoach" | "coach" | "guardian" | "adultStudent" | "teenStudent";
 
 type ScheduleAttendanceErrorCode =
   "conflict" | "credential" | "ineligible" | "invalid" | "not-found" | "tenant";

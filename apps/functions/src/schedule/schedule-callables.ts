@@ -72,7 +72,7 @@ async function requireStudentScope(
   const actor = requireUserActor(request);
   if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) return;
   if (
-    (actor.role === "guardian" || actor.role === "adultStudent") &&
+    (actor.role === "guardian" || actor.role === "adultStudent" || actor.role === "teenStudent") &&
     (await (options.resolveClientStudentScope ?? resolveCanonicalClientStudent)({
       academyId: actor.academyId,
       actorUserId: actor.userId,
