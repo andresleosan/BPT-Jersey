@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  decideSelfCheckIn,
   isSelfCheckInWindowOpen,
   nextSelfCheckInSession,
+  parseSelfCheckInInput,
+  selfCheckInMaxAccuracyMeters,
   selfCheckInWindow,
   selfCheckInWindowLabels,
 } from "./self-check-in-contracts";
@@ -12,6 +15,7 @@ import type {
   ProgramRecord,
   SessionRecord,
 } from "./schedule-contracts";
+import { checkInMethods } from "./schedule-contracts";
 
 const audit = {
   schemaVersion: "1" as const,
@@ -234,5 +238,129 @@ describe("nextSelfCheckInSession", () => {
         nowMs: startMs + 45 * minute,
       }),
     ).toBeUndefined();
+  });
+});
+
+const town = { latitude: 49.183954, longitude: -2.107142 };
+// 1e-5° of latitude ≈ 1.11 m
+const at = (metresNorth: number, accuracyMeters = 12) => ({
+  latitude: Number((town.latitude + metresNorth / 111_000).toFixed(6)),
+  longitude: town.longitude,
+  accuracyMeters,
+});
+
+describe("parseSelfCheckInInput", () => {
+  const valid = { sessionId: "s1", studentId: "sam", position: at(0) };
+  it("accepts exactly sessionId, studentId and position", () => {
+    expect(parseSelfCheckInInput(valid)).toEqual({
+      ok: true,
+      value: { ...valid, position: at(0) },
+    });
+  });
+  it("rejects extra keys, missing keys and non-objects", () => {
+    expect(parseSelfCheckInInput({ ...valid, extra: 1 }).ok).toBe(false);
+    expect(parseSelfCheckInInput({ sessionId: "s1", studentId: "sam" }).ok).toBe(false);
+    expect(parseSelfCheckInInput({ ...valid, position: { ...at(0), speed: 1 } }).ok).toBe(false);
+    expect(parseSelfCheckInInput("nope").ok).toBe(false);
+    expect(parseSelfCheckInInput(null).ok).toBe(false);
+  });
+  it("rejects strings, NaN and out-of-range coordinates", () => {
+    expect(parseSelfCheckInInput({ ...valid, position: { ...at(0), latitude: "49" } }).ok).toBe(
+      false,
+    );
+    expect(
+      parseSelfCheckInInput({ ...valid, position: { ...at(0), latitude: Number.NaN } }).ok,
+    ).toBe(false);
+    expect(parseSelfCheckInInput({ ...valid, position: { ...at(0), latitude: 91 } }).ok).toBe(
+      false,
+    );
+    expect(parseSelfCheckInInput({ ...valid, position: { ...at(0), longitude: -181 } }).ok).toBe(
+      false,
+    );
+    expect(parseSelfCheckInInput({ ...valid, position: { ...at(0), accuracyMeters: -1 } }).ok).toBe(
+      false,
+    );
+    expect(
+      parseSelfCheckInInput({ ...valid, position: { ...at(0), accuracyMeters: 100_001 } }).ok,
+    ).toBe(false);
+    expect(parseSelfCheckInInput({ ...valid, sessionId: "  " }).ok).toBe(false);
+  });
+  it("never echoes the submitted values in its error", () => {
+    const result = parseSelfCheckInInput({
+      ...valid,
+      position: { ...at(0), latitude: 91.123456 },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).not.toContain("91.123456");
+  });
+});
+
+describe("decideSelfCheckIn", () => {
+  const base = { session: s, isOpenMat: false, site: town, nowMs: startMs - 30 * minute };
+  it("refuses in order: window, site, accuracy, distance", () => {
+    expect(
+      decideSelfCheckIn({
+        ...base,
+        nowMs: startMs - 61 * minute,
+        site: null,
+        position: at(500, 900),
+      }),
+    ).toEqual({ ok: false, error: { reason: "window_closed" } });
+    expect(decideSelfCheckIn({ ...base, site: null, position: at(500, 900) })).toEqual({
+      ok: false,
+      error: { reason: "site_not_ready" },
+    });
+    expect(decideSelfCheckIn({ ...base, site: undefined, position: at(0) })).toEqual({
+      ok: false,
+      error: { reason: "site_not_ready" },
+    });
+    expect(
+      decideSelfCheckIn({
+        ...base,
+        position: at(500, selfCheckInMaxAccuracyMeters + 1),
+      }),
+    ).toEqual({ ok: false, error: { reason: "imprecise" } });
+    expect(decideSelfCheckIn({ ...base, position: at(120) })).toEqual({
+      ok: false,
+      error: { reason: "outside", distanceMeters: 120 },
+    });
+  });
+  it("passes at exactly 50 m and exactly 100 m accuracy, fails at 51 m and 101 m", () => {
+    expect(decideSelfCheckIn({ ...base, position: at(50, 100) })).toEqual({
+      ok: true,
+      value: { signal: "within", distanceMeters: 50, accuracyMeters: 100, overrideReason: null },
+    });
+    expect(decideSelfCheckIn({ ...base, position: at(51) }).ok).toBe(false);
+    expect(decideSelfCheckIn({ ...base, position: at(0, 101) }).ok).toBe(false);
+  });
+  it("rejects fractional accuracy above 100 before rounding", () => {
+    expect(
+      decideSelfCheckIn({ ...base, position: at(0, selfCheckInMaxAccuracyMeters + 0.4) }),
+    ).toEqual({ ok: false, error: { reason: "imprecise" } });
+  });
+  it("fails closed for an invalid site coordinate range", () => {
+    expect(
+      decideSelfCheckIn({
+        ...base,
+        site: { latitude: 91, longitude: town.longitude },
+        position: at(0),
+      }),
+    ).toEqual({ ok: false, error: { reason: "site_not_ready" } });
+  });
+  it("uses the open-mat window when told so", () => {
+    expect(
+      decideSelfCheckIn({
+        ...base,
+        isOpenMat: true,
+        nowMs: startMs + 45 * minute,
+        position: at(0),
+      }).ok,
+    ).toBe(true);
+  });
+});
+
+describe("check-in methods", () => {
+  it("include self", () => {
+    expect(checkInMethods).toContain("self");
   });
 });
