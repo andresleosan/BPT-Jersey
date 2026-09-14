@@ -344,6 +344,35 @@ export function normalizeClassRecord(raw: unknown): ClassRecord {
   if (!isRecord(raw) || typeof raw.classId !== "string" || typeof raw.name !== "string") {
     throw new Error("Stored class record is invalid");
   }
+  const {
+    academyId,
+    programId,
+    locationId,
+    instructorIds,
+    capacity,
+    minParticipants,
+    active,
+    createdAt,
+    createdBy,
+    updatedAt,
+    updatedBy,
+  } = raw;
+  if (
+    typeof academyId !== "string" ||
+    typeof programId !== "string" ||
+    typeof locationId !== "string" ||
+    !Array.isArray(instructorIds) ||
+    instructorIds.some((id) => typeof id !== "string") ||
+    typeof capacity !== "number" ||
+    typeof minParticipants !== "number" ||
+    typeof active !== "boolean" ||
+    typeof createdAt !== "string" ||
+    typeof createdBy !== "string" ||
+    typeof updatedAt !== "string" ||
+    typeof updatedBy !== "string"
+  ) {
+    throw new Error("Stored class record is invalid");
+  }
   const rules =
     raw.schemaVersion === "2" && Array.isArray(raw.recurrenceRules)
       ? raw.recurrenceRules
@@ -360,19 +389,25 @@ export function normalizeClassRecord(raw: unknown): ClassRecord {
     throw new Error("Stored class record is invalid");
   }
   const description = parseClassDescription(raw.description);
-  const { recurrenceRule: _legacy, recurrenceRules: _ignoredRules, ...rest } = raw;
-  void _legacy;
-  void _ignoredRules;
   return Object.freeze({
-    ...(rest as Omit<
-      ClassRecord,
-      "recurrenceRules" | "description" | "ageRange" | "levelRange" | "schemaVersion"
-    >),
+    classId: raw.classId,
+    academyId,
+    programId,
+    locationId: locationId as LocationId,
+    name: raw.name,
     recurrenceRules: parsedRules.value,
     description: description.ok ? description.value : "",
     ageRange: ageRange ? ageRange.value : null,
     levelRange: levelRange ? levelRange.value : null,
+    instructorIds: Object.freeze([...instructorIds]),
+    capacity,
+    minParticipants,
+    active,
     schemaVersion: "2" as const,
+    createdAt,
+    createdBy,
+    updatedAt,
+    updatedBy,
   });
 }
 
