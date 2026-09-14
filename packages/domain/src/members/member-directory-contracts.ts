@@ -323,6 +323,16 @@ export const adminDirectoryRowSchema = z.strictObject({
 
 export type AdminDirectoryRow = Readonly<z.infer<typeof adminDirectoryRowSchema>>;
 
+export const memberNamesLimit = 2000;
+
+/** The lightest member list the office needs to pick somebody: name, id and billing family. */
+export const memberNameRowSchema = z.strictObject({
+  studentId: opaqueIdentifierSchema,
+  fullName: canonicalText(160),
+  familyId: opaqueIdentifierSchema.nullable(),
+});
+export type MemberNameRow = Readonly<z.infer<typeof memberNameRowSchema>>;
+
 export const memberRecordMaintenanceDetailSchema = z.strictObject({
   ...studentDirectoryShape,
   dateOfBirth: dateOnlySchema,

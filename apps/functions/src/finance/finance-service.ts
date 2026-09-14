@@ -472,6 +472,10 @@ async function matchesStudentScopeInTransaction(
   invoice: InvoiceRecord,
 ): Promise<boolean> {
   if (scope.studentIds === undefined) return true;
+  // Task 14 reworks this: a membership-less invoice has no membership to scope-check against yet.
+  if (invoice.membershipId === null) {
+    throw new FinanceStoreError("tenant", "Membership scope is invalid");
+  }
   const membership = documentSnapshot(
     await transaction.get(firestore.doc(membershipPath(scope.academyId, invoice.membershipId))),
   );

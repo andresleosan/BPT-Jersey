@@ -176,6 +176,27 @@ describe("financial dashboard projection", () => {
     expect(dashboard.upcomingRenewals).toHaveLength(financialDashboardListLimit);
   });
 
+  it("keeps an invoice without a membership in balanceAttention", () => {
+    const dashboard = buildFinancialDashboard({
+      generatedAt,
+      memberships: [],
+      invoices: [
+        invoice("invoice-no-membership", "membership-1", {
+          membershipId: null,
+          totalMinor: 2_000,
+        }),
+      ],
+      payments: [],
+    });
+
+    expect(dashboard.balanceAttention).toEqual([
+      expect.objectContaining({
+        invoiceReference: "INV-invoice-no-membership",
+        balanceMinor: 2_000,
+      }),
+    ]);
+  });
+
   it("rejects duplicate or orphan source records", () => {
     const current = membership("membership-1");
     expect(() =>

@@ -144,6 +144,8 @@ function validateRelationships(
   const totalsByInvoice = new Map<string, number>();
 
   for (const invoice of invoices) {
+    // Task 15 reworks this: a membership-less invoice has no membership to relate to.
+    if (invoice.membershipId === null) continue;
     const membership = membershipById.get(invoice.membershipId);
     if (membership === undefined || membership.familyId !== invoice.familyId) {
       throw new FinancialDashboardStoreError("tenant", "Invoice relationship mismatch");

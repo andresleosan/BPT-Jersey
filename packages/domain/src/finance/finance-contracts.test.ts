@@ -6,8 +6,10 @@ import {
   calculateAccountBalance,
   calculateInvoiceBalance,
   calculatePaygDebt,
+  isRecentPaymentRow,
   parseInvoiceRecord,
   parseManualPaymentRecord,
+  recentPaymentsLimit,
   type InvoiceRecord,
   type ManualPaymentRecord,
 } from "./finance-contracts";
@@ -135,5 +137,31 @@ describe("finance contracts", () => {
     expect(calculateInvoiceBalance(voidInvoice, [payment()])).toBe(0);
     expect(calculateAccountBalance([voidInvoice], [payment()])).toBe(0);
     expect(calculatePaygDebt([voidInvoice], [payment()])).toBe(0);
+  });
+
+  it("accepts an invoice without a membership and still rejects a wrong identifier", () => {
+    const base = invoice();
+    expect(parseInvoiceRecord({ ...base, membershipId: null }).ok).toBe(true);
+    expect(parseInvoiceRecord({ ...base, membershipId: "bad id" }).ok).toBe(false);
+    expect(parseInvoiceRecord({ ...base, membershipId: undefined }).ok).toBe(false);
+  });
+
+  it("guards a recent payment row", () => {
+    const row = {
+      paymentId: "p1",
+      occurredAt: "2026-09-13T10:00:00.000Z",
+      amountMinor: 7500,
+      method: "cash",
+      manualReference: "CASH-1",
+      invoiceReference: "INV-1",
+      description: "September",
+      familyId: "f1",
+      memberName: "Ana Coelho",
+    };
+    expect(isRecentPaymentRow(row)).toBe(true);
+    expect(isRecentPaymentRow({ ...row, memberName: null })).toBe(true);
+    expect(isRecentPaymentRow({ ...row, method: "card" })).toBe(false);
+    expect(isRecentPaymentRow({ ...row, extra: 1 })).toBe(false);
+    expect(recentPaymentsLimit).toBe(20);
   });
 });

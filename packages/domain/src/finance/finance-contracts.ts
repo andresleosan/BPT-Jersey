@@ -18,7 +18,7 @@ export type InvoiceRecord = Readonly<{
   invoiceId: string;
   academyId: string;
   familyId: string;
-  membershipId: string;
+  membershipId: string | null;
   status: InvoiceStatus;
   totalMinor: number;
   currency: "GBP";
@@ -178,7 +178,6 @@ function parseInvoiceValues(
     "invoiceId",
     "academyId",
     "familyId",
-    "membershipId",
     "createdBy",
     "updatedBy",
     "invoiceReference",
@@ -186,6 +185,9 @@ function parseInvoiceValues(
   for (const field of identifiers) {
     if (!validString(data[field], 128, identifierPattern))
       issues.push(issue([field], "invalid_identifier"));
+  }
+  if (data.membershipId !== null && !validString(data.membershipId, 128, identifierPattern)) {
+    issues.push(issue(["membershipId"], "invalid_identifier"));
   }
   if (!validEnum(data.status, invoiceStatuses)) issues.push(issue(["status"], "invalid_enum"));
   if (!validAmount(data.totalMinor)) issues.push(issue(["totalMinor"], "invalid_amount"));
@@ -260,6 +262,50 @@ export function parseManualPaymentRecord(
   if (!isPlainRecord(value)) return err(Object.freeze([issue([], "expected_plain_object")]));
   const fields = readExactFields(value, paymentFields);
   return fields.ok ? parsePaymentValues(fields.value) : fields;
+}
+
+export const recentPaymentsLimit = 20;
+
+export type RecentPaymentRow = Readonly<{
+  paymentId: string;
+  occurredAt: string;
+  amountMinor: number;
+  method: ManualPaymentMethod;
+  manualReference: string;
+  invoiceReference: string;
+  description: string;
+  familyId: string;
+  memberName: string | null;
+}>;
+
+const recentPaymentRowFields = Object.freeze([
+  "paymentId",
+  "occurredAt",
+  "amountMinor",
+  "method",
+  "manualReference",
+  "invoiceReference",
+  "description",
+  "familyId",
+  "memberName",
+] as const);
+
+export function isRecentPaymentRow(value: unknown): value is RecentPaymentRow {
+  if (!isPlainRecord(value)) return false;
+  const fields = readExactFields(value, recentPaymentRowFields);
+  if (!fields.ok) return false;
+  const row = fields.value;
+  return (
+    validString(row.paymentId, 128, identifierPattern) &&
+    validDateTime(row.occurredAt) &&
+    validAmount(row.amountMinor) &&
+    validEnum(row.method, manualPaymentMethods) &&
+    validString(row.manualReference, 128, manualReferencePattern) &&
+    validString(row.invoiceReference, 128, identifierPattern) &&
+    validString(row.description, 200) &&
+    validString(row.familyId, 128, identifierPattern) &&
+    (row.memberName === null || validString(row.memberName, 160))
+  );
 }
 
 export function calculateInvoiceBalance(
