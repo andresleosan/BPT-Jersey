@@ -32,7 +32,9 @@ import {
   type Functions,
 } from "firebase/functions";
 
-const firestoreEmulatorHost = "127.0.0.1";
+// ponytail: por defecto 127.0.0.1 (dev local); overrideable para el banco de trabajo en el VPS,
+// donde el navegador vive en otra máquina. Solo aplica con los emuladores encendidos.
+const firestoreEmulatorHost = process.env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST ?? "127.0.0.1";
 
 export function resolveLocalEmulatorPort(
   rawPort: string | undefined,
@@ -63,7 +65,9 @@ const firestoreEmulatorPort = resolveLocalEmulatorPort(
   process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
   8_080,
 );
-const authEmulatorUrl = `http://${firestoreEmulatorHost}:${authEmulatorPort}`;
+const authEmulatorUrl =
+  process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL ??
+  `http://${firestoreEmulatorHost}:${authEmulatorPort}`;
 
 let authEmulatorConnected = false;
 let firestoreEmulatorConnected = false;

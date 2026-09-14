@@ -1,0 +1,39 @@
+services:
+  auth-emulator:
+    image: node:24-slim
+    container_name: bpt-account-auth
+    working_dir: /app
+    volumes:
+      - /root/BPT-Jersey:/app
+    command: node_modules/.bin/firebase emulators:start --only auth --project demo-bpt-jersey --config deploy/firebase.emulator.json
+    restart: unless-stopped
+
+  app:
+    image: node:24-slim
+    container_name: bpt-account-app
+    working_dir: /app/apps/web
+    volumes:
+      - /root/BPT-Jersey:/app
+    env_file:
+      - path: ../.env.local
+        format: raw
+    command: node_modules/.bin/next dev -p 9471 -H 0.0.0.0
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: bpt-account-caddy
+    depends_on: [app, auth-emulator]
+    ports:
+      - "100.125.184.56:9471:9471"
+      - "100.125.184.56:9472:9472"
+    volumes:
+      - /root/BPT-Jersey/deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/optimyze/caddy/certs:/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
