@@ -44,3 +44,118 @@
   color: var(--muted);
   margin: 0;
 }
+
+.billing-dialog-backdrop {
+  align-items: start;
+  background: rgb(16 14 20 / 76%);
+  display: grid;
+  inset: 0;
+  justify-items: center;
+  overflow-y: auto;
+  padding: clamp(1rem, 5vw, 4rem);
+  position: fixed;
+  z-index: 80;
+}
+.billing-dialog {
+  background: var(--gi-white);
+  border-radius: 0;
+  border-top: 0.45rem solid var(--bpt-purple);
+  box-shadow: 0 1.5rem 0 rgba(47, 36, 131, 0.12);
+  max-width: 50rem;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  width: min(100%, 50rem);
+}
+.billing-dialog-heading {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.billing-dialog-heading h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 0.9;
+  margin: 0.35rem 0 0;
+  text-transform: uppercase;
+}
+.billing-dialog-actions {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 0.7rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+}
+.billing-form {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1.4rem;
+}
+.billing-form-wide {
+  grid-column: 1 / -1;
+}
+.billing-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.billing-choice {
+  background: var(--gi-white);
+  border: 1px solid var(--mat-ink);
+  border-radius: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  min-height: 3.15rem;
+  min-width: 3.15rem;
+  padding: 0.5rem 0.9rem;
+  text-transform: uppercase;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+.billing-choice[aria-checked="true"] {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+.billing-choice:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+.billing-choice-column {
+  display: grid;
+  gap: 0.5rem;
+}
+.billing-radio {
+  align-items: center;
+  border: 1px solid var(--line, #8a8880);
+  display: flex;
+  gap: 0.6rem;
+  min-height: 3.15rem;
+  padding: 0 0.9rem;
+}
+
+@media (max-width: 50rem) {
+  .billing-dialog {
+    max-width: none;
+    min-height: 100%;
+    overflow: auto;
+    width: 100%;
+  }
+  .billing-dialog-backdrop {
+    align-items: stretch;
+  }
+  .billing-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .billing-choice {
+    transition: none;
+  }
+}
