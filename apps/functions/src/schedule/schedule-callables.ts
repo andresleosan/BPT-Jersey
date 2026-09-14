@@ -16,12 +16,14 @@ import {
   parseUpdateSessionInput,
   type AttendanceRecord,
 } from "@bpt-jersey/domain/schedule";
+import { parseSelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
 
 import { requireUserActor } from "../auth/user-authorization.js";
 import { BookingTransactionError } from "./booking-transaction-service.js";
 import { SessionQuorumSweepError } from "./quorum-sweep-service.js";
 import {
   ScheduleAttendanceError,
+  SelfCheckInRefusedError,
   type ScheduleMutationActorRole,
 } from "./attendance-transaction-service.js";
 import {
@@ -150,6 +152,19 @@ function mapAttendanceError(error: unknown): never {
     });
   }
   throw new HttpsError("internal", "Attendance operation failed");
+}
+
+function mapSelfCheckInError(error: unknown): never {
+  if (error instanceof SelfCheckInRefusedError) {
+    throw new HttpsError("failed-precondition", "Self check-in is not available right now", {
+      reason: error.reason,
+      ...(error.distanceMeters === undefined ? {} : { distanceMeters: error.distanceMeters }),
+    });
+  }
+  if (!(error instanceof HttpsError) && !(error instanceof ScheduleAttendanceError)) {
+    console.error("self check-in failed");
+  }
+  return mapAttendanceError(error);
 }
 
 function mapScheduleMutationError(error: unknown, resource: "Session" | "Class"): never {
@@ -634,6 +649,39 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
 }
 
 /**
+ * T032V2: members record their own attendance. The store judges the booking, server-time window,
+ * and 50 m eligibility gate; this callable never stores, logs, audits, or echoes coordinates.
+ */
+export function createSelfCheckInHandler(options: StudentScopeOptions) {
+  const { store } = options;
+
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) {
+      throw new HttpsError("permission-denied", "Staff check in members from the coach screen");
+    }
+    const parsed = parseSelfCheckInInput(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", "Self check-in request is invalid");
+    }
+    await requireStudentScope(request, parsed.value.studentId, options);
+
+    try {
+      const attendance = await store.recordSelfCheckIn(
+        actor.academyId,
+        parsed.value,
+        actor.userId,
+        undefined,
+        actor.role as ScheduleMutationActorRole,
+      );
+      return { attendance };
+    } catch (error) {
+      return mapSelfCheckInError(error);
+    }
+  };
+}
+
+/**
  * T110: applies the quorum rule to one session. Staff only, and safe to repeat: the sweep writes only
  * while the session is still `scheduled`, so a second call reports the earlier cancellation instead
  * of touching anything (BRIEF decision 3).
@@ -1050,6 +1098,10 @@ export const evaluateSessionMinimum = onCall(scheduleCallableOptions, async (req
 
 export const checkIn = onCall(scheduleCallableOptions, async (request) =>
   createCheckInHandler({ store: getStore() })(request),
+);
+
+export const selfCheckIn = onCall(scheduleCallableOptions, async (request) =>
+  createSelfCheckInHandler({ store: getStore() })(request),
 );
 
 export const reconcileSessionQuorum = onCall(scheduleCallableOptions, async (request) =>

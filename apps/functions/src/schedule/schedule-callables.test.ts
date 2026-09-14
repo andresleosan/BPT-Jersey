@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createCancelBookingHandler,
@@ -29,6 +29,7 @@ import {
   createSaveLocationGeofenceHandler,
   createSaveProgramHandler,
   createSaveSessionHandler,
+  createSelfCheckInHandler,
   createUpdateSessionHandler,
 } from "./schedule-callables";
 import { BookingTransactionError } from "./booking-transaction-service";
@@ -1050,6 +1051,250 @@ describe("Schedule Callables", () => {
       await expect(
         handler(fakeRequest({ from: "2026-09-01T00:00:00Z", to: "2026-09-03T00:00:00Z" }, "coach")),
       ).rejects.toThrow(/cannot exceed 24 hours/);
+    });
+  });
+});
+
+describe("Self check-in callable", () => {
+  const town = { latitude: 49.183954, longitude: -2.107142 };
+  const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
+  const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
+
+  async function seeded() {
+    const store = createInMemoryScheduleStore();
+    await store.saveLocationGeofence(
+      "demo-academy",
+      { locationId: "town", geofence: town },
+      "owner-1",
+    );
+    const session = await store.createSession(
+      "demo-academy",
+      {
+        programId: "adult-fundamentals",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Evening Class",
+        startAt: "2099-09-01T18:00:00Z",
+        endAt: "2099-09-01T19:00:00Z",
+        capacity: 25,
+      },
+      "owner-1",
+    );
+    await store.requestBooking(
+      "demo-academy",
+      { sessionId: session.sessionId, studentId: "student-1", membershipId: "mem-1" },
+      "student-1",
+    );
+    return { store, session };
+  }
+
+  beforeEach(() => vi.useFakeTimers({ now: new Date("2099-09-01T17:30:00Z") }));
+  afterEach(() => vi.useRealTimers());
+
+  it.each(["adultStudent", "teenStudent", "guardian"] as const)(
+    "checks in an in-scope %s member with server time and no coordinates",
+    async (role) => {
+      const { store, session } = await seeded();
+      const recorded = vi.fn(store.recordSelfCheckIn);
+      const handler = createSelfCheckInHandler({
+        store: { ...store, recordSelfCheckIn: recorded },
+        resolveClientStudentScope: ownStudentScope,
+      });
+
+      const result = await handler(
+        fakeRequest(
+          { sessionId: session.sessionId, studentId: "student-1", position: near },
+          role,
+          "student-1",
+        ),
+      );
+
+      expect(result.attendance).toMatchObject({
+        method: "self",
+        state: "attended",
+        studentId: "student-1",
+        occurredAt: "2099-09-01T17:30:00.000Z",
+      });
+      expect(recorded).toHaveBeenCalledWith(
+        "demo-academy",
+        expect.any(Object),
+        "student-1",
+        undefined,
+        role,
+      );
+      expect(JSON.stringify(result)).not.toMatch(/49\.18|-2\.107|latitude|longitude/u);
+    },
+  );
+
+  it.each(["adultStudent", "teenStudent", "guardian"] as const)(
+    "refuses a foreign student scope for a %s member without echoing coordinates",
+    async (role) => {
+      const { store, session } = await seeded();
+      const handler = createSelfCheckInHandler({
+        store,
+        resolveClientStudentScope: ownStudentScope,
+      });
+
+      await expect(
+        handler(
+          fakeRequest(
+            { sessionId: session.sessionId, studentId: "student-1", position: near },
+            role,
+            "other-student",
+          ),
+        ),
+      ).rejects.toMatchObject({
+        code: "permission-denied",
+        message: expect.not.stringMatching(/49\.18|-2\.107/u),
+      });
+    },
+  );
+
+  it("requires authentication and refuses every staff role", async () => {
+    const { store, session } = await seeded();
+    const handler = createSelfCheckInHandler({ store, resolveClientStudentScope: ownStudentScope });
+    const input = { sessionId: session.sessionId, studentId: "student-1", position: near };
+
+    await expect(handler(fakeRequest(input, "adultStudent", null))).rejects.toMatchObject({
+      code: "unauthenticated",
+      message: expect.not.stringMatching(/49\.18|-2\.107/u),
+    });
+    for (const role of ["owner", "administrator", "headCoach", "coach"]) {
+      await expect(handler(fakeRequest(input, role, "staff-1"))).rejects.toMatchObject({
+        code: "permission-denied",
+      });
+    }
+  });
+
+  it("rejects malformed and extra input before the store, then maps raw 100.4 m accuracy", async () => {
+    const { store, session } = await seeded();
+    const recordSelfCheckIn = vi.fn(store.recordSelfCheckIn);
+    const handler = createSelfCheckInHandler({
+      store: { ...store, recordSelfCheckIn },
+      resolveClientStudentScope: ownStudentScope,
+    });
+    const input = { sessionId: session.sessionId, studentId: "student-1", position: near };
+
+    for (const invalid of [
+      { ...input, extra: true },
+      { ...input, position: { ...near, latitude: "49" } },
+    ]) {
+      await expect(
+        handler(fakeRequest(invalid, "adultStudent", "student-1")),
+      ).rejects.toMatchObject({
+        code: "invalid-argument",
+        message: expect.not.stringMatching(/49\.18|-2\.107/u),
+      });
+    }
+    expect(recordSelfCheckIn).not.toHaveBeenCalled();
+    await expect(
+      handler(
+        fakeRequest(
+          { ...input, position: { ...near, accuracyMeters: 100.4 } },
+          "adultStudent",
+          "student-1",
+        ),
+      ),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "imprecise" },
+    });
+    expect(recordSelfCheckIn).toHaveBeenCalledOnce();
+  });
+
+  it("maps every domain refusal to safe failed-precondition details", async () => {
+    const { store, session } = await seeded();
+    const handler = createSelfCheckInHandler({ store, resolveClientStudentScope: ownStudentScope });
+    const attempt = (sessionId = session.sessionId, position = near) =>
+      handler(
+        fakeRequest({ sessionId, studentId: "student-1", position }, "adultStudent", "student-1"),
+      );
+
+    await expect(attempt(session.sessionId, far)).rejects.toMatchObject({
+      code: "failed-precondition",
+      details: { reason: "outside", distanceMeters: 120 },
+    });
+    await expect(
+      attempt(session.sessionId, { ...near, accuracyMeters: 101 }),
+    ).rejects.toMatchObject({
+      details: { reason: "imprecise" },
+    });
+    await store.saveLocationGeofence(
+      "demo-academy",
+      { locationId: "town", geofence: null },
+      "owner-1",
+    );
+    await expect(attempt()).rejects.toMatchObject({ details: { reason: "site_not_ready" } });
+    await store.saveLocationGeofence(
+      "demo-academy",
+      { locationId: "town", geofence: town },
+      "owner-1",
+    );
+    const unbooked = await store.createSession(
+      "demo-academy",
+      {
+        programId: "adult-fundamentals",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Unbooked Class",
+        startAt: "2099-09-01T18:05:00Z",
+        endAt: "2099-09-01T19:05:00Z",
+        capacity: 25,
+      },
+      "owner-1",
+    );
+    await expect(attempt(unbooked.sessionId)).rejects.toMatchObject({
+      details: { reason: "not_booked" },
+    });
+    vi.setSystemTime(new Date("2099-09-01T18:21:00Z"));
+    await expect(attempt()).rejects.toMatchObject({ details: { reason: "window_closed" } });
+    vi.setSystemTime(new Date("2099-09-01T17:30:00Z"));
+    await store.recordCheckIn(
+      "demo-academy",
+      { sessionId: session.sessionId, studentId: "student-1", method: "manual" },
+      "coach-1",
+      undefined,
+      "coach",
+    );
+    await expect(attempt()).rejects.toMatchObject({ details: { reason: "already_checked_in" } });
+    await expect(attempt(session.sessionId, far)).rejects.not.toThrow(/49\.18|-2\.107/u);
+  });
+
+  it("logs only a constant safe message for an unexpected coordinate-bearing error", async () => {
+    const { store, session } = await seeded();
+    const handler = createSelfCheckInHandler({
+      store: {
+        ...store,
+        recordSelfCheckIn: async () => {
+          throw new Error("database failed at 49.184224,-2.107142");
+        },
+      },
+      resolveClientStudentScope: ownStudentScope,
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      handler(
+        fakeRequest(
+          { sessionId: session.sessionId, studentId: "student-1", position: near },
+          "adultStudent",
+          "student-1",
+        ),
+      ),
+    ).rejects.toMatchObject({
+      code: "internal",
+      message: expect.not.stringMatching(/49\.18|-2\.107/u),
+    });
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("self check-in failed");
+    errorSpy.mockRestore();
+  });
+
+  it("exports selfCheckIn with the shared App Check options", async () => {
+    const callables = await import("./schedule-callables");
+    expect(typeof callables.selfCheckIn).toBe("function");
+    expect(scheduleCallableOptions).toMatchObject({
+      enforceAppCheck: true,
+      consumeAppCheckToken: true,
     });
   });
 });
