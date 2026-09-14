@@ -449,4 +449,21 @@ describe("classes administration", () => {
       screen.getByRole("button", { name: `View reservations for ${sessionFixture.title}` }),
     ).toBeInTheDocument();
   });
+
+  it("shows a session description when present and omits it when empty", async () => {
+    mocks.listSessions.mockResolvedValue([
+      { ...sessionFixture, description: "Gi only. Bring a mouthguard." },
+      {
+        ...sessionFixture,
+        sessionId: "session-adults-2",
+        title: "Adult Fundamentals · Thursday",
+        description: "",
+      },
+    ]);
+    render(<ClassesPage />);
+    await screen.findByText(sessionFixture.title);
+    expect(screen.getByText("Gi only. Bring a mouthguard.")).toBeInTheDocument();
+    const noDescriptionRow = screen.getByText("Adult Fundamentals · Thursday").closest("td")!;
+    expect(noDescriptionRow.querySelector("small:last-child")).toHaveTextContent("Adults BJJ");
+  });
 });
