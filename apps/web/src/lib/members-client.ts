@@ -4,10 +4,12 @@ import {
   adminCreateStudentInputSchema,
   adminUpdateStudentInputSchema,
   adminDirectoryRowSchema,
+  memberNameRowSchema,
   memberRecordMaintenanceDetailSchema,
   type AdminCreateStudentInput,
   type AdminDirectoryRow,
   type AdminUpdateStudentInput,
+  type MemberNameRow,
   type MemberRecordMaintenanceDetail,
   type PublicAdminIdentifierLookupKind,
 } from "@bpt-jersey/domain/members/directory";
@@ -38,6 +40,7 @@ const safeDetailError = "Unable to load member details. Please try again.";
 const safeLookupError = "Unable to find member. Please try again.";
 const safeRegyfitListError = "Unable to load the academy directory. Please try again.";
 const safeRegyfitRecordError = "Unable to load the member record. Please try again.";
+const safeMemberNamesError = "The member list is unavailable. Please try again.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -307,6 +310,21 @@ export async function getRegyfitMemberRecord(recordId: string): Promise<RegyfitM
     return Object.freeze(parsed.data);
   } catch {
     throw new Error(safeRegyfitRecordError);
+  }
+}
+
+export async function listMemberNames(): Promise<readonly MemberNameRow[]> {
+  try {
+    const callable = httpsCallable<null, { members: unknown }>(
+      getFirebaseFunctions(),
+      "listMemberNames",
+    );
+    const response = await callable(null);
+    const members = response.data.members;
+    if (!Array.isArray(members)) throw new Error(safeMemberNamesError);
+    return Object.freeze(members.map((row) => memberNameRowSchema.parse(row)));
+  } catch (error) {
+    throw directoryFailure(error, safeMemberNamesError);
   }
 }
 
