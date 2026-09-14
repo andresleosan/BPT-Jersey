@@ -37,10 +37,10 @@ describe("LevelsBrowser Shared Component", () => {
   it("shows a skeleton while loading", () => {
     levelsApi.getLevelCatalog.mockReturnValue(new Promise(() => {}));
 
-    render(<LevelsBrowser roleContext="admin" />);
+    const { container } = render(<LevelsBrowser roleContext="admin" />);
 
-    const status = screen.getByRole("status");
-    const skeletons = within(status).getAllByLabelText("belt-card-skeleton");
+    screen.getByRole("status", { name: "Loading belts" });
+    const skeletons = container.querySelectorAll(".belt-card-skeleton");
     expect(skeletons).toHaveLength(3);
     skeletons.forEach((el) => expect(el).toHaveAttribute("aria-busy", "true"));
   });

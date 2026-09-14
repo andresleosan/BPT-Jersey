@@ -192,11 +192,6 @@
 .levels-error {
   border-left-color: #8d1c2f;
 }
-@media (prefers-reduced-motion: reduce) {
-  .belt-card-skeleton {
-    animation: none;
-  }
-}
 @media (max-width: 50rem) {
   .levels-grid {
     grid-template-columns: minmax(0, 1fr);
