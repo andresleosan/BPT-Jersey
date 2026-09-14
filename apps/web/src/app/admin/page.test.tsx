@@ -211,7 +211,7 @@ describe("administrative shell", () => {
     ).toBeNull();
   });
 
-  it("shows a coach the mat modules plus a way back to the coach portal", () => {
+  it("shows a coach the six mat modules plus a way back to the coach portal", () => {
     const coachSession = {
       ...syntheticSession,
       role: "coach" as const,
@@ -229,12 +229,19 @@ describe("administrative shell", () => {
       within(navigation)
         .queryAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["->Overview", "->Attendance", "->Enrolment requests", "->Medical conditions"]);
+    ).toEqual([
+      "->Overview",
+      "->Attendance",
+      "->Enrolment requests",
+      "->Medical conditions",
+      "->Classes",
+      "->Levels",
+    ]);
     expect(screen.getByRole("link", { name: "Coach portal" })).toHaveAttribute("href", "/coach");
     expect(screen.getByText("Coach operational access")).toBeVisible();
   });
 
-  it("adds the classes module for a head coach", () => {
+  it("head coach sees the same six modules as coach", () => {
     const headCoachSession = {
       ...syntheticSession,
       role: "headCoach" as const,
@@ -258,6 +265,7 @@ describe("administrative shell", () => {
       "->Enrolment requests",
       "->Medical conditions",
       "->Classes",
+      "->Levels",
     ]);
   });
 

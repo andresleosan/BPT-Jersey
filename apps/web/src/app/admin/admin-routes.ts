@@ -3,20 +3,22 @@ import type { StaffSession } from "../../lib/staff-auth";
 export type StaffRouteRole = StaffSession["role"];
 
 /**
- * What the mat can open inside /admin, in menu order. The shell lists exactly these; the gate
- * lets a staff session through exactly these (plus two working routes kept off the menu).
- * Operator decision 2026-09-12, ADR-010.
+ * What the mat can open inside /admin, in menu order. Operator decisions 2026-09-12 (ADR-010) and
+ * 2026-09-14 (ADR-010 amendment: Classes read-only for coaches, Levels for both). The member
+ * directory stays office-only.
  */
 const coachRoutes = Object.freeze([
   "/admin",
   "/admin/attendance",
   "/admin/members/requests",
   "/admin/members/medical",
+  "/admin/classes",
+  "/admin/levels",
 ] as const);
 
 export const staffRoutes: Readonly<Record<StaffRouteRole, readonly string[]>> = Object.freeze({
   coach: coachRoutes,
-  headCoach: Object.freeze([...coachRoutes, "/admin/classes"]),
+  headCoach: coachRoutes,
 });
 
 const offMenuStaffRoutes = Object.freeze(["/admin/waitlists", "/admin/lesson-plans"] as const);
