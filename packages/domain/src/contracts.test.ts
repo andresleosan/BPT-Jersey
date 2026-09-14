@@ -133,6 +133,7 @@ describe("domain contracts", () => {
       "coach",
       "guardian",
       "adultStudent",
+      "teenStudent",
       "shopper",
     ]);
     expect(Object.isFrozen(userRoles)).toBe(true);
@@ -150,7 +151,7 @@ describe("domain contracts", () => {
 
   it("exposes the runtime contract values from the public entrypoint", () => {
     expect(domainModules).toHaveLength(14);
-    expect(userRoles).toHaveLength(7);
+    expect(userRoles).toHaveLength(8);
     expect(parseUserClaims({ academyId: "academy-demo", role: "guardian" })).toEqual({
       ok: true,
       value: { academyId: "academy-demo", role: "guardian" },

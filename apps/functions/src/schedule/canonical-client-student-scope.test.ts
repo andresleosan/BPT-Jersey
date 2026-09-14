@@ -128,4 +128,103 @@ describe("canonical client student scope", () => {
       }),
     ).resolves.toBe(false);
   });
+
+  it("resolves a teen by unique students.userId only when minor, active and 12 or older", async () => {
+    const student = (dateOfBirth: string) => ({
+      studentId: "student-teen-1",
+      academyId: "academy-1",
+      familyId: "family-1",
+      userId: "teen-user-1",
+      fullName: "Synthetic Teen",
+      dateOfBirth,
+      trainingCenter: "Town",
+      trainingTimePreferences: ["afternoon"],
+      participantType: "minor",
+      ...audit(),
+    });
+    const resolverFor = (profile: Record<string, unknown>) =>
+      createCanonicalClientStudentScopeResolver({
+        now: () => "2026-09-15T12:00:00.000Z",
+        getDocument: async () => ({ id: "", exists: false, data: undefined }),
+        queryDocuments: async (path, field, value) =>
+          path === "academies/academy-1/students" && field === "userId" && value === "teen-user-1"
+            ? [{ id: "student-teen-1", exists: true, data: profile }]
+            : [],
+      });
+    const input = {
+      academyId: "academy-1",
+      actorUserId: "teen-user-1",
+      actorRole: "teenStudent" as const,
+      requestedStudentId: "student-teen-1",
+    };
+
+    await expect(resolverFor(student("2012-09-15"))({ ...input })).resolves.toBe(true); // 14 today
+    await expect(resolverFor(student("2014-09-15"))({ ...input })).resolves.toBe(true); // 12 today
+    await expect(resolverFor(student("2014-09-16"))({ ...input })).resolves.toBe(false); // 12 tomorrow
+    await expect(
+      resolverFor({ ...student("2012-09-15"), participantType: "adult" })({ ...input }),
+    ).resolves.toBe(false);
+    await expect(
+      resolverFor({ ...student("2012-09-15"), active: false })({ ...input }),
+    ).resolves.toBe(false);
+    await expect(
+      resolverFor(student("2012-09-15"))({ ...input, requestedStudentId: "someone-else" }),
+    ).resolves.toBe(false);
+  });
+
+  it("rejects duplicate, foreign, inactive, and not-yet-12 teen profiles", async () => {
+    const input = {
+      academyId: "academy-1",
+      actorUserId: "teen-user-1",
+      actorRole: "teenStudent" as const,
+      requestedStudentId: "student-teen-1",
+    };
+    const profile = {
+      studentId: "student-teen-1",
+      academyId: "academy-1",
+      familyId: "family-1",
+      userId: "teen-user-1",
+      fullName: "Synthetic Teen",
+      dateOfBirth: "2014-09-16",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["afternoon"],
+      participantType: "minor",
+      ...audit(),
+    };
+    const resolverFor = (
+      matches: readonly { id: string; exists: boolean; data: Record<string, unknown> }[],
+      now = "2026-09-15T12:00:00.000Z",
+    ) =>
+      createCanonicalClientStudentScopeResolver({
+        now: () => now,
+        getDocument: async () => ({ id: "", exists: false, data: undefined }),
+        queryDocuments: async () => matches,
+      });
+
+    await expect(
+      resolverFor([
+        { id: "student-teen-1", exists: true, data: profile },
+        { id: "student-teen-2", exists: true, data: { ...profile, studentId: "student-teen-2" } },
+      ])(input),
+    ).resolves.toBe(false);
+    await expect(
+      resolverFor([
+        { id: "student-teen-1", exists: true, data: { ...profile, academyId: "academy-2" } },
+      ])(input),
+    ).resolves.toBe(false);
+    await expect(
+      resolverFor([
+        { id: "student-teen-1", exists: true, data: { ...profile, status: "inactive" } },
+      ])(input),
+    ).resolves.toBe(false);
+    await expect(
+      resolverFor([{ id: "student-teen-1", exists: true, data: profile }])(input),
+    ).resolves.toBe(false);
+    await expect(
+      resolverFor(
+        [{ id: "student-teen-1", exists: true, data: profile }],
+        "2026-09-15T23:30:00.000Z",
+      )(input),
+    ).resolves.toBe(true);
+  });
 });
