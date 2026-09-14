@@ -5,6 +5,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFixtureCalendarRepository } from "../../../lib/calendar/fixture-calendar-repository";
 import { MemberCalendar } from "./member-calendar";
 
+const schedule = vi.hoisted(() => ({
+  listSessions: vi.fn(),
+  getScheduleCatalog: vi.fn(),
+  listStudentBookings: vi.fn(),
+  listStudentAttendance: vi.fn(),
+  requestBooking: vi.fn(),
+  cancelBooking: vi.fn(),
+  listSessionBookedCounts: vi.fn(),
+}));
+vi.mock("../../../lib/schedule-client", () => schedule);
+vi.mock("../../../lib/waitlist-client", () => ({
+  listClientMemberships: vi
+    .fn()
+    .mockResolvedValue([
+      { membershipId: "m-1", studentId: "s-1", planId: "bpt-jersey-adult", status: "active" },
+    ]),
+}));
+vi.mock("../../../lib/family-client", () => ({ getFamily: vi.fn() }));
+vi.mock("../../../lib/no-show-penalties-client", () => ({
+  listNoShowPenalties: vi.fn().mockResolvedValue([]),
+}));
+
+import { createFirebaseCalendarRepository } from "../../../lib/calendar/firebase-calendar-repository";
+
 function stubViewport(desktop: boolean): void {
   vi.stubGlobal(
     "matchMedia",
@@ -141,5 +165,73 @@ describe("MemberCalendar", () => {
     render(<MemberCalendar onSignOut={vi.fn()} repository={broken} session={teen} />);
     expect(await screen.findByText("Couldn't load your calendar.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  describe("with the Firebase adapter", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date("2026-09-14T09:00:00.000Z") }); // Monday 10:00 Europe/Jersey
+      schedule.listSessions.mockResolvedValue([
+        {
+          sessionId: "s-full",
+          academyId: "bpt-jersey",
+          classId: null,
+          programId: "prog-adult",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Adults BJJ",
+          startAt: "2026-09-15T17:00:00.000Z",
+          endAt: "2026-09-15T18:00:00.000Z",
+          capacity: 2,
+          minParticipants: 4,
+          status: "scheduled",
+          isSeminar: false,
+          cancellationReason: null,
+          schemaVersion: "1",
+          createdAt: "2026-09-01T00:00:00.000Z",
+          createdBy: "fixture",
+          updatedAt: "2026-09-01T00:00:00.000Z",
+          updatedBy: "fixture",
+        },
+      ]);
+      schedule.getScheduleCatalog.mockResolvedValue({
+        locations: [],
+        programs: [
+          {
+            programId: "prog-adult",
+            academyId: "bpt-jersey",
+            name: "Adults BJJ",
+            ageBand: "adult",
+            discipline: "bjj",
+            level: "all-levels",
+            active: true,
+            schemaVersion: "1",
+          },
+        ],
+      });
+      schedule.listStudentBookings.mockResolvedValue([]);
+      schedule.listStudentAttendance.mockResolvedValue([]);
+      schedule.listSessionBookedCounts.mockResolvedValue({ "s-full": 2 });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("renders a full session as Full when the Firebase adapter reports the count", async () => {
+      stubViewport(true);
+      render(
+        <MemberCalendar
+          onSignOut={vi.fn()}
+          repository={createFirebaseCalendarRepository({
+            role: "adultStudent",
+            displayName: "Alex",
+          })}
+          session={{ role: "adultStudent", displayName: "Alex" }}
+        />,
+      );
+      await screen.findByText("Adults BJJ");
+      const card = document.querySelector('[data-session-id="s-full"]');
+      expect(card).toHaveAttribute("data-status", "full");
+    });
   });
 });

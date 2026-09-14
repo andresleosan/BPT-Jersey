@@ -1,7 +1,9 @@
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import type {
+  AgeRange,
   AttendanceRecord,
   BookingRecord,
+  LevelRange,
   ProgramRecord,
   SessionRecord,
 } from "@bpt-jersey/domain/schedule";
@@ -96,6 +98,9 @@ type Slot = Readonly<{
   minute: number;
   durationMin: number;
   title: string;
+  description?: string;
+  ageRange?: AgeRange | null;
+  levelRange?: LevelRange | null;
 }>;
 
 function slot(
@@ -105,13 +110,22 @@ function slot(
   minute: number,
   title: string,
   durationMin = 60,
+  details?: Pick<Slot, "description" | "ageRange" | "levelRange">,
 ): Slot {
-  return { programId, locationId, hour, minute, durationMin, title };
+  return { programId, locationId, hour, minute, durationMin, title, ...details };
 }
 
 const townEvening = [
-  slot("town", "prog-kids", 17, 0, "Kids BJJ"),
-  slot("town", "prog-teens", 18, 0, "Teens BJJ"),
+  slot("town", "prog-kids", 17, 0, "Kids BJJ", 60, {
+    description: "Fundamentals for young grapplers: takedowns, escapes and live rolling.",
+    ageRange: { minAge: 4, maxAge: 11 },
+    levelRange: { fromKey: "w", toKey: "gy", fromName: "White", toName: "Grey" },
+  }),
+  slot("town", "prog-teens", 18, 0, "Teens BJJ", 60, {
+    description: "Gi fundamentals and competition drilling for teenage students.",
+    ageRange: { minAge: 12, maxAge: 15 },
+    levelRange: { fromKey: "w", toKey: "b", fromName: "White", toName: "Blue" },
+  }),
   slot("town", "prog-adult", 19, 0, "Adults BJJ"),
 ];
 const westEvening = [
@@ -172,6 +186,9 @@ function generateSessions(now: Date): SessionRecord[] {
         status: endAt.getTime() < now.getTime() ? "completed" : "scheduled",
         isSeminar: false,
         cancellationReason: null,
+        ...(entry.description !== undefined ? { description: entry.description } : {}),
+        ...(entry.ageRange !== undefined ? { ageRange: entry.ageRange } : {}),
+        ...(entry.levelRange !== undefined ? { levelRange: entry.levelRange } : {}),
         ...audit,
       });
     }

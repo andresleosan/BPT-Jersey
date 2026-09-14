@@ -9,7 +9,13 @@ import {
   sessionSite,
   type DerivedSessionStatus,
 } from "@bpt-jersey/domain/schedule/member-calendar";
-import type { BookingRecord, ProgramRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
+import {
+  ageRangeLabel,
+  levelRangeLabel,
+  type BookingRecord,
+  type ProgramRecord,
+  type SessionRecord,
+} from "@bpt-jersey/domain/schedule";
 
 export type CalendarEntry = Readonly<{
   session: SessionRecord;
@@ -99,6 +105,10 @@ export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }:
       <span className="session-time">{formatSessionTimeRange(session)}</span>
       <p className="session-title">{session.title}</p>
       <p className="session-site">{site}</p>
+      {session.levelRange || session.ageRange ? (
+        <p className="session-detail">{`${levelRangeLabel(session.levelRange)} · ${ageRangeLabel(session.ageRange)}`}</p>
+      ) : null}
+      {session.description ? <p className="session-description">{session.description}</p> : null}
       {action}
       {note ? (
         <p className="session-note" role="status">
