@@ -36,6 +36,8 @@
     "src/schedule/schedule-contracts.ts",
     "src/schedule/advanced-booking-contracts.ts",
     "src/schedule/pre-class-contracts.ts",
+    "src/schedule/member-calendar-contracts.ts",
+    "src/schedule/self-check-in-contracts.ts",
     "src/announcements/announcement-contracts.ts",
     "src/announcements/safeguarding-contracts.ts",
     "src/reminders/reminder-contracts.ts",

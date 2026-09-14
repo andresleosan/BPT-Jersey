@@ -34,8 +34,15 @@ describe("deploy runtime import preparation", () => {
       [
         'import "@bpt-jersey/domain/audit";',
         'import "@bpt-jersey/domain/levels/lesson-planning";',
+        'import "@bpt-jersey/domain/schedule";',
+        'import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";',
+        "export { SELF_CHECK_IN_MAXIMUM_DISTANCE_METRES } from '@bpt-jersey/domain/schedule/self-check-in';",
         'import "@bpt-jersey/domain/members";',
         'import "@bpt-jersey/domain/members/directory";',
+        'import "@bpt-jersey/domain/members/directory-migration";',
+        'import "@bpt-jersey/domain/members/directory-operations";',
+        'import "@bpt-jersey/domain/members/directory-private-plan";',
+        'import "@bpt-jersey/domain/members/directory-transitions";',
         'import "@bpt-jersey/domain/memberships";',
         'import "@bpt-jersey/domain/memberships/lifecycle";',
         'import "@bpt-jersey/domain/auth/admin-contracts";',
@@ -57,8 +64,15 @@ describe("deploy runtime import preparation", () => {
     const prepared = await readFile(outputPath, "utf8");
     expect(prepared).toContain("../../domain/audit/audit-event.js");
     expect(prepared).toContain("../../domain/levels/lesson-planning-contracts.js");
+    expect(prepared).toContain("../../domain/schedule/schedule-contracts.js");
+    expect(prepared).toContain("../../domain/schedule/member-calendar-contracts.js");
+    expect(prepared).toContain("../../domain/schedule/self-check-in-contracts.js");
     expect(prepared).toContain("../../domain/members/member-contracts.js");
     expect(prepared).toContain("../../domain/members/member-directory-contracts.js");
+    expect(prepared).toContain("../../domain/members/member-directory-migration-contracts.js");
+    expect(prepared).toContain("../../domain/members/member-directory-operation-contracts.js");
+    expect(prepared).toContain("../../domain/members/member-directory-private-plan-contracts.js");
+    expect(prepared).toContain("../../domain/members/member-directory-transitions.js");
     expect(prepared).toContain("../../domain/memberships/plan-contracts.js");
     expect(prepared).toContain("../../domain/memberships/membership-contracts.js");
     expect(prepared).toContain("../../domain/auth/admin-contracts.js");
@@ -73,6 +87,18 @@ describe("deploy runtime import preparation", () => {
     expect(prepared).toContain("../../domain/reports/operational-report.js");
     expect(prepared).toContain("../../domain/exports/aggregate-report-export.js");
     expect(prepared).not.toMatch(/@bpt-jersey\/domain/u);
+  });
+
+  it("rejects unknown nested schedule imports instead of rewriting their prefix", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bpt-unknown-schedule-runtime-"));
+    temporaryDirectories.push(root);
+    const outputPath = join(root, "index.js");
+    const unknownSpecifier = ["@bpt-jersey/domain/schedule", "not-a-real-module"].join("/");
+    await writeFile(outputPath, `const unknownScheduleModule = import("${unknownSpecifier}");`);
+
+    await expect(rewriteDeployRuntimeImports(root)).rejects.toThrow(
+      `Unrewritten domain runtime import in ${outputPath}`,
+    );
   });
 
   it("prepares a copied Functions and domain runtime layout without workspace imports", async () => {

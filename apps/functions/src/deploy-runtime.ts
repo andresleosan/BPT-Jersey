@@ -9,6 +9,14 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/payments": "../../domain/payments/payment-contracts.js",
   "@bpt-jersey/domain/members": "../../domain/members/member-contracts.js",
   "@bpt-jersey/domain/members/directory": "../../domain/members/member-directory-contracts.js",
+  "@bpt-jersey/domain/members/directory-migration":
+    "../../domain/members/member-directory-migration-contracts.js",
+  "@bpt-jersey/domain/members/directory-operations":
+    "../../domain/members/member-directory-operation-contracts.js",
+  "@bpt-jersey/domain/members/directory-private-plan":
+    "../../domain/members/member-directory-private-plan-contracts.js",
+  "@bpt-jersey/domain/members/directory-transitions":
+    "../../domain/members/member-directory-transitions.js",
   "@bpt-jersey/domain/members/enrolment-requests":
     "../../domain/members/enrolment-request-contracts.js",
   "@bpt-jersey/domain/members/regyfit-records":
@@ -28,6 +36,9 @@ const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze
   "@bpt-jersey/domain/levels/achievements": "../../domain/levels/achievement-contracts.js",
   "@bpt-jersey/domain/levels/lesson-planning": "../../domain/levels/lesson-planning-contracts.js",
   "@bpt-jersey/domain/schedule": "../../domain/schedule/schedule-contracts.js",
+  "@bpt-jersey/domain/schedule/member-calendar":
+    "../../domain/schedule/member-calendar-contracts.js",
+  "@bpt-jersey/domain/schedule/self-check-in": "../../domain/schedule/self-check-in-contracts.js",
   "@bpt-jersey/domain/schedule/advanced-booking":
     "../../domain/schedule/advanced-booking-contracts.js",
   "@bpt-jersey/domain/schedule/pre-class": "../../domain/schedule/pre-class-contracts.js",
@@ -77,9 +88,15 @@ export async function rewriteDeployRuntimeImports(deploySourceRoot: string): Pro
     for (const [specifier, replacement] of Object.entries(domainImportReplacements).sort(
       ([left], [right]) => right.length - left.length,
     )) {
-      prepared = prepared.replaceAll(specifier, replacement);
+      prepared = prepared
+        .replaceAll(`"${specifier}"`, `"${replacement}"`)
+        .replaceAll(`'${specifier}'`, `'${replacement}'`);
     }
-    if (/(?:from|import)\s*(?:[^"']*from\s*)?["']@bpt-jersey\/domain(?:["'/])/u.test(prepared)) {
+    if (
+      /(?:from\s*|import\s*(?:\(\s*)?(?:[^"'()]*from\s*)?)["']@bpt-jersey\/domain(?:["'/])/u.test(
+        prepared,
+      )
+    ) {
       throw new Error(`Unrewritten domain runtime import in ${outputPath}`);
     }
     await writeFile(outputPath, prepared, "utf8");
