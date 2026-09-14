@@ -592,7 +592,7 @@ export const ageRangePresets = Object.freeze([
 ] as const);
 
 const levelKeyPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
-const controlCharacterPattern = /[ -]/u;
+const controlCharacterPattern = /[\u0000-\u001f\u007f]/u;
 
 function isAge(value: unknown): value is number {
   return (
