@@ -1019,12 +1019,21 @@ export function parseCreateProgramInput(input: unknown): Result<CreateProgramInp
 
 // ── Session generation from class recurrence ──
 
+export function sessionIdFor(classId: string, localDate: string, startTime: string): string {
+  return `${classId}__${localDate}__${startTime.replace(":", "")}`;
+}
+
+/** The id a v1 (single-rule) class produced. Stores skip a draft when this id already exists. */
+export function legacySessionId(classId: string, localDate: string): string {
+  return `${classId}__${localDate}`;
+}
+
 /**
  * Pure function: generates `SessionRecord` drafts for each occurrence of a
  * recurring class within a date range, converting local start times to UTC
  * using the supplied IANA timezone.
  *
- * Session IDs are deterministic: `{classId}__{YYYY-MM-DD}` to allow
+ * Session IDs are deterministic: `{classId}__{YYYY-MM-DD}__{HHmm}` to allow
  * idempotent batch generation (the store can skip existing IDs).
  */
 export function generateSessionsFromClass(
@@ -1043,35 +1052,27 @@ export function generateSessionsFromClass(
     capacity,
     minParticipants,
     name,
+    description,
+    ageRange,
+    levelRange,
   } = classRecord;
-  // Task 3 rewrites this to walk every rule; for now only the first rule generates sessions.
-  const { dayOfWeek, startTime, durationMinutes } = recurrenceRules[0]!;
-
-  const timeParts = startTime.split(":").map(Number);
-  const startHour = timeParts[0] ?? 0;
-  const startMinute = timeParts[1] ?? 0;
   const sessions: Omit<SessionRecord, "createdAt" | "createdBy" | "updatedAt" | "updatedBy">[] = [];
-
-  // Walk each day in the range
   const from = new Date(`${fromDate}T00:00:00Z`);
   const to = new Date(`${toDate}T23:59:59Z`);
-
   const current = new Date(from);
   while (current <= to) {
     // ISO dayOfWeek: 1=Mon...7=Sun; JS getUTCDay: 0=Sun...6=Sat
     const jsDay = current.getUTCDay();
     const isoDay = jsDay === 0 ? 7 : jsDay;
-
-    if (isoDay === dayOfWeek) {
-      const localDateStr = current.toISOString().slice(0, 10); // YYYY-MM-DD
-
-      // Build a local datetime string and convert to UTC using timezone offset
+    const localDateStr = current.toISOString().slice(0, 10); // YYYY-MM-DD
+    for (const rule of recurrenceRules) {
+      if (rule.dayOfWeek !== isoDay) continue;
+      const [startHour = 0, startMinute = 0] = rule.startTime.split(":").map(Number);
       const startUtc = localToUtc(localDateStr, startHour, startMinute, timezone);
-      const endUtc = new Date(startUtc.getTime() + durationMinutes * 60 * 1000);
-
+      const endUtc = new Date(startUtc.getTime() + rule.durationMinutes * 60 * 1000);
       sessions.push(
         Object.freeze({
-          sessionId: `${classId}__${localDateStr}`,
+          sessionId: sessionIdFor(classId, localDateStr, rule.startTime),
           academyId,
           classId,
           programId,
@@ -1086,10 +1087,12 @@ export function generateSessionsFromClass(
           isSeminar: false,
           cancellationReason: null,
           schemaVersion: "1" as const,
+          description,
+          ageRange,
+          levelRange,
         }),
       );
     }
-
     current.setUTCDate(current.getUTCDate() + 1);
   }
 
