@@ -96,9 +96,9 @@ function newClassDraft(record?: ClassRecord): ClassDraft {
       name: record.name,
       programId: record.programId,
       locationId: record.locationId,
-      dayOfWeek: record.recurrenceRule.dayOfWeek,
-      startTime: record.recurrenceRule.startTime,
-      durationMinutes: record.recurrenceRule.durationMinutes,
+      dayOfWeek: record.recurrenceRules[0]!.dayOfWeek,
+      startTime: record.recurrenceRules[0]!.startTime,
+      durationMinutes: record.recurrenceRules[0]!.durationMinutes,
       instructorIds: Object.freeze([...record.instructorIds]),
       capacity: record.capacity,
       minParticipants: record.minParticipants,
@@ -276,11 +276,13 @@ export function ClassesPage() {
           programId: draft.programId,
           locationId: draft.locationId,
           name: draft.name.trim(),
-          recurrenceRule: {
-            dayOfWeek: draft.dayOfWeek,
-            startTime: draft.startTime,
-            durationMinutes: draft.durationMinutes,
-          },
+          recurrenceRules: [
+            {
+              dayOfWeek: draft.dayOfWeek,
+              startTime: draft.startTime,
+              durationMinutes: draft.durationMinutes,
+            },
+          ],
           instructorIds: draft.instructorIds,
           capacity: draft.capacity,
           minParticipants: draft.minParticipants,
@@ -607,10 +609,10 @@ export function ClassesPage() {
                       </small>
                     </td>
                     <td data-label="Recurrence">
-                      {dayLabels[item.recurrenceRule.dayOfWeek - 1]} ·{" "}
-                      {item.recurrenceRule.startTime}
+                      {dayLabels[item.recurrenceRules[0]!.dayOfWeek - 1]} ·{" "}
+                      {item.recurrenceRules[0]!.startTime}
                       <small className="schedule-admin-block">
-                        {item.recurrenceRule.durationMinutes} minutes
+                        {item.recurrenceRules[0]!.durationMinutes} minutes
                       </small>
                     </td>
                     <td data-label="Capacity">

@@ -150,12 +150,15 @@ export type ClassRecord = Readonly<{
   programId: string;
   locationId: LocationId;
   name: string;
-  recurrenceRule: ClassRecurrenceRule;
+  recurrenceRules: readonly ClassRecurrenceRule[];
+  description: string;
+  ageRange: AgeRange | null;
+  levelRange: LevelRange | null;
   instructorIds: readonly string[];
   capacity: number;
   minParticipants: number;
   active: boolean;
-  schemaVersion: "1";
+  schemaVersion: "2";
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -182,25 +185,36 @@ export type SessionRecord = Readonly<{
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  // ponytail: additive on a v1 document; readers use `?? ""` / `?? null`.
+  description?: string;
+  ageRange?: AgeRange | null;
+  levelRange?: LevelRange | null;
 }>;
 
 export type CreateClassInput = Readonly<{
   programId: string;
   locationId: LocationId;
   name: string;
-  recurrenceRule: ClassRecurrenceRule;
+  recurrenceRules: readonly ClassRecurrenceRule[];
   instructorIds: readonly string[];
   capacity: number;
   minParticipants?: number;
+  description?: string;
+  ageRange?: AgeRange | null;
+  levelRange?: LevelRange | null;
 }>;
 
 export type UpdateClassInput = Readonly<{
   classId: string;
   name?: string;
+  recurrenceRules?: readonly ClassRecurrenceRule[];
   instructorIds?: readonly string[];
   capacity?: number;
   minParticipants?: number;
   active?: boolean;
+  description?: string;
+  ageRange?: AgeRange | null;
+  levelRange?: LevelRange | null;
 }>;
 
 export type CreateSessionInput = Readonly<{
@@ -214,7 +228,25 @@ export type CreateSessionInput = Readonly<{
   capacity: number;
   minParticipants?: number;
   isSeminar?: boolean;
+  description?: string;
+  ageRange?: AgeRange | null;
+  levelRange?: LevelRange | null;
 }>;
+
+export type UpdateSessionInput = Readonly<{
+  sessionId: string;
+  title?: string;
+  instructorId?: string;
+  startAt?: string;
+  endAt?: string;
+  capacity?: number;
+  minParticipants?: number;
+  description?: string;
+}>;
+
+export const classRemovalReasonMinLength = 2;
+export const classRemovalReasonMaxLength = 200;
+export type RemoveClassInput = Readonly<{ classId: string; reason: string }>;
 
 export type CancelSessionInput = Readonly<{
   sessionId: string;
@@ -280,6 +312,70 @@ export function parseRecurrenceRule(input: unknown): Result<ClassRecurrenceRule,
   );
 }
 
+export const maxRecurrenceRules = 7;
+
+export function parseRecurrenceRules(
+  input: unknown,
+): Result<readonly ClassRecurrenceRule[], string> {
+  if (!Array.isArray(input) || input.length === 0 || input.length > maxRecurrenceRules) {
+    return err(`recurrenceRules must hold between 1 and ${maxRecurrenceRules} rules`);
+  }
+  const rules: ClassRecurrenceRule[] = [];
+  for (const candidate of input) {
+    const parsed = parseRecurrenceRule(candidate);
+    if (!parsed.ok) return parsed;
+    rules.push(parsed.value);
+  }
+  const keys = new Set(rules.map((rule) => `${rule.dayOfWeek}:${rule.startTime}`));
+  if (keys.size !== rules.length) return err("recurrenceRules cannot repeat a day and start time");
+  rules.sort(
+    (left, right) =>
+      left.dayOfWeek - right.dayOfWeek || left.startTime.localeCompare(right.startTime),
+  );
+  return ok(Object.freeze(rules));
+}
+
+/**
+ * Reads a stored class of either schema. v1 documents carry one `recurrenceRule`; they are
+ * presented as v2 with one rule and empty description/ranges. Nothing is written back until the
+ * class is edited.
+ */
+export function normalizeClassRecord(raw: unknown): ClassRecord {
+  if (!isRecord(raw) || typeof raw.classId !== "string" || typeof raw.name !== "string") {
+    throw new Error("Stored class record is invalid");
+  }
+  const rules =
+    raw.schemaVersion === "2" && Array.isArray(raw.recurrenceRules)
+      ? raw.recurrenceRules
+      : [raw.recurrenceRule];
+  const parsedRules = parseRecurrenceRules(rules);
+  if (!parsedRules.ok) throw new Error(`Stored class record is invalid: ${parsedRules.error}`);
+  const ageRange =
+    raw.ageRange === undefined || raw.ageRange === null ? null : parseAgeRange(raw.ageRange);
+  const levelRange =
+    raw.levelRange === undefined || raw.levelRange === null
+      ? null
+      : parseLevelRange(raw.levelRange);
+  if ((ageRange && !ageRange.ok) || (levelRange && !levelRange.ok)) {
+    throw new Error("Stored class record is invalid");
+  }
+  const description = parseClassDescription(raw.description);
+  const { recurrenceRule: _legacy, recurrenceRules: _ignoredRules, ...rest } = raw;
+  void _legacy;
+  void _ignoredRules;
+  return Object.freeze({
+    ...(rest as Omit<
+      ClassRecord,
+      "recurrenceRules" | "description" | "ageRange" | "levelRange" | "schemaVersion"
+    >),
+    recurrenceRules: parsedRules.value,
+    description: description.ok ? description.value : "",
+    ageRange: ageRange ? ageRange.value : null,
+    levelRange: levelRange ? levelRange.value : null,
+    schemaVersion: "2" as const,
+  });
+}
+
 export function parseCreateClassInput(input: unknown): Result<CreateClassInput, string> {
   if (!isRecord(input)) {
     return err("Class input must be an object");
@@ -289,10 +385,13 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
     programId,
     locationId,
     name,
-    recurrenceRule,
+    recurrenceRules,
     instructorIds,
     capacity,
     minParticipants = 4,
+    description,
+    ageRange,
+    levelRange,
   } = input;
 
   if (typeof programId !== "string" || programId.trim().length === 0) {
@@ -307,9 +406,9 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
     return err("name must be between 2 and 100 characters");
   }
 
-  const recurrenceResult = parseRecurrenceRule(recurrenceRule);
-  if (!recurrenceResult.ok) {
-    return err(recurrenceResult.error);
+  const rulesResult = parseRecurrenceRules(recurrenceRules);
+  if (!rulesResult.ok) {
+    return err(rulesResult.error);
   }
 
   if (
@@ -338,15 +437,33 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
     return err("minParticipants must be an integer between 0 and capacity");
   }
 
+  const descriptionResult = parseClassDescription(description);
+  if (!descriptionResult.ok) return err(descriptionResult.error);
+  let parsedAgeRange: AgeRange | null = null;
+  if (ageRange !== undefined && ageRange !== null) {
+    const result = parseAgeRange(ageRange);
+    if (!result.ok) return err(result.error);
+    parsedAgeRange = result.value;
+  }
+  let parsedLevelRange: LevelRange | null = null;
+  if (levelRange !== undefined && levelRange !== null) {
+    const result = parseLevelRange(levelRange);
+    if (!result.ok) return err(result.error);
+    parsedLevelRange = result.value;
+  }
+
   return ok(
     Object.freeze({
       programId: programId.trim(),
       locationId: locationId as LocationId,
       name: name.trim(),
-      recurrenceRule: recurrenceResult.value,
+      recurrenceRules: rulesResult.value,
       instructorIds: Object.freeze([...new Set(instructorIds.map((id: string) => id.trim()))]),
       capacity,
       minParticipants,
+      description: descriptionResult.value,
+      ageRange: parsedAgeRange,
+      levelRange: parsedLevelRange,
     }),
   );
 }
@@ -356,16 +473,31 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
     return err("Class update input must be an object");
   }
 
-  const { classId, name, instructorIds, capacity, minParticipants, active } = input;
+  const {
+    classId,
+    name,
+    recurrenceRules,
+    instructorIds,
+    capacity,
+    minParticipants,
+    active,
+    description,
+    ageRange,
+    levelRange,
+  } = input;
   if (typeof classId !== "string" || classId.trim().length === 0) {
     return err("classId is required");
   }
   if (
     name === undefined &&
+    recurrenceRules === undefined &&
     instructorIds === undefined &&
     capacity === undefined &&
     minParticipants === undefined &&
-    active === undefined
+    active === undefined &&
+    description === undefined &&
+    ageRange === undefined &&
+    levelRange === undefined
   ) {
     return err("At least one class field must be updated");
   }
@@ -408,16 +540,43 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
   if (active !== undefined && typeof active !== "boolean") {
     return err("active must be a boolean");
   }
+  const rulesResult =
+    recurrenceRules === undefined ? undefined : parseRecurrenceRules(recurrenceRules);
+  if (rulesResult && !rulesResult.ok) return err(rulesResult.error);
+  const descriptionResult =
+    description === undefined ? undefined : parseClassDescription(description);
+  if (descriptionResult && !descriptionResult.ok) return err(descriptionResult.error);
+  let parsedAgeRange: AgeRange | null | undefined;
+  if (ageRange === null) {
+    parsedAgeRange = null;
+  } else if (ageRange !== undefined) {
+    const result = parseAgeRange(ageRange);
+    if (!result.ok) return err(result.error);
+    parsedAgeRange = result.value;
+  }
+  let parsedLevelRange: LevelRange | null | undefined;
+  if (levelRange === null) {
+    parsedLevelRange = null;
+  } else if (levelRange !== undefined) {
+    const result = parseLevelRange(levelRange);
+    if (!result.ok) return err(result.error);
+    parsedLevelRange = result.value;
+  }
 
   const result: {
     classId: string;
     name?: string;
+    recurrenceRules?: readonly ClassRecurrenceRule[];
     instructorIds?: readonly string[];
     capacity?: number;
     minParticipants?: number;
     active?: boolean;
+    description?: string;
+    ageRange?: AgeRange | null;
+    levelRange?: LevelRange | null;
   } = { classId: classId.trim() };
   if (typeof name === "string") result.name = name.trim();
+  if (rulesResult && rulesResult.ok) result.recurrenceRules = rulesResult.value;
   if (Array.isArray(instructorIds)) {
     result.instructorIds = Object.freeze([
       ...new Set(instructorIds.map((id) => (id as string).trim())),
@@ -426,6 +585,9 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
   if (typeof capacity === "number") result.capacity = capacity;
   if (typeof minParticipants === "number") result.minParticipants = minParticipants;
   if (typeof active === "boolean") result.active = active;
+  if (descriptionResult && descriptionResult.ok) result.description = descriptionResult.value;
+  if (parsedAgeRange !== undefined) result.ageRange = parsedAgeRange;
+  if (parsedLevelRange !== undefined) result.levelRange = parsedLevelRange;
   return ok(Object.freeze(result));
 }
 
@@ -445,6 +607,9 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     capacity,
     minParticipants = 4,
     isSeminar = false,
+    description,
+    ageRange,
+    levelRange,
   } = input;
 
   if (
@@ -500,6 +665,22 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     return err("minParticipants must be an integer between 0 and capacity");
   }
 
+  const descriptionResult =
+    description === undefined ? undefined : parseClassDescription(description);
+  if (descriptionResult && !descriptionResult.ok) return err(descriptionResult.error);
+  let parsedAgeRange: AgeRange | null = null;
+  if (ageRange !== undefined && ageRange !== null) {
+    const result = parseAgeRange(ageRange);
+    if (!result.ok) return err(result.error);
+    parsedAgeRange = result.value;
+  }
+  let parsedLevelRange: LevelRange | null = null;
+  if (levelRange !== undefined && levelRange !== null) {
+    const result = parseLevelRange(levelRange);
+    if (!result.ok) return err(result.error);
+    parsedLevelRange = result.value;
+  }
+
   return ok(
     Object.freeze({
       classId: typeof classId === "string" ? classId.trim() : null,
@@ -512,8 +693,106 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
       capacity,
       minParticipants,
       isSeminar: Boolean(isSeminar),
+      ...(descriptionResult && descriptionResult.ok
+        ? { description: descriptionResult.value }
+        : {}),
+      ...(ageRange !== undefined ? { ageRange: parsedAgeRange } : {}),
+      ...(levelRange !== undefined ? { levelRange: parsedLevelRange } : {}),
     }),
   );
+}
+
+export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInput, string> {
+  if (!isRecord(input)) return err("Session update input must be an object");
+  const { sessionId, title, instructorId, startAt, endAt, capacity, minParticipants, description } =
+    input;
+  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+    return err("sessionId is required");
+  }
+  if (
+    [title, instructorId, startAt, endAt, capacity, minParticipants, description].every(
+      (value) => value === undefined,
+    )
+  ) {
+    return err("At least one session field must be updated");
+  }
+  if (
+    title !== undefined &&
+    (typeof title !== "string" || title.trim().length < 2 || title.trim().length > 120)
+  ) {
+    return err("title must be between 2 and 120 characters");
+  }
+  if (
+    instructorId !== undefined &&
+    (typeof instructorId !== "string" || instructorId.trim().length === 0)
+  ) {
+    return err("instructorId must be a non-empty string");
+  }
+  if (startAt !== undefined && !isIsoDate(startAt)) {
+    return err("startAt must be a valid ISO 8601 UTC date");
+  }
+  if (endAt !== undefined && !isIsoDate(endAt))
+    return err("endAt must be a valid ISO 8601 UTC date");
+  if (
+    typeof startAt === "string" &&
+    typeof endAt === "string" &&
+    Date.parse(endAt) <= Date.parse(startAt)
+  ) {
+    return err("endAt must be strictly after startAt");
+  }
+  if (
+    capacity !== undefined &&
+    (typeof capacity !== "number" || !Number.isInteger(capacity) || capacity < 1 || capacity > 300)
+  ) {
+    return err("capacity must be an integer between 1 and 300");
+  }
+  if (
+    minParticipants !== undefined &&
+    (typeof minParticipants !== "number" ||
+      !Number.isInteger(minParticipants) ||
+      minParticipants < 0 ||
+      minParticipants > 300)
+  ) {
+    return err("minParticipants must be an integer between 0 and 300");
+  }
+  if (
+    typeof capacity === "number" &&
+    typeof minParticipants === "number" &&
+    minParticipants > capacity
+  ) {
+    return err("minParticipants cannot exceed capacity");
+  }
+  const descriptionResult =
+    description === undefined ? undefined : parseClassDescription(description);
+  if (descriptionResult && !descriptionResult.ok) return err(descriptionResult.error);
+  const result: { -readonly [K in keyof UpdateSessionInput]: UpdateSessionInput[K] } = {
+    sessionId: sessionId.trim(),
+  };
+  if (typeof title === "string") result.title = title.trim();
+  if (typeof instructorId === "string") result.instructorId = instructorId.trim();
+  if (typeof startAt === "string") result.startAt = startAt;
+  if (typeof endAt === "string") result.endAt = endAt;
+  if (typeof capacity === "number") result.capacity = capacity;
+  if (typeof minParticipants === "number") result.minParticipants = minParticipants;
+  if (descriptionResult) result.description = descriptionResult.value;
+  return ok(Object.freeze(result));
+}
+
+export function parseRemoveClassInput(input: unknown): Result<RemoveClassInput, string> {
+  if (!isRecord(input)) return err("Class removal input must be an object");
+  const { classId, reason } = input;
+  if (typeof classId !== "string" || classId.trim().length === 0) return err("classId is required");
+  if (
+    typeof reason !== "string" ||
+    reason.trim().length < classRemovalReasonMinLength ||
+    reason.trim().length > classRemovalReasonMaxLength ||
+    controlCharacterPattern.test(reason)
+  ) {
+    return err(
+      `reason must be between ${classRemovalReasonMinLength} and ${classRemovalReasonMaxLength} characters`,
+    );
+  }
+  return ok(Object.freeze({ classId: classId.trim(), reason: reason.trim() }));
 }
 
 export function parseListSessionsQuery(input: unknown): Result<ListSessionsQuery, string> {
@@ -720,7 +999,7 @@ export function generateSessionsFromClass(
   timezone: string,
 ): Omit<SessionRecord, "createdAt" | "createdBy" | "updatedAt" | "updatedBy">[] {
   const {
-    recurrenceRule,
+    recurrenceRules,
     classId,
     academyId,
     programId,
@@ -730,7 +1009,8 @@ export function generateSessionsFromClass(
     minParticipants,
     name,
   } = classRecord;
-  const { dayOfWeek, startTime, durationMinutes } = recurrenceRule;
+  // Task 3 rewrites this to walk every rule; for now only the first rule generates sessions.
+  const { dayOfWeek, startTime, durationMinutes } = recurrenceRules[0]!;
 
   const timeParts = startTime.split(":").map(Number);
   const startHour = timeParts[0] ?? 0;

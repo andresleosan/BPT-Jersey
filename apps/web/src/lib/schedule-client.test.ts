@@ -90,7 +90,7 @@ describe("Schedule Client", () => {
       programId: "adult-bjj",
       locationId: "town",
       name: "New Class",
-      recurrenceRule: { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+      recurrenceRules: [{ dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 }],
       instructorIds: ["coach-1"],
       capacity: 20,
     });

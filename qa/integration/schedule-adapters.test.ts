@@ -59,11 +59,13 @@ describe("Schedule Firestore Adapters Integration", () => {
         programId: "adult-fundamentals",
         locationId: "town",
         name: "Tue Night Adults Fundamentals",
-        recurrenceRule: {
-          dayOfWeek: 2,
-          startTime: "19:00",
-          durationMinutes: 60,
-        },
+        recurrenceRules: [
+          {
+            dayOfWeek: 2,
+            startTime: "19:00",
+            durationMinutes: 60,
+          },
+        ],
         instructorIds: ["coach-1"],
         capacity: 25,
         minParticipants: 4,
