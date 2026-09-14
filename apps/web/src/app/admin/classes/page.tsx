@@ -6,9 +6,11 @@ import type {
   ClassRecord,
   CreateClassInput,
   CreateSessionInput,
+  DayOfWeek,
   SessionRecord,
   UpdateClassInput,
 } from "@bpt-jersey/domain/schedule";
+import { ageRangeLabel, levelRangeLabel } from "@bpt-jersey/domain/schedule";
 import type { AdminDirectoryRow } from "@bpt-jersey/domain/members/directory";
 
 import { listMemberships, type AdminMembership } from "../../../lib/membership-admin-client";
@@ -35,6 +37,7 @@ import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { useAdminOrStaffSession } from "../admin-gate";
 import { SiteGeofencePanel } from "./site-geofence-panel";
 import {
+  dayLabels,
   draftFromClass,
   draftToCreateInput,
   draftToUpdateInput,
@@ -57,15 +60,9 @@ type BookingState =
   | Readonly<{ status: "idle" | "loading" | "error" }>
   | Readonly<{ status: "ready"; bookings: readonly BookingRecord[] }>;
 
-const dayLabels = Object.freeze([
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-]);
+function dayShortLabel(day: DayOfWeek): string {
+  return dayLabels[day].slice(0, 3);
+}
 
 function dateInputValue(value: Date): string {
   return value.toISOString().slice(0, 10);
@@ -642,8 +639,9 @@ export function ClassesPage() {
               <thead>
                 <tr>
                   <th scope="col">Class</th>
-                  <th scope="col">Program / center</th>
-                  <th scope="col">Recurrence</th>
+                  <th scope="col">Program / centre</th>
+                  <th scope="col">Schedule</th>
+                  <th scope="col">Who</th>
                   <th scope="col">Capacity</th>
                   <th scope="col">Status</th>
                   <th scope="col">Actions</th>
@@ -664,12 +662,18 @@ export function ClassesPage() {
                         {locations.get(item.locationId)?.name ?? "Location unavailable"}
                       </small>
                     </td>
-                    <td data-label="Recurrence">
-                      {dayLabels[item.recurrenceRules[0]!.dayOfWeek - 1]} ·{" "}
-                      {item.recurrenceRules[0]!.startTime}
+                    <td data-label="Schedule">
+                      {item.recurrenceRules
+                        .map((rule) => `${dayShortLabel(rule.dayOfWeek)} ${rule.startTime}`)
+                        .join(" · ")}
                       <small className="schedule-admin-block">
-                        {item.recurrenceRules[0]!.durationMinutes} minutes
+                        {[...new Set(item.recurrenceRules.map((rule) => rule.durationMinutes))]
+                          .map((minutes) => `${minutes} min`)
+                          .join(" / ")}
                       </small>
+                    </td>
+                    <td data-label="Who">
+                      {`${ageRangeLabel(item.ageRange)} · ${levelRangeLabel(item.levelRange)}`}
                     </td>
                     <td data-label="Capacity">
                       {item.minParticipants} min / {item.capacity} max
@@ -678,56 +682,58 @@ export function ClassesPage() {
                       <AdminStatusBadge status={item.active ? "active" : "inactive"} />
                     </td>
                     <td data-label="Actions">
-                      <div className="schedule-admin-row-actions">
-                        <button
-                          aria-label={"Edit " + item.name}
-                          className="schedule-admin-text-button"
-                          onClick={() =>
-                            openDialog({
-                              kind: "class",
-                              mode: "edit",
-                              classId: item.classId,
-                              draft: draftFromClass(item),
-                            })
-                          }
-                          type="button"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          aria-label={"Generate sessions for " + item.name}
-                          className="schedule-admin-text-button"
-                          disabled={!item.active}
-                          onClick={() =>
-                            openDialog({
-                              kind: "generate",
-                              classId: item.classId,
-                              fromDate: range.fromDate,
-                              toDate: range.toDate,
-                            })
-                          }
-                          type="button"
-                        >
-                          Generate
-                        </button>
-                        {canManage ? (
+                      {canManage ? (
+                        <div className="schedule-admin-row-actions">
                           <button
-                            aria-label={"Remove " + item.name}
-                            className="schedule-admin-text-button schedule-admin-danger-text"
+                            aria-label={"Edit " + item.name}
+                            className="schedule-admin-text-button"
                             onClick={() =>
                               openDialog({
-                                kind: "remove-class",
+                                kind: "class",
+                                mode: "edit",
                                 classId: item.classId,
-                                label: item.name,
-                                reason: "",
+                                draft: draftFromClass(item),
                               })
                             }
                             type="button"
                           >
-                            Remove
+                            Edit
                           </button>
-                        ) : null}
-                      </div>
+                          <button
+                            aria-label={"Generate sessions for " + item.name}
+                            className="schedule-admin-text-button"
+                            disabled={!item.active}
+                            onClick={() =>
+                              openDialog({
+                                kind: "generate",
+                                classId: item.classId,
+                                fromDate: range.fromDate,
+                                toDate: range.toDate,
+                              })
+                            }
+                            type="button"
+                          >
+                            Generate
+                          </button>
+                          {item.active ? (
+                            <button
+                              aria-label={"Remove " + item.name}
+                              className="schedule-admin-text-button schedule-admin-danger-text"
+                              onClick={() =>
+                                openDialog({
+                                  kind: "remove-class",
+                                  classId: item.classId,
+                                  label: item.name,
+                                  reason: "",
+                                })
+                              }
+                              type="button"
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -820,6 +826,9 @@ export function ClassesPage() {
                       <small className="schedule-admin-block">
                         {programNames.get(session.programId) ?? "Program unavailable"}
                       </small>
+                      {session.description ? (
+                        <small className="schedule-admin-block">{session.description}</small>
+                      ) : null}
                     </td>
                     <td data-label="Starts">
                       {formatSessionStart(
@@ -862,7 +871,8 @@ export function ClassesPage() {
                             Edit
                           </button>
                         ) : null}
-                        {session.status === "scheduled" || session.status === "active" ? (
+                        {canManage &&
+                        (session.status === "scheduled" || session.status === "active") ? (
                           <button
                             aria-label={"Cancel " + session.title}
                             className="schedule-admin-text-button schedule-admin-danger-text"

@@ -354,6 +354,7 @@
 .class-choice {
   background: var(--gi-white);
   border: 1px solid var(--mat-ink);
+  border-radius: 0;
   cursor: pointer;
   font: inherit;
   font-size: 0.85rem;
@@ -428,6 +429,12 @@
   }
   .schedule-admin-dialog-backdrop {
     align-items: stretch;
+  }
+  .schedule-admin-row-actions {
+    flex-wrap: wrap;
+  }
+  .schedule-admin-row-actions button {
+    min-height: 2.75rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {
