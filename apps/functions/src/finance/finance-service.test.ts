@@ -25,17 +25,49 @@ function ref(path: string): Ref {
 function createFakeFirestore(initial: Record<string, FinanceDocumentData> = {}) {
   const records = new Map(Object.entries(initial));
   const writes: string[] = [];
+  const reads: string[] = [];
   const audits: FinanceAuditDraft[] = [];
+
+  function readDoc(path: string) {
+    reads.push(path);
+    const data = records.get(path);
+    return { ...ref(path), exists: data !== undefined, data: () => data };
+  }
+
+  function matchingEntries(path: string): Array<[string, FinanceDocumentData]> {
+    return [...records.entries()].filter(([recordPath]) => recordPath.startsWith(`${path}/`));
+  }
+
+  function readCollection(path: string) {
+    return matchingEntries(path).map(([recordPath, data]) => {
+      reads.push(recordPath);
+      return { ...ref(recordPath), exists: true, data: () => data };
+    });
+  }
+
   const firestore: FinanceFirestore = {
-    doc: (path) => ref(path),
+    doc: (path) => ({ ...ref(path), get: async () => readDoc(path) }),
     collection: (path) => ({
-      doc: (id?: string) => ref(`${path}/${id ?? "generated"}`),
-      get: async () => ({
-        docs: [...records.entries()]
-          .filter(([recordPath]) => recordPath.startsWith(`${path}/`))
-          .map(([recordPath, data]) => ({ ...ref(recordPath), exists: true, data: () => data })),
-      }),
+      doc: (id?: string) => {
+        const docPath = `${path}/${id ?? "generated"}`;
+        return { ...ref(docPath), get: async () => readDoc(docPath) };
+      },
+      get: async () => ({ docs: readCollection(path) }),
       where: (field, _operator, value) => ({ path, field, value }),
+      orderBy: (field, direction) => ({
+        limit: (n: number) => ({
+          get: async () => {
+            const docs = readCollection(path).sort((a, b) => {
+              const av = a.data()?.[field] as string | number | undefined;
+              const bv = b.data()?.[field] as string | number | undefined;
+              if (av === bv) return 0;
+              const ascending = (av ?? 0) < (bv ?? 0) ? -1 : 1;
+              return direction === "desc" ? -ascending : ascending;
+            });
+            return { docs: docs.slice(0, n) };
+          },
+        }),
+      }),
     }),
     runTransaction: async (callback) => {
       const snapshot = new Map(records);
@@ -43,20 +75,15 @@ function createFakeFirestore(initial: Record<string, FinanceDocumentData> = {}) 
         get: async (target: Ref | Query) => {
           if ("field" in target) {
             return {
-              docs: [...records.entries()]
-                .filter(
-                  ([recordPath, data]) =>
-                    recordPath.startsWith(`${target.path}/`) && data[target.field] === target.value,
-                )
-                .map(([recordPath, data]) => ({
-                  ...ref(recordPath),
-                  exists: true,
-                  data: () => data,
-                })),
+              docs: matchingEntries(target.path)
+                .filter(([, data]) => data[target.field] === target.value)
+                .map(([recordPath, data]) => {
+                  reads.push(recordPath);
+                  return { ...ref(recordPath), exists: true, data: () => data };
+                }),
             };
           }
-          const data = records.get(target.path);
-          return { ...ref(target.path), exists: data !== undefined, data: () => data };
+          return readDoc(target.path);
         },
         create: (target: Ref, data: FinanceDocumentData) => {
           if (records.has(target.path)) throw new Error("already exists");
@@ -80,7 +107,7 @@ function createFakeFirestore(initial: Record<string, FinanceDocumentData> = {}) 
       }
     },
   };
-  return { firestore, records, writes, audits };
+  return { firestore, records, writes, reads, audits };
 }
 
 function seedSources(): Record<string, FinanceDocumentData> {
@@ -109,6 +136,57 @@ function store(initial: Record<string, FinanceDocumentData> = seedSources()) {
     appendAudit: (_transaction, _ref, draft) => fake.audits.push(draft),
   });
   return { ...fake, service };
+}
+
+function storeWithFamily(seededFamilyId: string) {
+  const fake = createFakeFirestore({
+    [`academies/${academyId}/families/${seededFamilyId}`]: {
+      familyId: seededFamilyId,
+      academyId,
+      active: true,
+    },
+  });
+  let invoiceSequence = 0;
+  const service = createFinanceStore({
+    firestore: fake.firestore,
+    now: () => now,
+    generateInvoiceId: () => `invoice-generated-${++invoiceSequence}`,
+    appendAudit: (_transaction, _ref, draft) => fake.audits.push(draft),
+  });
+  return { store: service, firestore: Object.assign(fake.firestore, { reads: fake.reads }) };
+}
+
+function storeWithFamilyMembershipAndStudent(options: {
+  familyId: string;
+  membershipId: string;
+  studentId: string;
+  fullName: string;
+}) {
+  const fake = createFakeFirestore({
+    [`academies/${academyId}/families/${options.familyId}`]: {
+      familyId: options.familyId,
+      academyId,
+      active: true,
+    },
+    [`academies/${academyId}/memberships/${options.membershipId}`]: {
+      membershipId: options.membershipId,
+      academyId,
+      familyId: options.familyId,
+      studentId: options.studentId,
+      status: "active",
+    },
+    [`academies/${academyId}/students/${options.studentId}`]: {
+      fullName: options.fullName,
+    },
+  });
+  let invoiceSequence = 0;
+  const service = createFinanceStore({
+    firestore: fake.firestore,
+    now: () => now,
+    generateInvoiceId: () => `invoice-generated-${++invoiceSequence}`,
+    appendAudit: (_transaction, _ref, draft) => fake.audits.push(draft),
+  });
+  return { store: service, firestore: Object.assign(fake.firestore, { reads: fake.reads }) };
 }
 
 describe("finance store", () => {
@@ -463,6 +541,94 @@ describe("finance store", () => {
     await expect(
       service.voidManualInvoice({ academyId, actorId: "admin-1", invoiceId: invoice.invoiceId }),
     ).rejects.toBeInstanceOf(FinanceStoreError);
+  });
+
+  it("issues an invoice with no membership and reads it back for the family only", async () => {
+    const { store, firestore } = storeWithFamily("family-1");
+
+    const invoice = await store.issueManualInvoice({
+      academyId,
+      actorId: "owner-1",
+      familyId: "family-1",
+      membershipId: null,
+      totalMinor: 1500,
+      dueAt: "2026-10-01T23:59:59.000Z",
+      chargeKind: "manual_adjustment",
+      invoiceReference: "INV-SEM-1",
+      description: "Seminar",
+    });
+
+    expect(invoice.membershipId).toBeNull();
+
+    const familyView = await store.listFinancialAccount({ academyId, familyIds: ["family-1"] });
+    expect(familyView.invoices.map((v) => v.invoice.invoiceId)).toContain(invoice.invoiceId);
+
+    const studentView = await store.listFinancialAccount({
+      academyId,
+      familyIds: ["family-1"],
+      studentIds: ["student-1"],
+    });
+    expect(studentView.invoices.map((v) => v.invoice.invoiceId)).not.toContain(invoice.invoiceId);
+
+    expect(firestore.reads.some((path) => path.includes("/memberships/"))).toBe(false);
+  });
+
+  it("lists the most recent payments with the member's name when a membership links one", async () => {
+    const { store } = storeWithFamilyMembershipAndStudent({
+      familyId: "family-1",
+      membershipId: "m-1",
+      studentId: "student-1",
+      fullName: "Ana Coelho",
+    });
+
+    const withMember = await store.issueManualInvoice({
+      academyId,
+      actorId: "owner-1",
+      familyId: "family-1",
+      membershipId: "m-1",
+      totalMinor: 7500,
+      dueAt: "2026-10-01T23:59:59.000Z",
+      chargeKind: "membership",
+      invoiceReference: "INV-1",
+      description: "September",
+    });
+    const withoutMember = await store.issueManualInvoice({
+      academyId,
+      actorId: "owner-1",
+      familyId: "family-1",
+      membershipId: null,
+      totalMinor: 1500,
+      dueAt: "2026-10-01T23:59:59.000Z",
+      chargeKind: "manual_adjustment",
+      invoiceReference: "INV-2",
+      description: "Seminar",
+    });
+
+    await store.recordManualPayment({
+      academyId,
+      actorId: "owner-1",
+      invoiceId: withMember.invoiceId,
+      amountMinor: 7500,
+      method: "bank_transfer",
+      manualReference: "BT-1",
+      occurredAt: "2026-09-10T10:00:00.000Z",
+    });
+    await store.recordManualPayment({
+      academyId,
+      actorId: "owner-1",
+      invoiceId: withoutMember.invoiceId,
+      amountMinor: 1500,
+      method: "cash",
+      manualReference: "CASH-1",
+      occurredAt: "2026-09-12T10:00:00.000Z",
+    });
+
+    const rows = await store.listRecentPayments(academyId, 20);
+    expect(rows.map((r) => [r.manualReference, r.memberName, r.method])).toEqual([
+      ["CASH-1", null, "cash"],
+      ["BT-1", "Ana Coelho", "bank_transfer"],
+    ]);
+    expect(await store.listRecentPayments(academyId, 1)).toHaveLength(1);
   });
 });
 

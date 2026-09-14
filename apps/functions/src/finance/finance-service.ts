@@ -13,10 +13,15 @@ import {
   type ManualPaymentRecord,
   type PaymentInstructionsInput,
   type PaymentInstructionsRecord,
+  type RecentPaymentRow,
 } from "@bpt-jersey/domain/finance";
 
 export type FinanceDocumentData = Readonly<Record<string, unknown>>;
-export type FinanceDocumentReference = Readonly<{ id: string; path: string }>;
+export type FinanceDocumentReference = Readonly<{
+  id: string;
+  path: string;
+  get: () => Promise<FinanceDocumentSnapshot>;
+}>;
 export type FinanceDocumentSnapshot = Readonly<{
   id: string;
   exists: boolean;
@@ -30,10 +35,14 @@ export type FinanceQuery = Readonly<{
   field: string;
   value: unknown;
 }>;
+export type FinanceOrderedQuery = Readonly<{
+  limit: (n: number) => Readonly<{ get: () => Promise<FinanceQuerySnapshot> }>;
+}>;
 export type FinanceCollectionReference = Readonly<{
   doc: (id?: string) => FinanceDocumentReference;
   get: () => Promise<FinanceQuerySnapshot>;
   where: (field: string, operator: "==", value: unknown) => FinanceQuery;
+  orderBy: (field: string, direction: "asc" | "desc") => FinanceOrderedQuery;
 }>;
 export type FinanceTransaction = Readonly<{
   get: (
@@ -76,7 +85,7 @@ export type IssueManualInvoiceInput = Readonly<{
   academyId: string;
   actorId: string;
   familyId: string;
-  membershipId: string;
+  membershipId: string | null;
   totalMinor: number;
   dueAt: string;
   chargeKind: "membership" | "manual_adjustment";
@@ -138,6 +147,7 @@ export type FinanceStore = Readonly<{
   recordManualPayment: (input: RecordManualPaymentInput) => Promise<ManualPaymentRecord>;
   voidManualInvoice: (input: VoidManualInvoiceInput) => Promise<InvoiceRecord>;
   listFinancialAccount: (scope: FinanceReadScope) => Promise<FinancialAccountView>;
+  listRecentPayments: (academyId: string, limit: number) => Promise<readonly RecentPaymentRow[]>;
   getInvoice: (scope: FinanceReadScope, invoiceId: string) => Promise<InvoiceView>;
   savePaymentInstructions: (
     input: SavePaymentInstructionsInput,
@@ -388,7 +398,8 @@ function invoicePayload(
     invoiceId,
     academyId: pathSegment(input.academyId, "academy"),
     familyId: pathSegment(input.familyId, "family"),
-    membershipId: pathSegment(input.membershipId, "membership"),
+    membershipId:
+      input.membershipId === null ? null : pathSegment(input.membershipId, "membership"),
     status: "open",
     totalMinor: validAmount(input.totalMinor),
     currency: "GBP",
@@ -471,11 +482,8 @@ async function matchesStudentScopeInTransaction(
   scope: FinanceReadScope,
   invoice: InvoiceRecord,
 ): Promise<boolean> {
+  if (invoice.membershipId === null) return scope.studentIds === undefined;
   if (scope.studentIds === undefined) return true;
-  // Task 14 reworks this: a membership-less invoice has no membership to scope-check against yet.
-  if (invoice.membershipId === null) {
-    throw new FinanceStoreError("tenant", "Membership scope is invalid");
-  }
   const membership = documentSnapshot(
     await transaction.get(firestore.doc(membershipPath(scope.academyId, invoice.membershipId))),
   );
@@ -587,19 +595,20 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
 
   async function sourceRecords(
     transaction: FinanceTransaction,
-    input: { academyId: string; familyId: string; membershipId: string },
+    input: { academyId: string; familyId: string; membershipId: string | null },
   ): Promise<void> {
     const family = documentSnapshot(
       await transaction.get(
         dependencies.firestore.doc(familyPath(input.academyId, input.familyId)),
       ),
     );
+    validFamilySource(family, input.academyId, input.familyId);
+    if (input.membershipId === null) return;
     const membership = documentSnapshot(
       await transaction.get(
         dependencies.firestore.doc(membershipPath(input.academyId, input.membershipId)),
       ),
     );
-    validFamilySource(family, input.academyId, input.familyId);
     validMembershipSource(membership, input.academyId, input.familyId, input.membershipId);
   }
 
@@ -911,6 +920,64 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     });
   }
 
+  async function listRecentPayments(
+    academyId: string,
+    limit: number,
+  ): Promise<readonly RecentPaymentRow[]> {
+    const academy = pathSegment(academyId, "academy");
+    const snapshot = querySnapshot(
+      await dependencies.firestore
+        .collection(paymentsPath(academy))
+        .orderBy("occurredAt", "desc")
+        .limit(limit)
+        .get(),
+    );
+    const payments = snapshot.docs.map((document) => parseScopedStoredPayment(document, academy));
+    const invoiceIds = [...new Set(payments.map((payment) => payment.invoiceId))];
+    const invoices = new Map<string, InvoiceRecord>();
+    for (const invoiceId of invoiceIds) {
+      const document = await dependencies.firestore.doc(invoicePath(academy, invoiceId)).get();
+      invoices.set(invoiceId, parseScopedStoredInvoice(document, academy));
+    }
+    const names = new Map<string, string | null>();
+    for (const invoice of invoices.values()) {
+      if (invoice.membershipId === null || names.has(invoice.membershipId)) continue;
+      const membership = await dependencies.firestore
+        .doc(membershipPath(academy, invoice.membershipId))
+        .get();
+      const studentId = membership.exists ? membership.data()?.studentId : undefined;
+      if (typeof studentId !== "string") {
+        names.set(invoice.membershipId, null);
+        continue;
+      }
+      const student = await dependencies.firestore
+        .doc(`academies/${academy}/students/${pathSegment(studentId, "student")}`)
+        .get();
+      const fullName = student.exists ? student.data()?.fullName : undefined;
+      names.set(
+        invoice.membershipId,
+        typeof fullName === "string" && fullName.trim() ? fullName.trim() : null,
+      );
+    }
+    return Object.freeze(
+      payments.map((payment) => {
+        const invoice = invoices.get(payment.invoiceId)!;
+        return Object.freeze({
+          paymentId: payment.paymentId,
+          occurredAt: payment.occurredAt,
+          amountMinor: payment.amountMinor,
+          method: payment.method,
+          manualReference: payment.manualReference,
+          invoiceReference: invoice.invoiceReference,
+          description: invoice.description,
+          familyId: payment.familyId,
+          memberName:
+            invoice.membershipId === null ? null : (names.get(invoice.membershipId) ?? null),
+        });
+      }),
+    );
+  }
+
   async function listFinancialAccount(scope: FinanceReadScope): Promise<FinancialAccountView> {
     return dependencies.firestore.runTransaction((transaction) =>
       readFinancialAccountInTransaction({
@@ -927,6 +994,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
     recordManualPayment,
     voidManualInvoice,
     listFinancialAccount,
+    listRecentPayments,
     getInvoice,
     savePaymentInstructions,
   });
