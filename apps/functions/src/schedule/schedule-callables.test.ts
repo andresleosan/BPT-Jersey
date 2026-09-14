@@ -15,6 +15,7 @@ import {
   createListScheduleCatalogHandler,
   createListSessionAttendanceHandler,
   createListSessionBookingsHandler,
+  createListSessionBookedCountsHandler,
   createListSessionCheckoutsHandler,
   createListSessionsHandler,
   createListStudentAttendanceHandler,
@@ -22,11 +23,13 @@ import {
   createReconcileSessionNoShowsHandler,
   createReconcileSessionQuorumHandler,
   createRecordCheckoutHandler,
+  createRemoveClassHandler,
   createRequestBookingHandler,
   createSaveClassHandler,
   createSaveLocationGeofenceHandler,
   createSaveProgramHandler,
   createSaveSessionHandler,
+  createUpdateSessionHandler,
 } from "./schedule-callables";
 import { BookingTransactionError } from "./booking-transaction-service";
 import { scheduleCallableOptions } from "./schedule-callable-options";
@@ -1337,3 +1340,104 @@ describe("reconcileSessionQuorum (T110)", () => {
 function handlerFor(store: ReturnType<typeof createInMemoryScheduleStore>) {
   return createReconcileSessionQuorumHandler({ store });
 }
+
+describe("session update, class removal and booked counts callables", () => {
+  const classInput = {
+    programId: "program-1" as const,
+    locationId: "town" as const,
+    name: "Kids BJJ",
+    recurrenceRules: [{ dayOfWeek: 1 as const, startTime: "17:00", durationMinutes: 60 }],
+    instructorIds: ["coach-a"],
+    capacity: 20,
+  };
+
+  it("lets a head coach edit a scheduled session and refuses a coach", async () => {
+    const store = createInMemoryScheduleStore();
+    const session = await store.createSession(
+      "demo-academy",
+      {
+        programId: "program-1",
+        locationId: "town",
+        instructorId: "coach-a",
+        title: "Adults",
+        startAt: "2099-01-05T18:00:00Z",
+        endAt: "2099-01-05T19:00:00Z",
+        capacity: 20,
+      },
+      "owner-1",
+    );
+    const handler = createUpdateSessionHandler({ store });
+    const result = await handler(
+      fakeRequest({ sessionId: session.sessionId, title: "Adults Gi" }, "headCoach"),
+    );
+    expect(result.session.title).toBe("Adults Gi");
+    await expect(
+      handler(fakeRequest({ sessionId: session.sessionId, title: "X" }, "coach")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      handler(fakeRequest({ sessionId: session.sessionId }, "owner")),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
+  it("removes a class for a manager and reports the cancelled sessions", async () => {
+    const store = createInMemoryScheduleStore();
+    const created = await store.createClass("demo-academy", classInput, "owner-1");
+    await store.generateSessions(
+      "demo-academy",
+      created.classId,
+      "2099-01-04",
+      "2099-01-10",
+      "Europe/Jersey",
+      "owner-1",
+    );
+    const handler = createRemoveClassHandler({ store, now: () => "2099-01-01T00:00:00.000Z" });
+    const result = await handler(
+      fakeRequest({ classId: created.classId, reason: "Coach left" }, "administrator"),
+    );
+    expect(result.class.active).toBe(false);
+    expect(result.cancelledSessions).toHaveLength(1);
+    await expect(
+      handler(fakeRequest({ classId: created.classId, reason: "Coach left" }, "coach")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  it("returns booked counts for any signed-in user and rejects anonymous calls", async () => {
+    const store = createInMemoryScheduleStore();
+    const session = await store.createSession(
+      "demo-academy",
+      {
+        programId: "program-1",
+        locationId: "town",
+        instructorId: "coach-a",
+        title: "Adults",
+        startAt: "2099-01-05T18:00:00Z",
+        endAt: "2099-01-05T19:00:00Z",
+        capacity: 20,
+      },
+      "owner-1",
+    );
+    await store.requestBooking(
+      "demo-academy",
+      { sessionId: session.sessionId, studentId: "s-1", membershipId: "m-1" },
+      "s-1",
+    );
+    const handler = createListSessionBookedCountsHandler({ store });
+    const result = await handler(
+      fakeRequest(
+        { from: "2099-01-01T00:00:00.000Z", to: "2099-01-31T00:00:00.000Z" },
+        "adultStudent",
+        "s-1",
+      ),
+    );
+    expect(result.counts).toEqual({ [session.sessionId]: 1 });
+    await expect(
+      handler(
+        fakeRequest(
+          { from: "2099-01-01T00:00:00.000Z", to: "2099-01-31T00:00:00.000Z" },
+          "owner",
+          null,
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+  });
+});

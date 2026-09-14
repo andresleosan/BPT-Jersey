@@ -9,9 +9,11 @@ import {
   parseCreateSessionInput,
   parseListSessionsQuery,
   parseRecordCheckoutInput,
+  parseRemoveClassInput,
   parseRequestBookingInput,
   parseSaveLocationGeofenceInput,
   parseUpdateClassInput,
+  parseUpdateSessionInput,
   type AttendanceRecord,
 } from "@bpt-jersey/domain/schedule";
 
@@ -412,6 +414,64 @@ export function createCancelSessionHandler(options: { store: ScheduleStore }) {
     return {
       session: cancelled,
     };
+  };
+}
+
+export function createUpdateSessionHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
+      throw new HttpsError("permission-denied", "Manager access required to edit sessions");
+    }
+    const parsed = parseUpdateSessionInput(request.data);
+    if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+    try {
+      return { session: await store.updateSession(actor.academyId, parsed.value, actor.userId) };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (/does not exist/u.test(message)) throw new HttpsError("not-found", "Session not found");
+      throw new HttpsError("failed-precondition", "Session cannot be edited in its current state");
+    }
+  };
+}
+
+export function createRemoveClassHandler(options: { store: ScheduleStore; now?: () => string }) {
+  const { store } = options;
+  const now = options.now ?? (() => new Date().toISOString());
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    if (!managerRoles.includes(actor.role as (typeof managerRoles)[number])) {
+      throw new HttpsError("permission-denied", "Manager access required to remove classes");
+    }
+    const parsed = parseRemoveClassInput(request.data);
+    if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+    try {
+      return await store.removeClass(
+        actor.academyId,
+        parsed.value.classId,
+        parsed.value.reason,
+        actor.userId,
+        now(),
+      );
+    } catch {
+      throw new HttpsError("not-found", "Class not found");
+    }
+  };
+}
+
+export function createListSessionBookedCountsHandler(options: { store: ScheduleStore }) {
+  const { store } = options;
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const parsed = parseListSessionsQuery(request.data);
+    if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+    const sessions = await store.listSessions(actor.academyId, parsed.value);
+    const counts = await store.countConfirmedBookings(
+      actor.academyId,
+      sessions.map((session) => session.sessionId),
+    );
+    return { counts };
   };
 }
 
@@ -943,6 +1003,18 @@ export const saveSession = onCall(scheduleCallableOptions, async (request) =>
 
 export const cancelSession = onCall(scheduleCallableOptions, async (request) =>
   createCancelSessionHandler({ store: getStore() })(request),
+);
+
+export const updateSession = onCall(scheduleCallableOptions, async (request) =>
+  createUpdateSessionHandler({ store: getStore() })(request),
+);
+
+export const removeClass = onCall(scheduleCallableOptions, async (request) =>
+  createRemoveClassHandler({ store: getStore() })(request),
+);
+
+export const listSessionBookedCounts = onCall(scheduleCallableOptions, async (request) =>
+  createListSessionBookedCountsHandler({ store: getStore() })(request),
 );
 
 export const requestBooking = onCall(scheduleCallableOptions, async (request) =>

@@ -104,6 +104,7 @@ export {
   listClasses,
   listScheduleCatalog,
   listSessionAttendance,
+  listSessionBookedCounts,
   listSessionBookings,
   listSessionCheckouts,
   listSessions,
@@ -112,12 +113,14 @@ export {
   reconcileSessionNoShows,
   reconcileSessionQuorum,
   recordCheckout,
+  removeClass,
   requestBooking,
   saveClass,
   saveLocationGeofence,
   saveProgram,
   saveSession,
   updateClass,
+  updateSession,
 } from "./schedule/schedule-callables.js";
 export {
   listNoShowPenalties,
