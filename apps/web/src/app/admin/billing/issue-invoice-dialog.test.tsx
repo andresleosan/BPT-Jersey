@@ -88,4 +88,52 @@ describe("issue invoice dialog", () => {
     );
     expect(screen.getByRole("button", { name: "Issue invoice" })).toBeDisabled();
   });
+
+  it("keeps charge type in sync with the membership choice", async () => {
+    const issue = vi.fn().mockResolvedValue({ invoiceId: "i2" });
+    render(
+      <IssueInvoiceDialog
+        issue={issue}
+        members={members}
+        memberships={[
+          {
+            membershipId: "m1",
+            familyId: "f1",
+            studentId: "s1",
+            planId: "town-teens",
+            status: "active",
+            startsAt: "2026-01-01T00:00:00.000Z",
+            endsAt: null,
+            nextBillingAt: null,
+          },
+        ]}
+        onClose={vi.fn()}
+        onIssued={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find a member" }), {
+      target: { value: "ana c" },
+    });
+    fireEvent.click(screen.getByRole("option", { name: "Ana Coelho" }));
+    expect(screen.getByLabelText("Charge type")).toHaveValue("membership");
+
+    fireEvent.click(screen.getByRole("radio", { name: "No membership · custom charge" }));
+    expect(screen.getByLabelText("Charge type")).toHaveValue("manual_adjustment");
+
+    fireEvent.change(screen.getByLabelText("Invoice amount (GBP)"), { target: { value: "15.00" } });
+    fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2026-10-01" } });
+    fireEvent.change(screen.getByLabelText("Invoice reference"), {
+      target: { value: "INV-SEM-2" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Seminar" } });
+    fireEvent.click(screen.getByRole("button", { name: "Issue invoice" }));
+    await waitFor(() =>
+      expect(issue).toHaveBeenCalledWith(
+        expect.objectContaining({ membershipId: null, chargeKind: "manual_adjustment" }),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /town-teens · active/u }));
+    expect(screen.getByLabelText("Charge type")).toHaveValue("membership");
+  });
 });
