@@ -656,7 +656,7 @@ export function ClassesPage() {
                         {item.instructorIds.join(", ")}
                       </small>
                     </td>
-                    <td data-label="Program / center">
+                    <td data-label="Program / centre">
                       {programNames.get(item.programId) ?? "Program unavailable"}
                       <small className="schedule-admin-block">
                         {locations.get(item.locationId)?.name ?? "Location unavailable"}
