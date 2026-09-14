@@ -1,4 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockCallable, mockHttpsCallable } = vi.hoisted(() => ({
+  mockCallable: vi.fn(),
+  mockHttpsCallable: vi.fn(),
+}));
+
+vi.mock("firebase/functions", () => ({
+  httpsCallable: mockHttpsCallable,
+}));
+
+vi.mock("./firebase-client", () => ({
+  getFirebaseFunctions: () => ({}),
+}));
 
 import {
   cancelBooking,
@@ -17,27 +30,24 @@ import {
   listSessions,
   listStudentAttendance,
   listStudentBookings,
+  listSessionBookedCounts,
   reconcileSessionNoShows,
   recordCheckIn,
   recordCheckout,
+  removeClass,
   requestBooking,
   saveClass,
   saveProgram,
   saveSession,
   scheduleCallableClientOptions,
+  updateSession,
 } from "./schedule-client";
 
-const mockCallable = vi.fn();
-
-vi.mock("firebase/functions", () => ({
-  httpsCallable: () => mockCallable,
-}));
-
-vi.mock("./firebase-client", () => ({
-  getFirebaseFunctions: () => ({}),
-}));
-
 describe("Schedule Client", () => {
+  beforeEach(() => {
+    mockHttpsCallable.mockReturnValue(mockCallable);
+  });
+
   it("fetches schedule catalog", async () => {
     expect(scheduleCallableClientOptions).toEqual({
       limitedUseAppCheckTokens: true,
@@ -335,6 +345,21 @@ describe("Schedule Client", () => {
     expect(view.session.sessionId).toBe("s-1");
     expect(view.summary.quorumMet).toBe(true);
     expect(view.roster[0]?.computedStatus).toBe("attended");
+  });
+
+  it("calls updateSession, removeClass and listSessionBookedCounts by name", async () => {
+    mockCallable.mockResolvedValueOnce({ data: { session: { sessionId: "s1" } } });
+    await expect(updateSession({ sessionId: "s1", title: "Adults Gi" })).resolves.toEqual({ sessionId: "s1" });
+    expect(mockHttpsCallable).toHaveBeenLastCalledWith(expect.anything(), "updateSession", { limitedUseAppCheckTokens: true });
+
+    mockCallable.mockResolvedValueOnce({ data: { class: { classId: "c1" }, cancelledSessions: [] } });
+    await expect(removeClass({ classId: "c1", reason: "Coach left" })).resolves.toEqual({ class: { classId: "c1" }, cancelledSessions: [] });
+    expect(mockHttpsCallable).toHaveBeenLastCalledWith(expect.anything(), "removeClass", { limitedUseAppCheckTokens: true });
+
+    mockCallable.mockResolvedValueOnce({ data: { counts: { s1: 2, s2: 0 } } });
+    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).resolves.toEqual({ s1: 2, s2: 0 });
+    mockCallable.mockResolvedValueOnce({ data: { counts: { s1: "two" } } });
+    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
   });
 });
 
