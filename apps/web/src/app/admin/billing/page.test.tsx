@@ -1,40 +1,92 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FinancialDashboard } from "@bpt-jersey/domain/finance/dashboard";
 
-const api = vi.hoisted(() => ({
-  // The page now mounts the T010/T035 payment instructions panel, which imports these two.
-  savePaymentInstructions: vi.fn(),
-  formatSortCode: (sortCode: string) =>
-    `${sortCode.slice(0, 2)}-${sortCode.slice(2, 4)}-${sortCode.slice(4, 6)}`,
-  issueManualInvoice: vi.fn(),
+const financeApi = vi.hoisted(() => ({
+  getFinancialDashboard: vi.fn(),
+  listRecentPayments: vi.fn(),
+  getFamilyFinancialAccount: vi.fn(),
+}));
+const billingApi = vi.hoisted(() => ({
   listFinancialAccount: vi.fn(),
+  issueManualInvoice: vi.fn(),
   recordManualPayment: vi.fn(),
   voidManualInvoice: vi.fn(),
 }));
-
 const membershipApi = vi.hoisted(() => ({ listMemberships: vi.fn() }));
-const membersApi = vi.hoisted(() => ({ listMembers: vi.fn() }));
+const membersApi = vi.hoisted(() => ({ listMemberNames: vi.fn() }));
 
-vi.mock("../../../lib/billing-client", () => api);
+vi.mock("../../../lib/finance-client", () => financeApi);
+vi.mock("../../../lib/billing-client", () => billingApi);
 vi.mock("../../../lib/membership-admin-client", () => membershipApi);
 vi.mock("../../../lib/members-client", () => membersApi);
+vi.mock("./no-show-penalty-queue", () => ({ NoShowPenaltyQueue: () => null }));
+vi.mock("./payment-instructions-panel", () => ({ PaymentInstructionsPanel: () => null }));
 
 import { BillingPage } from "./page";
 
-const account = {
-  balanceMinor: 7_500,
-  paygDebtMinor: 1_500,
-  paymentInstructions: null,
+const dashboard = {
+  currency: "GBP",
+  generatedAt: "2026-08-24T12:00:00.000Z",
+  period: { from: "2026-08-01T00:00:00.000Z", to: "2026-08-24T12:00:00.000Z" },
+  renewalWindow: { from: "2026-08-24T12:00:00.000Z", to: "2026-09-23T12:00:00.000Z" },
+  metrics: {
+    collectedMinor: 9_000,
+    activeMemberships: 2,
+    outstandingMinor: 8_000,
+    paymentsReceived: 2,
+    overdueBalances: 1,
+    renewalsDue: 1,
+  },
+  recentPayments: [
+    { invoiceReference: "INV-002", amountMinor: 5_000, occurredAt: "2026-08-10T00:00:00.000Z" },
+  ],
+  balanceAttention: [
+    {
+      invoiceReference: "INV-001",
+      balanceMinor: 6_000,
+      dueAt: "2026-08-10T00:00:00.000Z",
+      status: "partially_paid",
+      overdue: true,
+    },
+  ],
+  upcomingRenewals: [
+    { planId: "bpt-jersey-adult", nextBillingAt: "2026-08-30T00:00:00.000Z", status: "active" },
+  ],
+} satisfies FinancialDashboard;
+
+function makePayment(index: number) {
+  return {
+    paymentId: `payment-${index}`,
+    occurredAt: new Date(2026, 7, 1 + index).toISOString(),
+    amountMinor: 1_000 + index,
+    method: index === 0 ? ("cash" as const) : ("bank_transfer" as const),
+    manualReference: `REF-${index}`,
+    invoiceReference: `INV-${index}`,
+    description: "September membership",
+    familyId: "family-1",
+    memberName: index === 0 ? "Ana Coelho" : null,
+  };
+}
+
+const twentyOnePayments = Array.from({ length: 21 }, (_, index) => makePayment(index));
+
+const members = [
+  { studentId: "s1", fullName: "Ana Coelho", familyId: "f1" },
+  { studentId: "s2", fullName: "Bruno Silva", familyId: "f2" },
+];
+
+const familyAccount = {
   invoices: [
     {
-      balanceMinor: 7_500,
+      balanceMinor: 5_000,
       invoice: {
         invoiceId: "invoice-1",
         academyId: "academy-1",
-        familyId: "family-1",
+        familyId: "f1",
         membershipId: "membership-1",
         status: "open",
-        totalMinor: 7_500,
+        totalMinor: 5_000,
         currency: "GBP",
         dueAt: "2026-09-20T12:00:00.000Z",
         paidAt: null,
@@ -48,101 +100,81 @@ const account = {
         invoiceReference: "INV-001",
         description: "September membership",
       },
-      payments: [],
+      payments: [
+        {
+          paymentId: "payment-1",
+          invoiceId: "invoice-1",
+          familyId: "f1",
+          amountMinor: 2_500,
+          method: "cash",
+          manualReference: "CASH-1",
+          occurredAt: "2026-09-05T09:00:00.000Z",
+          recordedBy: "owner-1",
+          recordedAt: "2026-09-05T09:00:00.000Z",
+        },
+      ],
     },
   ],
+  balanceMinor: 2_500,
+  paygDebtMinor: 0,
+  paymentInstructions: null,
 };
 
 describe("billing page", () => {
-  afterEach(() => {
-    cleanup();
-    vi.restoreAllMocks();
-  });
+  afterEach(() => cleanup());
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    api.listFinancialAccount.mockResolvedValue(account);
-    api.issueManualInvoice.mockResolvedValue(account.invoices[0]!.invoice);
-    api.recordManualPayment.mockResolvedValue({ paymentId: "payment-1" });
-    api.voidManualInvoice.mockResolvedValue({ ...account.invoices[0]!.invoice, status: "void" });
-    membershipApi.listMemberships.mockResolvedValue([
-      {
-        membershipId: "membership-1",
-        familyId: "family-1",
-        studentId: "student-1",
-        planId: "town-adult",
-        status: "active",
-        startsAt: "2026-09-01T00:00:00.000Z",
-        endsAt: null,
-        nextBillingAt: null,
-      },
-    ]);
-    membersApi.listMembers.mockResolvedValue({
-      rows: [
-        {
-          studentId: "student-1",
-          fullName: "Synthetic One",
-          participantType: "adult",
-          trainingCenter: "Town",
-          active: true,
-          status: "active",
-        },
-      ],
+    financeApi.getFinancialDashboard.mockResolvedValue(dashboard);
+    financeApi.listRecentPayments.mockResolvedValue([]);
+    billingApi.listFinancialAccount.mockResolvedValue({
+      invoices: [],
+      balanceMinor: 0,
+      paygDebtMinor: 0,
+      paymentInstructions: null,
     });
+    membershipApi.listMemberships.mockResolvedValue([]);
+    membersApi.listMemberNames.mockResolvedValue(members);
   });
 
-  it("operates invoice, payment and void actions against the connected account", async () => {
+  it("opens on the finance dashboard with the latest twenty payments", async () => {
+    financeApi.getFinancialDashboard.mockResolvedValue(dashboard);
+    financeApi.listRecentPayments.mockResolvedValue(twentyOnePayments.slice(0, 20));
     render(<BillingPage />);
+    expect(await screen.findByRole("heading", { name: "Billing" })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: /Collected this month/u })).toBeInTheDocument();
+    const latest = screen.getByRole("region", { name: "Latest payments" });
+    expect(within(latest).getAllByRole("row")).toHaveLength(21); // header + 20
+    expect(within(latest).getByText("Ana Coelho")).toBeInTheDocument();
+    expect(within(latest).getAllByText("Cash").length).toBeGreaterThan(0);
+    expect(screen.getByRole("group", { name: "Outstanding invoices" })).not.toHaveAttribute("open");
+  });
 
-    expect(await screen.findByText("INV-001")).toBeVisible();
-    // The membership is chosen from connected records; the family is derived, never typed.
-    expect(
-      await screen.findByRole("option", { name: "Synthetic One · town-adult · active" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Family ID")).toBeNull();
-    expect(screen.queryByLabelText("Membership ID")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Membership"), { target: { value: "membership-1" } });
-    fireEvent.change(screen.getByLabelText("Invoice amount (GBP)"), {
-      target: { value: "75.00" },
+  it("shows a member's family payments after picking them", async () => {
+    membersApi.listMemberNames.mockResolvedValue(members);
+    financeApi.getFamilyFinancialAccount.mockResolvedValue(familyAccount);
+    render(<BillingPage />);
+    fireEvent.change(await screen.findByRole("searchbox", { name: "Find a member" }), {
+      target: { value: "ana c" },
     });
-    fireEvent.change(screen.getByLabelText("Due at"), {
-      target: { value: "2026-09-20T12:00" },
-    });
-    fireEvent.change(screen.getByLabelText("Invoice reference"), {
-      target: { value: "INV-002" },
-    });
-    fireEvent.change(screen.getByLabelText("Description"), {
-      target: { value: "October membership" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Issue invoice" }));
-    expect(api.issueManualInvoice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        familyId: "family-1",
-        membershipId: "membership-1",
-        totalMinor: 7_500,
-        invoiceReference: "INV-002",
-      }),
+    fireEvent.click(screen.getByRole("option", { name: "Ana Coelho" }));
+    await waitFor(() => expect(financeApi.getFamilyFinancialAccount).toHaveBeenCalledWith("f1"));
+    const panel = await screen.findByRole("region", { name: "Ana Coelho's account" });
+    expect(within(panel).getByRole("table", { name: "All payments" })).toBeInTheDocument();
+    const payments = familyAccount.invoices.flatMap((v) => v.payments);
+    expect(within(panel).getAllByRole("row")).toHaveLength(
+      2 + payments.length + familyAccount.invoices.length,
     );
-    expect(await screen.findByText("Invoice issued and added to the ledger.")).toBeVisible();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Record payment for INV-001" }));
-    fireEvent.change(screen.getByLabelText("Payment amount (GBP)"), {
-      target: { value: "75.00" },
-    });
-    fireEvent.change(screen.getByLabelText("Manual payment reference"), {
-      target: { value: "BANK-001" },
-    });
-    fireEvent.change(screen.getByLabelText("Payment occurred at"), {
-      target: { value: "2026-09-03T12:00" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Save payment" }));
-    expect(api.recordManualPayment).toHaveBeenCalledWith(
-      expect.objectContaining({ invoiceId: "invoice-1", amountMinor: 7_500 }),
+  it("keeps the page usable when the member list fails", async () => {
+    membersApi.listMemberNames.mockRejectedValue(
+      new Error("The member list is unavailable. Please try again."),
     );
-    expect(await screen.findByText("Payment recorded in the manual ledger.")).toBeVisible();
-
-    fireEvent.click(screen.getByRole("button", { name: "Void INV-001" }));
-    expect(api.voidManualInvoice).toHaveBeenCalledWith("invoice-1");
+    render(<BillingPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The member list is unavailable. Please try again.",
+    );
+    expect(screen.getByRole("button", { name: "Issue invoice" })).toBeInTheDocument();
   });
 });
