@@ -34,8 +34,13 @@ import {
   parseLevelRange,
   parseRecordCheckoutInput,
   parseRecurrenceRule,
+  parseRecurrenceRules,
+  parseRemoveClassInput,
   parseRequestBookingInput,
   parseSaveLocationGeofenceInput,
+  parseUpdateClassInput,
+  parseUpdateSessionInput,
+  normalizeClassRecord,
   quorumCancellationReason,
   resolveCheckInProximity,
   type ClassRecord,
@@ -97,11 +102,13 @@ describe("Schedule Domain Contracts", () => {
         programId: "adult-bjj",
         locationId: "town",
         name: "Adult Fundamentals Town",
-        recurrenceRule: {
-          dayOfWeek: 2,
-          startTime: "19:00",
-          durationMinutes: 60,
-        },
+        recurrenceRules: [
+          {
+            dayOfWeek: 2,
+            startTime: "19:00",
+            durationMinutes: 60,
+          },
+        ],
         instructorIds: ["coach-1", "coach-2"],
         capacity: 25,
         minParticipants: 4,
@@ -122,7 +129,7 @@ describe("Schedule Domain Contracts", () => {
         programId: "adult-bjj",
         locationId: "invalid-loc",
         name: "Adult Fundamentals",
-        recurrenceRule: { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+        recurrenceRules: [{ dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 }],
         instructorIds: ["coach-1"],
         capacity: 20,
       };
@@ -134,7 +141,7 @@ describe("Schedule Domain Contracts", () => {
         programId: "adult-bjj",
         locationId: "west",
         name: "Adult Fundamentals",
-        recurrenceRule: { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+        recurrenceRules: [{ dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 }],
         instructorIds: [],
         capacity: 20,
       };
@@ -147,7 +154,7 @@ describe("Schedule Domain Contracts", () => {
           programId: "adult-bjj",
           locationId: "town",
           name: "Adult Class",
-          recurrenceRule: { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+          recurrenceRules: [{ dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 }],
           instructorIds: ["coach-1"],
           capacity: 0,
         }).ok,
@@ -158,7 +165,7 @@ describe("Schedule Domain Contracts", () => {
           programId: "adult-bjj",
           locationId: "town",
           name: "Adult Class",
-          recurrenceRule: { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+          recurrenceRules: [{ dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 }],
           instructorIds: ["coach-1"],
           capacity: 10,
           minParticipants: 15,
@@ -308,16 +315,21 @@ describe("Schedule Domain Contracts", () => {
       programId: "prog-adult-bjj",
       locationId: "town",
       name: "Adult Fundamentals",
-      recurrenceRule: Object.freeze({
-        dayOfWeek: 2, // Tuesday
-        startTime: "19:00",
-        durationMinutes: 60,
-      }),
+      recurrenceRules: Object.freeze([
+        Object.freeze({
+          dayOfWeek: 2, // Tuesday
+          startTime: "19:00",
+          durationMinutes: 60,
+        }),
+      ]),
+      description: "",
+      ageRange: null,
+      levelRange: null,
       instructorIds: Object.freeze(["coach-1"]),
       capacity: 25,
       minParticipants: 4,
       active: true,
-      schemaVersion: "1",
+      schemaVersion: "2",
       createdAt: "2026-08-01T00:00:00Z",
       createdBy: "admin-1",
       updatedAt: "2026-08-01T00:00:00Z",
@@ -1483,5 +1495,130 @@ describe("class ranges and description", () => {
     expect(parseClassDescription("a".repeat(classDescriptionMaxLength + 1)).ok).toBe(false);
     expect(parseClassDescription("bad" + String.fromCharCode(7) + "char").ok).toBe(false);
     expect(parseClassDescription(42).ok).toBe(false);
+  });
+});
+
+describe("class record v2", () => {
+  const audit = {
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdBy: "u",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    updatedBy: "u",
+  };
+  const v1 = {
+    classId: "c1",
+    academyId: "a",
+    programId: "p",
+    locationId: "town",
+    name: "Kids BJJ",
+    recurrenceRule: { dayOfWeek: 1, startTime: "17:00", durationMinutes: 60 },
+    instructorIds: ["coach-a"],
+    capacity: 20,
+    minParticipants: 4,
+    active: true,
+    schemaVersion: "1",
+    ...audit,
+  };
+
+  it("normalises a v1 document into a one-rule v2 record", () => {
+    expect(normalizeClassRecord(v1)).toEqual({
+      classId: "c1",
+      academyId: "a",
+      programId: "p",
+      locationId: "town",
+      name: "Kids BJJ",
+      recurrenceRules: [{ dayOfWeek: 1, startTime: "17:00", durationMinutes: 60 }],
+      description: "",
+      ageRange: null,
+      levelRange: null,
+      instructorIds: ["coach-a"],
+      capacity: 20,
+      minParticipants: 4,
+      active: true,
+      schemaVersion: "2",
+      ...audit,
+    });
+  });
+
+  it("returns a v2 document untouched and throws on garbage", () => {
+    const v2 = normalizeClassRecord(v1);
+    expect(normalizeClassRecord(v2)).toEqual(v2);
+    expect(() => normalizeClassRecord(null)).toThrow();
+    expect(() => normalizeClassRecord({ classId: "c" })).toThrow();
+  });
+
+  it("parses one to seven rules, sorted, and rejects a duplicate day and time", () => {
+    const rules = [
+      { dayOfWeek: 3, startTime: "18:00", durationMinutes: 60 },
+      { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+    ];
+    const parsed = parseRecurrenceRules(rules);
+    expect(parsed.ok && parsed.value.map((r) => r.dayOfWeek)).toEqual([1, 3]);
+    expect(parseRecurrenceRules([]).ok).toBe(false);
+    expect(parseRecurrenceRules([rules[0], rules[0]]).ok).toBe(false);
+    const eight = Array.from({ length: 8 }, (_, i) => ({ ...rules[0]!, startTime: `0${i}:00` }));
+    expect(parseRecurrenceRules(eight).ok).toBe(false);
+  });
+
+  it("creates a class with rules, ranges and description", () => {
+    const parsed = parseCreateClassInput({
+      programId: "p",
+      locationId: "town",
+      name: "Kids BJJ",
+      recurrenceRules: [{ dayOfWeek: 1, startTime: "17:00", durationMinutes: 60 }],
+      instructorIds: ["coach-a"],
+      capacity: 20,
+      minParticipants: 4,
+      description: "Bring a gi.",
+      ageRange: { minAge: 8, maxAge: 11 },
+      levelRange: { fromKey: "k-white", toKey: "k-grey", fromName: "White", toName: "Grey" },
+    });
+    expect(parsed.ok && parsed.value.description).toBe("Bring a gi.");
+    expect(parsed.ok && parsed.value.ageRange).toEqual({ minAge: 8, maxAge: 11 });
+    const legacyShape = parseCreateClassInput({
+      programId: "p",
+      locationId: "town",
+      name: "X1",
+      recurrenceRule: { dayOfWeek: 1, startTime: "17:00", durationMinutes: 60 },
+      instructorIds: ["c"],
+      capacity: 5,
+    });
+    expect(legacyShape.ok).toBe(false);
+  });
+
+  it("updates rules and clears a range with null", () => {
+    const parsed = parseUpdateClassInput({
+      classId: "c1",
+      recurrenceRules: [{ dayOfWeek: 2, startTime: "19:00", durationMinutes: 90 }],
+      ageRange: null,
+      levelRange: null,
+      description: "",
+    });
+    expect(parsed.ok && parsed.value).toEqual({
+      classId: "c1",
+      recurrenceRules: [{ dayOfWeek: 2, startTime: "19:00", durationMinutes: 90 }],
+      ageRange: null,
+      levelRange: null,
+      description: "",
+    });
+  });
+
+  it("parses a session update and a class removal", () => {
+    expect(parseUpdateSessionInput({ sessionId: "s1", title: "Open mat", capacity: 30 }).ok).toBe(
+      true,
+    );
+    expect(parseUpdateSessionInput({ sessionId: "s1" }).ok).toBe(false);
+    expect(
+      parseUpdateSessionInput({
+        sessionId: "s1",
+        startAt: "2026-09-20T18:00:00Z",
+        endAt: "2026-09-20T17:00:00Z",
+      }).ok,
+    ).toBe(false);
+    expect(parseRemoveClassInput({ classId: "c1", reason: "Coach left" })).toEqual({
+      ok: true,
+      value: { classId: "c1", reason: "Coach left" },
+    });
+    expect(parseRemoveClassInput({ classId: "c1", reason: "x" }).ok).toBe(false);
   });
 });

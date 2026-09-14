@@ -26,11 +26,13 @@ describe("Schedule Service (In-Memory Store)", () => {
         programId: "adult-fundamentals",
         locationId: "town",
         name: "Mon Adults Fundamentals",
-        recurrenceRule: {
-          dayOfWeek: 1,
-          startTime: "18:30",
-          durationMinutes: 60,
-        },
+        recurrenceRules: [
+          {
+            dayOfWeek: 1,
+            startTime: "18:30",
+            durationMinutes: 60,
+          },
+        ],
         instructorIds: ["coach-1"],
         capacity: 25,
         minParticipants: 4,
@@ -132,7 +134,7 @@ describe("Schedule Service (In-Memory Store)", () => {
         programId: "adult-fundamentals",
         locationId: "town",
         name: "Class A1",
-        recurrenceRule: { dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 },
+        recurrenceRules: [{ dayOfWeek: 1, startTime: "18:00", durationMinutes: 60 }],
         instructorIds: ["coach-1"],
         capacity: 20,
       },
@@ -184,11 +186,13 @@ describe("Schedule Service (In-Memory Store)", () => {
         programId: "adult-fundamentals",
         locationId: "town",
         name: "Tuesday Night BJJ",
-        recurrenceRule: {
-          dayOfWeek: 2, // Tuesday
-          startTime: "19:00",
-          durationMinutes: 60,
-        },
+        recurrenceRules: [
+          {
+            dayOfWeek: 2, // Tuesday
+            startTime: "19:00",
+            durationMinutes: 60,
+          },
+        ],
         instructorIds: ["coach-1"],
         capacity: 25,
         minParticipants: 4,
