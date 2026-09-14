@@ -32,6 +32,9 @@ import {
   type SessionOperationalView,
   type SessionRecord,
   type UpdateClassInput,
+  type UpdateSessionInput,
+  normalizeClassRecord,
+  legacySessionId,
 } from "@bpt-jersey/domain/schedule";
 
 import {
@@ -184,6 +187,22 @@ export type ScheduleStore = Readonly<{
     input: UpdateClassInput,
     actorId: string,
   ) => Promise<ClassRecord>;
+  updateSession: (
+    academyId: string,
+    input: UpdateSessionInput,
+    actorId: string,
+  ) => Promise<SessionRecord>;
+  removeClass: (
+    academyId: string,
+    classId: string,
+    reason: string,
+    actorId: string,
+    nowIso: string,
+  ) => Promise<Readonly<{ class: ClassRecord; cancelledSessions: readonly SessionRecord[] }>>;
+  countConfirmedBookings: (
+    academyId: string,
+    sessionIds: readonly string[],
+  ) => Promise<Readonly<Record<string, number>>>;
   generateSessions: (
     academyId: string,
     classId: string,
@@ -286,6 +305,7 @@ type GenericQuery = {
     docs: Array<{
       id: string;
       data: () => Record<string, unknown>;
+      ref: { set: (data: unknown) => Promise<unknown> };
     }>;
   }>;
   where: (field: string, op: string, val: unknown) => GenericQuery;
@@ -372,6 +392,33 @@ function cancelledSessionNotices(
         }),
       ),
   );
+}
+
+function mergeSessionUpdate(
+  current: SessionRecord,
+  input: UpdateSessionInput,
+  actorId: string,
+  now: string,
+): SessionRecord {
+  const startAt = input.startAt ?? current.startAt;
+  const endAt = input.endAt ?? current.endAt;
+  if (Date.parse(endAt) <= Date.parse(startAt)) throw new Error("Session must end after it starts");
+  const capacity = input.capacity ?? current.capacity;
+  const minParticipants = input.minParticipants ?? current.minParticipants;
+  if (minParticipants > capacity)
+    throw new Error("Session minimum participants cannot exceed capacity");
+  return Object.freeze({
+    ...current,
+    title: input.title ?? current.title,
+    instructorId: input.instructorId ?? current.instructorId,
+    startAt,
+    endAt,
+    capacity,
+    minParticipants,
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    updatedAt: now,
+    updatedBy: actorId,
+  });
 }
 
 export function createFirestoreScheduleStore(options: {
@@ -561,14 +608,14 @@ export function createFirestoreScheduleStore(options: {
     async listClasses(academyId: string): Promise<readonly ClassRecord[]> {
       const snapshot = await firestore.collection(`academies/${academyId}/classes`).get();
 
-      return snapshot.docs.map((doc) => doc.data() as ClassRecord);
+      return snapshot.docs.map((doc) => normalizeClassRecord(doc.data()));
     },
 
     async getClass(academyId: string, classId: string): Promise<ClassRecord | null> {
       const doc = await firestore.collection(`academies/${academyId}/classes`).doc(classId).get();
 
       if (!doc.exists) return null;
-      return (doc.data() as ClassRecord) ?? null;
+      return normalizeClassRecord(doc.data());
     },
 
     async createClass(
@@ -617,7 +664,7 @@ export function createFirestoreScheduleStore(options: {
         throw new Error(`Class ${input.classId} does not exist`);
       }
 
-      const current = existing.data() as ClassRecord;
+      const current = normalizeClassRecord(existing.data());
       const now = new Date().toISOString();
 
       const nextCapacity = input.capacity ?? current.capacity;
@@ -629,9 +676,13 @@ export function createFirestoreScheduleStore(options: {
       const updated: ClassRecord = Object.freeze({
         ...current,
         name: input.name ?? current.name,
+        recurrenceRules: input.recurrenceRules ?? current.recurrenceRules,
         instructorIds: input.instructorIds ?? current.instructorIds,
         capacity: nextCapacity,
         minParticipants: nextMinimum,
+        description: input.description === undefined ? current.description : input.description,
+        ageRange: input.ageRange === undefined ? current.ageRange : input.ageRange,
+        levelRange: input.levelRange === undefined ? current.levelRange : input.levelRange,
         active: input.active ?? current.active,
         updatedAt: now,
         updatedBy: actorId,
@@ -656,7 +707,7 @@ export function createFirestoreScheduleStore(options: {
         throw new Error(`Class ${classId} does not exist`);
       }
 
-      const cls = existing.data() as ClassRecord;
+      const cls = normalizeClassRecord(existing.data());
       const drafts = generateSessionsFromClass(cls, fromDate, toDate, timezone);
       const now = new Date().toISOString();
       const created: SessionRecord[] = [];
@@ -665,10 +716,19 @@ export function createFirestoreScheduleStore(options: {
         const sessionRef = firestore
           .collection(`academies/${academyId}/sessions`)
           .doc(draft.sessionId);
-        const existingSession = await sessionRef.get();
+        // ponytail: a v1 class generated `${classId}__${date}`; keep that document instead of a twin.
+        const legacyRef = firestore
+          .collection(`academies/${academyId}/sessions`)
+          .doc(legacySessionId(cls.classId, draft.sessionId.split("__")[1]!));
+        const [existingSession, legacySession] = await Promise.all([
+          sessionRef.get(),
+          legacyRef.get(),
+        ]);
 
         if (existingSession.exists) {
           created.push(existingSession.data() as SessionRecord);
+        } else if (legacySession.exists) {
+          created.push(legacySession.data() as SessionRecord);
         } else {
           const sessionRecord: SessionRecord = Object.freeze({
             ...draft,
@@ -683,6 +743,87 @@ export function createFirestoreScheduleStore(options: {
       }
 
       return created;
+    },
+
+    async updateSession(
+      academyId: string,
+      input: UpdateSessionInput,
+      actorId: string,
+    ): Promise<SessionRecord> {
+      const docRef = firestore.collection(`academies/${academyId}/sessions`).doc(input.sessionId);
+      const existing = await docRef.get();
+      if (!existing.exists) throw new Error(`Session ${input.sessionId} does not exist`);
+      const current = existing.data() as SessionRecord;
+      if (current.status !== "scheduled") throw new Error("Only scheduled sessions can be edited");
+      const updated = mergeSessionUpdate(current, input, actorId, new Date().toISOString());
+      await docRef.set(updated);
+      return updated;
+    },
+
+    async removeClass(
+      academyId: string,
+      classId: string,
+      reason: string,
+      actorId: string,
+      nowIso: string,
+    ): Promise<Readonly<{ class: ClassRecord; cancelledSessions: readonly SessionRecord[] }>> {
+      const classRef = firestore.collection(`academies/${academyId}/classes`).doc(classId);
+      const existing = await classRef.get();
+      if (!existing.exists) throw new Error(`Class ${classId} does not exist`);
+      const current = normalizeClassRecord(existing.data());
+      const retired: ClassRecord = Object.freeze({
+        ...current,
+        active: false,
+        updatedAt: nowIso,
+        updatedBy: actorId,
+      });
+      await classRef.set(retired);
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/sessions`)
+        .where("classId", "==", classId)
+        .get();
+      const cancelled: SessionRecord[] = [];
+      for (const doc of snapshot.docs) {
+        const session = doc.data() as SessionRecord;
+        if (
+          (session.status !== "scheduled" && session.status !== "active") ||
+          session.startAt < nowIso
+        ) {
+          continue;
+        }
+        const next: SessionRecord = Object.freeze({
+          ...session,
+          status: "cancelled",
+          cancellationReason: reason,
+          updatedAt: nowIso,
+          updatedBy: actorId,
+        });
+        await doc.ref.set(next);
+        cancelled.push(next);
+      }
+      return Object.freeze({ class: retired, cancelledSessions: Object.freeze(cancelled) });
+    },
+
+    async countConfirmedBookings(
+      academyId: string,
+      sessionIds: readonly string[],
+    ): Promise<Readonly<Record<string, number>>> {
+      const counts: Record<string, number> = Object.fromEntries(sessionIds.map((id) => [id, 0]));
+      const unique = [...new Set(sessionIds)];
+      // ponytail: Firestore `in` takes 30 values; two weeks of sessions is under that most days.
+      for (let index = 0; index < unique.length; index += 30) {
+        const chunk = unique.slice(index, index + 30);
+        const snapshot = await firestore
+          .collection(`academies/${academyId}/bookings`)
+          .where("sessionId", "in", chunk)
+          .where("status", "==", "confirmed")
+          .get();
+        for (const doc of snapshot.docs) {
+          const booking = doc.data() as BookingRecord;
+          counts[booking.sessionId] = (counts[booking.sessionId] ?? 0) + 1;
+        }
+      }
+      return Object.freeze(counts);
     },
 
     async listSessions(
@@ -1103,7 +1244,10 @@ export function createFirestoreScheduleStore(options: {
   };
 }
 
-export function createInMemoryScheduleStore(): ScheduleStore {
+export function createInMemoryScheduleStore(): ScheduleStore & {
+  // Test-only hook: plants a session copy under a legacy id, as a v1 `generateSessions` would have.
+  __seedSessionId?: (academyId: string, session: SessionRecord, id: string) => Promise<void>;
+} {
   const locationsMap = new Map<string, LocationRecord[]>();
   const programsMap = new Map<string, ProgramRecord[]>();
   const classesMap = new Map<string, Map<string, ClassRecord>>();
@@ -1291,12 +1435,13 @@ export function createInMemoryScheduleStore(): ScheduleStore {
     async listClasses(academyId: string): Promise<readonly ClassRecord[]> {
       const map = classesMap.get(academyId);
       if (!map) return [];
-      return Array.from(map.values());
+      return Array.from(map.values()).map((cls) => normalizeClassRecord(cls));
     },
 
     async getClass(academyId: string, classId: string): Promise<ClassRecord | null> {
       const map = classesMap.get(academyId);
-      return map?.get(classId) ?? null;
+      const cls = map?.get(classId);
+      return cls ? normalizeClassRecord(cls) : null;
     },
 
     async createClass(
@@ -1340,18 +1485,23 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       actorId: string,
     ): Promise<ClassRecord> {
       const map = classesMap.get(academyId);
-      const current = map?.get(input.classId);
-      if (!current) {
+      const existing = map?.get(input.classId);
+      if (!existing) {
         throw new Error(`Class ${input.classId} does not exist`);
       }
+      const current = normalizeClassRecord(existing);
 
       const now = new Date().toISOString();
       const updated: ClassRecord = Object.freeze({
         ...current,
         name: input.name ?? current.name,
+        recurrenceRules: input.recurrenceRules ?? current.recurrenceRules,
         instructorIds: input.instructorIds ?? current.instructorIds,
         capacity: input.capacity ?? current.capacity,
         minParticipants: input.minParticipants ?? current.minParticipants,
+        description: input.description === undefined ? current.description : input.description,
+        ageRange: input.ageRange === undefined ? current.ageRange : input.ageRange,
+        levelRange: input.levelRange === undefined ? current.levelRange : input.levelRange,
         active: input.active ?? current.active,
         updatedAt: now,
         updatedBy: actorId,
@@ -1370,10 +1520,11 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       actorId: string,
     ): Promise<readonly SessionRecord[]> {
       const map = classesMap.get(academyId);
-      const cls = map?.get(classId);
-      if (!cls) {
+      const existingCls = map?.get(classId);
+      if (!existingCls) {
         throw new Error(`Class ${classId} does not exist`);
       }
+      const cls = normalizeClassRecord(existingCls);
 
       const drafts = generateSessionsFromClass(cls, fromDate, toDate, timezone);
       const now = new Date().toISOString();
@@ -1385,8 +1536,11 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       const aSessions = sessionsMap.get(academyId)!;
 
       for (const draft of drafts) {
+        const legacyId = legacySessionId(cls.classId, draft.sessionId.split("__")[1]!);
         if (aSessions.has(draft.sessionId)) {
           created.push(aSessions.get(draft.sessionId)!);
+        } else if (aSessions.has(legacyId)) {
+          created.push(aSessions.get(legacyId)!);
         } else {
           const sessionRecord: SessionRecord = Object.freeze({
             ...draft,
@@ -1401,6 +1555,85 @@ export function createInMemoryScheduleStore(): ScheduleStore {
       }
 
       return created;
+    },
+
+    async updateSession(
+      academyId: string,
+      input: UpdateSessionInput,
+      actorId: string,
+    ): Promise<SessionRecord> {
+      const map = sessionsMap.get(academyId);
+      const current = map?.get(input.sessionId);
+      if (!current) throw new Error(`Session ${input.sessionId} does not exist`);
+      if (current.status !== "scheduled") throw new Error("Only scheduled sessions can be edited");
+      const updated = mergeSessionUpdate(current, input, actorId, new Date().toISOString());
+      map!.set(input.sessionId, updated);
+      return updated;
+    },
+
+    async removeClass(
+      academyId: string,
+      classId: string,
+      reason: string,
+      actorId: string,
+      nowIso: string,
+    ): Promise<Readonly<{ class: ClassRecord; cancelledSessions: readonly SessionRecord[] }>> {
+      const map = classesMap.get(academyId);
+      const current = map?.get(classId);
+      if (!current) throw new Error(`Class ${classId} does not exist`);
+      const retired: ClassRecord = Object.freeze({
+        ...current,
+        active: false,
+        updatedAt: nowIso,
+        updatedBy: actorId,
+      });
+      map!.set(classId, retired);
+      const sMap = sessionsMap.get(academyId);
+      const cancelled: SessionRecord[] = [];
+      if (sMap) {
+        for (const [id, session] of sMap) {
+          if (session.classId !== classId) continue;
+          if (
+            (session.status !== "scheduled" && session.status !== "active") ||
+            session.startAt < nowIso
+          ) {
+            continue;
+          }
+          const next: SessionRecord = Object.freeze({
+            ...session,
+            status: "cancelled",
+            cancellationReason: reason,
+            updatedAt: nowIso,
+            updatedBy: actorId,
+          });
+          sMap.set(id, next);
+          cancelled.push(next);
+        }
+      }
+      return Object.freeze({ class: retired, cancelledSessions: Object.freeze(cancelled) });
+    },
+
+    async countConfirmedBookings(
+      academyId: string,
+      sessionIds: readonly string[],
+    ): Promise<Readonly<Record<string, number>>> {
+      const counts: Record<string, number> = Object.fromEntries(sessionIds.map((id) => [id, 0]));
+      const bMap = bookingsMap.get(academyId);
+      if (bMap) {
+        for (const booking of bMap.values()) {
+          if (booking.status !== "confirmed") continue;
+          if (!(booking.sessionId in counts)) continue;
+          counts[booking.sessionId] = (counts[booking.sessionId] ?? 0) + 1;
+        }
+      }
+      return Object.freeze(counts);
+    },
+
+    async __seedSessionId(academyId: string, session: SessionRecord, id: string): Promise<void> {
+      if (!sessionsMap.has(academyId)) {
+        sessionsMap.set(academyId, new Map());
+      }
+      sessionsMap.get(academyId)!.set(id, Object.freeze({ ...session, sessionId: id }));
     },
 
     async listSessions(
