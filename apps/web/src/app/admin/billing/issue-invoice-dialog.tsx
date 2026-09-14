@@ -130,7 +130,10 @@ export function IssueInvoiceDialog({
                     <input
                       checked={membershipId === m.membershipId}
                       name="membership"
-                      onChange={() => setMembershipId(m.membershipId)}
+                      onChange={() => {
+                        setMembershipId(m.membershipId);
+                        setForm((current) => ({ ...current, chargeKind: "membership" }));
+                      }}
                       type="radio"
                     />
                     {m.planId} · {m.status}
@@ -140,7 +143,10 @@ export function IssueInvoiceDialog({
                   <input
                     checked={membershipId === noMembership}
                     name="membership"
-                    onChange={() => setMembershipId(noMembership)}
+                    onChange={() => {
+                      setMembershipId(noMembership);
+                      setForm((current) => ({ ...current, chargeKind: "manual_adjustment" }));
+                    }}
                     type="radio"
                   />
                   No membership · custom charge
