@@ -79,8 +79,7 @@ export function MemberPicker({
       ) : null}
       {query.trim().length >= 2 && members && matches.length === 0 ? (
         <p className="member-picker-empty" role="status">
-          {/* eslint-disable-next-line react/no-unescaped-entities */}
-          No member matches "{query.trim()}".
+          No member matches “{query.trim()}”.
         </p>
       ) : null}
       {matches.length > 0 ? (
