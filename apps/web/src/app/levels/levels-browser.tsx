@@ -59,13 +59,7 @@ function BeltBar({
 }
 
 function BeltCardSkeleton() {
-  return (
-    <div
-      aria-busy="true"
-      aria-label="belt-card-skeleton"
-      className="belt-card belt-card-skeleton"
-    />
-  );
+  return <div aria-busy="true" aria-hidden="true" className="belt-card belt-card-skeleton" />;
 }
 
 export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
@@ -146,7 +140,7 @@ export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
 
   if (loading) {
     return (
-      <div aria-live="polite" className="levels-container" role="status">
+      <div aria-label="Loading belts" aria-live="polite" className="levels-container" role="status">
         <div className="levels-grid">
           <BeltCardSkeleton />
           <BeltCardSkeleton />
