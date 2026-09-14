@@ -215,6 +215,11 @@
       "import": "./src/schedule/member-calendar-contracts.ts",
       "default": "./lib/schedule/member-calendar-contracts.js"
     },
+    "./schedule/self-check-in": {
+      "types": "./src/schedule/self-check-in-contracts.ts",
+      "import": "./src/schedule/self-check-in-contracts.ts",
+      "default": "./lib/schedule/self-check-in-contracts.js"
+    },
     "./consents/enrolment-waiver": {
       "types": "./src/consents/enrolment-waiver-terms.ts",
       "import": "./src/consents/enrolment-waiver-terms.ts",
