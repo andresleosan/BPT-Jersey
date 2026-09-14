@@ -16,6 +16,7 @@ import { listMemberships, type AdminMembership } from "../../../lib/membership-a
 import { listMembers } from "../../../lib/members-client";
 import { AdminDataTable } from "../admin-data-table";
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { formatDate, formatMoney, parseMoney } from "./billing-format";
 import { NoShowPenaltyQueue } from "./no-show-penalty-queue";
 import { PaymentInstructionsPanel } from "./payment-instructions-panel";
 
@@ -31,32 +32,6 @@ type MembershipOptions = Readonly<{
 function membershipLabel(membership: AdminMembership, studentNames: ReadonlyMap<string, string>) {
   const student = studentNames.get(membership.studentId) ?? membership.studentId;
   return `${student} · ${membership.planId} · ${membership.status}`;
-}
-
-const moneyFormatter = new Intl.NumberFormat("en-GB", {
-  style: "currency",
-  currency: "GBP",
-});
-const dateFormatter = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-function formatMoney(amountMinor: number): string {
-  return moneyFormatter.format(amountMinor / 100);
-}
-
-function formatDate(timestamp: string): string {
-  return dateFormatter.format(new Date(timestamp));
-}
-
-function parseMoney(value: string): number | undefined {
-  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/u.test(value)) return undefined;
-  const [whole = "0", fraction = ""] = value.split(".");
-  const amount = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  return Number.isSafeInteger(amount) && amount > 0 ? amount : undefined;
 }
 
 function toUtcDateTime(value: string): string | undefined {
