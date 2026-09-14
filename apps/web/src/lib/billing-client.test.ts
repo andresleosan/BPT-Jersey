@@ -4,7 +4,7 @@ const callable = vi.hoisted(() => vi.fn());
 vi.mock("firebase/functions", () => ({ httpsCallable: () => callable }));
 vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
-import { listFinancialAccount, savePaymentInstructions } from "./billing-client";
+import { issueManualInvoice, listFinancialAccount, savePaymentInstructions } from "./billing-client";
 
 const instructions = {
   accountName: "BPT Jersey",
@@ -77,5 +77,40 @@ describe("billing client payment instructions (T010/T035 re-scope)", () => {
     await expect(savePaymentInstructions(instructions)).rejects.toThrow(
       "Unable to save the payment instructions",
     );
+  });
+
+  it("issues an invoice with membershipId null", async () => {
+    const validInvoice = {
+      invoiceId: "invoice-1",
+      academyId: "academy-1",
+      familyId: "f1",
+      membershipId: null,
+      status: "open",
+      totalMinor: 1500,
+      currency: "GBP",
+      dueAt: "2026-10-01T23:59:59.000Z",
+      paidAt: null,
+      schemaVersion: 1,
+      createdAt: "2026-09-15T00:00:00.000Z",
+      createdBy: "admin-1",
+      updatedAt: "2026-09-15T00:00:00.000Z",
+      updatedBy: "admin-1",
+      chargeKind: "manual_adjustment",
+      sourceRef: null,
+      invoiceReference: "INV-1",
+      description: "Seminar",
+    };
+    callable.mockResolvedValueOnce({ data: { ...validInvoice, membershipId: null } });
+    await expect(
+      issueManualInvoice({
+        familyId: "f1",
+        membershipId: null,
+        totalMinor: 1500,
+        dueAt: "2026-10-01T23:59:59.000Z",
+        chargeKind: "manual_adjustment",
+        invoiceReference: "INV-1",
+        description: "Seminar",
+      }),
+    ).resolves.toMatchObject({ membershipId: null });
   });
 });

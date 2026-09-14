@@ -19,6 +19,7 @@ import {
   getMemberDetail,
   initializeMemberDirectory,
   listMembers,
+  listMemberNames,
   lookupMemberIdentity,
   MemberDirectoryUninitializedError,
   updateMember,
@@ -228,6 +229,21 @@ describe("canonical members web client", () => {
     );
 
     await expect(listMembers()).rejects.toThrow(/not fully provisioned/u);
+  });
+
+  it("lists member names and surfaces an uninitialised directory", async () => {
+    mocks.callable.mockResolvedValueOnce({
+      data: { members: [{ studentId: "s1", fullName: "Ana Coelho", familyId: null }] },
+    });
+    await expect(listMemberNames()).resolves.toEqual([
+      { studentId: "s1", fullName: "Ana Coelho", familyId: null },
+    ]);
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "listMemberNames");
+
+    mocks.callable.mockRejectedValueOnce(
+      Object.assign(new Error("x"), { code: "functions/failed-precondition" }),
+    );
+    await expect(listMemberNames()).rejects.toBeInstanceOf(MemberDirectoryUninitializedError);
   });
 });
 

@@ -36,7 +36,7 @@ export type FinancialAccount = Readonly<{
 
 export type IssueManualInvoiceInput = Readonly<{
   familyId: string;
-  membershipId: string;
+  membershipId: string | null;
   totalMinor: number;
   dueAt: string;
   chargeKind: Exclude<ChargeKind, "payg_session">;
@@ -167,7 +167,7 @@ function parsePaymentInstructions(value: unknown): PaymentInstructions | null {
   });
 }
 
-function parseFinancialAccount(value: unknown): FinancialAccount {
+export function parseFinancialAccount(value: unknown): FinancialAccount {
   if (
     !isPlainRecord(value) ||
     !hasExactKeys(value, ["invoices", "balanceMinor", "paygDebtMinor", "paymentInstructions"]) ||
@@ -192,7 +192,7 @@ function parseFinancialAccount(value: unknown): FinancialAccount {
 function validateInvoiceInput(input: IssueManualInvoiceInput): void {
   if (
     !isIdentifier(input.familyId) ||
-    !isIdentifier(input.membershipId) ||
+    (input.membershipId !== null && !isIdentifier(input.membershipId)) ||
     !isPositiveMinor(input.totalMinor) ||
     !isDateTime(input.dueAt) ||
     (input.chargeKind !== "membership" && input.chargeKind !== "manual_adjustment") ||
