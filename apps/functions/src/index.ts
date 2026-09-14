@@ -122,6 +122,7 @@ export {
   saveLocationGeofence,
   saveProgram,
   saveSession,
+  selfCheckIn,
   updateClass,
   updateSession,
 } from "./schedule/schedule-callables.js";
