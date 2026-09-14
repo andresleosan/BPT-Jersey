@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   FinancialDashboard,
   FinancialDashboardBalance,
   FinancialDashboardRenewal,
 } from "@bpt-jersey/domain/finance/dashboard";
-import type { ManualPaymentRecord, RecentPaymentRow } from "@bpt-jersey/domain/finance";
+import type { RecentPaymentRow } from "@bpt-jersey/domain/finance";
 import type { MemberNameRow } from "@bpt-jersey/domain/members/directory";
 
 import {
@@ -24,7 +24,7 @@ import { listMemberships, type AdminMembership } from "../../../lib/membership-a
 import { listMemberNames } from "../../../lib/members-client";
 import { AdminDataTable } from "../admin-data-table";
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
-import { formatDate, formatMoney } from "./billing-format";
+import { formatDate, formatMoney, methodLabel } from "./billing-format";
 import { IssueInvoiceDialog } from "./issue-invoice-dialog";
 import { InvoiceRowActions, MemberAccountPanel } from "./member-account-panel";
 import { MemberPicker } from "./member-picker";
@@ -36,12 +36,6 @@ import "../admin.css";
 import "./billing.css";
 
 type RequestState = "loading" | "ready" | "error";
-
-const methodLabel: Readonly<Record<ManualPaymentRecord["method"], string>> = Object.freeze({
-  cash: "Cash",
-  bank_transfer: "Bank transfer",
-  other: "Other",
-});
 
 const balanceColumns = [
   {
@@ -251,6 +245,11 @@ export function BillingPage() {
     setFeedback(undefined);
   }
 
+  const memberNames = useMemo(
+    () => new Map((members ?? []).map((row) => [row.studentId, row.fullName])),
+    [members],
+  );
+
   const allInvoiceColumns = [
     {
       key: "reference",
@@ -264,7 +263,9 @@ export function BillingPage() {
         const membership = memberships.find(
           (candidate) => candidate.membershipId === view.invoice.membershipId,
         );
-        return membership ? membership.studentId : view.invoice.description;
+        return membership
+          ? (memberNames.get(membership.studentId) ?? membership.studentId)
+          : view.invoice.description;
       },
     },
     { key: "due", label: "Due", render: (view: InvoiceView) => formatDate(view.invoice.dueAt) },

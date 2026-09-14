@@ -6,7 +6,7 @@ import type { MemberNameRow } from "@bpt-jersey/domain/members/directory";
 import type { FinancialAccount, InvoiceView } from "../../../lib/billing-client";
 import { AdminDataTable } from "../admin-data-table";
 import { AdminStatusBadge } from "../admin-ui";
-import { formatDate, formatMoney } from "./billing-format";
+import { formatDate, formatMoney, methodLabel } from "./billing-format";
 
 type Props = Readonly<{
   member: MemberNameRow;
@@ -18,12 +18,6 @@ type Props = Readonly<{
 }>;
 
 type PaymentRow = Readonly<{ payment: ManualPaymentRecord; invoice: InvoiceView["invoice"] }>;
-
-const methodLabel: Readonly<Record<ManualPaymentRecord["method"], string>> = Object.freeze({
-  cash: "Cash",
-  bank_transfer: "Bank transfer",
-  other: "Other",
-});
 
 export function MemberAccountPanel({
   member,
