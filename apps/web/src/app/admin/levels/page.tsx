@@ -10,7 +10,7 @@ export default function AdminLevelsPage() {
       <AdminSectionHeader
         eyebrow="Admin / Levels"
         title="IBJJF Levels & Belts"
-        description="Canonical progression catalog, age limits, minimum classes, time requirements, and technical requirements."
+        description="Belts by colour and age group, with the stripes, minimum classes and time behind each one."
       />
       <LevelsBrowser roleContext="admin" />
     </div>

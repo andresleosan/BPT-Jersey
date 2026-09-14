@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   LevelCatalogProjection,
   LevelDefinitionRecord,
@@ -8,70 +8,73 @@ import type {
 } from "@bpt-jersey/domain/levels";
 
 import { getLevelCatalog } from "../../lib/levels-client";
+import {
+  distinctBeltColors,
+  formatAgeRange,
+  formatMinimumTime,
+  groupBelts,
+} from "./levels-grouping";
 import "./levels.css";
 
 export type LevelsBrowserProps = Readonly<{
   roleContext?: "admin" | "coach" | "client";
 }>;
 
-function formatAgeRange(minAge: number | null, maxAge: number | null): string {
-  if (minAge !== null && maxAge !== null) return `${minAge} - ${maxAge} yrs`;
-  if (minAge !== null) return `${minAge}+ yrs`;
-  if (maxAge !== null) return `Up to ${maxAge} yrs`;
-  return "All ages";
+function ordinal(n: number): string {
+  return `${n}${["th", "st", "nd", "rd"][n % 10 > 3 || Math.floor((n % 100) / 10) === 1 ? 0 : n % 10]}`;
 }
 
-function formatMinimumTime(time: { years: number; months: number; days: number } | null): string {
-  if (!time) return "None";
-  const parts: string[] = [];
-  if (time.years > 0) parts.push(`${time.years} ${time.years === 1 ? "yr" : "yrs"}`);
-  if (time.months > 0) parts.push(`${time.months} ${time.months === 1 ? "mo" : "mos"}`);
-  if (time.days > 0) parts.push(`${time.days} ${time.days === 1 ? "day" : "days"}`);
-  return parts.length > 0 ? parts.join(" ") : "None";
-}
-
-function renderVisualBar(visual: LevelDefinitionRecord["visual"]) {
-  const { colors, stripeColor, stripePosition } = visual;
-
-  let background = colors[0] ?? "#ffffff";
-  if (colors.length === 2) {
-    background = `linear-gradient(to right, ${colors[0]} 50%, ${colors[1]} 50%)`;
-  } else if (colors.length === 3) {
-    background = `linear-gradient(to right, ${colors[0]} 33%, ${colors[1]} 33% 66%, ${colors[2]} 66%)`;
-  }
-
+function BeltBar({
+  name,
+  stripeCount,
+  visual,
+}: {
+  name: string;
+  stripeCount: number;
+  visual: LevelDefinitionRecord["visual"];
+}) {
+  const [first = "#ffffff", second, third] = visual.colors;
+  const background = third
+    ? `linear-gradient(to right, ${first} 33%, ${second} 33% 66%, ${third} 66%)`
+    : second
+      ? `linear-gradient(to right, ${first} 50%, ${second} 50%)`
+      : first;
   return (
     <div
-      className="belt-visual-bar"
-      style={{ background }}
-      aria-label={`Belt visual representation in ${colors.join(", ")}`}
+      aria-label={`${name} belt`}
+      className="belt-bar"
       role="img"
+      style={{ background, backgroundColor: first }}
     >
-      {stripeColor && stripePosition !== null && (
-        <div
-          style={{
-            position: "absolute",
-            left: `${Math.round(stripePosition * 100)}%`,
-            top: 0,
-            bottom: 0,
-            width: "8px",
-            backgroundColor: stripeColor,
-            borderLeft: "1px solid rgba(0,0,0,0.3)",
-            borderRight: "1px solid rgba(0,0,0,0.3)",
-          }}
-        />
-      )}
+      <span
+        className="belt-tip"
+        style={{ "--tip": visual.stripeColor ?? "#1A1A18" } as React.CSSProperties}
+      >
+        {Array.from({ length: Math.min(stripeCount, 4) }, (_, i) => (
+          <i key={i} />
+        ))}
+      </span>
     </div>
   );
 }
 
+function BeltCardSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      aria-label="belt-card-skeleton"
+      className="belt-card belt-card-skeleton"
+    />
+  );
+}
+
 export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
-  const searchInputId = useId();
   const [catalog, setCatalog] = useState<LevelCatalogProjection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState<"all" | "belt" | "stripe">("all");
+  const [ageFilter, setAgeFilter] = useState<"all" | "kids" | "adults">("all");
+  const [colorFilter, setColorFilter] = useState<string | null>(null);
 
   function triggerLoad(): void {
     setLoading(true);
@@ -124,24 +127,30 @@ export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
     return map;
   }, [catalog, skillsMap]);
 
-  const filteredDefinitions = useMemo(() => {
-    if (!catalog) return [];
-    const query = searchQuery.trim().toLowerCase();
-
-    return catalog.definitions.filter((def) => {
-      if (kindFilter !== "all" && def.kind !== kindFilter) return false;
-      if (!query) return true;
-      return (
-        def.name.toLowerCase().includes(query) || def.definitionKey.toLowerCase().includes(query)
-      );
-    });
-  }, [catalog, searchQuery, kindFilter]);
+  const groups = useMemo(() => (catalog ? groupBelts(catalog) : []), [catalog]);
+  const colours = useMemo(() => distinctBeltColors(groups), [groups]);
+  const visible = useMemo(
+    () =>
+      groups.filter((g) => {
+        if (ageFilter !== "all" && g.ageGroup !== ageFilter) return false;
+        if (colorFilter && g.primaryColor !== colorFilter) return false;
+        const q = searchQuery.trim().toLowerCase();
+        return (
+          !q ||
+          g.belt.name.toLowerCase().includes(q) ||
+          g.stripes.some((s) => s.name.toLowerCase().includes(q))
+        );
+      }),
+    [groups, ageFilter, colorFilter, searchQuery],
+  );
 
   if (loading) {
     return (
-      <div className="levels-container" role="status" aria-live="polite">
-        <div className="levels-loading">
-          <p>Loading IBJJF Level Catalog...</p>
+      <div aria-live="polite" className="levels-container" role="status">
+        <div className="levels-grid">
+          <BeltCardSkeleton />
+          <BeltCardSkeleton />
+          <BeltCardSkeleton />
         </div>
       </div>
     );
@@ -162,137 +171,114 @@ export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
 
   return (
     <section
+      aria-labelledby="levels-heading"
       className="levels-container"
       data-role-context={roleContext}
-      aria-labelledby="levels-heading"
     >
       <header className="levels-header">
-        <h1 id="levels-heading" className="levels-title">
+        <p className="admin-eyebrow">Mat / Levels</p>
+        <h1 className="levels-title" id="levels-heading">
           {catalog.system.displayName}
         </h1>
         <p className="levels-subtitle">
-          Official progression criteria, belt specifications, and skill requirement sets.
+          {catalog.system.counts.belts} belts · {catalog.system.counts.stripes} stripes ·{" "}
+          {catalog.skills.length} evaluated techniques
         </p>
-        <div className="levels-metrics" aria-label="Catalog metrics summary">
-          <span className="metric-badge">
-            <strong>{catalog.system.counts.definitions}</strong> Total Levels
-          </span>
-          <span className="metric-badge">
-            <strong>{catalog.system.counts.belts}</strong> Belts
-          </span>
-          <span className="metric-badge">
-            <strong>{catalog.system.counts.stripes}</strong> Stripes
-          </span>
-          <span className="metric-badge">
-            <strong>{catalog.skills.length}</strong> Evaluated Skills
-          </span>
-        </div>
       </header>
 
-      <div className="levels-controls" role="search" aria-label="Search and filter levels">
-        <div className="levels-search-box">
-          <label htmlFor={searchInputId} className="sr-only">
-            Search levels by name or key
-          </label>
+      <div aria-label="Search and filter belts" className="levels-controls" role="search">
+        <label className="levels-search">
+          <span>Search belts</span>
           <input
-            id={searchInputId}
-            type="search"
-            className="levels-search-input"
-            placeholder="Search levels (e.g. White Belt, 1st Stripe)..."
-            value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="White, Grey, Blue…"
+            type="search"
+            value={searchQuery}
           />
+        </label>
+        <div aria-label="Age group" className="levels-choice-row" role="radiogroup">
+          {(["all", "kids", "adults"] as const).map((value) => (
+            <button
+              aria-checked={ageFilter === value}
+              className="levels-choice"
+              key={value}
+              onClick={() => setAgeFilter(value)}
+              role="radio"
+              type="button"
+            >
+              {value === "all" ? "All" : value === "kids" ? "Kids" : "Adults"}
+            </button>
+          ))}
         </div>
-
-        <div className="levels-filter-group" role="group" aria-label="Filter by level kind">
-          <button
-            type="button"
-            className={`filter-btn ${kindFilter === "all" ? "active" : ""}`}
-            aria-pressed={kindFilter === "all"}
-            onClick={() => setKindFilter("all")}
-          >
-            All ({catalog.definitions.length})
-          </button>
-          <button
-            type="button"
-            className={`filter-btn ${kindFilter === "belt" ? "active" : ""}`}
-            aria-pressed={kindFilter === "belt"}
-            onClick={() => setKindFilter("belt")}
-          >
-            Belts ({catalog.system.counts.belts})
-          </button>
-          <button
-            type="button"
-            className={`filter-btn ${kindFilter === "stripe" ? "active" : ""}`}
-            aria-pressed={kindFilter === "stripe"}
-            onClick={() => setKindFilter("stripe")}
-          >
-            Stripes ({catalog.system.counts.stripes})
-          </button>
+        <div aria-label="Belt colour" className="levels-colours" role="group">
+          {colours.map(({ color, name }) => (
+            <button
+              aria-label={`Filter by ${name} colour`}
+              aria-pressed={colorFilter === color}
+              className="levels-colour"
+              key={color}
+              onClick={() => setColorFilter(colorFilter === color ? null : color)}
+              style={{ "--belt": color } as React.CSSProperties}
+              type="button"
+            />
+          ))}
         </div>
       </div>
 
-      {filteredDefinitions.length === 0 ? (
-        <div className="levels-empty" role="status">
-          <p>No levels found matching your criteria.</p>
-        </div>
+      {visible.length === 0 ? (
+        <p className="levels-empty" role="status">
+          No belts match this filter.
+        </p>
       ) : (
-        <div className="levels-grid" role="region" aria-label="Levels list">
-          {filteredDefinitions.map((def) => {
-            const reqs = requirementsByDefKey.get(def.definitionKey) ?? [];
-            return (
-              <article
-                key={def.definitionKey}
-                className="level-card"
-                aria-labelledby={`def-${def.definitionKey}`}
-              >
-                <div className="level-card-header">
-                  <span className={`level-kind-tag ${def.kind}`}>{def.kind}</span>
-                  <span className="text-xs text-gray-500 font-mono">#{def.sequence}</span>
+        <div aria-label="Belts" className="levels-grid" role="region">
+          {visible.map(({ belt, stripes, ageGroup }) => (
+            <article
+              aria-labelledby={`belt-${belt.definitionKey}`}
+              className="belt-card"
+              key={belt.definitionKey}
+            >
+              <BeltBar name={belt.name} stripeCount={stripes.length} visual={belt.visual} />
+              <p className="belt-eyebrow">
+                {ageGroup === "kids" ? "Kids" : "Adults"} · #{belt.sequence}
+              </p>
+              <h2 className="belt-name" id={`belt-${belt.definitionKey}`}>
+                {belt.name}
+              </h2>
+              <dl className="belt-criteria">
+                <div>
+                  <dt>Age</dt>
+                  <dd>{formatAgeRange(belt.criteria.minAge, belt.criteria.maxAge)}</dd>
                 </div>
-
-                {renderVisualBar(def.visual)}
-
-                <h2 id={`def-${def.definitionKey}`} className="level-name">
-                  {def.name}
-                </h2>
-
-                <dl className="level-criteria-list">
-                  <div>
-                    <dt>Age Range</dt>
-                    <dd>{formatAgeRange(def.criteria.minAge, def.criteria.maxAge)}</dd>
-                  </div>
-                  <div>
-                    <dt>Min Classes</dt>
-                    <dd>
-                      {def.criteria.minClasses ? `${def.criteria.minClasses} classes` : "None"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Min Time</dt>
-                    <dd>{formatMinimumTime(def.criteria.minimumTime)}</dd>
-                  </div>
-                  <div>
-                    <dt>Stripe #</dt>
-                    <dd>{def.stripeNumber !== null ? `${def.stripeNumber}` : "None"}</dd>
-                  </div>
-                </dl>
-
-                {reqs.length > 0 && (
-                  <div className="level-skills-section">
-                    <h3 className="level-skills-title">Required Techniques ({reqs.length})</h3>
-                    <div className="skills-tags">
-                      {reqs.map((skillText, idx) => (
-                        <span key={idx} className="skill-pill">
-                          {skillText}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </article>
-            );
-          })}
+                <div>
+                  <dt>Min classes</dt>
+                  <dd>{belt.criteria.minClasses ?? "None"}</dd>
+                </div>
+                <div>
+                  <dt>Min time</dt>
+                  <dd>{formatMinimumTime(belt.criteria.minimumTime)}</dd>
+                </div>
+              </dl>
+              {stripes.length > 0 ? (
+                <ol aria-label={`${belt.name} stripes`} className="belt-stripes">
+                  {stripes.map((s) => (
+                    <li key={s.definitionKey}>
+                      <strong>{ordinal(s.stripeNumber ?? 0)} stripe</strong>
+                      <span>
+                        {s.criteria.minClasses ? `${s.criteria.minClasses} classes` : "—"} ·{" "}
+                        {formatMinimumTime(s.criteria.minimumTime)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+              {(requirementsByDefKey.get(belt.definitionKey) ?? []).length > 0 ? (
+                <p className="belt-skills">
+                  <span>Techniques</span>{" "}
+                  {requirementsByDefKey.get(belt.definitionKey)!.join(" · ")}
+                </p>
+              ) : null}
+            </article>
+          ))}
         </div>
       )}
     </section>
