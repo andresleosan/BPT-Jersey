@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ageRangeLabel,
+  ageRangePresets,
   buildAttendanceId,
   buildDailyOperationsDashboard,
   buildBookingId,
@@ -10,27 +12,32 @@ import {
   buildCorrectionAttendanceId,
   buildLegacyBookingId,
   buildSessionOperationalView,
+  checkInProximityRadiusMeters,
+  classDescriptionMaxLength,
+  decideQuorumSweep,
   determinePunctuality,
+  distanceInMetres,
   evaluateBookingEligibility,
   generateSessionsFromClass,
   isWithinBookingCutoff,
+  levelRangeLabel,
+  parseAgeRange,
   parseCancelBookingInput,
   parseCheckInInput,
   parseCheckInProximityMeasurement,
+  parseClassDescription,
   parseCorrectAttendanceInput,
   parseCreateClassInput,
   parseCreateProgramInput,
   parseCreateSessionInput,
   parseListSessionsQuery,
+  parseLevelRange,
   parseRecordCheckoutInput,
   parseRecurrenceRule,
   parseRequestBookingInput,
   parseSaveLocationGeofenceInput,
-  decideQuorumSweep,
   quorumCancellationReason,
   resolveCheckInProximity,
-  checkInProximityRadiusMeters,
-  distanceInMetres,
   type ClassRecord,
   type SessionOperationalView,
 } from "./schedule-contracts";
@@ -1426,5 +1433,55 @@ describe("quorum sweep decision (T110)", () => {
         now,
       }),
     ).toMatchObject({ confirmedCount: 0, outcome: "cancelled" });
+  });
+});
+
+describe("class ranges and description", () => {
+  it("parses an age range and rejects an inverted or absurd one", () => {
+    expect(parseAgeRange({ minAge: 8, maxAge: 11 })).toEqual({
+      ok: true,
+      value: { minAge: 8, maxAge: 11 },
+    });
+    expect(parseAgeRange({ minAge: 16, maxAge: null })).toEqual({
+      ok: true,
+      value: { minAge: 16, maxAge: null },
+    });
+    expect(parseAgeRange({ minAge: 12, maxAge: 7 }).ok).toBe(false);
+    expect(parseAgeRange({ minAge: 2, maxAge: null }).ok).toBe(false);
+    expect(parseAgeRange({ minAge: 8, maxAge: 120 }).ok).toBe(false);
+    expect(parseAgeRange({ minAge: 8.5, maxAge: 11 }).ok).toBe(false);
+  });
+
+  it("labels age ranges the way the card shows them", () => {
+    expect(ageRangeLabel({ minAge: 8, maxAge: 11 })).toBe("Ages 8–11");
+    expect(ageRangeLabel({ minAge: 16, maxAge: null })).toBe("Ages 16+");
+    expect(ageRangeLabel(null)).toBe("All ages");
+    expect(ageRangePresets.map((p) => p.label)).toEqual(["4–7", "8–11", "12–15", "16+"]);
+  });
+
+  it("parses a level range carrying its names", () => {
+    const range = {
+      fromKey: "adult-white",
+      toKey: "adult-blue",
+      fromName: "White",
+      toName: "Blue",
+    };
+    expect(parseLevelRange(range)).toEqual({ ok: true, value: range });
+    expect(parseLevelRange({ ...range, fromName: "" }).ok).toBe(false);
+    expect(parseLevelRange({ ...range, toKey: "x".repeat(129) }).ok).toBe(false);
+    expect(levelRangeLabel(range)).toBe("White → Blue");
+    expect(levelRangeLabel({ ...range, toKey: "adult-white", toName: "White" })).toBe("White");
+    expect(levelRangeLabel(null)).toBe("All levels");
+  });
+
+  it("accepts an empty description, trims it and caps it", () => {
+    expect(parseClassDescription(undefined)).toEqual({ ok: true, value: "" });
+    expect(parseClassDescription("  Gi only, bring a mouthguard. ")).toEqual({
+      ok: true,
+      value: "Gi only, bring a mouthguard.",
+    });
+    expect(parseClassDescription("a".repeat(classDescriptionMaxLength + 1)).ok).toBe(false);
+    expect(parseClassDescription("bad" + String.fromCharCode(7) + "char").ok).toBe(false);
+    expect(parseClassDescription(42).ok).toBe(false);
   });
 });

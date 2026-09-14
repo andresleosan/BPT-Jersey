@@ -569,6 +569,98 @@ export function parseListSessionsQuery(input: unknown): Result<ListSessionsQuery
   return ok(Object.freeze(query));
 }
 
+// ── Class ranges and description (2026-09-14) ──
+
+export type AgeRange = Readonly<{ minAge: number; maxAge: number | null }>;
+export type LevelRange = Readonly<{
+  fromKey: string;
+  toKey: string;
+  fromName: string;
+  toName: string;
+}>;
+
+export const classDescriptionMaxLength = 500;
+export const ageRangeMinAge = 3;
+export const ageRangeMaxAge = 99;
+
+/** ponytail: the four bands the academy uses on the mat; the form also takes custom values. */
+export const ageRangePresets = Object.freeze([
+  Object.freeze({ label: "4–7", minAge: 4, maxAge: 7 }),
+  Object.freeze({ label: "8–11", minAge: 8, maxAge: 11 }),
+  Object.freeze({ label: "12–15", minAge: 12, maxAge: 15 }),
+  Object.freeze({ label: "16+", minAge: 16, maxAge: null }),
+] as const);
+
+const levelKeyPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+const controlCharacterPattern = /[ -]/u;
+
+function isAge(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= ageRangeMinAge &&
+    value <= ageRangeMaxAge
+  );
+}
+
+export function parseAgeRange(input: unknown): Result<AgeRange, string> {
+  if (!isRecord(input)) return err("ageRange must be an object");
+  const { minAge, maxAge } = input;
+  if (!isAge(minAge)) {
+    return err(`minAge must be an integer between ${ageRangeMinAge} and ${ageRangeMaxAge}`);
+  }
+  if (maxAge !== null && !isAge(maxAge)) {
+    return err(`maxAge must be null or an integer between ${ageRangeMinAge} and ${ageRangeMaxAge}`);
+  }
+  if (maxAge !== null && maxAge < minAge) return err("maxAge cannot be below minAge");
+  return ok(Object.freeze({ minAge, maxAge: maxAge as number | null }));
+}
+
+function isLevelName(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.length <= 80 &&
+    !controlCharacterPattern.test(value)
+  );
+}
+
+export function parseLevelRange(input: unknown): Result<LevelRange, string> {
+  if (!isRecord(input)) return err("levelRange must be an object");
+  const { fromKey, toKey, fromName, toName } = input;
+  if (typeof fromKey !== "string" || !levelKeyPattern.test(fromKey)) {
+    return err("Invalid levelRange.fromKey");
+  }
+  if (typeof toKey !== "string" || !levelKeyPattern.test(toKey)) {
+    return err("Invalid levelRange.toKey");
+  }
+  if (!isLevelName(fromName) || !isLevelName(toName)) {
+    return err("levelRange names must be 1 to 80 printable characters");
+  }
+  return ok(Object.freeze({ fromKey, toKey, fromName: fromName.trim(), toName: toName.trim() }));
+}
+
+export function parseClassDescription(input: unknown): Result<string, string> {
+  if (input === undefined || input === null) return ok("");
+  if (typeof input !== "string") return err("description must be a string");
+  const trimmed = input.trim();
+  if (trimmed.length > classDescriptionMaxLength) {
+    return err(`description must be at most ${classDescriptionMaxLength} characters`);
+  }
+  if (controlCharacterPattern.test(trimmed)) return err("description contains control characters");
+  return ok(trimmed);
+}
+
+export function ageRangeLabel(range: AgeRange | null | undefined): string {
+  if (!range) return "All ages";
+  return range.maxAge === null ? `Ages ${range.minAge}+` : `Ages ${range.minAge}–${range.maxAge}`;
+}
+
+export function levelRangeLabel(range: LevelRange | null | undefined): string {
+  if (!range) return "All levels";
+  return range.fromKey === range.toKey ? range.fromName : `${range.fromName} → ${range.toName}`;
+}
+
 // ── Program input parser ──
 
 export type CreateProgramInput = Readonly<{
