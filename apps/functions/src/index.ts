@@ -64,9 +64,11 @@ export {
   transitionMembership,
 } from "./memberships/membership-callables.js";
 export {
+  getFamilyFinancialAccount,
   getInvoice,
   issueManualInvoice,
   listFinancialAccount,
+  listRecentPayments,
   savePaymentInstructions,
   recordManualPayment,
   voidManualInvoice,
