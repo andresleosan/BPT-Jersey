@@ -180,7 +180,9 @@ test.describe("admin billing home", () => {
     // Folded from the old financial-dashboard.spec.ts (finance moved to /admin/billing): no
     // identity/card data leaks into the DOM, and no page-level horizontal scroll.
     const bodyText = await page.locator("body").innerText();
-    expect(bodyText).not.toMatch(/card number|cvv|cvc|providerReference|private-/iu);
+    expect(bodyText).not.toMatch(
+      /card number|cvv|cvc|providerReference|private-|familyId|studentId|membershipId/iu,
+    );
     const dimensions = await page.evaluate(() => ({
       documentWidth: document.documentElement.scrollWidth,
       documentClientWidth: document.documentElement.clientWidth,
