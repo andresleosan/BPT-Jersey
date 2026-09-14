@@ -15,11 +15,13 @@ import type {
   LocationRecord,
   ProgramRecord,
   RecordCheckoutInput,
+  RemoveClassInput,
   RequestBookingInput,
   SaveLocationGeofenceInput,
   SessionOperationalView,
   SessionRecord,
   UpdateClassInput,
+  UpdateSessionInput,
 } from "@bpt-jersey/domain/schedule";
 
 import {
@@ -188,6 +190,35 @@ export async function cancelSession(
 
   const result = await callable({ sessionId, reason });
   return result.data.session;
+}
+
+export async function updateSession(input: UpdateSessionInput): Promise<SessionRecord> {
+  const callable = httpsCallable<UpdateSessionInput, { session: SessionRecord }>(getFirebaseFunctions(), "updateSession");
+  const result = await callable(input);
+  return result.data.session;
+}
+
+export async function removeClass(
+  input: RemoveClassInput,
+): Promise<Readonly<{ class: ClassRecord; cancelledSessions: readonly SessionRecord[] }>> {
+  const callable = httpsCallable<RemoveClassInput, { class: ClassRecord; cancelledSessions: SessionRecord[] }>(getFirebaseFunctions(), "removeClass");
+  const result = await callable(input);
+  return result.data;
+}
+
+export async function listSessionBookedCounts(
+  query: ListSessionsQuery,
+): Promise<Readonly<Record<string, number>>> {
+  const callable = httpsCallable<ListSessionsQuery, { counts: unknown }>(getFirebaseFunctions(), "listSessionBookedCounts");
+  const result = await callable(query);
+  const counts = result.data.counts;
+  if (
+    typeof counts !== "object" || counts === null || Array.isArray(counts) ||
+    !Object.values(counts).every((value) => Number.isSafeInteger(value) && (value as number) >= 0)
+  ) {
+    throw new Error("Unable to load booking counts.");
+  }
+  return Object.freeze({ ...(counts as Record<string, number>) });
 }
 
 export async function requestBooking(input: RequestBookingInput): Promise<BookingRecord> {
