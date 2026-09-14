@@ -138,7 +138,7 @@ despliegues productivos, cobros online ni mensajería externa.
   origen de Pages, devuelve solo productos activos y recibe la academia en el payload porque un
   visitante anonimo no tiene claim del que derivarla. El frontend la toma de `NEXT_PUBLIC_ACADEMY_ID`
   (por defecto `demo-academy`, el tenant de produccion). Pedir sigue exigiendo sesion de cliente.
-- Variables de Pages: configurar los seis `NEXT_PUBLIC_FIREBASE_*` públicos por entorno, `NEXT_PUBLIC_FIREBASE_ENV=staging` (o `production`) y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false`; nunca configurar material de Admin SDK en el frontend. La guardia de build/runtime rechaza emuladores fuera de `local`.
+- Variables de Pages: configurar los seis `NEXT_PUBLIC_FIREBASE_*` públicos por entorno, `NEXT_PUBLIC_FIREBASE_ENV=staging` (o `production`) y `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false`; nunca configurar material de Admin SDK en el frontend. La guardia de build/runtime rechaza emuladores fuera de `local`, y `NEXT_PUBLIC_CALENDAR_SOURCE=firebase` para que `/account` lea el backend real (sin ella la build sirve fixtures; `.env.local` del banco la deja sin definir a propósito porque solo tiene el emulador de Auth).
 - CI actual: GitHub Actions ejecuta calidad, Rules, build y smoke sintético. No existe todavía CD,
   GitHub Environments, aprobación automatizada por entorno ni rollback reproducible; completarlos
   pertenece a `T057` y no se presentan como disponibles.

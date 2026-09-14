@@ -112,4 +112,39 @@ describe("SessionCard", () => {
     renderCard({ entry: entry("booked"), note: "Booked. Missing it costs £15." });
     expect(screen.getByText("Booked. Missing it costs £15.")).toBeInTheDocument();
   });
+
+  it("shows the level and age ranges and the description when the session carries them", () => {
+    const detailed = {
+      ...session,
+      description: "Gi only. Bring a mouthguard.",
+      ageRange: { minAge: 12, maxAge: 15 },
+      levelRange: { fromKey: "w", toKey: "b", fromName: "White", toName: "Blue" },
+    };
+    render(
+      <ul>
+        <SessionCard
+          busy={false}
+          entry={{ session: detailed, program, derived: { status: "open" } }}
+          now={new Date("2026-09-16T10:00:00Z")}
+          onBook={vi.fn()}
+          onCancelRequest={vi.fn()}
+        />
+      </ul>,
+    );
+    expect(screen.getByText("White → Blue · Ages 12–15")).toBeInTheDocument();
+    expect(screen.getByText("Gi only. Bring a mouthguard.")).toBeInTheDocument();
+    cleanup();
+    render(
+      <ul>
+        <SessionCard
+          busy={false}
+          entry={{ session, program, derived: { status: "open" } }}
+          now={new Date("2026-09-16T10:00:00Z")}
+          onBook={vi.fn()}
+          onCancelRequest={vi.fn()}
+        />
+      </ul>,
+    );
+    expect(screen.queryByText(/All levels/u)).toBeNull();
+  });
 });

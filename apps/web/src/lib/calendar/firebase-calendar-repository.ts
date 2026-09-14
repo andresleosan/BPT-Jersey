@@ -1,9 +1,10 @@
 /**
  * UNVERIFIED — written against the client signatures in ../schedule-client, ../waitlist-client,
  * ../no-show-penalties-client and ../family-client, never run against Firebase. The connecting
- * model must: (1) run it with NEXT_PUBLIC_CALENDAR_SOURCE=firebase against emulators/staging,
- * (2) provide `bookedCounts` (needs a callable that returns confirmed counts per session; today
- * every session reads as not full), (3) confirm how a teenStudent's studentId reaches loadMember.
+ * model must: (1) run it with NEXT_PUBLIC_CALENDAR_SOURCE=firebase against emulators/staging —
+ * covered by the unit and emulator callable suites of 2026-09-14, but the in-browser run stays
+ * impossible offline (App Check fail-closed); (3) confirm how a teenStudent's studentId reaches
+ * loadMember.
  */
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 
@@ -12,6 +13,7 @@ import { listNoShowPenalties } from "../no-show-penalties-client";
 import {
   cancelBooking,
   getScheduleCatalog,
+  listSessionBookedCounts,
   listSessions,
   listStudentAttendance,
   listStudentBookings,
@@ -78,14 +80,14 @@ export function createFirebaseCalendarRepository(session: {
       return { role: session.role, displayName: session.displayName, participants };
     },
     async loadWeek(studentId, fromIso, toIso) {
-      const [sessions, catalog, bookings, attendance] = await Promise.all([
+      const [sessions, catalog, bookings, attendance, bookedCounts] = await Promise.all([
         listSessions({ from: fromIso, to: toIso }),
         getScheduleCatalog(),
         listStudentBookings(studentId),
         listStudentAttendance(studentId),
+        listSessionBookedCounts({ from: fromIso, to: toIso }),
       ]);
-      // TODO(connect): no callable exposes confirmed counts per session yet, so nothing reads as full.
-      return { sessions, programs: catalog.programs, bookings, attendance, bookedCounts: {} };
+      return { sessions, programs: catalog.programs, bookings, attendance, bookedCounts };
     },
     book: requestBooking,
     cancel: cancelBooking,
