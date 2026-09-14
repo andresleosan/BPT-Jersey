@@ -152,6 +152,19 @@ function mapAttendanceError(error: unknown): never {
   throw new HttpsError("internal", "Attendance operation failed");
 }
 
+function mapScheduleMutationError(error: unknown, resource: "Session" | "Class"): never {
+  if (error instanceof HttpsError) throw error;
+  const message = error instanceof Error ? error.message : "";
+  if (/does not exist/u.test(message)) {
+    throw new HttpsError("not-found", `${resource} not found`);
+  }
+  if (/Only scheduled sessions|must end after|cannot exceed capacity/u.test(message)) {
+    throw new HttpsError("failed-precondition", message);
+  }
+  console.error(`schedule ${resource.toLowerCase()} mutation failed`, error);
+  throw new HttpsError("internal", `Unable to update the ${resource.toLowerCase()}`);
+}
+
 export function createListScheduleCatalogHandler(options: { store: ScheduleStore }) {
   const { store } = options;
 
@@ -429,9 +442,7 @@ export function createUpdateSessionHandler(options: { store: ScheduleStore }) {
     try {
       return { session: await store.updateSession(actor.academyId, parsed.value, actor.userId) };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      if (/does not exist/u.test(message)) throw new HttpsError("not-found", "Session not found");
-      throw new HttpsError("failed-precondition", "Session cannot be edited in its current state");
+      return mapScheduleMutationError(error, "Session");
     }
   };
 }
@@ -454,8 +465,8 @@ export function createRemoveClassHandler(options: { store: ScheduleStore; now?: 
         actor.userId,
         now(),
       );
-    } catch {
-      throw new HttpsError("not-found", "Class not found");
+    } catch (error) {
+      return mapScheduleMutationError(error, "Class");
     }
   };
 }

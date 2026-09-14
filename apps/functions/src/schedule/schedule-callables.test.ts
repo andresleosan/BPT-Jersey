@@ -1440,4 +1440,58 @@ describe("session update, class removal and booked counts callables", () => {
       ),
     ).rejects.toMatchObject({ code: "unauthenticated" });
   });
+
+  it("rejects updateSession on a cancelled session with failed-precondition", async () => {
+    const store = createInMemoryScheduleStore();
+    const session = await store.createSession(
+      "demo-academy",
+      {
+        programId: "program-1",
+        locationId: "town",
+        instructorId: "coach-a",
+        title: "Adults",
+        startAt: "2099-01-05T18:00:00Z",
+        endAt: "2099-01-05T19:00:00Z",
+        capacity: 20,
+      },
+      "owner-1",
+    );
+    await store.cancelSession("demo-academy", session.sessionId, "Test cancellation", "owner-1");
+    const handler = createUpdateSessionHandler({ store });
+    await expect(
+      handler(fakeRequest({ sessionId: session.sessionId, title: "New Title" }, "owner")),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+  });
+
+  it("rejects updateSession on unknown session with not-found", async () => {
+    const store = createInMemoryScheduleStore();
+    const handler = createUpdateSessionHandler({ store });
+    await expect(
+      handler(fakeRequest({ sessionId: "unknown-session", title: "New Title" }, "owner")),
+    ).rejects.toMatchObject({ code: "not-found" });
+  });
+
+  it("rejects removeClass on unknown class with not-found", async () => {
+    const store = createInMemoryScheduleStore();
+    const handler = createRemoveClassHandler({ store });
+    await expect(
+      handler(fakeRequest({ classId: "unknown-class", reason: "Coach left" }, "administrator")),
+    ).rejects.toMatchObject({ code: "not-found" });
+  });
+
+  it("maps unexpected store failures to internal with console.error logged", async () => {
+    const store = {
+      ...createInMemoryScheduleStore(),
+      removeClass: async () => {
+        throw new Error("socket hang up");
+      },
+    };
+    const handler = createRemoveClassHandler({ store });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      handler(fakeRequest({ classId: "c-1", reason: "Coach left" }, "administrator")),
+    ).rejects.toMatchObject({ code: "internal" });
+    expect(spy).toHaveBeenCalledOnce();
+    spy.mockRestore();
+  });
 });
