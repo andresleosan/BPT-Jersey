@@ -31,6 +31,17 @@ describe("member picker", () => {
     expect(onSelect).toHaveBeenCalledWith(members[2]);
   });
 
+  it("allows keyboard selection with Enter key on an option", () => {
+    const onSelect = vi.fn();
+    render(<MemberPicker members={members} onSelect={onSelect} selected={null} />);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find a member" }), {
+      target: { value: "ana" },
+    });
+    const option = screen.getByRole("option", { name: "Ana Coelho" });
+    fireEvent.keyDown(option, { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledWith(members[0]);
+  });
+
   it("shows the selected member with a change action, and the error honestly", () => {
     const onSelect = vi.fn();
     const { rerender } = render(

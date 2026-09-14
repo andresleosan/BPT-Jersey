@@ -26,15 +26,13 @@
   padding: 0;
 }
 .member-picker-option {
+  align-items: center;
   background: var(--gi-white);
-  border: 0;
   border-bottom: 1px solid var(--paper-edge, #e8e7e3);
   cursor: pointer;
-  font: inherit;
+  display: flex;
   min-height: 3.15rem;
   padding: 0.8rem 1rem;
-  text-align: left;
-  width: 100%;
 }
 .member-picker-option:hover,
 .member-picker-option:focus-visible {

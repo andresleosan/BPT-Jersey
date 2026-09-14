@@ -60,7 +60,7 @@ export function MemberPicker({
       <label className="family-field">
         {label}
         <input
-          aria-controls={listId}
+          aria-controls={matches.length > 0 ? listId : undefined}
           autoComplete="off"
           autoFocus={autoFocus}
           disabled={members === null && !error}
@@ -79,7 +79,8 @@ export function MemberPicker({
       ) : null}
       {query.trim().length >= 2 && members && matches.length === 0 ? (
         <p className="member-picker-empty" role="status">
-          No member matches &quot;{query.trim()}&quot;.
+          {/* eslint-disable-next-line react/no-unescaped-entities */}
+          No member matches "{query.trim()}".
         </p>
       ) : null}
       {matches.length > 0 ? (
@@ -89,22 +90,30 @@ export function MemberPicker({
           role="listbox"
           aria-label={`${label} results`}
         >
-          {matches.map((member) => (
-            <li
-              key={member.studentId}
-              role="option"
-              aria-selected={false}
-              aria-label={member.fullName}
-              onClick={() => {
-                onSelect(member);
-                setQuery("");
-              }}
-            >
-              <button className="member-picker-option" type="button">
+          {matches.map((member) => {
+            const choose = () => {
+              onSelect(member);
+              setQuery("");
+            };
+            return (
+              <li
+                key={member.studentId}
+                role="option"
+                aria-selected={false}
+                className="member-picker-option"
+                tabIndex={0}
+                onClick={choose}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    choose();
+                  }
+                }}
+              >
                 {member.fullName}
-              </button>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </div>
