@@ -67,6 +67,6 @@ describe("Admin Levels Page", () => {
 
     expect(screen.getByRole("heading", { name: "IBJJF Levels & Belts" })).toBeDefined();
     expect(await screen.findByRole("heading", { name: "JIU-JITSU - IBJJF" })).toBeDefined();
-    expect(screen.getByRole("button", { name: /All \(1\)/ })).toBeDefined();
+    expect(screen.getByRole("region", { name: "Belts" })).toBeDefined();
   });
 });
