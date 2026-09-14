@@ -885,3 +885,183 @@ describe("Schedule Service (Firestore store) locations", () => {
     expect(locations[1]?.geofence).toBeUndefined();
   });
 });
+
+describe("schedule store: v2 classes, session edits, class removal and booked counts", () => {
+  const academyId = "demo-academy";
+  const classInput = {
+    programId: "program-1",
+    locationId: "town" as const,
+    name: "Kids BJJ",
+    recurrenceRules: [
+      { dayOfWeek: 1 as const, startTime: "17:00", durationMinutes: 60 },
+      { dayOfWeek: 3 as const, startTime: "17:00", durationMinutes: 60 },
+    ],
+    instructorIds: ["coach-a"],
+    capacity: 20,
+    minParticipants: 4,
+    description: "Bring a gi.",
+    ageRange: { minAge: 8, maxAge: 11 },
+    levelRange: null,
+  };
+
+  it("creates a v2 class and generates a session per rule", async () => {
+    const store = createInMemoryScheduleStore();
+    const created = await store.createClass(academyId, classInput, "owner-1");
+    expect(created.schemaVersion).toBe("2");
+    expect(created.recurrenceRules).toHaveLength(2);
+    const sessions = await store.generateSessions(
+      academyId,
+      created.classId,
+      "2026-09-14",
+      "2026-09-20",
+      "Europe/Jersey",
+      "owner-1",
+    );
+    expect(sessions.map((s) => s.sessionId)).toEqual([
+      `${created.classId}__2026-09-14__1700`,
+      `${created.classId}__2026-09-16__1700`,
+    ]);
+    expect(sessions[0]?.description).toBe("Bring a gi.");
+  });
+
+  it("does not duplicate a session a v1 class already generated under the legacy id", async () => {
+    const store = createInMemoryScheduleStore();
+    const created = await store.createClass(academyId, classInput, "owner-1");
+    await store.createSession(
+      academyId,
+      {
+        programId: "program-1",
+        locationId: "town",
+        instructorId: "coach-a",
+        title: "Kids BJJ",
+        startAt: "2026-09-14T16:00:00Z",
+        endAt: "2026-09-14T17:00:00Z",
+        capacity: 20,
+        classId: created.classId,
+      },
+      "owner-1",
+    );
+    // Plant the legacy id the way a v1 generation would have.
+    const legacy = (
+      await store.listSessions(academyId, {
+        from: "2026-09-14T00:00:00.000Z",
+        to: "2026-09-14T23:59:59.999Z",
+      })
+    )[0]!;
+    await store.__seedSessionId?.(academyId, legacy, `${created.classId}__2026-09-14`);
+    const sessions = await store.generateSessions(
+      academyId,
+      created.classId,
+      "2026-09-14",
+      "2026-09-14",
+      "Europe/Jersey",
+      "owner-1",
+    );
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.sessionId).toBe(`${created.classId}__2026-09-14`);
+  });
+
+  it("edits only scheduled sessions and keeps end after start", async () => {
+    const store = createInMemoryScheduleStore();
+    const session = await store.createSession(
+      academyId,
+      {
+        programId: "program-1",
+        locationId: "town",
+        instructorId: "coach-a",
+        title: "Open mat",
+        startAt: "2026-09-20T10:00:00Z",
+        endAt: "2026-09-20T11:00:00Z",
+        capacity: 20,
+      },
+      "owner-1",
+    );
+    const updated = await store.updateSession(
+      academyId,
+      {
+        sessionId: session.sessionId,
+        title: "Open mat (Gi)",
+        endAt: "2026-09-20T11:30:00Z",
+        description: "All belts.",
+      },
+      "owner-1",
+    );
+    expect(updated).toMatchObject({
+      title: "Open mat (Gi)",
+      endAt: "2026-09-20T11:30:00Z",
+      description: "All belts.",
+      updatedBy: "owner-1",
+    });
+    await expect(
+      store.updateSession(
+        academyId,
+        { sessionId: session.sessionId, startAt: "2026-09-20T12:00:00Z" },
+        "owner-1",
+      ),
+    ).rejects.toThrow(/after/u);
+    await store.cancelSession(academyId, session.sessionId, "Coach ill", "owner-1");
+    await expect(
+      store.updateSession(academyId, { sessionId: session.sessionId, title: "X" }, "owner-1"),
+    ).rejects.toThrow(/scheduled/u);
+  });
+
+  it("removes a class: inactive, future sessions cancelled, past ones untouched", async () => {
+    const store = createInMemoryScheduleStore();
+    const created = await store.createClass(academyId, classInput, "owner-1");
+    await store.generateSessions(
+      academyId,
+      created.classId,
+      "2026-09-07",
+      "2026-09-20",
+      "Europe/Jersey",
+      "owner-1",
+    );
+    const result = await store.removeClass(
+      academyId,
+      created.classId,
+      "Coach left",
+      "owner-1",
+      "2026-09-13T12:00:00.000Z",
+    );
+    expect(result.class.active).toBe(false);
+    expect(result.cancelledSessions.map((s) => s.sessionId).sort()).toEqual([
+      `${created.classId}__2026-09-14__1700`,
+      `${created.classId}__2026-09-16__1700`,
+    ]);
+    const all = await store.listSessions(academyId, {
+      from: "2026-09-01T00:00:00.000Z",
+      to: "2026-09-30T00:00:00.000Z",
+    });
+    expect(all.find((s) => s.sessionId === `${created.classId}__2026-09-07__1700`)?.status).toBe(
+      "scheduled",
+    );
+    expect(all.find((s) => s.sessionId === `${created.classId}__2026-09-14__1700`)).toMatchObject({
+      status: "cancelled",
+      cancellationReason: "Coach left",
+    });
+  });
+
+  it("counts confirmed bookings per session", async () => {
+    const store = createInMemoryScheduleStore();
+    const session = await store.createSession(
+      academyId,
+      {
+        programId: "program-1",
+        locationId: "town",
+        instructorId: "coach-a",
+        title: "Adults",
+        startAt: "2099-01-05T18:00:00Z",
+        endAt: "2099-01-05T19:00:00Z",
+        capacity: 20,
+      },
+      "owner-1",
+    );
+    await store.requestBooking(
+      academyId,
+      { sessionId: session.sessionId, studentId: "s-1", membershipId: "m-1" },
+      "s-1",
+    );
+    const counts = await store.countConfirmedBookings(academyId, [session.sessionId, "missing"]);
+    expect(counts).toEqual({ [session.sessionId]: 1, missing: 0 });
+  });
+});
