@@ -135,6 +135,18 @@ describe("deploy runtime import preparation", () => {
     await cp(join(import.meta.dirname, "..", "lib"), join(deployRoot, "lib"), {
       recursive: true,
     });
+    await expect(
+      readFile(join(domainRoot, "members", "member-directory-migration-contracts.js"), "utf8"),
+    ).resolves.toContain("memberDirectoryChunkReceiptSchema");
+    await expect(
+      readFile(join(domainRoot, "members", "member-directory-operation-contracts.js"), "utf8"),
+    ).resolves.toContain("memberDirectoryOperationDocumentSchema");
+    await expect(
+      readFile(join(domainRoot, "members", "member-directory-private-plan-contracts.js"), "utf8"),
+    ).resolves.toContain("memberDirectoryPrivateOutputPlanSchema");
+    await expect(
+      readFile(join(domainRoot, "members", "member-directory-transitions.js"), "utf8"),
+    ).resolves.toContain("planMemberDirectoryChunkCommit");
 
     await writeFile(
       join(deployRoot, "package.json"),
