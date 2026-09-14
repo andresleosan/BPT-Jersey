@@ -107,7 +107,7 @@ test.describe("admin shell @smoke", () => {
     expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.bodyClientWidth);
   });
 
-  test("shows a coach the four mat modules and nothing else", async ({ page }, testInfo) => {
+  test("shows a coach the six modules and nothing else", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop-chromium");
 
     const calls: CallableCall[] = [];
@@ -120,11 +120,19 @@ test.describe("admin shell @smoke", () => {
       "->Attendance",
       "->Enrolment requests",
       "->Medical conditions",
+      "->Classes",
+      "->Levels",
     ]);
     await expect(page.getByRole("link", { name: "Coach portal" })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Today's academy view", level: 2 }),
     ).toBeVisible();
+    // Verify that office-only and billing modules are absent
+    await expect(page.getByRole("link", { name: "Members" })).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "Billing" })).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "Shop" })).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "Staff" })).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "Reports" })).not.toBeVisible();
     // The operational report carries revenue amounts, so the mat never asks for it (ADR-010).
     await expect(page.getByRole("article", { name: /Overdue memberships/ })).toHaveCount(0);
     expect(calls.filter((call) => call.name === "getOperationalReport")).toEqual([]);

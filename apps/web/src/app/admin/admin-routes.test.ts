@@ -9,8 +9,10 @@ describe("staff routes", () => {
       "/admin/attendance",
       "/admin/members/requests",
       "/admin/members/medical",
+      "/admin/classes",
+      "/admin/levels",
     ]);
-    expect(staffRoutes.headCoach).toEqual([...staffRoutes.coach, "/admin/classes"]);
+    expect(staffRoutes.headCoach).toEqual(staffRoutes.coach);
   });
 
   it("gates by prefix, except the overview which is exact", () => {
@@ -19,8 +21,9 @@ describe("staff routes", () => {
     expect(isStaffRouteAllowed("/admin/members/requests", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/members", "coach")).toBe(false);
     expect(isStaffRouteAllowed("/admin/members/search", "coach")).toBe(false);
-    expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(false);
+    expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/classes", "headCoach")).toBe(true);
+    expect(isStaffRouteAllowed("/admin/levels", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/billing", "headCoach")).toBe(false);
   });
 

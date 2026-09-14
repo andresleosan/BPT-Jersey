@@ -22,7 +22,8 @@ type NavigationGroup = Readonly<{ label: string; items: readonly NavigationItem[
  * their routes, callables and tests but are not listed here; Families is reached from Members and
  * the finance dashboard from Billing. Memberships and waivers keep their routes
  * (`/admin/memberships`, `/admin/waivers`) and tests but left the menu on 2026-09-12 at the
- * operator's request.
+ * operator's request. Classes and Levels were added to the coach menu on 2026-09-14 (ADR-010
+ * amendment); see Classes read-only and Levels powers in ADR-010.
  */
 const navigationGroups: readonly NavigationGroup[] = [
   {

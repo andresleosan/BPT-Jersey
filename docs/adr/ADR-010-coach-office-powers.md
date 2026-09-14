@@ -47,3 +47,12 @@ No se abre:
   headCoach y coach exige una asignacion vigente con ese alumno.
 - Si en el futuro se abre la aprobacion a coaches, hara falta una sonda de cuenta activa para staff
   equivalente a la de `canonical-actor.ts` y una enmienda a ADR-009.
+
+## Enmienda 2026-09-14
+
+Decision del operador en chat (2026-09-14): `coach` y `headCoach` ven ademas **Classes** y **Levels**.
+En Classes, `coach` solo lee (la pagina no muestra crear, editar, generar, cancelar ni eliminar);
+`headCoach` conserva los poderes de `managerRoles`. No cambia ningun callable: `listClasses` ya era de
+staff, `listSessions` de cualquier autenticado, y las mutaciones siguen en `managerRoles`. El
+directorio de Members sigue cerrado a coaches; se evaluo abrirlo en lectura y se descarto por el coste
+de ADR-009.
