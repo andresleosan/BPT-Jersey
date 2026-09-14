@@ -20,6 +20,7 @@ import {
   evaluateBookingEligibility,
   generateSessionsFromClass,
   isWithinBookingCutoff,
+  legacySessionId,
   levelRangeLabel,
   parseAgeRange,
   parseCancelBookingInput,
@@ -389,14 +390,14 @@ describe("Schedule Domain Contracts", () => {
       expect(sessions[0]!.minParticipants).toBe(4);
     });
 
-    it("generates deterministic sessionId from classId and date", () => {
+    it("generates deterministic sessionId from classId, date, and startTime", () => {
       const sessions = generateSessionsFromClass(
         baseClass,
         "2026-09-01",
         "2026-09-02",
         "Europe/Jersey",
       );
-      expect(sessions[0]!.sessionId).toBe("cls-001__2026-09-01");
+      expect(sessions[0]!.sessionId).toBe("cls-001__2026-09-01__1900");
     });
 
     it("returns empty array when no occurrences fall in range", () => {
@@ -421,6 +422,64 @@ describe("Schedule Domain Contracts", () => {
       expect(sessions[0]!.status).toBe("scheduled");
       expect(sessions[0]!.isSeminar).toBe(false);
       expect(sessions[0]!.classId).toBe("cls-001");
+    });
+
+    it("generates deterministic sessionId with the new format including time suffix", () => {
+      const sessions = generateSessionsFromClass(
+        baseClass,
+        "2026-09-01",
+        "2026-09-02",
+        "Europe/Jersey",
+      );
+      expect(sessions[0]!.sessionId).toBe("cls-001__2026-09-01__1900");
+    });
+  });
+
+  describe("multi-rule session generation", () => {
+    const cls = normalizeClassRecord({
+      classId: "c1",
+      academyId: "a",
+      programId: "p",
+      locationId: "town",
+      name: "Kids BJJ",
+      recurrenceRules: [
+        { dayOfWeek: 1, startTime: "17:00", durationMinutes: 60 },
+        { dayOfWeek: 3, startTime: "18:30", durationMinutes: 45 },
+      ],
+      description: "Bring a gi.",
+      ageRange: { minAge: 8, maxAge: 11 },
+      levelRange: null,
+      instructorIds: ["coach-a", "coach-b"],
+      capacity: 20,
+      minParticipants: 4,
+      active: true,
+      schemaVersion: "2",
+      createdAt: "2026-09-01T00:00:00.000Z",
+      createdBy: "u",
+      updatedAt: "2026-09-01T00:00:00.000Z",
+      updatedBy: "u",
+    });
+
+    it("emits one session per rule occurrence with the rule's own time and length", () => {
+      // 2026-09-14 is a Monday; the week holds Mon 14 and Wed 16. Jersey is UTC+1 in September.
+      const drafts = generateSessionsFromClass(cls, "2026-09-14", "2026-09-20", "Europe/Jersey");
+      expect(drafts.map((d) => d.sessionId)).toEqual([
+        "c1__2026-09-14__1700",
+        "c1__2026-09-16__1830",
+      ]);
+      expect(drafts[0]).toMatchObject({
+        startAt: "2026-09-14T16:00:00Z",
+        endAt: "2026-09-14T17:00:00Z",
+        instructorId: "coach-a",
+        description: "Bring a gi.",
+        ageRange: { minAge: 8, maxAge: 11 },
+        levelRange: null,
+      });
+      expect(drafts[1]).toMatchObject({
+        startAt: "2026-09-16T17:30:00Z",
+        endAt: "2026-09-16T18:15:00Z",
+      });
+      expect(legacySessionId("c1", "2026-09-14")).toBe("c1__2026-09-14");
     });
   });
 
