@@ -193,7 +193,11 @@ export async function cancelSession(
 }
 
 export async function updateSession(input: UpdateSessionInput): Promise<SessionRecord> {
-  const callable = httpsCallable<UpdateSessionInput, { session: SessionRecord }>(getFirebaseFunctions(), "updateSession");
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<UpdateSessionInput, { session: SessionRecord }>(
+    functions,
+    "updateSession",
+  );
   const result = await callable(input);
   return result.data.session;
 }
@@ -201,7 +205,11 @@ export async function updateSession(input: UpdateSessionInput): Promise<SessionR
 export async function removeClass(
   input: RemoveClassInput,
 ): Promise<Readonly<{ class: ClassRecord; cancelledSessions: readonly SessionRecord[] }>> {
-  const callable = httpsCallable<RemoveClassInput, { class: ClassRecord; cancelledSessions: SessionRecord[] }>(getFirebaseFunctions(), "removeClass");
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<RemoveClassInput, { class: ClassRecord; cancelledSessions: SessionRecord[] }>(
+    functions,
+    "removeClass",
+  );
   const result = await callable(input);
   return result.data;
 }
@@ -209,11 +217,18 @@ export async function removeClass(
 export async function listSessionBookedCounts(
   query: ListSessionsQuery,
 ): Promise<Readonly<Record<string, number>>> {
-  const callable = httpsCallable<ListSessionsQuery, { counts: unknown }>(getFirebaseFunctions(), "listSessionBookedCounts");
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<ListSessionsQuery, { counts: unknown }>(
+    functions,
+    "listSessionBookedCounts",
+  );
   const result = await callable(query);
   const counts = result.data.counts;
   if (
-    typeof counts !== "object" || counts === null || Array.isArray(counts) ||
+    typeof counts !== "object" ||
+    counts === null ||
+    Array.isArray(counts) ||
+    Object.getPrototypeOf(counts) !== Object.prototype ||
     !Object.values(counts).every((value) => Number.isSafeInteger(value) && (value as number) >= 0)
   ) {
     throw new Error("Unable to load booking counts.");

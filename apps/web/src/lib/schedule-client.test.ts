@@ -358,8 +358,24 @@ describe("Schedule Client", () => {
 
     mockCallable.mockResolvedValueOnce({ data: { counts: { s1: 2, s2: 0 } } });
     await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).resolves.toEqual({ s1: 2, s2: 0 });
+
     mockCallable.mockResolvedValueOnce({ data: { counts: { s1: "two" } } });
     await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+
+    mockCallable.mockResolvedValueOnce({ data: { counts: [1, 2] } });
+    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+
+    mockCallable.mockResolvedValueOnce({ data: { counts: null } });
+    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+
+    mockCallable.mockResolvedValueOnce({ data: { counts: new Date(0) } });
+    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+
+    mockCallable.mockResolvedValueOnce({ data: { counts: { s1: -1 } } });
+    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+
+    mockCallable.mockResolvedValueOnce({ data: { counts: {} } });
+    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).resolves.toEqual({});
   });
 });
 
