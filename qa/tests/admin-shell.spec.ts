@@ -136,5 +136,9 @@ test.describe("admin shell @smoke", () => {
     // The operational report carries revenue amounts, so the mat never asks for it (ADR-010).
     await expect(page.getByRole("article", { name: /Overdue memberships/ })).toHaveCount(0);
     expect(calls.filter((call) => call.name === "getOperationalReport")).toEqual([]);
+    await page.screenshot({
+      path: testInfo.outputPath(`admin-shell-coach-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
   });
 });

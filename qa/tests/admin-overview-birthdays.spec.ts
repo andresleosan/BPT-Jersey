@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 import { installAdminFixture } from "./admin-fixture";
 
 test.describe("admin overview birthdays", () => {
-  test("lists the next three birthdays and announces one that is today", async ({ page }) => {
+  test("lists the next three birthdays and announces one that is today", async ({
+    page,
+  }, testInfo) => {
     await installAdminFixture(page, {
       callables: {
         listUpcomingBirthdays: {
@@ -59,5 +61,9 @@ test.describe("admin overview birthdays", () => {
     // could print one.
     const birthdayText = `${await band.innerText()}\n${await card.innerText()}`;
     expect(birthdayText).not.toMatch(/\b(19|20)\d\d\b/);
+    await page.screenshot({
+      path: testInfo.outputPath(`overview-birthdays-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
   });
 });

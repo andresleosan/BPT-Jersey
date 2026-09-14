@@ -30,7 +30,7 @@ const detail = {
 };
 
 test.describe("enrolment requests", () => {
-  test("office reads and sends back through the buttons", async ({ page }) => {
+  test("office reads and sends back through the buttons", async ({ page }, testInfo) => {
     const calls: CallableCall[] = [];
     await installAdminFixture(page, {
       calls,
@@ -65,9 +65,13 @@ test.describe("enrolment requests", () => {
     expect(calls.find((call) => call.name === "returnEnrolmentRequest")?.body).toEqual({
       data: { enrolmentRequestId: "enrolment-1", note: "Add the emergency contact." },
     });
+    await page.screenshot({
+      path: testInfo.outputPath(`enrolment-requests-office-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
   });
 
-  test("a coach sees the queue without the office buttons", async ({ page }) => {
+  test("a coach sees the queue without the office buttons", async ({ page }, testInfo) => {
     const calls: CallableCall[] = [];
     await installAdminFixture(page, {
       calls,
@@ -87,5 +91,9 @@ test.describe("enrolment requests", () => {
           call.name === "getEnrolmentRequestDetail" || call.name === "approveEnrolmentRequest",
       ),
     ).toEqual([]);
+    await page.screenshot({
+      path: testInfo.outputPath(`enrolment-requests-coach-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
   });
 });

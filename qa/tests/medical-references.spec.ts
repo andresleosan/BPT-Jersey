@@ -30,7 +30,7 @@ const profile = {
 test.describe("medical references", () => {
   test("lets a coach retype the label without ever reading the medical record", async ({
     page,
-  }) => {
+  }, testInfo) => {
     const calls: CallableCall[] = [];
     await installAdminFixture(page, {
       role: "coach",
@@ -66,6 +66,10 @@ test.describe("medical references", () => {
         body: { data: { studentId: "student-1", staffReferenceLabel: "INHALER-BAG" } },
       },
     ]);
+    await page.screenshot({
+      path: testInfo.outputPath(`medical-references-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
   });
 
   test("keeps the office lookup on the full medical record", async ({ page }) => {

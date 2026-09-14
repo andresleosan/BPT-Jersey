@@ -69,7 +69,7 @@ const operational = {
 test.describe("attendance roster", () => {
   test("turns a booked member red at the start time and green after a clock-in", async ({
     page,
-  }) => {
+  }, testInfo) => {
     let pendingStatus = "booked_not_arrived";
     const calls: CallableCall[] = [];
     await page.clock.install({ time: new Date("2026-09-12T17:58:00.000Z") });
@@ -126,5 +126,9 @@ test.describe("attendance roster", () => {
     await expect(
       page.getByRole("status").filter({ hasText: "Clock-in recorded for Ben Booked." }),
     ).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`attendance-roster-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
   });
 });
