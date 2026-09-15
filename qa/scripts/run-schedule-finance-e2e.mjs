@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { unlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 // T032 authenticated Emulator E2E for the schedule and finance callables added on top of
@@ -92,36 +91,14 @@ const ownerEnvironment = {
 run(["qa/scripts/seed-auth-emulator.mjs"], ownerEnvironment);
 run(["qa/scripts/seed-member-directory-emulator.mjs"], ownerEnvironment);
 
-// Coach: Auth user and role claim, reusing the generic seed. It hardcodes academyId to
-// "synthetic-academy", so the coach's claim is corrected below to the real academy the owner
-// operates in: the schedule callables only read claims (no Firestore staff document is needed
-// for the checks this spec exercises).
+// Coach: Auth user and claims in the real academy (the generic seed accepts the academy id; the
+// schedule callables only read claims, so no Firestore staff document is needed here).
 run(["qa/scripts/seed-auth-emulator.mjs"], {
   AUTH_EMULATOR_E2E_EMAIL: coachEmail,
   AUTH_EMULATOR_E2E_PASSWORD: password,
   AUTH_EMULATOR_E2E_ROLE: "coach",
+  AUTH_EMULATOR_E2E_ACADEMY_ID: academyId,
 });
-const coachClaimsFixupPath = resolve(repositoryRoot, "qa/scripts/.t032-coach-claims-fixup.mjs");
-writeFileSync(
-  coachClaimsFixupPath,
-  `
-    import { deleteApp, initializeApp } from "firebase-admin/app";
-    import { getAuth } from "firebase-admin/auth";
-    const app = initializeApp({ projectId: "${projectId}" }, "t032-coach-claims-fixup");
-    const auth = getAuth(app);
-    try {
-      const user = await auth.getUserByEmail("${coachEmail}");
-      await auth.setCustomUserClaims(user.uid, { academyId: "${academyId}", role: "coach" });
-    } finally {
-      await deleteApp(app);
-    }
-  `,
-);
-try {
-  run(["qa/scripts/.t032-coach-claims-fixup.mjs"]);
-} finally {
-  unlinkSync(coachClaimsFixupPath);
-}
 
 // Adult client: Auth user and claims only, reusing the T094 seed. Its profile and family are
 // created by `saveClientProfile` inside the spec.

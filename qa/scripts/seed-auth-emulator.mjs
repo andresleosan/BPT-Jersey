@@ -34,6 +34,12 @@ async function main() {
   if (!email.endsWith("@example.test") || password.length < 12) {
     throw new Error("Auth seed credentials must be synthetic emulator credentials.");
   }
+  // Optional: the academy the claim points at. Runners that operate a real academy id (T032)
+  // set it so non-owner roles do not need a claims fix-up after seeding.
+  const academyId = process.env.AUTH_EMULATOR_E2E_ACADEMY_ID?.trim() || "synthetic-academy";
+  if (!/^[a-z][a-z0-9-]{2,60}$/u.test(academyId)) {
+    throw new Error("AUTH_EMULATOR_E2E_ACADEMY_ID must be a lowercase slug.");
+  }
 
   const app = initializeApp({ projectId: process.env.GCLOUD_PROJECT ?? "demo-bpt-jersey" });
   const auth = getAuth(app);
@@ -47,10 +53,7 @@ async function main() {
       user = await auth.createUser({ email, password, emailVerified: true });
     }
 
-    await auth.setCustomUserClaims(user.uid, {
-      academyId: "synthetic-academy",
-      role,
-    });
+    await auth.setCustomUserClaims(user.uid, { academyId, role });
     console.log(JSON.stringify({ email, uid: user.uid, role, emulator: expectedAuthEmulatorHost }));
   } finally {
     await deleteApp(app);
