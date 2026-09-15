@@ -13,6 +13,7 @@ const schedule = vi.hoisted(() => ({
   requestBooking: vi.fn(),
   cancelBooking: vi.fn(),
   listSessionBookedCounts: vi.fn(),
+  selfCheckIn: vi.fn(),
 }));
 vi.mock("../../../lib/schedule-client", () => schedule);
 vi.mock("../../../lib/waitlist-client", () => ({
