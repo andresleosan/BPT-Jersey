@@ -139,9 +139,6 @@ test.describe("admin classes", () => {
         listScheduleCatalog: catalog,
         listClasses: { classes: [existingClass] },
         listSessions: { sessions: [] },
-        listStaffProfiles: [],
-        listMemberships: [],
-        listMembers: { rows: [] },
       },
     });
     await page.goto("/admin/classes?adminTestRole=coach");
