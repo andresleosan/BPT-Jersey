@@ -337,6 +337,24 @@ describe("savePaymentInstructions (T010/T035 re-scope)", () => {
     ).rejects.toMatchObject({ code: "invalid-argument" });
   });
 
+  it("rejects a membership charge with no membershipId", async () => {
+    const s = services();
+    const payload = {
+      familyId: "family-1",
+      membershipId: null,
+      totalMinor: 1500,
+      dueAt: "2026-10-01T23:59:59.000Z",
+      chargeKind: "membership",
+      invoiceReference: "INV-MEM-1",
+      description: "Membership charge",
+    };
+    await expect(
+      issueManualInvoiceHandler(request(payload, actor("owner")), s),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    const store = s.store as unknown as { issueManualInvoice: ReturnType<typeof vi.fn> };
+    expect(store.issueManualInvoice).not.toHaveBeenCalled();
+  });
+
   it("lists recent payments for office roles only", async () => {
     const s = services();
     await expect(

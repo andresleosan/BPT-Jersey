@@ -159,12 +159,11 @@ function parseManualInvoicePayload(
   if (!isPlainRecord(value) || !exactFields(value, fields)) return invalidPayload();
   const chargeKind = descriptorValue(value, "chargeKind");
   if (chargeKind !== "membership" && chargeKind !== "manual_adjustment") return invalidPayload();
+  const rawMembershipId = descriptorValue(value, "membershipId");
+  if (chargeKind === "membership" && rawMembershipId === null) return invalidPayload();
   return Object.freeze({
     familyId: parseId(descriptorValue(value, "familyId")),
-    membershipId:
-      descriptorValue(value, "membershipId") === null
-        ? null
-        : parseId(descriptorValue(value, "membershipId")),
+    membershipId: rawMembershipId === null ? null : parseId(rawMembershipId),
     totalMinor: parseAmount(descriptorValue(value, "totalMinor")),
     dueAt: parseDateTime(descriptorValue(value, "dueAt")),
     chargeKind,
