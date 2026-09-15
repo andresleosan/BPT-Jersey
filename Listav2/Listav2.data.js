@@ -729,13 +729,13 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T043V2: [
     requirement(
-      "Callable de competidores en apps/functions/src/competitors que devuelva fichas públicas ordenadas, excluyendo menores hasta que exista consentimiento del tutor (decisión 5).",
+      "Callable de competidores en apps/functions/src/competitors que devuelva fichas públicas ordenadas dentro de la cohorte del solicitante (leaderboardCohort: menores de 16 entre sí, 16 o más como adultos; decisión 5).",
     ),
     requirement(
       "Dos tablas en /account/competitors: asistencia (rankNeighbours por racha) y progresión de cinturón (buildPeerComparison), con foto, cinturón, grados y diferencia de técnicas.",
     ),
     requirement(
-      "Prueba de que un menor nunca aparece ni ve a otro menor; Playwright en :9471; rebase sobre main y gate local antes de subir.",
+      "Prueba de que un menor de 16 nunca ve ni es visto por un miembro de 16 o más, y viceversa; Playwright en :9471; rebase sobre main y gate local antes de subir.",
     ),
   ],
   T044V2: [
@@ -994,7 +994,7 @@ const membersItems = [
     "pendiente",
     "Dos vecinos arriba y dos abajo, con foto, cinturón, grados, racha y las técnicas que cada uno tiene y el otro no.",
     "T044V2",
-    "Rellena /account/competitors con datos de un callable propio (decisión 4: sin lectura directa de Firestore). Menores excluidos hasta que exista consentimiento del tutor (decisión 5). Depende de T044V2 por la foto.",
+    "Rellena /account/competitors con datos de un callable propio (decisión 4: sin lectura directa de Firestore). Cohortes por edad de leaderboardCohort: menores de 16 entre sí, 16 o más como adultos (decisión 5). Depende de T044V2 por la foto.",
     [REF_TASKS, "apps/web/src/app/account/competitors/page.tsx"],
     "funcion",
   ),

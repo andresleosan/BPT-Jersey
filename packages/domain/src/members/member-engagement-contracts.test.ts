@@ -5,6 +5,7 @@ import {
   compareTechniques,
   defaultGoal,
   defaultReward,
+  leaderboardCohort,
   progressBar,
   rankNeighbours,
   seasonStartFor,
@@ -147,5 +148,19 @@ describe("rankNeighbours", () => {
 
   it("is null when the current student is not in the list", () => {
     expect(rankNeighbours({ entries, currentStudentId: "zz", score })).toBeNull();
+  });
+});
+
+describe("leaderboardCohort", () => {
+  it("splits at the sixteenth birthday on the Jersey calendar", () => {
+    expect(leaderboardCohort("2010-09-16", "2026-09-16T10:00:00.000Z")).toBe("adult");
+    expect(leaderboardCohort("2010-09-17", "2026-09-16T10:00:00.000Z")).toBe("under16");
+    // 16 Sept 23:30Z is already 17 Sept in Jersey, so the birthday has arrived.
+    expect(leaderboardCohort("2010-09-17", "2026-09-16T23:30:00.000Z")).toBe("adult");
+    expect(leaderboardCohort("1990-01-01", "2026-09-16T10:00:00.000Z")).toBe("adult");
+  });
+
+  it("puts an unreadable date of birth in the narrower cohort", () => {
+    expect(leaderboardCohort("not-a-date", "2026-09-16T10:00:00.000Z")).toBe("under16");
   });
 });
