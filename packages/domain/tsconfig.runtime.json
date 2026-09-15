@@ -26,6 +26,7 @@
     "src/members/member-directory-transitions.ts",
     "src/members/enrolment-request-contracts.ts",
     "src/members/regyfit-member-record-contracts.ts",
+    "src/members/member-engagement-contracts.ts",
     "src/profiles/profile-contracts.ts",
     "src/families/family-contracts.ts",
     "src/memberships/plan-contracts.ts",
