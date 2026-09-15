@@ -55,6 +55,12 @@
   text-transform: uppercase;
 }
 
+/* "Competitors" is one 11-letter word: the global 9ch cap and 3.4rem floor would split it on a phone. */
+.client-destination h1.member-title-compact {
+  font-size: clamp(2rem, 9vw, 7rem);
+  max-width: none;
+}
+
 .member-links {
   display: flex;
   flex-wrap: wrap;

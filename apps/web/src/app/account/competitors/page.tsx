@@ -16,7 +16,9 @@ function CompetitorsContent() {
       <p className="account-eyebrow">
         <Link href="/account">← Back to Account</Link>
       </p>
-      <h1 id="competitors-title">Competitors</h1>
+      <h1 className="member-title-compact" id="competitors-title">
+        Competitors
+      </h1>
       <p className="client-destination-intro">Coming soon.</p>
     </main>
   );
