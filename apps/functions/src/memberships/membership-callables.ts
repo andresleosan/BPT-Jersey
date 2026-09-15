@@ -442,6 +442,7 @@ export async function createMembershipHandler(
   services: MembershipCallableServices,
 ): Promise<MembershipProjection> {
   const actor = await requireReader(request, services);
+  if (actor.role === "teenStudent") permissionDenied();
   const payload = parseCreatePayload(request.data);
   try {
     const scope =
