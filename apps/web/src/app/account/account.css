@@ -560,4 +560,8 @@
   .ready-fill {
     transition: transform 220ms ease;
   }
+
+  .ready-fill::after {
+    transition: transform 220ms ease;
+  }
 }

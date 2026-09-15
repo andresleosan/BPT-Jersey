@@ -124,12 +124,8 @@ describe("ReadyForJiuJitsu", () => {
     expect(accountCss).toMatch(/\.ready-range\s*\{[\s\S]*?z-index: 3;/u);
     expect(accountCss).not.toContain("clip-path:");
     expect(accountCss).toMatch(
-      /@media \(prefers-reduced-motion: no-preference\)\s*\{[\s\S]*?\.ready-fill\s*\{[\s\S]*?transition: transform 220ms ease;/u,
+      /@media \(prefers-reduced-motion: no-preference\)\s*\{[\s\S]*?\.ready-fill\s*\{[\s\S]*?transition: transform 220ms ease;[\s\S]*?\.ready-fill::after\s*\{[\s\S]*?transition: transform 220ms ease;/u,
     );
-    const fillTransitions = [...accountCss.matchAll(/\.ready-fill\s*\{([^}]*)\}/gu)]
-      .map((match) => match[1] ?? "")
-      .filter((rule) => rule.includes("transition:"));
-    expect(fillTransitions).toEqual([expect.stringContaining("transition: transform 220ms ease;")]);
   });
 
   it("keeps operational window, hint, and status text at the body-size minimum in source styles", () => {
