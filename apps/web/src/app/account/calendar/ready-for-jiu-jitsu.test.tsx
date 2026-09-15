@@ -264,6 +264,62 @@ describe("ReadyForJiuJitsu", () => {
     expect(slider().value).toBe("0");
   });
 
+  it("keeps the current sibling hint after a committed check-in", async () => {
+    const getPosition = stubGeolocation((ok) => ok(near));
+    const props = {
+      candidate: { kind: "ready" as const, session },
+      program,
+      studentId: "sam",
+      clockIn: vi.fn().mockResolvedValue(record),
+      onCheckedIn: vi.fn(),
+    };
+    const { rerender } = render(
+      <ReadyForJiuJitsu {...props} siblingHint="Leo is ready too — switch to Leo" />,
+    );
+
+    slideToEnd();
+    await screen.findByRole("heading", { name: "You're in" });
+    expect(screen.getByText("Leo is ready too — switch to Leo")).toBeInTheDocument();
+    expect(getPosition).toHaveBeenCalledTimes(1);
+
+    rerender(<ReadyForJiuJitsu {...props} siblingHint="Maya is ready too — switch to Maya" />);
+    expect(screen.getByText("Maya is ready too — switch to Maya")).toBeInTheDocument();
+    rerender(<ReadyForJiuJitsu {...props} />);
+    expect(screen.queryByText(/is ready too/u)).not.toBeInTheDocument();
+  });
+
+  it("shows the current sibling hint for a coach-derived attendance confirmation", () => {
+    const getPosition = stubGeolocation((ok) => ok(near));
+    const props = {
+      candidate: {
+        kind: "checkedIn" as const,
+        session,
+        attendance: {
+          ...record,
+          method: "manual" as const,
+          state: "late" as const,
+          occurredAt: "2026-09-15T17:04:00.000Z",
+        },
+      },
+      program,
+      studentId: "sam",
+      clockIn: vi.fn(),
+      onCheckedIn: vi.fn(),
+    };
+    const { rerender } = render(
+      <ReadyForJiuJitsu {...props} siblingHint="Leo is ready too — switch to Leo" />,
+    );
+
+    expect(screen.getByRole("heading", { name: "You're in" })).toBeInTheDocument();
+    expect(screen.getByText("18:04 · Late")).toBeInTheDocument();
+    expect(screen.getByText("Leo is ready too — switch to Leo")).toBeInTheDocument();
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+    expect(getPosition).not.toHaveBeenCalled();
+
+    rerender(<ReadyForJiuJitsu {...props} />);
+    expect(screen.queryByText(/is ready too/u)).not.toBeInTheDocument();
+  });
+
   it("shows the confirmation card for an existing record, whoever wrote it", () => {
     render(
       <ReadyForJiuJitsu

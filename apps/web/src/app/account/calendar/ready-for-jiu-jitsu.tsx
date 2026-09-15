@@ -51,7 +51,12 @@ function punctualityLabel(record: AttendanceRecord): string {
 function ConfirmationCard({
   record,
   session,
-}: Readonly<{ record: AttendanceRecord; session: Props["candidate"]["session"] }>) {
+  siblingHint,
+}: Readonly<{
+  record: AttendanceRecord;
+  session: Props["candidate"]["session"];
+  siblingHint?: string;
+}>) {
   const meta = `${session.title} · ${formatSessionTimeRange(session)} · ${sessionSite(session)}`;
 
   return (
@@ -65,6 +70,7 @@ function ConfirmationCard({
       <p aria-live="polite" className="ready-status" role="status">
         You&apos;re checked in.
       </p>
+      {siblingHint ? <p className="ready-hint">{siblingHint}</p> : null}
     </section>
   );
 }
@@ -139,8 +145,21 @@ export function ReadyForJiuJitsu({
   };
 
   if (candidate.kind === "checkedIn")
-    return <ConfirmationCard record={candidate.attendance} session={session} />;
-  if (phase.kind === "success") return <ConfirmationCard record={phase.record} session={session} />;
+    return (
+      <ConfirmationCard
+        record={candidate.attendance}
+        session={session}
+        {...(siblingHint ? { siblingHint } : {})}
+      />
+    );
+  if (phase.kind === "success")
+    return (
+      <ConfirmationCard
+        record={phase.record}
+        session={session}
+        {...(siblingHint ? { siblingHint } : {})}
+      />
+    );
 
   const status =
     phase.kind === "locating"
