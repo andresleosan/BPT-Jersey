@@ -124,7 +124,7 @@ const RESOLUTION_NOTES = {
   T036V2:
     "Issue invoice con búsqueda de miembro y membresía opcional; Record payment solo admite efectivo/transferencia en la UI (Decisión 16 del spec).",
   T037V2:
-    "Enmienda ADR-010 2026-09-14: coach y head coach ven Classes (coach en lectura, `canManage = role !== \"coach\"`) y Levels.",
+    'Enmienda ADR-010 2026-09-14: coach y head coach ven Classes (coach en lectura, `canManage = role !== "coach"`) y Levels.',
   T038V2:
     "Calendario de miembros conectado al contrato v2: conteo real de reservas y ficha con nivel, edad y descripción. `/account` no se puede probar en navegador contra emuladores por App Check fail-closed; verificado por unit + component + callables; verificación final pendiente en staging con `NEXT_PUBLIC_CALENDAR_SOURCE=firebase`.",
   T039V2:
@@ -587,7 +587,9 @@ const RESOLUTION_REQUIREMENTS = {
       "Reverificar con capturas y suites tras los cambios de menú del coach (T037V2). HECHO 2026-09-15 (T039V2).",
       true,
     ),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T028V2: [
     requirement(
@@ -601,51 +603,72 @@ const RESOLUTION_REQUIREMENTS = {
     requirement("Ayuda por botón en la cola de solicitudes.", true),
     requirement("Verificación contra emuladores con caso coach (spec T121).", true),
     requirement("Acceso del coach a la cola y a la devolución de solicitudes.", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T030V2: [
-    requirement("Medical conditions en su propia ruta con \"Show all references\".", true),
+    requirement('Medical conditions en su propia ruta con "Show all references".', true),
     requirement(
       "Callable `saveHealthReferenceLabel` que nunca reciba ni devuelva la nota clínica.",
       true,
     ),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T031V2: [
     requirement("Menú sin Memberships ni Waivers para coach y head coach.", true),
     requirement("Coach y head coach ven Overview, Attendance, Enrolment requests y Medical.", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T032V2: [
-    requirement("Contrato v2 de clases: varios días por semana, rango de nivel y edad, descripción.", true),
+    requirement(
+      "Contrato v2 de clases: varios días por semana, rango de nivel y edad, descripción.",
+      true,
+    ),
     requirement("Generador de sesiones a partir de las reglas de recurrencia.", true),
     requirement("Formulario móvil de alta de clase.", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T033V2: [
     requirement("Callable updateSession para editar una sesión existente.", true),
     requirement("Callable removeClass que cancela las sesiones futuras de la clase.", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T034V2: [
     requirement("Levels como fichas de cinturón con stripes.", true),
     requirement("Filtros por edad y por color de cinturón.", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T035V2: [
     requirement("Billing como home financiero con los últimos 20 pagos.", true),
     requirement("Historial de pagos por miembro con operativa plegada.", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T036V2: [
     requirement("Issue invoice con búsqueda de miembro y membresía opcional.", true),
     requirement("Record payment restringido a efectivo o transferencia (Decisión 16).", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T037V2: [
     requirement("Coach ve Classes en modo lectura.", true),
     requirement("Coach y head coach ven Levels.", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
   ],
   T038V2: [
     requirement("Calendario de miembros conectado al conteo real de reservas.", true),
@@ -655,7 +678,29 @@ const RESOLUTION_REQUIREMENTS = {
   T039V2: [
     requirement("Capturas nuevas de las cinco specs de coach (T027V2-T031V2).", true),
     requirement("Suites web y node en verde tras la reverificación.", true),
-     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+    requirement(
+      "Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora.",
+    ),
+  ],
+  T040V2: [
+    requirement(
+      "Reglas puras con pruebas: ventana, open mat, candidato, parser, puerta. HECHO EL 2026-09-15.",
+      true,
+    ),
+    requirement(
+      "Callable selfCheckIn con puerta en el servidor y prueba de que no se persiste ninguna coordenada. HECHO EL 2026-09-15.",
+      true,
+    ),
+    requirement(
+      "Tarjeta en /account, primera del todo, con Playwright en :9471 y geolocalización real. HECHO EL 2026-09-15.",
+      true,
+    ),
+    requirement(
+      "Desplegar functions:selfCheckIn y cargar los pines de Town y West en el panel de sedes.",
+    ),
+    requirement(
+      "Verificar el adaptador Firebase en la ejecución específica de selfCheckIn contra el emulador (Task12; línea base Java 21 en verde).",
+    ),
   ],
 };
 
@@ -990,7 +1035,11 @@ const adminItems = [
     "La cabecera decía el rol y no la persona. Falta verlo en producción con las dos cuentas reales.",
     "-",
     "Pedido por el operador el 2026-09-10. En una plataforma donde cada cambio se registra con quién lo hizo, no saber con qué cuenta estás dentro es un riesgo real de operar con la equivocada, y este ledger ya tiene el caso: la sesión del 2026-09-09 confundió dos cuentas de Google del propio operador. No hubo que traer ningún dato: `AdminSession` y `StaffSession` ya llevaban `displayName` y `email`, así que es presentación y no plomería. Cubre el turno administrativo y el de entrenador, que comparten `AdminShell`; el portal de cliente no entra y así queda declarado. El caso borde lleva prueba propia porque está verificado contra producción: hay una cuenta administrativa de proveedor `password` sin `displayName`, y cuando el nombre falta el correo ocupa su línea sin repetirse debajo. El correo es texto largo sin espacios donde partir, así que la pastilla encoge en vez de desbordar y las líneas parten en cualquier punto.",
-    [REF_TASKS, "apps/web/src/app/admin/admin-shell.tsx:267", "apps/web/src/lib/admin-auth.tsx:15-21"],
+    [
+      REF_TASKS,
+      "apps/web/src/app/admin/admin-shell.tsx:267",
+      "apps/web/src/lib/admin-auth.tsx:15-21",
+    ],
     "funcion",
   ),
   task(
@@ -1025,7 +1074,7 @@ const adminItems = [
   ),
   task(
     "T030V2",
-    "Medical conditions en su ruta con \"Show all references\"",
+    'Medical conditions en su ruta con "Show all references"',
     "revision",
     "Nuevo callable `listHealthReferences` (nombre + etiqueta, nunca el resumen).",
     "-",
@@ -1104,7 +1153,7 @@ const adminItems = [
     "revision",
     "Enmienda ADR-010 2026-09-14.",
     "T031V2",
-    "Commits 10debfd, d1529f6 (canManage = role !== \"coach\"). Playwright (Task 24) 16 passed / 2 skipped, captura admin-shell-coach-desktop-chromium.png. Sin despliegue.",
+    'Commits 10debfd, d1529f6 (canManage = role !== "coach"). Playwright (Task 24) 16 passed / 2 skipped, captura admin-shell-coach-desktop-chromium.png. Sin despliegue.',
     [REF_TASKS, "apps/web/src/app/admin/admin-routes.ts", "docs/adr"],
     "funcion",
   ),
@@ -1126,6 +1175,20 @@ const adminItems = [
     "T027V2",
     "Commit 05020d6. Suites web 7 archivos / 61 passed; suites node 5 archivos / 69 passed. Playwright (Task 24) 16 passed / 2 skipped, capturas overview/attendance/enrolment/medical/admin-shell. Observación preexistente fuera de alcance: etiqueta lima de la banda de cumpleaños (T027V2). Sin despliegue.",
     [REF_TASKS],
+    "funcion",
+  ),
+  task(
+    "T040V2",
+    "Slider «Ready for Jiu Jitsu»: check-in del propio miembro con puerta de 50 m en el servidor",
+    "revision",
+    "El miembro se marca presente desde su móvil una hora antes; el servidor decide si está en el gimnasio.",
+    "-",
+    "Construido el 2026-09-15 con el mismo patrón que el calendario: reglas puras, callable propio junto al de staff, puerto con fixture viva y adaptador Firebase escrito. Las coordenadas se usan para una distancia y no se guardan, registran ni auditan; hay prueba de fuga. Cualquier asistencia, sea del coach o del miembro, esconde el slider: esa es la costura con el equipo de coaches. La línea base del arnés de emulador pasó en contenedor aislado Java 21; la verificación específica de selfCheckIn queda en Task12.",
+    [
+      REF_TASKS,
+      "docs/superpowers/specs/2026-09-14-ready-for-jiu-jitsu-self-check-in-design.md",
+      "apps/functions/src/schedule/attendance-transaction-service.ts",
+    ],
     "funcion",
   ),
 ];
@@ -1272,6 +1335,49 @@ const TASK_SURFACES = {
 
   T027V2: ["apps/web/src/app/admin/overview-page.tsx"],
   T028V2: ["apps/web/src/app/admin/attendance"],
+  T040V2: [
+    "PRODUCT.md",
+    "DESIGN.md",
+    "packages/domain/package.json",
+    "packages/domain/tsconfig.runtime.json",
+    "packages/domain/src/actor-context.ts",
+    "packages/domain/src/contracts.test.ts",
+    "packages/domain/src/schedule/schedule-contracts.ts",
+    "packages/domain/src/schedule/self-check-in-contracts.ts",
+    "packages/domain/src/schedule/self-check-in-contracts.test.ts",
+    "apps/functions/src/deploy-runtime.ts",
+    "apps/functions/src/deploy-runtime.test.ts",
+    "apps/functions/src/auth/user-authorization.test.ts",
+    "apps/functions/src/schedule/attendance-transaction-service.ts",
+    "apps/functions/src/schedule/canonical-client-student-scope.ts",
+    "apps/functions/src/schedule/canonical-client-student-scope.test.ts",
+    "apps/functions/src/schedule/schedule-callables.ts",
+    "apps/functions/src/schedule/schedule-callables.test.ts",
+    "apps/functions/src/schedule/schedule-security-boundary.test.ts",
+    "apps/functions/src/schedule/schedule-service.ts",
+    "apps/functions/src/index.ts",
+    "apps/web/src/app/account/account.css",
+    "apps/web/src/app/account/calendar/ready-for-jiu-jitsu.tsx",
+    "apps/web/src/app/account/calendar/ready-for-jiu-jitsu.test.tsx",
+    "apps/web/src/app/account/calendar/member-calendar.tsx",
+    "apps/web/src/app/account/calendar/member-calendar.test.tsx",
+    "apps/web/src/app/accounts/page.tsx",
+    "apps/web/src/lib/self-check-in-position.ts",
+    "apps/web/src/lib/self-check-in-position.test.ts",
+    "apps/web/src/lib/calendar/calendar-repository.ts",
+    "apps/web/src/lib/calendar/fixture-calendar-repository.ts",
+    "apps/web/src/lib/calendar/fixture-calendar-repository.test.ts",
+    "apps/web/src/lib/calendar/firebase-calendar-repository.ts",
+    "apps/web/src/lib/calendar/firebase-calendar-repository.test.ts",
+    "apps/web/src/lib/calendar/index.ts",
+    "apps/web/src/lib/calendar/index.test.ts",
+    "apps/web/src/lib/calendar/self-check-in-messages.ts",
+    "apps/web/src/lib/calendar/self-check-in-messages.test.ts",
+    "apps/web/src/lib/schedule-client.ts",
+    "apps/web/src/lib/schedule-client.test.ts",
+    "qa/tests/account-self-check-in.spec.ts",
+    "qa/scripts/account-self-check-in-shots.mjs",
+  ],
   T029V2: ["apps/web/src/app/admin/members/requests/page.tsx"],
   T030V2: ["apps/functions/src/health", "apps/web/src/app/admin/members/medical"],
   T031V2: ["apps/web/src/app/admin/admin-routes.ts", "apps/web/src/app/admin/admin-shell.tsx"],

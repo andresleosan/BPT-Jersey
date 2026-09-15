@@ -649,7 +649,7 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
 }
 
 /**
- * T032V2: members record their own attendance. The store judges the booking, server-time window,
+ * T040V2: members record their own attendance. The store judges the booking, server-time window,
  * and 50 m eligibility gate; this callable never stores, logs, audits, or echoes coordinates.
  */
 export function createSelfCheckInHandler(options: StudentScopeOptions) {

@@ -78,6 +78,11 @@ cobros online reales y mensajería externa no bloquean este piloto.
    de la deuda y de la nueva sesión.
 5. El radio de 50 metros es una señal de elegibilidad para check-in, no prueba absoluta. No se
    guardan coordenadas; staff puede aplicar override con motivo y auditoría.
+   **Enmendada el 2026-09-15 (fila T040V2).** Para el **check-in del propio miembro** desde `/account`
+   el radio es una puerta dura sin override: el servidor calcula la distancia con las coordenadas
+   que envía el teléfono, exige precisión ≤ 100 m y distancia ≤ 50 m, y descarta las coordenadas sin
+   guardarlas ni registrarlas. El check-in de staff no cambia: sigue siendo señal más override con
+   motivo y auditoría.
 6. ~~Los menores no tienen cuenta propia.~~ El tutor gestiona registro, consentimiento, bookings y
    progreso. A los 12 años, head coach puede asignar Kids o Teens; Teens es la sugerencia.
    **Enmendada el 2026-09-09 (decisión D1 del operador, fila T009V2).** El menor **sí** tiene cuenta

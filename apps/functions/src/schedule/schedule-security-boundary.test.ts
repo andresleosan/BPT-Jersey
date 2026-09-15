@@ -551,7 +551,7 @@ describe("site geofence writer at the transaction boundary (T109)", () => {
   });
 });
 
-describe("member self check-in at the transaction boundary (T032V2)", () => {
+describe("member self check-in at the transaction boundary (T040V2)", () => {
   const town = { latitude: 49.183954, longitude: -2.107142 };
   const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
   const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };

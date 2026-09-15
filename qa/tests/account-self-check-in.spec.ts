@@ -15,7 +15,9 @@ function redact(message: string): string {
 }
 
 function viewportFor(projectName: string) {
-  return projectName === "mobile-chromium" ? { width: 390, height: 844 } : { width: 1280, height: 800 };
+  return projectName === "mobile-chromium"
+    ? { width: 390, height: 844 }
+    : { width: 1280, height: 800 };
 }
 
 async function signIn(page: Page, email: string, path = "/login"): Promise<void> {
@@ -56,10 +58,18 @@ async function delayActualGeolocation(context: BrowserContext): Promise<void> {
     const nativeGetCurrentPosition = geolocation.getCurrentPosition.bind(geolocation);
     Object.defineProperty(geolocation, "getCurrentPosition", {
       configurable: true,
-      value: (onSuccess: PositionCallback, onError?: PositionErrorCallback | null, options?: PositionOptions) => {
+      value: (
+        onSuccess: PositionCallback,
+        onError?: PositionErrorCallback | null,
+        options?: PositionOptions,
+      ) => {
         const countedWindow = window as Window & { __readyLocationRequests?: number };
         countedWindow.__readyLocationRequests = (countedWindow.__readyLocationRequests ?? 0) + 1;
-        nativeGetCurrentPosition((position) => window.setTimeout(() => onSuccess(position), 2_000), onError, options);
+        nativeGetCurrentPosition(
+          (position) => window.setTimeout(() => onSuccess(position), 2_000),
+          onError,
+          options,
+        );
       },
     });
   });
@@ -143,7 +153,10 @@ test.describe("Ready for Jiu Jitsu @account", () => {
     expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
   });
 
-  test("uses the /accounts alias, then End to check in and persists the confirmation after reload", async ({ page, context }) => {
+  test("uses the /accounts alias, then End to check in and persists the confirmation after reload", async ({
+    page,
+    context,
+  }) => {
     await context.grantPermissions(["geolocation"]);
     await context.setGeolocation(town);
     await page.goto("/accounts");
@@ -168,7 +181,10 @@ test.describe("Ready for Jiu Jitsu @account", () => {
     await expect(page.getByRole("heading", { name: "You're in" })).toBeVisible();
   });
 
-  test("keeps actual ArrowRight progress below 95 and commits when the native range reaches 95", async ({ page, context }) => {
+  test("keeps actual ArrowRight progress below 95 and commits when the native range reaches 95", async ({
+    page,
+    context,
+  }) => {
     await context.grantPermissions(["geolocation"]);
     await context.setGeolocation(town);
     await signIn(page, "teen@bpt.test");
@@ -179,7 +195,10 @@ test.describe("Ready for Jiu Jitsu @account", () => {
     await expect(page.getByRole("heading", { name: "You're in" })).toBeVisible();
   });
 
-  test("holds locating for the genuine location callback and ignores a duplicate pointer gesture", async ({ page, context }) => {
+  test("holds locating for the genuine location callback and ignores a duplicate pointer gesture", async ({
+    page,
+    context,
+  }) => {
     await context.grantPermissions(["geolocation"]);
     await context.setGeolocation(town);
     await delayActualGeolocation(context);
@@ -189,17 +208,28 @@ test.describe("Ready for Jiu Jitsu @account", () => {
     await expect(slider(page)).toBeDisabled();
     await repeatPointer(page);
     await expect(page.getByRole("status")).toHaveText("Checking you're at the gym…");
-    await expect.poll(() => page.evaluate(() => (window as Window & { __readyLocationRequests?: number }).__readyLocationRequests)).toBe(1);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as Window & { __readyLocationRequests?: number }).__readyLocationRequests,
+        ),
+      )
+      .toBe(1);
     await expect(page.getByRole("heading", { name: "You're in" })).toBeVisible();
   });
 
-  test("refuses distance, reports CDP-denied location, and lets a guardian switch to the ready sibling", async ({ page, context }) => {
+  test("refuses distance, reports CDP-denied location, and lets a guardian switch to the ready sibling", async ({
+    page,
+    context,
+  }) => {
     await context.grantPermissions(["geolocation"]);
     await context.setGeolocation(far);
     await signIn(page, "teen@bpt.test");
     await slider(page).focus();
     await page.keyboard.press("End");
-    await expect(page.getByRole("status")).toHaveText("You're 120 m away. Get to the gym and try again.");
+    await expect(page.getByRole("status")).toHaveText(
+      "You're 120 m away. Get to the gym and try again.",
+    );
     await expect(slider(page)).toHaveValue("0");
     await denyGeolocation(page, context);
     const deniedClockInCalls = await fixtureClockInCallsDuring(page, context, async () => {

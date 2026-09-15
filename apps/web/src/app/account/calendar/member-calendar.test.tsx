@@ -320,7 +320,7 @@ describe("MemberCalendar", () => {
       await screen.findByText("Maya is ready too — switch to Maya");
     });
 
-    it("re-reads the week every 60 s while a window is open", async () => {
+    it("re-reads the week every 60 s while a window is open across minute-clock ticks", async () => {
       stubViewport(false);
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const repository = createFixtureCalendarRepository("teenStudent");
@@ -333,6 +333,11 @@ describe("MemberCalendar", () => {
         await vi.advanceTimersByTimeAsync(60_000);
       });
       expect(loadWeek.mock.calls.length).toBeGreaterThan(before);
+      const afterFirstMinute = loadWeek.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(loadWeek.mock.calls.length).toBeGreaterThan(afterFirstMinute);
     });
 
     it("replaces the slider when a silent poll finds coach attendance", async () => {

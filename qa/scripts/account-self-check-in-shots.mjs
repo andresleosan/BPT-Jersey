@@ -6,8 +6,16 @@ const base = process.env.ACCOUNT_BASE_URL ?? "https://optimyze-vps-de-prod.tail2
 const password = "Passw0rd!";
 const town = { latitude: 49.183954, longitude: -2.107142, accuracy: 12 };
 const far = { latitude: 49.185034, longitude: -2.107142, accuracy: 12 };
-const viewports = [["phone", { width: 390, height: 844 }], ["desktop", { width: 1280, height: 800 }]];
-const states = [["idle", town], ["locating", town], ["done", town], ["refused", far]];
+const viewports = [
+  ["phone", { width: 390, height: 844 }],
+  ["desktop", { width: 1280, height: 800 }],
+];
+const states = [
+  ["idle", town],
+  ["locating", town],
+  ["done", town],
+  ["refused", far],
+];
 const selectedViewports = process.env.ACCOUNT_SCREENSHOT_VIEWPORT
   ? viewports.filter(([name]) => name === process.env.ACCOUNT_SCREENSHOT_VIEWPORT)
   : viewports;
@@ -16,7 +24,9 @@ const selectedStates = process.env.ACCOUNT_SCREENSHOT_STATE
   : states;
 
 if (selectedViewports.length === 0 || selectedStates.length === 0) {
-  throw new Error("ACCOUNT_SCREENSHOT_VIEWPORT must be phone or desktop; ACCOUNT_SCREENSHOT_STATE must be idle, locating, done, or refused.");
+  throw new Error(
+    "ACCOUNT_SCREENSHOT_VIEWPORT must be phone or desktop; ACCOUNT_SCREENSHOT_STATE must be idle, locating, done, or refused.",
+  );
 }
 
 function redact(message) {
@@ -47,14 +57,23 @@ async function delayActualGeolocation(context) {
     Object.defineProperty(geolocation, "getCurrentPosition", {
       configurable: true,
       value(onSuccess, onError, options) {
-        nativeGetCurrentPosition((position) => window.setTimeout(() => onSuccess(position), 2_000), onError, options);
+        nativeGetCurrentPosition(
+          (position) => window.setTimeout(() => onSuccess(position), 2_000),
+          onError,
+          options,
+        );
       },
     });
   });
 }
 
 async function capture(browser, state, name, viewport, geolocation) {
-  const context = await browser.newContext({ geolocation, ignoreHTTPSErrors: true, permissions: ["geolocation"], viewport });
+  const context = await browser.newContext({
+    geolocation,
+    ignoreHTTPSErrors: true,
+    permissions: ["geolocation"],
+    viewport,
+  });
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(redact(error.message)));
@@ -66,7 +85,10 @@ async function capture(browser, state, name, viewport, geolocation) {
     await login(page);
     if (state === "locating") {
       await commitWithEnd(page);
-      await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent === "Checking you're at the gym…");
+      await page.waitForFunction(
+        () =>
+          document.querySelector('[role="status"]')?.textContent === "Checking you're at the gym…",
+      );
     } else if (state === "done") {
       await commitWithEnd(page);
       await page.waitForSelector(".ready-card--done");
@@ -75,8 +97,12 @@ async function capture(browser, state, name, viewport, geolocation) {
       await page.waitForSelector(".ready-status--refused");
     }
     if (errors.length) throw new Error(`Browser errors: ${errors.join(" | ")}`);
-    const dimensions = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
-    if (dimensions.scrollWidth > dimensions.clientWidth) throw new Error(`Horizontal overflow: ${dimensions.scrollWidth} > ${dimensions.clientWidth}`);
+    const dimensions = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    if (dimensions.scrollWidth > dimensions.clientWidth)
+      throw new Error(`Horizontal overflow: ${dimensions.scrollWidth} > ${dimensions.clientWidth}`);
     const path = `screenshots/ready-${state}-${name}.png`;
     await page.screenshot({ path, fullPage: true });
     console.log(path);
