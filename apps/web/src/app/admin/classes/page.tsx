@@ -331,6 +331,12 @@ export function ClassesPage() {
       setDialogError("Minimum participants cannot exceed capacity.");
       return;
     }
+    const startAt = localDateTimeToIso(draft.startAt);
+    const endAt = localDateTimeToIso(draft.endAt);
+    if (endAt <= startAt) {
+      setDialogError("End time must be after the start time.");
+      return;
+    }
     setDialogBusy(true);
     setDialogError("");
     try {
@@ -338,8 +344,8 @@ export function ClassesPage() {
         sessionId: dialog.sessionId,
         title: draft.title.trim(),
         instructorId: draft.instructorId,
-        startAt: localDateTimeToIso(draft.startAt),
-        endAt: localDateTimeToIso(draft.endAt),
+        startAt,
+        endAt,
         capacity: draft.capacity,
         minParticipants: draft.minParticipants,
         description: draft.description.trim(),

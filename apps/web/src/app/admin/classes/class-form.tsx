@@ -121,6 +121,7 @@ function validateCommon(draft: ClassDraft): string | undefined {
     return "Every day needs a start time.";
   if (draft.instructorIds.length === 0) return "Pick at least one coach.";
   if (draft.minParticipants > draft.capacity) return "Minimum participants cannot exceed capacity.";
+  if (draft.ageRange && Number.isNaN(draft.ageRange.minAge)) return "Enter both ages.";
   if (
     draft.ageRange &&
     draft.ageRange.maxAge !== null &&
@@ -436,13 +437,13 @@ export function ClassForm({ activeStaff, belts, catalog, draft, mode, onChange }
                 onChange={(e) =>
                   set({
                     ageRange: {
-                      minAge: Number(e.target.value),
+                      minAge: e.target.value === "" ? NaN : Number(e.target.value),
                       maxAge: draft.ageRange?.maxAge ?? null,
                     },
                   })
                 }
                 type="number"
-                value={draft.ageRange.minAge}
+                value={Number.isNaN(draft.ageRange.minAge) ? "" : draft.ageRange.minAge}
               />
             </label>
             <label className="schedule-admin-field">
