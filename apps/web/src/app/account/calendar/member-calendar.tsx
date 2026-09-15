@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   deriveSessionStatus,
@@ -10,8 +10,12 @@ import {
   type CalendarDay,
   type CalendarViewport,
 } from "@bpt-jersey/domain/schedule/member-calendar";
-import type { BookingRecord } from "@bpt-jersey/domain/schedule";
+import type { AttendanceRecord, BookingRecord } from "@bpt-jersey/domain/schedule";
 import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
+import {
+  nextSelfCheckInSession,
+  type SelfCheckInCandidate,
+} from "@bpt-jersey/domain/schedule/self-check-in";
 
 import type {
   CalendarMember,
@@ -27,11 +31,13 @@ import { CalendarHeader } from "./calendar-header";
 import { CancelDialog } from "./cancel-dialog";
 import { DayColumn } from "./day-column";
 import { PenaltyBanner } from "./penalty-banner";
+import { ReadyForJiuJitsu } from "./ready-for-jiu-jitsu";
 import type { CalendarEntry } from "./session-card";
 
 const desktopQuery = "(min-width: 58rem)";
 const bookedNote = "Booked. Missing it costs £15.";
 const noteLifetimeMs = 4000;
+const pollIntervalMs = 60_000;
 
 type MemberCalendarProps = Readonly<{
   repository: CalendarRepository;
@@ -81,12 +87,20 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [memberState, setMemberState] = useState<LoadState>("loading");
   const [week, setWeek] = useState<CalendarWeekData>();
+  const [weekStudentId, setWeekStudentId] = useState("");
   const [weekState, setWeekState] = useState<LoadState>("loading");
   const [penalties, setPenalties] = useState<readonly NoShowPenaltyRecord[]>([]);
   const [busyKey, setBusyKey] = useState("");
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   const [cancelling, setCancelling] = useState<CalendarEntry>();
   const [reloadToken, setReloadToken] = useState(0);
+  const [pollToken, setPollToken] = useState(0);
+  const silentReload = useRef(false);
+  const weekRevision = useRef(0);
+  const [siblingReady, setSiblingReady] = useState<Readonly<{
+    studentId: string;
+    names: readonly string[];
+  }>>({ studentId: "", names: [] });
 
   const days = useMemo(() => visibleDays({ now, viewport, offset }), [now, viewport, offset]);
   const rangeFrom = days[0]?.startAt ?? "";
@@ -99,11 +113,17 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   useEffect(() => {
     let active = true;
     setMemberState("loading");
+    weekRevision.current += 1;
+    setWeek(undefined);
+    setWeekStudentId("");
+    setPenalties([]);
+    setSiblingReady({ studentId: "", names: [] });
     repository
       .loadMember()
       .then((loaded) => {
         if (!active) return;
         setMember(loaded);
+        setSiblingReady({ studentId: "", names: [] });
         setSelectedStudentId((current) =>
           loaded.participants.some((p) => p.studentId === current)
             ? current
@@ -122,35 +142,42 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   useEffect(() => {
     if (!selectedStudentId || !rangeFrom || !rangeTo) return;
     let active = true;
-    setWeekState("loading");
+    const requestedStudentId = selectedStudentId;
+    const requestedRevision = weekRevision.current;
+    if (!silentReload.current) setWeekState("loading");
+    silentReload.current = false;
     Promise.all([
-      repository.loadWeek(selectedStudentId, rangeFrom, rangeTo),
-      repository.loadPenalties(selectedStudentId),
+      repository.loadWeek(requestedStudentId, rangeFrom, rangeTo),
+      repository.loadPenalties(requestedStudentId),
     ])
       .then(([loadedWeek, loadedPenalties]) => {
-        if (!active) return;
+        if (!active || requestedRevision !== weekRevision.current) return;
         setWeek(loadedWeek);
+        setWeekStudentId(requestedStudentId);
         setPenalties(loadedPenalties);
         setWeekState("ready");
       })
       .catch(() => {
-        if (active) setWeekState("error");
+        if (active && requestedRevision === weekRevision.current) setWeekState("error");
       });
     return () => {
       active = false;
     };
-  }, [repository, selectedStudentId, rangeFrom, rangeTo, reloadToken]);
+  }, [repository, selectedStudentId, rangeFrom, rangeTo, reloadToken, pollToken]);
 
   const participant = member?.participants.find((p) => p.studentId === selectedStudentId);
+  const selectedWeek = weekStudentId === selectedStudentId ? week : undefined;
 
   const entriesByDay = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
-    if (!week || !participant) return map;
-    const programs = new Map(week.programs.map((p) => [p.programId, p]));
+    if (!selectedWeek || !participant) return map;
+    const programs = new Map(selectedWeek.programs.map((p) => [p.programId, p]));
     const bookings = new Map(
-      week.bookings.filter((b) => b.status !== "cancelled").map((b) => [b.sessionId, b]),
+      selectedWeek.bookings
+        .filter((b) => b.status !== "cancelled")
+        .map((b) => [b.sessionId, b]),
     );
-    const attendance = new Map(week.attendance.map((a) => [a.sessionId, a]));
+    const attendance = new Map(selectedWeek.attendance.map((a) => [a.sessionId, a]));
     const memberContext = {
       studentId: participant.studentId,
       membershipId: participant.membershipId,
@@ -158,7 +185,7 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
       planClassSites: participant.planClassSites,
       planOpenMatSites: participant.planOpenMatSites,
     };
-    const sorted = [...week.sessions]
+    const sorted = [...selectedWeek.sessions]
       .filter((s) => s.status !== "cancelled")
       .sort((a, b) => a.startAt.localeCompare(b.startAt));
     for (const sessionRecord of sorted) {
@@ -172,7 +199,7 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
         member: memberContext,
         booking,
         attendance: attendance.get(sessionRecord.sessionId),
-        bookedCount: week.bookedCounts[sessionRecord.sessionId] ?? 0,
+        bookedCount: selectedWeek.bookedCounts[sessionRecord.sessionId] ?? 0,
         now,
       });
       const list = map.get(day.dateKey) ?? [];
@@ -180,7 +207,61 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
       map.set(day.dateKey, list);
     }
     return map;
-  }, [week, participant, days, now]);
+  }, [selectedWeek, participant, days, now]);
+
+  const candidate: SelfCheckInCandidate | undefined = useMemo(
+    () =>
+      selectedWeek && participant
+        ? nextSelfCheckInSession({ ...selectedWeek, nowMs: now.getTime() })
+        : undefined,
+    [selectedWeek, participant, now],
+  );
+  const candidateProgram = candidate
+    ? selectedWeek?.programs.find((program) => program.programId === candidate.session.programId)
+    : undefined;
+  const minuteKey = Math.floor(now.getTime() / pollIntervalMs);
+
+  useEffect(() => {
+    const others = (member?.participants ?? []).filter((p) => p.studentId !== selectedStudentId);
+    if (member?.role !== "guardian" || others.length === 0) {
+      setSiblingReady({ studentId: selectedStudentId, names: [] });
+      return;
+    }
+    let active = true;
+    const from = new Date(now.getTime() - 3 * 3600000).toISOString();
+    const to = new Date(now.getTime() + 3 * 3600000).toISOString();
+    Promise.all(
+      others.map(async (p) => {
+        const data = await repository.loadWeek(p.studentId, from, to);
+        return nextSelfCheckInSession({ ...data, nowMs: now.getTime() })?.kind === "ready"
+          ? p.firstName
+          : undefined;
+      }),
+    )
+      .then((names) => {
+        if (active) {
+          setSiblingReady({
+            studentId: selectedStudentId,
+            names: names.filter((name): name is string => Boolean(name)),
+          });
+        }
+      })
+      .catch(() => {
+        if (active) setSiblingReady({ studentId: selectedStudentId, names: [] });
+      });
+    return () => {
+      active = false;
+    };
+  }, [member, selectedStudentId, repository, pollToken, minuteKey, now]);
+
+  useEffect(() => {
+    if (!candidate) return;
+    const timer = setInterval(() => {
+      silentReload.current = true;
+      setPollToken((value) => value + 1);
+    }, pollIntervalMs);
+    return () => clearInterval(timer);
+  }, [candidate?.kind, candidate?.session.sessionId]);
 
   const applyBooking = useCallback((replacement: BookingRecord) => {
     setWeek((current) => {
@@ -188,6 +269,25 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
       const others = current.bookings.filter((b) => b.sessionId !== replacement.sessionId);
       return { ...current, bookings: [replacement, ...others] };
     });
+  }, []);
+
+  const handleCheckedIn = useCallback((record: AttendanceRecord) => {
+    weekRevision.current += 1;
+    setWeek((current) => {
+      if (!current) return current;
+      const others = current.attendance.filter((attendance) => attendance.sessionId !== record.sessionId);
+      return { ...current, attendance: [record, ...others] };
+    });
+  }, []);
+
+  const handleSelectStudent = useCallback((studentId: string) => {
+    silentReload.current = false;
+    weekRevision.current += 1;
+    setWeek(undefined);
+    setWeekStudentId("");
+    setPenalties([]);
+    setSiblingReady({ studentId, names: [] });
+    setSelectedStudentId(studentId);
   }, []);
 
   const flashNote = useCallback((sessionId: string, text: string) => {
@@ -249,9 +349,24 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   const weekStyle = { "--week-columns": weekColumns } as React.CSSProperties;
   const failed = memberState === "error" || weekState === "error";
   const loading = memberState === "loading" || weekState === "loading";
+  const siblingHint =
+    siblingReady.studentId === selectedStudentId && siblingReady.names.length > 0
+      ? siblingReady.names[0] + " is ready too — switch to " + siblingReady.names[0]
+      : undefined;
 
   return (
     <main className="member-app">
+      {!failed && weekState === "ready" && candidate && participant ? (
+        <ReadyForJiuJitsu
+          candidate={candidate}
+          clockIn={(input) => repository.clockIn(input)}
+          key={participant.studentId + ":" + candidate.session.sessionId}
+          onCheckedIn={handleCheckedIn}
+          studentId={participant.studentId}
+          {...(candidateProgram ? { program: candidateProgram } : {})}
+          {...(siblingHint ? { siblingHint } : {})}
+        />
+      ) : null}
       <CalendarHeader
         canNext={!failed && next !== null}
         canPrev={!failed && prev !== null}
@@ -259,7 +374,7 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
         displayName={session.displayName}
         onNext={() => next !== null && setOffset(next)}
         onPrev={() => prev !== null && setOffset(prev)}
-        onSelectStudent={setSelectedStudentId}
+        onSelectStudent={handleSelectStudent}
         onSignOut={onSignOut}
         participants={member?.participants ?? []}
         selectedStudentId={selectedStudentId}
