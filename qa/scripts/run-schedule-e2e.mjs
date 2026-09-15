@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 // `firebase emulators:exec --only auth,firestore,functions` with the flags below.
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const projectId = "demo-bpt-jersey";
+const selfCheckInAdultEmail = "t040-adult@example.test";
 
 if (
   process.env.T096_SCHEDULE_EMULATOR_E2E !== "true" ||
@@ -94,6 +95,14 @@ run(["qa/scripts/seed-onboarding-emulator.mjs"], {
   T094_ADULT_EMAIL: adultEmail,
   T094_GUARDIAN_EMAIL: `t096-unused-guardian@example.test`,
 });
+// T040 owns a separate synthetic adult because the baseline adult receives an active membership
+// in the first API test, and membership rules correctly reject a second current membership.
+run(["qa/scripts/seed-onboarding-emulator.mjs"], {
+  T094_E2E_ACADEMY_ID: academyId,
+  T094_E2E_PASSWORD: password,
+  T094_ADULT_EMAIL: selfCheckInAdultEmail,
+  T094_GUARDIAN_EMAIL: "t040-unused-guardian@example.test",
+});
 run([
   "apps/functions/scripts/member-directory-empty-initialize.mjs",
   `--academy-id=${academyId}`,
@@ -111,5 +120,6 @@ run(
     AUTH_EMULATOR_E2E: "true",
     // The spec drives callables directly, so no static web server is needed.
     BASE_URL: `http://127.0.0.1:${functionsPort}`,
+    T040_ADULT_EMAIL: selfCheckInAdultEmail,
   },
 );

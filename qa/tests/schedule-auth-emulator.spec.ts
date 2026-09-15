@@ -20,9 +20,14 @@ const functionsBaseUrl = `http://127.0.0.1:${functionsPort}/${projectId}/us-cent
 const authUrl = `http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo`;
 const firestoreRestBase = `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents`;
 
+type CallableError = Readonly<{
+  message?: string;
+  status?: string;
+  details?: Readonly<{ reason?: string; distanceMeters?: number }>;
+}>;
 type CallableEnvelope = Readonly<{
   result?: unknown;
-  error?: Readonly<{ message?: string; status?: string }>;
+  error?: CallableError;
 }>;
 type Session = Readonly<{ idToken: string; uid: string }>;
 type ScheduleSession = Readonly<{
@@ -943,6 +948,96 @@ test.describe("T096 class operations with Firebase Emulators", () => {
     }
   });
 
+  test("selfCheckIn records a nearby booked adult and refuses an outside position @critical", async ({
+    request,
+  }) => {
+    test.setTimeout(180_000);
+    const owner = await signIn(request, process.env.T096_OWNER_EMAIL);
+    const adult = await signIn(request, process.env.T040_ADULT_EMAIL);
+    const suffix = randomUUID().replace(/-/gu, "").slice(0, 8).toLowerCase();
+    const { studentId, membershipId } = await enrolAdult(request, owner, adult, suffix);
+    const townGeofence = { latitude: 49.183954, longitude: -2.107142 };
+    await ok(
+      request,
+      "saveLocationGeofence",
+      { locationId: "town", geofence: townGeofence },
+      owner,
+    );
+    const { program } = await ok<{ program: { programId: string } }>(
+      request,
+      "saveProgram",
+      {
+        name: `T040 Adult BJJ ${suffix}`,
+        ageBand: "adult",
+        discipline: "bjj",
+        level: "all-levels",
+      },
+      owner,
+    );
+    const created = (
+      await ok<{ session: ScheduleSession }>(
+        request,
+        "saveSession",
+        sessionInput(program.programId, owner.uid, "town", 2 * hour, `T040 Check-in ${suffix}`),
+        owner,
+      )
+    ).session;
+    await ok(
+      request,
+      "requestBooking",
+      { sessionId: created.sessionId, studentId, membershipId },
+      adult,
+    );
+    const startAt = new Date(Date.now() + 30 * 60_000).toISOString();
+    const endAt = new Date(Date.now() + 90 * 60_000).toISOString();
+    await ok(request, "updateSession", { sessionId: created.sessionId, startAt, endAt }, owner);
+
+    const outsidePosition = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
+    const outside = await call(
+      request,
+      "selfCheckIn",
+      { sessionId: created.sessionId, studentId, position: outsidePosition },
+      { session: adult },
+    );
+    expect(outside.status).toBe(400);
+    expect(outside.body.error?.status).toBe("FAILED_PRECONDITION");
+    expect(outside.body.error?.details).toEqual({ reason: "outside", distanceMeters: 120 });
+
+    const insidePosition = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
+    const inside = await ok<{ attendance: Attendance }>(
+      request,
+      "selfCheckIn",
+      { sessionId: created.sessionId, studentId, position: insidePosition },
+      adult,
+    );
+    expect(inside.attendance).toMatchObject({ method: "self", state: "attended", studentId });
+    const replay = await ok<{ attendance: Attendance }>(
+      request,
+      "selfCheckIn",
+      { sessionId: created.sessionId, studentId, position: insidePosition },
+      adult,
+    );
+    expect(replay.attendance).toEqual(inside.attendance);
+
+    for (const payload of [outside.body.error?.details, inside.attendance, replay.attendance]) {
+      const serialized = JSON.stringify(payload);
+      expect(serialized).not.toContain("latitude");
+      expect(serialized).not.toContain("longitude");
+      expect(serialized).not.toContain("accuracyMeters");
+      expect(serialized).not.toContain("49.185034");
+      expect(serialized).not.toContain("49.184224");
+      expect(serialized).not.toContain("-2.107142");
+    }
+    await denied(
+      request,
+      "selfCheckIn",
+      { sessionId: created.sessionId, studentId, position: insidePosition },
+      owner,
+      403,
+      "PERMISSION_DENIED",
+    );
+  });
+
   test("fails closed without App Check, without a session and on malformed schedule payloads @critical", async ({
     request,
   }) => {
@@ -952,6 +1047,7 @@ test.describe("T096 class operations with Firebase Emulators", () => {
       "saveSession",
       "requestBooking",
       "checkIn",
+      "selfCheckIn",
       "reconcileSessionQuorum",
       "getPreClassView",
     ]) {
