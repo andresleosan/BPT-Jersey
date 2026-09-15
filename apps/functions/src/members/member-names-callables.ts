@@ -25,7 +25,7 @@ export async function listMemberNamesHandler(
     throw new HttpsError("invalid-argument", "Member names payload must be null");
   const documents = await services.store.listActiveStudents(actor.academyId, memberNamesLimit + 1);
   if (documents.length > memberNamesLimit) {
-    throw new HttpsError("failed-precondition", "Too many members to list at once");
+    throw new HttpsError("resource-exhausted", "Too many members to list at once");
   }
   const members: MemberNameRow[] = [];
   for (const document of documents) {

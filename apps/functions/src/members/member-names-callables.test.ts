@@ -52,6 +52,6 @@ describe("listMemberNames", () => {
     }));
     await expect(
       listMemberNamesHandler(fakeRequest(null), { store: store(docs) }),
-    ).rejects.toMatchObject({ code: "failed-precondition" });
+    ).rejects.toMatchObject({ code: "resource-exhausted" });
   });
 });
