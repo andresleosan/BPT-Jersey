@@ -45,6 +45,8 @@ export type StudentProfile = Readonly<{
   trainingCenter: TrainingCenter;
   trainingTimePreferences: readonly TrainingTimePreference[];
   participantType: ParticipantType;
+  /** Profile photo, https only; written by account settings (T044V2), read by the competitor card. */
+  photoUrl?: string;
 }> &
   ProfileAuditFields;
 
@@ -81,6 +83,7 @@ const studentProfileFields = Object.freeze([
   "trainingCenter",
   "trainingTimePreferences",
   "participantType",
+  "photoUrl",
   "active",
   "status",
   "schemaVersion",
@@ -91,7 +94,7 @@ const studentProfileFields = Object.freeze([
 ] as const);
 const studentRequiredProfileFields = Object.freeze(
   studentProfileFields.filter(
-    (field) => !["familyId", "userId", "phoneNumber", "email"].includes(field),
+    (field) => !["familyId", "userId", "phoneNumber", "email", "photoUrl"].includes(field),
   ),
 );
 
@@ -151,6 +154,14 @@ function isNonEmptyText(value: unknown, maxLength: number): value is string {
     value.length <= maxLength &&
     value === value.trim() &&
     !controlCharacterPattern.test(value)
+  );
+}
+
+const photoUrlMaxLength = 512;
+
+function isHttpsUrl(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length <= photoUrlMaxLength && /^https:\/\/\S+$/u.test(value)
   );
 }
 
@@ -253,6 +264,7 @@ export function parseStudentProfileAt(
     "userId",
     "phoneNumber",
     "email",
+    "photoUrl",
   ]);
   if (!isNonEmptyText(value.fullName, 160)) issues.push(issue(["fullName"], "invalid_text"));
   const invalidDateOfBirth =
@@ -267,6 +279,9 @@ export function parseStudentProfileAt(
   parseOptionalText(value, "userId", 128, issues);
   parseOptionalText(value, "phoneNumber", 64, issues);
   parseOptionalText(value, "email", 320, issues);
+  if (Object.hasOwn(value, "photoUrl") && !isHttpsUrl(value.photoUrl)) {
+    issues.push(issue(["photoUrl"], "invalid_url"));
+  }
   if (!trainingCenters.includes(value.trainingCenter as TrainingCenter)) {
     issues.push(issue(["trainingCenter"], "unknown_enum"));
   }
