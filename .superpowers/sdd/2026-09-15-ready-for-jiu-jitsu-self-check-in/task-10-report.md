@@ -86,3 +86,38 @@ corepack pnpm typecheck
 
 Whitespace and JavaScript syntax checks passed. `qa` typecheck remains blocked by three unrelated
 pre-existing `TS2882` imports of `../../Lista/Lista.js` in `qa/unit/` (not touched by this task).
+
+## Review round 1 — denied boundary and parallel fixture isolation
+
+Review-fix base commit: `680c7c4fb865e8f6e7c399a2d13f2b88140aad1e`.
+
+The CDP-denied check now proves that the denied gesture does not enter the in-process fixture
+repository boundary. A network listener would be vacuous because the workbench fixture calls
+`clockIn` locally. Instead, the Playwright test obtains the live `ReadyForJiuJitsu` React prop
+whose implementation is the immediate `(input) => repository.clockIn(input)` adapter, sets a
+CDP `Debugger.setBreakpointOnFunctionCall` only around the denied End-key gesture, and asserts
+that its call count is zero. This is narrow observation only: it does not replace the repository,
+route requests, or mock a backend.
+
+No serialisation was added. The actual fixture source obtains `window.localStorage` in
+`browserFixtureStorage()` and passes it only to `createFixtureCalendarRepository`; Playwright's
+`page`/`context` fixtures create a fresh browser context per test. Thus every fully-parallel test
+has an isolated local-storage namespace for its fixture attendance, while the test that requires
+persistence checks reload within its own context. The final parallel 4 × 2 run passed, confirming
+the same teen fixture can be exercised concurrently without cross-test attendance leakage.
+
+After the controller materialized the tracked sparse-excluded `Lista/` path (without content
+edits), ran:
+
+```bash
+cd /root/BPT-Jersey/qa
+corepack pnpm typecheck
+PLAYWRIGHT_BROWSERS_PATH=/root/BPT-Jersey/.playwright-browsers \
+ACCOUNT_WORKBENCH_E2E=true \
+BASE_URL=https://optimyze-vps-de-prod.tail29c816.ts.net:9471 \
+corepack pnpm exec playwright test tests/account-self-check-in.spec.ts \
+  --project desktop-chromium --project mobile-chromium
+```
+
+Results: TypeScript check passed; Playwright passed **8/8** and
+`qa/test-results/.last-run.json` records `status: "passed"` with no failed tests.
