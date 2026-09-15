@@ -4,8 +4,7 @@ Estado: **redactado el 2026-09-07 como entregable de T099** (ensayo de release s
 enmienda del 2026-09-07 a `t057-synthetic-staging-contract.md`), revisado el mismo día por una ronda
 adversarial de cuatro lentes cuyos hallazgos confirmados están incorporados. Este documento describe
 cómo se ejecuta y cómo se deshace una release; **no autoriza ninguna**. Cada release productiva sigue
-exigiendo la confirmación explícita del operador (regla de oro de `.cronos/AGENCY.md`, condición 4 de
-`deploy-checklist`), y hasta que T011 tenga las diez decisiones firmadas y la razón social completa,
+exigiendo la confirmación explícita del operador (regla de `CLAUDE.md`), y hasta que T011 tenga las diez decisiones firmadas y la razón social completa,
 ninguna release habilita tratamiento nuevo de datos reales.
 
 Lo que aquí se afirma sobre producción tiene dos fuentes, y se dice cuál en cada caso: lo que se leyó

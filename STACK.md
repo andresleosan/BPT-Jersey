@@ -12,17 +12,17 @@ despliegues productivos, cobros online ni mensajería externa.
 **3 - empresarial.** El sistema combina operación multi-módulo, permisos por rol, datos de menores y salud, pagos, auditoría, comunicaciones y obligaciones de continuidad.
 
 - Ciclo de autocrítica completo: **sí**, con seguridad, QA, rendimiento antes de releases grandes y evidencia verificable.
-- Workflow de Superpowers: documentado para las sesiones OpenCode históricas. En la sesión Codex vigente se aplican las skills Cronos equivalentes sin asumir compatibilidad nativa con Superpowers.
+- Workflow de Superpowers: specs y planes en `docs/superpowers/`; las reglas de trabajo viven en `CLAUDE.md`.
 - Clasificación y stack: **aceptados por el operador en A2.1 el 2026-08-06**.
 
 ## Entorno
 
-- Plataforma activa al 2026-08-28: Codex. El proyecto conserva configuración para OpenCode y VS Code, pero esas plataformas no describen la sesión actual.
+- Plataforma activa al 2026-08-28: Codex. El flujo de la agencia Cronos (`.cronos/`, `opencode.json`, `.github/copilot-instructions.md`) se retiró el 2026-09-15; las reglas vigentes están en `CLAUDE.md`.
 - OpenCode MCP: `@playwright/mcp@0.0.79 --extension` verificado contra la pestaña Regyfit en modo
   read-only. La conexión solo existe mientras el operador la autoriza en el navegador.
 - Runtime local detectado: Node.js v24.18.0.
 - Gestor de paquetes: pnpm 11.20.0 mediante Corepack, verificado en el entorno.
-- Superpowers instalado y utilizado: sí, en las sesiones OpenCode históricas; la sesión Codex actual usa las skills Cronos disponibles.
+- Superpowers instalado y utilizado: sí.
 
 ## Frontend
 
@@ -143,7 +143,7 @@ despliegues productivos, cobros online ni mensajería externa.
   GitHub Environments, aprobación automatizada por entorno ni rollback reproducible; completarlos
   pertenece a `T057` y no se presentan como disponibles.
 - Por qué: conserva el frontend estático independiente de Functions y fija el target aprobado de Cloudflare Pages.
-- Producción: prohibida hasta cumplir las cinco condiciones de despliegue de Cronos.
+- Producción: prohibida sin la confirmación explícita del operador en el chat (`CLAUDE.md`).
 
 ## Testing
 

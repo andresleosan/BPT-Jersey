@@ -24,7 +24,6 @@ export default defineConfig([
   globalIgnores([
     ".agents/**",
     ".claude/**",
-    ".cronos/**",
     ".tmp/**",
     ".worktrees/**",
     "**/.next/**",
