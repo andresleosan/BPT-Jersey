@@ -1,7 +1,7 @@
 # Product
 
-Contexto estratégico extraído de BRIEF.md y DESIGN.md para las revisiones de interfaz.
-Esos documentos conservan la autoridad; este archivo no introduce decisiones nuevas.
+Contexto estratégico del producto para las revisiones de interfaz. DESIGN.md conserva la
+autoridad visual; las decisiones de producto viven en los ledgers y en `docs/adr/`.
 
 ## Register
 
@@ -27,7 +27,7 @@ británico sencillo y decoración solo cuando comunica información (DESIGN.md �
 
 ## Anti-references
 
-Gymdesk es referencia funcional, no plantilla visual (BRIEF.md). Evitar marketing
+Gymdesk es referencia funcional, no plantilla visual. Evitar marketing
 genérico, gradientes decorativos, sombras difusas, tarjetas para todo, spinners y
 personas de relleno (DESIGN.md §8). Conservar las excepciones de la aplicación de
 miembros en DESIGN.md §9, sin imponer un sistema visual nuevo.

@@ -8,8 +8,8 @@ BPT Jersey Academy Platform: public site, member/client area and admin panel for
 Brazilian jiu-jitsu academy. pnpm monorepo, TypeScript strict, Spanish-language docs. Talk to the
 operator in Spanish; code, identifiers and contracts are in English.
 
-Read `STACK.md` (stack decisions), `BRIEF.md` (product) and `LECCIONES.md` (hard-won lessons) before
-non-trivial work. `tasks.md` / `tasksv2.md` are the task ledger: every piece of work has a task
+Read `PRODUCT.md` (product), `DESIGN.md` (brand and interface rules), `LECCIONES.md` (hard-won
+lessons) and the ADRs in `docs/adr/` before non-trivial work. `tasks.md` / `tasksv2.md` are the task ledger: every piece of work has a task
 entry, and a task is only "done" with real test evidence recorded there. Design specs and
 implementation plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/` (one dated
 file per feature); ADRs in `docs/adr/`.
