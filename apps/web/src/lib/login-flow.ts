@@ -10,6 +10,8 @@ export type MemberDestination =
   | "/account/membership"
   | "/account/waiver"
   | "/account/progress"
+  | "/account/competitors"
+  | "/account/settings"
   | "/account/waitlist"
   | "/shop"
   | "/enrol"
@@ -36,6 +38,8 @@ const memberDestinations = new Set<MemberDestination>([
   "/account/membership",
   "/account/waiver",
   "/account/progress",
+  "/account/competitors",
+  "/account/settings",
   "/account/waitlist",
   "/shop",
   "/enrol",
