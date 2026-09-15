@@ -891,6 +891,20 @@ const membersItems = [
     [REF_TASKS],
     "funcion",
   ),
+  task(
+    "T040V2",
+    "Slider «Ready for Jiu Jitsu»: check-in del propio miembro con puerta de 50 m en el servidor",
+    "revision",
+    "El miembro se marca presente desde su móvil una hora antes; el servidor decide si está en el gimnasio.",
+    "-",
+    "Construido el 2026-09-15 con el mismo patrón que el calendario: reglas puras, callable propio junto al de staff, puerto con fixture viva y adaptador Firebase escrito. Las coordenadas se usan para una distancia y no se guardan, registran ni auditan; hay prueba de fuga. Cualquier asistencia, sea del coach o del miembro, esconde el slider: esa es la costura con el equipo de coaches. La línea base del arnés de emulador pasó en contenedor aislado Java 21; la verificación específica de selfCheckIn queda en Task12.",
+    [
+      REF_TASKS,
+      "docs/superpowers/specs/2026-09-14-ready-for-jiu-jitsu-self-check-in-design.md",
+      "apps/functions/src/schedule/attendance-transaction-service.ts",
+    ],
+    "funcion",
+  ),
 ];
 
 const landingItems = [
@@ -1166,20 +1180,6 @@ const adminItems = [
     "T027V2",
     "Commit 05020d6. Suites web 7 archivos / 61 passed; suites node 5 archivos / 69 passed. Playwright (Task 24) 16 passed / 2 skipped, capturas overview/attendance/enrolment/medical/admin-shell. Observación preexistente fuera de alcance: etiqueta lima de la banda de cumpleaños (T027V2). Sin despliegue.",
     [REF_TASKS],
-    "funcion",
-  ),
-  task(
-    "T040V2",
-    "Slider «Ready for Jiu Jitsu»: check-in del propio miembro con puerta de 50 m en el servidor",
-    "revision",
-    "El miembro se marca presente desde su móvil una hora antes; el servidor decide si está en el gimnasio.",
-    "-",
-    "Construido el 2026-09-15 con el mismo patrón que el calendario: reglas puras, callable propio junto al de staff, puerto con fixture viva y adaptador Firebase escrito. Las coordenadas se usan para una distancia y no se guardan, registran ni auditan; hay prueba de fuga. Cualquier asistencia, sea del coach o del miembro, esconde el slider: esa es la costura con el equipo de coaches. La línea base del arnés de emulador pasó en contenedor aislado Java 21; la verificación específica de selfCheckIn queda en Task12.",
-    [
-      REF_TASKS,
-      "docs/superpowers/specs/2026-09-14-ready-for-jiu-jitsu-self-check-in-design.md",
-      "apps/functions/src/schedule/attendance-transaction-service.ts",
-    ],
     "funcion",
   ),
 ];
