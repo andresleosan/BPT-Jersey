@@ -87,7 +87,9 @@ export function createFirebaseCalendarRepository(session: {
         getScheduleCatalog(),
         listStudentBookings(studentId),
         listStudentAttendance(studentId),
-        listSessionBookedCounts({ from: fromIso, to: toIso }),
+        // Fail open: booked counts are a display nicety only; the server still enforces capacity
+        // when booking, so losing this read must not blank the whole calendar.
+        listSessionBookedCounts({ from: fromIso, to: toIso }).catch(() => ({})),
       ]);
       return { sessions, programs: catalog.programs, bookings, attendance, bookedCounts };
     },

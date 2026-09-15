@@ -51,6 +51,17 @@ describe("firebase calendar repository", () => {
     expect(week.programs).toEqual([{ programId: "p" }]);
   });
 
+  it("keeps rendering the calendar when booked counts fail to load", async () => {
+    schedule.listSessionBookedCounts.mockRejectedValue(new Error("permission-denied"));
+    const repo = createFirebaseCalendarRepository({
+      role: "adultStudent",
+      displayName: "Alex Demo",
+    });
+    const week = await repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z");
+    expect(week.bookedCounts).toEqual({});
+    expect(week.sessions).toEqual([{ sessionId: "s1" }]);
+  });
+
   it("builds the adult participant from the plan catalogue", async () => {
     const repo = createFirebaseCalendarRepository({
       role: "adultStudent",
