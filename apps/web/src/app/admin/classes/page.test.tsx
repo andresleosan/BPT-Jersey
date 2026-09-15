@@ -432,9 +432,7 @@ describe("classes administration", () => {
       target: { value: "2026-09-08T18:00" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save session" }));
-    expect(
-      await screen.findByText("End time must be after the start time."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("End time must be after the start time.")).toBeInTheDocument();
     expect(mocks.updateSession).not.toHaveBeenCalled();
   });
 
