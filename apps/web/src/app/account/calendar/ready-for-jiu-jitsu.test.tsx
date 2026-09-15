@@ -149,6 +149,48 @@ describe("ReadyForJiuJitsu", () => {
     expect(getPosition).toHaveBeenCalledTimes(1);
   });
 
+  it("retains sub-threshold arrow progress and commits each threshold arrow only once", () => {
+    const neverResolves = () => new Promise<AttendanceRecord>(() => undefined);
+    const rightPosition = stubGeolocation((ok) => ok(near));
+    const { unmount } = render(
+      <ReadyForJiuJitsu
+        candidate={{ kind: "ready", session }}
+        program={program}
+        studentId="sam"
+        clockIn={neverResolves}
+        onCheckedIn={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(slider(), { target: { value: "94" } });
+    fireEvent.keyUp(slider(), { key: "ArrowRight" });
+    expect(slider().value).toBe("94");
+    expect(rightPosition).not.toHaveBeenCalled();
+
+    fireEvent.change(slider(), { target: { value: "95" } });
+    fireEvent.keyUp(slider(), { key: "ArrowRight" });
+    expect(rightPosition).toHaveBeenCalledTimes(1);
+    fireEvent.keyUp(slider(), { key: "ArrowRight" });
+    fireEvent.pointerUp(slider());
+    fireEvent.touchEnd(slider());
+    expect(rightPosition).toHaveBeenCalledTimes(1);
+
+    unmount();
+    const upPosition = stubGeolocation((ok) => ok(near));
+    render(
+      <ReadyForJiuJitsu
+        candidate={{ kind: "ready", session }}
+        program={program}
+        studentId="sam"
+        clockIn={neverResolves}
+        onCheckedIn={vi.fn()}
+      />,
+    );
+    fireEvent.change(slider(), { target: { value: "95" } });
+    fireEvent.keyUp(slider(), { key: "ArrowUp" });
+    expect(upPosition).toHaveBeenCalledTimes(1);
+  });
+
   it("disables while delayed location and clock-in prevent repeated gesture events, then announces local success", async () => {
     let locate!: (position: typeof near) => void;
     const getPosition = stubGeolocation((ok) => {
