@@ -703,6 +703,64 @@ const RESOLUTION_REQUIREMENTS = {
       true,
     ),
   ],
+  T041V2: [
+    requirement(
+      "Módulo puro members/engagement con racha por sesiones, horas desde septiembre, barras de meta y recompensa, ficha pública, vecinos y diferencia de técnicas, con pruebas. HECHO EL 2026-09-16.",
+      true,
+    ),
+    requirement(
+      "photoUrl https opcional en StudentProfile, con pruebas. HECHO EL 2026-09-16.",
+      true,
+    ),
+    requirement(
+      "Ficheros de callables reservados por equipo y reexportados desde index.ts; topSlot, enlaces y rutas reservadas en /account; llama y lottie-web instalados. HECHO EL 2026-09-16.",
+      true,
+    ),
+    requirement(
+      "Retirar STACK.md y BRIEF.md y apuntar CLAUDE.md, README.md y PRODUCT.md a lo vigente. HECHO EL 2026-09-16.",
+      true,
+    ),
+    requirement(
+      "Subir la serie a main (operador) y ver el despliegue de Cloudflare Pages; entonces pasa a desplegada.",
+    ),
+  ],
+  T042V2: [
+    requirement(
+      "Callable de racha en apps/functions/src/streak que devuelva MemberStreakSummary del estudiante a partir de sus asistencias y la duración de cada sesión, con pruebas.",
+    ),
+    requirement(
+      "Panel Streak en streak-panel.tsx: título, dos barras con tono intenso y «Just x1 missing…» a falta de una, llama con multiplicador y horas desde septiembre; prefers-reduced-motion respetado.",
+    ),
+    requirement("Aviso de próxima promoción según asistencia, apoyado en StudentProgressSummary."),
+    requirement(
+      "Playwright en :9471 a 390 y 1280 px con capturas; rebase sobre main y gate local completo antes de subir.",
+    ),
+  ],
+  T043V2: [
+    requirement(
+      "Callable de competidores en apps/functions/src/competitors que devuelva fichas públicas ordenadas, excluyendo menores hasta que exista consentimiento del tutor (decisión 5).",
+    ),
+    requirement(
+      "Dos tablas en /account/competitors: asistencia (rankNeighbours por racha) y progresión de cinturón (buildPeerComparison), con foto, cinturón, grados y diferencia de técnicas.",
+    ),
+    requirement(
+      "Prueba de que un menor nunca aparece ni ve a otro menor; Playwright en :9471; rebase sobre main y gate local antes de subir.",
+    ),
+  ],
+  T044V2: [
+    requirement(
+      "Formulario de ajustes del adulto sobre profile-service (todos los datos) y del menor (solo foto) en /account/settings.",
+    ),
+    requirement(
+      "Subida de la foto al almacenamiento privado (ADR-003) y escritura de photoUrl; aprobación del tutor como estado propio con prueba.",
+    ),
+    requirement(
+      "Acceso del adolescente con usuario y contraseña o con Google, sobre T009V2; Google habilitado en Firebase Auth por el operador.",
+    ),
+    requirement(
+      "Playwright en :9471; rebase sobre main y gate local antes de subir. Sube antes que T042V2 y T043V2.",
+    ),
+  ],
 };
 
 /**
@@ -913,6 +971,50 @@ const membersItems = [
       "docs/superpowers/specs/2026-09-14-ready-for-jiu-jitsu-self-check-in-design.md",
       "apps/functions/src/schedule/attendance-transaction-service.ts",
     ],
+    "funcion",
+  ),
+  task(
+    "T041V2",
+    "Fase 0 de la interfaz de miembros: lo que racha, competidores y ajustes comparten",
+    "aprobada",
+    "Contratos puros, huecos en /account y un fichero de callables por equipo, para construir las tres funciones en paralelo sin pisarse.",
+    "-",
+    "Construido el 2026-09-16 en cinco commits: módulo members/engagement (13 pruebas), photoUrl en StudentProfile (213 pruebas del paquete en verde), ficheros de callables reservados, topSlot + enlaces + rutas reservadas + llama + lottie-web (86 pruebas web de /account en verde), y retirada de STACK.md y BRIEF.md. Sin cambios en reglas ni índices. Pasa a desplegada cuando la serie esté en main y Cloudflare la publique.",
+    [
+      REF_TASKS,
+      "docs/superpowers/specs/2026-09-16-member-engagement-phase-0-design.md",
+      "packages/domain/src/members/member-engagement-contracts.ts",
+    ],
+    "funcion",
+  ),
+  task(
+    "T042V2",
+    "Racha y progreso en lo alto de /account",
+    "pendiente",
+    "Streak, barra de meta y de recompensa, llama con multiplicador y horas desde septiembre; avisos de próxima promoción.",
+    "T041V2",
+    "Rellena streak-panel.tsx, ya montado en el topSlot. Números de buildMemberStreakSummary vía un callable propio en apps/functions/src/streak. No toca page.tsx, member-calendar.tsx, profile-contracts.ts, reglas ni índices.",
+    [REF_TASKS, "apps/web/src/app/account/streak/streak-panel.tsx"],
+    "funcion",
+  ),
+  task(
+    "T043V2",
+    "Competidores: tabla de asistencia y tabla de progresión de cinturón",
+    "pendiente",
+    "Dos vecinos arriba y dos abajo, con foto, cinturón, grados, racha y las técnicas que cada uno tiene y el otro no.",
+    "T044V2",
+    "Rellena /account/competitors con datos de un callable propio (decisión 4: sin lectura directa de Firestore). Menores excluidos hasta que exista consentimiento del tutor (decisión 5). Depende de T044V2 por la foto.",
+    [REF_TASKS, "apps/web/src/app/account/competitors/page.tsx"],
+    "funcion",
+  ),
+  task(
+    "T044V2",
+    "Ajustes de cuenta y acceso del adolescente",
+    "pendiente",
+    "El adulto cambia cualquier dato; el menor solo su foto con aprobación del tutor; el tutor da acceso al adolescente con contraseña o Google.",
+    "T009V2",
+    "Rellena /account/settings. La foto va a StudentProfile.photoUrl vía profile-service y R2; el acceso del adolescente reutiliza teenStudent y se apoya en T009V2. Sube a main antes que T042V2 y T043V2.",
+    [REF_TASKS, "apps/web/src/app/account/settings/page.tsx"],
     "funcion",
   ),
 ];
@@ -1387,6 +1489,37 @@ const TASK_SURFACES = {
     "qa/tests/schedule-auth-emulator.spec.ts",
     "qa/unit/listav2-ledger-sync.test.ts",
   ],
+  T041V2: [
+    "packages/domain/src/members/member-engagement-contracts.ts",
+    "packages/domain/src/profiles/profile-contracts.ts",
+    "packages/domain/package.json",
+    "apps/functions/src/index.ts",
+    "apps/functions/src/deploy-runtime.ts",
+    "apps/web/src/app/account/page.tsx",
+    "apps/web/src/app/account/calendar/member-calendar.tsx",
+    "apps/web/src/app/account/calendar/calendar-header.tsx",
+    "apps/web/package.json",
+  ],
+  T042V2: [
+    "apps/functions/src/streak",
+    "apps/web/src/lib/streak-client.ts",
+    "apps/web/src/app/account/streak",
+    "apps/functions/src/deploy-runtime.ts",
+  ],
+  T043V2: [
+    "apps/functions/src/competitors",
+    "apps/web/src/lib/competitors-client.ts",
+    "apps/web/src/app/account/competitors",
+    "apps/functions/src/deploy-runtime.ts",
+  ],
+  T044V2: [
+    "apps/functions/src/account-settings",
+    "apps/functions/src/profiles/profile-service.ts",
+    "apps/functions/src/families/family-service.ts",
+    "apps/web/src/lib/account-settings-client.ts",
+    "apps/web/src/app/account/settings",
+    "apps/functions/src/deploy-runtime.ts",
+  ],
   T029V2: ["apps/web/src/app/admin/members/requests/page.tsx"],
   T030V2: ["apps/functions/src/health", "apps/web/src/app/admin/members/medical"],
   T031V2: ["apps/web/src/app/admin/admin-routes.ts", "apps/web/src/app/admin/admin-shell.tsx"],
@@ -1612,6 +1745,7 @@ const projectData = {
     T037V2: "2026-09-15",
     T038V2: "2026-09-15",
     T039V2: "2026-09-15",
+    T041V2: "2026-09-16",
   },
   stages: [
     stage(
