@@ -450,6 +450,35 @@ describe("classes administration", () => {
     ).toBeInTheDocument();
   });
 
+  it.each(["coach", "headCoach"] as const)(
+    "%s: catalogue renders when the office-only clients would refuse",
+    async (role) => {
+      mocks.useAdminOrStaffSession.mockReturnValue({
+        uid: "c",
+        email: "c@x",
+        displayName: "Coach",
+        academyId,
+        role,
+      });
+      mocks.listMembers.mockRejectedValue(
+        Object.assign(new Error("permission-denied"), { code: "functions/permission-denied" }),
+      );
+      mocks.listMemberships.mockRejectedValue(
+        Object.assign(new Error("permission-denied"), { code: "functions/permission-denied" }),
+      );
+      mocks.listStaffProfiles.mockRejectedValue(
+        Object.assign(new Error("permission-denied"), { code: "functions/permission-denied" }),
+      );
+
+      render(<ClassesPage />);
+
+      expect(await screen.findByText(classFixture.name)).toBeInTheDocument();
+      expect(mocks.listMembers).not.toHaveBeenCalled();
+      expect(mocks.listMemberships).not.toHaveBeenCalled();
+      expect(mocks.listStaffProfiles).not.toHaveBeenCalled();
+    },
+  );
+
   it("shows a session description when present and omits it when empty", async () => {
     mocks.listSessions.mockResolvedValue([
       { ...sessionFixture, description: "Gi only. Bring a mouthguard." },

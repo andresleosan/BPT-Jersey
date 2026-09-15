@@ -181,26 +181,41 @@ export function ClassesPage() {
   const [bookingBusy, setBookingBusy] = useState(false);
   const bookingRequest = useRef(0);
 
+  const session = useAdminOrStaffSession();
+  const canManage = session.role !== "coach";
+  // owner/administrator only: coach and headCoach may manage classes but are not authorised to
+  // call listMembers/listMemberships/listStaffProfiles on the server.
+  const isOffice = session.role === "owner" || session.role === "administrator";
+
   useEffect(() => {
     let active = true;
     void Promise.all([
       getScheduleCatalog(),
       listClasses(),
       listSessions(sessionQuery(initialRange.fromDate, initialRange.toDate)),
-      listMembers(50),
-      listMemberships(),
-      listStaffProfiles(),
     ]).then(
-      ([nextCatalog, nextClasses, nextSessions, memberPage, nextMemberships, nextStaff]) => {
+      ([nextCatalog, nextClasses, nextSessions]) => {
         if (!active) return;
         setCatalog(nextCatalog);
         setClasses(nextClasses);
         setSessions(nextSessions);
-        setMembers(memberPage.rows);
-        setMemberPagePartial(memberPage.nextCursor !== undefined);
-        setMemberships(nextMemberships);
-        setStaff(nextStaff);
-        setLoadStatus("ready");
+        if (!isOffice) {
+          setLoadStatus("ready");
+          return;
+        }
+        void Promise.all([listMembers(50), listMemberships(), listStaffProfiles()]).then(
+          ([memberPage, nextMemberships, nextStaff]) => {
+            if (!active) return;
+            setMembers(memberPage.rows);
+            setMemberPagePartial(memberPage.nextCursor !== undefined);
+            setMemberships(nextMemberships);
+            setStaff(nextStaff);
+            setLoadStatus("ready");
+          },
+          () => {
+            if (active) setLoadStatus("error");
+          },
+        );
       },
       () => {
         if (active) setLoadStatus("error");
@@ -209,7 +224,7 @@ export function ClassesPage() {
     return () => {
       active = false;
     };
-  }, [initialRange]);
+  }, [initialRange, isOffice]);
 
   useEffect(() => {
     void getLevelCatalog()
@@ -223,9 +238,6 @@ export function ClassesPage() {
       )
       .catch(() => setBelts(null));
   }, []);
-
-  const session = useAdminOrStaffSession();
-  const canManage = session.role !== "coach";
 
   const programNames = useMemo(
     () => new Map(catalog?.programs.map((item) => [item.programId, item.name]) ?? []),
@@ -912,53 +924,59 @@ export function ClassesPage() {
             </div>
             <AdminStatusBadge status={selectedSession.status} />
           </div>
-          <form
-            aria-label="Create reservation"
-            className="schedule-admin-booking-form"
-            onSubmit={(event) => void submitBooking(event)}
-          >
-            <label>
-              Canonical student
-              <select
-                onChange={(event) => {
-                  setBookingStudentId(event.target.value);
-                  setBookingMembershipId("");
-                }}
-                required
-                value={bookingStudentId}
-              >
-                <option value="">Select a student</option>
-                {activeMembers.map((member) => (
-                  <option key={member.studentId} value={member.studentId}>
-                    {member.fullName} · {member.trainingCenter}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Eligible membership
-              <select
-                disabled={!bookingStudentId}
-                onChange={(event) => setBookingMembershipId(event.target.value)}
-                required
-                value={bookingMembershipId}
-              >
-                <option value="">Select a membership</option>
-                {availableMemberships.map((membership) => (
-                  <option key={membership.membershipId} value={membership.membershipId}>
-                    {membership.planId} · {membership.status}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="schedule-admin-button"
-              disabled={bookingBusy || !bookingMembershipId}
-              type="submit"
+          {members.length === 0 && !isOffice ? (
+            <p className="admin-report-state">
+              Reservations are managed by the office; the member directory is not available here.
+            </p>
+          ) : (
+            <form
+              aria-label="Create reservation"
+              className="schedule-admin-booking-form"
+              onSubmit={(event) => void submitBooking(event)}
             >
-              {bookingBusy ? "Booking..." : "Create reservation"}
-            </button>
-          </form>
+              <label>
+                Canonical student
+                <select
+                  onChange={(event) => {
+                    setBookingStudentId(event.target.value);
+                    setBookingMembershipId("");
+                  }}
+                  required
+                  value={bookingStudentId}
+                >
+                  <option value="">Select a student</option>
+                  {activeMembers.map((member) => (
+                    <option key={member.studentId} value={member.studentId}>
+                      {member.fullName} · {member.trainingCenter}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Eligible membership
+                <select
+                  disabled={!bookingStudentId}
+                  onChange={(event) => setBookingMembershipId(event.target.value)}
+                  required
+                  value={bookingMembershipId}
+                >
+                  <option value="">Select a membership</option>
+                  {availableMemberships.map((membership) => (
+                    <option key={membership.membershipId} value={membership.membershipId}>
+                      {membership.planId} · {membership.status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="schedule-admin-button"
+                disabled={bookingBusy || !bookingMembershipId}
+                type="submit"
+              >
+                {bookingBusy ? "Booking..." : "Create reservation"}
+              </button>
+            </form>
+          )}
           {memberPagePartial ? (
             <p className="admin-report-state">
               Showing the first connected directory page. Use member search if the student is not
