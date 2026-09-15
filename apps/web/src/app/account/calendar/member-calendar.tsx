@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   deriveSessionStatus,
@@ -43,6 +43,8 @@ type MemberCalendarProps = Readonly<{
   repository: CalendarRepository;
   session: Readonly<{ role: CalendarRole; displayName: string }>;
   onSignOut: () => void;
+  /** Rendered after the check-in slider and before the purple header: the streak panel (T042V2). */
+  topSlot?: ReactNode;
 }>;
 
 type LoadState = "loading" | "ready" | "error";
@@ -97,7 +99,7 @@ function dayOf(days: readonly CalendarDay[], startAt: string): CalendarDay | und
   return days.find((d) => startAt >= d.startAt && startAt < d.endAt);
 }
 
-export function MemberCalendar({ repository, session, onSignOut }: MemberCalendarProps) {
+export function MemberCalendar({ repository, session, onSignOut, topSlot }: MemberCalendarProps) {
   const viewport = useViewport();
   const now = useMinuteClock();
   const [offset, setOffset] = useState(0);
@@ -449,6 +451,7 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
           {...(siblingHint ? { siblingHint } : {})}
         />
       ) : null}
+      {topSlot}
       <CalendarHeader
         canNext={!failed && next !== null}
         canPrev={!failed && prev !== null}

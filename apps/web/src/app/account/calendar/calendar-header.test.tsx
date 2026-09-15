@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -58,6 +58,23 @@ describe("CalendarHeader", () => {
     await userEvent.click(screen.getByRole("button", { name: "Later" }));
     expect(onNext).toHaveBeenCalled();
     expect(screen.queryByRole("group", { name: "Choose member" })).not.toBeInTheDocument();
+  });
+
+  it("links to progress, competitors and settings from the header", () => {
+    renderHeader();
+    const nav = within(screen.getByRole("navigation", { name: "Account" }));
+    expect(nav.getByRole("link", { name: "Progress" })).toHaveAttribute(
+      "href",
+      "/account/progress",
+    );
+    expect(nav.getByRole("link", { name: "Competitors" })).toHaveAttribute(
+      "href",
+      "/account/competitors",
+    );
+    expect(nav.getByRole("link", { name: "Settings" })).toHaveAttribute(
+      "href",
+      "/account/settings",
+    );
   });
 
   it("renders chips for a guardian with several children and reports selection", async () => {

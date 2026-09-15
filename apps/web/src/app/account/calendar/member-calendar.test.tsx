@@ -264,6 +264,22 @@ describe("MemberCalendar", () => {
       expect(document.querySelector("main.member-app")?.firstElementChild).toBe(card);
     });
 
+    it("renders the top slot after the card and before the header", async () => {
+      stubViewport(false);
+      render(
+        <MemberCalendar
+          onSignOut={vi.fn()}
+          repository={createFixtureCalendarRepository("teenStudent")}
+          session={teen}
+          topSlot={<section aria-label="Streak">streak slot</section>}
+        />,
+      );
+      const card = await screen.findByRole("region", { name: "Ready for Jiu Jitsu" });
+      const slot = screen.getByRole("region", { name: "Streak" });
+      expect(card.nextElementSibling).toBe(slot);
+      expect(slot.nextElementSibling).toBe(screen.getByRole("banner"));
+    });
+
     it("hides the card when the loaded week has no eligible open-window session", async () => {
       stubViewport(false);
       const fixture = createFixtureCalendarRepository("teenStudent");
