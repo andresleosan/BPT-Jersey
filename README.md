@@ -6,7 +6,7 @@ segunda generacion en el backend, Firestore como base de datos y Cloudflare R2 p
 privado.
 
 Este documento es lo que hace falta para levantar el proyecto en una maquina nueva. Lo que hay que
-construir esta en `tasks.md` y `tasksv2.md`; las decisiones de stack, en `STACK.md`.
+construir esta en `tasks.md` y `tasksv2.md`; las decisiones de arquitectura, en `docs/adr/`.
 
 ---
 
@@ -371,10 +371,10 @@ Los cuatro tienen que pasar. Un par de avisos previos:
 | ------------------------- | -------------------------------------------------------------------------------- |
 | `tasks.md` + `Lista/`     | Ledger y tablero de la primera version. Fuente de verdad de todo lo anterior.    |
 | `tasksv2.md` + `Listav2/` | Ledger y tablero de la segunda version (bugs y funciones nuevas del 2026-09-09). |
-| `STACK.md`                | Stack elegido, identidad visual y por que de cada decision.                      |
-| `BRIEF.md`                | El encargo original y las decisiones de producto del operador.                   |
+| `PRODUCT.md`              | Producto: usuarios, proposito y principios de diseno.                            |
+| `DESIGN.md`               | Identidad visual y reglas de interfaz.                                           |
 | `LECCIONES.md`            | Lo aprendido a base de equivocarse. Vale la pena leerlo antes de repetirlo.      |
-| `AGENTS.md`               | Como trabajan los agentes en este repositorio.                                   |
+| `CLAUDE.md`               | Como trabajan los agentes en este repositorio.                                   |
 | `docs/adr/`               | Decisiones de arquitectura, una por documento.                                   |
 | `docs/operations/`        | Runbooks, DPIA, retencion y politicas.                                           |
 
