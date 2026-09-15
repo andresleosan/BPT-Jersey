@@ -118,3 +118,14 @@ swatches (`.levels-colour`) that stand for a belt. Nowhere else — they never b
 tag, the background of any other element, or text colour; the card around the bar stays Gi White
 with Mat Ink and the single purple eyebrow. A belt card is one `<article>` per belt; stripes are
 marks on the bar's ink tip plus an ordered list, never separate cards.
+
+## 11. Ready for Jiu Jitsu (/account self check-in)
+
+El único elemento permitido sobre el encabezado morado del miembro es una tarjeta **Gi White** con
+la regla superior morada de 0.35rem, radio 1rem, y el titular de dos líneas **READY / FOR JIU
+JITSU** en Barlow Condensed 700, Mat Ink, clamp(3rem, 14vw, 6rem). El rango nativo de
+confirmación deslizante usa una pista Paper Edge, relleno **BPT Purple** que acompaña el pulgar, y
+pulgar **BPT Lime** con aro Mat Ink. Incluye una línea de metadatos (clase · hora · sede), una
+línea para la ventana y una línea de estado. Una negativa es una banda con regla izquierda roja y
+una frase sencilla. Tras el registro, la tarjeta sustituye el control por "YOU'RE IN" y la hora.
+No hay indicadores giratorios ni animación fuera del relleno de 220 ms.
