@@ -294,6 +294,24 @@ describe("Listav2 stays in step with tasksv2.md", () => {
     ).toEqual([]);
   });
 
+  it("keeps every T040V2 self-check-in implementation and emulator runner surface declared", () => {
+    // The scheduling work crosses callables, member data, the calendar adapter, and the bounded
+    // emulator runner. Losing any one declaration can incorrectly advertise it as safe parallel
+    // work, so assert the exported ownership data rather than a generated board string.
+    expect(project.TASK_SURFACES.T040V2).toEqual(
+      expect.arrayContaining([
+        "apps/functions/src/announcements/announcement-callables.ts",
+        "apps/functions/src/announcements/announcement-callables.test.ts",
+        "apps/functions/src/memberships/membership-callables.ts",
+        "apps/functions/src/memberships/membership-callables.test.ts",
+        "qa/run-e2e.mjs",
+        "qa/scripts/run-schedule-e2e.mjs",
+        "qa/tests/schedule-auth-emulator.spec.ts",
+        "qa/unit/listav2-ledger-sync.test.ts",
+      ]),
+    );
+  });
+
   it("never calls two rows parallel when they write to the same place", () => {
     // La propiedad que hace util a la tabla, comprobada contra el resultado y no contra la
     // intencion: si el calculo se rompiera, esto lo dice antes que un conflicto de merge.

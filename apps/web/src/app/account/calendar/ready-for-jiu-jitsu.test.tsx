@@ -133,6 +133,12 @@ describe("ReadyForJiuJitsu", () => {
     expect(accountCss).toMatch(/\.ready-status\s*\{[\s\S]*?font-size: 1rem;/u);
   });
 
+  it("disables ready-fill and label transitions under reduced motion", () => {
+    expect(accountCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.ready-fill,\s*\.ready-fill::after\s*\{[\s\S]*?transition-property: none;/u,
+    );
+  });
+
   it("shows the two-line headline, the class and the window, and asks for location only after the slide", async () => {
     const getPosition = stubGeolocation((ok) => ok(near));
     const clockIn = vi.fn().mockResolvedValue(record);

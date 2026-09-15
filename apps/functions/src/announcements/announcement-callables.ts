@@ -27,6 +27,12 @@ export type GuardianResolver = (params: {
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
+function denyTeenAnnouncementAccess(role: string): void {
+  if (role === "teenStudent") {
+    throw new HttpsError("permission-denied", "Announcement access is not available for this role");
+  }
+}
+
 export function selectActiveGuardianIds(params: {
   academyId: string;
   minorStudentId: string;
@@ -181,6 +187,7 @@ export function createMarkAnnouncementAsReadHandler({ store }: { store: Announce
     request: CallableRequest<unknown>,
   ): Promise<{ announcement: AnnouncementRecord }> => {
     const actor = requireUserActor(request);
+    denyTeenAnnouncementAccess(actor.role);
 
     const data = (request.data as { announcementId?: unknown }) ?? {};
     if (typeof data.announcementId !== "string" || !data.announcementId.trim()) {
@@ -204,6 +211,7 @@ export function createListAnnouncementsHandler({ store }: { store: AnnouncementS
     request: CallableRequest<unknown>,
   ): Promise<{ announcements: readonly AnnouncementRecord[] }> => {
     const actor = requireUserActor(request);
+    denyTeenAnnouncementAccess(actor.role);
     const data =
       (request.data as { channel?: unknown; targetId?: unknown; status?: unknown }) ?? {};
 

@@ -196,7 +196,7 @@ async function requireReader(
   services: MembershipCallableServices,
 ): Promise<UserActorContext> {
   const actor = await requireActiveActor(request, services);
-  if (!["owner", "administrator", "guardian", "adultStudent"].includes(actor.role)) {
+  if (!["owner", "administrator", "guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
     permissionDenied();
   }
   return actor;
@@ -315,6 +315,44 @@ async function adultStudentScope(
   });
 }
 
+async function teenStudentScope(
+  actor: UserActorContext,
+  services: MembershipCallableServices,
+  requestedFamilyId?: string,
+  requestedStudentId?: string,
+): Promise<MembershipScope> {
+  const student = await services.findStudentByUserId(actor.academyId, actor.userId);
+  if (
+    student === undefined ||
+    student.participantType !== "minor" ||
+    !student.active ||
+    student.status !== "active"
+  ) {
+    permissionDenied();
+  }
+  if (
+    (requestedFamilyId !== undefined && requestedFamilyId !== student.familyId) ||
+    (requestedStudentId !== undefined && requestedStudentId !== student.studentId)
+  ) {
+    permissionDenied();
+  }
+  const family = await services.familyStore.getStaffFamily(actor.academyId, student.familyId);
+  if (
+    family === undefined ||
+    family.family.academyId !== actor.academyId ||
+    family.family.familyId !== student.familyId ||
+    !family.family.active ||
+    family.family.status !== "active"
+  ) {
+    permissionDenied();
+  }
+  return Object.freeze({
+    academyId: actor.academyId,
+    familyIds: Object.freeze([student.familyId]),
+    studentIds: Object.freeze([student.studentId]),
+  });
+}
+
 async function readerScope(
   actor: UserActorContext,
   services: MembershipCallableServices,
@@ -329,6 +367,9 @@ async function readerScope(
   }
   if (actor.role === "adultStudent") {
     return adultStudentScope(actor, services, familyId, studentId);
+  }
+  if (actor.role === "teenStudent") {
+    return teenStudentScope(actor, services, familyId, studentId);
   }
   return permissionDenied();
 }

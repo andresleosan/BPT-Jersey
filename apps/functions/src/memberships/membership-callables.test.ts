@@ -220,6 +220,17 @@ function adultStudentScope(
   };
 }
 
+function teenStudentScope(overrides: Partial<MembershipStudentScope> = {}): MembershipStudentScope {
+  return {
+    studentId: minorStudentId,
+    familyId,
+    participantType: "minor",
+    active: true,
+    status: "active",
+    ...overrides,
+  };
+}
+
 function services(overrides: Partial<MembershipCallableServices> = {}): MembershipCallableServices {
   return {
     store: {
@@ -462,6 +473,51 @@ describe("membership callables", () => {
     );
     await expect(
       listMembershipsHandler(request(null, "adultStudent", "adult-user-1"), current),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  it("returns only an active teen's linked minor memberships", async () => {
+    const current = services({
+      findStudentByUserId: vi.fn(async () => teenStudentScope()),
+    });
+    await expect(
+      listMembershipsHandler(request(null, "teenStudent", "teen-user-1"), current),
+    ).resolves.toEqual([expect.objectContaining({ studentId: minorStudentId, familyId })]);
+    expect(current.store.listMemberships).toHaveBeenCalledWith({
+      academyId,
+      familyIds: [familyId],
+      studentIds: [minorStudentId],
+    });
+  });
+
+  it("denies teen membership reads without an active linked minor and family scope", async () => {
+    for (const scope of [
+      undefined,
+      teenStudentScope({ participantType: "adult" }),
+      teenStudentScope({ active: false, status: "inactive" }),
+    ]) {
+      const current = services({ findStudentByUserId: vi.fn(async () => scope) });
+      await expect(
+        listMembershipsHandler(request(null, "teenStudent", "teen-user-1"), current),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+      expect(current.store.listMemberships).not.toHaveBeenCalled();
+    }
+
+    const inactiveFamily = services({ findStudentByUserId: vi.fn(async () => teenStudentScope()) });
+    vi.mocked(inactiveFamily.familyStore!.getStaffFamily).mockResolvedValue(
+      staffFamilyProjection(familyId, { active: false, status: "inactive" }),
+    );
+    await expect(
+      listMembershipsHandler(request(null, "teenStudent", "teen-user-1"), inactiveFamily),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(inactiveFamily.store.listMemberships).not.toHaveBeenCalled();
+
+    const outOfScope = services({ findStudentByUserId: vi.fn(async () => teenStudentScope()) });
+    vi.mocked(outOfScope.store.listMemberships).mockResolvedValue([
+      membership({ studentId: "sibling-student", familyId }),
+    ]);
+    await expect(
+      listMembershipsHandler(request(null, "teenStudent", "teen-user-1"), outOfScope),
     ).rejects.toMatchObject({ code: "permission-denied" });
   });
 
