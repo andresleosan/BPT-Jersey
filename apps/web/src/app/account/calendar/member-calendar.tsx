@@ -118,7 +118,8 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   const silentReload = useRef(false);
   const weekRevision = useRef(0);
   const activeWeekScope = useRef<WeekScope | undefined>(undefined);
-  const loadedWeekScope = useRef<WeekScope | undefined>(undefined);
+  const loadedWeekScopeRef = useRef<WeekScope | undefined>(undefined);
+  const [loadedWeekScope, setLoadedWeekScope] = useState<WeekScope>();
   const [siblingReady, setSiblingReady] = useState<
     Readonly<{
       studentId: string;
@@ -139,7 +140,8 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
     setMemberState("loading");
     weekRevision.current += 1;
     activeWeekScope.current = undefined;
-    loadedWeekScope.current = undefined;
+    loadedWeekScopeRef.current = undefined;
+    setLoadedWeekScope(undefined);
     setWeek(undefined);
     setWeekStudentId("");
     setWeekRangeFrom("");
@@ -189,7 +191,8 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
     ])
       .then(([loadedWeek, loadedPenalties]) => {
         if (!active || !sameWeekScope(requestedScope, activeWeekScope.current)) return;
-        loadedWeekScope.current = requestedScope;
+        loadedWeekScopeRef.current = requestedScope;
+        setLoadedWeekScope(requestedScope);
         setWeek(loadedWeek);
         setWeekStudentId(requestedScope.studentId);
         setWeekRangeFrom(requestedScope.rangeFrom);
@@ -262,6 +265,8 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   const candidateProgram = candidate
     ? selectedWeek?.programs.find((program) => program.programId === candidate.session.programId)
     : undefined;
+  const candidateKind = candidate?.kind;
+  const candidateSessionId = candidate?.session.sessionId;
   const minuteKey = Math.floor(now.getTime() / pollIntervalMs);
 
   useEffect(() => {
@@ -298,13 +303,13 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   }, [member, selectedStudentId, repository, pollToken, minuteKey, now]);
 
   useEffect(() => {
-    if (!candidate) return;
+    if (!candidateKind) return;
     const timer = setInterval(() => {
       silentReload.current = true;
       setPollToken((value) => value + 1);
     }, pollIntervalMs);
     return () => clearInterval(timer);
-  }, [candidate?.kind, candidate?.session.sessionId]);
+  }, [candidateKind, candidateSessionId]);
 
   const applyBooking = useCallback((replacement: BookingRecord) => {
     setWeek((current) => {
@@ -317,14 +322,15 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   const handleCheckedIn = useCallback((scope: WeekScope, record: AttendanceRecord) => {
     if (
       !sameWeekScope(scope, activeWeekScope.current) ||
-      !sameWeekScope(scope, loadedWeekScope.current)
+      !sameWeekScope(scope, loadedWeekScopeRef.current)
     ) {
       return;
     }
     const updatedScope = { ...scope, revision: scope.revision + 1 };
     weekRevision.current = updatedScope.revision;
     activeWeekScope.current = updatedScope;
-    loadedWeekScope.current = updatedScope;
+    loadedWeekScopeRef.current = updatedScope;
+    setLoadedWeekScope(updatedScope);
     setWeek((current) => {
       if (!current) return current;
       const others = current.attendance.filter(
@@ -340,7 +346,8 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
       silentReload.current = false;
       weekRevision.current += 1;
       activeWeekScope.current = undefined;
-      loadedWeekScope.current = undefined;
+      loadedWeekScopeRef.current = undefined;
+      setLoadedWeekScope(undefined);
       setWeek(undefined);
       setWeekStudentId("");
       setWeekRangeFrom("");
@@ -357,7 +364,8 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
     silentReload.current = false;
     weekRevision.current += 1;
     activeWeekScope.current = undefined;
-    loadedWeekScope.current = undefined;
+    loadedWeekScopeRef.current = undefined;
+    setLoadedWeekScope(undefined);
     setOffset(nextOffset);
   }, []);
 
@@ -424,15 +432,7 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
     siblingReady.studentId === selectedStudentId && siblingReady.names.length > 0
       ? siblingReady.names[0] + " is ready too — switch to " + siblingReady.names[0]
       : undefined;
-  const candidateScope: WeekScope | undefined =
-    candidate && participant
-      ? {
-          studentId: participant.studentId,
-          rangeFrom,
-          rangeTo,
-          revision: weekRevision.current,
-        }
-      : undefined;
+  const candidateScope = candidate && participant ? loadedWeekScope : undefined;
 
   return (
     <main className="member-app">

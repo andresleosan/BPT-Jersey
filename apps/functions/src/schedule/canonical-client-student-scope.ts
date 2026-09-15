@@ -35,7 +35,7 @@ export type CanonicalClientStudentScopeDependencies = Readonly<{
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const maximumRelationships = 100;
 
-/** D1 / T032V2: a minor holds their own account from 12, the Kids/Teens line. */
+/** D1 / T040V2: a minor holds their own account from 12, the Kids/Teens line. */
 export const teenAccountMinimumAge = 12;
 
 function ageInYears(dateOfBirth: string, todayKey: string): number {
