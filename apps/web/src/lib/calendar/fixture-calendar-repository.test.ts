@@ -74,7 +74,6 @@ describe("fixture calendar repository", () => {
 });
 
 describe("fixture self check-in", () => {
-  const town = { latitude: 49.183954, longitude: -2.107142 };
   const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
   const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
   const soon = new Date(Date.now() - 3600000).toISOString();
