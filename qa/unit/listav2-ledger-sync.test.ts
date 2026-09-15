@@ -111,6 +111,16 @@ describe("Listav2 stays in step with tasksv2.md", () => {
     expect(board.size).toBeGreaterThan(0);
   });
 
+  it("places T040V2 in the member board group", () => {
+    const stages = project.projectData.stages as readonly {
+      track: string;
+      items: readonly { id: string }[];
+    }[];
+    const owner = stages.find((stage) => stage.items.some((item) => item.id === "T040V2"));
+
+    expect(owner?.track).toBe("miembros");
+  });
+
   it("declares the same task IDs on both sides", () => {
     const onlyLedger = [...rows.keys()].filter((id) => !board.has(id)).sort();
     const onlyBoard = [...board.keys()].filter((id) => !rows.has(id)).sort();
