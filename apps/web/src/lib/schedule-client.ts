@@ -297,7 +297,7 @@ export async function recordCheckIn(input: CheckInInput): Promise<AttendanceReco
   return result.data.attendance;
 }
 
-/** T040V2 member self check-in. Errors keep `code` and `details.reason` for the UI to map. */
+/** T032V2 member self check-in. Errors keep `code` and `details.reason` for the UI to map. */
 export async function selfCheckIn(input: SelfCheckInInput): Promise<AttendanceRecord> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<SelfCheckInInput, { attendance: AttendanceRecord }>(
