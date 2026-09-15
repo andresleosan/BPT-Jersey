@@ -331,11 +331,15 @@ export function BillingPage() {
       ) : null}
 
       {dashboardState === "loading" ? (
-        <div className="admin-metrics-grid">
-          <div className="billing-skeleton" />
-          <div className="billing-skeleton" />
-          <div className="billing-skeleton" />
-          <div className="billing-skeleton" />
+        <div
+          aria-label="Loading billing"
+          className="admin-metrics-grid"
+          role="status"
+        >
+          <div aria-hidden="true" className="billing-skeleton" />
+          <div aria-hidden="true" className="billing-skeleton" />
+          <div aria-hidden="true" className="billing-skeleton" />
+          <div aria-hidden="true" className="billing-skeleton" />
         </div>
       ) : null}
       {dashboardState === "error" ? (

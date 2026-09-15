@@ -244,6 +244,13 @@ describe("canonical members web client", () => {
       Object.assign(new Error("x"), { code: "functions/failed-precondition" }),
     );
     await expect(listMemberNames()).rejects.toBeInstanceOf(MemberDirectoryUninitializedError);
+
+    mocks.callable.mockRejectedValueOnce(
+      Object.assign(new Error("Too many members to list at once"), {
+        code: "functions/resource-exhausted",
+      }),
+    );
+    await expect(listMemberNames()).rejects.toThrow("The member list is unavailable. Please try again.");
   });
 });
 
