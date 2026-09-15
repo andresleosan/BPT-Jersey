@@ -179,7 +179,11 @@ export function ReadyForJiuJitsu({
       <div className="ready-slider-focus">
         <div className="ready-slider" style={{ "--ready-progress": `${value}%` } as CSSProperties}>
           <span className="ready-fill" aria-hidden="true" />
-          <span className="ready-label" aria-hidden="true">
+          <span
+            className="ready-label"
+            aria-hidden="true"
+            data-label={busy ? "" : "Slide to clock in"}
+          >
             {busy ? "" : "Slide to clock in"}
           </span>
           <input

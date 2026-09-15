@@ -1,9 +1,17 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AttendanceRecord, ProgramRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
 
 import { ReadyForJiuJitsu } from "./ready-for-jiu-jitsu";
+
+const accountCss = readFileSync(
+  resolve(process.cwd(), "apps/web/src/app/account/account.css"),
+  "utf8",
+);
 
 const audit = {
   schemaVersion: "1" as const,
@@ -89,6 +97,28 @@ afterEach(() => {
 });
 
 describe("ReadyForJiuJitsu", () => {
+  it("keeps a solid contrasting slider label treatment in source styles", () => {
+    render(
+      <ReadyForJiuJitsu
+        candidate={{ kind: "ready", session }}
+        program={program}
+        studentId="sam"
+        clockIn={vi.fn()}
+        onCheckedIn={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Slide to clock in")).toHaveAttribute(
+      "data-label",
+      "Slide to clock in",
+    );
+    expect(accountCss).toMatch(/\.ready-label\s*\{[\s\S]*?color: var\(--mat-ink\);/u);
+    expect(accountCss).not.toMatch(/\.ready-label\s*\{[\s\S]*?text-shadow:/u);
+    expect(accountCss).toMatch(
+      /\.ready-label::after\s*\{[\s\S]*?color: var\(--gi-white\);[\s\S]*?content: attr\(data-label\);[\s\S]*?clip-path: inset\(0 calc\(100% - \(var\(--ready-progress\) \+ 3rem\)\) 0 0\);/u,
+    );
+  });
+
   it("shows the two-line headline, the class and the window, and asks for location only after the slide", async () => {
     const getPosition = stubGeolocation((ok) => ok(near));
     const clockIn = vi.fn().mockResolvedValue(record);
@@ -214,6 +244,7 @@ describe("ReadyForJiuJitsu", () => {
     expect(getPosition).toHaveBeenCalledTimes(1);
     expect(slider()).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("Checking you're at the gym…");
+    expect(document.querySelector(".ready-label")).toHaveAttribute("data-label", "");
     fireEvent.pointerUp(slider());
     fireEvent.touchEnd(slider());
     fireEvent.keyUp(slider(), { key: "End" });
