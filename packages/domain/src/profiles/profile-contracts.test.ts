@@ -67,6 +67,22 @@ describe("profile contracts", () => {
     expect(student.ok && Object.isFrozen(student.value.trainingTimePreferences)).toBe(true);
   });
 
+  it("accepts an https profile photo and rejects any other scheme", () => {
+    const withPhoto = parseStudentProfile({
+      ...studentProfile,
+      photoUrl: "https://files.example.test/students/student-1.jpg",
+    });
+    expect(withPhoto.ok && withPhoto.value.photoUrl).toBe(
+      "https://files.example.test/students/student-1.jpg",
+    );
+
+    const withScript = parseStudentProfile({ ...studentProfile, photoUrl: "javascript:alert(1)" });
+    expect(withScript).toEqual({
+      ok: false,
+      error: [{ path: ["photoUrl"], code: "invalid_url" }],
+    });
+  });
+
   it("parses a minor without an Auth user or family relationship", () => {
     const minorInput = { ...studentProfile } as Record<string, unknown>;
     delete minorInput.userId;
