@@ -264,6 +264,25 @@ describe("MemberCalendar", () => {
       expect(document.querySelector("main.member-app")?.firstElementChild).toBe(card);
     });
 
+    it("hides the card when the loaded week has no eligible open-window session", async () => {
+      stubViewport(false);
+      const fixture = createFixtureCalendarRepository("teenStudent");
+      const repository = {
+        ...fixture,
+        loadWeek: async (...args: Parameters<typeof fixture.loadWeek>) => {
+          const loaded = await fixture.loadWeek(...args);
+          return {
+            ...loaded,
+            sessions: loaded.sessions.filter((session) => !session.sessionId.endsWith("_ready")),
+          };
+        },
+      };
+      render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={teen} />);
+      await waitFor(() => expect(document.querySelector(".skeleton-card")).not.toBeInTheDocument());
+      expect(screen.queryByRole("region", { name: "Ready for Jiu Jitsu" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("slider", { name: /Slide to clock in/u })).not.toBeInTheDocument();
+    });
+
     it("clocks in and turns the card into the confirmation and the session card into attended", async () => {
       stubViewport(false);
       stubGeolocation();
@@ -279,9 +298,9 @@ describe("MemberCalendar", () => {
       fireEvent.keyUp(slider, { key: "End" });
       await screen.findByRole("heading", { name: "You're in" });
       await waitFor(() =>
-        expect(document.querySelector('li[data-session-id$="_ready"]')?.getAttribute("data-status")).toBe(
-          "attended",
-        ),
+        expect(
+          document.querySelector('li[data-session-id$="_ready"]')?.getAttribute("data-status"),
+        ).toBe("attended"),
       );
     });
 
@@ -376,8 +395,15 @@ describe("MemberCalendar", () => {
       fireEvent.change(slider, { target: { value: "100" } });
       fireEvent.keyUp(slider, { key: "End" });
       await screen.findByRole("heading", { name: "You're in" });
-      resolveStale?.();
-      await waitFor(() => expect(screen.getByRole("heading", { name: "You're in" })).toBeInTheDocument());
+      await act(async () => {
+        resolveStale?.();
+      });
+      await waitFor(() =>
+        expect(document.querySelector('li[data-session-id$="_ready"]')).toHaveAttribute(
+          "data-status",
+          "attended",
+        ),
+      );
     });
 
     it("does not show the old child's ready session while the newly selected child's week loads", async () => {
@@ -400,6 +426,176 @@ describe("MemberCalendar", () => {
       expect(screen.queryByRole("slider", { name: /Teens BJJ/u })).not.toBeInTheDocument();
       resolveLeo?.();
       await screen.findByRole("slider", { name: /Kids BJJ/u });
+    });
+
+    it("keeps the active child's loaded week when their chip is selected again", async () => {
+      stubViewport(false);
+      render(
+        <MemberCalendar
+          onSignOut={vi.fn()}
+          repository={createFixtureCalendarRepository("guardian")}
+          session={guardian}
+        />,
+      );
+      await screen.findByRole("slider", { name: /Teens BJJ/u });
+      await userEvent.click(screen.getByRole("button", { name: "Maya" }));
+      expect(screen.getByRole("slider", { name: /Teens BJJ/u })).toBeInTheDocument();
+    });
+
+    it("keeps an active child's pending poll valid when their chip is selected again", async () => {
+      stubViewport(false);
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const fixture = createFixtureCalendarRepository("guardian");
+      let resolvePoll: (() => void) | undefined;
+      const loadWeek = vi.fn(async (...args: Parameters<typeof fixture.loadWeek>) => {
+        const loaded = await fixture.loadWeek(...args);
+        if (
+          args[0] !== "maya" ||
+          loadWeek.mock.calls.filter(([studentId]) => studentId === "maya").length < 2
+        ) {
+          return loaded;
+        }
+        return new Promise<typeof loaded>((resolve) => {
+          resolvePoll = () => resolve(loaded);
+        });
+      });
+      const repository = { ...fixture, loadWeek };
+      render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={guardian} />);
+      await screen.findByRole("slider", { name: /Teens BJJ/u });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      await waitFor(() => expect(resolvePoll).toBeDefined());
+      await userEvent.click(screen.getByRole("button", { name: "Maya" }));
+      await act(async () => {
+        resolvePoll?.();
+      });
+      await screen.findByRole("slider", { name: /Teens BJJ/u });
+    });
+
+    it("ignores a deferred Maya clock-in while Leo's week is pending", async () => {
+      stubViewport(false);
+      stubGeolocation();
+      const fixture = createFixtureCalendarRepository("guardian");
+      let holdLeo = false;
+      let resolveLeo: (() => void) | undefined;
+      let resolveClockIn:
+        ((record: Awaited<ReturnType<typeof fixture.clockIn>>) => void) | undefined;
+      const loadWeek = vi.fn(async (...args: Parameters<typeof fixture.loadWeek>) => {
+        const loaded = await fixture.loadWeek(...args);
+        if (!holdLeo || args[0] !== "leo") return loaded;
+        return new Promise<typeof loaded>((resolve) => {
+          resolveLeo = () => resolve(loaded);
+        });
+      });
+      const clockIn = vi.fn(
+        () =>
+          new Promise<Awaited<ReturnType<typeof fixture.clockIn>>>((resolve) => {
+            resolveClockIn = resolve;
+          }),
+      );
+      const repository = { ...fixture, loadWeek, clockIn };
+      render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={guardian} />);
+      const slider = await screen.findByRole("slider", { name: /Teens BJJ/u });
+      const mayaSessionId = document
+        .querySelector('li[data-session-id$="_ready"]')
+        ?.getAttribute("data-session-id");
+      if (!mayaSessionId) throw new Error("Maya ready session missing");
+      fireEvent.change(slider, { target: { value: "100" } });
+      fireEvent.keyUp(slider, { key: "End" });
+      await waitFor(() => expect(resolveClockIn).toBeDefined());
+      holdLeo = true;
+      await userEvent.click(screen.getByRole("button", { name: "Leo" }));
+      await waitFor(() => expect(resolveLeo).toBeDefined());
+      await act(async () => {
+        resolveClockIn?.({
+          attendanceId: mayaSessionId + "__maya",
+          academyId: "bpt-jersey",
+          sessionId: mayaSessionId,
+          studentId: "maya",
+          method: "self",
+          state: "attended",
+          occurredAt: new Date().toISOString(),
+          notes: null,
+          correctionOf: null,
+          schemaVersion: "1",
+          createdAt: new Date().toISOString(),
+          createdBy: "maya",
+          updatedAt: new Date().toISOString(),
+          updatedBy: "maya",
+        });
+      });
+      await act(async () => {
+        resolveLeo?.();
+      });
+      await screen.findByRole("slider", { name: /Kids BJJ/u });
+      expect(document.querySelector('[data-session-id="' + mayaSessionId + '"]')).toHaveAttribute(
+        "data-status",
+        "locked",
+      );
+    });
+
+    it("ignores a deferred check-in after navigating to a new week", async () => {
+      stubViewport(false);
+      stubGeolocation();
+      const fixture = createFixtureCalendarRepository("teenStudent");
+      let resolveNextWeek: (() => void) | undefined;
+      let nextWeek: Awaited<ReturnType<typeof fixture.loadWeek>> | undefined;
+      let resolveClockIn:
+        ((record: Awaited<ReturnType<typeof fixture.clockIn>>) => void) | undefined;
+      const loadWeek = vi.fn(async (...args: Parameters<typeof fixture.loadWeek>) => {
+        const loaded = await fixture.loadWeek(...args);
+        if (loadWeek.mock.calls.length < 2) return loaded;
+        nextWeek = loaded;
+        return new Promise<typeof loaded>((resolve) => {
+          resolveNextWeek = () => resolve(loaded);
+        });
+      });
+      const clockIn = vi.fn(
+        () =>
+          new Promise<Awaited<ReturnType<typeof fixture.clockIn>>>((resolve) => {
+            resolveClockIn = resolve;
+          }),
+      );
+      const repository = { ...fixture, loadWeek, clockIn };
+      render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={teen} />);
+      const slider = await screen.findByRole("slider", { name: /Teens BJJ/u });
+      const sessionId = document
+        .querySelector('li[data-session-id$="_ready"]')
+        ?.getAttribute("data-session-id");
+      if (!sessionId) throw new Error("ready session missing");
+      fireEvent.change(slider, { target: { value: "100" } });
+      fireEvent.keyUp(slider, { key: "End" });
+      await waitFor(() => expect(resolveClockIn).toBeDefined());
+      await userEvent.click(screen.getByRole("button", { name: "Later" }));
+      await waitFor(() => expect(resolveNextWeek).toBeDefined());
+      await act(async () => {
+        resolveClockIn?.({
+          attendanceId: sessionId + "__sam",
+          academyId: "bpt-jersey",
+          sessionId,
+          studentId: "sam",
+          method: "self",
+          state: "attended",
+          occurredAt: new Date().toISOString(),
+          notes: null,
+          correctionOf: null,
+          schemaVersion: "1",
+          createdAt: new Date().toISOString(),
+          createdBy: "sam",
+          updatedAt: new Date().toISOString(),
+          updatedBy: "sam",
+        });
+        resolveNextWeek?.();
+      });
+      const sessionInNewRange = nextWeek?.sessions[0];
+      if (!sessionInNewRange) throw new Error("new range session missing");
+      await waitFor(() =>
+        expect(
+          document.querySelector('[data-session-id="' + sessionInNewRange.sessionId + '"]'),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.queryByRole("heading", { name: "You're in" })).not.toBeInTheDocument();
     });
   });
 });
