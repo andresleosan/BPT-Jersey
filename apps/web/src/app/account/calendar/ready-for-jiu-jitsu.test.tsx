@@ -97,7 +97,7 @@ afterEach(() => {
 });
 
 describe("ReadyForJiuJitsu", () => {
-  it("keeps a solid contrasting slider label treatment in source styles", () => {
+  it("keeps a transform-synchronized contrasting slider label treatment in source styles", () => {
     render(
       <ReadyForJiuJitsu
         candidate={{ kind: "ready", session }}
@@ -108,15 +108,28 @@ describe("ReadyForJiuJitsu", () => {
       />,
     );
 
-    expect(screen.getByText("Slide to clock in")).toHaveAttribute(
+    expect(document.querySelector(".ready-fill")).toHaveAttribute(
       "data-label",
       "Slide to clock in",
     );
-    expect(accountCss).toMatch(/\.ready-label\s*\{[\s\S]*?color: var\(--mat-ink\);/u);
-    expect(accountCss).not.toMatch(/\.ready-label\s*\{[\s\S]*?text-shadow:/u);
     expect(accountCss).toMatch(
-      /\.ready-label::after\s*\{[\s\S]*?color: var\(--gi-white\);[\s\S]*?content: attr\(data-label\);[\s\S]*?clip-path: inset\(0 calc\(100% - \(var\(--ready-progress\) \+ 3rem\)\) 0 0\);/u,
+      /\.ready-label\s*\{[\s\S]*?color: var\(--mat-ink\);[\s\S]*?z-index: 1;/u,
     );
+    expect(accountCss).toMatch(
+      /\.ready-fill\s*\{[\s\S]*?overflow: hidden;[\s\S]*?transform: translateX\(min\(0px, calc\(var\(--ready-progress\) - 100% \+ 3rem\)\)\);[\s\S]*?width: 100%;[\s\S]*?z-index: 2;/u,
+    );
+    expect(accountCss).toMatch(
+      /\.ready-fill::after\s*\{[\s\S]*?content: attr\(data-label\);[\s\S]*?transform: translateX\(max\(0px, calc\(100% - var\(--ready-progress\) - 3rem\)\)\);/u,
+    );
+    expect(accountCss).toMatch(/\.ready-range\s*\{[\s\S]*?z-index: 3;/u);
+    expect(accountCss).not.toContain("clip-path:");
+    expect(accountCss).toMatch(
+      /@media \(prefers-reduced-motion: no-preference\)\s*\{[\s\S]*?\.ready-fill\s*\{[\s\S]*?transition: transform 220ms ease;/u,
+    );
+    const fillTransitions = [...accountCss.matchAll(/\.ready-fill\s*\{([^}]*)\}/gu)]
+      .map((match) => match[1] ?? "")
+      .filter((rule) => rule.includes("transition:"));
+    expect(fillTransitions).toEqual([expect.stringContaining("transition: transform 220ms ease;")]);
   });
 
   it("keeps operational window, hint, and status text at the body-size minimum in source styles", () => {
@@ -249,7 +262,7 @@ describe("ReadyForJiuJitsu", () => {
     expect(getPosition).toHaveBeenCalledTimes(1);
     expect(slider()).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("Checking you're at the gym…");
-    expect(document.querySelector(".ready-label")).toHaveAttribute("data-label", "");
+    expect(document.querySelector(".ready-fill")).toHaveAttribute("data-label", "");
     fireEvent.pointerUp(slider());
     fireEvent.touchEnd(slider());
     fireEvent.keyUp(slider(), { key: "End" });

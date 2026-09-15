@@ -450,8 +450,25 @@
   background: var(--bpt-purple);
   border-radius: 999px;
   inset: 0 auto 0 0;
+  overflow: hidden;
   position: absolute;
-  width: calc(var(--ready-progress) + 3rem);
+  transform: translateX(min(0px, calc(var(--ready-progress) - 100% + 3rem)));
+  width: 100%;
+  z-index: 2;
+}
+
+.ready-fill::after {
+  color: var(--gi-white);
+  content: attr(data-label);
+  font-size: 1rem;
+  font-weight: 700;
+  inset: 0;
+  letter-spacing: 0.025em;
+  line-height: 4rem;
+  position: absolute;
+  text-align: center;
+  text-transform: uppercase;
+  transform: translateX(max(0px, calc(100% - var(--ready-progress) - 3rem)));
 }
 
 .ready-label {
@@ -464,14 +481,7 @@
   position: absolute;
   text-align: center;
   text-transform: uppercase;
-}
-
-.ready-label::after {
-  color: var(--gi-white);
-  content: attr(data-label);
-  clip-path: inset(0 calc(100% - (var(--ready-progress) + 3rem)) 0 0);
-  inset: 0;
-  position: absolute;
+  z-index: 1;
 }
 
 .ready-range {
@@ -481,6 +491,7 @@
   margin: 0;
   position: relative;
   width: 100%;
+  z-index: 3;
 }
 
 .ready-range::-webkit-slider-runnable-track {
@@ -547,6 +558,6 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .ready-fill {
-    transition: width 220ms ease;
+    transition: transform 220ms ease;
   }
 }
