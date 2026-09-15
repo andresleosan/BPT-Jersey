@@ -422,6 +422,22 @@ describe("classes administration", () => {
     ).toBeInTheDocument();
   });
 
+  it("blocks a session edit when the end is not after the start", async () => {
+    render(<ClassesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: `Edit ${sessionFixture.title}` }));
+    fireEvent.change(screen.getByLabelText("Starts on this device"), {
+      target: { value: "2026-09-08T18:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Ends on this device"), {
+      target: { value: "2026-09-08T18:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save session" }));
+    expect(
+      await screen.findByText("End time must be after the start time."),
+    ).toBeInTheDocument();
+    expect(mocks.updateSession).not.toHaveBeenCalled();
+  });
+
   it("shows every weekly rule, the age and level ranges, and hides actions from a coach", async () => {
     render(<ClassesPage />);
     expect(await screen.findByText("Mon 18:00 · Wed 18:00")).toBeInTheDocument();
