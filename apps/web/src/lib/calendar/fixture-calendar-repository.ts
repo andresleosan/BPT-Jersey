@@ -263,10 +263,12 @@ function readyStartAt(
     isRecord(stored) &&
     stored.version === 1 &&
     typeof stored.startAt === "string" &&
-    Number.isFinite(Date.parse(stored.startAt)) &&
-    Date.now() <= Date.parse(stored.startAt) + 20 * 60000
+    Number.isFinite(Date.parse(stored.startAt))
   ) {
-    return new Date(stored.startAt);
+    if (Date.now() <= Date.parse(stored.startAt) + 20 * 60000) {
+      return new Date(stored.startAt);
+    }
+    removeStored(storage, fixtureStorageKey(role, dateKey, studentId, sessionId));
   }
   writeStored(storage, key, { version: 1, startAt: fallback.toISOString() });
   return fallback;

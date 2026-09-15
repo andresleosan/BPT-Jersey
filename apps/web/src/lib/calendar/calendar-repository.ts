@@ -47,7 +47,7 @@ export interface CalendarRepository {
   loadWeek(studentId: string, fromIso: string, toIso: string): Promise<CalendarWeekData>;
   book(input: RequestBookingInput): Promise<BookingRecord>;
   cancel(input: CancelBookingInput): Promise<BookingRecord>;
-  /** T040V2: member self check-in. Refusals preserve `code` and `details.reason`. */
+  /** T032V2: member self check-in. Refusals preserve `code` and `details.reason`. */
   clockIn(input: SelfCheckInInput): Promise<AttendanceRecord>;
   loadPenalties(studentId: string): Promise<readonly NoShowPenaltyRecord[]>;
 }

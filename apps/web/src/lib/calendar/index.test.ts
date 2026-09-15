@@ -112,16 +112,16 @@ describe("browser fixture calendar repository", () => {
     expect((await candidateFor(createCalendarRepository(teen), "sam"))?.kind).toBe("ready");
   });
 
-  it("refreshes an expired ready slot and discards only its stale self-attendance snapshot", async () => {
+  it("refreshes an expired ready slot and discards its late-window self-attendance snapshot", async () => {
     vi.useFakeTimers({ now: new Date("2026-09-15T09:00:00.000Z") });
     vi.stubEnv("NEXT_PUBLIC_CALENDAR_SOURCE", "fixture");
     const first = createCalendarRepository(teen);
     const ready = await candidateFor(first, "sam");
     if (!ready || ready.kind !== "ready")
       throw new Error("fixture did not provide a ready session");
+    vi.advanceTimersByTime(49 * 60000);
     await first.clockIn({ sessionId: ready.session.sessionId, studentId: "sam", position: near });
-
-    vi.advanceTimersByTime(51 * 60000);
+    vi.advanceTimersByTime(2 * 60000);
 
     const refreshed = await candidateFor(createCalendarRepository(teen), "sam");
     expect(refreshed).toMatchObject({ kind: "ready" });
