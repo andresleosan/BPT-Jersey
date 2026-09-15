@@ -102,6 +102,33 @@ const RESOLUTION_NOTES = {
     "Decisión D6 del operador, 2026-09-09, salida de la pregunta 6 del ledger. `provisionAdminRole` (`apps/functions/src/auth/admin-provisioning.ts:677`) es el único escritor del documento de personal que exige la puerta canónica, y `apps/functions/src/index.ts:11` la reexporta como función suelta: no está desplegada. Convertirla no es envolverla en `onCall`. El objetivo llega como segundo parámetro de la función, no en `request.data`, y `provisioningRequestSchema` es un `z.strictObject({ action })` (`:78`) que rechaza cualquier campo extra, así que hoy `uid`, `email` y `role` no caben en la petición: desplegarla es ensanchar el contrato de entrada de la superficie de autorización. Lo que ya trae hecho es la puerta del concedente, `requireAdminActor` más `requireOwner` (`:589-590`), de modo que solo `owner` concede y un `administrator` no puede ascender a nadie ni a sí mismo. Lo que le falta frente a la puerta hermana: `requireCanonicalMemberDirectoryActor` verifica App Check en el manejador (`canonical-actor.ts:83-85`) y esta no lo hace. Leído en producción el 2026-09-09: el `owner` real es una cuenta de Google con documento de personal completo -`accountType: staff`, `adminRole: owner`, `createdBy: system:admin-bootstrap`-, y es la única que pasa la puerta canónica. De ahí sale un hallazgo que la fila no había previsto: toda cuenta que haya usado la plataforma como cliente lleva ya un claim no administrativo, y `requireTargetAdminClaims` rechaza cualquier objetivo cuyo claim no sea administrativo, así que hoy la callable solo acepta cuentas sin claim ninguno o cuentas que ya son administrativas. No existe vía auditada para ascender a un cliente, y si debe existir es una decisión de producto.",
   T026V2:
     "Pedido por el operador el 2026-09-10. La cabecera decía `Authenticated shell - Owner access`: el rol sí, la persona no. `AdminSession` y `StaffSession` ya llevaban `displayName` y `email`, así que era presentación y no plomería. El caso borde está verificado contra producción, no supuesto: `admin-auth` guarda el nombre recortado o cadena vacía, y hay una cuenta administrativa de proveedor `password` sin `displayName`, leída con `accounts:lookup`.",
+
+  T027V2:
+    "Reverificado 2026-09-15 (T039V2): suites web 61 y node 69 en verde; Playwright overview birthdays / attendance roster / enrolment requests / medical references / admin shell 16 passed, 2 skipped en escritorio y móvil, con capturas; menú del coach ahora con seis entradas (T037V2).",
+  T028V2:
+    "Umbral de tarde a 0 minutos vía `determinePunctuality`. No cubre T015V2 (vencimiento a 20 minutos), que sigue pendiente.",
+  T029V2:
+    "Detalle y aprobación siguen siendo de oficina por ADR-010; el coach solo ve la cola y puede devolver una solicitud.",
+  T030V2:
+    "Callable nuevo `saveHealthReferenceLabel` solo acepta `studentId` y `staffReferenceLabel`, nunca la nota clínica. Todos los callables de salud exigen `BPT_SYNTHETIC_PILOT=true`.",
+  T031V2:
+    "ADR-010: menú sin Memberships ni Waivers para coach/head coach. Rutas y tests de esas dos secciones se conservan intactos.",
+  T032V2:
+    "Contrato v2 de clases con varios días por semana, rango de nivel, rango de edad y descripción; generador de sesiones y formulario móvil. Verificado en emuladores Docker (schedule-finance-emulator.spec.ts).",
+  T033V2:
+    "updateSession y removeClass (cancela sesiones futuras, salta ids legados), probados en emuladores Docker y por Playwright de admin classes.",
+  T034V2:
+    "Fichas de cinturón con stripes agrupadas, filtrables por edad y color; DESIGN.md §10 confirma que el color de cinturón solo aparece en las clases dedicadas.",
+  T035V2:
+    "Billing pasa a ser el home financiero: últimos 20 pagos, historial por miembro, operativa plegada; `/admin/finance` redirige a `/admin/billing`.",
+  T036V2:
+    "Issue invoice con búsqueda de miembro y membresía opcional; Record payment solo admite efectivo/transferencia en la UI (Decisión 16 del spec).",
+  T037V2:
+    "Enmienda ADR-010 2026-09-14: coach y head coach ven Classes (coach en lectura, `canManage = role !== \"coach\"`) y Levels.",
+  T038V2:
+    "Calendario de miembros conectado al contrato v2: conteo real de reservas y ficha con nivel, edad y descripción. `/account` no se puede probar en navegador contra emuladores por App Check fail-closed; verificado por unit + component + callables; verificación final pendiente en staging con `NEXT_PUBLIC_CALENDAR_SOURCE=firebase`.",
+  T039V2:
+    "Reverificación de los cinco puntos de coach (T027V2-T031V2) con capturas nuevas en las cinco specs y las suites web/node en verde.",
 };
 
 /**
@@ -552,6 +579,84 @@ const RESOLUTION_REQUIREMENTS = {
       "Confirmación de si Eddie y Topo se retiran de la landing o solo de la sección de instructores.",
     ),
   ],
+
+  T027V2: [
+    requirement("Quitar la barra de atajos y el conteo de miembros del Overview.", true),
+    requirement("Mostrar los tres próximos cumpleaños y el aviso del día.", true),
+    requirement(
+      "Reverificar con capturas y suites tras los cambios de menú del coach (T037V2). HECHO 2026-09-15 (T039V2).",
+      true,
+    ),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T028V2: [
+    requirement(
+      "Attendance como lista por clase con etiquetas Ready/Booked/Late y botón Clock in.",
+      true,
+    ),
+    requirement("Umbral de tarde a 0 minutos (`determinePunctuality`).", true),
+    requirement("Vencimiento a 20 minutos (T015V2): sigue pendiente."),
+  ],
+  T029V2: [
+    requirement("Ayuda por botón en la cola de solicitudes.", true),
+    requirement("Verificación contra emuladores con caso coach (spec T121).", true),
+    requirement("Acceso del coach a la cola y a la devolución de solicitudes.", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T030V2: [
+    requirement("Medical conditions en su propia ruta con \"Show all references\".", true),
+    requirement(
+      "Callable `saveHealthReferenceLabel` que nunca reciba ni devuelva la nota clínica.",
+      true,
+    ),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T031V2: [
+    requirement("Menú sin Memberships ni Waivers para coach y head coach.", true),
+    requirement("Coach y head coach ven Overview, Attendance, Enrolment requests y Medical.", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T032V2: [
+    requirement("Contrato v2 de clases: varios días por semana, rango de nivel y edad, descripción.", true),
+    requirement("Generador de sesiones a partir de las reglas de recurrencia.", true),
+    requirement("Formulario móvil de alta de clase.", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T033V2: [
+    requirement("Callable updateSession para editar una sesión existente.", true),
+    requirement("Callable removeClass que cancela las sesiones futuras de la clase.", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T034V2: [
+    requirement("Levels como fichas de cinturón con stripes.", true),
+    requirement("Filtros por edad y por color de cinturón.", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T035V2: [
+    requirement("Billing como home financiero con los últimos 20 pagos.", true),
+    requirement("Historial de pagos por miembro con operativa plegada.", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T036V2: [
+    requirement("Issue invoice con búsqueda de miembro y membresía opcional.", true),
+    requirement("Record payment restringido a efectivo o transferencia (Decisión 16).", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T037V2: [
+    requirement("Coach ve Classes en modo lectura.", true),
+    requirement("Coach y head coach ven Levels.", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
+  T038V2: [
+    requirement("Calendario de miembros conectado al conteo real de reservas.", true),
+    requirement("Ficha de sesión con nivel, rango de edad y descripción.", true),
+    requirement("Última verificación en navegador contra staging, pendiente del operador."),
+  ],
+  T039V2: [
+    requirement("Capturas nuevas de las cinco specs de coach (T027V2-T031V2).", true),
+    requirement("Suites web y node en verde tras la reverificación.", true),
+     requirement("Confirmarlo en produccion tras el proximo despliegue; sin despliegue hasta ahora."),
+  ],
 };
 
 /**
@@ -888,6 +993,141 @@ const adminItems = [
     [REF_TASKS, "apps/web/src/app/admin/admin-shell.tsx:267", "apps/web/src/lib/admin-auth.tsx:15-21"],
     "funcion",
   ),
+  task(
+    "T027V2",
+    "Overview sin barra de atajos ni conteo de miembros; tres próximos cumpleaños y aviso del día",
+    "revision",
+    "Pedido por el operador el 2026-09-12. ADR-010: el Overview del coach omite membresías vencidas y el enlace a finanzas.",
+    "-",
+    "Evidencia: `overview-page.test.tsx`, Playwright `admin-overview-birthdays.spec.ts`. Reverificado 2026-09-15 (T039V2): suites web 61 y node 69 en verde; Playwright overview birthdays / attendance roster / enrolment requests / medical references / admin shell 16 passed, 2 skipped en escritorio y móvil, con capturas; menú del coach ahora con seis entradas (T037V2).",
+    [REF_TASKS, "apps/web/src/app/admin/overview-page.tsx"],
+    "funcion",
+  ),
+  task(
+    "T028V2",
+    "Attendance como lista por clase con etiquetas Ready/Booked/Late y botón Clock in",
+    "revision",
+    "Cubre la parte de T014V2 de seleccionar de la lista quién está y quién no; umbral de tarde a 0 min.",
+    "T027V2",
+    "Evidencia: `session-roster.test.tsx`, `attendance/page.test.tsx`, Playwright `attendance-roster.spec.ts`. Reverificado 2026-09-15 (T039V2): suites web 61 y node 69 en verde; Playwright overview birthdays / attendance roster / enrolment requests / medical references / admin shell 16 passed, 2 skipped en escritorio y móvil, con capturas.",
+    [REF_TASKS, "apps/web/src/app/admin/attendance"],
+    "funcion",
+  ),
+  task(
+    "T029V2",
+    "Enrolment requests: ayuda por botón, verificación contra emuladores y acceso del coach a cola y devolución",
+    "revision",
+    "Detalle y aprobación siguen siendo de oficina (ADR-010).",
+    "T012V2",
+    "Evidencia: `requests/page.test.tsx`, `enrolment-request-callables.test.ts`, spec T121 contra emuladores con caso coach, Playwright `enrolment-requests-ui.spec.ts`. Reverificado 2026-09-15 (T039V2): suites web 61 y node 69 en verde; Playwright overview birthdays / attendance roster / enrolment requests / medical references / admin shell 16 passed, 2 skipped en escritorio y móvil, con capturas.",
+    [REF_TASKS, "apps/web/src/app/admin/members/requests/page.tsx"],
+    "funcion",
+  ),
+  task(
+    "T030V2",
+    "Medical conditions en su ruta con \"Show all references\"",
+    "revision",
+    "Nuevo callable `listHealthReferences` (nombre + etiqueta, nunca el resumen).",
+    "-",
+    "Evidencia: `medical/page.test.tsx`, `health-callables.test.ts`, `health-service.test.ts`, Playwright `medical-references.spec.ts`. Reverificado 2026-09-15 (T039V2): suites web 61 y node 69 en verde; Playwright overview birthdays / attendance roster / enrolment requests / medical references / admin shell 16 passed, 2 skipped en escritorio y móvil, con capturas.",
+    [REF_TASKS, "apps/functions/src/health"],
+    "funcion",
+  ),
+  task(
+    "T031V2",
+    "Menú sin Memberships ni Waivers; coach y head coach ven Overview, Attendance, Enrolment requests y Medical conditions",
+    "revision",
+    "ADR-010. Rutas y tests de Memberships/Waivers se conservan.",
+    "-",
+    "Evidencia: `admin-routes.test.ts`, `page.test.tsx`, Playwright `admin-shell.spec.ts` (caso coach). Reverificado 2026-09-15 (T039V2): suites web 61 y node 69 en verde; Playwright overview birthdays / attendance roster / enrolment requests / medical references / admin shell 16 passed, 2 skipped en escritorio y móvil, con capturas; menú del coach ahora con seis entradas (T037V2).",
+    [REF_TASKS, "apps/web/src/app/admin/admin-routes.ts"],
+    "funcion",
+  ),
+  task(
+    "T032V2",
+    "Clases con varios días por semana, rango de nivel, rango de edad y descripción (contrato v2, generador, formulario móvil)",
+    "revision",
+    "Contrato v2 de clases, generador de sesiones y formulario móvil.",
+    "-",
+    "Commits d109663, 11b7de4, a972dca, c1809c8, 976620f (dominio); e58c3c9 (store); e856829, 3569a25 (callables); 4597fa0, 2fc6bf6 (cliente web); cc5b050 (formulario); d1529f6, f8bc1ba (tabla). Playwright (Task 22) 18 passed / 2 skipped, capturas classes-list-*, classes-form-*. Emuladores Docker bpt-emu:local --network none: schedule-finance-emulator.spec.ts 2 passed. Sin despliegue; nuevos callables pendientes de firebase deploy --only functions:....",
+    [
+      REF_TASKS,
+      "packages/domain/src/classes",
+      "apps/functions/src/classes",
+      "apps/web/src/app/admin/classes",
+    ],
+    "funcion",
+  ),
+  task(
+    "T033V2",
+    "Editar sesión y eliminar clase (cancela sus sesiones futuras)",
+    "revision",
+    "updateSession y removeClass, con cancelación de sesiones futuras y salto de ids legados.",
+    "T032V2",
+    "Commits a972dca, e58c3c9, e856829, bd63aaf. Playwright (Task 22) 18 passed / 2 skipped, captura classes-form-*. Emuladores Docker: schedule-finance-emulator.spec.ts 2 passed (owner edita, removeClass cancela 2 sesiones). Sin despliegue.",
+    [REF_TASKS, "apps/functions/src/classes", "apps/web/src/app/admin/classes"],
+    "funcion",
+  ),
+  task(
+    "T034V2",
+    "Levels como fichas de cinturón con stripes, filtros por edad y color",
+    "revision",
+    "Fichas de cinturón agrupadas, filtrables por edad y color, ver DESIGN.md §10.",
+    "-",
+    "Commits a7ccb63, ca74894, 2da2dc4. Playwright (Task 22) 18 passed / 2 skipped, captura levels-*. Veredictos visuales DESIGN.md: PASA (esquinas cuadradas, morado único acento, colores de cinturón solo en clases dedicadas, botones >= 3.15rem, una columna en móvil, sin scroll horizontal). Sin despliegue.",
+    [REF_TASKS, "apps/web/src/app/admin/levels", "DESIGN.md"],
+    "funcion",
+  ),
+  task(
+    "T035V2",
+    "Billing como home financiero: 20 últimos pagos, historial por miembro, operativa plegada",
+    "revision",
+    "Redirección /admin/finance -> /admin/billing.",
+    "T036V2",
+    "Commits 1658e00, 30e887e. Task 20 componentes: 7 archivos / 25 tests. Playwright (Task 22) 18 passed / 2 skipped; re-ejecución de billing home tras el fix de leak-regex (3a67571): 8 passed, capturas billing-home-*. Emuladores Docker: schedule-finance-emulator.spec.ts 2 passed. Sin despliegue.",
+    [REF_TASKS, "apps/web/src/app/admin/billing"],
+    "funcion",
+  ),
+  task(
+    "T036V2",
+    "Issue invoice con búsqueda de miembro y membresía opcional; Record payment efectivo/transferencia",
+    "revision",
+    "Decisión 16 del spec: Cash / Bank transfer únicamente en la UI.",
+    "-",
+    "Commits ec804e0, 755e0b7, a432bad, df52120, 63005fa, 53d125f, 4303da0, faa1099, 67a87b0, 80b89ec. Playwright (Task 22) 18 passed / 2 skipped, captura billing-invoice-*. Emuladores Docker: schedule-finance-emulator.spec.ts 2 passed (factura sin membresía, pago en efectivo, coach denegado). Sin despliegue.",
+    [REF_TASKS, "apps/functions/src/finance", "apps/web/src/app/admin/billing"],
+    "funcion",
+  ),
+  task(
+    "T037V2",
+    "Coach y head coach ven Classes (coach en lectura) y Levels",
+    "revision",
+    "Enmienda ADR-010 2026-09-14.",
+    "T031V2",
+    "Commits 10debfd, d1529f6 (canManage = role !== \"coach\"). Playwright (Task 24) 16 passed / 2 skipped, captura admin-shell-coach-desktop-chromium.png. Sin despliegue.",
+    [REF_TASKS, "apps/web/src/app/admin/admin-routes.ts", "docs/adr"],
+    "funcion",
+  ),
+  task(
+    "T038V2",
+    "Calendario de miembros conectado: conteo de reservas real y ficha con nivel, edad y descripción",
+    "revision",
+    "Adaptador del calendario contra el nuevo contrato de clases v2.",
+    "T032V2",
+    "Commits 4597fa0, 6d1e01e (nota STACK.md NEXT_PUBLIC_CALENDAR_SOURCE=firebase). Task 21 calendario: 67/67. Caveat: /account no se puede probar en navegador contra emuladores (App Check fail-closed); verificado por unit + component + callables de emulador (schedule-finance-emulator.spec.ts 2 passed, incluye listSessionBookedCounts); última verificación en staging pendiente del operador. Sin despliegue.",
+    [REF_TASKS, "apps/web/src/lib/calendar", "apps/web/src/app/account"],
+    "funcion",
+  ),
+  task(
+    "T039V2",
+    "Verificación de los cinco puntos de coaches (T027V2-T031V2) con capturas y suites",
+    "revision",
+    "Reverificación con capturas de las cinco specs de coach.",
+    "T027V2",
+    "Commit 05020d6. Suites web 7 archivos / 61 passed; suites node 5 archivos / 69 passed. Playwright (Task 24) 16 passed / 2 skipped, capturas overview/attendance/enrolment/medical/admin-shell. Observación preexistente fuera de alcance: etiqueta lima de la banda de cumpleaños (T027V2). Sin despliegue.",
+    [REF_TASKS],
+    "funcion",
+  ),
 ];
 
 const paymentItems = [
@@ -1029,6 +1269,25 @@ const TASK_SURFACES = {
     "apps/functions/src/members/canonical-directory-initialization-firestore.ts",
     "packages/domain/src/audit/audit-event.ts",
   ],
+
+  T027V2: ["apps/web/src/app/admin/overview-page.tsx"],
+  T028V2: ["apps/web/src/app/admin/attendance"],
+  T029V2: ["apps/web/src/app/admin/members/requests/page.tsx"],
+  T030V2: ["apps/functions/src/health", "apps/web/src/app/admin/members/medical"],
+  T031V2: ["apps/web/src/app/admin/admin-routes.ts", "apps/web/src/app/admin/admin-shell.tsx"],
+  T032V2: [
+    "packages/domain/src/classes",
+    "apps/functions/src/classes",
+    "apps/web/src/app/admin/classes",
+    "apps/web/src/lib/classes-client.ts",
+  ],
+  T033V2: ["apps/functions/src/classes", "apps/web/src/app/admin/classes"],
+  T034V2: ["apps/web/src/app/admin/levels", "DESIGN.md"],
+  T035V2: ["apps/web/src/app/admin/billing"],
+  T036V2: ["apps/functions/src/finance", "apps/web/src/app/admin/billing"],
+  T037V2: ["apps/web/src/app/admin/admin-routes.ts", "docs/adr"],
+  T038V2: ["apps/web/src/lib/calendar", "apps/web/src/app/account"],
+  T039V2: ["qa/tests"],
 };
 
 // `desplegada` es el estado final del ledger: una fila que ya corre en produccion no es trabajo
@@ -1225,6 +1484,19 @@ const projectData = {
     T024V2: "2026-09-09",
     T025V2: "2026-09-09",
     T026V2: "2026-09-10",
+    T027V2: "2026-09-15",
+    T028V2: "2026-09-15",
+    T029V2: "2026-09-15",
+    T030V2: "2026-09-15",
+    T031V2: "2026-09-15",
+    T032V2: "2026-09-15",
+    T033V2: "2026-09-15",
+    T034V2: "2026-09-15",
+    T035V2: "2026-09-15",
+    T036V2: "2026-09-15",
+    T037V2: "2026-09-15",
+    T038V2: "2026-09-15",
+    T039V2: "2026-09-15",
   },
   stages: [
     stage(
