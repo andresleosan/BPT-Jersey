@@ -455,19 +455,23 @@
 }
 
 .ready-label {
-  color: var(--gi-white);
-  font-size: 0.9rem;
+  color: var(--mat-ink);
+  font-size: 1rem;
   font-weight: 700;
   inset: 0;
   letter-spacing: 0.025em;
   line-height: 4rem;
   position: absolute;
   text-align: center;
-  text-shadow:
-    0 0 1px var(--mat-ink),
-    1px 0 var(--mat-ink),
-    -1px 0 var(--mat-ink);
   text-transform: uppercase;
+}
+
+.ready-label::after {
+  color: var(--gi-white);
+  content: attr(data-label);
+  clip-path: inset(0 calc(100% - (var(--ready-progress) + 3rem)) 0 0);
+  inset: 0;
+  position: absolute;
 }
 
 .ready-range {
