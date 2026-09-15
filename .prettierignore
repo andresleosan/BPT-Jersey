@@ -1,6 +1,5 @@
 .agents/
 .claude/
-.cronos/
 **/.next/
 **/build/
 **/coverage/

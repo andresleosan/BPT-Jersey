@@ -1,5 +1,3 @@
-# Base de 1 Titán — Cronos la completa con lo específico del stack elegido (STACK.md).
-
 # Secretos y credenciales — nunca deben llegar al repo
 .env
 .env.*
