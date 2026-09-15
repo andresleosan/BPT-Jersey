@@ -1,0 +1,262 @@
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import type { AttendanceRecord, ProgramRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
+
+import { ReadyForJiuJitsu } from "./ready-for-jiu-jitsu";
+
+const audit = {
+  schemaVersion: "1" as const,
+  createdAt: "",
+  createdBy: "",
+  updatedAt: "",
+  updatedBy: "",
+};
+const session: SessionRecord = {
+  sessionId: "s1",
+  academyId: "bpt",
+  classId: null,
+  programId: "prog-teens",
+  locationId: "town",
+  instructorId: "c",
+  title: "Teens BJJ",
+  startAt: "2026-09-15T17:00:00.000Z",
+  endAt: "2026-09-15T18:00:00.000Z",
+  capacity: 20,
+  minParticipants: 4,
+  status: "scheduled",
+  isSeminar: false,
+  cancellationReason: null,
+  ...audit,
+};
+const program: ProgramRecord = {
+  programId: "prog-teens",
+  academyId: "bpt",
+  name: "Teens BJJ",
+  ageBand: "teens",
+  discipline: "bjj",
+  level: "all-levels",
+  active: true,
+  schemaVersion: "1",
+};
+const record: AttendanceRecord = {
+  attendanceId: "s1__sam",
+  academyId: "bpt",
+  sessionId: "s1",
+  studentId: "sam",
+  method: "self",
+  state: "attended",
+  occurredAt: "2026-09-15T16:52:00.000Z",
+  notes: null,
+  correctionOf: null,
+  ...audit,
+};
+const near = { coords: { latitude: 49.184224, longitude: -2.107142, accuracy: 12 } };
+
+function stubGeolocation(
+  impl: (ok: (position: typeof near) => void, fail: (error: { code: number }) => void) => void,
+) {
+  const getCurrentPosition = vi.fn(impl);
+  Object.defineProperty(navigator, "geolocation", {
+    value: { getCurrentPosition },
+    configurable: true,
+  });
+  return getCurrentPosition;
+}
+
+function slider(): HTMLInputElement {
+  return screen.getByRole("slider", { name: /Slide to clock in/u }) as HTMLInputElement;
+}
+
+function slideToEnd(): void {
+  fireEvent.change(slider(), { target: { value: "100" } });
+  fireEvent.keyUp(slider(), { key: "End" });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+describe("ReadyForJiuJitsu", () => {
+  it("shows the two-line headline, the class and the window, and asks for location only after the slide", async () => {
+    const getPosition = stubGeolocation((ok) => ok(near));
+    const clockIn = vi.fn().mockResolvedValue(record);
+    const onCheckedIn = vi.fn();
+    render(
+      <ReadyForJiuJitsu
+        candidate={{ kind: "ready", session }}
+        program={program}
+        studentId="sam"
+        clockIn={clockIn}
+        onCheckedIn={onCheckedIn}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Ready for Jiu Jitsu" })).toBeInTheDocument();
+    expect(screen.getByText("Teens BJJ · 18:00–19:00 · Town")).toBeInTheDocument();
+    expect(screen.getByText("Opens 17:00 · closes 18:20")).toBeInTheDocument();
+    expect(getPosition).not.toHaveBeenCalled();
+
+    slideToEnd();
+
+    await waitFor(() =>
+      expect(clockIn).toHaveBeenCalledWith({
+        sessionId: "s1",
+        studentId: "sam",
+        position: { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 },
+      }),
+    );
+    await waitFor(() => expect(onCheckedIn).toHaveBeenCalledWith(record));
+    expect(getPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps native arrow progress until End commits, while an early release resets without locating", () => {
+    const getPosition = stubGeolocation((ok) => ok(near));
+    render(
+      <ReadyForJiuJitsu
+        candidate={{ kind: "ready", session }}
+        program={program}
+        studentId="sam"
+        clockIn={vi.fn()}
+        onCheckedIn={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(slider(), { target: { value: "60" } });
+    fireEvent.keyUp(slider(), { key: "ArrowRight" });
+    expect(slider().value).toBe("60");
+    expect(getPosition).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(slider());
+    expect(slider().value).toBe("0");
+    expect(getPosition).not.toHaveBeenCalled();
+
+    fireEvent.change(slider(), { target: { value: "60" } });
+    fireEvent.keyUp(slider(), { key: "ArrowUp" });
+    expect(slider().value).toBe("60");
+    fireEvent.keyUp(slider(), { key: "End" });
+    expect(getPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables while delayed location and clock-in prevent repeated gesture events, then announces local success", async () => {
+    let locate!: (position: typeof near) => void;
+    const getPosition = stubGeolocation((ok) => {
+      locate = ok;
+    });
+    const attendance = deferred<AttendanceRecord>();
+    const clockIn = vi.fn().mockReturnValue(attendance.promise);
+    const onCheckedIn = vi.fn();
+    render(
+      <ReadyForJiuJitsu
+        candidate={{ kind: "ready", session }}
+        program={program}
+        studentId="sam"
+        clockIn={clockIn}
+        onCheckedIn={onCheckedIn}
+      />,
+    );
+
+    fireEvent.change(slider(), { target: { value: "100" } });
+    fireEvent.pointerUp(slider());
+    expect(getPosition).toHaveBeenCalledTimes(1);
+    expect(slider()).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Checking you're at the gym…");
+    fireEvent.pointerUp(slider());
+    fireEvent.touchEnd(slider());
+    fireEvent.keyUp(slider(), { key: "End" });
+    expect(getPosition).toHaveBeenCalledTimes(1);
+
+    locate(near);
+    await waitFor(() => expect(clockIn).toHaveBeenCalledTimes(1));
+    expect(slider()).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("Clocking you in…");
+    fireEvent.pointerUp(slider());
+    fireEvent.touchEnd(slider());
+    fireEvent.keyUp(slider(), { key: "End" });
+    expect(clockIn).toHaveBeenCalledTimes(1);
+
+    attendance.resolve(record);
+    await screen.findByRole("heading", { name: "You're in" });
+    expect(screen.getByRole("status")).toHaveTextContent("You're checked in.");
+    expect(onCheckedIn).toHaveBeenCalledWith(record);
+  });
+
+  it("explains a denied location and a safe callable refusal, then lets the member retry", async () => {
+    stubGeolocation((_ok, fail) => fail({ code: 1 }));
+    const clockIn = vi.fn().mockRejectedValue(
+      Object.assign(new Error("x"), {
+        code: "functions/failed-precondition",
+        details: { reason: "outside", distanceMeters: 120 },
+      }),
+    );
+    render(
+      <ReadyForJiuJitsu
+        candidate={{ kind: "ready", session }}
+        program={program}
+        studentId="sam"
+        clockIn={clockIn}
+        onCheckedIn={vi.fn()}
+      />,
+    );
+
+    slideToEnd();
+    await screen.findByText(
+      "Location is off. Allow it for this site, or ask a coach to check you in.",
+    );
+    expect(clockIn).not.toHaveBeenCalled();
+
+    stubGeolocation((ok) => ok(near));
+    slideToEnd();
+    await screen.findByText("You're 120 m away. Get to the gym and try again.");
+    expect(slider().value).toBe("0");
+  });
+
+  it("shows the confirmation card for an existing record, whoever wrote it", () => {
+    render(
+      <ReadyForJiuJitsu
+        candidate={{
+          kind: "checkedIn",
+          session,
+          attendance: {
+            ...record,
+            method: "manual",
+            state: "late",
+            occurredAt: "2026-09-15T17:04:00.000Z",
+          },
+        }}
+        program={program}
+        studentId="sam"
+        clockIn={vi.fn()}
+        onCheckedIn={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "You're in" })).toBeInTheDocument();
+    expect(screen.getByText("18:04 · Late")).toBeInTheDocument();
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+  });
+
+  it("shows the sibling hint when given", () => {
+    render(
+      <ReadyForJiuJitsu
+        candidate={{ kind: "ready", session }}
+        program={program}
+        studentId="maya"
+        clockIn={vi.fn()}
+        onCheckedIn={vi.fn()}
+        siblingHint="Leo is ready too — switch to Leo"
+      />,
+    );
+    expect(screen.getByText("Leo is ready too — switch to Leo")).toBeInTheDocument();
+  });
+});
