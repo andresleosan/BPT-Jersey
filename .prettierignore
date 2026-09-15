@@ -1,6 +1,8 @@
 .agents/
 .claude/
 **/.next/
+# Lottie export, an asset rather than source (T041V2).
+apps/web/public/animations/
 **/build/
 **/coverage/
 **/dist/
