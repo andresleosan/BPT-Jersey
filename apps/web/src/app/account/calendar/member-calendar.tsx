@@ -47,6 +47,24 @@ type MemberCalendarProps = Readonly<{
 
 type LoadState = "loading" | "ready" | "error";
 
+type WeekScope = Readonly<{
+  studentId: string;
+  rangeFrom: string;
+  rangeTo: string;
+  revision: number;
+}>;
+
+function sameWeekScope(left: WeekScope | undefined, right: WeekScope | undefined): boolean {
+  return (
+    left !== undefined &&
+    right !== undefined &&
+    left.studentId === right.studentId &&
+    left.rangeFrom === right.rangeFrom &&
+    left.rangeTo === right.rangeTo &&
+    left.revision === right.revision
+  );
+}
+
 function useViewport(): CalendarViewport {
   const [viewport, setViewport] = useState<CalendarViewport>("phone");
   useEffect(() => {
@@ -88,6 +106,8 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   const [memberState, setMemberState] = useState<LoadState>("loading");
   const [week, setWeek] = useState<CalendarWeekData>();
   const [weekStudentId, setWeekStudentId] = useState("");
+  const [weekRangeFrom, setWeekRangeFrom] = useState("");
+  const [weekRangeTo, setWeekRangeTo] = useState("");
   const [weekState, setWeekState] = useState<LoadState>("loading");
   const [penalties, setPenalties] = useState<readonly NoShowPenaltyRecord[]>([]);
   const [busyKey, setBusyKey] = useState("");
@@ -97,10 +117,14 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   const [pollToken, setPollToken] = useState(0);
   const silentReload = useRef(false);
   const weekRevision = useRef(0);
-  const [siblingReady, setSiblingReady] = useState<Readonly<{
-    studentId: string;
-    names: readonly string[];
-  }>>({ studentId: "", names: [] });
+  const activeWeekScope = useRef<WeekScope | undefined>(undefined);
+  const loadedWeekScope = useRef<WeekScope | undefined>(undefined);
+  const [siblingReady, setSiblingReady] = useState<
+    Readonly<{
+      studentId: string;
+      names: readonly string[];
+    }>
+  >({ studentId: "", names: [] });
 
   const days = useMemo(() => visibleDays({ now, viewport, offset }), [now, viewport, offset]);
   const rangeFrom = days[0]?.startAt ?? "";
@@ -114,8 +138,12 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
     let active = true;
     setMemberState("loading");
     weekRevision.current += 1;
+    activeWeekScope.current = undefined;
+    loadedWeekScope.current = undefined;
     setWeek(undefined);
     setWeekStudentId("");
+    setWeekRangeFrom("");
+    setWeekRangeTo("");
     setPenalties([]);
     setSiblingReady({ studentId: "", names: [] });
     repository
@@ -142,23 +170,37 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   useEffect(() => {
     if (!selectedStudentId || !rangeFrom || !rangeTo) return;
     let active = true;
-    const requestedStudentId = selectedStudentId;
-    const requestedRevision = weekRevision.current;
+    const requestedScope: WeekScope = {
+      studentId: selectedStudentId,
+      rangeFrom,
+      rangeTo,
+      revision: weekRevision.current,
+    };
+    activeWeekScope.current = requestedScope;
     if (!silentReload.current) setWeekState("loading");
     silentReload.current = false;
     Promise.all([
-      repository.loadWeek(requestedStudentId, rangeFrom, rangeTo),
-      repository.loadPenalties(requestedStudentId),
+      repository.loadWeek(
+        requestedScope.studentId,
+        requestedScope.rangeFrom,
+        requestedScope.rangeTo,
+      ),
+      repository.loadPenalties(requestedScope.studentId),
     ])
       .then(([loadedWeek, loadedPenalties]) => {
-        if (!active || requestedRevision !== weekRevision.current) return;
+        if (!active || !sameWeekScope(requestedScope, activeWeekScope.current)) return;
+        loadedWeekScope.current = requestedScope;
         setWeek(loadedWeek);
-        setWeekStudentId(requestedStudentId);
+        setWeekStudentId(requestedScope.studentId);
+        setWeekRangeFrom(requestedScope.rangeFrom);
+        setWeekRangeTo(requestedScope.rangeTo);
         setPenalties(loadedPenalties);
         setWeekState("ready");
       })
       .catch(() => {
-        if (active && requestedRevision === weekRevision.current) setWeekState("error");
+        if (active && sameWeekScope(requestedScope, activeWeekScope.current)) {
+          setWeekState("error");
+        }
       });
     return () => {
       active = false;
@@ -166,16 +208,17 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
   }, [repository, selectedStudentId, rangeFrom, rangeTo, reloadToken, pollToken]);
 
   const participant = member?.participants.find((p) => p.studentId === selectedStudentId);
-  const selectedWeek = weekStudentId === selectedStudentId ? week : undefined;
+  const selectedWeek =
+    weekStudentId === selectedStudentId && weekRangeFrom === rangeFrom && weekRangeTo === rangeTo
+      ? week
+      : undefined;
 
   const entriesByDay = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
     if (!selectedWeek || !participant) return map;
     const programs = new Map(selectedWeek.programs.map((p) => [p.programId, p]));
     const bookings = new Map(
-      selectedWeek.bookings
-        .filter((b) => b.status !== "cancelled")
-        .map((b) => [b.sessionId, b]),
+      selectedWeek.bookings.filter((b) => b.status !== "cancelled").map((b) => [b.sessionId, b]),
     );
     const attendance = new Map(selectedWeek.attendance.map((a) => [a.sessionId, a]));
     const memberContext = {
@@ -271,23 +314,51 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
     });
   }, []);
 
-  const handleCheckedIn = useCallback((record: AttendanceRecord) => {
-    weekRevision.current += 1;
+  const handleCheckedIn = useCallback((scope: WeekScope, record: AttendanceRecord) => {
+    if (
+      !sameWeekScope(scope, activeWeekScope.current) ||
+      !sameWeekScope(scope, loadedWeekScope.current)
+    ) {
+      return;
+    }
+    const updatedScope = { ...scope, revision: scope.revision + 1 };
+    weekRevision.current = updatedScope.revision;
+    activeWeekScope.current = updatedScope;
+    loadedWeekScope.current = updatedScope;
     setWeek((current) => {
       if (!current) return current;
-      const others = current.attendance.filter((attendance) => attendance.sessionId !== record.sessionId);
+      const others = current.attendance.filter(
+        (attendance) => attendance.sessionId !== record.sessionId,
+      );
       return { ...current, attendance: [record, ...others] };
     });
   }, []);
 
-  const handleSelectStudent = useCallback((studentId: string) => {
+  const handleSelectStudent = useCallback(
+    (studentId: string) => {
+      if (studentId === selectedStudentId) return;
+      silentReload.current = false;
+      weekRevision.current += 1;
+      activeWeekScope.current = undefined;
+      loadedWeekScope.current = undefined;
+      setWeek(undefined);
+      setWeekStudentId("");
+      setWeekRangeFrom("");
+      setWeekRangeTo("");
+      setPenalties([]);
+      setSiblingReady({ studentId, names: [] });
+      setSelectedStudentId(studentId);
+    },
+    [selectedStudentId],
+  );
+
+  const handleOffset = useCallback((nextOffset: number | null) => {
+    if (nextOffset === null) return;
     silentReload.current = false;
     weekRevision.current += 1;
-    setWeek(undefined);
-    setWeekStudentId("");
-    setPenalties([]);
-    setSiblingReady({ studentId, names: [] });
-    setSelectedStudentId(studentId);
+    activeWeekScope.current = undefined;
+    loadedWeekScope.current = undefined;
+    setOffset(nextOffset);
   }, []);
 
   const flashNote = useCallback((sessionId: string, text: string) => {
@@ -353,6 +424,15 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
     siblingReady.studentId === selectedStudentId && siblingReady.names.length > 0
       ? siblingReady.names[0] + " is ready too — switch to " + siblingReady.names[0]
       : undefined;
+  const candidateScope: WeekScope | undefined =
+    candidate && participant
+      ? {
+          studentId: participant.studentId,
+          rangeFrom,
+          rangeTo,
+          revision: weekRevision.current,
+        }
+      : undefined;
 
   return (
     <main className="member-app">
@@ -361,7 +441,9 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
           candidate={candidate}
           clockIn={(input) => repository.clockIn(input)}
           key={participant.studentId + ":" + candidate.session.sessionId}
-          onCheckedIn={handleCheckedIn}
+          onCheckedIn={(record) => {
+            if (candidateScope) handleCheckedIn(candidateScope, record);
+          }}
           studentId={participant.studentId}
           {...(candidateProgram ? { program: candidateProgram } : {})}
           {...(siblingHint ? { siblingHint } : {})}
@@ -372,8 +454,8 @@ export function MemberCalendar({ repository, session, onSignOut }: MemberCalenda
         canPrev={!failed && prev !== null}
         days={days}
         displayName={session.displayName}
-        onNext={() => next !== null && setOffset(next)}
-        onPrev={() => prev !== null && setOffset(prev)}
+        onNext={() => handleOffset(next)}
+        onPrev={() => handleOffset(prev)}
         onSelectStudent={handleSelectStudent}
         onSignOut={onSignOut}
         participants={member?.participants ?? []}
