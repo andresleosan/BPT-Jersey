@@ -490,6 +490,24 @@ describe("membership callables", () => {
     });
   });
 
+  it("denies a teen trial creation for their own active minor before the store operation", async () => {
+    const current = services({
+      findStudentByUserId: vi.fn(async () => teenStudentScope()),
+    });
+
+    await expect(
+      createMembershipHandler(
+        request(
+          { ...createPayload, familyId, studentId: minorStudentId },
+          "teenStudent",
+          "teen-user-1",
+        ),
+        current,
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(current.store.createMembership).not.toHaveBeenCalled();
+  });
+
   it("denies teen membership reads without an active linked minor and family scope", async () => {
     for (const scope of [
       undefined,
