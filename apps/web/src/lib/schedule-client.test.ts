@@ -40,6 +40,7 @@ import {
   saveProgram,
   saveSession,
   scheduleCallableClientOptions,
+  selfCheckIn,
   updateSession,
 } from "./schedule-client";
 
@@ -143,6 +144,24 @@ describe("Schedule Client", () => {
 
     expect(prog.programId).toBe("p-1");
     expect(prog.name).toBe("Judo BJJ");
+  });
+
+  it("calls selfCheckIn and returns its attendance without translating failures", async () => {
+    const attendance = { attendanceId: "s-1__sam", method: "self", state: "attended" };
+    mockCallable.mockResolvedValueOnce({ data: { attendance } });
+
+    await expect(
+      selfCheckIn({
+        sessionId: "s-1",
+        studentId: "sam",
+        position: { latitude: 49.183954, longitude: -2.107142, accuracyMeters: 12 },
+      }),
+    ).resolves.toEqual(attendance);
+    expect(mockHttpsCallable).toHaveBeenCalledWith(
+      {},
+      "selfCheckIn",
+      scheduleCallableClientOptions,
+    );
   });
 
   it("generates sessions batch", async () => {
@@ -349,37 +368,57 @@ describe("Schedule Client", () => {
 
   it("calls updateSession, removeClass and listSessionBookedCounts by name", async () => {
     mockCallable.mockResolvedValueOnce({ data: { session: { sessionId: "s1" } } });
-    await expect(updateSession({ sessionId: "s1", title: "Adults Gi" })).resolves.toEqual({ sessionId: "s1" });
-    expect(mockHttpsCallable).toHaveBeenLastCalledWith(expect.anything(), "updateSession", { limitedUseAppCheckTokens: true });
+    await expect(updateSession({ sessionId: "s1", title: "Adults Gi" })).resolves.toEqual({
+      sessionId: "s1",
+    });
+    expect(mockHttpsCallable).toHaveBeenLastCalledWith(expect.anything(), "updateSession", {
+      limitedUseAppCheckTokens: true,
+    });
 
-    mockCallable.mockResolvedValueOnce({ data: { class: { classId: "c1" }, cancelledSessions: [] } });
-    await expect(removeClass({ classId: "c1", reason: "Coach left" })).resolves.toEqual({ class: { classId: "c1" }, cancelledSessions: [] });
-    expect(mockHttpsCallable).toHaveBeenLastCalledWith(expect.anything(), "removeClass", { limitedUseAppCheckTokens: true });
+    mockCallable.mockResolvedValueOnce({
+      data: { class: { classId: "c1" }, cancelledSessions: [] },
+    });
+    await expect(removeClass({ classId: "c1", reason: "Coach left" })).resolves.toEqual({
+      class: { classId: "c1" },
+      cancelledSessions: [],
+    });
+    expect(mockHttpsCallable).toHaveBeenLastCalledWith(expect.anything(), "removeClass", {
+      limitedUseAppCheckTokens: true,
+    });
 
     mockCallable.mockResolvedValueOnce({ data: { counts: { s1: 2, s2: 0 } } });
-    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).resolves.toEqual({ s1: 2, s2: 0 });
+    await expect(
+      listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" }),
+    ).resolves.toEqual({ s1: 2, s2: 0 });
 
     mockCallable.mockResolvedValueOnce({ data: { counts: { s1: "two" } } });
-    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+    await expect(
+      listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" }),
+    ).rejects.toThrow("Unable to load booking counts.");
 
     mockCallable.mockResolvedValueOnce({ data: { counts: [1, 2] } });
-    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+    await expect(
+      listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" }),
+    ).rejects.toThrow("Unable to load booking counts.");
 
     mockCallable.mockResolvedValueOnce({ data: { counts: null } });
-    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+    await expect(
+      listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" }),
+    ).rejects.toThrow("Unable to load booking counts.");
 
     mockCallable.mockResolvedValueOnce({ data: { counts: new Date(0) } });
-    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+    await expect(
+      listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" }),
+    ).rejects.toThrow("Unable to load booking counts.");
 
     mockCallable.mockResolvedValueOnce({ data: { counts: { s1: -1 } } });
-    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).rejects.toThrow("Unable to load booking counts.");
+    await expect(
+      listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" }),
+    ).rejects.toThrow("Unable to load booking counts.");
 
     mockCallable.mockResolvedValueOnce({ data: { counts: {} } });
-    await expect(listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" })).resolves.toEqual({});
+    await expect(
+      listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" }),
+    ).resolves.toEqual({});
   });
 });
-
-
-
-
-

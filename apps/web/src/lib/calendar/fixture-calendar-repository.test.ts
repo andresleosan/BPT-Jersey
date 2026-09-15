@@ -1,3 +1,4 @@
+import { nextSelfCheckInSession } from "@bpt-jersey/domain/schedule/self-check-in";
 import { describe, expect, it } from "vitest";
 
 import { createFixtureCalendarRepository } from "./fixture-calendar-repository";
@@ -42,9 +43,9 @@ describe("fixture calendar repository", () => {
     const booking = await repo.book({ sessionId, studentId: "sam", membershipId: "m-sam" });
     expect(booking.status).toBe("confirmed");
     const after = await repo.loadWeek("sam", weekAgo, inThreeWeeks);
-    expect(
-      after.bookings.some((b) => b.sessionId === sessionId && b.status === "confirmed"),
-    ).toBe(true);
+    expect(after.bookings.some((b) => b.sessionId === sessionId && b.status === "confirmed")).toBe(
+      true,
+    );
     const cancelled = await repo.cancel({
       sessionId,
       studentId: "sam",
@@ -69,5 +70,80 @@ describe("fixture calendar repository", () => {
     const repo = createFixtureCalendarRepository("guardian");
     expect(await repo.loadPenalties("maya")).toHaveLength(1);
     expect(await repo.loadPenalties("leo")).toHaveLength(0);
+  });
+});
+
+describe("fixture self check-in", () => {
+  const town = { latitude: 49.183954, longitude: -2.107142 };
+  const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
+  const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
+  const soon = new Date(Date.now() - 3600000).toISOString();
+  const later = new Date(Date.now() + 3 * 3600000).toISOString();
+
+  it("seeds one ready session per participant, 30 minutes from load", async () => {
+    for (const [role, studentId] of [
+      ["teenStudent", "sam"],
+      ["adultStudent", "alex"],
+      ["guardian", "maya"],
+      ["guardian", "leo"],
+    ] as const) {
+      const repo = createFixtureCalendarRepository(role);
+      const week = await repo.loadWeek(studentId, soon, later);
+      const candidate = nextSelfCheckInSession({ ...week, nowMs: Date.now() });
+      expect(candidate?.kind, `${role}/${studentId}`).toBe("ready");
+    }
+  });
+
+  it("clocks in inside 50 m, refuses outside with the distance, and replays its own record", async () => {
+    const repo = createFixtureCalendarRepository("teenStudent");
+    const week = await repo.loadWeek("sam", soon, later);
+    const session = nextSelfCheckInSession({ ...week, nowMs: Date.now() })!.session;
+    expect(session.locationId).toBe("town");
+    await expect(
+      repo.clockIn({ sessionId: session.sessionId, studentId: "sam", position: far }),
+    ).rejects.toMatchObject({
+      code: "functions/failed-precondition",
+      details: { reason: "outside", distanceMeters: 120 },
+    });
+    const record = await repo.clockIn({
+      sessionId: session.sessionId,
+      studentId: "sam",
+      position: near,
+    });
+    expect(record).toMatchObject({
+      method: "self",
+      state: "attended",
+      sessionId: session.sessionId,
+    });
+    const after = await repo.loadWeek("sam", soon, later);
+    expect(nextSelfCheckInSession({ ...after, nowMs: Date.now() })?.kind).toBe("checkedIn");
+    await expect(
+      repo.clockIn({ sessionId: session.sessionId, studentId: "sam", position: near }),
+    ).resolves.toEqual(record);
+  });
+
+  it("refuses a session without a booking", async () => {
+    const repo = createFixtureCalendarRepository("adultStudent");
+    await expect(
+      repo.clockIn({ sessionId: "nope", studentId: "alex", position: near }),
+    ).rejects.toMatchObject({
+      code: "functions/not-found",
+    });
+  });
+
+  it("keeps direct fixture instances and member participants isolated", async () => {
+    const first = createFixtureCalendarRepository("teenStudent");
+    const second = createFixtureCalendarRepository("teenStudent");
+    const firstWeek = await first.loadWeek("sam", soon, later);
+    const session = nextSelfCheckInSession({ ...firstWeek, nowMs: Date.now() })!.session;
+
+    await first.clockIn({ sessionId: session.sessionId, studentId: "sam", position: near });
+
+    const secondWeek = await second.loadWeek("sam", soon, later);
+    expect(nextSelfCheckInSession({ ...secondWeek, nowMs: Date.now() })?.kind).toBe("ready");
+    expect(
+      (await first.loadMember()).participants.map((participant) => participant.studentId),
+    ).toEqual(["sam"]);
+    expect((await first.loadWeek("alex", soon, later)).bookings).toEqual([]);
   });
 });

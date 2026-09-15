@@ -8,6 +8,7 @@ import type {
 } from "@bpt-jersey/domain/schedule";
 import type { ParticipantType, PlanId, Site } from "@bpt-jersey/domain/memberships";
 import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
+import type { SelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
 
 /**
  * The only seam between the member calendar UI and the backend. `fixture-calendar-repository`
@@ -46,5 +47,7 @@ export interface CalendarRepository {
   loadWeek(studentId: string, fromIso: string, toIso: string): Promise<CalendarWeekData>;
   book(input: RequestBookingInput): Promise<BookingRecord>;
   cancel(input: CancelBookingInput): Promise<BookingRecord>;
+  /** T040V2: member self check-in. Refusals preserve `code` and `details.reason`. */
+  clockIn(input: SelfCheckInInput): Promise<AttendanceRecord>;
   loadPenalties(studentId: string): Promise<readonly NoShowPenaltyRecord[]>;
 }

@@ -30,6 +30,7 @@ import {
   type PreClassAttendeeSource,
   type PreClassView,
 } from "@bpt-jersey/domain/schedule/pre-class";
+import type { SelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
 
 import { getFirebaseFunctions } from "./firebase-client";
 
@@ -88,9 +89,7 @@ export async function listClasses(): Promise<readonly ClassRecord[]> {
   return result.data.classes;
 }
 
-export async function listSessions(
-  query: ListSessionsQuery,
-): Promise<readonly SessionRecord[]> {
+export async function listSessions(query: ListSessionsQuery): Promise<readonly SessionRecord[]> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<ListSessionsQuery, { sessions: SessionRecord[] }>(
     functions,
@@ -103,10 +102,7 @@ export async function listSessions(
 
 export async function saveClass(input: CreateClassInput): Promise<ClassRecord> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<CreateClassInput, { class: ClassRecord }>(
-    functions,
-    "saveClass",
-  );
+  const callable = httpsCallable<CreateClassInput, { class: ClassRecord }>(functions, "saveClass");
 
   const result = await callable(input);
   return result.data.class;
@@ -178,10 +174,7 @@ export async function generateSessions(input: {
   return result.data.sessions;
 }
 
-export async function cancelSession(
-  sessionId: string,
-  reason: string,
-): Promise<SessionRecord> {
+export async function cancelSession(sessionId: string, reason: string): Promise<SessionRecord> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<{ sessionId: string; reason: string }, { session: SessionRecord }>(
     functions,
@@ -206,10 +199,10 @@ export async function removeClass(
   input: RemoveClassInput,
 ): Promise<Readonly<{ class: ClassRecord; cancelledSessions: readonly SessionRecord[] }>> {
   const functions = getFirebaseFunctions();
-  const callable = httpsCallable<RemoveClassInput, { class: ClassRecord; cancelledSessions: SessionRecord[] }>(
-    functions,
-    "removeClass",
-  );
+  const callable = httpsCallable<
+    RemoveClassInput,
+    { class: ClassRecord; cancelledSessions: SessionRecord[] }
+  >(functions, "removeClass");
   const result = await callable(input);
   return result.data;
 }
@@ -258,9 +251,7 @@ export async function cancelBooking(input: CancelBookingInput): Promise<BookingR
   return result.data.booking;
 }
 
-export async function listSessionBookings(
-  sessionId: string,
-): Promise<readonly BookingRecord[]> {
+export async function listSessionBookings(sessionId: string): Promise<readonly BookingRecord[]> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<{ sessionId: string }, { bookings: BookingRecord[] }>(
     functions,
@@ -271,9 +262,7 @@ export async function listSessionBookings(
   return result.data.bookings;
 }
 
-export async function listStudentBookings(
-  studentId?: string,
-): Promise<readonly BookingRecord[]> {
+export async function listStudentBookings(studentId?: string): Promise<readonly BookingRecord[]> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<{ studentId?: string }, { bookings: BookingRecord[] }>(
     functions,
@@ -304,6 +293,17 @@ export async function recordCheckIn(input: CheckInInput): Promise<AttendanceReco
     "checkIn",
   );
 
+  const result = await callable(input);
+  return result.data.attendance;
+}
+
+/** T040V2 member self check-in. Errors keep `code` and `details.reason` for the UI to map. */
+export async function selfCheckIn(input: SelfCheckInInput): Promise<AttendanceRecord> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<SelfCheckInInput, { attendance: AttendanceRecord }>(
+    functions,
+    "selfCheckIn",
+  );
   const result = await callable(input);
   return result.data.attendance;
 }
@@ -374,9 +374,7 @@ export async function listAttendanceHistory(
   return result.data.history;
 }
 
-export async function recordCheckout(
-  input: RecordCheckoutInput,
-): Promise<CheckoutRecord> {
+export async function recordCheckout(input: RecordCheckoutInput): Promise<CheckoutRecord> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<RecordCheckoutInput, { checkout: CheckoutRecord }>(
     functions,
@@ -387,9 +385,7 @@ export async function recordCheckout(
   return result.data.checkout;
 }
 
-export async function listSessionCheckouts(
-  sessionId: string,
-): Promise<readonly CheckoutRecord[]> {
+export async function listSessionCheckouts(sessionId: string): Promise<readonly CheckoutRecord[]> {
   const functions = getFirebaseFunctions();
   const callable = httpsCallable<{ sessionId: string }, { checkouts: CheckoutRecord[] }>(
     functions,
@@ -472,7 +468,3 @@ export async function getPreClassView(sessionId: string): Promise<PreClassView> 
     throw new Error(safePreClassError);
   }
 }
-
-
-
-
