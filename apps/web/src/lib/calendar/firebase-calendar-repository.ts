@@ -4,7 +4,8 @@
  * model must: (1) run it with NEXT_PUBLIC_CALENDAR_SOURCE=firebase against emulators/staging —
  * covered by the unit and emulator callable suites of 2026-09-14, but the in-browser run stays
  * impossible offline (App Check fail-closed); (3) confirm how a teenStudent's studentId reaches
- * loadMember.
+ * loadMember. (4) `clockIn` → `selfCheckIn`, written against Task 5's contract, unverified until
+ * the emulator run.
  */
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 
@@ -18,6 +19,7 @@ import {
   listStudentAttendance,
   listStudentBookings,
   requestBooking,
+  selfCheckIn,
 } from "../schedule-client";
 import { listClientMemberships } from "../waitlist-client";
 import type {
@@ -91,6 +93,7 @@ export function createFirebaseCalendarRepository(session: {
     },
     book: requestBooking,
     cancel: cancelBooking,
+    clockIn: selfCheckIn,
     async loadPenalties(studentId) {
       const penalties = await listNoShowPenalties();
       return penalties.filter((p) => p.studentId === studentId);
