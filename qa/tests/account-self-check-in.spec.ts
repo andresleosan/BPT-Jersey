@@ -76,6 +76,54 @@ async function denyGeolocation(page: Page, context: BrowserContext): Promise<voi
   await client.detach();
 }
 
+/**
+ * Fixture `clockIn` is in-process, so a network listener would be vacuous. React's live prop is
+ * the immediate `(input) => repository.clockIn(input)` adapter; breakpointing it observes that
+ * boundary without replacing the repository or mocking a backend.
+ */
+async function fixtureClockInCallsDuring(
+  page: Page,
+  context: BrowserContext,
+  action: () => Promise<void>,
+): Promise<number> {
+  const client = await context.newCDPSession(page);
+  const callable = await client.send("Runtime.evaluate", {
+    expression: `(() => {
+      const card = document.querySelector(".ready-card");
+      const key = card && Object.keys(card).find((name) => name.startsWith("__reactFiber$"));
+      let fiber = key ? card[key] : undefined;
+      while (fiber) {
+        if (typeof fiber.memoizedProps?.clockIn === "function") {
+          window.__bptReadyClockIn = fiber.memoizedProps.clockIn;
+          return window.__bptReadyClockIn;
+        }
+        fiber = fiber.return;
+      }
+      return undefined;
+    })()`,
+  });
+  const objectId = callable.result.objectId;
+  if (!objectId) {
+    throw new Error("ReadyForJiuJitsu did not expose its repository clockIn adapter.");
+  }
+  await client.send("Debugger.enable");
+  let calls = 0;
+  client.on("Debugger.paused", () => {
+    calls += 1;
+    void client.send("Debugger.resume");
+  });
+  const breakpoint = await client.send("Debugger.setBreakpointOnFunctionCall", { objectId });
+
+  try {
+    await action();
+    return calls;
+  } finally {
+    await client.send("Debugger.removeBreakpoint", { breakpointId: breakpoint.breakpointId });
+    await client.send("Debugger.disable");
+    await client.detach();
+  }
+}
+
 test.describe("Ready for Jiu Jitsu @account", () => {
   test.describe.configure({ timeout: 90_000 });
   test.skip(!enabled, "ACCOUNT_WORKBENCH_E2E is not enabled");
@@ -154,9 +202,14 @@ test.describe("Ready for Jiu Jitsu @account", () => {
     await expect(page.getByRole("status")).toHaveText("You're 120 m away. Get to the gym and try again.");
     await expect(slider(page)).toHaveValue("0");
     await denyGeolocation(page, context);
-    await slider(page).focus();
-    await page.keyboard.press("End");
-    await expect(page.getByRole("status")).toHaveText("Location is off. Allow it for this site, or ask a coach to check you in.");
+    const deniedClockInCalls = await fixtureClockInCallsDuring(page, context, async () => {
+      await slider(page).focus();
+      await page.keyboard.press("End");
+      await expect(page.getByRole("status")).toHaveText(
+        "Location is off. Allow it for this site, or ask a coach to check you in.",
+      );
+    });
+    expect(deniedClockInCalls).toBe(0);
     await page.getByRole("button", { name: "Sign out" }).click();
     await page.waitForURL(/\/login/u);
     await signIn(page, "tutor@bpt.test", "");
