@@ -565,3 +565,10 @@
     transition: transform 220ms ease;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .ready-fill,
+  .ready-fill::after {
+    transition-property: none;
+  }
+}

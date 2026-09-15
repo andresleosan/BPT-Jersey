@@ -97,7 +97,9 @@ export function createFirebaseCalendarRepository(session: {
     cancel: cancelBooking,
     clockIn: selfCheckIn,
     async loadPenalties(studentId) {
-      const penalties = await listNoShowPenalties();
+      // Penalties are an office-only ancillary display. A member denial must not prevent the
+      // calendar's booking and attendance data from remaining usable.
+      const penalties = await listNoShowPenalties().catch(() => []);
       return penalties.filter((p) => p.studentId === studentId);
     },
   };

@@ -1010,7 +1010,17 @@ test.describe("T096 class operations with Firebase Emulators", () => {
       { sessionId: created.sessionId, studentId, position: insidePosition },
       adult,
     );
-    expect(inside.attendance).toMatchObject({ method: "self", state: "attended", studentId });
+    expect(inside.attendance).toMatchObject({
+      method: "self",
+      state: "attended",
+      studentId,
+      proximity: {
+        signal: "within",
+        distanceMeters: 30,
+        accuracyMeters: 12,
+        overrideReason: null,
+      },
+    });
     const replay = await ok<{ attendance: Attendance }>(
       request,
       "selfCheckIn",
@@ -1021,9 +1031,9 @@ test.describe("T096 class operations with Firebase Emulators", () => {
 
     for (const payload of [outside.body.error?.details, inside.attendance, replay.attendance]) {
       const serialized = JSON.stringify(payload);
+      expect(serialized).not.toContain("position");
       expect(serialized).not.toContain("latitude");
       expect(serialized).not.toContain("longitude");
-      expect(serialized).not.toContain("accuracyMeters");
       expect(serialized).not.toContain("49.185034");
       expect(serialized).not.toContain("49.184224");
       expect(serialized).not.toContain("-2.107142");

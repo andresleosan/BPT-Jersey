@@ -10,6 +10,7 @@ const schedule = vi.hoisted(() => ({
   selfCheckIn: vi.fn(),
   listSessionBookedCounts: vi.fn(),
 }));
+const penalties = vi.hoisted(() => ({ listNoShowPenalties: vi.fn() }));
 vi.mock("../schedule-client", () => schedule);
 vi.mock("../waitlist-client", () => ({
   listClientMemberships: vi
@@ -19,9 +20,7 @@ vi.mock("../waitlist-client", () => ({
     ]),
 }));
 vi.mock("../family-client", () => ({ getFamily: vi.fn() }));
-vi.mock("../no-show-penalties-client", () => ({
-  listNoShowPenalties: vi.fn().mockResolvedValue([]),
-}));
+vi.mock("../no-show-penalties-client", () => penalties);
 
 import { createFirebaseCalendarRepository } from "./firebase-calendar-repository";
 
@@ -35,6 +34,7 @@ describe("firebase calendar repository", () => {
     schedule.listStudentBookings.mockResolvedValue([]);
     schedule.listStudentAttendance.mockResolvedValue([]);
     schedule.listSessionBookedCounts.mockResolvedValue({ s1: 20 });
+    penalties.listNoShowPenalties.mockResolvedValue([]);
   });
 
   it("loads the week with real booked counts", async () => {
@@ -59,6 +59,24 @@ describe("firebase calendar repository", () => {
     });
     const week = await repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z");
     expect(week.bookedCounts).toEqual({});
+    expect(week.sessions).toEqual([{ sessionId: "s1" }]);
+  });
+
+  it("keeps member and week data usable when the office-only penalty read is denied", async () => {
+    penalties.listNoShowPenalties.mockRejectedValue(new Error("permission-denied"));
+    const repo = createFirebaseCalendarRepository({
+      role: "adultStudent",
+      displayName: "Alex Demo",
+    });
+
+    const [member, week, noShowPenalties] = await Promise.all([
+      repo.loadMember(),
+      repo.loadWeek("s-1", "2026-09-14T00:00:00.000Z", "2026-09-20T23:59:59.999Z"),
+      repo.loadPenalties("s-1"),
+    ]);
+
+    expect(noShowPenalties).toEqual([]);
+    expect(member.participants).toHaveLength(1);
     expect(week.sessions).toEqual([{ sessionId: "s1" }]);
   });
 

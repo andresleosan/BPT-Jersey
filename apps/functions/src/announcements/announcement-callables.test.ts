@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createInMemoryAnnouncementStore } from "./announcement-service";
 import {
@@ -138,6 +138,24 @@ describe("Announcement Callables (T045)", () => {
     );
 
     expect(markRes.announcement.readBy).toContain("student-1");
+  });
+
+  it("denies teen students before announcement list or read store operations", async () => {
+    const store = createInMemoryAnnouncementStore();
+    const listAnnouncements = vi.spyOn(store, "listAnnouncements");
+    const markAsRead = vi.spyOn(store, "markAsRead");
+    const listHandler = createListAnnouncementsHandler({ store });
+    const markHandler = createMarkAnnouncementAsReadHandler({ store });
+
+    await expect(listHandler(fakeRequest({}, "teenStudent", "teen-1"))).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+    await expect(
+      markHandler(fakeRequest({ announcementId: "announcement-1" }, "teenStudent", "teen-1")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+
+    expect(listAnnouncements).not.toHaveBeenCalled();
+    expect(markAsRead).not.toHaveBeenCalled();
   });
 
   it("selects only active same-academy guardian relationships for a minor", () => {
