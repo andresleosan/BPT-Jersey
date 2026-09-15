@@ -331,11 +331,7 @@ export function BillingPage() {
       ) : null}
 
       {dashboardState === "loading" ? (
-        <div
-          aria-label="Loading billing"
-          className="admin-metrics-grid"
-          role="status"
-        >
+        <div aria-label="Loading billing" className="admin-metrics-grid" role="status">
           <div aria-hidden="true" className="billing-skeleton" />
           <div aria-hidden="true" className="billing-skeleton" />
           <div aria-hidden="true" className="billing-skeleton" />

@@ -965,7 +965,10 @@ describe("schedule store: v2 classes, session edits, class removal and booked co
     const store = createInMemoryScheduleStore();
     const created = await store.createClass(
       academyId,
-      { ...classInput, recurrenceRules: [{ dayOfWeek: 1 as const, startTime: "17:00", durationMinutes: 60 }] },
+      {
+        ...classInput,
+        recurrenceRules: [{ dayOfWeek: 1 as const, startTime: "17:00", durationMinutes: 60 }],
+      },
       "owner-1",
     );
     await store.createSession(

@@ -147,9 +147,9 @@ describe("class form", () => {
       ),
     ).toBe("The 'to' belt cannot be below the 'from' belt.");
     expect(draftToCreateInput({ ...draft, rules: [] }, belts)).toBe("Pick at least one day.");
-    expect(
-      draftToCreateInput({ ...draft, ageRange: { minAge: NaN, maxAge: 11 } }, belts),
-    ).toBe("Enter both ages.");
+    expect(draftToCreateInput({ ...draft, ageRange: { minAge: NaN, maxAge: 11 } }, belts)).toBe(
+      "Enter both ages.",
+    );
   });
 
   it("disables the belt selectors when the catalogue is unavailable", () => {
