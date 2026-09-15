@@ -55,6 +55,25 @@
   text-transform: uppercase;
 }
 
+.member-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.member-links a {
+  color: var(--gi-white);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
 .member-chips {
   display: flex;
   flex-wrap: wrap;

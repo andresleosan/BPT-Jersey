@@ -16,6 +16,7 @@
   "dependencies": {
     "@bpt-jersey/domain": "workspace:*",
     "firebase": "12.16.0",
+    "lottie-web": "5.13.0",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

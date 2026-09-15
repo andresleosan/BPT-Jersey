@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import type { CalendarDay } from "@bpt-jersey/domain/schedule/member-calendar";
 
 import type { CalendarParticipant } from "../../../lib/calendar";
@@ -28,6 +30,11 @@ export function CalendarHeader(props: CalendarHeaderProps) {
         </button>
       </div>
       <h1 className="member-name">{firstName}</h1>
+      <nav aria-label="Account" className="member-links">
+        <Link href="/account/progress">Progress</Link>
+        <Link href="/account/competitors">Competitors</Link>
+        <Link href="/account/settings">Settings</Link>
+      </nav>
       {props.participants.length > 1 ? (
         <ul aria-label="Choose member" className="member-chips" role="group">
           {props.participants.map((participant) => {
