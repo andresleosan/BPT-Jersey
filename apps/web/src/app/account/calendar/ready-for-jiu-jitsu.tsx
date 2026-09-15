@@ -131,7 +131,9 @@ export function ReadyForJiuJitsu({
   }, [busy, commit, value]);
 
   const onKeyUp = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "End" || busy || commitStarted.current) return;
+    const isThresholdArrow =
+      (event.key === "ArrowRight" || event.key === "ArrowUp") && value >= commitAt;
+    if ((event.key !== "End" && !isThresholdArrow) || busy || commitStarted.current) return;
     setValue(100);
     void commit();
   };
