@@ -50,10 +50,13 @@ La fase 0 no construye ninguna de las tres. Construye lo que las tres comparten.
 4. **La tabla de competidores se sirve por callable, no por lectura directa de Firestore.** Así
    `firestore.rules` y `firestore.indexes.json` no cambian en ninguna de las tres ramas, y el filtro
    de menores se aplica en el servidor.
-5. **Menores en la tabla:** la ficha pública de un menor solo aparece si su tutor lo ha
-   autorizado, y ese consentimiento no existe todavía (T009V2, T011). Hasta entonces el servidor
-   excluye a los menores de las tablas y a los menores les muestra solo adultos. El operador decide
-   cuándo abrirlo; es la única decisión de producto que la fase 0 deja abierta.
+5. **Cohortes por edad en las tablas (decisión del operador, 2026-09-16):** dos cohortes
+   separadas, calculadas en el servidor con la edad en Europe/Jersey el día de la consulta:
+   `under16` (menos de 16 años) y `adult` (16 o más). Un menor de 16 solo ve y solo es visto por
+   otros menores de 16; desde los 16 el miembro se trata como adulto en las tablas, y solo en las
+   tablas (el resto de su tratamiento sigue siendo el de menor hasta los 18). La cohorte la da
+   `leaderboardCohort(dateOfBirth, now)` en `members/engagement`; ningún equipo la recalcula por su
+   cuenta. La DPIA de T011 debe recoger este tratamiento; no bloquea la construcción.
 6. **Cuenta del adolescente:** ya existe el rol `teenStudent` y la fila T009V2. T044V2 depende de
    T009V2 y no redefine el rol: el adolescente entra con un usuario propio cuyo `studentId` resuelve
    `canonical-client-student-scope.ts`, igual que hoy. Google como proveedor de acceso es

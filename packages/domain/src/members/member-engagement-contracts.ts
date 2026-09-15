@@ -157,3 +157,28 @@ export function rankNeighbours<T extends { studentId: string }>(input: {
     below: Object.freeze(ranked.slice(index + 1, index + 1 + span)),
   });
 }
+
+/**
+ * Leaderboard cohort (spec decision 5, operator 2026-09-16): under-16s only see and are seen by
+ * under-16s; from 16 a member counts as an adult in the tables, and only there. Age on the Jersey
+ * calendar for the day of `nowIso`. An unreadable date of birth falls into `under16`, the narrower
+ * cohort.
+ */
+export type LeaderboardCohort = "under16" | "adult";
+
+export function leaderboardCohort(dateOfBirth: string, nowIso: string): LeaderboardCohort {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(dateOfBirth)) return "under16";
+  const [birthYear, birthMonth, birthDay] = dateOfBirth.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const [year, month, day] = jerseyDate.format(new Date(nowIso)).split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const hadBirthday = month > birthMonth || (month === birthMonth && day >= birthDay);
+  const age = year - birthYear - (hadBirthday ? 0 : 1);
+  return age >= 16 ? "adult" : "under16";
+}
