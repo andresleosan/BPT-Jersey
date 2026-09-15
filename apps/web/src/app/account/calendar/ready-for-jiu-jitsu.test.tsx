@@ -119,6 +119,11 @@ describe("ReadyForJiuJitsu", () => {
     );
   });
 
+  it("keeps operational window, hint, and status text at the body-size minimum in source styles", () => {
+    expect(accountCss).toMatch(/\.ready-window,\s*\.ready-hint\s*\{[\s\S]*?font-size: 1rem;/u);
+    expect(accountCss).toMatch(/\.ready-status\s*\{[\s\S]*?font-size: 1rem;/u);
+  });
+
   it("shows the two-line headline, the class and the window, and asks for location only after the slide", async () => {
     const getPosition = stubGeolocation((ok) => ok(near));
     const clockIn = vi.fn().mockResolvedValue(record);
