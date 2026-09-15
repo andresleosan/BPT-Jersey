@@ -724,23 +724,32 @@ export function createFirestoreScheduleStore(options: {
       const drafts = generateSessionsFromClass(cls, fromDate, toDate, timezone);
       const now = new Date().toISOString();
       const created: SessionRecord[] = [];
+      // ponytail: two rules on the same weekday share a date; only the first draft for a given
+      // date may claim the legacy `${classId}__${date}` document, or the second rule's session is
+      // skipped forever (and the legacy session gets pushed twice into `created`).
+      const seenLegacyDates = new Set<string>();
 
       for (const draft of drafts) {
         const sessionRef = firestore
           .collection(`academies/${academyId}/sessions`)
           .doc(draft.sessionId);
+        const draftDate = draft.sessionId.split("__")[1]!;
         // ponytail: a v1 class generated `${classId}__${date}`; keep that document instead of a twin.
-        const legacyRef = firestore
-          .collection(`academies/${academyId}/sessions`)
-          .doc(legacySessionId(cls.classId, draft.sessionId.split("__")[1]!));
+        const isFirstForDate = !seenLegacyDates.has(draftDate);
+        seenLegacyDates.add(draftDate);
+        const legacyRef = isFirstForDate
+          ? firestore
+              .collection(`academies/${academyId}/sessions`)
+              .doc(legacySessionId(cls.classId, draftDate))
+          : null;
         const [existingSession, legacySession] = await Promise.all([
           sessionRef.get(),
-          legacyRef.get(),
+          legacyRef?.get() ?? Promise.resolve(undefined),
         ]);
 
         if (existingSession.exists) {
           created.push(existingSession.data() as SessionRecord);
-        } else if (legacySession.exists) {
+        } else if (legacySession?.exists) {
           created.push(legacySession.data() as SessionRecord);
         } else {
           const sessionRecord: SessionRecord = Object.freeze({
@@ -1563,12 +1572,18 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         sessionsMap.set(academyId, new Map());
       }
       const aSessions = sessionsMap.get(academyId)!;
+      // ponytail: two rules on the same weekday share a date; only the first draft for a given
+      // date may claim the legacy `${classId}__${date}` session.
+      const seenLegacyDates = new Set<string>();
 
       for (const draft of drafts) {
-        const legacyId = legacySessionId(cls.classId, draft.sessionId.split("__")[1]!);
+        const draftDate = draft.sessionId.split("__")[1]!;
+        const isFirstForDate = !seenLegacyDates.has(draftDate);
+        seenLegacyDates.add(draftDate);
+        const legacyId = legacySessionId(cls.classId, draftDate);
         if (aSessions.has(draft.sessionId)) {
           created.push(aSessions.get(draft.sessionId)!);
-        } else if (aSessions.has(legacyId)) {
+        } else if (isFirstForDate && aSessions.has(legacyId)) {
           created.push(aSessions.get(legacyId)!);
         } else {
           const sessionRecord: SessionRecord = Object.freeze({

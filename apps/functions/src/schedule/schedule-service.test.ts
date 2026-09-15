@@ -961,6 +961,65 @@ describe("schedule store: v2 classes, session edits, class removal and booked co
     expect(sessions[0]?.sessionId).toBe(`${created.classId}__2026-09-14`);
   });
 
+  it("generates the second rule's session when two rules share a legacy session's weekday", async () => {
+    const store = createInMemoryScheduleStore();
+    const created = await store.createClass(
+      academyId,
+      { ...classInput, recurrenceRules: [{ dayOfWeek: 1 as const, startTime: "17:00", durationMinutes: 60 }] },
+      "owner-1",
+    );
+    await store.createSession(
+      academyId,
+      {
+        programId: "program-1",
+        locationId: "town",
+        instructorId: "coach-a",
+        title: "Kids BJJ",
+        startAt: "2099-01-05T16:00:00Z",
+        endAt: "2099-01-05T17:00:00Z",
+        capacity: 20,
+        classId: created.classId,
+      },
+      "owner-1",
+    );
+    // Plant the legacy id the way a v1 generation would have.
+    const legacy = (
+      await store.listSessions(academyId, {
+        from: "2099-01-05T00:00:00.000Z",
+        to: "2099-01-05T23:59:59.999Z",
+      })
+    )[0]!;
+    await store.__seedSessionId?.(academyId, legacy, `${created.classId}__2099-01-05`);
+
+    // Now the class has two Monday rules.
+    await store.updateClass(
+      academyId,
+      {
+        classId: created.classId,
+        recurrenceRules: [
+          { dayOfWeek: 1 as const, startTime: "17:00", durationMinutes: 60 },
+          { dayOfWeek: 1 as const, startTime: "18:30", durationMinutes: 60 },
+        ],
+      },
+      "owner-1",
+    );
+
+    const sessions = await store.generateSessions(
+      academyId,
+      created.classId,
+      "2099-01-05",
+      "2099-01-05",
+      "Europe/Jersey",
+      "owner-1",
+    );
+
+    expect(sessions).toHaveLength(2);
+    const ids = sessions.map((s) => s.sessionId);
+    expect(new Set(ids).size).toBe(2);
+    expect(ids).toContain(`${created.classId}__2099-01-05`);
+    expect(ids).toContain(`${created.classId}__2099-01-05__1830`);
+  });
+
   it("edits only scheduled sessions and keeps end after start", async () => {
     const store = createInMemoryScheduleStore();
     const session = await store.createSession(
