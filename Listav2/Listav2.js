@@ -699,7 +699,8 @@ const RESOLUTION_REQUIREMENTS = {
       "Desplegar functions:selfCheckIn y cargar los pines de Town y West en el panel de sedes.",
     ),
     requirement(
-      "Verificar el adaptador Firebase en la ejecución específica de selfCheckIn contra el emulador (Task12; línea base Java 21 en verde).",
+      "Probar la callable selfCheckIn contra el emulador en contenedor aislado. HECHO EL 2026-09-15: 3/3 pruebas en verde (94ac8c5). El flujo del navegador con el adaptador Firebase queda expresamente sin ejecutar: App Check es fail-closed fuera de producción y se verificará con una sesión real al desplegar.",
+      true,
     ),
   ],
 };
@@ -903,10 +904,10 @@ const membersItems = [
   task(
     "T040V2",
     "Slider «Ready for Jiu Jitsu»: check-in del propio miembro con puerta de 50 m en el servidor",
-    "revision",
+    "aprobada",
     "El miembro se marca presente desde su móvil una hora antes; el servidor decide si está en el gimnasio.",
     "-",
-    "Construido el 2026-09-15 con el mismo patrón que el calendario: reglas puras, callable propio junto al de staff, puerto con fixture viva y adaptador Firebase escrito. Las coordenadas se usan para una distancia y no se guardan, registran ni auditan; hay prueba de fuga. Cualquier asistencia, sea del coach o del miembro, esconde el slider: esa es la costura con el equipo de coaches. La línea base del arnés de emulador pasó en contenedor aislado Java 21; la verificación específica de selfCheckIn queda en Task12.",
+    "Construido el 2026-09-15 con el mismo patrón que el calendario: reglas puras, callable propio junto al de staff, puerto con fixture viva y adaptador Firebase escrito. Las coordenadas se usan para una distancia y no se guardan, registran ni auditan; hay prueba de fuga. Cualquier asistencia, sea del coach o del miembro, esconde el slider: esa es la costura con el equipo de coaches. Emulador en contenedor aislado con Java 21: 3/3 pruebas en verde, incluida la de selfCheckIn (94ac8c5). Revalidación del 2026-09-15 sobre c507c92: Playwright 8/8 en :9471 a 390 y 1280 px y ocho capturas renovadas e inspeccionadas. Lo probado en emulador es la callable; el adaptador Firebase del navegador sigue sin ejecutarse contra Firebase (App Check fail-closed fuera de producción). Aprobada; «desplegada» exige el despliegue real y los pines cargados.",
     [
       REF_TASKS,
       "docs/superpowers/specs/2026-09-14-ready-for-jiu-jitsu-self-check-in-design.md",

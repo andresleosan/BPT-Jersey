@@ -37,7 +37,7 @@ function redact(message) {
 }
 
 async function login(page) {
-  await page.goto(`${base}/login`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/login`, { waitUntil: "networkidle" });
   await page.getByLabel("Email address").fill("teen@bpt.test");
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();

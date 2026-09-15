@@ -1,11 +1,12 @@
 /**
- * UNVERIFIED — written against the client signatures in ../schedule-client, ../waitlist-client,
- * ../no-show-penalties-client and ../family-client, never run against Firebase. The connecting
- * model must: (1) run it with NEXT_PUBLIC_CALENDAR_SOURCE=firebase against emulators/staging —
- * covered by the unit and emulator callable suites of 2026-09-14, but the in-browser run stays
- * impossible offline (App Check fail-closed); (3) confirm how a teenStudent's studentId reaches
- * loadMember. (4) `clockIn` → `selfCheckIn`, written against Task 5's contract, unverified until
- * the emulator run.
+ * NOT RUN IN A BROWSER AGAINST FIREBASE — written against the client signatures in
+ * ../schedule-client, ../waitlist-client, ../no-show-penalties-client and ../family-client.
+ * What is verified (2026-09-15): the unit tests of this file, and the `selfCheckIn` callable
+ * end-to-end in the Functions Emulator (qa/tests/schedule-auth-emulator.spec.ts, 3/3). What is
+ * not: this adapter running in a browser session, because App Check is fail-closed outside
+ * production. Before calling it verified: (1) run /account with NEXT_PUBLIC_CALENDAR_SOURCE=firebase
+ * against a real session, (2) provide `bookedCounts` (today every session reads as not full),
+ * (3) confirm how a teenStudent's studentId reaches loadMember.
  */
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 
