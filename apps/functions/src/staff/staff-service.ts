@@ -99,6 +99,8 @@ export type StaffProfileProjection = Readonly<{
   role: StaffRole;
   active: boolean;
   status: "active" | "inactive";
+  /** Whether this profile belongs to the caller. The userId itself never leaves the server. */
+  self: boolean;
   schemaVersion: "1";
 }>;
 
@@ -112,7 +114,10 @@ export type StaffAssignmentProjection = Readonly<
 
 export type StaffStore = Readonly<{
   getStaffProfile: (academyId: string, staffId: string) => Promise<StaffProfile>;
-  listStaffProfiles: (academyId: string) => Promise<readonly StaffProfileProjection[]>;
+  listStaffProfiles: (
+    academyId: string,
+    viewerUserId: string,
+  ) => Promise<readonly StaffProfileProjection[]>;
   createStaffProfile: (input: CreateStaffProfileInput) => Promise<StaffProfile>;
   updateStaffProfile: (input: UpdateStaffProfileInput) => Promise<StaffProfile>;
   setStaffActive: (input: SetStaffActiveInput) => Promise<StaffProfile>;
@@ -277,12 +282,16 @@ function storedStaff(snapshot: StaffDocumentSnapshot, expectedStaffId: string): 
   return parsed.value;
 }
 
-export function toStaffProfileProjection(profile: StaffProfile): StaffProfileProjection {
+export function toStaffProfileProjection(
+  profile: StaffProfile,
+  viewerUserId: string,
+): StaffProfileProjection {
   return Object.freeze({
     staffKey: profile.staffId,
     role: profile.role,
     active: profile.active,
     status: profile.status,
+    self: profile.userId === viewerUserId,
     schemaVersion: profile.schemaVersion,
   });
 }
@@ -594,7 +603,7 @@ export function createStaffStore(dependencies: StaffStoreDependencies): StaffSto
       });
     },
 
-    async listStaffProfiles(academyIdInput) {
+    async listStaffProfiles(academyIdInput, viewerUserId) {
       const academyId = pathSegment(academyIdInput, "academy");
       const collection = dependencies.firestore.collection(staffCollectionPath(academyId));
       const query = collection.limit(MAX_STAFF_LIST_RECORDS + 1);
@@ -611,7 +620,9 @@ export function createStaffStore(dependencies: StaffStoreDependencies): StaffSto
           return profile;
         });
         profiles.sort((left, right) => left.staffId.localeCompare(right.staffId));
-        return Object.freeze(profiles.map(toStaffProfileProjection));
+        return Object.freeze(
+          profiles.map((profile) => toStaffProfileProjection(profile, viewerUserId)),
+        );
       });
     },
 

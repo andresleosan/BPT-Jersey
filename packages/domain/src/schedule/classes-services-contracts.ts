@@ -327,6 +327,20 @@ export function localMidnightUtc(date: string, timezone: string): number {
   return guess - zonedOffsetMinutes(guess, timezone) * 60000;
 }
 
+/**
+ * A local calendar date and `HH:MM` wall-clock time in `timezone`, as a UTC instant. Midnight plus
+ * the minutes is not enough: on the two clock-change Sundays the offset at midnight no longer holds
+ * by the time the class starts, so the same drift correction `shiftIsoInZone` uses is applied.
+ */
+export function localInstant(date: string, time: string, timezone: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  const midnightMs = localMidnightUtc(date, timezone);
+  const naiveMs = midnightMs + ((hours ?? 0) * 60 + (minutes ?? 0)) * 60000;
+  const driftMinutes =
+    zonedOffsetMinutes(midnightMs, timezone) - zonedOffsetMinutes(naiveMs, timezone);
+  return naiveMs + driftMinutes * 60000;
+}
+
 export function weekRangeFor(weekStart: string, timezone: string): Result<WeekRange, string> {
   if (typeof weekStart !== "string" || !isoDatePattern.test(weekStart))
     return err("weekStart must be YYYY-MM-DD");

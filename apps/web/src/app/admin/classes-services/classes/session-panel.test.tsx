@@ -99,8 +99,8 @@ const catalog = {
 } as const;
 
 const staff = [
-  { staffKey: "coach-a", role: "coach", active: true, status: "active" },
-  { staffKey: "coach-b", role: "coach", active: true, status: "active" },
+  { staffKey: "coach-a", role: "coach", active: true, status: "active", self: false },
+  { staffKey: "coach-b", role: "coach", active: true, status: "active", self: false },
 ] as const;
 
 describe("SessionPanel", () => {

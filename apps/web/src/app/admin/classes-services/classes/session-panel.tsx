@@ -8,7 +8,7 @@ import type {
   UpdateSessionInput,
 } from "@bpt-jersey/domain/schedule";
 import {
-  localMidnightUtc,
+  localInstant,
   waitingListModes,
   type SessionBookingRules,
   type WaitingListMode,
@@ -29,6 +29,8 @@ export type StaffOption = Readonly<{
   role: string;
   active: boolean;
   status: string;
+  /** Whether the row is the signed-in user's own profile (the "Mine" filter needs its staffKey). */
+  self: boolean;
 }>;
 
 export type SessionPanelProps = Readonly<{
@@ -81,7 +83,7 @@ function timeOf(minutes: number): string {
 }
 
 function isoAt(date: string, time: string, timezone: string): string {
-  return new Date(localMidnightUtc(date, timezone) + minutesOf(time) * 60_000).toISOString();
+  return new Date(localInstant(date, time, timezone)).toISOString();
 }
 
 function timeFrom(iso: string, timezone: string): string {
