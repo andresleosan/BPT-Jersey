@@ -1,7 +1,18 @@
 import { err, ok, type Result } from "../result";
+import {
+  parseSessionBookingRules,
+  waitingListModes,
+  type LocationKind,
+  type ProgramV2Fields,
+  type SessionBookingRules,
+  type WaitingListMode,
+} from "./classes-services-contracts";
 
+/** Ids de las dos sedes históricas; desde el clon de Classes / Services cualquier slug es válido. */
 export const locationIds = Object.freeze(["town", "west"] as const);
-export type LocationId = (typeof locationIds)[number];
+export type LocationId = string;
+
+const defaultLocationIds: readonly string[] = locationIds;
 
 export const ageBands = Object.freeze(["kids", "teens", "adult", "all"] as const);
 export type AgeBand = (typeof ageBands)[number];
@@ -43,6 +54,9 @@ export type LocationRecord = Readonly<{
   active: boolean;
   /** Absent or null until an administrator records the site coordinates. */
   geofence?: LocationGeofence | null;
+  /** Classes / Services clone (2026-09-16): additive, absent on v1 documents. */
+  abbreviation?: string;
+  kind?: LocationKind;
   schemaVersion: "1";
 }>;
 
@@ -80,11 +94,11 @@ export function parseSaveLocationGeofenceInput(
     return err("Geofence input accepts exactly locationId and geofence");
   }
   const { locationId, geofence } = input;
-  if (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId)) {
-    return err("Invalid locationId (must be 'town' or 'west')");
+  if (typeof locationId !== "string" || locationId.trim().length === 0) {
+    return err("locationId is required");
   }
   if (geofence === null) {
-    return ok(Object.freeze({ locationId: locationId as LocationId, geofence: null }));
+    return ok(Object.freeze({ locationId, geofence: null }));
   }
   if (!isRecord(geofence)) {
     return err("geofence must be an object or null");
@@ -102,7 +116,7 @@ export function parseSaveLocationGeofenceInput(
   }
   return ok(
     Object.freeze({
-      locationId: locationId as LocationId,
+      locationId,
       geofence: Object.freeze({
         latitude: geofence.latitude as number,
         longitude: geofence.longitude as number,
@@ -128,6 +142,7 @@ export function distanceInMetres(from: LocationGeofence, to: LocationGeofence): 
   return 2 * earthRadiusMetres * Math.asin(Math.min(1, Math.sqrt(halfChord)));
 }
 
+/** A v2 program adds the Classes / Services fields; a v1 document simply lacks them. */
 export type ProgramRecord = Readonly<{
   programId: string;
   academyId: string;
@@ -137,7 +152,8 @@ export type ProgramRecord = Readonly<{
   level: ClassLevel;
   active: boolean;
   schemaVersion: "1";
-}>;
+}> &
+  Partial<ProgramV2Fields>;
 
 export type ClassRecurrenceRule = Readonly<{
   dayOfWeek: DayOfWeek;
@@ -176,7 +192,8 @@ export type SessionRecord = Readonly<{
   title: string;
   startAt: string;
   endAt: string;
-  capacity: number;
+  /** Null means unlimited (Classes / Services clone, 2026-09-16). */
+  capacity: number | null;
   minParticipants: number;
   status: SessionStatus;
   isSeminar: boolean;
@@ -190,6 +207,9 @@ export type SessionRecord = Readonly<{
   description?: string;
   ageRange?: AgeRange | null;
   levelRange?: LevelRange | null;
+  instructorIds?: readonly string[];
+  bookingRules?: SessionBookingRules;
+  waitingList?: WaitingListMode;
 }>;
 
 export type CreateClassInput = Readonly<{
@@ -226,12 +246,16 @@ export type CreateSessionInput = Readonly<{
   title: string;
   startAt: string;
   endAt: string;
-  capacity: number;
+  /** Null means unlimited. */
+  capacity: number | null;
   minParticipants?: number;
   isSeminar?: boolean;
   description?: string;
   ageRange?: AgeRange | null;
   levelRange?: LevelRange | null;
+  instructorIds?: readonly string[];
+  bookingRules?: SessionBookingRules;
+  waitingList?: WaitingListMode;
 }>;
 
 export type UpdateSessionInput = Readonly<{
@@ -240,9 +264,12 @@ export type UpdateSessionInput = Readonly<{
   instructorId?: string;
   startAt?: string;
   endAt?: string;
-  capacity?: number;
+  capacity?: number | null;
   minParticipants?: number;
   description?: string;
+  instructorIds?: readonly string[];
+  bookingRules?: SessionBookingRules;
+  waitingList?: WaitingListMode;
 }>;
 
 export const classRemovalReasonMinLength = 2;
@@ -434,7 +461,7 @@ export function parseCreateClassInput(input: unknown): Result<CreateClassInput, 
     return err("programId is required");
   }
 
-  if (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId)) {
+  if (typeof locationId !== "string" || !defaultLocationIds.includes(locationId)) {
     return err("Invalid locationId (must be 'town' or 'west')");
   }
 
@@ -627,6 +654,50 @@ export function parseUpdateClassInput(input: unknown): Result<UpdateClassInput, 
   return ok(Object.freeze(result));
 }
 
+type SessionExtras = Readonly<{
+  instructorIds?: readonly string[];
+  bookingRules?: SessionBookingRules;
+  waitingList?: WaitingListMode;
+}>;
+
+/** Classes / Services clone (2026-09-16): several trainers, booking rules and waiting list. */
+function parseSessionExtras(
+  instructorIds: unknown,
+  bookingRules: unknown,
+  waitingList: unknown,
+): Result<SessionExtras, string> {
+  const extras: {
+    instructorIds?: readonly string[];
+    bookingRules?: SessionBookingRules;
+    waitingList?: WaitingListMode;
+  } = {};
+  if (instructorIds !== undefined) {
+    if (
+      !Array.isArray(instructorIds) ||
+      instructorIds.length === 0 ||
+      instructorIds.length > 10 ||
+      !instructorIds.every((id) => typeof id === "string" && id.trim().length > 0)
+    ) {
+      return err("instructorIds must list 1–10 trainer ids");
+    }
+    extras.instructorIds = Object.freeze([
+      ...new Set(instructorIds.map((id) => (id as string).trim())),
+    ]);
+  }
+  if (bookingRules !== undefined) {
+    const result = parseSessionBookingRules(bookingRules);
+    if (!result.ok) return err(result.error);
+    extras.bookingRules = result.value;
+  }
+  if (waitingList !== undefined) {
+    if (!waitingListModes.includes(waitingList as WaitingListMode)) {
+      return err("waitingList must be general, on or off");
+    }
+    extras.waitingList = waitingList as WaitingListMode;
+  }
+  return ok(Object.freeze(extras));
+}
+
 export function parseCreateSessionInput(input: unknown): Result<CreateSessionInput, string> {
   if (!isRecord(input)) {
     return err("Session input must be an object");
@@ -646,6 +717,9 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     description,
     ageRange,
     levelRange,
+    instructorIds,
+    bookingRules,
+    waitingList,
   } = input;
 
   if (
@@ -660,8 +734,8 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     return err("programId is required");
   }
 
-  if (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId)) {
-    return err("Invalid locationId (must be 'town' or 'west')");
+  if (typeof locationId !== "string" || locationId.trim().length === 0) {
+    return err("locationId is required");
   }
 
   if (typeof instructorId !== "string" || instructorId.trim().length === 0) {
@@ -684,19 +758,17 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
   }
 
   if (
-    typeof capacity !== "number" ||
-    !Number.isInteger(capacity) ||
-    capacity < 1 ||
-    capacity > 300
+    capacity !== null &&
+    (typeof capacity !== "number" || !Number.isInteger(capacity) || capacity < 1 || capacity > 300)
   ) {
-    return err("capacity must be an integer between 1 and 300");
+    return err("capacity must be null (unlimited) or an integer between 1 and 300");
   }
 
   if (
     typeof minParticipants !== "number" ||
     !Number.isInteger(minParticipants) ||
     minParticipants < 0 ||
-    minParticipants > capacity
+    minParticipants > (capacity ?? 300)
   ) {
     return err("minParticipants must be an integer between 0 and capacity");
   }
@@ -717,11 +789,14 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     parsedLevelRange = result.value;
   }
 
+  const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
+  if (!extras.ok) return err(extras.error);
+
   return ok(
     Object.freeze({
       classId: typeof classId === "string" ? classId.trim() : null,
       programId: programId.trim(),
-      locationId: locationId as LocationId,
+      locationId: locationId.trim(),
       instructorId: instructorId.trim(),
       title: title.trim(),
       startAt,
@@ -734,21 +809,42 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
         : {}),
       ...(ageRange !== undefined ? { ageRange: parsedAgeRange } : {}),
       ...(levelRange !== undefined ? { levelRange: parsedLevelRange } : {}),
+      ...extras.value,
     }),
   );
 }
 
 export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInput, string> {
   if (!isRecord(input)) return err("Session update input must be an object");
-  const { sessionId, title, instructorId, startAt, endAt, capacity, minParticipants, description } =
-    input;
+  const {
+    sessionId,
+    title,
+    instructorId,
+    startAt,
+    endAt,
+    capacity,
+    minParticipants,
+    description,
+    instructorIds,
+    bookingRules,
+    waitingList,
+  } = input;
   if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
     return err("sessionId is required");
   }
   if (
-    [title, instructorId, startAt, endAt, capacity, minParticipants, description].every(
-      (value) => value === undefined,
-    )
+    [
+      title,
+      instructorId,
+      startAt,
+      endAt,
+      capacity,
+      minParticipants,
+      description,
+      instructorIds,
+      bookingRules,
+      waitingList,
+    ].every((value) => value === undefined)
   ) {
     return err("At least one session field must be updated");
   }
@@ -778,9 +874,10 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   }
   if (
     capacity !== undefined &&
+    capacity !== null &&
     (typeof capacity !== "number" || !Number.isInteger(capacity) || capacity < 1 || capacity > 300)
   ) {
-    return err("capacity must be an integer between 1 and 300");
+    return err("capacity must be null (unlimited) or an integer between 1 and 300");
   }
   if (
     minParticipants !== undefined &&
@@ -801,6 +898,8 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   const descriptionResult =
     description === undefined ? undefined : parseClassDescription(description);
   if (descriptionResult && !descriptionResult.ok) return err(descriptionResult.error);
+  const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
+  if (!extras.ok) return err(extras.error);
   const result: { -readonly [K in keyof UpdateSessionInput]: UpdateSessionInput[K] } = {
     sessionId: sessionId.trim(),
   };
@@ -808,9 +907,12 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (typeof instructorId === "string") result.instructorId = instructorId.trim();
   if (typeof startAt === "string") result.startAt = startAt;
   if (typeof endAt === "string") result.endAt = endAt;
-  if (typeof capacity === "number") result.capacity = capacity;
+  if (capacity !== undefined) result.capacity = capacity as number | null;
   if (typeof minParticipants === "number") result.minParticipants = minParticipants;
   if (descriptionResult) result.description = descriptionResult.value;
+  if (extras.value.instructorIds !== undefined) result.instructorIds = extras.value.instructorIds;
+  if (extras.value.bookingRules !== undefined) result.bookingRules = extras.value.bookingRules;
+  if (extras.value.waitingList !== undefined) result.waitingList = extras.value.waitingList;
   return ok(Object.freeze(result));
 }
 
@@ -857,7 +959,7 @@ export function parseListSessionsQuery(input: unknown): Result<ListSessionsQuery
 
   if (
     locationId !== undefined &&
-    (typeof locationId !== "string" || !locationIds.includes(locationId as LocationId))
+    (typeof locationId !== "string" || locationId.trim().length === 0)
   ) {
     return err("Invalid locationId");
   }
@@ -874,7 +976,7 @@ export function parseListSessionsQuery(input: unknown): Result<ListSessionsQuery
   } = { from, to };
 
   if (locationId !== undefined) {
-    query.locationId = locationId as LocationId;
+    query.locationId = (locationId as LocationId).trim();
   }
 
   if (typeof programId === "string" && programId.trim().length > 0) {
@@ -1896,7 +1998,8 @@ export type SessionOperationalStudent = Readonly<{
 }>;
 
 export type SessionOperationalSummary = Readonly<{
-  capacity: number;
+  /** Null means unlimited. */
+  capacity: number | null;
   minParticipants: number;
   quorumMet: boolean;
   totalBookings: number;

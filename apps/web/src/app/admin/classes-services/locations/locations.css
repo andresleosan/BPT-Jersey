@@ -1,0 +1,18 @@
+.cs-inuse {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cs-edit-dialog {
+  border: 2px solid var(--mat-ink);
+  padding: 1.25rem;
+  max-width: 28rem;
+  width: 90vw;
+}
+
+.cs-edit-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}

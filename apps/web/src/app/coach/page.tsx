@@ -14,13 +14,13 @@ import {
   checkInProximityRadiusMeters,
   isCheckInProximityMeasurementFresh,
   type LocationGeofence,
-  type LocationId,
   type SessionOperationalView,
   type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
 import { birthdayWhenLabel, listUpcomingBirthdays } from "../../lib/birthdays-client";
 import { measureCheckInProximity, type ProximityReading } from "../../lib/check-in-proximity";
+import { locationLabel } from "../../lib/location-label";
 import {
   getPreClassView,
   getScheduleCatalog,
@@ -32,7 +32,7 @@ import { useStaffSession } from "../../lib/staff-auth";
 import { OpenLevelPanel } from "./open-level-panel";
 import "./coach.css";
 
-type PremisesChoice = LocationId; // "town" | "west"
+type PremisesChoice = "town" | "west";
 
 function todayDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -415,7 +415,7 @@ export default function CoachDashboardPage() {
           {/* Upcoming Classes Section */}
           <div className="coach-card">
             <div className="coach-card-title">
-              <span>Today&apos;s Classes ({premises === "town" ? "Town" : "West"})</span>
+              <span>Today&apos;s Classes ({locationLabel(premises)})</span>
               <span style={{ fontSize: "0.85rem", fontWeight: "normal", color: "#6b7280" }}>
                 Date: {date}
               </span>
@@ -425,7 +425,7 @@ export default function CoachDashboardPage() {
               <p>Loading schedule...</p>
             ) : filteredSessions.length === 0 ? (
               <p style={{ color: "#6b7280", fontStyle: "italic" }}>
-                No scheduled classes found for {premises === "town" ? "Town" : "West"} today.
+                No scheduled classes found for {locationLabel(premises)} today.
               </p>
             ) : (
               <div className="coach-session-list" role="list">
@@ -462,7 +462,7 @@ export default function CoachDashboardPage() {
                         {isLoaded && bookedCount !== null && quorumMet !== null ? (
                           <>
                             <span>
-                              Capacity: {bookedCount} / {s.capacity} booked
+                              Capacity: {bookedCount} / {s.capacity ?? "∞"} booked
                             </span>
                             <span
                               className={`coach-quorum-badge ${
@@ -476,7 +476,7 @@ export default function CoachDashboardPage() {
                           </>
                         ) : (
                           <>
-                            <span>Capacity: {s.capacity} max</span>
+                            <span>Capacity: {s.capacity ?? "∞"} max</span>
                             <span className="coach-quorum-badge coach-quorum-warning">
                               Min quorum: {minRequired}
                             </span>
@@ -787,7 +787,7 @@ export default function CoachDashboardPage() {
             )}
             {birthdays.status === "ready" && birthdays.entries.length === 0 && (
               <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
-                No birthdays at {premises === "town" ? "Town" : "West"} this week.
+                No birthdays at {locationLabel(premises)} this week.
               </p>
             )}
             {birthdays.status === "ready" && birthdays.entries.length > 0 && (

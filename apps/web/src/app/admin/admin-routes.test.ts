@@ -9,7 +9,7 @@ describe("staff routes", () => {
       "/admin/attendance",
       "/admin/members/requests",
       "/admin/members/medical",
-      "/admin/classes",
+      "/admin/classes-services",
       "/admin/levels",
     ]);
     expect(staffRoutes.headCoach).toEqual(staffRoutes.coach);
@@ -21,14 +21,38 @@ describe("staff routes", () => {
     expect(isStaffRouteAllowed("/admin/members/requests", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/members", "coach")).toBe(false);
     expect(isStaffRouteAllowed("/admin/members/search", "coach")).toBe(false);
-    expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(true);
-    expect(isStaffRouteAllowed("/admin/classes", "headCoach")).toBe(true);
+    expect(isStaffRouteAllowed("/admin/classes-services", "coach")).toBe(true);
+    expect(isStaffRouteAllowed("/admin/classes-services/locations", "coach")).toBe(true);
+    expect(isStaffRouteAllowed("/admin/classes-services", "headCoach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/levels", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/billing", "headCoach")).toBe(false);
+  });
+
+  /**
+   * The section is one route, but only three of its nine tabs belong to the mat (ADR-010 amendment,
+   * 2026-09-14). The prefix gate above would hand a coach the office tabs on a typed URL.
+   */
+  it("inside Classes / Services, lets staff open the mat tabs only", () => {
+    for (const role of ["coach", "headCoach"] as const) {
+      expect(isStaffRouteAllowed("/admin/classes-services", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/locations", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/types", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/classes", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/classes/new", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/memberships", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/bulk", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/reports", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/drop-ins", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/options", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/history", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/history/2026", role)).toBe(false);
+    }
   });
 
   it("keeps the off-menu routes staff could already open", () => {
     expect(isStaffRouteAllowed("/admin/waitlists/x", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/lesson-plans", "headCoach")).toBe(true);
+    // The legacy /admin/classes page only redirects now, so the mat still has to be let in.
+    expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(true);
   });
 });

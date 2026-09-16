@@ -56,3 +56,18 @@ En Classes, `coach` solo lee (la pagina no muestra crear, editar, generar, cance
 staff, `listSessions` de cualquier autenticado, y las mutaciones siguen en `managerRoles`. El
 directorio de Members sigue cerrado a coaches; se evaluo abrirlo en lectura y se descarto por el coste
 de ADR-009.
+
+2026-09-16: la ruta de coach `/admin/classes` pasa a `/admin/classes-services` (Locations, Types y
+Classes & Services 2.0 en solo lectura para `coach`).
+
+## Enmienda 2026-09-16
+
+Decision del operador en chat (2026-09-16, opcion 1 de tres): `listStaffProfiles` se abre en lectura a
+`headCoach`. Devuelve solo la proyeccion segura (`staffKey`, rol, activo, estado), sin datos personales,
+y es lo unico que la pagina Classes & Services 2.0 necesita para que un headCoach cree clases (el
+formulario exige un entrenador). No se abre nada mas: `listMemberNames` y `listMemberships` siguen
+siendo de owner/administrator, asi que la inscripcion de alumnos desde esa pagina queda en la
+oficina (la interfaz lo indica con «Enrolment needs an office account»). Se evaluaron y descartaron la
+apertura completa del directorio y un callable acotado de busqueda de alumnos con `membershipId`,
+por el coste de ADR-009. El resto del directorio de staff (crear, editar, activar, disponibilidad,
+asignaciones) no cambia.

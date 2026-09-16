@@ -532,7 +532,8 @@ export function createFixtureCalendarRepository(
     if (nextSession) bookings.push(bookingFor(nextSession, p));
     const ready = mine.find((session) => session.sessionId.endsWith("_ready"));
     if (ready) bookings.push(bookingFor(ready, p));
-    if (afterNext) bookedCounts[afterNext.sessionId] = afterNext.capacity;
+    if (afterNext && afterNext.capacity !== null)
+      bookedCounts[afterNext.sessionId] = afterNext.capacity;
   }
 
   for (const participant of member.participants) {
@@ -617,7 +618,7 @@ export function createFixtureCalendarRepository(
     async book(input) {
       const session = sessions.find((s) => s.sessionId === input.sessionId);
       if (!session) throw failure("functions/not-found");
-      if ((bookedCounts[session.sessionId] ?? 0) >= session.capacity) {
+      if (session.capacity !== null && (bookedCounts[session.sessionId] ?? 0) >= session.capacity) {
         throw failure("functions/failed-precondition", "capacity");
       }
       const participant = participantFor(input.studentId);

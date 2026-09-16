@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import { requireAdminActor } from "../auth/admin-authorization.js";
+import { requireUserActor } from "../auth/user-authorization.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { withSharedRoleLock, type SyntheticFirestore } from "../auth/admin-provisioning.js";
@@ -48,6 +49,7 @@ const staffProjectionFields = Object.freeze([
   "role",
   "active",
   "status",
+  "self",
   "schemaVersion",
 ] as const);
 
@@ -195,6 +197,7 @@ function safeStaffProjection(value: unknown): StaffProfileProjection {
     typeof value.active !== "boolean" ||
     (value.status !== "active" && value.status !== "inactive") ||
     value.active !== (value.status === "active") ||
+    typeof value.self !== "boolean" ||
     value.schemaVersion !== "1"
   ) {
     throw new StaffStoreError("invalid", "Staff projection is invalid");
@@ -204,6 +207,7 @@ function safeStaffProjection(value: unknown): StaffProfileProjection {
     role: value.role as StaffProfileProjection["role"],
     active: value.active,
     status: value.status,
+    self: value.self,
     schemaVersion: "1",
   });
 }
@@ -397,7 +401,7 @@ export async function createStaffProfileHandler(
           control,
         ),
     );
-    return toStaffProfileProjection(profile);
+    return toStaffProfileProjection(profile, actor.uid);
   } catch (error) {
     return mapStoreError(error);
   }
@@ -429,7 +433,7 @@ export async function updateStaffProfileHandler(
           control,
         ),
     );
-    return toStaffProfileProjection(profile);
+    return toStaffProfileProjection(profile, actor.uid);
   } catch (error) {
     return mapStoreError(error);
   }
@@ -461,7 +465,7 @@ export async function setStaffActiveHandler(
           control,
         ),
     );
-    return toStaffProfileProjection(profile);
+    return toStaffProfileProjection(profile, actor.uid);
   } catch (error) {
     return mapStoreError(error);
   }
@@ -511,10 +515,15 @@ export async function listStaffProfilesHandler(
   request: CallableRequest<unknown>,
   services: StaffCallableServices,
 ) {
-  const actor = requireAdminActor(request);
+  // ADR-010, enmienda 2026-09-16: headCoach lee la lista (claves, rol y estado, sin PII) para
+  // poder crear clases en Classes & Services 2.0; el resto del directorio de staff sigue siendo
+  // de owner/administrator.
+  const user = requireUserActor(request);
+  const academyId =
+    user.role === "headCoach" ? user.academyId : requireAdminActor(request).academyId;
   payloadRecord(request.data, []);
   try {
-    return safeStaffProjectionList(await services.store.listStaffProfiles(actor.academyId));
+    return safeStaffProjectionList(await services.store.listStaffProfiles(academyId, user.userId));
   } catch (error) {
     return mapStoreError(error);
   }

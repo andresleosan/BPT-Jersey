@@ -4,7 +4,9 @@ import {
   createCancelBookingHandler,
   createCancelSessionHandler,
   createCheckInHandler,
+  createCopyWeekHandler,
   createCorrectAttendanceHandler,
+  createDeleteWeekHandler,
   createEvaluateSessionMinimumHandler,
   createGenerateSessionsHandler,
   createGetDailyOperationsDashboardHandler,
@@ -20,6 +22,7 @@ import {
   createListSessionsHandler,
   createListStudentAttendanceHandler,
   createListStudentBookingsHandler,
+  createPreviewWeekHandler,
   createReconcileSessionNoShowsHandler,
   createReconcileSessionQuorumHandler,
   createRecordCheckoutHandler,
@@ -27,9 +30,12 @@ import {
   createRequestBookingHandler,
   createSaveClassHandler,
   createSaveLocationGeofenceHandler,
+  createSaveLocationHandler,
   createSaveProgramHandler,
   createSaveSessionHandler,
   createSelfCheckInHandler,
+  createUpdateLocationHandler,
+  createUpdateProgramHandler,
   createUpdateSessionHandler,
 } from "./schedule-callables";
 import { BookingTransactionError } from "./booking-transaction-service";
@@ -270,7 +276,7 @@ describe("Schedule Callables", () => {
           "demo-academy",
         ),
       ),
-    ).rejects.toThrow(/Administrator access required/);
+    ).rejects.toThrow(/Manager access required/);
   });
 
   it("generates sessions for a class with headCoach or higher", async () => {
@@ -1340,10 +1346,10 @@ describe("saveLocationGeofence (T109)", () => {
     },
   );
 
-  it("refuses an unknown site, a coarse coordinate and an extra key", async () => {
+  it("refuses a blank site, a coarse coordinate and an extra key", async () => {
     const handler = createSaveLocationGeofenceHandler({ store: createInMemoryScheduleStore() });
     for (const payload of [
-      { locationId: "harbour", geofence },
+      { locationId: "", geofence },
       { locationId: "town", geofence: { latitude: 49.1234567, longitude: -2.1 } },
       { locationId: "town", geofence, radiusMeters: 500 },
       { locationId: "town" },
@@ -1738,5 +1744,124 @@ describe("session update, class removal and booked counts callables", () => {
     ).rejects.toMatchObject({ code: "internal" });
     expect(spy).toHaveBeenCalledOnce();
     spy.mockRestore();
+  });
+});
+
+describe("classes-services callables", () => {
+  it("creates and updates a location for managers only", async () => {
+    const store = createInMemoryScheduleStore();
+    const save = createSaveLocationHandler({ store });
+    const created = await save(
+      fakeRequest({ name: "Salle Ouest", abbreviation: "ouest", kind: "presential" }, "headCoach"),
+    );
+    expect(created.location.locationId).toBe("salle-ouest");
+    await expect(
+      save(fakeRequest({ name: "X Y", abbreviation: "xy", kind: "zoom" }, "coach")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(save(fakeRequest({ name: "X" }, "owner"))).rejects.toMatchObject({
+      code: "invalid-argument",
+    });
+    const updated = await createUpdateLocationHandler({ store })(
+      fakeRequest({ locationId: "salle-ouest", active: false }, "administrator"),
+    );
+    expect(updated.location.active).toBe(false);
+    await expect(
+      createUpdateLocationHandler({ store })(
+        fakeRequest({ locationId: "salle-ouest", active: false }, "coach"),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createUpdateLocationHandler({ store })(
+        fakeRequest({ locationId: "nope", active: false }, "owner"),
+      ),
+    ).rejects.toMatchObject({ code: "not-found", message: "Location not found" });
+  });
+
+  it("saves a v2 program from name and abbreviation and updates its fields", async () => {
+    const store = createInMemoryScheduleStore();
+    const saved = await createSaveProgramHandler({ store })(
+      fakeRequest({ name: "GI Beginners Mornings", abbreviation: "BEG_MOR" }, "owner"),
+    );
+    expect(saved.program.abbreviation).toBe("BEG_MOR");
+    const updated = await createUpdateProgramHandler({ store })(
+      fakeRequest({ programId: saved.program.programId, colour: "#D9D7FF" }, "owner"),
+    );
+    expect(updated.program.colour).toBe("#D9D7FF");
+    await expect(
+      createUpdateProgramHandler({ store })(
+        fakeRequest({ programId: "nope", colour: "#D9D7FF" }, "owner"),
+      ),
+    ).rejects.toMatchObject({ code: "not-found", message: "Program not found" });
+    await expect(
+      createUpdateProgramHandler({ store })(
+        fakeRequest({ programId: saved.program.programId, colour: "#D9D7FF" }, "coach"),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createSaveProgramHandler({ store })(
+        fakeRequest({ name: "Bad Abbreviation", abbreviation: "" }, "owner"),
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: expect.stringMatching(/abbreviation/),
+    });
+  });
+
+  it("previews, copies and deletes a week", async () => {
+    const store = createInMemoryScheduleStore();
+    await createSaveSessionHandler({ store })(
+      fakeRequest(
+        {
+          programId: "open-mat",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Open Mat",
+          startAt: "2026-09-14T17:00:00.000Z",
+          endAt: "2026-09-14T18:00:00.000Z",
+          capacity: null,
+          minParticipants: 0,
+        },
+        "owner",
+      ),
+    );
+    const preview = await createPreviewWeekHandler({ store })(
+      fakeRequest({ weekStart: "2026-09-14" }, "owner"),
+    );
+    expect(preview.preview.count).toBe(1);
+    await expect(
+      createPreviewWeekHandler({ store })(fakeRequest({ weekStart: "2026-09-14" }, "coach")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createPreviewWeekHandler({ store })(fakeRequest({ weekStart: "2026-09-16" }, "owner")),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    const copied = await createCopyWeekHandler({ store })(
+      fakeRequest(
+        { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: false },
+        "owner",
+      ),
+    );
+    expect(copied.sessions).toHaveLength(1);
+    const deleted = await createDeleteWeekHandler({ store })(
+      fakeRequest({ weekStart: "2026-09-21", reason: "Closed" }, "owner"),
+    );
+    expect(deleted.sessions[0]?.status).toBe("cancelled");
+    await expect(
+      createCopyWeekHandler({ store })(
+        fakeRequest(
+          { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: false },
+          "coach",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createDeleteWeekHandler({ store })(
+        fakeRequest({ weekStart: "2026-09-16", reason: "Closed" }, "owner"),
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(
+      createDeleteWeekHandler({ store })(
+        fakeRequest({ weekStart: "2026-09-21", reason: "Closed" }, "coach"),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
   });
 });

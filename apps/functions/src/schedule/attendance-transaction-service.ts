@@ -8,7 +8,6 @@ import {
   buildCheckoutId,
   buildCorrectionAttendanceId,
   determinePunctuality,
-  locationIds,
   resolveCheckInProximity,
   type AttendanceProximity,
   type AttendanceRecord,
@@ -218,9 +217,10 @@ function requireSession(
   if (!permittedStatuses.includes(String(value.status))) {
     return fail("ineligible", "Session is not open for this operation");
   }
-  const locationId = locationIds.includes(value.locationId as LocationId)
-    ? (value.locationId as LocationId)
-    : null;
+  const locationId =
+    typeof value.locationId === "string" && identifierPattern.test(value.locationId)
+      ? value.locationId
+      : null;
   return { startAt: value.startAt, status: String(value.status), locationId };
 }
 

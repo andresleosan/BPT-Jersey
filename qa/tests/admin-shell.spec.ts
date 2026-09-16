@@ -120,7 +120,7 @@ test.describe("admin shell @smoke", () => {
       "->Attendance",
       "->Enrolment requests",
       "->Medical conditions",
-      "->Classes",
+      "->Classes / Services",
       "->Levels",
     ]);
     await expect(page.getByRole("link", { name: "Coach portal" })).toBeVisible();
