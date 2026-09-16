@@ -83,4 +83,69 @@ describe("week grid", () => {
       ["c", 0, 2],
     ]);
   });
+
+  it("clamps a session starting before the window to a one-row marker at the top edge", () => {
+    const layout = layoutWeek(
+      [
+        {
+          ...base,
+          sessionId: "early",
+          title: "Early",
+          startAt: "2026-09-14T04:00:00.000Z", // 05:00 local (BST)
+          endAt: "2026-09-14T04:30:00.000Z", // 05:30 local
+        },
+      ],
+      "2026-09-14",
+      "Europe/Jersey",
+      { fromHour: 6, toHour: 20 },
+    );
+    expect(layout.days[0]!.sessions[0]).toMatchObject({ rowStart: 0, rowSpan: 1 });
+  });
+
+  it("clamps a session ending after the window to a one-row marker at the bottom edge", () => {
+    const layout = layoutWeek(
+      [
+        {
+          ...base,
+          sessionId: "late",
+          title: "Late",
+          startAt: "2026-09-14T20:00:00.000Z", // 21:00 local (BST)
+          endAt: "2026-09-14T20:30:00.000Z", // 21:30 local
+        },
+      ],
+      "2026-09-14",
+      "Europe/Jersey",
+      { fromHour: 6, toHour: 20 },
+    );
+    expect(layout.days[0]!.sessions[0]).toMatchObject({ rowStart: 27, rowSpan: 1 });
+  });
+
+  it("excludes cancelled sessions from the classes and registrations counts", () => {
+    const layout = layoutWeek(
+      [
+        {
+          ...base,
+          sessionId: "a",
+          title: "A",
+          startAt: "2026-09-14T06:00:00.000Z",
+          endAt: "2026-09-14T07:00:00.000Z",
+          booked: 4,
+        },
+        {
+          ...base,
+          sessionId: "b",
+          title: "B",
+          startAt: "2026-09-14T08:00:00.000Z",
+          endAt: "2026-09-14T09:00:00.000Z",
+          booked: 6,
+          status: "cancelled",
+        },
+      ],
+      "2026-09-14",
+      "Europe/Jersey",
+      { fromHour: 6, toHour: 20 },
+    );
+    expect(layout.days[0]!.classes).toBe(1);
+    expect(layout.days[0]!.registrations).toBe(4);
+  });
 });
