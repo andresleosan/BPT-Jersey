@@ -40,6 +40,7 @@ describe("Classes / Services layout", () => {
     );
     expect(screen.getByRole("tab", { name: "Locations" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("navigation", { name: "Classes / Services sections" })).toBeVisible();
+    expect(screen.getByText("BPT Jersey / Classes & Services")).toBeVisible();
     // The admin shell header already carries the page h1, so the section title sits below it.
     expect(screen.getByRole("heading", { name: "Classes / Services", level: 2 })).toBeVisible();
     expect(screen.getByRole("tabpanel")).toHaveTextContent("content");

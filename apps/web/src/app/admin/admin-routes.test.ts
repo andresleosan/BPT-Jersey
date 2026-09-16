@@ -28,6 +28,27 @@ describe("staff routes", () => {
     expect(isStaffRouteAllowed("/admin/billing", "headCoach")).toBe(false);
   });
 
+  /**
+   * The section is one route, but only three of its nine tabs belong to the mat (ADR-010 amendment,
+   * 2026-09-14). The prefix gate above would hand a coach the office tabs on a typed URL.
+   */
+  it("inside Classes / Services, lets staff open the mat tabs only", () => {
+    for (const role of ["coach", "headCoach"] as const) {
+      expect(isStaffRouteAllowed("/admin/classes-services", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/locations", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/types", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/classes", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/classes/new", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/classes-services/memberships", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/bulk", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/reports", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/drop-ins", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/options", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/history", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/classes-services/history/2026", role)).toBe(false);
+    }
+  });
+
   it("keeps the off-menu routes staff could already open", () => {
     expect(isStaffRouteAllowed("/admin/waitlists/x", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/lesson-plans", "headCoach")).toBe(true);
