@@ -9,6 +9,7 @@ export type CalendarViewProps = Readonly<{
   weekStart: string;
   sessions: readonly GridSession[];
   timezone: string;
+  // Named "window" for the grid's visible hour range; deliberately shadows the DOM global (ruled name).
   window: { fromHour: number; toHour: number };
   canEdit: boolean;
   onOpen: (sessionId: string) => void;
@@ -29,6 +30,21 @@ function timeLabel(iso: string, timezone: string): string {
   return hhmm(hour);
 }
 
+const monthNames = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 function EventButton({
   session,
   timezone,
@@ -38,16 +54,17 @@ function EventButton({
   timezone: string;
   onOpen: (sessionId: string) => void;
 }): ReactElement {
+  const cancelled = session.status === "cancelled";
   const style: CSSProperties = {
     gridRow: `${session.rowStart + 1} / span ${session.rowSpan}`,
     gridColumn: session.columns === 2 ? `${session.column + 1}` : "1 / span 2",
-    background: session.colour,
+    ...(cancelled ? {} : { background: session.colour }),
   };
   return (
     <button
       type="button"
       className="cs-event"
-      data-status={session.status === "cancelled" ? "cancelled" : undefined}
+      data-status={cancelled ? "cancelled" : undefined}
       style={style}
       onClick={() => onOpen(session.sessionId)}
     >
@@ -102,22 +119,24 @@ function DayColumn({
           gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
         }}
       >
-        {canEdit
-          ? Array.from({ length: halfHours }, (_, row) => {
-              const hour = hours[0]! + row / 2;
-              const time = hhmm(hour);
-              return (
-                <button
-                  key={time}
-                  type="button"
-                  className="cs-slot"
-                  style={{ gridRow: `${row + 1} / span 1`, gridColumn: "1 / span 2" }}
-                  aria-label={`Create a class on ${label} at ${time}`}
-                  onClick={() => onCreate(date, time)}
-                />
-              );
-            })
-          : null}
+        {Array.from({ length: halfHours }, (_, row) => {
+          const hour = hours[0]! + row / 2;
+          const time = hhmm(hour);
+          const style: CSSProperties = { gridRow: `${row + 1} / span 1`, gridColumn: "1 / span 2" };
+          return canEdit ? (
+            <button
+              key={time}
+              type="button"
+              className="cs-slot"
+              tabIndex={-1}
+              style={style}
+              aria-label={`Create a class on ${label} at ${time}`}
+              onClick={() => onCreate(date, time)}
+            />
+          ) : (
+            <span key={time} className="cs-slot" aria-hidden="true" style={style} />
+          );
+        })}
         {sessions.map((session) => (
           <EventButton
             key={session.sessionId}
@@ -148,16 +167,22 @@ function WeekOrDay({
   canEdit: boolean;
   onOpen: (sessionId: string) => void;
   onCreate: (date: string, startTime: string) => void;
-  onlyDate?: string;
+  onlyDate: string | undefined;
 }): ReactElement {
   const layout = layoutWeek(sessions, mondayOf(weekStart), timezone, window);
   const days = onlyDate ? layout.days.filter((d) => d.date === onlyDate) : layout.days;
   return (
     <div className="cs-week">
       <div className="cs-hours">
-        {layout.hours.map((h) => (
-          <span key={h}>{pad(h)}:00</span>
-        ))}
+        <div className="cs-day-header" aria-hidden="true" />
+        <div
+          className="cs-hours-labels"
+          style={{ display: "grid", gridTemplateRows: `repeat(${layout.hours.length}, 3.2rem)` }}
+        >
+          {layout.hours.map((h) => (
+            <span key={h}>{pad(h)}:00</span>
+          ))}
+        </div>
       </div>
       {days.map((day) => (
         <DayColumn
@@ -224,20 +249,22 @@ function MonthView({
         const d = new Date(`${date}T00:00:00.000Z`);
         const outside = d.getUTCMonth() !== month;
         const count = counts.get(date) ?? { classes: 0, registrations: 0 };
+        const monday = mondayOf(date);
+        const mondayDate = new Date(`${monday}T00:00:00.000Z`);
+        const weekLabel = `Open the week of Monday ${mondayDate.getUTCDate()} ${monthNames[mondayDate.getUTCMonth()]} ${mondayDate.getUTCFullYear()}`;
         return (
           <button
             key={date}
             type="button"
             className="cs-month-cell"
             data-outside={outside ? "true" : undefined}
-            onClick={() => onSelectWeek(mondayOf(date))}
+            aria-label={weekLabel}
+            onClick={() => onSelectWeek(monday)}
           >
             <span className="cs-month-day">{d.getUTCDate()}</span>
-            {count.classes > 0 ? (
-              <span className="cs-month-counts">
-                {count.classes} classes &middot; {count.registrations} registrations
-              </span>
-            ) : null}
+            <span className="cs-month-counts">
+              {count.classes} classes &middot; {count.registrations} registrations
+            </span>
           </button>
         );
       })}
@@ -267,20 +294,7 @@ export function CalendarView({
       />
     );
   }
-  if (view === "day") {
-    return (
-      <WeekOrDay
-        weekStart={weekStart}
-        sessions={sessions}
-        timezone={timezone}
-        window={window}
-        canEdit={canEdit}
-        onOpen={onOpen}
-        onCreate={onCreate}
-        onlyDate={weekStart}
-      />
-    );
-  }
+  const onlyDate: string | undefined = view === "day" ? weekStart : undefined;
   return (
     <WeekOrDay
       weekStart={weekStart}
@@ -290,6 +304,7 @@ export function CalendarView({
       canEdit={canEdit}
       onOpen={onOpen}
       onCreate={onCreate}
+      onlyDate={onlyDate}
     />
   );
 }

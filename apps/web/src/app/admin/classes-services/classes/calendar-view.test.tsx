@@ -55,10 +55,10 @@ describe("CalendarView", () => {
     expect(onOpen).toHaveBeenCalledWith("a");
   });
 
-  it("renders create slots only when canEdit is true", () => {
+  it("renders create slots only when canEdit is true, but the rule cells always exist", () => {
     const sessions: GridSession[] = [];
     const onCreate = vi.fn();
-    const { rerender } = render(
+    const { container, rerender } = render(
       <CalendarView
         view="week"
         weekStart="2026-09-14"
@@ -72,6 +72,8 @@ describe("CalendarView", () => {
       />,
     );
     expect(screen.queryByLabelText("Create a class on MON 14/9 at 06:30")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: /Create a class/ })).toHaveLength(0);
+    expect(container.querySelectorAll(".cs-slot").length).toBeGreaterThan(0);
 
     rerender(
       <CalendarView
@@ -87,6 +89,7 @@ describe("CalendarView", () => {
       />,
     );
     const slot = screen.getByLabelText("Create a class on MON 14/9 at 06:30");
+    expect(slot.tabIndex).toBe(-1);
     fireEvent.click(slot);
     expect(onCreate).toHaveBeenCalledWith("2026-09-14", "06:30");
   });
@@ -136,8 +139,27 @@ describe("CalendarView", () => {
         onSelectWeek={onSelectWeek}
       />,
     );
-    fireEvent.click(screen.getByText("16"));
-    expect(onSelectWeek).toHaveBeenCalledWith(mondayOf("2026-09-16"));
+    fireEvent.click(screen.getAllByLabelText("Open the week of Monday 21 September 2026")[0]!);
+    expect(onSelectWeek).toHaveBeenCalledWith(mondayOf("2026-09-21"));
+  });
+
+  it("month cells always show a classes/registrations count, including zero", () => {
+    render(
+      <CalendarView
+        view="month"
+        weekStart="2026-09-14"
+        sessions={[]}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={false}
+        onOpen={noop}
+        onCreate={noop}
+        onSelectWeek={noop}
+      />,
+    );
+    expect(
+      screen.getAllByLabelText("Open the week of Monday 14 September 2026")[0],
+    ).toHaveTextContent("0 classes");
   });
 
   it("day view renders a single day column", () => {

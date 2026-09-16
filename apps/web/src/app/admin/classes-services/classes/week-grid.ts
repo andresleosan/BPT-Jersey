@@ -45,9 +45,12 @@ export function dayLabel(date: string): string {
   return `${dayNames[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
 }
 
-/** Local calendar date and fractional hour of an instant in the academy timezone. */
-export function localParts(iso: string, timezone: string): { date: string; hour: number } {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(timezone: string): Intl.DateTimeFormat {
+  const cached = formatterCache.get(timezone);
+  if (cached) return cached;
+  const formatter = new Intl.DateTimeFormat("en-GB", {
     timeZone: timezone,
     hourCycle: "h23",
     year: "numeric",
@@ -55,12 +58,23 @@ export function localParts(iso: string, timezone: string): { date: string; hour:
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).formatToParts(new Date(iso));
+  });
+  formatterCache.set(timezone, formatter);
+  return formatter;
+}
+
+/** Local calendar date and fractional hour of an instant in the academy timezone. */
+export function localParts(iso: string, timezone: string): { date: string; hour: number } {
+  const parts = formatterFor(timezone).formatToParts(new Date(iso));
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
   return {
     date: `${get("year")}-${get("month")}-${get("day")}`,
     hour: Number(get("hour")) + Number(get("minute")) / 60,
   };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 export function layoutWeek(
@@ -69,18 +83,26 @@ export function layoutWeek(
   timezone: string,
   window: { fromHour: number; toHour: number },
 ): { days: readonly DayLayout[]; hours: readonly number[] } {
+  const rows = (window.toHour - window.fromHour) * 2;
   const hours = Array.from(
     { length: window.toHour - window.fromHour + 1 },
     (_, i) => window.fromHour + i,
   );
+  const byDate = new Map<
+    string,
+    { s: GridSession; start: { date: string; hour: number }; end: { date: string; hour: number } }[]
+  >();
+  for (const s of sessions) {
+    const start = localParts(s.startAt, timezone);
+    const end = localParts(s.endAt, timezone);
+    const group = byDate.get(start.date);
+    const entry = { s, start, end };
+    if (group) group.push(entry);
+    else byDate.set(start.date, [entry]);
+  }
   const days = weekDays(weekStart).map((date) => {
-    const own = sessions
-      .map((s) => ({
-        s,
-        start: localParts(s.startAt, timezone),
-        end: localParts(s.endAt, timezone),
-      }))
-      .filter(({ start }) => start.date === date)
+    const own = (byDate.get(date) ?? [])
+      .slice()
       .sort((a, b) => a.start.hour - b.start.hour || a.s.title.localeCompare(b.s.title));
     const placed: PlacedSession[] = [];
     const active: { end: number; column: number }[] = [];
@@ -90,8 +112,9 @@ export function layoutWeek(
       const held = new Set(active.map((a) => a.column));
       const column = held.has(0) ? (held.has(1) ? 0 : 1) : 0;
       active.push({ end: end.hour, column });
-      const rowStart = Math.max(0, Math.round((start.hour - window.fromHour) * 2));
-      const rowSpan = Math.max(1, Math.round((end.hour - start.hour) * 2));
+      const rowStart = clamp(Math.round((start.hour - window.fromHour) * 2), 0, rows - 1);
+      const rowEnd = clamp(Math.round((end.hour - window.fromHour) * 2), rowStart + 1, rows);
+      const rowSpan = rowEnd - rowStart;
       placed.push({ ...s, rowStart, rowSpan, column, columns: 1 });
     }
     // second pass: every session that overlapped anything gets two columns
