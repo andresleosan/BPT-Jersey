@@ -344,8 +344,19 @@ export function weekRangeFor(weekStart: string, timezone: string): Result<WeekRa
   );
 }
 
-export function shiftIso(iso: string, days: number): string {
-  return new Date(Date.parse(iso) + days * 86_400_000).toISOString();
+/**
+ * Moves an instant by whole days *in local wall-clock time*: a class at 18:00 stays a class at
+ * 18:00 even when the week it lands in is on the other side of a clock change. Adding
+ * `days × 86 400 000 ms` would silently move it to 17:00, which is not what copying a week means.
+ */
+export function shiftIsoInZone(iso: string, days: number, timezone: string): string {
+  const startMs = Date.parse(iso);
+  if (Number.isNaN(startMs)) throw new Error(`${iso} is not an instant`);
+  const naiveMs = startMs + days * 86_400_000;
+  // Same wall-clock reading, one clock change later, is a different instant by the offset change.
+  const driftMinutes =
+    zonedOffsetMinutes(startMs, timezone) - zonedOffsetMinutes(naiveMs, timezone);
+  return new Date(naiveMs + driftMinutes * 60000).toISOString();
 }
 
 export const weekReasonMinLength = 2;
