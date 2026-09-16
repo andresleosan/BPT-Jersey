@@ -140,6 +140,11 @@
       "import": "./src/schedule/advanced-booking-contracts.ts",
       "default": "./lib/schedule/advanced-booking-contracts.js"
     },
+    "./schedule/classes-services": {
+      "types": "./src/schedule/classes-services-contracts.ts",
+      "import": "./src/schedule/classes-services-contracts.ts",
+      "default": "./lib/schedule/classes-services-contracts.js"
+    },
     "./announcements": {
       "types": "./src/announcements/announcement-contracts.ts",
       "import": "./src/announcements/announcement-contracts.ts",
