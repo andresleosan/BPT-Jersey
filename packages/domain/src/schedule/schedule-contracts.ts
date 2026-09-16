@@ -768,7 +768,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     typeof minParticipants !== "number" ||
     !Number.isInteger(minParticipants) ||
     minParticipants < 0 ||
-    (capacity !== null && minParticipants > capacity)
+    minParticipants > (capacity ?? 300)
   ) {
     return err("minParticipants must be an integer between 0 and capacity");
   }
@@ -797,7 +797,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
       classId: typeof classId === "string" ? classId.trim() : null,
       programId: programId.trim(),
       locationId: locationId.trim(),
-      instructorId: (extras.value.instructorIds?.[0] ?? instructorId).trim(),
+      instructorId: instructorId.trim(),
       title: title.trim(),
       startAt,
       endAt,
@@ -976,7 +976,7 @@ export function parseListSessionsQuery(input: unknown): Result<ListSessionsQuery
   } = { from, to };
 
   if (locationId !== undefined) {
-    query.locationId = locationId as LocationId;
+    query.locationId = (locationId as LocationId).trim();
   }
 
   if (typeof programId === "string" && programId.trim().length > 0) {
