@@ -242,6 +242,29 @@ describe("SessionPanel", () => {
     expect(screen.getByLabelText("Maximum capacity")).toBeDisabled();
   });
 
+  it("lets a coach leave a read-only panel with Escape", () => {
+    const onClose = vi.fn();
+    render(
+      <SessionPanel
+        mode="edit"
+        session={sessionFixture}
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        canEdit={false}
+        canReadMemberships={false}
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={onClose}
+      />,
+    );
+    // Every field is disabled, so the dialog itself holds the focus and the key reaches it.
+    const dialog = screen.getByRole("dialog");
+    expect(document.activeElement === dialog || dialog.contains(document.activeElement)).toBe(true);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("refuses an end time at or before the start and a class with no trainer", () => {
     render(
       <SessionPanel

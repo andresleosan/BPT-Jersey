@@ -108,10 +108,20 @@ export function WeekActions({ weekStart, onChanged }: WeekActionsProps): ReactEl
 
   return (
     <div className="cs-week-actions">
-      <button type="button" className="cs-button" onClick={() => void open("copy")}>
+      <button
+        type="button"
+        className="cs-button"
+        disabled={kind !== null}
+        onClick={() => void open("copy")}
+      >
         Copy week
       </button>
-      <button type="button" className="cs-button" onClick={() => void open("delete")}>
+      <button
+        type="button"
+        className="cs-button"
+        disabled={kind !== null}
+        onClick={() => void open("delete")}
+      >
         Delete week
       </button>
       {kind === null ? null : (

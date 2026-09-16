@@ -280,12 +280,18 @@ describe("Classes & Services 2.0 page", () => {
     );
   });
 
-  it("renders the calendar even when the staff directory is refused", async () => {
+  it("withdraws creation but keeps the week when the staff directory is refused", async () => {
     mocks.listStaffProfiles.mockRejectedValue(new Error("permission-denied"));
     render(<ClassesPage />);
     expect(
       await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add a class" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Trainer list unavailable: creating classes is disabled."),
+    ).toBeInTheDocument();
+    // Editing and the week actions do not need the trainer list.
+    expect(screen.getByRole("button", { name: "Copy week" })).toBeInTheDocument();
   });
 });

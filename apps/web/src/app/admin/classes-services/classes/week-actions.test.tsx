@@ -86,6 +86,15 @@ describe("WeekActions", () => {
     );
   });
 
+  it("keeps the other week action out of reach while a dialog is open", async () => {
+    mocks.previewWeek.mockResolvedValue({ count: 2, sample: [] });
+    render(<WeekActions weekStart="2026-09-14" onChanged={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy week" }));
+    await screen.findByRole("dialog", { name: "Copy week" });
+    expect(screen.getByRole("button", { name: "Copy week" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete week" })).toBeDisabled();
+  });
+
   it("focuses the dialog on open, closes on Escape and gives the focus back", async () => {
     mocks.previewWeek.mockResolvedValue({ count: 2, sample: [] });
     render(<WeekActions weekStart="2026-09-14" onChanged={vi.fn()} />);

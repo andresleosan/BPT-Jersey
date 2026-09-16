@@ -160,6 +160,17 @@ describe("RegistrationsPanel", () => {
     expect(mocks.requestBooking).not.toHaveBeenCalled();
   });
 
+  it("names a refused membership list instead of blaming the member", async () => {
+    mocks.listMemberNames.mockResolvedValue([
+      { studentId: "st2", fullName: "Willow S.", familyId: null },
+    ]);
+    mocks.listMemberships.mockRejectedValue(new Error("unavailable"));
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+    expect(await screen.findByText("Membership list unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Enrol a member of this gym" })).toBeDisabled();
+    expect(screen.queryByText("No active membership")).not.toBeInTheDocument();
+  });
+
   it("explains that External registrations arrive with Drop-ins", () => {
     render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     fireEvent.click(screen.getByRole("tab", { name: "External" }));

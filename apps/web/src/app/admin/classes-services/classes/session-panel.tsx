@@ -187,7 +187,13 @@ export function SessionPanel({
 
   useEffect(() => {
     const opener = document.activeElement;
-    dialogRef.current?.querySelector<HTMLElement>("input, select, button")?.focus();
+    const dialog = dialogRef.current;
+    // Read-only panels disable every field, and a disabled control cannot hold the focus — the
+    // dialog itself takes it so that Escape still reaches this handler.
+    const first = dialog?.querySelector<HTMLElement>(
+      "input:not([disabled]), select:not([disabled]), button:not([disabled])",
+    );
+    (first ?? dialog)?.focus();
     return () => {
       if (opener instanceof HTMLElement) opener.focus();
     };
@@ -286,6 +292,7 @@ export function SessionPanel({
     <dialog
       open
       ref={dialogRef}
+      tabIndex={-1}
       className="cs-dialog"
       aria-labelledby={dialogTitleId}
       onKeyDown={(event) => {
