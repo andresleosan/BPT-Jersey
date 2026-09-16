@@ -6,6 +6,7 @@
   --gi-white: #ffffff;
   --canvas: #f2f1ed;
   --line: #8a8880;
+  --paper-edge: #e8e7e3;
   --muted: #65635d;
   --content-width: 90rem;
   --section-space: clamp(4.5rem, 9vw, 8rem);

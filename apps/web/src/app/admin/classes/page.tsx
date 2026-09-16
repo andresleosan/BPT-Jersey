@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import type {
   BookingRecord,
   ClassRecord,
@@ -36,6 +35,7 @@ import {
 import { listStaffProfiles, type StaffProfileProjection } from "../../../lib/staff-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { useAdminOrStaffSession } from "../admin-gate";
+import { ClassesServicesRedirect } from "../classes-services/classes-services-redirect";
 import { SiteGeofencePanel } from "./site-geofence-panel";
 import {
   dayLabels,
@@ -1065,16 +1065,9 @@ export function ClassesPage() {
 
 /**
  * The section moved to /admin/classes-services on 2026-09-16. The old route stays as a redirect so
- * bookmarks and the overview link keep working; static export rules out a server redirect, so the
- * move happens in the browser. `ClassesPage` is retired with its tests in the Classes & Services
- * 2.0 tab.
+ * bookmarks and the overview link keep working. `ClassesPage` is retired with its tests in the
+ * Classes & Services 2.0 tab.
  */
 export default function ClassesRoute() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace("/admin/classes-services/classes");
-  }, [router]);
-
-  return <p className="admin-eyebrow">Opening Classes &amp; Services…</p>;
+  return <ClassesServicesRedirect />;
 }
