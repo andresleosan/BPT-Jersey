@@ -113,10 +113,18 @@ const staffProfiles = [
   },
 ];
 
-/** Screenshots go to `qa/screenshots/`; the `-phone` suffix marks the mobile project. */
+/**
+ * Screenshots go to `qa/screenshots/`; the `-phone` suffix marks the mobile project. `fullPage`
+ * stitches a page taller than the viewport, which repaints the `position: fixed` skip link
+ * (`globals.css:80-97`) at the wrong offset regardless of focus; hide it for the capture only.
+ */
 async function capture(page: Page, testInfo: TestInfo, name: string): Promise<void> {
   const suffix = testInfo.project.name === "mobile-chromium" ? "-phone" : "";
-  await page.screenshot({ path: `screenshots/${name}${suffix}.png`, fullPage: true });
+  await page.screenshot({
+    path: `screenshots/${name}${suffix}.png`,
+    fullPage: true,
+    style: ".skip-link { display: none !important; }",
+  });
 }
 
 test.describe("@classes-services", () => {
@@ -195,8 +203,8 @@ test.describe("@classes-services", () => {
       nativeSetter?.call(element, "#ff0000");
       element.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    // `blur()` alone moves focus to <body>, which the layout renders under the skip link and
-    // leaves that link visibly overlapping the page in a screenshot; move focus to the tab first.
+    // Moves focus off the colour input so its `onBlur` save fires (the skip-link overlay seen in
+    // earlier captures was a `fullPage` stitching artefact, unrelated to focus — see `capture()`).
     await page.getByRole("tab", { name: "Class / Service Types" }).focus();
     await expect
       .poll(() => calls.find((c) => c.name === "updateProgram")?.body)
