@@ -1765,6 +1765,16 @@ describe("classes-services callables", () => {
       fakeRequest({ locationId: "salle-ouest", active: false }, "administrator"),
     );
     expect(updated.location.active).toBe(false);
+    await expect(
+      createUpdateLocationHandler({ store })(
+        fakeRequest({ locationId: "salle-ouest", active: false }, "coach"),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createUpdateLocationHandler({ store })(
+        fakeRequest({ locationId: "nope", active: false }, "owner"),
+      ),
+    ).rejects.toMatchObject({ code: "not-found", message: "Location not found" });
   });
 
   it("saves a v2 program from name and abbreviation and updates its fields", async () => {
@@ -1781,7 +1791,20 @@ describe("classes-services callables", () => {
       createUpdateProgramHandler({ store })(
         fakeRequest({ programId: "nope", colour: "#D9D7FF" }, "owner"),
       ),
-    ).rejects.toMatchObject({ code: "not-found" });
+    ).rejects.toMatchObject({ code: "not-found", message: "Program not found" });
+    await expect(
+      createUpdateProgramHandler({ store })(
+        fakeRequest({ programId: saved.program.programId, colour: "#D9D7FF" }, "coach"),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createSaveProgramHandler({ store })(
+        fakeRequest({ name: "Bad Abbreviation", abbreviation: "" }, "owner"),
+      ),
+    ).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: expect.stringMatching(/abbreviation/),
+    });
   });
 
   it("previews, copies and deletes a week", async () => {
@@ -1805,6 +1828,12 @@ describe("classes-services callables", () => {
       fakeRequest({ weekStart: "2026-09-14" }, "owner"),
     );
     expect(preview.preview.count).toBe(1);
+    await expect(
+      createPreviewWeekHandler({ store })(fakeRequest({ weekStart: "2026-09-14" }, "coach")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createPreviewWeekHandler({ store })(fakeRequest({ weekStart: "2026-09-16" }, "owner")),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
     const copied = await createCopyWeekHandler({ store })(
       fakeRequest(
         { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: false },
@@ -1829,5 +1858,10 @@ describe("classes-services callables", () => {
         fakeRequest({ weekStart: "2026-09-16", reason: "Closed" }, "owner"),
       ),
     ).rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(
+      createDeleteWeekHandler({ store })(
+        fakeRequest({ weekStart: "2026-09-21", reason: "Closed" }, "coach"),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
   });
 });
