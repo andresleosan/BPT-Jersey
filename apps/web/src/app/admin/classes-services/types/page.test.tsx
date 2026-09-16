@@ -36,6 +36,17 @@ const program = {
   message: "",
 };
 
+const bareProgram = {
+  programId: "p2",
+  academyId: "a",
+  name: "Open Mat",
+  ageBand: "adult",
+  discipline: "gi",
+  level: "all-levels",
+  active: true,
+  schemaVersion: "1",
+};
+
 beforeEach(() => {
   mocks.useAdminOrStaffSession.mockReturnValue({ role: "administrator" });
   mocks.getScheduleCatalog.mockResolvedValue({ locations: [], programs: [program] });
@@ -81,9 +92,10 @@ describe("Class / Service Types tab", () => {
     mocks.updateProgram.mockImplementation(async (input) => ({ ...program, ...input }));
     render(<TypesPage />);
     await screen.findByText("GI All Levels Evenings");
-    fireEvent.change(screen.getByLabelText(/colour of GI All Levels Evenings/i), {
-      target: { value: "#d9d7ff" },
-    });
+    const colourInput = screen.getByLabelText(/colour of GI All Levels Evenings/i);
+    fireEvent.change(colourInput, { target: { value: "#d9d7ff" } });
+    expect(mocks.updateProgram).not.toHaveBeenCalled();
+    fireEvent.blur(colourInput);
     await waitFor(() =>
       expect(mocks.updateProgram).toHaveBeenCalledWith({ programId: "p1", colour: "#d9d7ff" }),
     );
@@ -97,10 +109,40 @@ describe("Class / Service Types tab", () => {
     fireEvent.change(screen.getByLabelText(/message of GI All Levels Evenings/i), {
       target: { value: "Bring a gi" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /save message of GI All Levels Evenings/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /save message of GI All Levels Evenings/i }),
+    );
     await waitFor(() =>
       expect(mocks.updateProgram).toHaveBeenCalledWith({ programId: "p1", message: "Bring a gi" }),
     );
+  });
+
+  it("falls back to programDefaultsV2 for a program with no v2 fields", async () => {
+    mocks.getScheduleCatalog.mockResolvedValue({ locations: [], programs: [bareProgram] });
+    render(<TypesPage />);
+    expect(await screen.findByText("Open Mat")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /kind of Open Mat/i })).toHaveValue(
+      "class-frequency",
+    );
+    expect(screen.getByRole("combobox", { name: /drop-ins of Open Mat/i })).toHaveValue(
+      "unlimited",
+    );
+  });
+
+  it("shows In use only for a program with a non-cancelled session in the next 90 days", async () => {
+    mocks.getScheduleCatalog.mockResolvedValue({ locations: [], programs: [program, bareProgram] });
+    mocks.listSessions.mockResolvedValue([
+      { programId: "p1", status: "scheduled" },
+      { programId: "p2", status: "cancelled" },
+    ]);
+    render(<TypesPage />);
+    await screen.findByText("GI All Levels Evenings");
+    const rows = screen.getAllByRole("row");
+    const p1Row = rows.find((row) => row.textContent?.includes("GI All Levels Evenings"));
+    const p2Row = rows.find((row) => row.textContent?.includes("Open Mat"));
+    expect(p1Row).toHaveTextContent("In use");
+    expect(p2Row).not.toHaveTextContent("In use");
   });
 
   it("filters the table by the search box", async () => {
@@ -120,8 +162,11 @@ describe("Class / Service Types tab", () => {
     expect(
       screen.getByRole("combobox", { name: /kind of GI All Levels Evenings/i }),
     ).toBeDisabled();
+    expect(screen.getByLabelText(/colour of GI All Levels Evenings/i)).toBeDisabled();
     expect(
-      screen.getByLabelText(/colour of GI All Levels Evenings/i),
+      screen.getByRole("button", { name: /save message of GI All Levels Evenings/i }),
     ).toBeDisabled();
+    expect(screen.getByLabelText(/e-mail for GI All Levels Evenings/i)).toBeDisabled();
+    expect(screen.getByLabelText(/list GI All Levels Evenings/i)).toBeDisabled();
   });
 });

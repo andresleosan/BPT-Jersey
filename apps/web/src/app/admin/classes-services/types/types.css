@@ -1,4 +1,12 @@
-.cs-card > input[type="search"] {
+.types-search {
   display: block;
   margin-bottom: 1rem;
+}
+
+.cs-inuse {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
