@@ -23,6 +23,7 @@
 - `tasksv2.md`: fila T046V2; no ejecutar prettier sobre `tasksv2.md`.
 - Commits pequeños con mensaje convencional y el pie `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - Rama de trabajo: `feature/classes-services-clone` creada desde la cabeza actual de `feature/admin-classes-billing-levels` (decisión 19).
+- **Reparto en paralelo (Tareas 7–12):** ver `docs/superpowers/plans/2026-09-16-classes-services-plan-1-reparto-paralelo.md`. Cada equipo trabaja en su rama/worktree y solo toca los ficheros que ese documento le asigna; `classes-services.css`, `schedule-client.ts`, `layout.tsx`, `classes-services-tabs.ts`, `admin-routes.ts`, `tasksv2.md`/`Listav2` y `apps/functions/**` son de propiedad única (tabla del documento). Las Tareas 9→10 son secuenciales dentro del Equipo C; la Tarea 12 se ejecuta en la rama de integración tras fusionar A–D.
 
 ---
 
@@ -1389,6 +1390,9 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 **Files:**
 - Create: `apps/web/src/app/admin/classes-services/locations/page.tsx`, `page.test.tsx`
 - Move: `apps/web/src/app/admin/classes/site-geofence-panel.tsx` → `apps/web/src/app/admin/classes-services/locations/site-geofence-panel.tsx` (y su test), adaptando `LocationId` a `string`.
+- Reduce (movido desde la Tarea 10 para el reparto en paralelo): `apps/web/src/app/admin/classes/page.tsx` queda solo con `"use client"` + `import { ClassesServicesRedirect } …` + `export default function AdminClassesPage() { return <ClassesServicesRedirect />; }` — su cuerpo legado (ya muerto: la línea final ya devuelve la redirección) importa el panel que se mueve.
+- Delete (movido desde la Tarea 10): `apps/web/src/app/admin/classes/class-form.tsx`, `class-form.test.tsx`, `classes-dialog.tsx`, `page.test.tsx`, `classes.css` y `qa/tests/admin-classes-form.spec.ts` (Playwright del formulario legado). Nada más de `admin/classes/` sobrevive salvo `page.tsx`.
+- CSS nuevo que necesite esta pestaña (`.cs-inuse`, el `<dialog>` de edición): en `apps/web/src/app/admin/classes-services/locations/locations.css`, importado desde `locations/page.tsx`. **No editar `classes-services.css`** (propiedad del Equipo C, Tareas 9–10).
 
 **Interfaces:**
 - Consumes: `getScheduleCatalog`, `saveLocation`, `updateLocation`, `saveLocationGeofence` (Task 5); `useAdminOrStaffSession`.
@@ -1569,7 +1573,7 @@ El `<dialog>` de edición: `ref` + `showModal()` cuando `editing` cambia, `onClo
 Run: `corepack pnpm vitest run --project web apps/web/src/app/admin/classes-services/locations` → PASS.
 
 ```bash
-git add apps/web/src/app/admin/classes-services/locations apps/web/src/app/admin/classes
+git add -A apps/web/src/app/admin/classes-services/locations apps/web/src/app/admin/classes qa/tests/admin-classes-form.spec.ts
 git commit -m "feat(admin): Locations tab with inline status/type editing and geofence dialog
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
@@ -1581,6 +1585,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `apps/web/src/app/admin/classes-services/types/page.tsx`, `page.test.tsx`
+- CSS nuevo que necesite esta pestaña: en `apps/web/src/app/admin/classes-services/types/types.css`, importado desde `types/page.tsx`. **No editar `classes-services.css`** (propiedad del Equipo C, Tareas 9–10). `.cs-abbr`, `.cs-swatch`, `.cs-table`, `.cs-card`, `.cs-form-row`, `.cs-notice` ya existen.
 
 **Interfaces:**
 - Consumes: `getScheduleCatalog`, `saveProgramV2`, `updateProgram`, `listSessions`.
@@ -1791,7 +1796,7 @@ export function layoutWeek(sessions: readonly GridSession[], weekStart: string, 
 }
 ```
 
-- [ ] **Step 4: `calendar-view.tsx`** — vista semana como CSS Grid: primera columna de horas (`hours`), siete columnas de día; cada día es un `div` con `display: grid; grid-template-rows: repeat(n, 1.6rem); grid-template-columns: repeat(2, minmax(0,1fr))`; cada sesión un `<button type="button" className="cs-event" style={{ gridRow: `${rowStart + 1} / span ${rowSpan}`, gridColumn: columns === 2 ? `${column + 1}` : "1 / span 2", background: colour }} onClick={() => onOpen(sessionId)}>` con título, `HH:MM - HH:MM` y chip `booked / (capacity ?? "∞")`; las sesiones canceladas llevan `data-status="cancelled"` (texto tachado, fondo Paper Edge). Celdas vacías: `<button className="cs-slot" aria-label={`Create a class on ${label} at ${hh}:${mm}`} onClick={() => onCreate(date, time)} />` por media hora (solo `canEdit`). Cabecera de día: `label` + `n classes · n registrations`. Vista mes: rejilla 7×n con el recuento por día y clic = cambia a la semana. Vista día: la misma rejilla con una sola columna. En móvil (`max-width: 50rem`) la semana muestra dos días por pantalla con scroll horizontal (`overflow-x: auto; scroll-snap-type: x mandatory`). Estilos en `classes-services.css` (`.cs-week`, `.cs-day`, `.cs-event`, `.cs-slot`, `.cs-hours`).
+- [ ] **Step 4: `calendar-view.tsx`** — vista semana como CSS Grid: primera columna de horas (`hours`), siete columnas de día; cada día es un `div` con `display: grid; grid-template-rows: repeat(n, 1.6rem); grid-template-columns: repeat(2, minmax(0,1fr))`; cada sesión un `<button type="button" className="cs-event" style={{ gridRow: `${rowStart + 1} / span ${rowSpan}`, gridColumn: columns === 2 ? `${column + 1}` : "1 / span 2", background: colour }} onClick={() => onOpen(sessionId)}>` con título, `HH:MM - HH:MM` y chip `booked / (capacity ?? "∞")`; las sesiones canceladas llevan `data-status="cancelled"` (texto tachado, fondo Paper Edge). Celdas vacías: `<button className="cs-slot" aria-label={`Create a class on ${label} at ${hh}:${mm}`} onClick={() => onCreate(date, time)} />` por media hora (solo `canEdit`). Cabecera de día: `label` + `n classes · n registrations`. Vista mes: rejilla 7×n con el recuento por día y clic = cambia a la semana. Vista día: la misma rejilla con una sola columna. En móvil (`max-width: 50rem`) la semana muestra dos días por pantalla con scroll horizontal (`overflow-x: auto; scroll-snap-type: x mandatory`). Estilos en `classes-services.css` (`.cs-week`, `.cs-day`, `.cs-event`, `.cs-slot`, `.cs-hours`) — las Tareas 9 y 10 (Equipo C) son las únicas que editan ese fichero.
 
 - [ ] **Step 5: Ejecutar y commit**
 
@@ -1810,15 +1815,15 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `classes/page.tsx`, `page.test.tsx`, `list-view.tsx`, `session-panel.tsx`, `session-panel.test.tsx`, `registrations-panel.tsx`, `registrations-panel.test.tsx`, `week-actions.tsx`, `week-actions.test.tsx`
-- Delete: `apps/web/src/app/admin/classes/class-form.tsx`, `class-form.test.tsx`, `classes-dialog.tsx`, `page.test.tsx`, `classes.css` (la página `classes/page.tsx` queda solo como redirección)
+- **No toca `apps/web/src/app/admin/classes/`** (la limpieza legada la hace la Tarea 7 en la rama del Equipo A). Si se quiere reutilizar alguna regla `.schedule-admin-*` de `classes.css`, recuperarla con `git show 8f884cb:apps/web/src/app/admin/classes/classes.css` y renombrarla a `.cs-*` en `classes-services.css` (este equipo es su propietario).
 
 **Interfaces:**
-- Consumes: `getScheduleCatalog`, `listSessions`, `listSessionBookedCounts`, `saveSession`, `updateSession`, `cancelSession`, `listSessionBookings`, `requestBooking`, `cancelBooking`, `previewWeek`, `copyWeek`, `deleteWeek` (schedule-client); `listStaffProfiles` (staff-client); `listMembers` (members-client); `getFamily`/`listFamilies` (families-client, para GROUP); `useAdminOrStaffSession`.
+- Consumes: `getScheduleCatalog`, `listSessions`, `listSessionBookedCounts`, `saveSession`, `updateSession`, `cancelSession`, `listSessionBookings`, `requestBooking`, `cancelBooking`, `previewWeek`, `copyWeek`, `deleteWeek` (schedule-client); `listStaffProfiles` (staff-client); `listMembers` (members-client); familias para GROUP — **no existe `listFamilies`**: `apps/web/src/lib/family-client.ts` solo exporta `getFamily`/`createFamily`/`updateFamily`; resolver con `listMembers` (agrupar las filas de `AdminDirectoryRow` por su campo de familia si lo trae; si no, la pestaña Group busca por apellido y agrupa los resultados) — ruling del controlador del Equipo C, sin añadir callables ni tocar `schedule-client.ts`; `useAdminOrStaffSession`.
 - Produces: `ClassesPage`; `SessionPanel` (props `mode: "create" | "edit"`, `session?`, `catalog`, `staff`, `defaults?: { date, startTime }`, `onSaved`, `onCancelled`, `onClose`, `canEdit`), `RegistrationsPanel` (props `session`, `canEdit`), `WeekActions` (props `weekStart`, `onChanged`).
 
 Comportamiento (inventario §3): cabecera con `CALENDAR` / `LIST` (botones `role="tab"` internos), contadores `CLASSES`, `REGISTRATIONS`, `OCCUPANCY %`, `TOTAL` (sesiones no canceladas del rango cargado, suma de `booked`, `booked/capacidad finita`, total de sesiones del año en curso mediante una segunda consulta `listSessions` de enero a diciembre cacheada); filtros `Locations`, `Types`, `Staff` (multiselección con `<select multiple>`), `Mine` (checkbox: `instructorIds` incluye al actor), `Active / Inactive` (estado); navegación ‹ › `Today`, `<input type="date">`, título `14 – 20 SEP 2026`, `Copy week`, `Delete week`, `Month | Week | Day`.
 
-- [ ] **Step 1: Pruebas que fallan de `page.test.tsx`** (arnés como el de `admin/classes/page.test.tsx` actual: `vi.mock` de los cuatro clientes y del gate)
+- [ ] **Step 1: Pruebas que fallan de `page.test.tsx`** (arnés como el de `admin/classes/page.test.tsx` — en la rama de este equipo aún existe; si no, `git show 8f884cb:apps/web/src/app/admin/classes/page.test.tsx`: `vi.mock` de los cuatro clientes y del gate)
 
 ```tsx
 it("loads the week and shows counters and one card per session", async () => {
@@ -1930,7 +1935,7 @@ it("explains that External registrations arrive with Drop-ins", () => {
 });
 ```
 
-(`listFamilies` es la función de `families-client.ts` que devuelve las familias con sus alumnos; si el nombre real difiere, usar el existente — comprobar con `grep -n "^export async function" apps/web/src/lib/families-client.ts`.)
+(`listFamilies` **no existe** — ver Interfaces: la prueba de Group se adapta a la fuente elegida, p. ej. `mocks.listMembers` devolviendo dos filas de la misma familia.)
 
 - [ ] **Step 4: Pruebas de `week-actions.test.tsx`**
 
@@ -1991,7 +1996,7 @@ Contadores: `classes = visibles no canceladas`, `registrations = Σ booked`, `oc
 
 `week-actions.tsx`: dos botones y dos `<dialog>`; al abrir, `previewWeek(weekStart)` y texto `"{count} classes will be copied to the week of {d MMM yyyy}."` / `"{count} classes will be cancelled."`; `Copy` con checkbox `Copy bookings as well`; `Delete` deshabilitado hasta que `reason.trim().length >= 2`.
 
-Borrar los ficheros antiguos de `admin/classes/` listados arriba y dejar `classes/page.tsx` solo con la redirección; mover a `classes-services.css` las reglas de `classes.css` que sigan usándose (`.schedule-admin-*` → renombrar a `.cs-*`) y eliminar el resto.
+No borrar nada en `admin/classes/` (lo hace la Tarea 7 en otra rama). Las reglas nuevas de esta tarea van a `classes-services.css` (propietario: Equipo C).
 
 - [ ] **Step 7: Ejecutar y ver pasar**
 
@@ -2000,7 +2005,7 @@ Run: `corepack pnpm vitest run --project web apps/web/src/app/admin` → PASS; `
 - [ ] **Step 8: Commit**
 
 ```bash
-git add -A apps/web/src/app/admin
+git add -A apps/web/src/app/admin/classes-services
 git commit -m "feat(admin): Classes & Services 2.0 — calendar, list, session panel, registrations and week actions
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
@@ -2026,7 +2031,17 @@ it("keeps locations closed to direct writes even for head coaches", async () => 
 });
 ```
 
-- [ ] **Step 2: Ejecutar** — `FUNCTIONS_DISCOVERY_TIMEOUT=300000 corepack pnpm test:rules` (necesita JDK 21; en este VPS, dentro del contenedor `bpt-emu:local --network none` según la memoria del proyecto). Expected: PASS.
+- [ ] **Step 2: Ejecutar** — `FUNCTIONS_DISCOVERY_TIMEOUT=300000 corepack pnpm test:rules` necesita JDK 21; en este VPS se corre dentro del contenedor `bpt-emu:local` sin red, montando **el worktree de este equipo** (no `/root/BPT-Jersey`) y con `npm_config_verify_deps_before_run=false` para que pnpm no intente reinstalar `node_modules` sin red (auditoría 2026-09-15):
+
+```bash
+WT=$(git rev-parse --show-toplevel)
+docker run --rm --network none \
+  -v "$WT:$WT" -v /root/.cache/firebase:/root/.cache/firebase -v /root/.cache/node:/root/.cache/node \
+  -e COREPACK_ENABLE_NETWORK=0 -e FUNCTIONS_DISCOVERY_TIMEOUT=300000 -e npm_config_verify_deps_before_run=false \
+  -w "$WT" bpt-emu:local bash -lc 'corepack pnpm test:rules'
+```
+
+Expected: PASS (la suite `rules` completa, incluida la prueba nueva).
 
 - [ ] **Step 3: Commit**
 
@@ -2040,6 +2055,8 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ---
 
 ### Task 12: Playwright de las tres pestañas, capturas y verificación completa
+
+> Se ejecuta en la rama de integración `feature/classes-services-clone` **después** de fusionar las ramas de los Equipos A–D (ver reparto).
 
 **Files:**
 - Create: `qa/tests/admin-classes-services.spec.ts`
