@@ -97,7 +97,7 @@ describe("Class / Service Types tab", () => {
     expect(mocks.updateProgram).not.toHaveBeenCalled();
     fireEvent.blur(colourInput);
     await waitFor(() =>
-      expect(mocks.updateProgram).toHaveBeenCalledWith({ programId: "p1", colour: "#d9d7ff" }),
+      expect(mocks.updateProgram).toHaveBeenCalledWith({ programId: "p1", colour: "#D9D7FF" }),
     );
     fireEvent.change(
       screen.getByRole("combobox", { name: /drop-ins of GI All Levels Evenings/i }),
@@ -115,6 +115,16 @@ describe("Class / Service Types tab", () => {
     await waitFor(() =>
       expect(mocks.updateProgram).toHaveBeenCalledWith({ programId: "p1", message: "Bring a gi" }),
     );
+  });
+
+  it("does not re-save a colour the picker only echoed back in another case", async () => {
+    render(<TypesPage />);
+    await screen.findByText("GI All Levels Evenings");
+    const colourInput = screen.getByLabelText(/colour of GI All Levels Evenings/i);
+    // The stored colour is "#F0EFFF"; <input type="color"> hands the same colour back lowercase.
+    fireEvent.change(colourInput, { target: { value: "#f0efff" } });
+    fireEvent.blur(colourInput);
+    expect(mocks.updateProgram).not.toHaveBeenCalled();
   });
 
   it("falls back to programDefaultsV2 for a program with no v2 fields", async () => {

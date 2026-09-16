@@ -85,6 +85,8 @@ export function TypesPage() {
 
   async function onCreate(event: FormEvent): Promise<void> {
     event.preventDefault();
+    // A notice belongs to the action that raised it: the next one starts from a clean slate.
+    setNotice(null);
     try {
       replace(await saveProgramV2(draft));
       setDraft({ name: "", abbreviation: "" });
@@ -106,6 +108,7 @@ export function TypesPage() {
       message?: string;
     },
   ): Promise<void> {
+    setNotice(null);
     try {
       replace(await updateProgram({ programId, ...change }));
       setNotice({ kind: "success", message: "Type updated." });
@@ -124,8 +127,10 @@ export function TypesPage() {
   }
 
   async function saveColour(program: ProgramRecord): Promise<void> {
-    const draftColour = colours[program.programId];
-    const savedColour = program.colour ?? programDefaultsV2.colour;
+    // The colour input hands back `#rrggbb`; the domain stores `#RRGGBB`. Compare in one case or
+    // reopening the picker and closing it unchanged saves the same colour again.
+    const draftColour = colours[program.programId]?.toUpperCase();
+    const savedColour = (program.colour ?? programDefaultsV2.colour).toUpperCase();
     if (draftColour === undefined || draftColour === savedColour) return;
     await patch(program.programId, { colour: draftColour });
     setColours((current) =>

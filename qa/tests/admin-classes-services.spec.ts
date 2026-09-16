@@ -209,7 +209,8 @@ test.describe("@classes-services", () => {
     await page.getByRole("tab", { name: "Class / Service Types" }).focus();
     await expect
       .poll(() => calls.find((c) => c.name === "updateProgram")?.body)
-      .toMatchObject({ data: { programId: giProgram.programId, colour: "#ff0000" } });
+      // The picker hands back lowercase; the page normalises to the domain's case before saving.
+      .toMatchObject({ data: { programId: giProgram.programId, colour: "#FF0000" } });
 
     await page.getByRole("combobox", { name: `Drop-ins of ${noGiProgram.name}` }).selectOption("2");
     await expect

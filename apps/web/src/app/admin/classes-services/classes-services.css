@@ -459,15 +459,6 @@ button.cs-slot:focus-visible {
   font-size: 0.78rem;
 }
 
-.cs-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 .cs-dialog {
   position: fixed;
   inset: 5% auto auto 50%;
