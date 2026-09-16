@@ -339,6 +339,21 @@ describe("staff callables", () => {
     await expect(listStaffProfilesHandler(request({}, "coach"), current)).rejects.toMatchObject({
       code: "permission-denied",
     });
+    await expect(listStaffProfilesHandler(request({}, "guardian"), current)).rejects.toMatchObject({
+      code: "permission-denied",
+    });
+  });
+
+  it("lets a head coach read the staff list within their academy (ADR-010, 2026-09-16)", async () => {
+    const current = services();
+
+    await expect(listStaffProfilesHandler(request({}, "headCoach"), current)).resolves.toEqual([
+      { staffKey: "staff-1", role: "coach", active: true, status: "active", schemaVersion: "1" },
+    ]);
+    expect(current.store.listStaffProfiles).toHaveBeenCalledWith("academy-1");
+    await expect(
+      listStaffProfilesHandler(request({ extra: true }, "headCoach"), current),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
   });
 
   it("uses staffKey for every browser mutation parser and returns safe profile projections", async () => {

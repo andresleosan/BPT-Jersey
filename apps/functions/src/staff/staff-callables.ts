@@ -3,6 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import { requireAdminActor } from "../auth/admin-authorization.js";
+import { requireUserActor } from "../auth/user-authorization.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import { withSharedRoleLock, type SyntheticFirestore } from "../auth/admin-provisioning.js";
@@ -511,10 +512,15 @@ export async function listStaffProfilesHandler(
   request: CallableRequest<unknown>,
   services: StaffCallableServices,
 ) {
-  const actor = requireAdminActor(request);
+  // ADR-010, enmienda 2026-09-16: headCoach lee la lista (claves, rol y estado, sin PII) para
+  // poder crear clases en Classes & Services 2.0; el resto del directorio de staff sigue siendo
+  // de owner/administrator.
+  const user = requireUserActor(request);
+  const academyId =
+    user.role === "headCoach" ? user.academyId : requireAdminActor(request).academyId;
   payloadRecord(request.data, []);
   try {
-    return safeStaffProjectionList(await services.store.listStaffProfiles(actor.academyId));
+    return safeStaffProjectionList(await services.store.listStaffProfiles(academyId));
   } catch (error) {
     return mapStoreError(error);
   }
