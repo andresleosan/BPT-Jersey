@@ -641,9 +641,9 @@ describe("staff Firestore store", () => {
     expect([...records.keys()].filter((key) => key.includes("/staff/")).length).toBe(1);
   });
 
-  it("lists only same-tenant staff as a bounded deterministic safe projection", async () => {
-    const first = storedStaff({ staffId: "staff-z", role: "coach" });
-    const second = storedStaff({ staffId: "staff-a", role: "headCoach" });
+  it("lists only same-tenant staff as a bounded deterministic safe projection that flags the caller", async () => {
+    const first = storedStaff({ staffId: "staff-z", role: "coach", userId: "user-z" });
+    const second = storedStaff({ staffId: "staff-a", role: "headCoach", userId: "user-a" });
     const { firestore } = createFakeFirestore({
       "academies/academy-1/staff/staff-z": first,
       "academies/academy-1/staff/staff-a": second,
@@ -653,12 +653,13 @@ describe("staff Firestore store", () => {
       }),
     });
 
-    await expect(createStore(firestore).listStaffProfiles("academy-1")).resolves.toEqual([
+    await expect(createStore(firestore).listStaffProfiles("academy-1", "user-a")).resolves.toEqual([
       {
         staffKey: "staff-a",
         role: "headCoach",
         active: true,
         status: "active",
+        self: true,
         schemaVersion: "1",
       },
       {
@@ -666,6 +667,7 @@ describe("staff Firestore store", () => {
         role: "coach",
         active: true,
         status: "active",
+        self: false,
         schemaVersion: "1",
       },
     ]);
@@ -673,13 +675,15 @@ describe("staff Firestore store", () => {
 
   it("returns an empty list and rejects malformed stored staff documents", async () => {
     const empty = createFakeFirestore();
-    await expect(createStore(empty.firestore).listStaffProfiles("academy-1")).resolves.toEqual([]);
+    await expect(
+      createStore(empty.firestore).listStaffProfiles("academy-1", "user-1"),
+    ).resolves.toEqual([]);
 
     const malformed = createFakeFirestore({
       "academies/academy-1/staff/staff-invalid": storedStaff({ displayName: "private" }),
     });
     await expect(
-      createStore(malformed.firestore).listStaffProfiles("academy-1"),
+      createStore(malformed.firestore).listStaffProfiles("academy-1", "user-1"),
     ).rejects.toMatchObject({ code: "invalid" });
 
     const overflowing: Record<string, StaffDocumentData> = {};
@@ -689,7 +693,10 @@ describe("staff Firestore store", () => {
       });
     }
     await expect(
-      createStore(createFakeFirestore(overflowing).firestore).listStaffProfiles("academy-1"),
+      createStore(createFakeFirestore(overflowing).firestore).listStaffProfiles(
+        "academy-1",
+        "user-1",
+      ),
     ).rejects.toMatchObject({ code: "precondition" });
   });
 });

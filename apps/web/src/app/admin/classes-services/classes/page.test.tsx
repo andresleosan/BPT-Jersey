@@ -82,11 +82,14 @@ const westSession = {
   capacity: 20,
 } as const;
 
+// Sessions name trainers by staffKey, and a staffKey is a sha256, never the auth uid.
+const ownerStaffKey = "7b1f0c4e9a2d5f8361c74b0e9d2a5f83c61e4b7d0a9f2c5e8b1d4a7f0c3e6b9d";
+
 const mineSession = {
   ...townSession,
   sessionId: "s3",
-  instructorId: "owner-1",
-  instructorIds: ["owner-1"],
+  instructorId: ownerStaffKey,
+  instructorIds: [ownerStaffKey],
   title: "Owner Drills",
   startAt: "2026-09-16T17:30:00.000Z",
   endAt: "2026-09-16T18:30:00.000Z",
@@ -144,8 +147,9 @@ describe("Classes & Services 2.0 page", () => {
     mocks.useAdminOrStaffSession.mockReturnValue({ role: "owner", uid: "owner-1" });
     mocks.getScheduleCatalog.mockResolvedValue(catalog);
     mocks.listStaffProfiles.mockResolvedValue([
-      { staffKey: "coach-a", role: "coach", active: true, status: "active" },
-      { staffKey: "coach-b", role: "coach", active: true, status: "active" },
+      { staffKey: "coach-a", role: "coach", active: true, status: "active", self: false },
+      { staffKey: "coach-b", role: "coach", active: true, status: "active", self: false },
+      { staffKey: ownerStaffKey, role: "headCoach", active: true, status: "active", self: true },
     ]);
     mocks.listSessions.mockImplementation(async (query: { from: string }) =>
       query.from.startsWith("2026-01") ? yearSessions : weekSessions,
@@ -175,6 +179,15 @@ describe("Classes & Services 2.0 page", () => {
     expect(mocks.listSessionBookedCounts).toHaveBeenCalledWith(
       expect.objectContaining({ from: expect.stringContaining("2026-09-13T23:00") }),
     );
+    expect(screen.getByText("14 – 20 SEP 2026")).toBeInTheDocument();
+  });
+
+  it("opens on the academy week, not the UTC one, just after local midnight", async () => {
+    // 23:30Z on Sunday 13 September is 00:30 BST on Monday 14 September: the academy is already in
+    // the new week even though the UTC date still says Sunday.
+    vi.setSystemTime(new Date("2026-09-13T23:30:00Z"));
+    render(<ClassesPage />);
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
     expect(screen.getByText("14 – 20 SEP 2026")).toBeInTheDocument();
   });
 

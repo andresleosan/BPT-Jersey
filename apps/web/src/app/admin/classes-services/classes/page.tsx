@@ -153,11 +153,12 @@ export function ClassesPage(): ReactElement {
   const canEdit = session.role !== "coach";
   // `listMemberships` is reserved for the office: a head coach may edit a class but not enrol.
   const canReadMemberships = session.role === "owner" || session.role === "administrator";
-  const actorId = session.uid;
 
   const [view, setView] = useState<View>("calendar");
   const [range, setRange] = useState<Range>("week");
-  const [weekStart, setWeekStart] = useState(() => mondayOf(new Date().toISOString().slice(0, 10)));
+  const [weekStart, setWeekStart] = useState(() =>
+    mondayOf(localParts(new Date().toISOString(), fallbackTimezone).date),
+  );
   const [catalog, setCatalog] = useState<ScheduleCatalogResponse | null>(null);
   const [staff, setStaff] = useState<readonly StaffOption[]>([]);
   const [staffStatus, setStaffStatus] = useState<StaffStatus>("loading");
@@ -262,6 +263,9 @@ export function ClassesPage(): ReactElement {
   const locations = catalog?.locations ?? [];
   const programs = catalog?.programs ?? [];
   const today = localParts(new Date().toISOString(), timezone).date;
+  // Sessions name their trainers by staffKey, never by auth uid, so "Mine" matches on the keys the
+  // server flagged as the actor's own.
+  const mineKeys = staff.filter((row) => row.self).map((row) => row.staffKey);
 
   const grid: readonly GridSession[] = sessions.map((row) => ({
     sessionId: row.sessionId,
@@ -283,7 +287,7 @@ export function ClassesPage(): ReactElement {
       (filters.locations.length === 0 || filters.locations.includes(row.locationId)) &&
       (filters.programs.length === 0 || filters.programs.includes(row.programId)) &&
       (filters.staff.length === 0 || row.instructorIds.some((id) => filters.staff.includes(id))) &&
-      (!filters.mine || row.instructorIds.includes(actorId)) &&
+      (!filters.mine || row.instructorIds.some((id) => mineKeys.includes(id))) &&
       statusMatches(row.status, filters.status) &&
       (range !== "day" ||
         listRange !== null ||
@@ -391,7 +395,7 @@ export function ClassesPage(): ReactElement {
           ›
         </button>
         <label className="cs-field">
-          <span className="cs-visually-hidden">Go to date</span>
+          <span className="visually-hidden">Go to date</span>
           <input
             type="date"
             value={weekStart}

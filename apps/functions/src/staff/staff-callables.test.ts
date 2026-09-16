@@ -26,9 +26,9 @@ const profile: StaffProfile = {
   updatedBy: "owner-1",
 };
 
-function request(data: unknown, role = "owner") {
+function request(data: unknown, role = "owner", uid = "owner-1") {
   return {
-    auth: { uid: "owner-1", token: { academyId: "academy-1", role } },
+    auth: { uid, token: { academyId: "academy-1", role } },
     data,
   } as never;
 }
@@ -38,12 +38,13 @@ function services(): StaffCallableServices {
   return {
     store: {
       getStaffProfile: vi.fn(async () => profile),
-      listStaffProfiles: vi.fn(async () => [
+      listStaffProfiles: vi.fn(async (_academyId: string, viewerUserId: string) => [
         {
           staffKey: profile.staffId,
           role: profile.role,
           active: profile.active,
           status: profile.status,
+          self: profile.userId === viewerUserId,
           schemaVersion: profile.schemaVersion,
         },
       ]),
@@ -79,6 +80,7 @@ describe("staff callables", () => {
       role: "coach",
       active: true,
       status: "active",
+      self: false,
       schemaVersion: "1",
     });
     expect(current.store.createStaffProfile).toHaveBeenCalledWith({
@@ -315,9 +317,11 @@ describe("staff callables", () => {
         role: "coach",
         active: true,
         status: "active",
+        self: false,
         schemaVersion: "1",
       },
     ]);
+    expect(current.store.listStaffProfiles).toHaveBeenCalledWith("academy-1", "owner-1");
     expect(current.auth.setCustomUserClaims).not.toHaveBeenCalled();
 
     await expect(listStaffProfilesHandler(request(null), current)).rejects.toMatchObject({
@@ -348,12 +352,38 @@ describe("staff callables", () => {
     const current = services();
 
     await expect(listStaffProfilesHandler(request({}, "headCoach"), current)).resolves.toEqual([
-      { staffKey: "staff-1", role: "coach", active: true, status: "active", schemaVersion: "1" },
+      {
+        staffKey: "staff-1",
+        role: "coach",
+        active: true,
+        status: "active",
+        self: false,
+        schemaVersion: "1",
+      },
     ]);
-    expect(current.store.listStaffProfiles).toHaveBeenCalledWith("academy-1");
+    expect(current.store.listStaffProfiles).toHaveBeenCalledWith("academy-1", "owner-1");
     await expect(
       listStaffProfilesHandler(request({ extra: true }, "headCoach"), current),
     ).rejects.toMatchObject({ code: "invalid-argument" });
+  });
+
+  it("flags the caller's own profile without ever sending the userId", async () => {
+    const current = services();
+
+    // "user-1" owns `staff-1`: the row comes back flagged, and the uid stays on the server.
+    const rows = await listStaffProfilesHandler(request({}, "headCoach", "user-1"), current);
+
+    expect(rows).toEqual([
+      {
+        staffKey: "staff-1",
+        role: "coach",
+        active: true,
+        status: "active",
+        self: true,
+        schemaVersion: "1",
+      },
+    ]);
+    expect(JSON.stringify(rows)).not.toContain("user-1");
   });
 
   it("uses staffKey for every browser mutation parser and returns safe profile projections", async () => {
@@ -366,6 +396,7 @@ describe("staff callables", () => {
       role: "coach",
       active: true,
       status: "active",
+      self: false,
       schemaVersion: "1",
     });
     expect(current.store.updateStaffProfile).toHaveBeenCalledWith(

@@ -39,6 +39,7 @@ const coach = {
   role: "coach" as const,
   active: true,
   status: "active" as const,
+  self: false,
   schemaVersion: "1" as const,
 };
 

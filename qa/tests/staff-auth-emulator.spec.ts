@@ -5,6 +5,7 @@ const safeProfile = {
   role: "coach",
   active: true,
   status: "active",
+  self: false,
   schemaVersion: "1",
 } as const;
 

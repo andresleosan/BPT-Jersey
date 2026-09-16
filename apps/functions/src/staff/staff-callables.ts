@@ -49,6 +49,7 @@ const staffProjectionFields = Object.freeze([
   "role",
   "active",
   "status",
+  "self",
   "schemaVersion",
 ] as const);
 
@@ -196,6 +197,7 @@ function safeStaffProjection(value: unknown): StaffProfileProjection {
     typeof value.active !== "boolean" ||
     (value.status !== "active" && value.status !== "inactive") ||
     value.active !== (value.status === "active") ||
+    typeof value.self !== "boolean" ||
     value.schemaVersion !== "1"
   ) {
     throw new StaffStoreError("invalid", "Staff projection is invalid");
@@ -205,6 +207,7 @@ function safeStaffProjection(value: unknown): StaffProfileProjection {
     role: value.role as StaffProfileProjection["role"],
     active: value.active,
     status: value.status,
+    self: value.self,
     schemaVersion: "1",
   });
 }
@@ -398,7 +401,7 @@ export async function createStaffProfileHandler(
           control,
         ),
     );
-    return toStaffProfileProjection(profile);
+    return toStaffProfileProjection(profile, actor.uid);
   } catch (error) {
     return mapStoreError(error);
   }
@@ -430,7 +433,7 @@ export async function updateStaffProfileHandler(
           control,
         ),
     );
-    return toStaffProfileProjection(profile);
+    return toStaffProfileProjection(profile, actor.uid);
   } catch (error) {
     return mapStoreError(error);
   }
@@ -462,7 +465,7 @@ export async function setStaffActiveHandler(
           control,
         ),
     );
-    return toStaffProfileProjection(profile);
+    return toStaffProfileProjection(profile, actor.uid);
   } catch (error) {
     return mapStoreError(error);
   }
@@ -520,7 +523,7 @@ export async function listStaffProfilesHandler(
     user.role === "headCoach" ? user.academyId : requireAdminActor(request).academyId;
   payloadRecord(request.data, []);
   try {
-    return safeStaffProjectionList(await services.store.listStaffProfiles(academyId));
+    return safeStaffProjectionList(await services.store.listStaffProfiles(academyId, user.userId));
   } catch (error) {
     return mapStoreError(error);
   }

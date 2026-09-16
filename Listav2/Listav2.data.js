@@ -50,7 +50,7 @@ function requirement(text, done = false) {
  */
 const RESOLUTION_NOTES = {
   T046V2:
-    "2026-09-16: tareas 1-6 del Plan 1 cerradas con revisión por subagente y ronda de fixes cada una; decisiones de ejecución (LocationId string, capacidad null = ilimitada, copia de semana en hora local, guarda de rol única) anotadas en el ledger SDD de la rama.",
+    "2026-09-16: tareas 1-12 de 12 del Plan 1 cerradas con revisión por subagente y ronda de fixes cada una, más la revisión final de rama y su ronda de arreglos; decisiones de ejecución (LocationId string, capacidad null = ilimitada, copia de semana en hora local, guarda de rol única) anotadas en el ledger SDD de la rama.",
   T001V2:
     "Causa localizada el 2026-09-09 en `apps/web/src/app/enrol/page.tsx:378-385`: el efecto de prellenado lleva `form.email.length` y `form.fullName.length` en su propio array de dependencias, así que al borrar el último carácter la longitud pasa a 0, el efecto se vuelve a ejecutar y reescribe el valor de la sesión.",
   T003V2:

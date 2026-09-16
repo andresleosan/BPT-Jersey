@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  localInstant,
   parseCopyWeekInput,
   parseCreateLocationInput,
   parseCreateProgramInputV2,
@@ -155,6 +156,28 @@ describe("weeks", () => {
   it("shifts in the given timezone, not the host one", () => {
     // UTC never changes its clocks, so the same instants shift by exactly seven days.
     expect(shiftIsoInZone("2026-10-21T17:00:00.000Z", 7, "UTC")).toBe("2026-10-28T17:00:00.000Z");
+  });
+
+  it("puts a local wall-clock time on the right instant across the March clock change", () => {
+    // Jersey enters BST at 01:00 on 2026-03-29, so a 10:00 class that day is 09:00Z — the offset
+    // at local midnight (GMT) no longer holds by the time the class starts.
+    expect(new Date(localInstant("2026-03-29", "10:00", "Europe/Jersey")).toISOString()).toBe(
+      "2026-03-29T09:00:00.000Z",
+    );
+  });
+
+  it("puts a local wall-clock time on the right instant across the October clock change", () => {
+    // Jersey leaves BST at 02:00 on 2026-10-25, so a 10:00 class that day is 10:00Z even though
+    // local midnight was still BST.
+    expect(new Date(localInstant("2026-10-25", "10:00", "Europe/Jersey")).toISOString()).toBe(
+      "2026-10-25T10:00:00.000Z",
+    );
+  });
+
+  it("puts a local wall-clock time on the right instant on an ordinary day", () => {
+    expect(new Date(localInstant("2026-09-16", "10:00", "Europe/Jersey")).toISOString()).toBe(
+      "2026-09-16T09:00:00.000Z",
+    );
   });
 
   it("parses copy and delete week inputs", () => {
