@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import type { WeekPreview } from "@bpt-jersey/domain/schedule/classes-services";
 
@@ -50,6 +50,16 @@ export function WeekActions({ weekStart, onChanged }: WeekActionsProps): ReactEl
   const [busy, setBusy] = useState(false);
   const [copyBookings, setCopyBookings] = useState(false);
   const [reason, setReason] = useState("");
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    if (kind === null) return undefined;
+    const opener = document.activeElement;
+    dialogRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  }, [kind]);
 
   async function open(next: Kind): Promise<void> {
     setKind(next);
@@ -105,7 +115,15 @@ export function WeekActions({ weekStart, onChanged }: WeekActionsProps): ReactEl
         Delete week
       </button>
       {kind === null ? null : (
-        <dialog open className="cs-dialog" aria-labelledby={titleId}>
+        <dialog
+          open
+          ref={dialogRef}
+          className="cs-dialog"
+          aria-labelledby={titleId}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") close();
+          }}
+        >
           <h2 id={titleId}>{kind === "copy" ? "Copy week" : "Delete week"}</h2>
           {error === null ? null : (
             <p className="cs-notice" data-kind="error" role="alert">

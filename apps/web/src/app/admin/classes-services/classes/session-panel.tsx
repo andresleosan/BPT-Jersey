@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import type {
   CreateSessionInput,
@@ -39,6 +39,7 @@ export type SessionPanelProps = Readonly<{
   timezone: string;
   defaults?: Readonly<{ date: string; startTime: string }> | undefined;
   canEdit: boolean;
+  canReadMemberships: boolean;
   onSaved: (session: SessionRecord) => void;
   onCancelled: (session: SessionRecord) => void;
   onClose: () => void;
@@ -154,10 +155,10 @@ function sameRules(left: SessionBookingRules, right: SessionBookingRules): boole
 }
 
 function instantsOf(draft: Draft, timezone: string): { startAt: string; endAt: string } {
-  const startAt = isoAt(draft.date, draft.startTime, timezone);
-  let endMs = Date.parse(isoAt(draft.date, draft.endTime, timezone));
-  if (endMs <= Date.parse(startAt)) endMs += 86_400_000;
-  return { startAt, endAt: new Date(endMs).toISOString() };
+  return {
+    startAt: isoAt(draft.date, draft.startTime, timezone),
+    endAt: isoAt(draft.date, draft.endTime, timezone),
+  };
 }
 
 export function SessionPanel({
@@ -168,6 +169,7 @@ export function SessionPanel({
   timezone,
   defaults,
   canEdit,
+  canReadMemberships,
   onSaved,
   onCancelled,
   onClose,
@@ -180,6 +182,16 @@ export function SessionPanel({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const opener = document.activeElement;
+    dialogRef.current?.querySelector<HTMLElement>("input, select, button")?.focus();
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  }, []);
 
   const editing = current === "edit" && session !== undefined;
   const locked = editing;
@@ -266,9 +278,20 @@ export function SessionPanel({
   }
 
   const readOnly = !canEdit;
+  const endsBeforeStart = minutesOf(draft.endTime) <= minutesOf(draft.startTime);
+  const noTrainer = draft.trainers.length === 0;
+  const blocked = busy || endsBeforeStart || noTrainer;
 
   return (
-    <dialog open className="cs-dialog cs-session-dialog" aria-labelledby={dialogTitleId}>
+    <dialog
+      open
+      ref={dialogRef}
+      className="cs-dialog"
+      aria-labelledby={dialogTitleId}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+      }}
+    >
       <h2 id={dialogTitleId}>Create classes/services</h2>
       {error === null ? null : (
         <p className="cs-notice" data-kind="error" role="alert">
@@ -307,6 +330,11 @@ export function SessionPanel({
               />
             </label>
           </div>
+          {endsBeforeStart ? (
+            <p className="cs-notice" data-kind="error" role="alert">
+              End time must be after the start time
+            </p>
+          ) : null}
           <h3>Class and location</h3>
           <div className="cs-form-row">
             <label className="cs-field">
@@ -344,7 +372,9 @@ export function SessionPanel({
               <input
                 id="cs-capacity"
                 type="number"
-                min={0}
+                min={1}
+                max={300}
+                step={1}
                 value={draft.capacity}
                 disabled={readOnly}
                 aria-describedby="cs-capacity-help"
@@ -369,6 +399,11 @@ export function SessionPanel({
               </li>
             ))}
           </ul>
+          {canEdit && noTrainer ? (
+            <p className="cs-notice" data-kind="error" role="alert">
+              Choose at least one trainer
+            </p>
+          ) : null}
           <h3>Booking rules</h3>
           <div className="cs-form-row">
             <label className="cs-field">
@@ -406,6 +441,7 @@ export function SessionPanel({
                 <input
                   type="number"
                   min={0}
+                  step={1}
                   value={draft.bookUntil}
                   disabled={readOnly}
                   onChange={(event) => patch({ bookUntil: event.target.value })}
@@ -429,6 +465,7 @@ export function SessionPanel({
                   <input
                     type="number"
                     min={0}
+                    step={1}
                     value={draft.cancelMinutes}
                     disabled={readOnly}
                     onChange={(event) => patch({ cancelMinutes: event.target.value })}
@@ -440,6 +477,7 @@ export function SessionPanel({
                 <input
                   type="number"
                   min={0}
+                  step={1}
                   value={draft.advance}
                   disabled={readOnly}
                   onChange={(event) => patch({ advance: event.target.value })}
@@ -448,7 +486,7 @@ export function SessionPanel({
             </div>
           ) : null}
           {confirming ? (
-            <div className="cs-form-row cs-confirm">
+            <div className="cs-form-row">
               <label className="cs-field">
                 <span>Reason</span>
                 <input
@@ -469,7 +507,13 @@ export function SessionPanel({
             </div>
           ) : null}
         </div>
-        {editing && session ? <RegistrationsPanel session={session} canEdit={canEdit} /> : null}
+        {editing && session ? (
+          <RegistrationsPanel
+            session={session}
+            canEdit={canEdit}
+            canReadMemberships={canReadMemberships}
+          />
+        ) : null}
       </div>
       <div className="cs-dialog-actions">
         {canEdit && editing ? (
@@ -496,7 +540,7 @@ export function SessionPanel({
           <button
             type="button"
             className="cs-button cs-button-primary"
-            disabled={busy}
+            disabled={blocked}
             onClick={() => void submit()}
           >
             {editing ? "Edit" : "Create"}

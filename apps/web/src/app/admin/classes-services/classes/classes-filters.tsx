@@ -55,7 +55,7 @@ export function ClassesFilters({
   }
 
   return (
-    <div className="cs-filters cs-form-row">
+    <div className="cs-form-row">
       <label className="cs-field">
         <span>Locations</span>
         <select

@@ -511,6 +511,10 @@ button.cs-slot:focus-visible {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
 
+.cs-session-form {
+  min-width: 0;
+}
+
 .cs-trainers,
 .cs-registered,
 .cs-results {
@@ -527,6 +531,11 @@ button.cs-slot:focus-visible {
   gap: 0.75rem;
   border-bottom: 1px solid var(--paper-edge);
   padding: 0.35rem 0;
+}
+
+.cs-registered-name {
+  flex: 1;
+  min-width: 0;
 }
 
 .cs-registered-status {

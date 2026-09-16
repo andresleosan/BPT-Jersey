@@ -124,6 +124,7 @@ describe("SessionPanel", () => {
         timezone="Europe/Jersey"
         defaults={{ date: "2026-09-14", startTime: "17:30" }}
         canEdit
+        canReadMemberships
         onSaved={onSaved}
         onCancelled={vi.fn()}
         onClose={vi.fn()}
@@ -166,6 +167,7 @@ describe("SessionPanel", () => {
         staff={staff}
         timezone="Europe/Jersey"
         canEdit
+        canReadMemberships
         onSaved={vi.fn()}
         onCancelled={vi.fn()}
         onClose={vi.fn()}
@@ -188,6 +190,7 @@ describe("SessionPanel", () => {
         staff={staff}
         timezone="Europe/Jersey"
         canEdit
+        canReadMemberships
         onSaved={vi.fn()}
         onCancelled={vi.fn()}
         onClose={vi.fn()}
@@ -207,6 +210,7 @@ describe("SessionPanel", () => {
         staff={staff}
         timezone="Europe/Jersey"
         canEdit
+        canReadMemberships
         onSaved={vi.fn()}
         onCancelled={vi.fn()}
         onClose={vi.fn()}
@@ -227,6 +231,7 @@ describe("SessionPanel", () => {
         staff={staff}
         timezone="Europe/Jersey"
         canEdit={false}
+        canReadMemberships={false}
         onSaved={vi.fn()}
         onCancelled={vi.fn()}
         onClose={vi.fn()}
@@ -235,5 +240,76 @@ describe("SessionPanel", () => {
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Maximum capacity")).toBeDisabled();
+  });
+
+  it("refuses an end time at or before the start and a class with no trainer", () => {
+    render(
+      <SessionPanel
+        mode="create"
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        defaults={{ date: "2026-09-14", startTime: "17:30" }}
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Choose at least one trainer")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
+    expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("End time"), { target: { value: "17:00" } });
+    expect(screen.getByText("End time must be after the start time")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+  });
+
+  it("bounds the capacity to what the callable accepts", () => {
+    render(
+      <SessionPanel
+        mode="edit"
+        session={sessionFixture}
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const capacity = screen.getByLabelText("Maximum capacity");
+    expect(capacity).toHaveAttribute("min", "1");
+    expect(capacity).toHaveAttribute("max", "300");
+  });
+
+  it("closes on Escape and hands the focus back to the opener", () => {
+    const onClose = vi.fn();
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+    const view = render(
+      <SessionPanel
+        mode="edit"
+        session={sessionFixture}
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={onClose}
+      />,
+    );
+    expect(screen.getByLabelText("Date")).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+    view.unmount();
+    expect(opener).toHaveFocus();
+    opener.remove();
   });
 });

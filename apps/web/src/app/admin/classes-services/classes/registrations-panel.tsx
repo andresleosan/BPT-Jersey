@@ -16,6 +16,8 @@ import {
 export type RegistrationsPanelProps = Readonly<{
   session: SessionRecord;
   canEdit: boolean;
+  /** `listMemberships` is an office-only read: a head coach may edit a class but not enrol. */
+  canReadMemberships: boolean;
 }>;
 
 type Tab = "member" | "group" | "external";
@@ -29,6 +31,7 @@ const tabs: readonly { id: Tab; label: string }[] = [
 const officeRemovalReason = "Removed by the office";
 const noMembership = "No active membership";
 const minimumSearchLength = 2;
+const enrolmentPanelId = "cs-enrolment-panel";
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.length > 0 ? error.message : fallback;
@@ -65,7 +68,11 @@ function familiesOf(members: readonly MemberNameRow[]): readonly Family[] {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-export function RegistrationsPanel({ session, canEdit }: RegistrationsPanelProps): ReactElement {
+export function RegistrationsPanel({
+  session,
+  canEdit,
+  canReadMemberships,
+}: RegistrationsPanelProps): ReactElement {
   const [tab, setTab] = useState<Tab>("member");
   const [bookings, setBookings] = useState<readonly BookingRecord[]>([]);
   const [members, setMembers] = useState<readonly MemberNameRow[]>([]);
@@ -80,24 +87,23 @@ export function RegistrationsPanel({ session, canEdit }: RegistrationsPanelProps
   useEffect(() => {
     let abandoned = false;
     void (async () => {
-      try {
-        const [bookingRows, memberRows, membershipRows] = await Promise.all([
-          listSessionBookings(sessionId),
-          listMemberNames(),
-          canEdit ? listMemberships() : Promise.resolve([] as readonly AdminMembership[]),
-        ]);
-        if (abandoned) return;
-        setBookings(bookingRows);
-        setMembers(memberRows);
-        setMemberships(membershipRows);
-      } catch (failure) {
-        if (!abandoned) setError(messageOf(failure, "Unable to load the registrations"));
-      }
+      // Three independent reads with three different permissions: one refusal must not blank the
+      // other two. Names simply fall back to the studentId, memberships to "no enrolment".
+      const [bookingRows, memberRows, membershipRows] = await Promise.allSettled([
+        listSessionBookings(sessionId),
+        listMemberNames(),
+        canReadMemberships ? listMemberships() : Promise.resolve([] as readonly AdminMembership[]),
+      ]);
+      if (abandoned) return;
+      if (bookingRows.status === "fulfilled") setBookings(bookingRows.value);
+      else setError(messageOf(bookingRows.reason, "Unable to load the registrations"));
+      if (memberRows.status === "fulfilled") setMembers(memberRows.value);
+      if (membershipRows.status === "fulfilled") setMemberships(membershipRows.value);
     })();
     return () => {
       abandoned = true;
     };
-  }, [sessionId, canEdit]);
+  }, [sessionId, canReadMemberships]);
 
   const nameOf = useMemo(() => {
     const byStudent = new Map(members.map((member) => [member.studentId, member.fullName]));
@@ -212,6 +218,7 @@ export function RegistrationsPanel({ session, canEdit }: RegistrationsPanelProps
             key={candidate.id}
             type="button"
             role="tab"
+            aria-controls={enrolmentPanelId}
             aria-selected={tab === candidate.id}
             className="cs-subtab"
             onClick={() => setTab(candidate.id)}
@@ -220,63 +227,72 @@ export function RegistrationsPanel({ session, canEdit }: RegistrationsPanelProps
           </button>
         ))}
       </div>
-      {messages.length === 0 ? null : (
-        <ul className="cs-notice" data-kind="error" role="alert">
-          {messages.map((message) => (
-            <li key={message}>{message}</li>
-          ))}
-        </ul>
-      )}
-      {tab === "member" && canEdit ? (
-        <div className="cs-enrol">
-          <label className="cs-field">
-            <span>Enrol a member of this gym</span>
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Type at least two letters"
-            />
-          </label>
-          <ul className="cs-results">
-            {matches.map((member) => (
-              <li key={member.studentId}>
-                <button
-                  type="button"
-                  className="cs-button"
-                  disabled={busy}
-                  onClick={() => void enrolOne(member.studentId)}
-                >
-                  {member.fullName}
-                </button>
-              </li>
+      <div id={enrolmentPanelId} role="tabpanel" aria-label="Enrolment">
+        {messages.length === 0 ? null : (
+          <ul className="cs-notice" data-kind="error" role="alert">
+            {messages.map((message) => (
+              <li key={message}>{message}</li>
             ))}
           </ul>
-        </div>
-      ) : null}
-      {tab === "group" && canEdit ? (
-        <ul className="cs-results">
-          {families.length === 0 ? (
-            <li className="cs-placeholder">No family has more than one member yet.</li>
-          ) : (
-            families.map((family) => (
-              <li key={family.familyId}>
-                <button
-                  type="button"
-                  className="cs-button"
-                  disabled={busy}
-                  onClick={() => void enrolFamily(family)}
-                >
-                  {family.label}
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-      ) : null}
-      {tab === "external" ? (
-        <p className="cs-placeholder">Drop-in registrations arrive with the Drop-ins release.</p>
-      ) : null}
+        )}
+        {tab === "member" && canEdit ? (
+          <div className="cs-enrol">
+            <label className="cs-field">
+              <span>Enrol a member of this gym</span>
+              <input
+                type="search"
+                value={query}
+                disabled={!canReadMemberships}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Type at least two letters"
+              />
+            </label>
+            {canReadMemberships ? null : (
+              <p className="cs-placeholder">Enrolment needs an office account</p>
+            )}
+            <ul className="cs-results">
+              {matches.map((member) => (
+                <li key={member.studentId}>
+                  <button
+                    type="button"
+                    className="cs-button"
+                    disabled={busy || !canReadMemberships}
+                    onClick={() => void enrolOne(member.studentId)}
+                  >
+                    {member.fullName}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {tab === "group" && canEdit ? (
+          <ul className="cs-results">
+            {canReadMemberships ? null : (
+              <li className="cs-placeholder">Enrolment needs an office account</li>
+            )}
+            {families.length === 0 ? (
+              <li className="cs-placeholder">No families yet.</li>
+            ) : (
+              families.map((family) => (
+                <li key={family.familyId}>
+                  <button
+                    type="button"
+                    className="cs-button"
+                    disabled={busy || !canReadMemberships}
+                    onClick={() => void enrolFamily(family)}
+                  >
+                    {family.label}
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        ) : null}
+        {tab === "external" ? (
+          <p className="cs-placeholder">Drop-in registrations arrive with the Drop-ins release.</p>
+        ) : null}
+      </div>
       {canEdit ? null : <p className="cs-placeholder">Registrations are managed by the office.</p>}
     </section>
   );

@@ -85,4 +85,17 @@ describe("WeekActions", () => {
       "Unable to preview the week",
     );
   });
+
+  it("focuses the dialog on open, closes on Escape and gives the focus back", async () => {
+    mocks.previewWeek.mockResolvedValue({ count: 2, sample: [] });
+    render(<WeekActions weekStart="2026-09-14" onChanged={vi.fn()} />);
+    const opener = screen.getByRole("button", { name: "Delete week" });
+    opener.focus();
+    fireEvent.click(opener);
+    const dialog = await screen.findByRole("dialog", { name: "Delete week" });
+    expect(within(dialog).getByLabelText("Reason")).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
 });

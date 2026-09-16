@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 import type { LocationRecord, ProgramRecord } from "@bpt-jersey/domain/schedule";
 
@@ -96,8 +96,13 @@ function timeOf(iso: string, timezone: string): string {
   return `${pad(Math.floor(hour))}:${pad(Math.round((hour % 1) * 60))}`;
 }
 
+// A cell a spreadsheet would run as a formula is neutralised with a leading apostrophe, so a
+// class titled "=1+1" travels as text instead of executing when the file is opened.
+const formulaLead = /^[=+\-@\t\r]/u;
+
 function csvCell(value: string): string {
-  return `"${value.replace(/"/gu, '""')}"`;
+  const safe = formulaLead.test(value) ? `'${value}` : value;
+  return `"${safe.replace(/"/gu, '""')}"`;
 }
 
 export function ListView({
@@ -118,6 +123,11 @@ export function ListView({
   const [records, setRecords] = useState<number>(25);
   const [search, setSearch] = useState("");
 
+  useEffect(() => {
+    // The page drops the range when the calendar is navigated; the preset must follow it.
+    if (dateRange === null) setPreset("custom");
+  }, [dateRange]);
+
   const nameOfLocation = (id: string) =>
     locations.find((location) => location.locationId === id)?.name ?? id;
   const programOf = (id: string) => programs.find((program) => program.programId === id);
@@ -125,7 +135,7 @@ export function ListView({
   const trainers = [...new Set(sessions.flatMap((row) => row.instructorIds))].sort();
 
   const term = search.trim().toLowerCase();
-  const rows = sessions
+  const ordered = sessions
     .filter(
       (row) =>
         (locationId === "" || row.locationId === locationId) &&
@@ -143,7 +153,9 @@ export function ListView({
         return nameOfLocation(left.locationId).localeCompare(nameOfLocation(right.locationId));
       return left.startAt.localeCompare(right.startAt);
     })
-    .slice(0, records);
+    .slice();
+
+  const rows = ordered.slice(0, records);
 
   function applyPreset(next: Preset): void {
     setPreset(next);
@@ -163,7 +175,8 @@ export function ListView({
     ];
     const lines = [
       header.map(csvCell).join(","),
-      ...rows.map((row) =>
+      // The export is the whole filtered, sorted set, not the page the table happens to show.
+      ...ordered.map((row) =>
         [
           row.title,
           nameOfLocation(row.locationId),
@@ -180,8 +193,9 @@ export function ListView({
     ];
     // jsdom and older browsers may not expose the object URL API; the button then stays inert.
     if (typeof URL.createObjectURL !== "function") return;
+    // The BOM keeps accented names readable when the file is opened in Excel.
     const url = URL.createObjectURL(
-      new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" }),
+      new Blob([`\ufeff${lines.join("\n")}`], { type: "text/csv;charset=utf-8" }),
     );
     const anchor = document.createElement("a");
     anchor.href = url;
