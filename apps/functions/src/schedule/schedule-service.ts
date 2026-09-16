@@ -640,9 +640,8 @@ async function copyWeekWith(
       Date.parse(`${input.fromWeekStart}T00:00:00.000Z`)) /
       86_400_000,
   );
-  const source = (await store.listSessions(academyId, from)).filter(
-    (session) => session.status !== "cancelled",
-  );
+  // The same predicate as the preview: what the operator was shown is what gets copied.
+  const source = liveSessions(await store.listSessions(academyId, from));
   // Only a live session occupies a slot: a week that was deleted must be refillable.
   const target = liveSessions(await store.listSessions(academyId, to));
   const created: SessionRecord[] = [];

@@ -209,5 +209,7 @@ describe("RegistrationsPanel", () => {
     expect(await screen.findByText("Enrolment needs an office account")).toBeInTheDocument();
     expect(screen.getByRole("searchbox", { name: "Enrol a member of this gym" })).toBeDisabled();
     expect(mocks.listMemberships).not.toHaveBeenCalled();
+    // The directory is office-only too: asking for it would only earn a refusal.
+    expect(mocks.listMemberNames).not.toHaveBeenCalled();
   });
 });

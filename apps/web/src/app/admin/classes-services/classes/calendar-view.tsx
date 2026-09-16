@@ -75,6 +75,8 @@ function EventButton({
       <span className="cs-event-chip">
         {session.booked} / {session.capacity ?? "∞"}
       </span>
+      {/* `data-status` only paints; the state has to reach a screen reader as words too. */}
+      {cancelled ? <span className="visually-hidden">Cancelled</span> : null}
     </button>
   );
 }

@@ -91,9 +91,10 @@ export function RegistrationsPanel({
     void (async () => {
       // Three independent reads with three different permissions: one refusal must not blank the
       // other two. Names simply fall back to the studentId, memberships to "no enrolment".
+      // The directory and memberships are office-only, so the mat does not ask for either.
       const [bookingRows, memberRows, membershipRows] = await Promise.allSettled([
         listSessionBookings(sessionId),
-        listMemberNames(),
+        canReadMemberships ? listMemberNames() : Promise.resolve([] as readonly MemberNameRow[]),
         canReadMemberships ? listMemberships() : Promise.resolve([] as readonly AdminMembership[]),
       ]);
       if (abandoned) return;

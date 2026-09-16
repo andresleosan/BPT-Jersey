@@ -27,6 +27,9 @@ type LoadStatus = "loading" | "ready" | "error";
 export function LocationsPage() {
   const session = useAdminOrStaffSession();
   const canEdit = session.role !== "coach";
+  // `saveLocationGeofence` stays with the office, so a head coach must not be offered a panel
+  // whose Save can only come back refused.
+  const canEditGeofence = session.role === "owner" || session.role === "administrator";
   const [locations, setLocations] = useState<readonly LocationRecord[]>([]);
   const [inUse, setInUse] = useState<ReadonlySet<string>>(new Set());
   const [status, setStatus] = useState<LoadStatus>("loading");
@@ -80,6 +83,8 @@ export function LocationsPage() {
 
   async function onCreate(event: FormEvent): Promise<void> {
     event.preventDefault();
+    // A notice belongs to the action that raised it: the next one starts from a clean slate.
+    setNotice(null);
     try {
       replace(await saveLocation(draft));
       setDraft({ name: "", abbreviation: "", kind: "presential" });
@@ -93,6 +98,7 @@ export function LocationsPage() {
     locationId: string,
     change: { active?: boolean; kind?: LocationKind; name?: string; abbreviation?: string },
   ): Promise<boolean> {
+    setNotice(null);
     try {
       const updated = await updateLocation({ locationId, ...change });
       replace(updated);
@@ -306,13 +312,15 @@ export function LocationsPage() {
                 Save
               </button>
             </form>
-            <SiteGeofencePanel
-              location={editing}
-              onSaved={(record) => {
-                replace(record);
-                setEditing(record);
-              }}
-            />
+            {canEditGeofence ? (
+              <SiteGeofencePanel
+                location={editing}
+                onSaved={(record) => {
+                  replace(record);
+                  setEditing(record);
+                }}
+              />
+            ) : null}
           </>
         ) : null}
       </dialog>

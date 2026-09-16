@@ -105,6 +105,35 @@ describe("Locations tab", () => {
     );
   });
 
+  it("clears the notice as soon as the next action starts", async () => {
+    mocks.updateLocation.mockRejectedValueOnce(new Error("Unable to update the location"));
+    render(<LocationsPage />);
+    await screen.findByText("BPT West");
+    const status = screen.getAllByRole("combobox", { name: /status/i })[1]!;
+    fireEvent.change(status, { target: { value: "inactive" } });
+    expect(await screen.findByText("Unable to update the location")).toBeInTheDocument();
+
+    // A notice from the previous attempt must not sit under an action that is still running.
+    mocks.updateLocation.mockReturnValue(new Promise(() => {}));
+    fireEvent.change(status, { target: { value: "active" } });
+    await waitFor(() =>
+      expect(screen.queryByText("Unable to update the location")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("hides the geofence panel from a head coach, who cannot save it", async () => {
+    mocks.useAdminOrStaffSession.mockReturnValue({ role: "headCoach" });
+    render(<LocationsPage />);
+    await screen.findByText("BPT Town");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]!);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Name")).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("form", { name: "BPT Town coordinates" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("is read-only for a coach", async () => {
     mocks.useAdminOrStaffSession.mockReturnValue({ role: "coach" });
     render(<LocationsPage />);

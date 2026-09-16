@@ -94,7 +94,7 @@ describe("CalendarView", () => {
     expect(onCreate).toHaveBeenCalledWith("2026-09-14", "06:30");
   });
 
-  it("marks cancelled sessions with data-status", () => {
+  it("marks cancelled sessions with data-status and a textual state", () => {
     const sessions: GridSession[] = [
       {
         ...base,
@@ -118,10 +118,10 @@ describe("CalendarView", () => {
         onSelectWeek={noop}
       />,
     );
-    expect(screen.getByRole("button", { name: /Cancelled Class/ })).toHaveAttribute(
-      "data-status",
-      "cancelled",
-    );
+    const card = screen.getByRole("button", { name: /Cancelled Class/ });
+    expect(card).toHaveAttribute("data-status", "cancelled");
+    // The colour alone does not reach a screen reader; the accessible name has to say it.
+    expect(card).toHaveAccessibleName(/Cancelled$/u);
   });
 
   it("month view calls onSelectWeek with the Monday of the clicked day", () => {
