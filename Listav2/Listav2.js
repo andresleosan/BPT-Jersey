@@ -58,6 +58,8 @@ function requirement(text, done = false) {
  * hecho no se completa, y mezclarlo con las acciones haria imposible leer que falta de verdad.
  */
 const RESOLUTION_NOTES = {
+  T046V2:
+    "2026-09-16: tareas 1-6 del Plan 1 cerradas con revisión por subagente y ronda de fixes cada una; decisiones de ejecución (LocationId string, capacidad null = ilimitada, copia de semana en hora local, guarda de rol única) anotadas en el ledger SDD de la rama.",
   T001V2:
     "Causa localizada el 2026-09-09 en `apps/web/src/app/enrol/page.tsx:378-385`: el efecto de prellenado lleva `form.email.length` y `form.fullName.length` en su propio array de dependencias, así que al borrar el último carácter la longitud pasa a 0, el efecto se vuelve a ejecutar y reescribe el valor de la sesión.",
   T003V2:
@@ -1770,7 +1772,7 @@ const classesServicesItems = [
     "en-progreso",
     "Nueve pestañas bajo /admin/classes-services; sedes dinámicas, programas v2 y el calendario semanal con copiar/eliminar semana. Sustituye /admin/classes.",
     "T045V2",
-    "Plan en docs/superpowers/plans/2026-09-16-classes-services-plan-1-shell-locations-types-classes.md, en ejecución por subagentes desde el 2026-09-16 en la rama feature/classes-services-clone.",
+    "Plan 1 en ejecución por subagentes en feature/classes-services-clone. 2026-09-16: tareas 1-6 de 12 completas y revisadas (dominio, store, callables, cliente web y cáscara con nueve pestañas y guarda de rol); suite y build estático en verde. Pendientes 7-12: pestañas Locations y Types, rejilla semanal, página Classes 2.0, reglas Firestore y Playwright.",
     [
       REF_TASKS,
       "docs/superpowers/plans/2026-09-16-classes-services-plan-1-shell-locations-types-classes.md",
