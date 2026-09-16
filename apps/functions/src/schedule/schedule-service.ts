@@ -43,7 +43,7 @@ import {
 } from "@bpt-jersey/domain/schedule/self-check-in";
 import {
   programDefaultsV2,
-  shiftIso,
+  shiftIsoInZone,
   slugifyLocationId,
   weekRangeFor,
   type CopyWeekInput,
@@ -56,6 +56,7 @@ import {
 } from "@bpt-jersey/domain/schedule/classes-services";
 
 import {
+  BookingTransactionError,
   createBookingTransactionService,
   type BookingFirestore,
 } from "./booking-transaction-service.js";
@@ -481,6 +482,19 @@ const createdLocationTimezone = "Europe/Jersey";
 /** How many sessions the copy/delete confirmation shows before it just gives the count. */
 const weekPreviewSampleSize = 10;
 
+/**
+ * The catalogue order both stores answer with: the canonical sites first, in their canonical
+ * order, then everything the academy created, by id. Firestore hands documents back in id order
+ * and the in-memory store in creation order, and a screen must not depend on which store it hit.
+ */
+function orderLocations(locations: readonly LocationRecord[]): readonly LocationRecord[] {
+  const canonical = new Map(defaultLocations.map((site, index) => [site.locationId, index]));
+  const rank = (site: LocationRecord) => canonical.get(site.locationId) ?? defaultLocations.length;
+  return [...locations].sort(
+    (left, right) => rank(left) - rank(right) || left.locationId.localeCompare(right.locationId),
+  );
+}
+
 /** `name` slugified, with `-2`, `-3`… appended until it no longer collides with an existing site. */
 function nextLocationId(name: string, taken: ReadonlySet<string>): string {
   const base = slugifyLocationId(name);
@@ -556,6 +570,17 @@ function mergeProgramV2(current: ProgramRecord, input: UpdateProgramInput): Prog
 }
 
 /**
+ * The booking rules turning a place down — no room, no credit, not entitled — is an answer about
+ * that one member, and the rest of the week still copies. Anything else (a broken transaction, an
+ * unreachable store) is a failure of the copy itself and must not be swallowed.
+ */
+const uncopyableBookingCodes: readonly string[] = ["capacity", "financial", "ineligible"];
+
+function refusedByBookingRules(error: unknown): boolean {
+  return error instanceof BookingTransactionError && uncopyableBookingCodes.includes(error.code);
+}
+
+/**
  * The week-wide operations are written once against the store surface they need, so the Firestore
  * and in-memory stores answer identically and the timezone stays the caller's decision.
  */
@@ -608,15 +633,22 @@ async function copyWeekWith(
 ): Promise<readonly SessionRecord[]> {
   const from = weekRangeOrThrow(input.fromWeekStart, timezone);
   const to = weekRangeOrThrow(input.toWeekStart, timezone);
-  const days = Math.round((Date.parse(to.from) - Date.parse(from.from)) / 86_400_000);
+  // Calendar days between the two Mondays; a clock change makes the two ranges differ by an hour,
+  // which is exactly what `shiftIsoInZone` then puts back.
+  const days = Math.round(
+    (Date.parse(`${input.toWeekStart}T00:00:00.000Z`) -
+      Date.parse(`${input.fromWeekStart}T00:00:00.000Z`)) /
+      86_400_000,
+  );
   const source = (await store.listSessions(academyId, from)).filter(
     (session) => session.status !== "cancelled",
   );
-  const target = await store.listSessions(academyId, to);
+  // Only a live session occupies a slot: a week that was deleted must be refillable.
+  const target = liveSessions(await store.listSessions(academyId, to));
   const created: SessionRecord[] = [];
 
   for (const session of source) {
-    const startAt = shiftIso(session.startAt, days);
+    const startAt = shiftIsoInZone(session.startAt, days, timezone);
     // ponytail: copying the same week twice must add nothing, or a misclick doubles the timetable.
     const alreadyThere = target.some(
       (existing) =>
@@ -635,7 +667,7 @@ async function copyWeekWith(
         instructorId: session.instructorId,
         title: session.title,
         startAt,
-        endAt: shiftIso(session.endAt, days),
+        endAt: shiftIsoInZone(session.endAt, days, timezone),
         capacity: session.capacity,
         minParticipants: session.minParticipants,
         isSeminar: session.isSeminar,
@@ -663,8 +695,10 @@ async function copyWeekWith(
           },
           actorId,
         );
-      } catch {
-        // ponytail: a place the member is no longer entitled to simply does not travel with them.
+      } catch (error) {
+        // ponytail: a place the member is no longer entitled to does not travel with them; a
+        // store that is simply broken must still stop the copy.
+        if (!refusedByBookingRules(error)) throw error;
       }
     }
   }
@@ -748,7 +782,7 @@ export function createFirestoreScheduleStore(options: {
         (location) =>
           !defaultLocations.some((fallback) => fallback.locationId === location.locationId),
       );
-      return [...canonical, ...created];
+      return orderLocations([...canonical, ...created]);
     },
 
     async createLocation(academyId: string, input: CreateLocationInput): Promise<LocationRecord> {
@@ -933,8 +967,14 @@ export function createFirestoreScheduleStore(options: {
       await materialiseDefaultPrograms(academyId);
       const docRef = firestore.collection(`academies/${academyId}/programs`).doc(input.programId);
       const existing = await docRef.get();
-      if (!existing.exists) throw new Error(`Program ${input.programId} does not exist`);
-      const updated = mergeProgramV2(existing.data() as ProgramRecord, input);
+      const fallback = defaultPrograms.find((program) => program.programId === input.programId);
+      // A v1 `createProgram` fills the collection without seeding the canonical seven, so a
+      // canonical type can still be missing its own document here.
+      const current = existing.exists
+        ? (existing.data() as ProgramRecord)
+        : fallback && { ...fallback, academyId };
+      if (current === undefined) throw new Error(`Program ${input.programId} does not exist`);
+      const updated = mergeProgramV2(current, input);
       await docRef.set(updated);
       return updated;
     },
@@ -1253,6 +1293,9 @@ export function createFirestoreScheduleStore(options: {
         createdBy: actorId,
         updatedAt: now,
         updatedBy: actorId,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.ageRange !== undefined ? { ageRange: input.ageRange } : {}),
+        ...(input.levelRange !== undefined ? { levelRange: input.levelRange } : {}),
         ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
         ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
         ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
@@ -1656,7 +1699,7 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       if (!custom || custom.length === 0) {
         return defaultLocations.map((loc) => ({ ...loc, academyId }));
       }
-      return custom;
+      return orderLocations(custom);
     },
 
     // `listLocations` falls back to the canonical sites only while nothing is stored, so both
@@ -2147,6 +2190,9 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         createdBy: actorId,
         updatedAt: now,
         updatedBy: actorId,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.ageRange !== undefined ? { ageRange: input.ageRange } : {}),
+        ...(input.levelRange !== undefined ? { levelRange: input.levelRange } : {}),
         ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
         ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
         ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
@@ -2192,10 +2238,13 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       const sMap = sessionsMap.get(academyId);
       const session = sMap?.get(input.sessionId);
       if (!session) {
-        throw new Error(`Session ${input.sessionId} does not exist`);
+        throw new BookingTransactionError("not-found", `Session ${input.sessionId} does not exist`);
       }
       if (session.status === "cancelled") {
-        throw new Error(`Cannot book cancelled session ${input.sessionId}`);
+        throw new BookingTransactionError(
+          "ineligible",
+          `Cannot book cancelled session ${input.sessionId}`,
+        );
       }
 
       if (!bookingsMap.has(academyId)) {
@@ -2215,7 +2264,10 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       ).length;
 
       if (session.capacity !== null && confirmedCount >= session.capacity) {
-        throw new Error(`Session capacity reached (${session.capacity})`);
+        throw new BookingTransactionError(
+          "capacity",
+          `Session capacity reached (${session.capacity})`,
+        );
       }
 
       const now = new Date().toISOString();

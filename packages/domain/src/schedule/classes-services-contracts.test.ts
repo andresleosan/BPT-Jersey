@@ -9,7 +9,7 @@ import {
   parseUpdateLocationInput,
   parseUpdateProgramInput,
   programDefaultsV2,
-  shiftIso,
+  shiftIsoInZone,
   slugifyLocationId,
   weekRangeFor,
 } from "./classes-services-contracts";
@@ -124,8 +124,37 @@ describe("weeks", () => {
     expect(weekRangeFor("2026-09-16", "Europe/Jersey").ok).toBe(false);
   });
 
-  it("shifts an ISO instant by whole days", () => {
-    expect(shiftIso("2026-09-14T05:00:00.000Z", 7)).toBe("2026-09-21T05:00:00.000Z");
+  it("shifts an instant by whole days when the clocks do not move", () => {
+    expect(shiftIsoInZone("2026-09-14T05:00:00.000Z", 7, "Europe/Jersey")).toBe(
+      "2026-09-21T05:00:00.000Z",
+    );
+    expect(shiftIsoInZone("2026-09-21T05:00:00.000Z", -7, "Europe/Jersey")).toBe(
+      "2026-09-14T05:00:00.000Z",
+    );
+  });
+
+  it("keeps the local wall-clock time across the October clock change", () => {
+    // Jersey leaves BST on 2026-10-25. An 18:00 class on Wednesday 21 October is 17:00Z; a week
+    // later it is still an 18:00 class, and that is 18:00Z.
+    expect(shiftIsoInZone("2026-10-21T17:00:00.000Z", 7, "Europe/Jersey")).toBe(
+      "2026-10-28T18:00:00.000Z",
+    );
+    expect(shiftIsoInZone("2026-10-28T18:00:00.000Z", -7, "Europe/Jersey")).toBe(
+      "2026-10-21T17:00:00.000Z",
+    );
+  });
+
+  it("keeps the local wall-clock time across the March clock change", () => {
+    // Jersey enters BST on 2027-03-28. An 18:00 class on Wednesday 24 March is 18:00Z; a week
+    // later the same 18:00 class is 17:00Z.
+    expect(shiftIsoInZone("2027-03-24T18:00:00.000Z", 7, "Europe/Jersey")).toBe(
+      "2027-03-31T17:00:00.000Z",
+    );
+  });
+
+  it("shifts in the given timezone, not the host one", () => {
+    // UTC never changes its clocks, so the same instants shift by exactly seven days.
+    expect(shiftIsoInZone("2026-10-21T17:00:00.000Z", 7, "UTC")).toBe("2026-10-28T17:00:00.000Z");
   });
 
   it("parses copy and delete week inputs", () => {

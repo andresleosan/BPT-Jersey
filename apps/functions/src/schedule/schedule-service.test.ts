@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildBookingId } from "@bpt-jersey/domain/schedule";
-import { shiftIso } from "@bpt-jersey/domain/schedule/classes-services";
+import { BookingTransactionError } from "./booking-transaction-service";
 
 import { createFirestoreScheduleStore, createInMemoryScheduleStore } from "./schedule-service";
 
@@ -1188,6 +1188,12 @@ describe("classes-services store", () => {
       "admin-1",
     );
     expect(second.locationId).toBe("salle-ouest-2");
+    const third = await store.createLocation(
+      academyId,
+      { name: "Salle Ouest", abbreviation: "oue3", kind: "zoom" },
+      "admin-1",
+    );
+    expect(third.locationId).toBe("salle-ouest-3");
     const updated = await store.updateLocation(
       academyId,
       { locationId: "salle-ouest", active: false, kind: "jitsi" },
@@ -1195,13 +1201,49 @@ describe("classes-services store", () => {
     );
     expect(updated.active).toBe(false);
     expect(updated.kind).toBe("jitsi");
+    // Created last, but listed before the Salle Ouest sites: the order is by id, not by creation.
+    await store.createLocation(
+      academyId,
+      { name: "Atelier", abbreviation: "ate", kind: "presential" },
+      "admin-1",
+    );
     const listed = await store.listLocations(academyId);
     expect(listed.map((l) => l.locationId)).toEqual([
       "town",
       "west",
+      "atelier",
       "salle-ouest",
       "salle-ouest-2",
+      "salle-ouest-3",
     ]);
+  });
+
+  it("refuses to update a site or a type that does not exist", async () => {
+    const store = createInMemoryScheduleStore();
+    await expect(
+      store.updateLocation(academyId, { locationId: "nowhere", active: false }, "admin-1"),
+    ).rejects.toThrow(/Location nowhere does not exist/u);
+    await expect(
+      store.updateProgramV2(academyId, { programId: "nothing", showInList: false }),
+    ).rejects.toThrow(/Program nothing does not exist/u);
+  });
+
+  it("updates a canonical type after a v1 type was already written", async () => {
+    const store = createInMemoryScheduleStore();
+    await store.createProgram(academyId, {
+      name: "Wrestling",
+      ageBand: "adult",
+      discipline: "bjj",
+      level: "all-levels",
+    });
+    const updated = await store.updateProgramV2(academyId, {
+      programId: "open-mat",
+      colour: "#123456",
+    });
+    expect(updated.colour).toBe("#123456");
+    expect(updated.name).toBe("Open Mat");
+    const programs = await store.listPrograms(academyId);
+    expect(programs.filter((p) => p.programId === "open-mat")).toHaveLength(1);
   });
 
   it("materialises a default site before updating it", async () => {
@@ -1248,7 +1290,7 @@ describe("classes-services store", () => {
           instructorId: "coach-1",
           title: "Open Mat",
           startAt,
-          endAt: shiftIso(startAt, 0).replace("T17:00", "T18:00"),
+          endAt: startAt.replace("T17:00", "T18:00"),
           capacity: null,
         },
         "admin-1",
@@ -1293,6 +1335,103 @@ describe("classes-services store", () => {
     expect(
       cancelled.every((s) => s.status === "cancelled" && s.cancellationReason === "Bank holiday"),
     ).toBe(true);
+
+    // A week that was deleted is empty again, so copying into it must refill it.
+    const refilled = await store.copyWeek(
+      academyId,
+      { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-28", copyBookings: false },
+      "Europe/Jersey",
+      "admin-1",
+    );
+    expect(refilled.map((s) => s.startAt)).toEqual([
+      "2026-09-28T17:00:00.000Z",
+      "2026-09-30T17:00:00.000Z",
+    ]);
+  });
+
+  it("carries the optional session fields into the copy and leaves cancelled ones behind", async () => {
+    const store = createInMemoryScheduleStore();
+    const source = await store.createSession(
+      academyId,
+      {
+        programId: "kids-bjj-8-11",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Kids BJJ",
+        startAt: "2026-09-14T17:00:00.000Z",
+        endAt: "2026-09-14T18:00:00.000Z",
+        capacity: 12,
+        description: "Bring a gi.",
+        ageRange: { minAge: 8, maxAge: 11 },
+        levelRange: { fromKey: "white", toKey: "blue", fromName: "White", toName: "Blue" },
+        instructorIds: ["coach-1", "coach-2"],
+        waitingList: "on",
+      },
+      "admin-1",
+    );
+    expect(source).toMatchObject({
+      description: "Bring a gi.",
+      ageRange: { minAge: 8, maxAge: 11 },
+      levelRange: { fromKey: "white", toKey: "blue", fromName: "White", toName: "Blue" },
+    });
+    const skipped = await store.createSession(
+      academyId,
+      {
+        programId: "open-mat",
+        locationId: "west",
+        instructorId: "coach-3",
+        title: "Open Mat",
+        startAt: "2026-09-15T17:00:00.000Z",
+        endAt: "2026-09-15T18:00:00.000Z",
+        capacity: null,
+      },
+      "admin-1",
+    );
+    await store.cancelSession(academyId, skipped.sessionId, "Coach away", "admin-1");
+
+    const copied = await store.copyWeek(
+      academyId,
+      { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: false },
+      "Europe/Jersey",
+      "admin-1",
+    );
+    expect(copied).toHaveLength(1);
+    expect(copied[0]).toMatchObject({
+      description: "Bring a gi.",
+      ageRange: { minAge: 8, maxAge: 11 },
+      levelRange: { fromKey: "white", toKey: "blue", fromName: "White", toName: "Blue" },
+      instructorIds: ["coach-1", "coach-2"],
+      waitingList: "on",
+      startAt: "2026-09-21T17:00:00.000Z",
+    });
+  });
+
+  it("keeps the local start time when the copied week crosses a clock change", async () => {
+    const store = createInMemoryScheduleStore();
+    // Wednesday 21 October 2026, 18:00 in Jersey (BST, so 17:00Z). Jersey leaves BST on 25 October.
+    await store.createSession(
+      academyId,
+      {
+        programId: "open-mat",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Open Mat",
+        startAt: "2026-10-21T17:00:00.000Z",
+        endAt: "2026-10-21T18:00:00.000Z",
+        capacity: null,
+      },
+      "admin-1",
+    );
+    const copied = await store.copyWeek(
+      academyId,
+      { fromWeekStart: "2026-10-19", toWeekStart: "2026-10-26", copyBookings: false },
+      "Europe/Jersey",
+      "admin-1",
+    );
+    // Still an 18:00 class, now on GMT: 18:00Z, not 17:00Z.
+    expect(copied.map((s) => [s.startAt, s.endAt])).toEqual([
+      ["2026-10-28T18:00:00.000Z", "2026-10-28T19:00:00.000Z"],
+    ]);
   });
 
   it("copies the confirmed bookings of a week when asked", async () => {
@@ -1340,5 +1479,210 @@ describe("classes-services store", () => {
       status: "confirmed",
       membershipId: "mem-1",
     });
+  });
+
+  describe("when a copied booking cannot be placed", () => {
+    const seedBookedWeek = async () => {
+      const store = createInMemoryScheduleStore();
+      const session = await store.createSession(
+        academyId,
+        {
+          programId: "open-mat",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Open Mat",
+          startAt: "2026-09-14T17:00:00.000Z",
+          endAt: "2026-09-14T18:00:00.000Z",
+          capacity: 10,
+        },
+        "admin-1",
+      );
+      await store.requestBooking(
+        academyId,
+        { sessionId: session.sessionId, studentId: "student-1", membershipId: "mem-1" },
+        "admin-1",
+      );
+      return store;
+    };
+    const copy = (store: ReturnType<typeof createInMemoryScheduleStore>) =>
+      store.copyWeek(
+        academyId,
+        { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: true },
+        "Europe/Jersey",
+        "admin-1",
+      );
+
+    it("leaves the place behind when the booking rules refuse it", async () => {
+      const store = await seedBookedWeek();
+      Object.assign(store, {
+        requestBooking: () => {
+          throw new BookingTransactionError("ineligible", "Membership does not cover this class");
+        },
+      });
+      const copied = await copy(store);
+      expect(copied).toHaveLength(1);
+      expect(await store.listSessionBookings(academyId, copied[0]!.sessionId)).toEqual([]);
+    });
+
+    it("gives up on the whole copy when the store itself fails", async () => {
+      const store = await seedBookedWeek();
+      Object.assign(store, {
+        requestBooking: () => {
+          throw new Error("Firestore is unavailable");
+        },
+      });
+      await expect(copy(store)).rejects.toThrow(/Firestore is unavailable/u);
+    });
+  });
+});
+
+describe("classes-services Firestore store", () => {
+  const academyId = "demo-academy";
+
+  /** The slice of Firestore these methods touch: documents in collections, read and written. */
+  const fakeFirestore = () => {
+    const data = new Map<string, Map<string, Record<string, unknown>>>();
+    let autoId = 0;
+    const collectionOf = (path: string) => {
+      const docs = data.get(path) ?? new Map<string, Record<string, unknown>>();
+      data.set(path, docs);
+      return docs;
+    };
+    return {
+      data,
+      firestore: {
+        collection: (path: string) => ({
+          doc: (id?: string) => {
+            autoId += 1;
+            const docId = id ?? `auto-${autoId}`;
+            return {
+              id: docId,
+              get: async () => ({
+                exists: collectionOf(path).has(docId),
+                data: () => collectionOf(path).get(docId),
+              }),
+              set: async (value: unknown) => {
+                collectionOf(path).set(docId, value as Record<string, unknown>);
+              },
+              update: async () => {
+                throw new Error(`unexpected update() on ${path}`);
+              },
+            };
+          },
+          get: async () => ({
+            docs: [...collectionOf(path).entries()].map(([id, value]) => ({
+              id,
+              data: () => value,
+            })),
+          }),
+          where: () => {
+            throw new Error(`unexpected where() on ${path}`);
+          },
+        }),
+      },
+    };
+  };
+
+  it("lists a created site after the canonical ones, by id", async () => {
+    const { firestore } = fakeFirestore();
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+
+    const salle = await store.createLocation(
+      academyId,
+      { name: "Salle Ouest", abbreviation: "oue", kind: "zoom" },
+      "admin-1",
+    );
+    expect(salle).toMatchObject({
+      locationId: "salle-ouest",
+      address: "",
+      timezone: "Europe/Jersey",
+      active: true,
+      kind: "zoom",
+    });
+    await store.createLocation(
+      academyId,
+      { name: "Atelier", abbreviation: "ate", kind: "presential" },
+      "admin-1",
+    );
+
+    const listed = await store.listLocations(academyId);
+    expect(listed.map((l) => l.locationId)).toEqual(["town", "west", "atelier", "salle-ouest"]);
+  });
+
+  it("materialises a canonical site before updating it", async () => {
+    const { firestore } = fakeFirestore();
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+
+    const updated = await store.updateLocation(
+      academyId,
+      { locationId: "west", abbreviation: "wes" },
+      "admin-1",
+    );
+    expect(updated).toMatchObject({ name: "BPT West", abbreviation: "wes", academyId });
+    expect((await store.listLocations(academyId)).map((l) => l.abbreviation)).toEqual([
+      undefined,
+      "wes",
+    ]);
+  });
+
+  it("keeps the canonical types listed after a v2 type is created", async () => {
+    const { firestore } = fakeFirestore();
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+
+    await store.createProgramV2(academyId, { name: "GI Beginners", abbreviation: "BEG" });
+
+    const programs = await store.listPrograms(academyId);
+    expect(programs).toHaveLength(8);
+    expect(programs.some((p) => p.programId === "open-mat")).toBe(true);
+  });
+
+  it("updates a canonical type after a v1 type was already written", async () => {
+    const { firestore } = fakeFirestore();
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+    // A v1 create writes one document without seeding the canonical seven, so the collection is
+    // no longer empty and `open-mat` still has no document of its own.
+    await store.createProgram(academyId, {
+      name: "Wrestling",
+      ageBand: "adult",
+      discipline: "bjj",
+      level: "all-levels",
+    });
+
+    const updated = await store.updateProgramV2(academyId, {
+      programId: "open-mat",
+      colour: "#123456",
+    });
+
+    expect(updated).toMatchObject({ programId: "open-mat", name: "Open Mat", colour: "#123456" });
+    const programs = await store.listPrograms(academyId);
+    expect(programs.filter((p) => p.programId === "open-mat")).toHaveLength(1);
+  });
+
+  it("refuses to update a type that is neither stored nor canonical", async () => {
+    const { firestore } = fakeFirestore();
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+    await expect(
+      store.updateProgramV2(academyId, { programId: "nothing", colour: "#123456" }),
+    ).rejects.toThrow(/Program nothing does not exist/u);
+  });
+
+  it("never writes an undefined field to a document", async () => {
+    const { firestore, data } = fakeFirestore();
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+
+    await store.createLocation(
+      academyId,
+      { name: "Atelier", abbreviation: "ate", kind: "presential" },
+      "admin-1",
+    );
+    await store.updateLocation(academyId, { locationId: "town", active: false }, "admin-1");
+    await store.createProgramV2(academyId, { name: "GI Beginners", abbreviation: "BEG" });
+    await store.updateProgramV2(academyId, { programId: "open-mat", message: "" });
+
+    const written = [...data.values()].flatMap((docs) => [...docs.values()]);
+    expect(written.length).toBeGreaterThan(0);
+    for (const document of written) {
+      expect(Object.values(document).every((value) => value !== undefined)).toBe(true);
+    }
   });
 });
