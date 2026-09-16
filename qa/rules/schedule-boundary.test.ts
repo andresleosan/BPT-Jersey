@@ -100,4 +100,17 @@ describe("schedule direct Firestore boundary", () => {
       }
     });
   }
+
+  it("keeps locations closed to direct writes even for head coaches", async () => {
+    const headCoach = testEnv.authenticatedContext("hc-1", {
+      academyId: "academy-a",
+      role: "headCoach",
+    });
+    await assertFails(
+      setDoc(doc(headCoach.firestore(), "academies/academy-a/locations/salle-ouest"), {
+        name: "Salle Ouest",
+      }),
+    );
+    await assertFails(getDoc(doc(headCoach.firestore(), "academies/academy-a/locations/town")));
+  });
 });

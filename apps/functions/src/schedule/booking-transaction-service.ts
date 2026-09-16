@@ -145,9 +145,10 @@ function session(
     (value.locationId !== "town" && value.locationId !== "west") ||
     typeof value.programId !== "string" ||
     !identifierPattern.test(value.programId) ||
-    !Number.isSafeInteger(value.capacity) ||
-    (value.capacity as number) < 1 ||
-    (value.capacity as number) > maxSessionCapacity ||
+    (value.capacity !== null &&
+      (!Number.isSafeInteger(value.capacity) ||
+        (value.capacity as number) < 1 ||
+        (value.capacity as number) > maxSessionCapacity)) ||
     !validDate(value.startAt) ||
     !validDate(value.endAt) ||
     Date.parse(value.endAt as string) <= Date.parse(value.startAt as string)
@@ -683,7 +684,10 @@ async function executeBookingInTransaction(
   ) {
     return invalid("ineligible", "Plan access is not eligible");
   }
-  if (occupied.confirmed + occupied.reserved >= storedSession.capacity) {
+  if (
+    storedSession.capacity !== null &&
+    occupied.confirmed + occupied.reserved >= storedSession.capacity
+  ) {
     return invalid("capacity", "Session capacity reached");
   }
   if (mode === "validate-offer") return undefined;

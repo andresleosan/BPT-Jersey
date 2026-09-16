@@ -8,6 +8,7 @@ import {
   listAdminSessionWaitlist,
   type AdminWaitlistItem,
 } from "../../../lib/admin-waitlist-client";
+import { locationLabel } from "../../../lib/location-label";
 import { listSessions } from "../../../lib/schedule-client";
 import { useWaitlistIssuePermission } from "../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
@@ -35,10 +36,6 @@ const jerseyDateTime = new Intl.DateTimeFormat("en-GB", {
 
 function formatDateTime(value: string): string {
   return jerseyDateTime.format(new Date(value));
-}
-
-function locationLabel(locationId: SessionRecord["locationId"]): string {
-  return locationId === "town" ? "Town" : "West";
 }
 
 export function AdminWaitlistsPage({ canIssue = true }: { canIssue?: boolean }) {

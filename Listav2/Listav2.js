@@ -58,6 +58,8 @@ function requirement(text, done = false) {
  * hecho no se completa, y mezclarlo con las acciones haria imposible leer que falta de verdad.
  */
 const RESOLUTION_NOTES = {
+  T046V2:
+    "2026-09-16: tareas 1-12 de 12 del Plan 1 cerradas con revisión por subagente y ronda de fixes cada una, más la revisión final de rama y su ronda de arreglos; decisiones de ejecución (LocationId string, capacidad null = ilimitada, copia de semana en hora local, guarda de rol única) anotadas en el ledger SDD de la rama.",
   T001V2:
     "Causa localizada el 2026-09-09 en `apps/web/src/app/enrol/page.tsx:378-385`: el efecto de prellenado lleva `form.email.length` y `form.fullName.length` en su propio array de dependencias, así que al borrar el último carácter la longitud pasa a 0, el efecto se vuelve a ejecutar y reescribe el valor de la sesión.",
   T003V2:
@@ -759,6 +761,35 @@ const RESOLUTION_REQUIREMENTS = {
     ),
     requirement(
       "Playwright en :9471; rebase sobre main y gate local antes de subir. Sube antes que T042V2 y T043V2.",
+    ),
+  ],
+  T046V2: [
+    requirement(
+      "Cáscara /admin/classes-services con nueve pestañas, sedes dinámicas y tipos de clase v2 sobre el plan docs/superpowers/plans/2026-09-16-classes-services-plan-1-shell-locations-types-classes.md.",
+    ),
+    requirement(
+      "Classes & Services 2.0: calendario semanal, lista, panel de sesión, inscripciones y copiar/eliminar semana; /admin/classes redirige.",
+    ),
+    requirement(
+      "Pruebas de dominio, servicio, reglas y Playwright; gate local verify:mvp antes de subir.",
+    ),
+  ],
+  T047V2: [
+    requirement(
+      "Plan 2 escrito en docs/superpowers/plans/ y ejecutado: planes dinámicos, descuentos y packs de créditos.",
+    ),
+    requirement("Drop-ins y Bulk Operations; /admin/memberships redirige a la pestaña nueva."),
+  ],
+  T048V2: [
+    requirement("Plan 3 escrito y ejecutado: los ocho informes (XLSX y PDF imprimible)."),
+    requirement("Options como documento de configuración e History como auditoría con IP."),
+  ],
+  T049V2: [
+    requirement(
+      "Plan 4 escrito: importación de catálogo, sesiones, inscripciones, drop-ins e historial desde la captura.",
+    ),
+    requirement(
+      "Ensayo completo en emulador; producción solo con confirmación del operador en chat.",
     ),
   ],
 };
@@ -1520,6 +1551,27 @@ const TASK_SURFACES = {
     "apps/web/src/app/account/settings",
     "apps/functions/src/deploy-runtime.ts",
   ],
+  T045V2: [],
+  T046V2: [
+    "packages/domain/src/schedule",
+    "apps/functions/src/schedule",
+    "apps/functions/src/index.ts",
+    "apps/functions/src/deploy-runtime.ts",
+    "apps/web/src/lib/schedule-client.ts",
+    "apps/web/src/app/admin/classes-services",
+    "apps/web/src/app/admin/admin-shell.tsx",
+    "qa/tests/admin-classes-services.spec.ts",
+  ],
+  T047V2: [
+    "packages/domain/src/memberships",
+    "apps/functions/src/memberships",
+    "apps/web/src/app/admin/classes-services",
+  ],
+  T048V2: [
+    "apps/functions/src/classes-services-reports",
+    "apps/web/src/app/admin/classes-services",
+  ],
+  T049V2: ["apps/functions/src/migrations/regyfit", "docs/data/migrations/regyfit"],
   T029V2: ["apps/web/src/app/admin/members/requests/page.tsx"],
   T030V2: ["apps/functions/src/health", "apps/web/src/app/admin/members/medical"],
   T031V2: ["apps/web/src/app/admin/admin-routes.ts", "apps/web/src/app/admin/admin-shell.tsx"],
@@ -1703,6 +1755,62 @@ function annotateInterference(items) {
   }
 }
 
+const classesServicesItems = [
+  task(
+    "T045V2",
+    "Captura de solo lectura de Classes / Services de Regyfit",
+    "aprobada",
+    "Las nueve subsecciones capturadas el 2026-09-16: estructura, subpestañas, valores de configuración, clases programadas e historial.",
+    "-",
+    "Chrome visible por noVNC en la Tailnet con salida por túnel SSH inverso (Regyfit bloquea la IP del VPS). Inventario saneado en docs/data/migrations/regyfit/classes-services-inventory.md; el crudo queda fuera del repositorio. Spec en docs/superpowers/specs/2026-09-16-regyfit-classes-services-clone-design.md.",
+    [REF_TASKS, "docs/data/migrations/regyfit/classes-services-inventory.md"],
+    "funcion",
+  ),
+  task(
+    "T046V2",
+    "Plan 1: cáscara, Locations, Class / Service Types y Classes & Services 2.0",
+    "revision",
+    "Nueve pestañas bajo /admin/classes-services; sedes dinámicas, programas v2 y el calendario semanal con copiar/eliminar semana. Sustituye /admin/classes.",
+    "T045V2",
+    "Plan 1 en feature/classes-services-clone. 2026-09-16: tareas 1-12 de 12 completas (dominio, store, callables, cliente web, cáscara; Locations Equipo A e0a13b6, Types Equipo B ca45081, Classes & Services 2.0 Equipo C 146cf2f, reglas Firestore Equipo D b30941b; enmienda ADR-010 listStaffProfiles->headCoach e8798a5). Tarea 12: qa/tests/admin-classes-services.spec.ts en verde (8/8, desktop+mobile) con capturas cs-locations/cs-types/cs-classes-week (+ -phone). verify:mvp verde hasta test:unit (323 ficheros / 2964 pruebas); test:rules corrido en el contenedor bpt-emu:local (13 ficheros / 93 pruebas, verde, sin Java en el host); test:load:synthetic verde; test:e2e:smoke con 2 fallos ajenos en public-home.spec.ts por cambios sin commitear en academy.ts, fuera de alcance. Pendiente: push/PR a main.",
+    [
+      REF_TASKS,
+      "docs/superpowers/plans/2026-09-16-classes-services-plan-1-shell-locations-types-classes.md",
+    ],
+    "funcion",
+  ),
+  task(
+    "T047V2",
+    "Plan 2: Memberships and Vouchers, Drop-ins y Bulk Operations",
+    "pendiente",
+    "Planes dinámicos, descuentos y packs de créditos; drop-ins y operaciones masivas. Sustituye /admin/memberships.",
+    "T046V2",
+    "Plan en docs/superpowers/plans/ (por escribir).",
+    [REF_TASKS],
+    "funcion",
+  ),
+  task(
+    "T048V2",
+    "Plan 3: Listings & Reports, Options e History",
+    "pendiente",
+    "Ocho informes XLSX/PDF imprimible, documento de opciones y auditoría con IP.",
+    "T047V2",
+    "Plan en docs/superpowers/plans/ (por escribir).",
+    [REF_TASKS],
+    "funcion",
+  ),
+  task(
+    "T049V2",
+    "Plan 4: importación desde Regyfit",
+    "pendiente",
+    "Catálogo, sesiones, inscripciones, drop-ins e historial bajo el runbook de staging privado.",
+    "T048V2",
+    "Plan en docs/superpowers/plans/ (por escribir). Emulador primero; producción solo con confirmación en chat.",
+    [REF_TASKS],
+    "funcion",
+  ),
+];
+
 const projectData = {
   cutoffDate: "2026-09-09",
   evidenceSyncDates: {
@@ -1803,6 +1911,14 @@ const projectData = {
       "No se resuelve escribiendo código.",
       "bloqueada",
       operatorDataItems,
+    ),
+    stage(
+      "classes-services",
+      "classes-services",
+      "V2-J · Clon de Classes / Services de Regyfit",
+      "Las nueve pantallas de Regyfit replicadas en el panel, en cuatro planes.",
+      "en-progreso",
+      classesServicesItems,
     ),
   ],
   maintenanceSteps: [
@@ -2268,7 +2384,10 @@ function renderResolutionBoard(resolutionList, filters = {}) {
     const note = RESOLUTION_NOTES[item.id];
     if (note) {
       const noteElement = createElement("p", undefined, "resolution-item-note");
-      noteElement.append(createElement("strong", "Lo que ya sabemos: "), document.createTextNode(note));
+      noteElement.append(
+        createElement("strong", "Lo que ya sabemos: "),
+        document.createTextNode(note),
+      );
       entry.append(noteElement);
     }
 
@@ -2279,10 +2398,7 @@ function renderResolutionBoard(resolutionList, filters = {}) {
 
       const box = createElement("span", requirement.done === true ? "X" : "", "requirement-box");
       box.setAttribute("role", "img");
-      box.setAttribute(
-        "aria-label",
-        requirement.done === true ? "Resuelto:" : "Pendiente:",
-      );
+      box.setAttribute("aria-label", requirement.done === true ? "Resuelto:" : "Pendiente:");
 
       listItem.append(box, createElement("span", requirement.text, "resolution-requirement-text"));
       list.append(listItem);
@@ -2340,7 +2456,9 @@ function renderParallelWork(item) {
   const surface = createElement("p", undefined, "parallel-surface");
   surface.append(
     createElement("span", "Toca: ", "parallel-key"),
-    document.createTextNode(item.surface.length === 0 ? "no toca codigo" : item.surface.join(" · ")),
+    document.createTextNode(
+      item.surface.length === 0 ? "no toca codigo" : item.surface.join(" · "),
+    ),
   );
   container.append(surface);
 

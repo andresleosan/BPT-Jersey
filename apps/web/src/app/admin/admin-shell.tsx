@@ -44,7 +44,7 @@ const navigationGroups: readonly NavigationGroup[] = [
   {
     label: "Mat",
     items: [
-      { label: "Classes", href: "/admin/classes" },
+      { label: "Classes / Services", href: "/admin/classes-services" },
       { label: "Levels", href: "/admin/levels" },
     ],
   },

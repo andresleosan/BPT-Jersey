@@ -10,6 +10,7 @@ import type {
   SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
+import { locationLabel } from "../../../lib/location-label";
 import {
   correctAttendance,
   getPreClassView,
@@ -549,9 +550,7 @@ export function AttendancePage() {
 
       {isLoading ? <p role="status">Loading today&apos;s classes...</p> : null}
       {!isLoading && data.status === "ready" && siteSessions.length === 0 ? (
-        <p className="admin-empty-state">
-          No classes at {premises === "town" ? "Town" : "West"} on this date.
-        </p>
+        <p className="admin-empty-state">No classes at {locationLabel(premises)} on this date.</p>
       ) : null}
       <div className="attendance-session-blocks">
         {siteSessions.map((s) => (

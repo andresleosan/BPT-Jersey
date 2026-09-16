@@ -272,7 +272,9 @@ export function deriveSessionStatus(input: {
     input.session.status === "scheduled" &&
     isWithinBookingCutoff(input.session.startAt, input.now.toISOString(), calendarCutoffMinutes);
   if (!bookable) return Object.freeze({ status: "closed" });
-  if (input.bookedCount >= input.session.capacity) return Object.freeze({ status: "full" });
+  if (input.session.capacity !== null && input.bookedCount >= input.session.capacity) {
+    return Object.freeze({ status: "full" });
+  }
   return Object.freeze({ status: "open" });
 }
 

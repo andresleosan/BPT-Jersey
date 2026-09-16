@@ -7,6 +7,7 @@ type StaffProfile = {
   role: StaffRole;
   active: boolean;
   status: "active" | "inactive";
+  self: boolean;
   schemaVersion: "1";
 };
 
@@ -15,6 +16,7 @@ const initialProfile: StaffProfile = {
   role: "coach",
   active: true,
   status: "active",
+  self: false,
   schemaVersion: "1",
 };
 
@@ -23,6 +25,7 @@ const secondInitialProfile: StaffProfile = {
   role: "coach",
   active: true,
   status: "active",
+  self: false,
   schemaVersion: "1",
 };
 
@@ -112,6 +115,7 @@ async function installStaffHarness(
         role: "coach",
         active: true,
         status: "active",
+        self: false,
         schemaVersion: "1",
       };
       profiles = [...profiles, created];

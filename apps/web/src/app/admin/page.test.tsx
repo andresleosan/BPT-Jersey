@@ -26,7 +26,7 @@ const pilotNavigation = [
   "Members",
   "Enrolment requests",
   "Medical conditions",
-  "Classes",
+  "Classes / Services",
   "Levels",
   "Billing",
   "Shop",
@@ -234,7 +234,7 @@ describe("administrative shell", () => {
       "->Attendance",
       "->Enrolment requests",
       "->Medical conditions",
-      "->Classes",
+      "->Classes / Services",
       "->Levels",
     ]);
     expect(screen.getByRole("link", { name: "Coach portal" })).toHaveAttribute("href", "/coach");
@@ -264,7 +264,7 @@ describe("administrative shell", () => {
       "->Attendance",
       "->Enrolment requests",
       "->Medical conditions",
-      "->Classes",
+      "->Classes / Services",
       "->Levels",
     ]);
   });

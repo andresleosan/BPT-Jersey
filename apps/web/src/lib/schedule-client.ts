@@ -31,6 +31,15 @@ import {
   type PreClassView,
 } from "@bpt-jersey/domain/schedule/pre-class";
 import type { SelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
+import type {
+  CopyWeekInput,
+  CreateLocationInput,
+  CreateProgramInputV2,
+  DeleteWeekInput,
+  UpdateLocationInput,
+  UpdateProgramInput,
+  WeekPreview,
+} from "@bpt-jersey/domain/schedule/classes-services";
 
 import { getFirebaseFunctions } from "./firebase-client";
 
@@ -156,6 +165,85 @@ export async function saveProgram(input: CreateProgramInput): Promise<ProgramRec
 
   const result = await callable(input);
   return result.data.program;
+}
+
+async function callSafely<Req, Res>(name: string, input: Req, failure: string): Promise<Res> {
+  const callable = httpsCallable<Req, Res>(getFirebaseFunctions(), name);
+  try {
+    return (await callable(input)).data;
+  } catch {
+    throw new Error(failure);
+  }
+}
+
+export async function saveLocation(input: CreateLocationInput): Promise<LocationRecord> {
+  return (
+    await callSafely<CreateLocationInput, { location: LocationRecord }>(
+      "saveLocation",
+      input,
+      "Unable to save the location",
+    )
+  ).location;
+}
+
+export async function updateLocation(input: UpdateLocationInput): Promise<LocationRecord> {
+  return (
+    await callSafely<UpdateLocationInput, { location: LocationRecord }>(
+      "updateLocation",
+      input,
+      "Unable to update the location",
+    )
+  ).location;
+}
+
+export async function saveProgramV2(input: CreateProgramInputV2): Promise<ProgramRecord> {
+  return (
+    await callSafely<CreateProgramInputV2, { program: ProgramRecord }>(
+      "saveProgram",
+      input,
+      "Unable to save the class type",
+    )
+  ).program;
+}
+
+export async function updateProgram(input: UpdateProgramInput): Promise<ProgramRecord> {
+  return (
+    await callSafely<UpdateProgramInput, { program: ProgramRecord }>(
+      "updateProgram",
+      input,
+      "Unable to update the class type",
+    )
+  ).program;
+}
+
+export async function previewWeek(weekStart: string): Promise<WeekPreview> {
+  return (
+    await callSafely<{ weekStart: string }, { preview: WeekPreview }>(
+      "previewWeek",
+      { weekStart },
+      "Unable to preview the week",
+    )
+  ).preview;
+}
+
+export async function copyWeek(input: CopyWeekInput): Promise<readonly SessionRecord[]> {
+  return (
+    await callSafely<CopyWeekInput, { sessions: SessionRecord[] }>(
+      "copyWeek",
+      input,
+      "Unable to copy the week",
+    )
+  ).sessions;
+}
+
+export async function deleteWeek(input: DeleteWeekInput): Promise<readonly SessionRecord[]> {
+  return (
+    await callSafely<DeleteWeekInput, { sessions: SessionRecord[] }>(
+      "deleteWeek",
+      input,
+      "Unable to delete the week",
+    )
+  ).sessions;
 }
 
 export async function generateSessions(input: {

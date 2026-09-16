@@ -41,8 +41,22 @@ import {
   isOpenMatProgram,
   type SelfCheckInInput,
 } from "@bpt-jersey/domain/schedule/self-check-in";
+import {
+  programDefaultsV2,
+  shiftIsoInZone,
+  slugifyLocationId,
+  weekRangeFor,
+  type CopyWeekInput,
+  type CreateLocationInput,
+  type CreateProgramInputV2,
+  type DeleteWeekInput,
+  type UpdateLocationInput,
+  type UpdateProgramInput,
+  type WeekPreview,
+} from "@bpt-jersey/domain/schedule/classes-services";
 
 import {
+  BookingTransactionError,
   createBookingTransactionService,
   type BookingFirestore,
 } from "./booking-transaction-service.js";
@@ -174,6 +188,16 @@ export type ScheduleStore = Readonly<{
     studentId: string,
     now?: string,
   ) => Promise<readonly Readonly<{ title: string; startAt: string; reason: string }>[]>;
+  createLocation: (
+    academyId: string,
+    input: CreateLocationInput,
+    actorId: string,
+  ) => Promise<LocationRecord>;
+  updateLocation: (
+    academyId: string,
+    input: UpdateLocationInput,
+    actorId: string,
+  ) => Promise<LocationRecord>;
   listPrograms: (academyId: string) => Promise<readonly ProgramRecord[]>;
   createProgram: (academyId: string, input: CreateProgramInput) => Promise<ProgramRecord>;
   updateProgram: (
@@ -181,6 +205,8 @@ export type ScheduleStore = Readonly<{
     programId: string,
     input: Partial<CreateProgramInput & { active: boolean }>,
   ) => Promise<ProgramRecord>;
+  createProgramV2: (academyId: string, input: CreateProgramInputV2) => Promise<ProgramRecord>;
+  updateProgramV2: (academyId: string, input: UpdateProgramInput) => Promise<ProgramRecord>;
   listClasses: (academyId: string) => Promise<readonly ClassRecord[]>;
   getClass: (academyId: string, classId: string) => Promise<ClassRecord | null>;
   createClass: (
@@ -218,6 +244,19 @@ export type ScheduleStore = Readonly<{
     actorId: string,
   ) => Promise<readonly SessionRecord[]>;
   listSessions: (academyId: string, query: ListSessionsQuery) => Promise<readonly SessionRecord[]>;
+  previewWeek: (academyId: string, weekStart: string, timezone: string) => Promise<WeekPreview>;
+  copyWeek: (
+    academyId: string,
+    input: CopyWeekInput,
+    timezone: string,
+    actorId: string,
+  ) => Promise<readonly SessionRecord[]>;
+  deleteWeek: (
+    academyId: string,
+    input: DeleteWeekInput,
+    timezone: string,
+    actorId: string,
+  ) => Promise<readonly SessionRecord[]>;
   getSession: (academyId: string, sessionId: string) => Promise<SessionRecord | null>;
   createSession: (
     academyId: string,
@@ -416,22 +455,271 @@ function mergeSessionUpdate(
   const startAt = input.startAt ?? current.startAt;
   const endAt = input.endAt ?? current.endAt;
   if (Date.parse(endAt) <= Date.parse(startAt)) throw new Error("Session must end after it starts");
-  const capacity = input.capacity ?? current.capacity;
+  const capacity = input.capacity === undefined ? current.capacity : input.capacity;
   const minParticipants = input.minParticipants ?? current.minParticipants;
-  if (minParticipants > capacity)
+  if (capacity !== null && minParticipants > capacity)
     throw new Error("Session minimum participants cannot exceed capacity");
   return Object.freeze({
     ...current,
     title: input.title ?? current.title,
-    instructorId: input.instructorId ?? current.instructorId,
+    instructorId: input.instructorId ?? input.instructorIds?.[0] ?? current.instructorId,
     startAt,
     endAt,
     capacity,
     minParticipants,
     ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
+    ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
+    ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
     updatedAt: now,
     updatedBy: actorId,
   });
+}
+
+/** A new site keeps the academy timezone; only Jersey sites exist today (ADR-009 scope). */
+const createdLocationTimezone = "Europe/Jersey";
+
+/** How many sessions the copy/delete confirmation shows before it just gives the count. */
+const weekPreviewSampleSize = 10;
+
+/**
+ * The catalogue order both stores answer with: the canonical sites first, in their canonical
+ * order, then everything the academy created, by id. Firestore hands documents back in id order
+ * and the in-memory store in creation order, and a screen must not depend on which store it hit.
+ */
+function orderLocations(locations: readonly LocationRecord[]): readonly LocationRecord[] {
+  const canonical = new Map(defaultLocations.map((site, index) => [site.locationId, index]));
+  const rank = (site: LocationRecord) => canonical.get(site.locationId) ?? defaultLocations.length;
+  return [...locations].sort(
+    (left, right) => rank(left) - rank(right) || left.locationId.localeCompare(right.locationId),
+  );
+}
+
+/** `name` slugified, with `-2`, `-3`… appended until it no longer collides with an existing site. */
+function nextLocationId(name: string, taken: ReadonlySet<string>): string {
+  const base = slugifyLocationId(name);
+  let locationId = base;
+  for (let suffix = 2; taken.has(locationId); suffix += 1) locationId = `${base}-${suffix}`;
+  return locationId;
+}
+
+function buildLocationRecord(
+  academyId: string,
+  locationId: string,
+  input: CreateLocationInput,
+): LocationRecord {
+  return Object.freeze({
+    locationId,
+    academyId,
+    name: input.name,
+    address: "",
+    timezone: createdLocationTimezone,
+    active: true,
+    abbreviation: input.abbreviation,
+    kind: input.kind,
+    schemaVersion: "1",
+  });
+}
+
+function mergeLocationUpdate(current: LocationRecord, input: UpdateLocationInput): LocationRecord {
+  return Object.freeze({
+    ...current,
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.abbreviation !== undefined ? { abbreviation: input.abbreviation } : {}),
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
+    ...(input.active !== undefined ? { active: input.active } : {}),
+  });
+}
+
+/**
+ * A type created in the Classes / Services screen carries no age band, discipline or level: the
+ * screen edits the v2 fields only, so the v1 taxonomy takes its widest value.
+ */
+function buildProgramV2(
+  programId: string,
+  academyId: string,
+  input: CreateProgramInputV2,
+): ProgramRecord {
+  return Object.freeze({
+    programId,
+    academyId,
+    name: input.name,
+    ageBand: "all",
+    discipline: "bjj",
+    level: "all-levels",
+    ...programDefaultsV2,
+    abbreviation: input.abbreviation,
+    active: true,
+    schemaVersion: "1",
+  });
+}
+
+function mergeProgramV2(current: ProgramRecord, input: UpdateProgramInput): ProgramRecord {
+  return Object.freeze({
+    ...current,
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.active !== undefined ? { active: input.active } : {}),
+    ...(input.abbreviation !== undefined ? { abbreviation: input.abbreviation } : {}),
+    ...(input.colour !== undefined ? { colour: input.colour } : {}),
+    ...(input.kind !== undefined ? { kind: input.kind } : {}),
+    ...(input.dropInPolicy !== undefined ? { dropInPolicy: input.dropInPolicy } : {}),
+    ...(input.notifyByEmail !== undefined ? { notifyByEmail: input.notifyByEmail } : {}),
+    ...(input.showInList !== undefined ? { showInList: input.showInList } : {}),
+    ...(input.message !== undefined ? { message: input.message } : {}),
+  });
+}
+
+/**
+ * The booking rules turning a place down — no room, no credit, not entitled — is an answer about
+ * that one member, and the rest of the week still copies. Anything else (a broken transaction, an
+ * unreachable store) is a failure of the copy itself and must not be swallowed.
+ */
+const uncopyableBookingCodes: readonly string[] = ["capacity", "financial", "ineligible"];
+
+function refusedByBookingRules(error: unknown): boolean {
+  return error instanceof BookingTransactionError && uncopyableBookingCodes.includes(error.code);
+}
+
+/**
+ * The week-wide operations are written once against the store surface they need, so the Firestore
+ * and in-memory stores answer identically and the timezone stays the caller's decision.
+ */
+type WeekOperationsStore = Pick<
+  ScheduleStore,
+  "cancelSession" | "createSession" | "listSessionBookings" | "listSessions" | "requestBooking"
+>;
+
+function weekRangeOrThrow(weekStart: string, timezone: string): ListSessionsQuery {
+  const range = weekRangeFor(weekStart, timezone);
+  if (!range.ok) throw new Error(range.error);
+  return range.value;
+}
+
+function liveSessions(sessions: readonly SessionRecord[]): readonly SessionRecord[] {
+  return sessions.filter(
+    (session) => session.status === "scheduled" || session.status === "active",
+  );
+}
+
+async function previewWeekWith(
+  store: WeekOperationsStore,
+  academyId: string,
+  weekStart: string,
+  timezone: string,
+): Promise<WeekPreview> {
+  const sessions = liveSessions(
+    await store.listSessions(academyId, weekRangeOrThrow(weekStart, timezone)),
+  );
+  return Object.freeze({
+    count: sessions.length,
+    sample: Object.freeze(
+      sessions.slice(0, weekPreviewSampleSize).map((session) =>
+        Object.freeze({
+          sessionId: session.sessionId,
+          title: session.title,
+          startAt: session.startAt,
+        }),
+      ),
+    ),
+  });
+}
+
+async function copyWeekWith(
+  store: WeekOperationsStore,
+  academyId: string,
+  input: CopyWeekInput,
+  timezone: string,
+  actorId: string,
+): Promise<readonly SessionRecord[]> {
+  const from = weekRangeOrThrow(input.fromWeekStart, timezone);
+  const to = weekRangeOrThrow(input.toWeekStart, timezone);
+  // Calendar days between the two Mondays; a clock change makes the two ranges differ by an hour,
+  // which is exactly what `shiftIsoInZone` then puts back.
+  const days = Math.round(
+    (Date.parse(`${input.toWeekStart}T00:00:00.000Z`) -
+      Date.parse(`${input.fromWeekStart}T00:00:00.000Z`)) /
+      86_400_000,
+  );
+  // The same predicate as the preview: what the operator was shown is what gets copied.
+  const source = liveSessions(await store.listSessions(academyId, from));
+  // Only a live session occupies a slot: a week that was deleted must be refillable.
+  const target = liveSessions(await store.listSessions(academyId, to));
+  const created: SessionRecord[] = [];
+
+  for (const session of source) {
+    const startAt = shiftIsoInZone(session.startAt, days, timezone);
+    // ponytail: copying the same week twice must add nothing, or a misclick doubles the timetable.
+    const alreadyThere = target.some(
+      (existing) =>
+        existing.programId === session.programId &&
+        existing.locationId === session.locationId &&
+        existing.startAt === startAt,
+    );
+    if (alreadyThere) continue;
+
+    const copy = await store.createSession(
+      academyId,
+      {
+        classId: null,
+        programId: session.programId,
+        locationId: session.locationId,
+        instructorId: session.instructorId,
+        title: session.title,
+        startAt,
+        endAt: shiftIsoInZone(session.endAt, days, timezone),
+        capacity: session.capacity,
+        minParticipants: session.minParticipants,
+        isSeminar: session.isSeminar,
+        ...(session.description !== undefined ? { description: session.description } : {}),
+        ...(session.ageRange !== undefined ? { ageRange: session.ageRange } : {}),
+        ...(session.levelRange !== undefined ? { levelRange: session.levelRange } : {}),
+        ...(session.instructorIds !== undefined ? { instructorIds: session.instructorIds } : {}),
+        ...(session.bookingRules !== undefined ? { bookingRules: session.bookingRules } : {}),
+        ...(session.waitingList !== undefined ? { waitingList: session.waitingList } : {}),
+      },
+      actorId,
+    );
+    created.push(copy);
+    if (!input.copyBookings) continue;
+
+    for (const booking of await store.listSessionBookings(academyId, session.sessionId)) {
+      if (booking.status !== "confirmed") continue;
+      try {
+        await store.requestBooking(
+          academyId,
+          {
+            sessionId: copy.sessionId,
+            studentId: booking.studentId,
+            membershipId: booking.membershipId,
+          },
+          actorId,
+        );
+      } catch (error) {
+        // ponytail: a place the member is no longer entitled to does not travel with them; a
+        // store that is simply broken must still stop the copy.
+        if (!refusedByBookingRules(error)) throw error;
+      }
+    }
+  }
+
+  return Object.freeze(created);
+}
+
+async function deleteWeekWith(
+  store: WeekOperationsStore,
+  academyId: string,
+  input: DeleteWeekInput,
+  timezone: string,
+  actorId: string,
+): Promise<readonly SessionRecord[]> {
+  const sessions = liveSessions(
+    await store.listSessions(academyId, weekRangeOrThrow(input.weekStart, timezone)),
+  );
+  const cancelled: SessionRecord[] = [];
+  for (const session of sessions) {
+    cancelled.push(await store.cancelSession(academyId, session.sessionId, input.reason, actorId));
+  }
+  return Object.freeze(cancelled);
 }
 
 export function createFirestoreScheduleStore(options: {
@@ -447,6 +735,21 @@ export function createFirestoreScheduleStore(options: {
   const quorumSweep = createQuorumSweepService({
     firestore: firestore as unknown as BookingFirestore,
   });
+
+  /**
+   * `listPrograms` falls back to the canonical seven only while the collection is empty, so the
+   * first written type would otherwise hide the rest. Writing them once keeps the list whole.
+   */
+  const materialiseDefaultPrograms = async (academyId: string): Promise<void> => {
+    const collection = firestore.collection(`academies/${academyId}/programs`);
+    const snapshot = await collection.get();
+    if (snapshot.docs.length > 0) return;
+    await Promise.all(
+      defaultPrograms.map((program) =>
+        collection.doc(program.programId).set({ ...program, academyId }),
+      ),
+    );
+  };
 
   const requireAttendanceActorRole = (
     value: ScheduleMutationActorRole | undefined,
@@ -469,9 +772,42 @@ export function createFirestoreScheduleStore(options: {
           return [record.locationId, record] as const;
         }),
       );
-      return defaultLocations.map(
+      const canonical = defaultLocations.map(
         (location) => stored.get(location.locationId) ?? { ...location, academyId },
       );
+      // Sites created in the Classes / Services screen are not among the canonical two, and would
+      // otherwise be written and never listed again.
+      const created = [...stored.values()].filter(
+        (location) =>
+          !defaultLocations.some((fallback) => fallback.locationId === location.locationId),
+      );
+      return orderLocations([...canonical, ...created]);
+    },
+
+    async createLocation(academyId: string, input: CreateLocationInput): Promise<LocationRecord> {
+      const taken = new Set((await this.listLocations(academyId)).map((l) => l.locationId));
+      const record = buildLocationRecord(academyId, nextLocationId(input.name, taken), input);
+      await firestore
+        .collection(`academies/${academyId}/locations`)
+        .doc(record.locationId)
+        .set(record);
+      return record;
+    },
+
+    async updateLocation(academyId: string, input: UpdateLocationInput): Promise<LocationRecord> {
+      const docRef = firestore.collection(`academies/${academyId}/locations`).doc(input.locationId);
+      const existing = await docRef.get();
+      const fallback = defaultLocations.find(
+        (location) => location.locationId === input.locationId,
+      );
+      // A canonical site has no document until something edits it, so materialise it first.
+      const current = existing.exists
+        ? (existing.data() as LocationRecord)
+        : fallback && { ...fallback, academyId };
+      if (current === undefined) throw new Error(`Location ${input.locationId} does not exist`);
+      const updated = mergeLocationUpdate(current, input);
+      await docRef.set(updated);
+      return updated;
     },
 
     /**
@@ -614,6 +950,30 @@ export function createFirestoreScheduleStore(options: {
         active: input.active ?? current.active,
       });
 
+      await docRef.set(updated);
+      return updated;
+    },
+
+    async createProgramV2(academyId: string, input: CreateProgramInputV2): Promise<ProgramRecord> {
+      await materialiseDefaultPrograms(academyId);
+      const docRef = firestore.collection(`academies/${academyId}/programs`).doc();
+      const record = buildProgramV2(docRef.id, academyId, input);
+      await docRef.set(record);
+      return record;
+    },
+
+    async updateProgramV2(academyId: string, input: UpdateProgramInput): Promise<ProgramRecord> {
+      await materialiseDefaultPrograms(academyId);
+      const docRef = firestore.collection(`academies/${academyId}/programs`).doc(input.programId);
+      const existing = await docRef.get();
+      const fallback = defaultPrograms.find((program) => program.programId === input.programId);
+      // A v1 `createProgram` fills the collection without seeding the canonical seven, so a
+      // canonical type can still be missing its own document here.
+      const current = existing.exists
+        ? (existing.data() as ProgramRecord)
+        : fallback && { ...fallback, academyId };
+      if (current === undefined) throw new Error(`Program ${input.programId} does not exist`);
+      const updated = mergeProgramV2(current, input);
       await docRef.set(updated);
       return updated;
     },
@@ -871,6 +1231,28 @@ export function createFirestoreScheduleStore(options: {
         .sort((a, b) => a.startAt.localeCompare(b.startAt));
     },
 
+    previewWeek(academyId: string, weekStart: string, timezone: string): Promise<WeekPreview> {
+      return previewWeekWith(this, academyId, weekStart, timezone);
+    },
+
+    copyWeek(
+      academyId: string,
+      input: CopyWeekInput,
+      timezone: string,
+      actorId: string,
+    ): Promise<readonly SessionRecord[]> {
+      return copyWeekWith(this, academyId, input, timezone, actorId);
+    },
+
+    deleteWeek(
+      academyId: string,
+      input: DeleteWeekInput,
+      timezone: string,
+      actorId: string,
+    ): Promise<readonly SessionRecord[]> {
+      return deleteWeekWith(this, academyId, input, timezone, actorId);
+    },
+
     async getSession(academyId: string, sessionId: string): Promise<SessionRecord | null> {
       const doc = await firestore
         .collection(`academies/${academyId}/sessions`)
@@ -910,6 +1292,12 @@ export function createFirestoreScheduleStore(options: {
         createdBy: actorId,
         updatedAt: now,
         updatedBy: actorId,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.ageRange !== undefined ? { ageRange: input.ageRange } : {}),
+        ...(input.levelRange !== undefined ? { levelRange: input.levelRange } : {}),
+        ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
+        ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
+        ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
       });
 
       await docRef.set(record);
@@ -1297,13 +1685,40 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
   let classSeq = 1;
   let sessionSeq = 1;
 
+  /** The stored program list, seeded with the canonical seven the first time it is written. */
+  const materialisedPrograms = (academyId: string): ProgramRecord[] => {
+    const list = programsMap.get(academyId) ?? defaultPrograms.map((p) => ({ ...p, academyId }));
+    programsMap.set(academyId, list);
+    return list;
+  };
+
   return {
     async listLocations(academyId: string): Promise<readonly LocationRecord[]> {
       const custom = locationsMap.get(academyId);
       if (!custom || custom.length === 0) {
         return defaultLocations.map((loc) => ({ ...loc, academyId }));
       }
-      return custom;
+      return orderLocations(custom);
+    },
+
+    // `listLocations` falls back to the canonical sites only while nothing is stored, so both
+    // writers start from the listed sites and store the whole list back.
+    async createLocation(academyId: string, input: CreateLocationInput): Promise<LocationRecord> {
+      const existing = [...(await this.listLocations(academyId))];
+      const taken = new Set(existing.map((location) => location.locationId));
+      const record = buildLocationRecord(academyId, nextLocationId(input.name, taken), input);
+      locationsMap.set(academyId, [...existing, record]);
+      return record;
+    },
+
+    async updateLocation(academyId: string, input: UpdateLocationInput): Promise<LocationRecord> {
+      const all = [...(await this.listLocations(academyId))];
+      const index = all.findIndex((location) => location.locationId === input.locationId);
+      if (index === -1) throw new Error(`Location ${input.locationId} does not exist`);
+      const updated = mergeLocationUpdate(all[index]!, input);
+      all[index] = updated;
+      locationsMap.set(academyId, all);
+      return updated;
     },
 
     // The in-memory store keeps no audit trail, so the actor is not needed here.
@@ -1466,6 +1881,23 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         active: input.active ?? current.active,
       });
 
+      list[index] = updated;
+      return updated;
+    },
+
+    async createProgramV2(academyId: string, input: CreateProgramInputV2): Promise<ProgramRecord> {
+      const list = materialisedPrograms(academyId);
+      const programId = `prog-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const record = buildProgramV2(programId, academyId, input);
+      list.push(record);
+      return record;
+    },
+
+    async updateProgramV2(academyId: string, input: UpdateProgramInput): Promise<ProgramRecord> {
+      const list = materialisedPrograms(academyId);
+      const index = list.findIndex((program) => program.programId === input.programId);
+      if (index === -1) throw new Error(`Program ${input.programId} does not exist`);
+      const updated = mergeProgramV2(list[index]!, input);
       list[index] = updated;
       return updated;
     },
@@ -1703,6 +2135,28 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         .sort((a, b) => a.startAt.localeCompare(b.startAt));
     },
 
+    previewWeek(academyId: string, weekStart: string, timezone: string): Promise<WeekPreview> {
+      return previewWeekWith(this, academyId, weekStart, timezone);
+    },
+
+    copyWeek(
+      academyId: string,
+      input: CopyWeekInput,
+      timezone: string,
+      actorId: string,
+    ): Promise<readonly SessionRecord[]> {
+      return copyWeekWith(this, academyId, input, timezone, actorId);
+    },
+
+    deleteWeek(
+      academyId: string,
+      input: DeleteWeekInput,
+      timezone: string,
+      actorId: string,
+    ): Promise<readonly SessionRecord[]> {
+      return deleteWeekWith(this, academyId, input, timezone, actorId);
+    },
+
     async getSession(academyId: string, sessionId: string): Promise<SessionRecord | null> {
       const map = sessionsMap.get(academyId);
       return map?.get(sessionId) ?? null;
@@ -1735,6 +2189,12 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         createdBy: actorId,
         updatedAt: now,
         updatedBy: actorId,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.ageRange !== undefined ? { ageRange: input.ageRange } : {}),
+        ...(input.levelRange !== undefined ? { levelRange: input.levelRange } : {}),
+        ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
+        ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
+        ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
       });
 
       if (!sessionsMap.has(academyId)) {
@@ -1777,10 +2237,13 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       const sMap = sessionsMap.get(academyId);
       const session = sMap?.get(input.sessionId);
       if (!session) {
-        throw new Error(`Session ${input.sessionId} does not exist`);
+        throw new BookingTransactionError("not-found", `Session ${input.sessionId} does not exist`);
       }
       if (session.status === "cancelled") {
-        throw new Error(`Cannot book cancelled session ${input.sessionId}`);
+        throw new BookingTransactionError(
+          "ineligible",
+          `Cannot book cancelled session ${input.sessionId}`,
+        );
       }
 
       if (!bookingsMap.has(academyId)) {
@@ -1799,8 +2262,11 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
           b.sessionId === input.sessionId && b.status === "confirmed" && b.bookingId !== bookingId,
       ).length;
 
-      if (confirmedCount >= session.capacity) {
-        throw new Error(`Session capacity reached (${session.capacity})`);
+      if (session.capacity !== null && confirmedCount >= session.capacity) {
+        throw new BookingTransactionError(
+          "capacity",
+          `Session capacity reached (${session.capacity})`,
+        );
       }
 
       const now = new Date().toISOString();

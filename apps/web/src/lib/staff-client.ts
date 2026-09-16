@@ -7,6 +7,8 @@ export type StaffProfileProjection = Readonly<{
   role: "headCoach" | "coach";
   active: boolean;
   status: "active" | "inactive";
+  /** Whether this profile belongs to the signed-in user; the server never sends the userId. */
+  self: boolean;
   schemaVersion: "1";
 }>;
 
@@ -42,7 +44,7 @@ const staffRoles = ["headCoach", "coach"] as const;
 const assignmentTypes = ["location", "program", "class"] as const;
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const localTimePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/u;
-const profileFields = ["staffKey", "role", "active", "status", "schemaVersion"] as const;
+const profileFields = ["staffKey", "role", "active", "status", "self", "schemaVersion"] as const;
 const availabilityFields = ["weekday", "startLocal", "endLocal", "timezone"] as const;
 const assignmentFields = ["targetType", "targetId"] as const;
 
@@ -102,6 +104,7 @@ function isStaffProfileProjection(value: unknown): value is StaffProfileProjecti
     typeof value.active === "boolean" &&
     (value.status === "active" || value.status === "inactive") &&
     value.active === (value.status === "active") &&
+    typeof value.self === "boolean" &&
     value.schemaVersion === "1"
   );
 }
