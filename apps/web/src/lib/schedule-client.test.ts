@@ -16,7 +16,9 @@ vi.mock("./firebase-client", () => ({
 import {
   cancelBooking,
   cancelSession,
+  copyWeek,
   correctAttendance,
+  deleteWeek,
   evaluateSessionMinimum,
   generateSessions,
   getScheduleCatalog,
@@ -31,16 +33,21 @@ import {
   listStudentAttendance,
   listStudentBookings,
   listSessionBookedCounts,
+  previewWeek,
   reconcileSessionNoShows,
   recordCheckIn,
   recordCheckout,
   removeClass,
   requestBooking,
   saveClass,
+  saveLocation,
   saveProgram,
+  saveProgramV2,
   saveSession,
   scheduleCallableClientOptions,
   selfCheckIn,
+  updateLocation,
+  updateProgram,
   updateSession,
 } from "./schedule-client";
 
@@ -420,5 +427,109 @@ describe("Schedule Client", () => {
     await expect(
       listSessionBookedCounts({ from: "2026-09-14T00:00:00.000Z", to: "2026-09-20T23:59:59.999Z" }),
     ).resolves.toEqual({});
+  });
+
+  it("calls saveLocation and returns the record", async () => {
+    mockCallable.mockResolvedValueOnce({
+      data: { location: { locationId: "salle-ouest", name: "Salle Ouest" } },
+    });
+    await expect(
+      saveLocation({ name: "Salle Ouest", abbreviation: "ouest", kind: "presential" }),
+    ).resolves.toMatchObject({ locationId: "salle-ouest" });
+    expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "saveLocation", {
+      limitedUseAppCheckTokens: true,
+    });
+  });
+
+  it("calls updateLocation and returns the record", async () => {
+    mockCallable.mockResolvedValueOnce({
+      data: { location: { locationId: "salle-ouest", name: "Salle Ouest Renamed" } },
+    });
+    await expect(
+      updateLocation({ locationId: "salle-ouest", name: "Salle Ouest Renamed" }),
+    ).resolves.toMatchObject({ name: "Salle Ouest Renamed" });
+    expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "updateLocation", {
+      limitedUseAppCheckTokens: true,
+    });
+  });
+
+  it("hides Firebase errors behind a safe message for updateLocation", async () => {
+    mockCallable.mockRejectedValueOnce(new Error("internal: boom"));
+    await expect(updateLocation({ locationId: "salle-ouest" })).rejects.toThrow(
+      "Unable to update the location",
+    );
+  });
+
+  it("calls saveProgramV2 via the saveProgram callable and returns the record", async () => {
+    mockCallable.mockResolvedValueOnce({
+      data: { program: { programId: "p-2", name: "No-Gi" } },
+    });
+    await expect(saveProgramV2({ name: "No-Gi", abbreviation: "nogi" })).resolves.toMatchObject({
+      programId: "p-2",
+    });
+    expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "saveProgram", {
+      limitedUseAppCheckTokens: true,
+    });
+  });
+
+  it("hides Firebase errors behind a safe message for saveProgramV2", async () => {
+    mockCallable.mockRejectedValueOnce(new Error("internal: boom"));
+    await expect(saveProgramV2({ name: "No-Gi", abbreviation: "nogi" })).rejects.toThrow(
+      "Unable to save the class type",
+    );
+  });
+
+  it("calls updateProgram and returns the record", async () => {
+    mockCallable.mockResolvedValueOnce({
+      data: { program: { programId: "p-2", name: "No-Gi Advanced" } },
+    });
+    await expect(
+      updateProgram({ programId: "p-2", name: "No-Gi Advanced" }),
+    ).resolves.toMatchObject({ name: "No-Gi Advanced" });
+    expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "updateProgram", {
+      limitedUseAppCheckTokens: true,
+    });
+  });
+
+  it("calls previewWeek and returns the preview", async () => {
+    mockCallable.mockResolvedValueOnce({
+      data: { preview: { count: 0, sample: [] } },
+    });
+    await expect(previewWeek("2026-09-14")).resolves.toMatchObject({ count: 0 });
+    expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "previewWeek", {
+      limitedUseAppCheckTokens: true,
+    });
+  });
+
+  it("hides Firebase errors behind a safe message for previewWeek", async () => {
+    mockCallable.mockRejectedValueOnce(new Error("internal: boom"));
+    await expect(previewWeek("2026-09-14")).rejects.toThrow("Unable to preview the week");
+  });
+
+  it("calls copyWeek and returns the sessions", async () => {
+    mockCallable.mockResolvedValueOnce({ data: { sessions: [{ sessionId: "s-1" }] } });
+    await expect(
+      copyWeek({ fromWeekStart: "2026-09-07", toWeekStart: "2026-09-14", copyBookings: false }),
+    ).resolves.toHaveLength(1);
+    expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "copyWeek", {
+      limitedUseAppCheckTokens: true,
+    });
+  });
+
+  it("hides Firebase errors behind a safe message", async () => {
+    mockCallable.mockRejectedValueOnce(new Error("internal: boom"));
+    await expect(deleteWeek({ weekStart: "2026-09-14", reason: "Closed" })).rejects.toThrow(
+      "Unable to delete the week",
+    );
+  });
+
+  it("calls deleteWeek and returns the sessions", async () => {
+    mockCallable.mockResolvedValueOnce({ data: { sessions: [{ sessionId: "s-1" }] } });
+    await expect(
+      deleteWeek({ weekStart: "2026-09-14", reason: "Closed" }),
+    ).resolves.toHaveLength(1);
+    expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "deleteWeek", {
+      limitedUseAppCheckTokens: true,
+    });
   });
 });
