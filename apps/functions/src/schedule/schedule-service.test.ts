@@ -309,6 +309,47 @@ describe("Schedule Service (In-Memory Store)", () => {
       expect(roster).toHaveLength(2);
     });
 
+    it("never reports capacity for an unlimited session", async () => {
+      const store = createInMemoryScheduleStore();
+
+      const session = await store.createSession(
+        "academy-1",
+        {
+          programId: "adult-fundamentals",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Open Mat",
+          startAt: "2099-09-01T18:00:00Z",
+          endAt: "2099-09-01T19:00:00Z",
+          capacity: null,
+          minParticipants: 0,
+        },
+        "owner-1",
+      );
+      expect(session.capacity).toBeNull();
+
+      for (let index = 1; index <= 400; index += 1) {
+        const booking = await store.requestBooking(
+          "academy-1",
+          {
+            sessionId: session.sessionId,
+            studentId: `student-${index}`,
+            membershipId: `mem-${index}`,
+          },
+          `student-${index}`,
+        );
+        expect(booking.status).toBe("confirmed");
+      }
+
+      const overflow = await store.requestBooking(
+        "academy-1",
+        { sessionId: session.sessionId, studentId: "student-401", membershipId: "mem-401" },
+        "student-401",
+      );
+      expect(overflow.status).toBe("confirmed");
+      expect(await store.listSessionBookings("academy-1", session.sessionId)).toHaveLength(401);
+    });
+
     it("cancels booking with 1-hour cutoff check for student and override for staff", async () => {
       const store = createInMemoryScheduleStore();
 

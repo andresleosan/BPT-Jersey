@@ -1073,7 +1073,7 @@ test.describe("T096 class operations with Firebase Emulators", () => {
     await denied(
       request,
       "saveSession",
-      { ...base, locationId: "north" },
+      { ...base, locationId: "" },
       owner,
       400,
       "INVALID_ARGUMENT",
