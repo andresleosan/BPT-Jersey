@@ -20,7 +20,7 @@ type OverviewClass = Readonly<{
   group: string;
   coach: string;
   time: string;
-  capacity: number;
+  capacity: number | null;
   booked: number;
   status: string;
 }>;
@@ -48,7 +48,7 @@ const classColumns = [
   {
     key: "capacity",
     label: "Capacity",
-    render: (item: OverviewClass) => `${item.booked} / ${item.capacity}`,
+    render: (item: OverviewClass) => `${item.booked} / ${item.capacity ?? "∞"}`,
   },
   {
     key: "status",

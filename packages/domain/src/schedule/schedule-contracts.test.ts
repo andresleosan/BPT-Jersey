@@ -1202,10 +1202,8 @@ describe("check-in proximity signal (T109)", () => {
       expect(cleared.ok && cleared.value).toEqual({ locationId: "west", geofence: null });
     });
 
-    it("refuses unknown sites, extra keys, coarse precision and out-of-range coordinates", () => {
-      expect(parseSaveLocationGeofenceInput({ locationId: "harbour", geofence: null }).ok).toBe(
-        false,
-      );
+    it("refuses a blank site, extra keys, coarse precision and out-of-range coordinates", () => {
+      expect(parseSaveLocationGeofenceInput({ locationId: "  ", geofence: null }).ok).toBe(false);
       expect(
         parseSaveLocationGeofenceInput({
           locationId: "town",
@@ -1711,5 +1709,65 @@ describe("class record v2", () => {
       value: { classId: "c1", reason: "Coach left" },
     });
     expect(parseRemoveClassInput({ classId: "c1", reason: "x" }).ok).toBe(false);
+  });
+});
+
+describe("classes-services additions", () => {
+  it("accepts any non-empty location id in session and geofence inputs", () => {
+    const base = {
+      programId: "p1",
+      locationId: "salle-ouest",
+      instructorId: "coach-1",
+      title: "GI All Levels",
+      startAt: "2026-09-14T17:00:00.000Z",
+      endAt: "2026-09-14T18:00:00.000Z",
+      capacity: 20,
+    };
+    expect(parseCreateSessionInput(base).ok).toBe(true);
+    expect(parseCreateSessionInput({ ...base, locationId: "" }).ok).toBe(false);
+    expect(parseSaveLocationGeofenceInput({ locationId: "salle-ouest", geofence: null }).ok).toBe(
+      true,
+    );
+  });
+
+  it("accepts unlimited capacity, several trainers, booking rules and waiting list", () => {
+    const parsed = parseCreateSessionInput({
+      programId: "p1",
+      locationId: "town",
+      instructorId: "coach-1",
+      instructorIds: ["coach-1", "coach-2"],
+      title: "Open Mat",
+      startAt: "2026-09-14T17:00:00.000Z",
+      endAt: "2026-09-14T18:00:00.000Z",
+      capacity: null,
+      minParticipants: 0,
+      bookingRules: "defined",
+      waitingList: "off",
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.capacity).toBeNull();
+    expect(parsed.value.instructorIds).toEqual(["coach-1", "coach-2"]);
+    expect(parsed.value.waitingList).toBe("off");
+  });
+
+  it("keeps minParticipants within capacity only when capacity is a number", () => {
+    const base = {
+      programId: "p1",
+      locationId: "town",
+      instructorId: "coach-1",
+      title: "GI",
+      startAt: "2026-09-14T17:00:00.000Z",
+      endAt: "2026-09-14T18:00:00.000Z",
+    };
+    expect(parseCreateSessionInput({ ...base, capacity: 5, minParticipants: 6 }).ok).toBe(false);
+    expect(parseCreateSessionInput({ ...base, capacity: null, minParticipants: 6 }).ok).toBe(true);
+  });
+
+  it("updates trainers and capacity on an existing session", () => {
+    expect(
+      parseUpdateSessionInput({ sessionId: "s1", instructorIds: ["a", "b"], capacity: null }).ok,
+    ).toBe(true);
+    expect(parseUpdateSessionInput({ sessionId: "s1", instructorIds: [] }).ok).toBe(false);
   });
 });

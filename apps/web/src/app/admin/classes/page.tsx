@@ -327,7 +327,7 @@ export function ClassesPage() {
     event.preventDefault();
     if (dialog?.kind !== "session-edit") return;
     const { draft } = dialog;
-    if (draft.minParticipants > draft.capacity) {
+    if (draft.capacity !== null && draft.minParticipants > draft.capacity) {
       setDialogError("Minimum participants cannot exceed capacity.");
       return;
     }
@@ -858,7 +858,7 @@ export function ClassesPage() {
                       {locations.get(session.locationId)?.name ?? "Location unavailable"}
                     </td>
                     <td data-label="Capacity">
-                      {session.minParticipants} min / {session.capacity} max
+                      {session.minParticipants} min / {session.capacity ?? "∞"} max
                     </td>
                     <td data-label="Status">
                       <AdminStatusBadge status={session.status} />

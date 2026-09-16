@@ -27,7 +27,8 @@ export type SessionEditDraft = Readonly<{
   instructorId: string;
   startAt: string;
   endAt: string;
-  capacity: number;
+  /** Null (an empty field) means unlimited. */
+  capacity: number | null;
   minParticipants: number;
   description: string;
 }>;
@@ -437,7 +438,7 @@ export function ScheduleDialog({
               />
             </label>
             <label className="schedule-admin-field">
-              Capacity
+              Capacity (empty is unlimited)
               <input
                 inputMode="numeric"
                 max={300}
@@ -445,19 +446,21 @@ export function ScheduleDialog({
                 onChange={(event) =>
                   onChange({
                     ...dialog,
-                    draft: { ...dialog.draft, capacity: Number(event.target.value) },
+                    draft: {
+                      ...dialog.draft,
+                      capacity: event.target.value === "" ? null : Number(event.target.value),
+                    },
                   })
                 }
-                required
                 type="number"
-                value={dialog.draft.capacity}
+                value={dialog.draft.capacity ?? ""}
               />
             </label>
             <label className="schedule-admin-field">
               Minimum participants
               <input
                 inputMode="numeric"
-                max={dialog.draft.capacity}
+                max={dialog.draft.capacity ?? undefined}
                 min={0}
                 onChange={(event) =>
                   onChange({

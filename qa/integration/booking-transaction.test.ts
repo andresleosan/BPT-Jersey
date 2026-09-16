@@ -77,7 +77,7 @@ function student(studentId: string, familyId = "family-" + studentId) {
   };
 }
 
-function session(sessionId: string, capacity: number, startAt = "2099-09-01T18:00:00Z") {
+function session(sessionId: string, capacity: number | null, startAt = "2099-09-01T18:00:00Z") {
   return {
     sessionId,
     academyId,
@@ -298,6 +298,29 @@ describe("transactional booking against the Firestore emulator", () => {
       expect(loserQuota.docs).toHaveLength(0);
     }
   }, 60_000);
+
+  it("never reports capacity for an unlimited session", async () => {
+    const sessionId = "session-unlimited";
+    const contenders = ["a", "b"].map((suffix) => ({
+      studentId: "unlimited-student-" + suffix,
+      membershipId: "unlimited-membership-" + suffix,
+    }));
+    await Promise.all([
+      firestore
+        .doc("academies/" + academyId + "/sessions/" + sessionId)
+        .set(session(sessionId, null)),
+      ...contenders.map((contender) => seedStudentMembership(contender)),
+    ]);
+
+    for (const contender of contenders) {
+      const booked = await store.requestBooking(
+        academyId,
+        { sessionId, studentId: contender.studentId, membershipId: contender.membershipId },
+        contender.studentId,
+      );
+      expect(booked.status).toBe("confirmed");
+    }
+  });
 
   it("ignores a confirmed booking whose historical session was cancelled in another week", async () => {
     const studentId = "student-cancelled-session";

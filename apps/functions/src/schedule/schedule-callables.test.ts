@@ -1340,10 +1340,10 @@ describe("saveLocationGeofence (T109)", () => {
     },
   );
 
-  it("refuses an unknown site, a coarse coordinate and an extra key", async () => {
+  it("refuses a blank site, a coarse coordinate and an extra key", async () => {
     const handler = createSaveLocationGeofenceHandler({ store: createInMemoryScheduleStore() });
     for (const payload of [
-      { locationId: "harbour", geofence },
+      { locationId: "", geofence },
       { locationId: "town", geofence: { latitude: 49.1234567, longitude: -2.1 } },
       { locationId: "town", geofence, radiusMeters: 500 },
       { locationId: "town" },

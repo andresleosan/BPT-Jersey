@@ -416,19 +416,22 @@ function mergeSessionUpdate(
   const startAt = input.startAt ?? current.startAt;
   const endAt = input.endAt ?? current.endAt;
   if (Date.parse(endAt) <= Date.parse(startAt)) throw new Error("Session must end after it starts");
-  const capacity = input.capacity ?? current.capacity;
+  const capacity = input.capacity === undefined ? current.capacity : input.capacity;
   const minParticipants = input.minParticipants ?? current.minParticipants;
-  if (minParticipants > capacity)
+  if (capacity !== null && minParticipants > capacity)
     throw new Error("Session minimum participants cannot exceed capacity");
   return Object.freeze({
     ...current,
     title: input.title ?? current.title,
-    instructorId: input.instructorId ?? current.instructorId,
+    instructorId: input.instructorId ?? input.instructorIds?.[0] ?? current.instructorId,
     startAt,
     endAt,
     capacity,
     minParticipants,
     ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
+    ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
+    ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
     updatedAt: now,
     updatedBy: actorId,
   });
@@ -910,6 +913,9 @@ export function createFirestoreScheduleStore(options: {
         createdBy: actorId,
         updatedAt: now,
         updatedBy: actorId,
+        ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
+        ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
+        ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
       });
 
       await docRef.set(record);
@@ -1735,6 +1741,9 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         createdBy: actorId,
         updatedAt: now,
         updatedBy: actorId,
+        ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
+        ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
+        ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
       });
 
       if (!sessionsMap.has(academyId)) {
@@ -1799,7 +1808,7 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
           b.sessionId === input.sessionId && b.status === "confirmed" && b.bookingId !== bookingId,
       ).length;
 
-      if (confirmedCount >= session.capacity) {
+      if (session.capacity !== null && confirmedCount >= session.capacity) {
         throw new Error(`Session capacity reached (${session.capacity})`);
       }
 

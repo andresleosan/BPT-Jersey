@@ -35,7 +35,7 @@ describe("fixture calendar repository", () => {
       (s) =>
         s.programId === "prog-teens" &&
         Date.parse(s.startAt) > Date.now() + 2 * 3600000 &&
-        (week.bookedCounts[s.sessionId] ?? 0) < s.capacity &&
+        (week.bookedCounts[s.sessionId] ?? 0) < (s.capacity ?? Number.POSITIVE_INFINITY) &&
         !week.bookings.some((b) => b.sessionId === s.sessionId),
     );
     expect(target).toBeDefined();
@@ -58,7 +58,10 @@ describe("fixture calendar repository", () => {
     const repo = createFixtureCalendarRepository("teenStudent");
     const week = await repo.loadWeek("sam", weekAgo, inThreeWeeks);
     const full = week.sessions.find(
-      (s) => (week.bookedCounts[s.sessionId] ?? 0) >= s.capacity && s.programId === "prog-teens",
+      (s) =>
+        s.capacity !== null &&
+        (week.bookedCounts[s.sessionId] ?? 0) >= s.capacity &&
+        s.programId === "prog-teens",
     );
     expect(full).toBeDefined();
     await expect(
