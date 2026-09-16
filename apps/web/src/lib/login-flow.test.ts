@@ -64,6 +64,9 @@ describe("login-flow", () => {
     expect(resolveStaffDestination({ academyId, role: "coach" }, "/admin/attendance")).toBe(
       "/admin/attendance",
     );
+    expect(resolveStaffDestination({ academyId, role: "coach" }, "/admin/classes-services")).toBe(
+      "/admin/classes-services",
+    );
     expect(resolveStaffDestination({ academyId, role: "coach" }, "/admin/staff")).toBe("/coach");
   });
 

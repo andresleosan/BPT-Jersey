@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ClassesPage } from "./page";
+import ClassesRoute, { ClassesPage } from "./page";
 
 const mocks = vi.hoisted(() => ({
   cancelBooking: vi.fn(),
@@ -22,7 +22,10 @@ const mocks = vi.hoisted(() => ({
   updateClass: vi.fn(),
   updateSession: vi.fn(),
   useAdminOrStaffSession: vi.fn(),
+  replace: vi.fn(),
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
 
 vi.mock("../../../lib/schedule-client", () => ({
   cancelBooking: mocks.cancelBooking,
@@ -508,5 +511,15 @@ describe("classes administration", () => {
     expect(screen.getByText("Gi only. Bring a mouthguard.")).toBeInTheDocument();
     const noDescriptionRow = screen.getByText("Adult Fundamentals · Thursday").closest("td")!;
     expect(noDescriptionRow.querySelector("small:last-child")).toHaveTextContent("Adults BJJ");
+  });
+});
+
+describe("the legacy admin classes route", () => {
+  afterEach(() => cleanup());
+
+  it("sends the browser to the Classes & Services 2.0 tab", () => {
+    render(<ClassesRoute />);
+    expect(mocks.replace).toHaveBeenCalledWith("/admin/classes-services/classes");
+    expect(screen.getByText("Opening Classes & Services…")).toBeVisible();
   });
 });
