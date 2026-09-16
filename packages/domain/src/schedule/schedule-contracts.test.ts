@@ -1771,3 +1771,49 @@ describe("classes-services additions", () => {
     expect(parseUpdateSessionInput({ sessionId: "s1", instructorIds: [] }).ok).toBe(false);
   });
 });
+
+describe("classes-services follow-ups", () => {
+  const sessionBase = {
+    programId: "p1",
+    locationId: "town",
+    instructorId: "coach-1",
+    title: "GI",
+    startAt: "2026-09-14T17:00:00.000Z",
+    endAt: "2026-09-14T18:00:00.000Z",
+  };
+
+  it("trims the locationId filter so a padded id still matches a site", () => {
+    const parsed = parseListSessionsQuery({
+      from: "2026-09-01T00:00:00Z",
+      to: "2026-09-07T23:59:59Z",
+      locationId: " salle-ouest ",
+    });
+    expect(parsed.ok && parsed.value.locationId).toBe("salle-ouest");
+    expect(
+      parseListSessionsQuery({
+        from: "2026-09-01T00:00:00Z",
+        to: "2026-09-07T23:59:59Z",
+        locationId: "  ",
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("keeps the explicit instructorId as the session owner when a trainer list is sent", () => {
+    const parsed = parseCreateSessionInput({
+      ...sessionBase,
+      capacity: 20,
+      instructorIds: ["coach-2", "coach-3"],
+    });
+    expect(parsed.ok && parsed.value.instructorId).toBe("coach-1");
+    expect(parsed.ok && parsed.value.instructorIds).toEqual(["coach-2", "coach-3"]);
+  });
+
+  it("caps minParticipants at 300 on an unlimited session", () => {
+    expect(
+      parseCreateSessionInput({ ...sessionBase, capacity: null, minParticipants: 300 }).ok,
+    ).toBe(true);
+    expect(
+      parseCreateSessionInput({ ...sessionBase, capacity: null, minParticipants: 301 }).ok,
+    ).toBe(false);
+  });
+});

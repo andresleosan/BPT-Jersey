@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { BookingRecord, SessionRecord } from "@bpt-jersey/domain/schedule";
 
 import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../lib/client-auth";
+import { locationLabel } from "../../../lib/location-label";
 import {
   cancelBooking,
   listSessions,
@@ -34,10 +35,6 @@ const jerseyDateTime = new Intl.DateTimeFormat("en-GB", {
 
 function formatDateTime(value: string): string {
   return jerseyDateTime.format(new Date(value));
-}
-
-function locationLabel(locationId: SessionRecord["locationId"]): string {
-  return locationId === "town" ? "Town" : "West";
 }
 
 function statusLabel(status: BookingRecord["status"]): string {
