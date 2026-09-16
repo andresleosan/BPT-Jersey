@@ -5,7 +5,7 @@ import type { LocationRecord } from "@bpt-jersey/domain/schedule";
 
 const scheduleClient = vi.hoisted(() => ({ saveLocationGeofence: vi.fn() }));
 
-vi.mock("../../../lib/schedule-client", () => scheduleClient);
+vi.mock("../../../../lib/schedule-client", () => scheduleClient);
 
 import { SiteGeofencePanel } from "./site-geofence-panel";
 
@@ -39,17 +39,13 @@ describe("SiteGeofencePanel", () => {
       ...town,
       geofence: { latitude: 49.186, longitude: -2.106 },
     });
-    render(<SiteGeofencePanel locations={[town, west]} onSaved={onSaved} />);
+    render(<SiteGeofencePanel location={town} onSaved={onSaved} />);
 
     expect(
       screen.getByText("No coordinates recorded: check-ins here carry no location signal."),
     ).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Latitude", { selector: "#geofence-lat-town" }), {
-      target: { value: "49.186" },
-    });
-    fireEvent.change(screen.getByLabelText("Longitude", { selector: "#geofence-lng-town" }), {
-      target: { value: "-2.106" },
-    });
+    fireEvent.change(screen.getByLabelText("Latitude"), { target: { value: "49.186" } });
+    fireEvent.change(screen.getByLabelText("Longitude"), { target: { value: "-2.106" } });
     fireEvent.submit(screen.getByRole("form", { name: "BPT Town coordinates" }));
 
     await waitFor(() =>
@@ -70,7 +66,7 @@ describe("SiteGeofencePanel", () => {
   });
 
   it("refuses coordinates it cannot parse without calling the backend", async () => {
-    render(<SiteGeofencePanel locations={[town]} onSaved={vi.fn()} />);
+    render(<SiteGeofencePanel location={town} onSaved={vi.fn()} />);
 
     fireEvent.change(screen.getByLabelText("Latitude"), { target: { value: "north" } });
     fireEvent.change(screen.getByLabelText("Longitude"), { target: { value: "-2.106" } });
@@ -81,7 +77,7 @@ describe("SiteGeofencePanel", () => {
   });
 
   it("refuses blank fields instead of saving the (0, 0) coordinate", async () => {
-    render(<SiteGeofencePanel locations={[town]} onSaved={vi.fn()} />);
+    render(<SiteGeofencePanel location={town} onSaved={vi.fn()} />);
 
     // Only the latitude is typed; the longitude stays blank.
     fireEvent.change(screen.getByLabelText("Latitude"), { target: { value: "49.186" } });
@@ -94,7 +90,7 @@ describe("SiteGeofencePanel", () => {
   it("clears recorded coordinates with a null geofence", async () => {
     const onSaved = vi.fn();
     scheduleClient.saveLocationGeofence.mockResolvedValue({ ...west, geofence: null });
-    render(<SiteGeofencePanel locations={[west]} onSaved={onSaved} />);
+    render(<SiteGeofencePanel location={west} onSaved={onSaved} />);
 
     expect(screen.getByText("Recorded: 49.2, -2.18")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear coordinates" }));
@@ -109,7 +105,7 @@ describe("SiteGeofencePanel", () => {
   });
 
   it("disables clearing when nothing is recorded", () => {
-    render(<SiteGeofencePanel locations={[town]} onSaved={vi.fn()} />);
+    render(<SiteGeofencePanel location={town} onSaved={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Clear coordinates" })).toBeDisabled();
   });
 });
