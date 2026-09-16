@@ -131,6 +131,16 @@ y T020V2 (el centro de entrenamiento en la base de miembros).
 
 ---
 
+## V2-J - Clon de Classes / Services de Regyfit
+
+| ID   | Tarea atomica | Depende de | Estado | Evidencia de salida |
+| ---- | ------------- | ---------- | ------ | ------------------- |
+| T045V2 | Captura de solo lectura de las nueve subsecciones de Classes / Services de Regyfit (estructura, subpestañas, valores de configuracion, clases programadas e historial) | - | aprobada | Capturado el 2026-09-16 con Chrome visible por noVNC en la Tailnet y salida por tunel SSH inverso desde el portatil del operador (Regyfit bloquea la IP del VPS). Inventario saneado en `docs/data/migrations/regyfit/classes-services-inventory.md` (sin nombres ni IPs); crudo (25 MB de capturas y HTML, 2 sedes, 31 tipos, 10 planes, 1 descuento, 2 packs, opciones, drop-in, 177 clases sep-oct y 1000 filas de historial) en `/root/regyfit-capture/` fuera del repo, con los scripts CDP en `/root/regyfit-capture/scripts/`. Spec de diseno `docs/superpowers/specs/2026-09-16-regyfit-classes-services-clone-design.md` (4 decisiones de alcance + 14 de diseno, aprobadas en chat el 2026-09-16). |
+| T046V2 | Plan 1: cascara `/admin/classes-services` con nueve pestañas + Locations dinamicas + Class / Service Types (programas v2) + Classes & Services 2.0 (calendario, lista, panel de sesion, inscripciones, copy/delete week); sustituye `/admin/classes` | T045V2 | pendiente | Plan en `docs/superpowers/plans/` (por escribir). |
+| T047V2 | Plan 2: Memberships and Vouchers (planes dinamicos, descuentos, packs de creditos) + Drop-ins + Bulk Operations; sustituye `/admin/memberships` | T046V2 | pendiente | Plan en `docs/superpowers/plans/` (por escribir). |
+| T048V2 | Plan 3: Listings & Reports (8 informes XLSX/PDF imprimible) + Options (documento de configuracion) + History (auditoria con IP) | T047V2 | pendiente | Plan en `docs/superpowers/plans/` (por escribir). |
+| T049V2 | Plan 4: importacion desde Regyfit (catalogo, sesiones, inscripciones, drop-ins, historial) bajo el runbook de staging privado; emulador primero, produccion solo con confirmacion en chat | T048V2 | pendiente | Plan en `docs/superpowers/plans/` (por escribir). |
+
 ## Preguntas abiertas del operador
 
 No queda ninguna abierta. La ultima que lo estaba, la de T025V2 -si se abre una via de
