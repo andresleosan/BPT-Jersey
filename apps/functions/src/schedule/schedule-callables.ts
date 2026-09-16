@@ -24,6 +24,7 @@ import {
   parseDeleteWeekInput,
   parseUpdateLocationInput,
   parseUpdateProgramInput,
+  weekRangeFor,
 } from "@bpt-jersey/domain/schedule/classes-services";
 
 import { requireUserActor } from "../auth/user-authorization.js";
@@ -175,7 +176,10 @@ function mapSelfCheckInError(error: unknown): never {
   return mapAttendanceError(error);
 }
 
-function mapScheduleMutationError(error: unknown, resource: "Session" | "Class"): never {
+function mapScheduleMutationError(
+  error: unknown,
+  resource: "Session" | "Class" | "Location" | "Program",
+): never {
   if (error instanceof HttpsError) throw error;
   const message = error instanceof Error ? error.message : "";
   if (/does not exist/u.test(message)) {
@@ -201,14 +205,17 @@ async function academyTimezone(store: ScheduleStore, academyId: string): Promise
   return locations.find((l) => l.active)?.timezone ?? "Europe/Jersey";
 }
 
-function mapWeekError(error: unknown): never {
+function mapWeekError(
+  error: unknown,
+  fallbackMessage = "Unable to complete the week operation",
+): never {
   if (error instanceof HttpsError) throw error;
   const message = error instanceof Error ? error.message : "";
   if (/must be a Monday|YYYY-MM-DD|not a valid date/u.test(message)) {
     throw new HttpsError("invalid-argument", message);
   }
   console.error("week operation failed", error);
-  throw new HttpsError("internal", "Unable to complete the week operation");
+  throw new HttpsError("internal", fallbackMessage);
 }
 
 export function createListScheduleCatalogHandler(options: { store: ScheduleStore }) {
@@ -263,8 +270,12 @@ export function createSaveProgramHandler(options: { store: ScheduleStore }) {
       throw new HttpsError("permission-denied", "Manager access required to manage programs");
     }
 
-    const parsedV2 = parseCreateProgramInputV2(request.data);
-    if (parsedV2.ok) {
+    const data = request.data;
+    const isV2Shape =
+      typeof data === "object" && data !== null && "abbreviation" in data && !("ageBand" in data);
+    if (isV2Shape) {
+      const parsedV2 = parseCreateProgramInputV2(data);
+      if (!parsedV2.ok) throw new HttpsError("invalid-argument", parsedV2.error);
       const created = await store.createProgramV2(actor.academyId, parsedV2.value);
       return { program: created };
     }
@@ -302,7 +313,7 @@ export function createUpdateLocationHandler(options: { store: ScheduleStore }) {
         location: await options.store.updateLocation(actor.academyId, parsed.value, actor.userId),
       };
     } catch (error) {
-      mapScheduleMutationError(error, "Session");
+      mapScheduleMutationError(error, "Location");
     }
   };
 }
@@ -315,7 +326,7 @@ export function createUpdateProgramHandler(options: { store: ScheduleStore }) {
     try {
       return { program: await options.store.updateProgramV2(actor.academyId, parsed.value) };
     } catch (error) {
-      mapScheduleMutationError(error, "Class");
+      mapScheduleMutationError(error, "Program");
     }
   };
 }
@@ -331,8 +342,10 @@ export function createPreviewWeekHandler(options: { store: ScheduleStore }) {
     if (typeof weekStart !== "string") {
       throw new HttpsError("invalid-argument", "weekStart must be YYYY-MM-DD");
     }
+    const timezone = await academyTimezone(options.store, actor.academyId);
+    const range = weekRangeFor(weekStart, timezone);
+    if (!range.ok) throw new HttpsError("invalid-argument", range.error);
     try {
-      const timezone = await academyTimezone(options.store, actor.academyId);
       return { preview: await options.store.previewWeek(actor.academyId, weekStart, timezone) };
     } catch (error) {
       mapWeekError(error);
@@ -356,19 +369,10 @@ export function createCopyWeekHandler(options: { store: ScheduleStore }) {
         ),
       };
     } catch (error) {
-      if (error instanceof HttpsError) throw error;
-      const message = error instanceof Error ? error.message : "";
-      if (/must be a Monday|YYYY-MM-DD|not a valid date/u.test(message)) {
-        throw new HttpsError("invalid-argument", message);
-      }
       // A non-refusal error mid-copy (capacity/financial refusals are already swallowed by the
       // store) leaves the sessions created so far in place; the idempotence guard skips them on
       // a re-run, so the operator can simply try again.
-      console.error("copy week stopped part-way", error);
-      throw new HttpsError(
-        "internal",
-        "Copying the week stopped part-way; run it again to finish.",
-      );
+      mapWeekError(error, "Copying the week stopped part-way; run it again to finish.");
     }
   };
 }
