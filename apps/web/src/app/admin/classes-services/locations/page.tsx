@@ -92,12 +92,16 @@ export function LocationsPage() {
   async function patch(
     locationId: string,
     change: { active?: boolean; kind?: LocationKind; name?: string; abbreviation?: string },
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
-      replace(await updateLocation({ locationId, ...change }));
+      const updated = await updateLocation({ locationId, ...change });
+      replace(updated);
+      setEditing((current) => (current?.locationId === locationId ? updated : current));
       setNotice({ kind: "success", message: "Site updated." });
+      return true;
     } catch (error) {
       setNotice({ kind: "error", message: (error as Error).message });
+      return false;
     }
   }
 
@@ -114,8 +118,7 @@ export function LocationsPage() {
   async function onSaveEdit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (!editing) return;
-    await patch(editing.locationId, editDraft);
-    closeDialog();
+    if (await patch(editing.locationId, editDraft)) closeDialog();
   }
 
   if (status === "loading") {
@@ -150,16 +153,22 @@ export function LocationsPage() {
                 value={draft.name}
               />
             </label>
-            <label>
+            <label htmlFor="location-create-abbreviation">
               Abbreviation
               <input
+                aria-describedby="location-create-abbreviation-hint"
+                id="location-create-abbreviation"
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, abbreviation: event.target.value }))
                 }
+                pattern="[A-Za-z0-9_-]{2,12}"
                 required
                 value={draft.abbreviation}
               />
             </label>
+            <small id="location-create-abbreviation-hint">
+              2 to 12 letters, digits, &quot;_&quot; or &quot;-&quot;.
+            </small>
             <label>
               Kind
               <select
@@ -201,7 +210,7 @@ export function LocationsPage() {
               <th>Status</th>
               <th>Type</th>
               <th>
-                <span className="sr-only">Actions</span>
+                <span className="visually-hidden">Actions</span>
               </th>
             </tr>
           </thead>
@@ -264,33 +273,47 @@ export function LocationsPage() {
 
       <dialog className="cs-edit-dialog" onClose={onDialogClose} ref={dialogRef}>
         {editing ? (
-          <form onSubmit={(event) => void onSaveEdit(event)}>
-            <h2>Edit site</h2>
-            <label>
-              Name
-              <input
-                onChange={(event) =>
-                  setEditDraft((current) => ({ ...current, name: event.target.value }))
-                }
-                required
-                value={editDraft.name}
-              />
-            </label>
-            <label>
-              Abbreviation
-              <input
-                onChange={(event) =>
-                  setEditDraft((current) => ({ ...current, abbreviation: event.target.value }))
-                }
-                required
-                value={editDraft.abbreviation}
-              />
-            </label>
-            <button className="button" type="submit">
-              Save
-            </button>
-            <SiteGeofencePanel location={editing} onSaved={replace} />
-          </form>
+          <>
+            <form onSubmit={(event) => void onSaveEdit(event)}>
+              <h2>Edit {editing.name}</h2>
+              <label>
+                Name
+                <input
+                  onChange={(event) =>
+                    setEditDraft((current) => ({ ...current, name: event.target.value }))
+                  }
+                  required
+                  value={editDraft.name}
+                />
+              </label>
+              <label htmlFor="location-edit-abbreviation">
+                Abbreviation
+                <input
+                  aria-describedby="location-edit-abbreviation-hint"
+                  id="location-edit-abbreviation"
+                  onChange={(event) =>
+                    setEditDraft((current) => ({ ...current, abbreviation: event.target.value }))
+                  }
+                  pattern="[A-Za-z0-9_-]{2,12}"
+                  required
+                  value={editDraft.abbreviation}
+                />
+              </label>
+              <small id="location-edit-abbreviation-hint">
+                2 to 12 letters, digits, &quot;_&quot; or &quot;-&quot;.
+              </small>
+              <button className="button" type="submit">
+                Save
+              </button>
+            </form>
+            <SiteGeofencePanel
+              location={editing}
+              onSaved={(record) => {
+                replace(record);
+                setEditing(record);
+              }}
+            />
+          </>
         ) : null}
       </dialog>
     </>
