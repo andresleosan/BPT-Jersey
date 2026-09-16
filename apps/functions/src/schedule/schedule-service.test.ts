@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildBookingId } from "@bpt-jersey/domain/schedule";
+import { shiftIso } from "@bpt-jersey/domain/schedule/classes-services";
 
 import { createFirestoreScheduleStore, createInMemoryScheduleStore } from "./schedule-service";
 
@@ -1166,5 +1167,178 @@ describe("schedule store: v2 classes, session edits, class removal and booked co
     );
     const counts = await store.countConfirmedBookings(academyId, [session.sessionId, "missing"]);
     expect(counts).toEqual({ [session.sessionId]: 1, missing: 0 });
+  });
+});
+
+describe("classes-services store", () => {
+  const academyId = "demo-academy";
+
+  it("creates a location with a slug id and updates it", async () => {
+    const store = createInMemoryScheduleStore();
+    const created = await store.createLocation(
+      academyId,
+      { name: "Salle Ouest", abbreviation: "ouest", kind: "presential" },
+      "admin-1",
+    );
+    expect(created.locationId).toBe("salle-ouest");
+    expect(created.active).toBe(true);
+    const second = await store.createLocation(
+      academyId,
+      { name: "Salle Ouest", abbreviation: "oue2", kind: "zoom" },
+      "admin-1",
+    );
+    expect(second.locationId).toBe("salle-ouest-2");
+    const updated = await store.updateLocation(
+      academyId,
+      { locationId: "salle-ouest", active: false, kind: "jitsi" },
+      "admin-1",
+    );
+    expect(updated.active).toBe(false);
+    expect(updated.kind).toBe("jitsi");
+    const listed = await store.listLocations(academyId);
+    expect(listed.map((l) => l.locationId)).toEqual([
+      "town",
+      "west",
+      "salle-ouest",
+      "salle-ouest-2",
+    ]);
+  });
+
+  it("materialises a default site before updating it", async () => {
+    const store = createInMemoryScheduleStore();
+    const updated = await store.updateLocation(
+      academyId,
+      { locationId: "west", abbreviation: "wes" },
+      "admin-1",
+    );
+    expect(updated.name).toBe("BPT West");
+    expect(updated.abbreviation).toBe("wes");
+  });
+
+  it("creates a v2 program with defaults and updates its colour", async () => {
+    const store = createInMemoryScheduleStore();
+    const program = await store.createProgramV2(academyId, {
+      name: "GI Beginners Mornings",
+      abbreviation: "BEG_MOR",
+    });
+    expect(program).toMatchObject({
+      abbreviation: "BEG_MOR",
+      colour: "#F0EFFF",
+      kind: "class-frequency",
+      dropInPolicy: "unlimited",
+      active: true,
+    });
+    const updated = await store.updateProgramV2(academyId, {
+      programId: program.programId,
+      colour: "#D9D7FF",
+      showInList: false,
+    });
+    expect(updated.colour).toBe("#D9D7FF");
+    expect(updated.showInList).toBe(false);
+  });
+
+  it("previews, copies and deletes a week", async () => {
+    const store = createInMemoryScheduleStore();
+    const make = (startAt: string) =>
+      store.createSession(
+        academyId,
+        {
+          programId: "open-mat",
+          locationId: "town",
+          instructorId: "coach-1",
+          title: "Open Mat",
+          startAt,
+          endAt: shiftIso(startAt, 0).replace("T17:00", "T18:00"),
+          capacity: null,
+        },
+        "admin-1",
+      );
+    await make("2026-09-14T17:00:00.000Z");
+    await make("2026-09-16T17:00:00.000Z");
+    await make("2026-09-23T17:00:00.000Z"); // the next week: out of range
+    const preview = await store.previewWeek(academyId, "2026-09-14", "Europe/Jersey");
+    expect(preview.count).toBe(2);
+    expect(preview.sample.map((s) => s.startAt)).toEqual([
+      "2026-09-14T17:00:00.000Z",
+      "2026-09-16T17:00:00.000Z",
+    ]);
+
+    const copied = await store.copyWeek(
+      academyId,
+      { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-28", copyBookings: false },
+      "Europe/Jersey",
+      "admin-1",
+    );
+    expect(copied.map((s) => s.startAt)).toEqual([
+      "2026-09-28T17:00:00.000Z",
+      "2026-09-30T17:00:00.000Z",
+    ]);
+    expect(copied.every((s) => s.status === "scheduled" && s.classId === null)).toBe(true);
+
+    const again = await store.copyWeek(
+      academyId,
+      { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-28", copyBookings: false },
+      "Europe/Jersey",
+      "admin-1",
+    );
+    expect(again).toHaveLength(0); // idempotent
+
+    const cancelled = await store.deleteWeek(
+      academyId,
+      { weekStart: "2026-09-28", reason: "Bank holiday" },
+      "Europe/Jersey",
+      "admin-1",
+    );
+    expect(cancelled).toHaveLength(2);
+    expect(
+      cancelled.every((s) => s.status === "cancelled" && s.cancellationReason === "Bank holiday"),
+    ).toBe(true);
+  });
+
+  it("copies the confirmed bookings of a week when asked", async () => {
+    const store = createInMemoryScheduleStore();
+    const session = await store.createSession(
+      academyId,
+      {
+        programId: "open-mat",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Open Mat",
+        startAt: "2026-09-14T17:00:00.000Z",
+        endAt: "2026-09-14T18:00:00.000Z",
+        capacity: 10,
+      },
+      "admin-1",
+    );
+    await store.requestBooking(
+      academyId,
+      { sessionId: session.sessionId, studentId: "student-1", membershipId: "mem-1" },
+      "admin-1",
+    );
+    await store.requestBooking(
+      academyId,
+      { sessionId: session.sessionId, studentId: "student-2", membershipId: "mem-2" },
+      "admin-1",
+    );
+    await store.cancelBooking(
+      academyId,
+      { sessionId: session.sessionId, studentId: "student-2", reason: "Away" },
+      "admin-1",
+      true,
+    );
+
+    const [copy] = await store.copyWeek(
+      academyId,
+      { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: true },
+      "Europe/Jersey",
+      "admin-1",
+    );
+    const bookings = await store.listSessionBookings(academyId, copy!.sessionId);
+    expect(bookings.map((b) => b.studentId)).toEqual(["student-1"]);
+    expect(bookings[0]).toMatchObject({
+      bookingId: buildBookingId(copy!.sessionId, "student-1"),
+      status: "confirmed",
+      membershipId: "mem-1",
+    });
   });
 });
