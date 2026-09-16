@@ -6,11 +6,17 @@ import {
   dropInPolicies,
   programDefaultsV2,
   programKinds,
+  programMessageMaxLength,
   type DropInPolicy,
   type ProgramKind,
 } from "@bpt-jersey/domain/schedule/classes-services";
 
-import { getScheduleCatalog, listSessions, saveProgramV2, updateProgram } from "../../../../lib/schedule-client";
+import {
+  getScheduleCatalog,
+  listSessions,
+  saveProgramV2,
+  updateProgram,
+} from "../../../../lib/schedule-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
 
 import "./types.css";
@@ -47,6 +53,7 @@ export function TypesPage() {
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState({ name: "", abbreviation: "" });
   const [messages, setMessages] = useState<Record<string, string>>({});
+  const [colours, setColours] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let alive = true;
@@ -58,9 +65,7 @@ export function TypesPage() {
         const sessions = await listSessions({ from, to });
         if (!alive) return;
         setPrograms(catalog.programs);
-        setInUse(
-          new Set(sessions.filter((s) => s.status !== "cancelled").map((s) => s.programId)),
-        );
+        setInUse(new Set(sessions.filter((s) => s.status !== "cancelled").map((s) => s.programId)));
         setStatus("ready");
       } catch {
         if (alive) setStatus("error");
@@ -107,6 +112,25 @@ export function TypesPage() {
     } catch (error) {
       setNotice({ kind: "error", message: (error as Error).message });
     }
+  }
+
+  async function saveMessage(program: ProgramRecord): Promise<void> {
+    await patch(program.programId, {
+      message: messages[program.programId] ?? program.message ?? programDefaultsV2.message,
+    });
+    setMessages((current) =>
+      Object.fromEntries(Object.entries(current).filter(([id]) => id !== program.programId)),
+    );
+  }
+
+  async function saveColour(program: ProgramRecord): Promise<void> {
+    const draftColour = colours[program.programId];
+    const savedColour = program.colour ?? programDefaultsV2.colour;
+    if (draftColour === undefined || draftColour === savedColour) return;
+    await patch(program.programId, { colour: draftColour });
+    setColours((current) =>
+      Object.fromEntries(Object.entries(current).filter(([id]) => id !== program.programId)),
+    );
   }
 
   if (status === "loading") {
@@ -180,128 +204,165 @@ export function TypesPage() {
       <section className="cs-card">
         <input
           aria-label="Search types"
+          className="types-search"
           onChange={(event) => setSearch(event.target.value)}
           type="search"
           value={search}
         />
-        <table className="cs-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Colour</th>
-              <th>Status</th>
-              <th>Type</th>
-              <th>Drop-ins / trials</th>
-              <th>E-mail</th>
-              <th>List</th>
-              <th>Message</th>
-              <th>In use</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((program) => (
-              <tr
-                key={program.programId}
-                style={{ "--type-colour": program.colour ?? programDefaultsV2.colour } as CSSProperties}
-              >
-                <td data-label="Name">
-                  <span className="cs-abbr">{program.abbreviation ?? "—"}</span>
-                  {program.name}
-                </td>
-                <td data-label="Colour">
-                  <span aria-hidden="true" className="cs-swatch" style={{ background: "var(--type-colour)" }} />
-                  <input
-                    aria-label={`Colour of ${program.name}`}
-                    disabled={!canEdit}
-                    onChange={(event) => void patch(program.programId, { colour: event.target.value })}
-                    type="color"
-                    value={program.colour ?? programDefaultsV2.colour}
-                  />
-                </td>
-                <td data-label="Status">
-                  <label>
-                    <input
-                      checked={program.active}
-                      disabled={!canEdit}
-                      onChange={(event) => void patch(program.programId, { active: event.target.checked })}
-                      type="checkbox"
-                    />{" "}
-                    Active
-                  </label>
-                </td>
-                <td data-label="Type">
-                  <select
-                    aria-label={`Kind of ${program.name}`}
-                    disabled={!canEdit}
-                    onChange={(event) => void patch(program.programId, { kind: event.target.value as ProgramKind })}
-                    value={program.kind ?? programDefaultsV2.kind}
-                  >
-                    {programKinds.map((kind) => (
-                      <option key={kind} value={kind}>
-                        {kindLabels[kind]}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td data-label="Drop-ins / trials">
-                  <select
-                    aria-label={`Drop-ins of ${program.name}`}
-                    disabled={!canEdit}
-                    onChange={(event) =>
-                      void patch(program.programId, { dropInPolicy: event.target.value as DropInPolicy })
-                    }
-                    value={program.dropInPolicy ?? programDefaultsV2.dropInPolicy}
-                  >
-                    {dropInPolicies.map((policy) => (
-                      <option key={policy} value={policy}>
-                        {dropInLabels[policy]}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td data-label="E-mail">
-                  <input
-                    aria-label={`E-mail for ${program.name}`}
-                    checked={program.notifyByEmail ?? programDefaultsV2.notifyByEmail}
-                    disabled={!canEdit}
-                    onChange={(event) => void patch(program.programId, { notifyByEmail: event.target.checked })}
-                    type="checkbox"
-                  />
-                </td>
-                <td data-label="List">
-                  <input
-                    aria-label={`List ${program.name}`}
-                    checked={program.showInList ?? programDefaultsV2.showInList}
-                    disabled={!canEdit}
-                    onChange={(event) => void patch(program.programId, { showInList: event.target.checked })}
-                    type="checkbox"
-                  />
-                </td>
-                <td data-label="Message">
-                  <input
-                    aria-label={`Message of ${program.name}`}
-                    disabled={!canEdit}
-                    onChange={(event) =>
-                      setMessages((current) => ({ ...current, [program.programId]: event.target.value }))
-                    }
-                    value={messages[program.programId] ?? program.message ?? programDefaultsV2.message}
-                  />
-                  <button
-                    className="button button-secondary"
-                    disabled={!canEdit}
-                    onClick={() =>
-                      void patch(program.programId, { message: messages[program.programId] ?? "" })
-                    }
-                    type="button"
-                  >
-                    Save <span className="sr-only">{`message of ${program.name}`}</span>
-                  </button>
-                </td>
-                <td data-label="In use">{inUse.has(program.programId) ? "In use" : ""}</td>
+        {visible.length === 0 ? (
+          <p>No types match.</p>
+        ) : (
+          <table className="cs-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Colour</th>
+                <th>Status</th>
+                <th>Type</th>
+                <th>Drop-ins / trials</th>
+                <th>E-mail</th>
+                <th>List</th>
+                <th>Message</th>
+                <th>In use</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visible.map((program) => {
+                const colour =
+                  colours[program.programId] ?? program.colour ?? programDefaultsV2.colour;
+                return (
+                  <tr key={program.programId} style={{ "--type-colour": colour } as CSSProperties}>
+                    <td data-label="Name">
+                      <span className="cs-abbr">{program.abbreviation ?? "—"}</span>
+                      {program.name}
+                    </td>
+                    <td data-label="Colour">
+                      <span
+                        aria-hidden="true"
+                        className="cs-swatch"
+                        style={{ background: "var(--type-colour)" }}
+                      />
+                      <input
+                        aria-label={`Colour of ${program.name}`}
+                        disabled={!canEdit}
+                        onBlur={() => void saveColour(program)}
+                        onChange={(event) =>
+                          setColours((current) => ({
+                            ...current,
+                            [program.programId]: event.target.value,
+                          }))
+                        }
+                        type="color"
+                        value={colour}
+                      />
+                    </td>
+                    <td data-label="Status">
+                      <label>
+                        <input
+                          aria-label={`Status of ${program.name}`}
+                          checked={program.active}
+                          disabled={!canEdit}
+                          onChange={(event) =>
+                            void patch(program.programId, { active: event.target.checked })
+                          }
+                          type="checkbox"
+                        />{" "}
+                        Active
+                      </label>
+                    </td>
+                    <td data-label="Type">
+                      <select
+                        aria-label={`Kind of ${program.name}`}
+                        disabled={!canEdit}
+                        onChange={(event) =>
+                          void patch(program.programId, { kind: event.target.value as ProgramKind })
+                        }
+                        value={program.kind ?? programDefaultsV2.kind}
+                      >
+                        {programKinds.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {kindLabels[kind]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td data-label="Drop-ins / trials">
+                      <select
+                        aria-label={`Drop-ins of ${program.name}`}
+                        disabled={!canEdit}
+                        onChange={(event) =>
+                          void patch(program.programId, {
+                            dropInPolicy: event.target.value as DropInPolicy,
+                          })
+                        }
+                        value={program.dropInPolicy ?? programDefaultsV2.dropInPolicy}
+                      >
+                        {dropInPolicies.map((policy) => (
+                          <option key={policy} value={policy}>
+                            {dropInLabels[policy]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td data-label="E-mail">
+                      <input
+                        aria-label={`E-mail for ${program.name}`}
+                        checked={program.notifyByEmail ?? programDefaultsV2.notifyByEmail}
+                        disabled={!canEdit}
+                        onChange={(event) =>
+                          void patch(program.programId, { notifyByEmail: event.target.checked })
+                        }
+                        type="checkbox"
+                      />
+                    </td>
+                    <td data-label="List">
+                      <input
+                        aria-label={`List ${program.name}`}
+                        checked={program.showInList ?? programDefaultsV2.showInList}
+                        disabled={!canEdit}
+                        onChange={(event) =>
+                          void patch(program.programId, { showInList: event.target.checked })
+                        }
+                        type="checkbox"
+                      />
+                    </td>
+                    <td data-label="Message">
+                      <input
+                        aria-label={`Message of ${program.name}`}
+                        disabled={!canEdit}
+                        maxLength={programMessageMaxLength}
+                        onChange={(event) =>
+                          setMessages((current) => ({
+                            ...current,
+                            [program.programId]: event.target.value,
+                          }))
+                        }
+                        value={
+                          messages[program.programId] ??
+                          program.message ??
+                          programDefaultsV2.message
+                        }
+                      />
+                      <button
+                        className="button button-secondary"
+                        disabled={!canEdit}
+                        onClick={() => void saveMessage(program)}
+                        type="button"
+                      >
+                        Save <span className="visually-hidden">{`message of ${program.name}`}</span>
+                      </button>
+                    </td>
+                    <td data-label="In use">
+                      {inUse.has(program.programId) ? (
+                        <span className="cs-inuse">In use</span>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </section>
     </>
   );
