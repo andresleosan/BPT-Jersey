@@ -84,7 +84,7 @@ describe("RegistrationsPanel", () => {
       studentId: "st2",
       status: "confirmed",
     });
-    render(<RegistrationsPanel session={sessionFixture} canEdit />);
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     expect(await screen.findByRole("button", { name: /remove/i })).toBeInTheDocument();
     fireEvent.change(screen.getByRole("searchbox", { name: "Enrol a member of this gym" }), {
       target: { value: "wi" },
@@ -109,7 +109,7 @@ describe("RegistrationsPanel", () => {
       studentId: "st1",
       status: "cancelled",
     });
-    render(<RegistrationsPanel session={sessionFixture} canEdit />);
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     fireEvent.click(await screen.findByRole("button", { name: /remove/i }));
     await waitFor(() =>
       expect(mocks.cancelBooking).toHaveBeenCalledWith({
@@ -135,7 +135,7 @@ describe("RegistrationsPanel", () => {
       studentId: "st3",
       status: "confirmed",
     });
-    render(<RegistrationsPanel session={sessionFixture} canEdit />);
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     fireEvent.click(screen.getByRole("tab", { name: "Group" }));
     fireEvent.click(await screen.findByRole("button", { name: "Scally family" }));
     await waitFor(() => expect(mocks.requestBooking).toHaveBeenCalledTimes(2));
@@ -151,7 +151,7 @@ describe("RegistrationsPanel", () => {
       { studentId: "st2", fullName: "Willow S.", familyId: null },
     ]);
     mocks.listMemberships.mockResolvedValue([membership("m2", "st2", "f2", "cancelled")]);
-    render(<RegistrationsPanel session={sessionFixture} canEdit />);
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     fireEvent.change(screen.getByRole("searchbox", { name: "Enrol a member of this gym" }), {
       target: { value: "wi" },
     });
@@ -161,7 +161,7 @@ describe("RegistrationsPanel", () => {
   });
 
   it("explains that External registrations arrive with Drop-ins", () => {
-    render(<RegistrationsPanel session={sessionFixture} canEdit />);
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
     fireEvent.click(screen.getByRole("tab", { name: "External" }));
     expect(
       screen.getByText(/Drop-in registrations arrive with the Drop-ins release/i),
@@ -172,9 +172,31 @@ describe("RegistrationsPanel", () => {
     mocks.listSessionBookings.mockResolvedValue([
       { bookingId: "b1", sessionId: "s1", studentId: "st1", status: "confirmed" },
     ]);
-    render(<RegistrationsPanel session={sessionFixture} canEdit={false} />);
+    render(
+      <RegistrationsPanel session={sessionFixture} canEdit={false} canReadMemberships={false} />,
+    );
     expect(await screen.findByText("st1")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the studentId when the member directory is refused", async () => {
+    mocks.listSessionBookings.mockResolvedValue([
+      { bookingId: "b1", sessionId: "s1", studentId: "st1", status: "confirmed" },
+    ]);
+    mocks.listMemberNames.mockRejectedValue(new Error("permission-denied"));
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+    expect(await screen.findByText("st1")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("tells a head coach that enrolment needs an office account", async () => {
+    mocks.listMemberNames.mockResolvedValue([
+      { studentId: "st2", fullName: "Willow S.", familyId: null },
+    ]);
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships={false} />);
+    expect(await screen.findByText("Enrolment needs an office account")).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Enrol a member of this gym" })).toBeDisabled();
+    expect(mocks.listMemberships).not.toHaveBeenCalled();
   });
 });

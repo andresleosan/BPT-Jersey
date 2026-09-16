@@ -35,6 +35,8 @@ type Panel =
 const fallbackTimezone = "Europe/Jersey";
 const fallbackColour = "#F0EFFF";
 const gridWindow = { fromHour: 6, toHour: 23 };
+const maxWindowMs = 90 * 86_400_000;
+const viewPanelId = "cs-classes-view";
 const monthNames = [
   "JAN",
   "FEB",
@@ -80,7 +82,39 @@ function queryFor(
     return boundsOf(mondayOf(first), addDays(last, 6 - lastOffset), timezone);
   }
   const week = weekRangeFor(mondayOf(anchor), timezone);
-  return week.ok ? week.value : boundsOf(mondayOf(anchor), addDays(mondayOf(anchor), 6), timezone);
+  // The caller runs inside the load's try: a rejected week surfaces in the notice.
+  if (!week.ok) throw new Error(week.error);
+  return week.value;
+}
+
+/**
+ * `parseListSessionsQuery` refuses a range wider than 90 days, so a wider one is asked for in
+ * consecutive windows and put back together. A range that already fits makes exactly one call.
+ */
+async function loadRange(
+  query: { from: string; to: string },
+  withCounts: boolean,
+): Promise<{ sessions: readonly SessionRecord[]; booked: Readonly<Record<string, number>> }> {
+  const windows: { from: string; to: string }[] = [];
+  const to = Date.parse(query.to);
+  for (let from = Date.parse(query.from); from <= to;) {
+    const end = Math.min(from + maxWindowMs, to);
+    windows.push({ from: new Date(from).toISOString(), to: new Date(end).toISOString() });
+    from = end + 1;
+  }
+  const loaded = await Promise.all(
+    windows.map(async (window) => ({
+      sessions: await listSessions(window),
+      booked: withCounts ? await listSessionBookedCounts(window) : {},
+    })),
+  );
+  // A class that straddles a window edge can come back twice; the session id is the identity.
+  const byId = new Map<string, SessionRecord>();
+  for (const part of loaded) for (const row of part.sessions) byId.set(row.sessionId, row);
+  return {
+    sessions: [...byId.values()],
+    booked: Object.assign({}, ...loaded.map((part) => part.booked)) as Record<string, number>,
+  };
 }
 
 function boundsOf(from: string, to: string, timezone: string): { from: string; to: string } {
@@ -90,8 +124,7 @@ function boundsOf(from: string, to: string, timezone: string): { from: string; t
   };
 }
 
-function yearQueryFor(today: string, timezone: string): { from: string; to: string } {
-  const year = today.slice(0, 4);
+function yearQueryFor(year: string, timezone: string): { from: string; to: string } {
   return boundsOf(`${year}-01-01`, `${year}-12-31`, timezone);
 }
 
@@ -108,13 +141,17 @@ function titleOf(range: Range, anchor: string): string {
   const head =
     startParts.month === endParts.month
       ? `${startDay}`
-      : `${startDay} ${monthNames[startParts.month]}`;
+      : startParts.year === endParts.year
+        ? `${startDay} ${monthNames[startParts.month]}`
+        : `${startDay} ${monthNames[startParts.month]} ${startParts.year}`;
   return `${head} – ${endDay} ${monthNames[endParts.month]} ${endParts.year}`;
 }
 
 export function ClassesPage(): ReactElement {
   const session = useAdminOrStaffSession();
   const canEdit = session.role !== "coach";
+  // `listMemberships` is reserved for the office: a head coach may edit a class but not enrol.
+  const canReadMemberships = session.role === "owner" || session.role === "administrator";
   const actorId = session.uid;
 
   const [view, setView] = useState<View>("calendar");
@@ -139,15 +176,30 @@ export function ClassesPage(): ReactElement {
     let abandoned = false;
     void (async () => {
       try {
-        const [loaded, staffRows] = await Promise.all([getScheduleCatalog(), listStaffProfiles()]);
-        if (abandoned) return;
-        setCatalog(loaded);
-        setStaff(staffRows);
+        const loaded = await getScheduleCatalog();
+        if (!abandoned) setCatalog(loaded);
       } catch (failure) {
         if (!abandoned) {
           setError(messageOf(failure, "Unable to load the schedule catalogue"));
           setLoading(false);
         }
+      }
+    })();
+    return () => {
+      abandoned = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let abandoned = false;
+    void (async () => {
+      try {
+        const rows = await listStaffProfiles();
+        if (!abandoned) setStaff(rows);
+      } catch {
+        // Staff profiles are an office-only read that only feeds filter options and trainer
+        // labels; a coach or head coach still gets the whole calendar without them.
+        if (!abandoned) setStaff([]);
       }
     })();
     return () => {
@@ -163,24 +215,10 @@ export function ClassesPage(): ReactElement {
     setLoading(true);
     void (async () => {
       try {
-        const query = queryFor(range, weekStart, timezone, listRange);
-        const [rows, counts] = await Promise.all([
-          listSessions(query),
-          listSessionBookedCounts(query),
-        ]);
-        // The TOTAL counter is a whole-year figure: one extra query, kept for the session.
-        const cached =
-          totalRef.current ??
-          (
-            await listSessions(
-              yearQueryFor(localParts(new Date().toISOString(), timezone).date, timezone),
-            )
-          ).length;
-        totalRef.current = cached;
+        const loaded = await loadRange(queryFor(range, weekStart, timezone, listRange), true);
         if (abandoned) return;
-        setSessions(rows);
-        setBooked(counts);
-        setTotal(cached);
+        setSessions(loaded.sessions);
+        setBooked(loaded.booked);
         setError(null);
       } catch (failure) {
         if (!abandoned) setError(messageOf(failure, "Unable to load the classes"));
@@ -192,6 +230,25 @@ export function ClassesPage(): ReactElement {
       abandoned = true;
     };
   }, [catalog, range, weekStart, timezone, listRange, reload]);
+
+  useEffect(() => {
+    if (catalog === null || totalRef.current !== null) return undefined;
+    let abandoned = false;
+    void (async () => {
+      try {
+        const year = localParts(new Date().toISOString(), timezone).date.slice(0, 4);
+        const loaded = await loadRange(yearQueryFor(year, timezone), false);
+        totalRef.current = loaded.sessions.length;
+        if (!abandoned) setTotal(loaded.sessions.length);
+      } catch {
+        // TOTAL is a nicety: its failure must never disturb the calendar the office is reading.
+        if (!abandoned) setTotal(null);
+      }
+    })();
+    return () => {
+      abandoned = true;
+    };
+  }, [catalog, timezone, reload]);
 
   const locations = catalog?.locations ?? [];
   const programs = catalog?.programs ?? [];
@@ -237,11 +294,11 @@ export function ClassesPage(): ReactElement {
   }
 
   function step(direction: 1 | -1): void {
-    if (range === "day") setWeekStart(addDays(weekStart, direction));
-    else if (range === "week") setWeekStart(addDays(mondayOf(weekStart), 7 * direction));
+    if (range === "day") goTo(addDays(weekStart, direction));
+    else if (range === "week") goTo(addDays(mondayOf(weekStart), 7 * direction));
     else {
       const { year, month } = monthOf(weekStart);
-      setWeekStart(new Date(Date.UTC(year, month + direction, 1)).toISOString().slice(0, 10));
+      goTo(new Date(Date.UTC(year, month + direction, 1)).toISOString().slice(0, 10));
     }
   }
 
@@ -252,14 +309,22 @@ export function ClassesPage(): ReactElement {
 
   function afterChange(): void {
     setPanel(null);
+    // A create, a cancellation or a whole week moved: the year's count is no longer valid.
+    totalRef.current = null;
     setReload((previous) => previous + 1);
+  }
+
+  /** Moving the calendar drops any list date-range preset, so the query follows the title again. */
+  function goTo(date: string): void {
+    setDateRange(null);
+    setWeekStart(date);
   }
 
   const edited =
     panel?.mode === "edit" ? sessions.find((row) => row.sessionId === panel.sessionId) : undefined;
 
   return (
-    <section className="cs-card cs-classes">
+    <section className="cs-card">
       <h2>Classes &amp; Services 2.0</h2>
       <div className="cs-classes-header">
         <div role="tablist" aria-label="View" className="cs-subtabs">
@@ -269,6 +334,7 @@ export function ClassesPage(): ReactElement {
               type="button"
               role="tab"
               className="cs-subtab"
+              aria-controls={viewPanelId}
               aria-selected={view === candidate}
               onClick={() => setView(candidate)}
             >
@@ -304,7 +370,7 @@ export function ClassesPage(): ReactElement {
         >
           ‹
         </button>
-        <button type="button" className="cs-button" onClick={() => setWeekStart(anchorFor(today))}>
+        <button type="button" className="cs-button" onClick={() => goTo(anchorFor(today))}>
           Today
         </button>
         <button
@@ -320,7 +386,7 @@ export function ClassesPage(): ReactElement {
           <input
             type="date"
             value={weekStart}
-            onChange={(event) => setWeekStart(anchorFor(event.target.value))}
+            onChange={(event) => goTo(anchorFor(event.target.value))}
           />
         </label>
         <p className="cs-range-title">{titleOf(range, weekStart)}</p>
@@ -369,35 +435,37 @@ export function ClassesPage(): ReactElement {
           Loading the schedule…
         </p>
       ) : null}
-      {view === "calendar" ? (
-        <CalendarView
-          view={range}
-          weekStart={weekStart}
-          sessions={visible}
-          timezone={timezone}
-          window={gridWindow}
-          canEdit={canEdit}
-          onOpen={(sessionId) => setPanel({ mode: "edit", sessionId })}
-          onCreate={(date, startTime) =>
-            setPanel({ mode: "create", defaults: { date, startTime } })
-          }
-          onSelectWeek={(monday) => {
-            setRange("week");
-            setWeekStart(monday);
-          }}
-        />
-      ) : (
-        <ListView
-          sessions={visible}
-          locations={locations}
-          programs={programs}
-          timezone={timezone}
-          today={today}
-          dateRange={dateRange}
-          onDateRange={setDateRange}
-          onOpen={(sessionId) => setPanel({ mode: "edit", sessionId })}
-        />
-      )}
+      <div id={viewPanelId} role="tabpanel" aria-label={view === "calendar" ? "Calendar" : "List"}>
+        {view === "calendar" ? (
+          <CalendarView
+            view={range}
+            weekStart={weekStart}
+            sessions={visible}
+            timezone={timezone}
+            window={gridWindow}
+            canEdit={canEdit}
+            onOpen={(sessionId) => setPanel({ mode: "edit", sessionId })}
+            onCreate={(date, startTime) =>
+              setPanel({ mode: "create", defaults: { date, startTime } })
+            }
+            onSelectWeek={(monday) => {
+              setRange("week");
+              goTo(monday);
+            }}
+          />
+        ) : (
+          <ListView
+            sessions={visible}
+            locations={locations}
+            programs={programs}
+            timezone={timezone}
+            today={today}
+            dateRange={dateRange}
+            onDateRange={setDateRange}
+            onOpen={(sessionId) => setPanel({ mode: "edit", sessionId })}
+          />
+        )}
+      </div>
       {catalog !== null && panel !== null && (panel.mode === "create" || edited !== undefined) ? (
         <SessionPanel
           mode={panel.mode}
@@ -407,6 +475,7 @@ export function ClassesPage(): ReactElement {
           timezone={timezone}
           defaults={panel.mode === "create" ? panel.defaults : undefined}
           canEdit={canEdit}
+          canReadMemberships={canReadMemberships}
           onSaved={afterChange}
           onCancelled={afterChange}
           onClose={() => setPanel(null)}

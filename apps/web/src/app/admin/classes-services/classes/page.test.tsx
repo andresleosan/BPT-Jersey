@@ -82,6 +82,16 @@ const westSession = {
   capacity: 20,
 } as const;
 
+const mineSession = {
+  ...townSession,
+  sessionId: "s3",
+  instructorId: "owner-1",
+  instructorIds: ["owner-1"],
+  title: "Owner Drills",
+  startAt: "2026-09-16T17:30:00.000Z",
+  endAt: "2026-09-16T18:30:00.000Z",
+} as const;
+
 const weekSessions = [townSession, westSession];
 // The year query answers the TOTAL counter only; a different length keeps every counter distinct.
 const yearSessions = Array.from({ length: 5 }, (_, index) => ({
@@ -222,5 +232,60 @@ describe("Classes & Services 2.0 page", () => {
     const dialog = await screen.findByRole("dialog", { name: /Create classes\/services/i });
     expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-09-14");
     expect(within(dialog).getByLabelText("Start time")).toHaveValue("17:00");
+  });
+
+  it("keeps the actor's own classes when Mine is ticked", async () => {
+    mocks.listSessions.mockImplementation(async (query: { from: string }) =>
+      query.from.startsWith("2026-01") ? yearSessions : [...weekSessions, mineSession],
+    );
+    render(<ClassesPage />);
+    await screen.findByRole("button", { name: /Owner Drills/ });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mine" }));
+    expect(screen.getByRole("button", { name: /Owner Drills/ })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /GI All Levels Evenings/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still shows the week when the year query behind TOTAL is refused", async () => {
+    mocks.listSessions.mockImplementation(async (query: { from: string }) => {
+      if (query.from.startsWith("2026-01")) throw new Error("Date range cannot exceed 90 days");
+      return weekSessions;
+    });
+    render(<ClassesPage />);
+    expect(
+      await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument(); // TOTAL
+  });
+
+  it("asks for a range wider than 90 days in windows the callable accepts", async () => {
+    render(<ClassesPage />);
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    fireEvent.click(screen.getByRole("tab", { name: "List" }));
+    fireEvent.change(screen.getByLabelText("Date range"), { target: { value: "this-year" } });
+    await waitFor(() =>
+      expect(
+        mocks.listSessions.mock.calls.filter(([query]) => query.from.startsWith("2026-01-01"))
+          .length,
+      ).toBe(2),
+    );
+    const spans = mocks.listSessions.mock.calls.map(
+      ([query]) => Date.parse(query.to) - Date.parse(query.from),
+    );
+    expect(Math.max(...spans)).toBeLessThanOrEqual(90 * 86_400_000);
+    expect(mocks.listSessions.mock.calls.some(([query]) => query.to.startsWith("2026-12-31"))).toBe(
+      true,
+    );
+  });
+
+  it("renders the calendar even when the staff directory is refused", async () => {
+    mocks.listStaffProfiles.mockRejectedValue(new Error("permission-denied"));
+    render(<ClassesPage />);
+    expect(
+      await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
