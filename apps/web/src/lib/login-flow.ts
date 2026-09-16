@@ -51,6 +51,7 @@ const staffDestinationPattern = /^\/(?:admin|coach)(?:\/[a-z0-9-]+)*$/u;
 const coachAdminPrefixes = [
   "/admin/attendance",
   "/admin/classes",
+  "/admin/classes-services",
   "/admin/waitlists",
   "/admin/lesson-plans",
 ] as const;

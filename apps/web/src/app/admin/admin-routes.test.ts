@@ -9,7 +9,7 @@ describe("staff routes", () => {
       "/admin/attendance",
       "/admin/members/requests",
       "/admin/members/medical",
-      "/admin/classes",
+      "/admin/classes-services",
       "/admin/levels",
     ]);
     expect(staffRoutes.headCoach).toEqual(staffRoutes.coach);
@@ -21,8 +21,9 @@ describe("staff routes", () => {
     expect(isStaffRouteAllowed("/admin/members/requests", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/members", "coach")).toBe(false);
     expect(isStaffRouteAllowed("/admin/members/search", "coach")).toBe(false);
-    expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(true);
-    expect(isStaffRouteAllowed("/admin/classes", "headCoach")).toBe(true);
+    expect(isStaffRouteAllowed("/admin/classes-services", "coach")).toBe(true);
+    expect(isStaffRouteAllowed("/admin/classes-services/locations", "coach")).toBe(true);
+    expect(isStaffRouteAllowed("/admin/classes-services", "headCoach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/levels", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/billing", "headCoach")).toBe(false);
   });
@@ -30,5 +31,7 @@ describe("staff routes", () => {
   it("keeps the off-menu routes staff could already open", () => {
     expect(isStaffRouteAllowed("/admin/waitlists/x", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/lesson-plans", "headCoach")).toBe(true);
+    // The legacy /admin/classes page only redirects now, so the mat still has to be let in.
+    expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(true);
   });
 });
