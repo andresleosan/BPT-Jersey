@@ -14,10 +14,22 @@ describe("public academy content", () => {
     expect(
       `${academyContent.identity.titleLines[0]}${academyContent.identity.titleLines[1]} ${academyContent.identity.titleLines[2]}`,
     ).toBe(academyContent.identity.title);
-    expect(academyContent.location.name).toBe("Town Office");
-    expect(academyContent.location.address).toBe("Office 9, 13 Library Place");
-    expect(academyContent.location.locality).toBe("St Helier, Jersey");
-    expect(academyContent.location.postcode).toBe("JE2 3RR");
+    expect(academyContent.locations).toEqual([
+      {
+        key: "town",
+        name: "Town",
+        address: "Office 9, 13 Library Place",
+        locality: "St Helier, Jersey",
+        postcode: "JE2 3RR",
+      },
+      {
+        key: "west",
+        name: "West",
+        address: "L'Avenue de la Reine Elizabeth II",
+        locality: "Jersey",
+        postcode: "JE3 7BP",
+      },
+    ]);
     expect(academyContent.programs).toEqual([
       {
         label: "BJJ",
@@ -48,15 +60,10 @@ describe("public academy content", () => {
         name: 'Professor Vladimiro "Miro" Afonso',
         credential: "4th degree black belt",
       },
-      {
-        name: 'Eduardo "Eddie" Afonso',
-        credential: "2nd degree black belt",
-      },
-      {
-        name: 'Andrew "Topo" Toporis',
-        credential: "2nd degree black belt and Jersey grappling pioneer",
-      },
       { name: "Charlie Tromans", credential: "Black belt" },
+      { name: "Amoné Mouton", credential: "Black belt" },
+      { name: "Connor Hoopes", credential: "Black belt" },
+      { name: "Catalina Bruma", credential: "Brown belt" },
     ]);
     expect(academyContent.notes.booking).toBe(
       "Timetables and fees are published information. Confirm eligibility and current term availability when booking.",
@@ -75,56 +82,56 @@ describe("public academy content", () => {
   it("contains the eight published schedule rows and three published fee items", () => {
     expect(academyContent.schedule).toEqual([
       {
-        location: "Town Office",
+        location: "Town",
         days: "Monday and Wednesday",
         time: "06:00-07:00",
         discipline: "No-Gi",
         level: "All levels",
       },
       {
-        location: "Town Office",
+        location: "Town",
         days: "Monday and Wednesday",
         time: "07:00-08:00",
         discipline: "Gi",
         level: "Beginners and all levels",
       },
       {
-        location: "Town Office",
+        location: "Town",
         days: "Monday and Wednesday",
         time: "17:30-18:30",
         discipline: "Gi",
         level: "Beginners",
       },
       {
-        location: "Town Office",
+        location: "Town",
         days: "Monday and Wednesday",
         time: "18:30-19:30",
         discipline: "No-Gi",
         level: "All levels",
       },
       {
-        location: "Town Office",
+        location: "Town",
         days: "Tuesday and Thursday",
         time: "12:00-13:00",
         discipline: "Gi",
         level: "Beginners and all levels",
       },
       {
-        location: "Town Office",
+        location: "Town",
         days: "Tuesday and Thursday",
         time: "17:30-18:30",
         discipline: "Gi",
         level: "All levels",
       },
       {
-        location: "Town Office",
+        location: "Town",
         days: "Tuesday and Thursday",
         time: "18:30-19:30",
         discipline: "No-Gi",
         level: "Beginners",
       },
       {
-        location: "Strive",
+        location: "West",
         days: "Tuesday and Thursday",
         time: "18:30-19:30",
         discipline: "Jiu-Jitsu",

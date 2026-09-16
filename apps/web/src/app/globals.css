@@ -227,32 +227,59 @@ button:focus-visible {
   z-index: 1;
 }
 
-.hero-location address,
+.hero-location h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 3.4vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.location-list {
+  display: grid;
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+
+.location-list li {
+  border-top: 1px solid var(--line);
+  padding: 1.25rem 0;
+}
+
+.location-list li:last-child {
+  padding-bottom: 0;
+}
+
+.location-list address,
 .contact-details {
   display: grid;
   font-style: normal;
   gap: 0.35rem;
 }
 
-.hero-location address {
-  margin-top: 1.25rem;
-}
-
-.hero-location address strong,
+.location-list address strong,
 .contact-details strong {
   font-family: var(--font-display), Impact, sans-serif;
-  font-size: clamp(1.8rem, 3vw, 2.7rem);
+  font-size: clamp(1.6rem, 2.6vw, 2.2rem);
   line-height: 1;
   text-transform: uppercase;
 }
 
-.hero-location address span,
+.location-list address strong {
+  color: var(--bpt-purple);
+  margin-bottom: 0.15rem;
+}
+
+.location-list address span,
 .contact-details span {
+  color: var(--muted);
   display: block;
 }
 
 .eyebrow,
-.section-kicker,
 .card-label {
   font-size: 0.75rem;
   font-weight: 700;
@@ -266,7 +293,6 @@ button:focus-visible {
   margin-bottom: 1.25rem;
 }
 
-.section-kicker,
 .card-label {
   color: var(--bpt-purple);
 }
@@ -358,8 +384,7 @@ button:focus-visible {
 .classes-section,
 .programs-section,
 .fees-section,
-.merch-section,
-.platform-section {
+.merch-section {
   margin: 0 auto;
   max-width: var(--content-width);
   padding: var(--section-space) clamp(1.25rem, 7vw, 7.5rem);
@@ -387,7 +412,7 @@ button:focus-visible {
   font-size: clamp(2rem, 3.5vw, 3.25rem);
 }
 
-.section-heading > p:not(.section-kicker) {
+.section-heading > p {
   color: var(--muted);
   font-size: 1.1rem;
   margin: 1.5rem 0 0;
@@ -505,24 +530,22 @@ button:focus-visible {
 }
 
 .instructor-list {
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
+  background: var(--line);
+  border: 1px solid var(--line);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   list-style: none;
   margin: 2.25rem 0 0;
   padding: 0;
 }
 
 .instructor-card {
+  background: var(--canvas);
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   padding: 1.5rem 1.25rem;
-}
-
-.instructor-card:nth-child(odd) {
-  border-right: 1px solid var(--line);
 }
 
 .instructor-card strong {
@@ -534,9 +557,7 @@ button:focus-visible {
 
 .instructor-card span,
 .program-card > p:last-child,
-.fee-card > p:last-child,
-.platform-card > p:last-child,
-.fee-note {
+.fee-card > p:last-child {
   color: var(--muted);
 }
 
@@ -572,12 +593,19 @@ button:focus-visible {
   border-right: 1px solid var(--line);
 }
 
-.program-card h3 {
+.program-card h3,
+.fee-card h3 {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: clamp(1.8rem, 3vw, 2.8rem);
   line-height: 0.95;
-  margin: 1.25rem 0 0;
+  margin: 0;
   text-transform: uppercase;
+}
+
+.fee-card h3 {
+  color: var(--bpt-purple);
+  font-size: 1.45rem;
+  line-height: 1;
 }
 
 .program-card > p:last-child,
@@ -590,12 +618,7 @@ button:focus-visible {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: clamp(2.5rem, 5vw, 4.5rem);
   line-height: 0.85;
-  margin: 1.5rem 0 0;
-}
-
-.fee-note {
-  margin: 1.5rem 0 0;
-  max-width: 48rem;
+  margin: 1.25rem 0 0;
 }
 
 .merch-section {
@@ -609,12 +632,11 @@ button:focus-visible {
   max-width: calc(var(--content-width) - 2 * clamp(1.25rem, 7vw, 7.5rem));
 }
 
-.merch-section .section-heading h2,
-.merch-section .section-kicker {
+.merch-section .section-heading h2 {
   color: var(--gi-white);
 }
 
-.merch-section .section-heading > p:not(.section-kicker) {
+.merch-section .section-heading > p {
   color: #d9d8d2;
 }
 
@@ -653,16 +675,11 @@ button:focus-visible {
   transform: scale(1.03);
 }
 
-.merch-card .card-label {
-  color: var(--bpt-lime);
-  margin: 1.25rem 1.25rem 0;
-}
-
 .merch-card h3 {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: clamp(1.6rem, 2.2vw, 2.2rem);
   line-height: 0.95;
-  margin: 0.75rem 1.25rem 0;
+  margin: 1.25rem 1.25rem 0;
   text-transform: uppercase;
 }
 
@@ -696,39 +713,6 @@ button:focus-visible {
   }
 }
 
-.platform-section {
-  background: var(--gi-white);
-}
-
-.platform-preview {
-  border-bottom: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 3rem;
-}
-
-.platform-card {
-  min-height: 18rem;
-  padding: 2rem 1.5rem;
-}
-
-.platform-card + .platform-card {
-  border-left: 1px solid var(--line);
-}
-
-.platform-card h3 {
-  font-family: var(--font-display), Impact, sans-serif;
-  font-size: clamp(2rem, 3vw, 2.8rem);
-  line-height: 0.95;
-  margin: 3rem 0 0;
-  text-transform: uppercase;
-}
-
-.platform-card > p:last-child {
-  margin: 1rem 0 0;
-}
-
 .contact-section {
   align-items: end;
   background: var(--mat-ink);
@@ -743,19 +727,23 @@ button:focus-visible {
   color: var(--gi-white);
 }
 
-.contact-section .section-kicker {
-  color: var(--gi-white);
-}
-
-.contact-section .section-heading > p:not(.section-kicker),
+.contact-section .section-heading > p,
 .contact-details span {
   color: #e8e7e3;
 }
 
+.contact-locations {
+  display: grid;
+  gap: 2rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .contact-details {
-  border-left: 3px solid var(--gi-white);
+  border-top: 1px solid var(--line);
   gap: 0.5rem;
-  padding: 0.25rem 0 0.25rem 1.25rem;
+  padding-top: 1rem;
 }
 
 .site-footer {
@@ -832,17 +820,12 @@ button:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .platform-preview {
-    grid-template-columns: 1fr;
-  }
-
-  .platform-card + .platform-card {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
-
   .contact-section {
     grid-template-columns: 1fr;
+  }
+
+  .contact-locations {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -901,8 +884,7 @@ button:focus-visible {
 
   .classes-section,
   .programs-section,
-  .fees-section,
-  .platform-section {
+  .fees-section {
     padding-inline: 1rem;
   }
 
@@ -1017,13 +999,8 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .instructor-card:nth-child(odd) {
-    border-right: 0;
-  }
-
-  .platform-card {
-    min-height: auto;
-    padding-inline: 1.25rem;
+  .contact-locations {
+    grid-template-columns: 1fr;
   }
 
   .contact-section {
