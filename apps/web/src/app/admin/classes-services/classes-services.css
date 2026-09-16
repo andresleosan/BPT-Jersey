@@ -164,3 +164,139 @@
     transition: none !important;
   }
 }
+
+.cs-week {
+  display: grid;
+  grid-template-columns: 3.5rem repeat(7, minmax(8rem, 1fr));
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.cs-hours {
+  display: grid;
+  grid-template-rows: 1.6rem repeat(28, 1.6rem);
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: right;
+  padding-right: 0.35rem;
+}
+
+.cs-hours span {
+  grid-row: span 2;
+}
+
+.cs-day {
+  min-width: 0;
+}
+
+.cs-day-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.25rem 0 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.cs-day-counts {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.cs-day-grid {
+  position: relative;
+  border-top: 1px solid var(--paper-edge);
+  border-left: 1px solid var(--paper-edge);
+}
+
+.cs-slot {
+  border: 0;
+  border-bottom: 1px solid var(--paper-edge);
+  border-right: 1px solid var(--paper-edge);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cs-slot:hover,
+.cs-slot:focus-visible {
+  background: var(--paper-edge);
+  outline: none;
+}
+
+.cs-event {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  border: 1px solid var(--mat-ink);
+  border-left: 0.3rem solid var(--mat-ink);
+  padding: 0.2rem 0.35rem;
+  text-align: left;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.cs-event-title {
+  font-weight: 700;
+}
+
+.cs-event[data-status="cancelled"] {
+  background: var(--paper-edge) !important;
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.cs-month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--paper-edge);
+  border: 1px solid var(--paper-edge);
+}
+
+.cs-month-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 5rem;
+  padding: 0.4rem;
+  background: var(--gi-white);
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cs-month-cell[data-outside="true"] {
+  color: var(--muted);
+  background: var(--paper-edge);
+}
+
+.cs-month-day {
+  font-weight: 700;
+}
+
+.cs-month-counts {
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+@media (max-width: 50rem) {
+  .cs-week {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(45%, 1fr);
+    grid-template-columns: 3.5rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  .cs-day {
+    scroll-snap-align: start;
+  }
+}
