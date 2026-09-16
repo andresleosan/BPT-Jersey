@@ -57,6 +57,9 @@ staff, `listSessions` de cualquier autenticado, y las mutaciones siguen en `mana
 directorio de Members sigue cerrado a coaches; se evaluo abrirlo en lectura y se descarto por el coste
 de ADR-009.
 
+2026-09-16: la ruta de coach `/admin/classes` pasa a `/admin/classes-services` (Locations, Types y
+Classes & Services 2.0 en solo lectura para `coach`).
+
 ## Enmienda 2026-09-16
 
 Decision del operador en chat (2026-09-16, opcion 1 de tres): `listStaffProfiles` se abre en lectura a

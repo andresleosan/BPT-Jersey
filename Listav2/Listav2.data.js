@@ -1760,10 +1760,10 @@ const classesServicesItems = [
   task(
     "T046V2",
     "Plan 1: cáscara, Locations, Class / Service Types y Classes & Services 2.0",
-    "en-progreso",
+    "revision",
     "Nueve pestañas bajo /admin/classes-services; sedes dinámicas, programas v2 y el calendario semanal con copiar/eliminar semana. Sustituye /admin/classes.",
     "T045V2",
-    "Plan 1 en ejecución por subagentes en feature/classes-services-clone. 2026-09-16: tareas 1-6 de 12 completas y revisadas (dominio, store, callables, cliente web y cáscara con nueve pestañas y guarda de rol); suite y build estático en verde. Pendientes 7-12: pestañas Locations y Types, rejilla semanal, página Classes 2.0, reglas Firestore y Playwright.",
+    "Plan 1 en feature/classes-services-clone. 2026-09-16: tareas 1-12 de 12 completas (dominio, store, callables, cliente web, cáscara; Locations Equipo A e0a13b6, Types Equipo B ca45081, Classes & Services 2.0 Equipo C 146cf2f, reglas Firestore Equipo D b30941b; enmienda ADR-010 listStaffProfiles->headCoach e8798a5). Tarea 12: qa/tests/admin-classes-services.spec.ts en verde (8/8, desktop+mobile) con capturas cs-locations/cs-types/cs-classes-week (+ -phone). verify:mvp verde hasta test:unit (323 ficheros / 2964 pruebas); test:rules corrido en el contenedor bpt-emu:local (13/93 verde, sin Java en el host); test:load:synthetic verde; test:e2e:smoke con 2 fallos ajenos en public-home.spec.ts por cambios sin commitear en academy.ts, fuera de alcance. Pendiente: push/PR a main.",
     [
       REF_TASKS,
       "docs/superpowers/plans/2026-09-16-classes-services-plan-1-shell-locations-types-classes.md",
