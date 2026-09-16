@@ -26,6 +26,7 @@ import { WeekActions, addDays } from "./week-actions";
 import { dayLabel, localParts, mondayOf, type GridSession } from "./week-grid";
 
 type View = "calendar" | "list";
+type StaffStatus = "loading" | "ready" | "unavailable";
 type Range = "week" | "month" | "day";
 type Panel =
   | null
@@ -159,6 +160,7 @@ export function ClassesPage(): ReactElement {
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date().toISOString().slice(0, 10)));
   const [catalog, setCatalog] = useState<ScheduleCatalogResponse | null>(null);
   const [staff, setStaff] = useState<readonly StaffOption[]>([]);
+  const [staffStatus, setStaffStatus] = useState<StaffStatus>("loading");
   const [sessions, setSessions] = useState<readonly SessionRecord[]>([]);
   const [booked, setBooked] = useState<Readonly<Record<string, number>>>({});
   const [total, setTotal] = useState<number | null>(null);
@@ -195,11 +197,16 @@ export function ClassesPage(): ReactElement {
     void (async () => {
       try {
         const rows = await listStaffProfiles();
-        if (!abandoned) setStaff(rows);
+        if (abandoned) return;
+        setStaff(rows);
+        setStaffStatus("ready");
       } catch {
-        // Staff profiles are an office-only read that only feeds filter options and trainer
-        // labels; a coach or head coach still gets the whole calendar without them.
-        if (!abandoned) setStaff([]);
+        // Staff profiles are an office-only read. Without them the calendar still works and
+        // existing classes still open, but a new class has no trainer to name, so creation is
+        // withdrawn rather than left as a form that can never be submitted.
+        if (abandoned) return;
+        setStaff([]);
+        setStaffStatus("unavailable");
       }
     })();
     return () => {
@@ -250,6 +257,8 @@ export function ClassesPage(): ReactElement {
     };
   }, [catalog, timezone, reload]);
 
+  // A class needs a trainer, and trainers come from an office-only read: no list, no creation.
+  const canCreate = canEdit && staffStatus === "ready";
   const locations = catalog?.locations ?? [];
   const programs = catalog?.programs ?? [];
   const today = localParts(new Date().toISOString(), timezone).date;
@@ -403,19 +412,17 @@ export function ClassesPage(): ReactElement {
             </button>
           ))}
         </div>
-        {canEdit ? (
-          <>
-            <WeekActions weekStart={mondayOf(weekStart)} onChanged={afterChange} />
-            <button
-              type="button"
-              className="cs-button cs-button-primary"
-              onClick={() =>
-                setPanel({ mode: "create", defaults: { date: weekStart, startTime: "17:00" } })
-              }
-            >
-              Add a class
-            </button>
-          </>
+        {canEdit ? <WeekActions weekStart={mondayOf(weekStart)} onChanged={afterChange} /> : null}
+        {canCreate ? (
+          <button
+            type="button"
+            className="cs-button cs-button-primary"
+            onClick={() =>
+              setPanel({ mode: "create", defaults: { date: weekStart, startTime: "17:00" } })
+            }
+          >
+            Add a class
+          </button>
         ) : null}
       </div>
       <ClassesFilters
@@ -425,6 +432,11 @@ export function ClassesPage(): ReactElement {
         filters={filters}
         onChange={setFilters}
       />
+      {canEdit && staffStatus === "unavailable" ? (
+        <p className="cs-notice" data-kind="error" role="status">
+          Trainer list unavailable: creating classes is disabled.
+        </p>
+      ) : null}
       {error === null ? null : (
         <p className="cs-notice" data-kind="error" role="alert">
           {error}
@@ -443,7 +455,7 @@ export function ClassesPage(): ReactElement {
             sessions={visible}
             timezone={timezone}
             window={gridWindow}
-            canEdit={canEdit}
+            canEdit={canCreate}
             onOpen={(sessionId) => setPanel({ mode: "edit", sessionId })}
             onCreate={(date, startTime) =>
               setPanel({ mode: "create", defaults: { date, startTime } })

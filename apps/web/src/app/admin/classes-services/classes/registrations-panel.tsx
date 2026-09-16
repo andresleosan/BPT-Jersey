@@ -30,6 +30,7 @@ const tabs: readonly { id: Tab; label: string }[] = [
 
 const officeRemovalReason = "Removed by the office";
 const noMembership = "No active membership";
+const noMembershipList = "Membership list unavailable";
 const minimumSearchLength = 2;
 const enrolmentPanelId = "cs-enrolment-panel";
 
@@ -77,6 +78,7 @@ export function RegistrationsPanel({
   const [bookings, setBookings] = useState<readonly BookingRecord[]>([]);
   const [members, setMembers] = useState<readonly MemberNameRow[]>([]);
   const [memberships, setMemberships] = useState<readonly AdminMembership[]>([]);
+  const [membershipsReady, setMembershipsReady] = useState(true);
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +101,9 @@ export function RegistrationsPanel({
       else setError(messageOf(bookingRows.reason, "Unable to load the registrations"));
       if (memberRows.status === "fulfilled") setMembers(memberRows.value);
       if (membershipRows.status === "fulfilled") setMemberships(membershipRows.value);
+      // Telling an administrator "no active membership" when the list never arrived would send
+      // them to fix a membership that is probably fine.
+      setMembershipsReady(membershipRows.status === "fulfilled");
     })();
     return () => {
       abandoned = true;
@@ -110,6 +115,7 @@ export function RegistrationsPanel({
     return (studentId: string) => byStudent.get(studentId) ?? studentId;
   }, [members]);
 
+  const canEnrol = canReadMemberships && membershipsReady;
   const registered = bookings.filter((booking) => booking.status !== "cancelled");
 
   const matches =
@@ -136,6 +142,7 @@ export function RegistrationsPanel({
         candidate.studentId === studentId &&
         (candidate.status === "active" || candidate.status === "trial"),
     );
+    if (!membershipsReady) return noMembershipList;
     if (!membership) return noMembership;
     try {
       await requestBooking({ sessionId, studentId, membershipId: membership.membershipId });
@@ -242,7 +249,7 @@ export function RegistrationsPanel({
               <input
                 type="search"
                 value={query}
-                disabled={!canReadMemberships}
+                disabled={!canEnrol}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Type at least two letters"
               />
@@ -250,13 +257,16 @@ export function RegistrationsPanel({
             {canReadMemberships ? null : (
               <p className="cs-placeholder">Enrolment needs an office account</p>
             )}
+            {canReadMemberships && !membershipsReady ? (
+              <p className="cs-placeholder">{noMembershipList}</p>
+            ) : null}
             <ul className="cs-results">
               {matches.map((member) => (
                 <li key={member.studentId}>
                   <button
                     type="button"
                     className="cs-button"
-                    disabled={busy || !canReadMemberships}
+                    disabled={busy || !canEnrol}
                     onClick={() => void enrolOne(member.studentId)}
                   >
                     {member.fullName}
@@ -271,6 +281,9 @@ export function RegistrationsPanel({
             {canReadMemberships ? null : (
               <li className="cs-placeholder">Enrolment needs an office account</li>
             )}
+            {canReadMemberships && !membershipsReady ? (
+              <li className="cs-placeholder">{noMembershipList}</li>
+            ) : null}
             {families.length === 0 ? (
               <li className="cs-placeholder">No families yet.</li>
             ) : (
@@ -279,7 +292,7 @@ export function RegistrationsPanel({
                   <button
                     type="button"
                     className="cs-button"
-                    disabled={busy || !canReadMemberships}
+                    disabled={busy || !canEnrol}
                     onClick={() => void enrolFamily(family)}
                   >
                     {family.label}
