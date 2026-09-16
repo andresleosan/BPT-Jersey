@@ -74,3 +74,4 @@ apps/web/src/app/admin/real-members-data.ts
 
 # Workbench screenshots (member calendar checks)
 qa/screenshots/
+!qa/screenshots/cs-*.png

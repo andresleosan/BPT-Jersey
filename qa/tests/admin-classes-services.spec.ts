@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 import { installAdminFixture, type CallableCall } from "./admin-fixture";
 
@@ -62,6 +62,8 @@ const noGiProgram = {
   message: "",
 };
 
+const programsById = { [giProgram.programId]: giProgram, [noGiProgram.programId]: noGiProgram };
+
 const catalog = { locations: [townLocation, westLocation], programs: [giProgram, noGiProgram] };
 
 const sessionOne = {
@@ -111,6 +113,12 @@ const staffProfiles = [
   },
 ];
 
+/** Screenshots go to `qa/screenshots/`; the `-phone` suffix marks the mobile project. */
+async function capture(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  const suffix = testInfo.project.name === "mobile-chromium" ? "-phone" : "";
+  await page.screenshot({ path: `screenshots/${name}${suffix}.png`, fullPage: true });
+}
+
 test.describe("@classes-services", () => {
   test("locations: create and toggle status", async ({ page }, testInfo) => {
     const calls: CallableCall[] = [];
@@ -126,9 +134,11 @@ test.describe("@classes-services", () => {
             ...(body as { data: object }).data,
           },
         }),
-        updateLocation: (body: unknown) => ({
-          location: { ...westLocation, ...(body as { data: object }).data },
-        }),
+        updateLocation: (body: unknown) => {
+          const data = (body as { data: { locationId: string } }).data;
+          const base = data.locationId === townLocation.locationId ? townLocation : westLocation;
+          return { location: { ...base, ...data } };
+        },
       },
     });
     await page.goto("/admin/classes-services/locations?adminTestRole=owner");
@@ -142,12 +152,16 @@ test.describe("@classes-services", () => {
     await page.getByLabel("Abbreviation").fill("ouest");
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.getByText("Salle Ouest")).toBeVisible();
+    await expect
+      .poll(() => calls.find((c) => c.name === "saveLocation")?.body)
+      .toMatchObject({ data: { name: "Salle Ouest", abbreviation: "ouest" } });
 
     await page.getByRole("combobox", { name: "Status of BPT West" }).selectOption("inactive");
-    await expect.poll(() => calls.some((c) => c.name === "updateLocation")).toBe(true);
+    await expect
+      .poll(() => calls.find((c) => c.name === "updateLocation")?.body)
+      .toMatchObject({ data: { locationId: "loc-west", active: false } });
 
-    const phone = testInfo.project.name === "mobile-chromium" ? "-phone" : "";
-    await page.screenshot({ path: `screenshots/cs-locations${phone}.png`, fullPage: true });
+    await capture(page, testInfo, "cs-locations");
   });
 
   test("types: inline colour and drop-in policy", async ({ page }, testInfo) => {
@@ -157,12 +171,11 @@ test.describe("@classes-services", () => {
       callables: {
         listScheduleCatalog: catalog,
         listSessions: { sessions: [] },
-        saveProgram: (body: unknown) => ({
-          program: { ...giProgram, programId: "prog-new", ...(body as { data: object }).data },
-        }),
-        updateProgram: (body: unknown) => ({
-          program: { ...giProgram, ...(body as { data: object }).data },
-        }),
+        updateProgram: (body: unknown) => {
+          const data = (body as { data: { programId: string } }).data;
+          const base = programsById[data.programId as keyof typeof programsById] ?? giProgram;
+          return { program: { ...base, ...data } };
+        },
       },
     });
     await page.goto("/admin/classes-services/types?adminTestRole=owner");
@@ -182,27 +195,43 @@ test.describe("@classes-services", () => {
       nativeSetter?.call(element, "#ff0000");
       element.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await colourInput.blur();
-    await expect.poll(() => calls.some((c) => c.name === "updateProgram")).toBe(true);
+    // `blur()` alone moves focus to <body>, which the layout renders under the skip link and
+    // leaves that link visibly overlapping the page in a screenshot; move focus to the tab first.
+    await page.getByRole("tab", { name: "Class / Service Types" }).focus();
+    await expect
+      .poll(() => calls.find((c) => c.name === "updateProgram")?.body)
+      .toMatchObject({ data: { programId: giProgram.programId, colour: "#ff0000" } });
 
     await page.getByRole("combobox", { name: `Drop-ins of ${noGiProgram.name}` }).selectOption("2");
     await expect
-      .poll(() => calls.filter((c) => c.name === "updateProgram").length)
-      .toBeGreaterThanOrEqual(2);
+      .poll(
+        () =>
+          calls
+            .filter((c) => c.name === "updateProgram")
+            .map((c) => c.body as { data: { programId: string; dropInPolicy?: string } })
+            .find((body) => body.data.programId === noGiProgram.programId)?.data.dropInPolicy,
+      )
+      .toBe("2");
+    // Confirms B-1 stays fixed: the No-Gi row keeps its own name, not the GI row's.
+    await expect(page.getByRole("row", { name: new RegExp(noGiProgram.name) })).toBeVisible();
 
-    const phone = testInfo.project.name === "mobile-chromium" ? "-phone" : "";
-    await page.screenshot({ path: `screenshots/cs-types${phone}.png`, fullPage: true });
+    await capture(page, testInfo, "cs-types");
   });
 
   test("classes: week calendar, session panel and copy week preview", async ({
     page,
   }, testInfo) => {
+    const calls: CallableCall[] = [];
     await installAdminFixture(page, {
+      calls,
       callables: {
         listScheduleCatalog: catalog,
         listSessions: { sessions },
         listSessionBookedCounts: { counts: { s1: 2, s2: 3 } },
         listStaffProfiles: staffProfiles,
+        listSessionBookings: { bookings: [] },
+        listMemberNames: { members: [] },
+        listMemberships: [],
         previewWeek: { preview: { count: 2, sample: [] } },
         copyWeek: { sessions },
       },
@@ -213,20 +242,44 @@ test.describe("@classes-services", () => {
     await expect(page.getByText("14 – 20 SEP 2026")).toBeVisible();
 
     await page.getByRole("button", { name: /GI All Levels Evenings/ }).click();
-    await expect(page.getByRole("dialog", { name: /Create classes\/services/i })).toBeVisible();
+    const sessionDialog = page.getByRole("dialog", { name: /Create classes\/services/i });
+    await expect(sessionDialog).toBeVisible();
+    // The registrations panel is the dialog's real content for an existing session: every read it
+    // fires on mount is stubbed above, so this proves it rendered instead of a degraded fallback.
+    await expect(sessionDialog.getByRole("heading", { name: "Registrations" })).toBeVisible();
+    await expect(sessionDialog.getByText("Membership list unavailable")).toHaveCount(0);
+
     await page.keyboard.press("Escape");
+    await expect(sessionDialog).toBeHidden();
+
+    const listSessionsCallsBeforeCopy = calls.filter((c) => c.name === "listSessions").length;
 
     await page.getByRole("button", { name: "Copy week" }).click();
+    const copyDialog = page.getByRole("dialog", { name: "Copy week" });
     await expect(
-      page.getByText("2 classes will be copied to the week of 21 Sep 2026."),
+      copyDialog.getByText("2 classes will be copied to the week of 21 Sep 2026."),
     ).toBeVisible();
 
-    const phone = testInfo.project.name === "mobile-chromium" ? "-phone" : "";
-    await page.screenshot({ path: `screenshots/cs-classes-week${phone}.png`, fullPage: true });
+    await copyDialog.getByRole("button", { name: "Copy" }).click();
+    await expect
+      .poll(() => calls.find((c) => c.name === "copyWeek")?.body)
+      .toMatchObject({
+        data: { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: false },
+      });
+    await expect(copyDialog).toBeHidden();
+    // A successful copy reloads the week: the calendar re-asks listSessions rather than trusting
+    // stale state.
+    await expect
+      .poll(() => calls.filter((c) => c.name === "listSessions").length)
+      .toBeGreaterThan(listSessionsCallsBeforeCopy);
 
-    await page.keyboard.press("Escape");
+    await capture(page, testInfo, "cs-classes-week");
+
     await page.getByRole("tablist", { name: "View" }).getByRole("tab", { name: "List" }).click();
-    await expect(page.getByRole("table")).toBeVisible();
+    // Header row plus the two seeded sessions, not just "a table exists".
+    await expect(page.getByRole("row")).toHaveCount(3);
+    await expect(page.getByRole("row", { name: /GI All Levels Evenings/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /No-Gi Fundamentals/ })).toBeVisible();
   });
 
   test("coach sees three tabs and no mutations", async ({ page }) => {
@@ -246,5 +299,8 @@ test.describe("@classes-services", () => {
       page.getByRole("navigation", { name: "Classes / Services sections" }).getByRole("tab"),
     ).toHaveCount(3);
     await expect(page.getByRole("button", { name: "Copy week" })).toHaveCount(0);
+    // Read-only content, not an empty calendar: both seeded sessions still render for a coach.
+    await expect(page.getByRole("button", { name: /GI All Levels Evenings/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /No-Gi Fundamentals/ })).toBeVisible();
   });
 });
