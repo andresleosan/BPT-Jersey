@@ -348,6 +348,12 @@ describe("deriveSessionStatus", () => {
     ).toBe("open");
   });
 
+  it("shows a class past the cut-off as closed, not weekly-limited, when the limit is used", () => {
+    expect(deriveSessionStatus({ ...base, now: thirtyMinBefore, weeklyClassesBooked: 2 })).toEqual({
+      status: "closed",
+    });
+  });
+
   it("closes a session that has no capacity set", () => {
     expect(deriveSessionStatus({ ...base, session: { ...session, capacity: null } }).status).toBe(
       "closed",
