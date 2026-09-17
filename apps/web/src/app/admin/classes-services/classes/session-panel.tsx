@@ -224,7 +224,7 @@ export function SessionPanel({
     setBusy(true);
     setError(null);
     const { startAt, endAt } = instantsOf(draft, timezone);
-    const capacity = draft.capacity.trim() === "" ? null : Number(draft.capacity);
+    const capacity = Number(draft.capacity);
     const instructorIds = draft.trainers;
     const bookingRules = rulesOf(draft);
     try {

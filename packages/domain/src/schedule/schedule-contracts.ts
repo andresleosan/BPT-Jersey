@@ -246,8 +246,7 @@ export type CreateSessionInput = Readonly<{
   title: string;
   startAt: string;
   endAt: string;
-  /** Null means unlimited. */
-  capacity: number | null;
+  capacity: number;
   minParticipants?: number;
   isSeminar?: boolean;
   description?: string;
@@ -264,7 +263,7 @@ export type UpdateSessionInput = Readonly<{
   instructorId?: string;
   startAt?: string;
   endAt?: string;
-  capacity?: number | null;
+  capacity?: number;
   minParticipants?: number;
   description?: string;
   instructorIds?: readonly string[];
@@ -758,17 +757,19 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
   }
 
   if (
-    capacity !== null &&
-    (typeof capacity !== "number" || !Number.isInteger(capacity) || capacity < 1 || capacity > 300)
+    typeof capacity !== "number" ||
+    !Number.isInteger(capacity) ||
+    capacity < 1 ||
+    capacity > 300
   ) {
-    return err("capacity must be null (unlimited) or an integer between 1 and 300");
+    return err("capacity must be an integer between 1 and 300");
   }
 
   if (
     typeof minParticipants !== "number" ||
     !Number.isInteger(minParticipants) ||
     minParticipants < 0 ||
-    minParticipants > (capacity ?? 300)
+    minParticipants > capacity
   ) {
     return err("minParticipants must be an integer between 0 and capacity");
   }
@@ -874,10 +875,9 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   }
   if (
     capacity !== undefined &&
-    capacity !== null &&
     (typeof capacity !== "number" || !Number.isInteger(capacity) || capacity < 1 || capacity > 300)
   ) {
-    return err("capacity must be null (unlimited) or an integer between 1 and 300");
+    return err("capacity must be an integer between 1 and 300");
   }
   if (
     minParticipants !== undefined &&
@@ -907,7 +907,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (typeof instructorId === "string") result.instructorId = instructorId.trim();
   if (typeof startAt === "string") result.startAt = startAt;
   if (typeof endAt === "string") result.endAt = endAt;
-  if (capacity !== undefined) result.capacity = capacity as number | null;
+  if (capacity !== undefined) result.capacity = capacity;
   if (typeof minParticipants === "number") result.minParticipants = minParticipants;
   if (descriptionResult) result.description = descriptionResult.value;
   if (extras.value.instructorIds !== undefined) result.instructorIds = extras.value.instructorIds;

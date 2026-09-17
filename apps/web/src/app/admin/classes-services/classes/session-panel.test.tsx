@@ -113,7 +113,7 @@ describe("SessionPanel", () => {
 
   afterEach(cleanup);
 
-  it("creates a session with several trainers, unlimited capacity and custom rules", async () => {
+  it("creates a session with several trainers, a capacity and custom rules", async () => {
     mocks.saveSession.mockResolvedValue(sessionFixture);
     const onSaved = vi.fn();
     render(
@@ -133,6 +133,7 @@ describe("SessionPanel", () => {
     fireEvent.change(screen.getByLabelText("Class/service type"), { target: { value: "p1" } });
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-b" }));
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "20" } });
     fireEvent.change(screen.getByLabelText("Booking and cancellation"), {
       target: { value: "custom" },
     });
@@ -147,7 +148,7 @@ describe("SessionPanel", () => {
           locationId: "town",
           instructorId: "coach-a",
           instructorIds: ["coach-a", "coach-b"],
-          capacity: null,
+          capacity: 20,
           startAt: "2026-09-14T16:30:00.000Z",
           endAt: "2026-09-14T17:30:00.000Z",
           bookingRules: expect.objectContaining({ bookUntilMinutesBefore: 30 }),

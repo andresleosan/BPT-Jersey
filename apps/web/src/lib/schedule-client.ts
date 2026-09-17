@@ -227,13 +227,21 @@ export async function previewWeek(weekStart: string): Promise<WeekPreview> {
 }
 
 export async function copyWeek(input: CopyWeekInput): Promise<readonly SessionRecord[]> {
-  return (
-    await callSafely<CopyWeekInput, { sessions: SessionRecord[] }>(
-      "copyWeek",
-      input,
-      "Unable to copy the week",
-    )
-  ).sessions;
+  const callable = httpsCallable<CopyWeekInput, { sessions: SessionRecord[] }>(
+    getFirebaseFunctions(),
+    "copyWeek",
+  );
+  try {
+    return (await callable(input)).data.sessions;
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
+    throw new Error(
+      code === "functions/failed-precondition"
+        ? "Set a capacity on every session in this week before copying it."
+        : "Unable to copy the week",
+    );
+  }
 }
 
 export async function deleteWeek(input: DeleteWeekInput): Promise<readonly SessionRecord[]> {

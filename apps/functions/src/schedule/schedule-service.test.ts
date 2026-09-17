@@ -322,7 +322,7 @@ describe("Schedule Service (In-Memory Store)", () => {
           title: "Open Mat",
           startAt: "2099-09-01T18:00:00Z",
           endAt: "2099-09-01T19:00:00Z",
-          capacity: null,
+          capacity: null as unknown as number, // legacy uncapped session
           minParticipants: 0,
         },
         "owner-1",
@@ -1291,7 +1291,7 @@ describe("classes-services store", () => {
           title: "Open Mat",
           startAt,
           endAt: startAt.replace("T17:00", "T18:00"),
-          capacity: null,
+          capacity: 20,
         },
         "admin-1",
       );
@@ -1383,7 +1383,7 @@ describe("classes-services store", () => {
         title: "Open Mat",
         startAt: "2026-09-15T17:00:00.000Z",
         endAt: "2026-09-15T18:00:00.000Z",
-        capacity: null,
+        capacity: 20,
       },
       "admin-1",
     );
@@ -1418,7 +1418,7 @@ describe("classes-services store", () => {
         title: "Open Mat",
         startAt: "2026-10-21T17:00:00.000Z",
         endAt: "2026-10-21T18:00:00.000Z",
-        capacity: null,
+        capacity: 20,
       },
       "admin-1",
     );
@@ -1432,6 +1432,33 @@ describe("classes-services store", () => {
     expect(copied.map((s) => [s.startAt, s.endAt])).toEqual([
       ["2026-10-28T18:00:00.000Z", "2026-10-28T19:00:00.000Z"],
     ]);
+  });
+
+  it("refuses to copy a week that holds a session without capacity", async () => {
+    const store = createInMemoryScheduleStore();
+    await store.createSession(
+      academyId,
+      {
+        programId: "open-mat",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Open Mat",
+        startAt: "2026-09-14T17:00:00.000Z",
+        endAt: "2026-09-14T18:00:00.000Z",
+        capacity: null as unknown as number, // legacy uncapped session
+      },
+      "admin-1",
+    );
+    await expect(
+      store.copyWeek(
+        academyId,
+        { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: false },
+        "Europe/Jersey",
+        "admin-1",
+      ),
+    ).rejects.toThrow("needs a capacity");
+    const target = await store.previewWeek(academyId, "2026-09-21", "Europe/Jersey");
+    expect(target.count).toBe(0);
   });
 
   it("copies the confirmed bookings of a week when asked", async () => {
