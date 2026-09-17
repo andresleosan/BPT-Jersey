@@ -194,9 +194,10 @@ describe("Classes & Services 2.0 page", () => {
   it("filters by location and by mine", async () => {
     render(<ClassesPage />);
     await screen.findByRole("button", { name: /GI All Levels Evenings/ });
-    fireEvent.change(screen.getByRole("listbox", { name: "Locations" }), {
-      target: { value: "west" },
-    });
+    // Filters are compact dropdowns: a summary that opens a group of checkboxes.
+    const locations = screen.getByRole("group", { name: "Locations" });
+    fireEvent.click(within(locations).getByRole("checkbox", { name: "BPT West" }));
+    expect(screen.getByText("Locations · 1")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /GI All Levels Evenings/ }),
     ).not.toBeInTheDocument();

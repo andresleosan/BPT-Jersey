@@ -25,6 +25,35 @@ function noop(): void {
 }
 
 describe("CalendarView", () => {
+  it("marks today's column and places the now line on it, only for the week that holds today", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 13:00 in Jersey (BST) on Wednesday 16 September: 7 of the 14 visible hours have passed.
+    vi.setSystemTime(new Date("2026-09-16T12:00:00.000Z"));
+    try {
+      const props = {
+        view: "week" as const,
+        sessions: [],
+        timezone: "Europe/Jersey",
+        window,
+        canEdit: false,
+        onOpen: noop,
+        onCreate: noop,
+        onSelectWeek: noop,
+      };
+      const { container, rerender } = render(<CalendarView {...props} weekStart="2026-09-14" />);
+      const today = container.querySelectorAll("[aria-current='date']");
+      expect(today).toHaveLength(1);
+      expect(today[0]).toHaveTextContent("WED 16/9");
+      const grid = container.querySelector<HTMLElement>(".cs-day[data-today] .cs-day-grid");
+      expect(grid?.style.getPropertyValue("--now")).toBe("0.5");
+      rerender(<CalendarView {...props} weekStart="2026-09-21" />);
+      expect(container.querySelectorAll("[aria-current='date']")).toHaveLength(0);
+      expect(container.querySelector(".cs-day[data-today]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders one button per session with title and local time, and opens it on click", () => {
     const onOpen = vi.fn();
     const sessions: GridSession[] = [
