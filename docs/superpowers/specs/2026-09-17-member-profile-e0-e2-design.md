@@ -36,6 +36,19 @@ of 2026-09-17.
 6. Skills catalogue: import Regyfit's full list (58 skills observed) with per-level minimums.
 7. Wrongly assigned level: void with mandatory reason (append-only history), never delete.
 
+Grill decisions (2026-09-17, same session):
+
+- G1: production has 249 canonical members; no migration needed before E1.
+- G2: current IBJJF levels are loaded by an assisted import (§6.5), applied only after the operator's OK.
+- G3: full level history captured from Regyfit (operator authorised the read-only walk).
+- G4: existing Regyfit skill scores are imported too.
+- G5: matching = member number AND date of birth, exact; never by name.
+- G6: role-trimmed record: owner/admin everything; headCoach/coach header + IBJJF card + Manage only.
+- G7: assigning below criteria or skipping stripes is allowed with explicit gaps and a mandatory note.
+- G8: DETAILS backfill from `regyfitMemberRecords`, empty fields only.
+- G9: criteria come from Regyfit, with a BPT-vs-Regyfit diff report reviewed before publishing.
+- G10: class counter = imported Regyfit baseline + BPT attendance after the cutoff.
+
 ## 3. Architecture
 
 Static export constraint (`output: "export"`): no dynamic segments. The record is a static route
@@ -141,9 +154,17 @@ inputs, sections as in Regyfit:
 
 ### 5.6 `getMemberProfile`
 
-Input `{ studentId }`. Roles owner/administrator. Output: header, birthday badge, profile cards data
-(member since, account managers, current membership summary), details. App Check enforced. Rate-limited
-and audited as a restricted read. Errors mapped to safe strings in the web client.
+Input `{ studentId }`. Output depends on role (grill G6), decided server-side:
+
+- owner/administrator: header, birthday badge, profile cards data (member since, account managers,
+  current membership summary), details. Restricted read: rate-limited and audited.
+- headCoach/coach: header (name, age, participant type, birthday badge) only; no details, no
+  identifiers, no membership, no account managers. The web renders PROFILE with only the IBJJF card and
+  Manage; other tabs are not rendered. Coaches reach records through a name-only search.
+- any other role: `permission-denied`.
+
+App Check enforced. Errors mapped to safe strings in the web client. Tests prove a coach response carries
+no restricted key (assert the exact key set, not absence of one field).
 
 ## 6. E2 — JIU-JITSU IBJJF
 
@@ -161,18 +182,26 @@ headCoach, coach (existing level roles); the rest of the record stays owner/admi
 `skills = Σ min(score_i, required_i) / Σ required_i` included only when the level defines skill
 minimums; a criterion with no minimum is excluded from the mean; result floored to an integer 0–100.
 Card and Manage call the same function (fixes Regyfit's 100% vs 67% mismatch).
-`classes` counts attended/late attendance with date ≥ `currentLevelStartedAt` (change in
-`level-service.ts` progress summary; covered by tests before/after).
+`classes = importedBaseline + BPT attended/late attendance with date ≥ max(currentLevelStartedAt,
+baselineCutoff)` (grill G10). `importedBaseline`/`baselineCutoff` exist only on a level head created by the
+Regyfit import (§6.5) and disappear on the next promotion. Without a baseline, `classes` counts attendance
+with date ≥ `currentLevelStartedAt`. The card explains the split ("9 from Regyfit + 3 in BPT"). Change in
+`level-service.ts` progress summary; tests before/after, including no double counting at the cutoff.
 
 ### 6.3 Manage view (`&view=manage`)
 
 - Back to record; age, name, level system.
 - **Level history** table: level (belt icon + name), assigned on, classes/days at assignment (x/min),
   promoted by, status. Voided rows shown struck through with reason and who voided.
+- **Open level** (headCoach, owner) for a student with no level: `openStudentLevel` extended to accept
+  any definition (belt or stripe) and a `startedOn` date (required, not in the future), plus mandatory
+  decision notes; audited.
 - **Assign next level** (headCoach, owner): level select limited to levels after the current one in
-  sequence; promotion date required, no default, not in the future, not before the current level start;
-  confirmation dialog "Promote <name> from <X> to <Y> on <date>?"; reuses
-  `openStudentLevel` / `approvePromotion` semantics (append-only).
+  sequence (skipping allowed); promotion date required, no default, not in the future, not before the
+  current level start; confirmation dialog "Promote <name> from <X> to <Y> on <date>?". When criteria are
+  not met or stripes are skipped the dialog lists each gap in plain text ("Classes 6/10 not met",
+  "Skips 2 stripes") and a note (10–500 chars) becomes mandatory and is stored in the history (grill G7).
+  Append-only, audited; reuses `approvePromotion` semantics.
 - **Void promotion** (headCoach, owner): only the latest non-voided promotion; mandatory reason
   (10–500 chars); confirmation; new callable `voidPromotion` appends a void record, restores the previous
   level head, audits. Never deletes.
@@ -191,6 +220,37 @@ minimum-score sets (from the level rule format `minAge*maxAge*minClasses*minDays
 committed as `docs/data/ibjjf-skills-observed.sanitized.json`; seeded as a new catalogue version through
 the existing level seed/publication path (versioned in-house, never synced live from Regyfit). The
 `expected_11_skills` integrity check becomes version-aware.
+
+Criteria source of truth (grill G9): the new catalogue version takes minimum classes, minimum days,
+age bounds and skill minimums from Regyfit. Before publishing, a generated diff report
+(`docs/data/ibjjf-criteria-diff-bpt-vs-regyfit.md`, level by level, structure only) is shown to the
+operator; publication waits for the operator's OK in chat.
+
+### 6.5 Assisted Regyfit import (levels, skills, DETAILS backfill)
+
+One operator-run script `qa/scripts/import-regyfit-member-profile.mjs`, pattern of
+`regyfit-classes-services-import.mjs` (target emulator|production, dry run by default, production
+needs `GCLOUD_PROJECT` + an operator confirmation token, run only after the operator confirms in chat).
+
+- **Capture (grill G3, G4):** read-only CDP walk over the Regyfit members (authorised by the operator in
+  chat on 2026-09-17): for each member, Regyfit member No., date of birth, full level history
+  (`grads_aluno.php` rows: level, assigned on, classes/days at that time), current level classes count,
+  and existing skill scores (`gerir_atleta.php`). Raw output stays in `/root/regyfit-capture/raw/`,
+  never in the repo; ≥2 s between members; never clicks write actions.
+- **Matching (grill G5):** a Regyfit member maps to a student only when member number AND date of birth
+  both match exactly and the member number is unique on both sides. Everything else goes to the review
+  list and is not loaded. Never by name or e-mail.
+- **Levels:** matched members get the history as append-only promotion records flagged
+  `source: "regyfit-import"` (no `decidedBy`), the current level head with its real start date,
+  `importedBaseline` = Regyfit's classes at the current level and `baselineCutoff` = import date. A
+  student that already has a level head is skipped (create-only; rerun safe).
+- **Skills:** non-empty Regyfit scores load as one evaluation flagged `source: "regyfit-import"` dated at
+  the import; members with no scores load nothing.
+- **DETAILS backfill (grill G8):** from the already imported `regyfitMemberRecords`, same matching rule,
+  fills only fields that are empty in BPT, never overwrites.
+- **Dry run output:** counts only (matched, review-list reasons, per-field fill counts, levels, skills);
+  no names or values in the terminal or in the repo. The review list with identities is written to
+  `/root/regyfit-capture/raw/` for the operator.
 
 ## 7. Cross-cutting
 
@@ -214,6 +274,11 @@ the existing level seed/publication path (versioned in-house, never synced live 
 - A composite index may be needed for attendance since level start; add to `firestore.indexes.json`
   and test against the emulator.
 - Regyfit adult-with-plan record was not captured (auto-mode block); E1 fields do not depend on it.
+- Production has 249 canonical members (operator read of `/admin/members`, 2026-09-17), so the record is
+  useful without a prior migration; level heads are presumed uninitialised until the §6.5 import.
+- The Regyfit walk may again be blocked by the auto-mode classifier; the operator then decides how to
+  proceed. Regyfit login blocks the VPS IP: the SSH tunnel must be open.
+- Criteria change (G9) moves every member's progress; mitigated by the diff report and baseline (G10).
 
 ## 9. Testing and evidence
 
@@ -221,7 +286,7 @@ the existing level seed/publication path (versioned in-house, never synced live 
   services with in-memory fakes (profile aggregate, audit, attendance since level start, void,
   member-number uniqueness), web components (tabs, form dirty state, masking, confirmation dialogs).
 - Rules: `qa/rules` asserts new/extended collections stay deny-direct.
-- Emulator integration for `getMemberProfile`, `voidPromotion`, attendance-since-level query.
+- Emulator integration for `getMemberProfile` (owner vs coach key sets), `voidPromotion`, extended `openStudentLevel`, attendance-since-level query with baseline, and the §6.5 import (dry run, create-only rerun, match rule rejections, empty-only backfill) on synthetic fixtures.
 - Playwright (`qa/tests/member-profile.spec.ts`, @smoke subset) against emulators with owned fixtures:
   search → open record → edit and save DETAILS → birthday chip → Manage → assign level (date required,
   confirm) → void with reason → rate skills and save → reload keeps state; desktop and 390px mobile;
