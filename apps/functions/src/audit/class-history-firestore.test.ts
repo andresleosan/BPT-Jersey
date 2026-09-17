@@ -187,20 +187,6 @@ describe("createClassHistoryStore batch reads", () => {
     expect(firestore.getAll).not.toHaveBeenCalled();
   });
 
-  it("reads staff names in one batch", async () => {
-    const query = fakeQuery([]);
-    const firestore = fakeFirestore(query, [doc("coach-9", { fullName: "Coach Ana" })]);
-    const store = createClassHistoryStore(firestore as never, "demo-academy");
-
-    const staff = await store.readStaffNames(["coach-9"]);
-
-    expect(firestore.getAll).toHaveBeenCalledWith({
-      id: "coach-9",
-      path: "academies/demo-academy/staff/coach-9",
-    });
-    expect(staff.get("coach-9")).toBe("Coach Ana");
-  });
-
   it("resolves each session's program name and tolerates a missing session", async () => {
     const query = fakeQuery([]);
     const firestore = fakeFirestore(query);
@@ -247,5 +233,87 @@ describe("createClassHistoryStore batch reads", () => {
       programId: "gone-program",
       programName: null,
     });
+  });
+});
+
+/**
+ * `readStaffNames` resolves the Firebase Auth uid an audit event's `actorId` carries to the
+ * `staffKey` (the staff document's own id) by querying `staff` where `userId` matches - `getAll`
+ * cannot do this because the collection is keyed by staffId, not by uid. Each `where("userId",
+ * "in", ...)` call is a fresh `collection()` call in this fake, one per chunk of at most 30 uids.
+ */
+function fakeStaffFirestore(chunkResults: readonly (readonly FakeDoc[])[]) {
+  const whereCalls: unknown[][] = [];
+  let chunkIndex = 0;
+  const collection = vi.fn(() => {
+    const docs = chunkResults[chunkIndex] ?? [];
+    chunkIndex += 1;
+    const query = {
+      where: vi.fn((...args: unknown[]) => {
+        whereCalls.push(args);
+        return query;
+      }),
+      get: vi.fn().mockResolvedValue({ docs }),
+    };
+    return query;
+  });
+  return {
+    collection,
+    doc: vi.fn((path: string) => ({ id: path.slice(path.lastIndexOf("/") + 1), path })),
+    getAll: vi.fn(),
+    whereCalls,
+  };
+}
+
+describe("createClassHistoryStore.readStaffNames", () => {
+  it("resolves a staff uid to its staffKey", async () => {
+    const firestore = fakeStaffFirestore([[doc("staff-42", { userId: "uid-coach-9" })]]);
+    const store = createClassHistoryStore(firestore as never, "demo-academy");
+
+    const staff = await store.readStaffNames(["uid-coach-9"]);
+
+    expect(firestore.collection).toHaveBeenCalledWith("academies/demo-academy/staff");
+    expect(firestore.whereCalls).toEqual([["userId", "in", ["uid-coach-9"]]]);
+    expect(staff.get("uid-coach-9")).toBe("staff-42");
+  });
+
+  it("leaves an unknown uid absent from the map", async () => {
+    const firestore = fakeStaffFirestore([[]]);
+    const store = createClassHistoryStore(firestore as never, "demo-academy");
+
+    const staff = await store.readStaffNames(["uid-nobody"]);
+
+    expect(staff.has("uid-nobody")).toBe(false);
+  });
+
+  it("never returns the auth uid itself as a resolved value", async () => {
+    const firestore = fakeStaffFirestore([[doc("staff-42", { userId: "uid-coach-9" })]]);
+    const store = createClassHistoryStore(firestore as never, "demo-academy");
+
+    const staff = await store.readStaffNames(["uid-coach-9"]);
+
+    expect([...staff.values()]).not.toContain("uid-coach-9");
+    expect(staff.get("uid-coach-9")).toBe("staff-42");
+  });
+
+  it("chunks more than 30 uids into more than one query and merges the results", async () => {
+    const uids = Array.from({ length: 35 }, (_, index) => `uid-${index}`);
+    const firstChunkDocs = uids
+      .slice(0, 30)
+      .map((uid, index) => doc(`staff-${index}`, { userId: uid }));
+    const secondChunkDocs = uids
+      .slice(30)
+      .map((uid, index) => doc(`staff-${index + 30}`, { userId: uid }));
+    const firestore = fakeStaffFirestore([firstChunkDocs, secondChunkDocs]);
+    const store = createClassHistoryStore(firestore as never, "demo-academy");
+
+    const staff = await store.readStaffNames(uids);
+
+    expect(firestore.collection).toHaveBeenCalledTimes(2);
+    expect(firestore.whereCalls[0]?.[2]).toHaveLength(30);
+    expect(firestore.whereCalls[1]?.[2]).toHaveLength(5);
+    expect(staff.get("uid-0")).toBe("staff-0");
+    expect(staff.get("uid-34")).toBe("staff-34");
+    expect(staff.size).toBe(35);
   });
 });

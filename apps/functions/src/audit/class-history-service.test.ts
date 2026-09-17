@@ -250,6 +250,19 @@ describe("readClassHistory", () => {
     );
   });
 
+  it("shows Office for a staff actor with no matching staff profile", async () => {
+    const store = createStore();
+    store.events = [{ ...staffBooking, actorId: "coach-unknown" }];
+
+    const { rows } = await readClassHistory(store, input, ownerActor);
+
+    expect(rows[0]?.actorName).toBe("Office");
+    expect(rows[0]?.actorName).not.toBe("coach-unknown");
+    expect(rows[0]?.sentence).toBe(
+      "Noah Grant was booked by Office into Adults Gi on 16 Sep 2026 at 18:30",
+    );
+  });
+
   it("still returns a row for an attendance event stored without a class block", async () => {
     const store = createStore();
     store.events = [legacyAttendanceEvent];

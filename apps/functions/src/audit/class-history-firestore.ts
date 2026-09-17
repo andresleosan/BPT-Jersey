@@ -64,6 +64,47 @@ function toStoredEvent(id: string, data: Record<string, unknown>): ClassHistoryS
   });
 }
 
+const maxWhereInSize = 30;
+
+function chunk<T>(values: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
+/**
+ * Staff have no display name anywhere in the platform: `StaffProfile` is exactly
+ * {staffId, academyId, userId, role, active, status, ...} (`hasExactFields`-validated - there is
+ * nowhere to smuggle a name in), and the admin UI labels a trainer by their `staffKey`, which is
+ * the staff document's own id. An audit event's `actorId` is the Firebase Auth uid, so resolving a
+ * name means finding the staff profile whose `userId` field matches that uid. The profile is keyed
+ * by staffId rather than by uid, so `getAll` cannot do this lookup; a `where("userId", "in", ...)`
+ * query is used instead, chunked to Firestore's 30-value `in` limit and merged. The auth uid is
+ * never put in the returned map's values - only the resolved `staffId` is.
+ */
+async function readStaffKeysByUserId(
+  firestore: Firestore,
+  staffCollectionPath: string,
+  uids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  if (uids.length === 0) return new Map();
+  const keysByUid = new Map<string, string>();
+  const snapshots = await Promise.all(
+    chunk(uids, maxWhereInSize).map((group) =>
+      firestore.collection(staffCollectionPath).where("userId", "in", group).get(),
+    ),
+  );
+  for (const snapshot of snapshots) {
+    for (const document of snapshot.docs) {
+      const data = document.data() as Record<string, unknown>;
+      if (typeof data.userId === "string") keysByUid.set(data.userId, document.id);
+    }
+  }
+  return keysByUid;
+}
+
 /**
  * Batch-reads one name field off a collection with `getAll`, which has no 30-reference limit
  * (unlike a `where(field, "in", ids)` query, which would need chunking past 30 values). A missing
@@ -125,7 +166,7 @@ export function createClassHistoryStore(
     },
 
     readStudents: (ids) => readNameMap(firestore, studentsPath, ids, "fullName"),
-    readStaffNames: (ids) => readNameMap(firestore, staffPath, ids, "fullName"),
+    readStaffNames: (ids) => readStaffKeysByUserId(firestore, staffPath, ids),
 
     async readSessions(ids) {
       if (ids.length === 0) return new Map();
