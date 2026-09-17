@@ -107,6 +107,7 @@ desactivación y registros append-only, que es el comportamiento seguro mientras
 | Asistencia y check-out | Sesión completada | `"24 meses"` | Agregar y anonimizar; conservar el recuento, no el nombre | Media: cruza con safeguarding cuando hay menores |
 | CRM, leads y comunicaciones | Última interacción del prospecto | `"24 meses"` | Borrar el lead; conservar la baja/opt-out | Baja |
 | Auditoría de privacidad y de sistema | Creación del evento | `"7 años"` | Archivar; destruir tras revisión | Media: debe sobrevivir a lo que audita |
+| IP del actor en eventos de auditoría de clases (`actorIp`) | Escritura del evento de clase | 12 meses — **implementado**, no propuesta | Barrido diario `sweepClassIpRetention` borra el campo `actorIp` y conserva el evento intacto | Baja: es el único plazo de esta tabla con barrido automático en producción y prueba (`apps/functions/src/audit/class-ip-retention-sweep.test.ts`) |
 | Exports y reportes generados | Creación de la descarga | `"7 días"` | Expiración automática del objeto | Baja: ya es el comportamiento del contrato actual |
 | Backups y artefactos de restauración | Fin del ciclo técnico | `"35 días"` | Expiración automática; no restaurar datos vencidos | Media: debe cuadrar con el ciclo real de la infraestructura, aún no contratada |
 | Logs operativos y telemetría | Creación | `"90 días"` | Purga automática | Baja: hoy no contienen PII ni secretos por contrato |
