@@ -70,6 +70,11 @@
       "import": "./src/members/member-engagement-contracts.ts",
       "default": "./lib/members/member-engagement-contracts.js"
     },
+    "./members/profile": {
+      "types": "./src/members/member-profile-contracts.ts",
+      "import": "./src/members/member-profile-contracts.ts",
+      "default": "./lib/members/member-profile-contracts.js"
+    },
     "./profiles": {
       "types": "./src/profiles/profile-contracts.ts",
       "import": "./src/profiles/profile-contracts.ts",
