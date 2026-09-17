@@ -176,6 +176,53 @@ describe("member record page", () => {
     expect(screen.getByRole("link", { name: "Open Memberships" })).toBeTruthy();
   });
 
+  it("asks before a Back that would discard unsaved Details, and keeps the URL honest", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = open("?id=student-1");
+    await user.click(await screen.findByRole("tab", { name: "Details" }));
+    await user.type(await screen.findByLabelText("Nickname"), "Tester");
+
+    window.history.back();
+    await waitFor(() =>
+      expect(confirm).toHaveBeenCalledWith(
+        "You have unsaved changes in Details. Leave without saving?",
+      ),
+    );
+    await waitFor(() => expect(window.location.search).toBe("?id=student-1&tab=details"));
+    expect(screen.getByRole("tab", { name: "Details" }).getAttribute("aria-selected")).toBe("true");
+    expect((screen.getByLabelText("Nickname") as HTMLInputElement).value).toBe("Tester");
+  });
+
+  it("lets a confirmed Back leave Details and discard the draft", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const user = open("?id=student-1");
+    await user.click(await screen.findByRole("tab", { name: "Details" }));
+    await user.type(await screen.findByLabelText("Nickname"), "Tester");
+
+    window.history.back();
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Profile" }).getAttribute("aria-selected")).toBe(
+        "true",
+      ),
+    );
+    expect(window.location.search).toBe("?id=student-1");
+    expect(screen.queryByLabelText("Nickname")).toBeNull();
+  });
+
+  it("rewrites an unknown tab in the URL to the tab it renders", async () => {
+    open("?id=student-1&tab=secret");
+    await screen.findByRole("heading", { level: 2, name: "Test Member A" });
+    await waitFor(() => expect(window.location.search).toBe("?id=student-1"));
+    expect(screen.getByRole("tab", { name: "Profile" }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("rewrites a tab a coach cannot open to the tab it renders", async () => {
+    client.getMemberProfile.mockResolvedValue({ view: "coach", header });
+    open("?id=student-1&tab=details");
+    await screen.findByRole("heading", { level: 2, name: "Test Member A" });
+    await waitFor(() => expect(window.location.search).toBe("?id=student-1"));
+  });
+
   it("shows the safe load error and retries", async () => {
     client.getMemberProfile.mockRejectedValueOnce(
       new client.MemberRecordLoadError("This member record was not found."),
