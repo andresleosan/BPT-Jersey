@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   classHistoryRegistrationTypes,
   composeClassHistorySentence,
+  formatJerseyMoment,
   isClassHistoryRegistrationType,
+  jerseyWallClockToInstant,
   registrationTypeFilter,
 } from "./class-history-contracts";
 
@@ -173,5 +175,39 @@ describe("registrationTypeFilter", () => {
     expect(classHistoryRegistrationTypes.length).toBe(10);
     expect(isClassHistoryRegistrationType("coach-dropin-cancellations")).toBe(true);
     expect(isClassHistoryRegistrationType("everything")).toBe(false);
+  });
+});
+
+describe("jerseyWallClockToInstant", () => {
+  it("reads a winter wall clock as GMT", () => {
+    expect(jerseyWallClockToInstant("2026-01-15", "00:00")).toBe("2026-01-15T00:00:00Z");
+    expect(jerseyWallClockToInstant("2026-01-15", "07:30")).toBe("2026-01-15T07:30:00Z");
+  });
+
+  it("reads a summer wall clock as BST, an hour ahead of UTC", () => {
+    expect(jerseyWallClockToInstant("2026-09-01", "00:00")).toBe("2026-08-31T23:00:00Z");
+    expect(jerseyWallClockToInstant("2026-09-01", "07:30")).toBe("2026-09-01T06:30:00Z");
+  });
+
+  it("lands on the right side of both 2026 changeovers", () => {
+    // BST starts 01:00 UTC on 29 Mar 2026: 00:59 local is still GMT, 02:00 local is already BST.
+    expect(jerseyWallClockToInstant("2026-03-29", "00:59")).toBe("2026-03-29T00:59:00Z");
+    expect(jerseyWallClockToInstant("2026-03-29", "02:00")).toBe("2026-03-29T01:00:00Z");
+    // GMT returns 01:00 UTC on 25 Oct 2026: 00:30 local is BST, 02:00 local is GMT.
+    expect(jerseyWallClockToInstant("2026-10-25", "00:30")).toBe("2026-10-24T23:30:00Z");
+    expect(jerseyWallClockToInstant("2026-10-25", "02:00")).toBe("2026-10-25T02:00:00Z");
+  });
+
+  it("round-trips through formatJerseyMoment", () => {
+    const instant = jerseyWallClockToInstant("2026-09-16", "18:30");
+    expect(instant).toBe("2026-09-16T17:30:00Z");
+    expect(formatJerseyMoment(instant)).toBe("16 Sep 2026 at 18:30");
+  });
+
+  it("refuses anything that is not a date and a time", () => {
+    expect(jerseyWallClockToInstant("01/09/2026", "00:00")).toBeNull();
+    expect(jerseyWallClockToInstant("2026-09-01", "7:30")).toBeNull();
+    expect(jerseyWallClockToInstant("2026-09-01", "24:00")).toBeNull();
+    expect(jerseyWallClockToInstant("", "")).toBeNull();
   });
 });
