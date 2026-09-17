@@ -84,7 +84,7 @@ export const auditActions = Object.freeze([
 
 export type AuditAction = (typeof auditActions)[number];
 
-/** The four actions that carry the class block; the rest of the log is read-side only. */
+/** The four booking and drop-in actions the class registrations log is built around. */
 export const classEventActions = Object.freeze([
   "booking.created",
   "booking.cancelled",
@@ -92,7 +92,7 @@ export const classEventActions = Object.freeze([
   "dropin.cancelled",
 ] as const);
 
-/** Every action the class registrations log reads, including the attendance ones it only shows. */
+/** Every action the class registrations log reads, and every action that carries the class block. */
 export const classAuditActions = Object.freeze([
   ...classEventActions,
   "attendance.checked_in",
@@ -192,7 +192,7 @@ export type ClassAuditEventClass = Readonly<{
 }>;
 
 type ClassAuditVariant = Readonly<{
-  action: ClassEventAction;
+  action: ClassAuditAction;
   class: ClassAuditEventClass;
   actorIp: string | null;
   actorRole: ClassActorRole;
@@ -240,9 +240,6 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "waitlist.offer.accepted"
           | "waitlist.offer.declined"
           | "waitlist.offer.expired"
-          | "attendance.checked_in"
-          | "attendance.corrected"
-          | "attendance.proximity_override"
           | "session.quorum.cancelled"
           | "penalty.no_show.proposed"
           | "penalty.no_show.resolved"
@@ -252,7 +249,6 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "disclaimer.withdrawn"
           | "disclaimer.accepted"
           | "disclaimer.acceptance.withdrawn"
-          | "student.checked_out"
           | "location.geofence.saved"
           | "academy.payment_instructions.saved"
           | "notification.preference.updated"
@@ -408,9 +404,9 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "waitlist.offer.accepted": commonFields,
   "waitlist.offer.declined": commonFields,
   "waitlist.offer.expired": commonFields,
-  "attendance.checked_in": commonFields,
-  "attendance.corrected": commonFields,
-  "attendance.proximity_override": commonFields,
+  "attendance.checked_in": classEventFields,
+  "attendance.corrected": classEventFields,
+  "attendance.proximity_override": classEventFields,
   "session.quorum.cancelled": commonFields,
   "penalty.no_show.proposed": commonFields,
   "penalty.no_show.resolved": commonFields,
@@ -420,7 +416,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "disclaimer.withdrawn": commonFields,
   "disclaimer.accepted": commonFields,
   "disclaimer.acceptance.withdrawn": commonFields,
-  "student.checked_out": commonFields,
+  "student.checked_out": classEventFields,
   "location.geofence.saved": commonFields,
   "academy.payment_instructions.saved": commonFields,
   "notification.preference.updated": commonFields,
@@ -598,8 +594,8 @@ function validSourceRoute(value: unknown): value is string {
   return !value.includes("//") && !segments.includes(".") && !segments.includes("..");
 }
 
-function isClassEventAction(action: AuditAction): action is ClassEventAction {
-  return classEventActions.includes(action as ClassEventAction);
+function isClassAuditAction(action: AuditAction): action is ClassAuditAction {
+  return classAuditActions.includes(action as ClassAuditAction);
 }
 
 function isClassIdentifier(value: unknown): value is string {
@@ -792,7 +788,7 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       }
     }
 
-    if (isClassEventAction(parsedAction)) {
+    if (isClassAuditAction(parsedAction)) {
       const block = snapshot.class;
       if (!isPlainRecord(block) || !hasExactFields(block, classBlockFields)) {
         issues.push(issue(["class"], "AUDIT_CLASS_BLOCK_INVALID"));
@@ -1208,7 +1204,7 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         }),
       );
     }
-    if (isClassEventAction(parsedAction)) {
+    if (isClassAuditAction(parsedAction)) {
       const block = snapshot.class as Record<string, unknown>;
       return ok(
         Object.freeze({

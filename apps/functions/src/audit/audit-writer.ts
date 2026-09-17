@@ -33,6 +33,18 @@ function sameValue(left: unknown, right: unknown): boolean {
       left.length === right.length && left.every((value, index) => sameValue(value, right[index]))
     );
   }
+  // A block such as the class one is a record, not a scalar: comparing references would call every
+  // replay a mismatch, so the same fields with the same values count as the same fact.
+  if (isPlainRecord(left) && isPlainRecord(right)) {
+    const keys = Object.keys(left);
+    return (
+      keys.length === Object.keys(right).length &&
+      keys.every(
+        (key) =>
+          Object.prototype.hasOwnProperty.call(right, key) && sameValue(left[key], right[key]),
+      )
+    );
+  }
   return left === right;
 }
 
