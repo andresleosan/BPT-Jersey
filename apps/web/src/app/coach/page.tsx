@@ -462,7 +462,9 @@ export default function CoachDashboardPage() {
                         {isLoaded && bookedCount !== null && quorumMet !== null ? (
                           <>
                             <span>
-                              Capacity: {bookedCount} / {s.capacity ?? "not set"} booked
+                              {s.capacity === null
+                                ? `Capacity not set · ${bookedCount} booked`
+                                : `Capacity: ${bookedCount} / ${s.capacity} booked`}
                             </span>
                             <span
                               className={`coach-quorum-badge ${
@@ -476,7 +478,11 @@ export default function CoachDashboardPage() {
                           </>
                         ) : (
                           <>
-                            <span>Capacity: {s.capacity ?? "not set"} max</span>
+                            <span>
+                              {s.capacity === null
+                                ? "Capacity not set"
+                                : `Capacity: ${s.capacity} max`}
+                            </span>
                             <span className="coach-quorum-badge coach-quorum-warning">
                               Min quorum: {minRequired}
                             </span>
