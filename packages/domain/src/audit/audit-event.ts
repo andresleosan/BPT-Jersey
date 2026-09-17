@@ -1,3 +1,4 @@
+import { userRoles, type UserRole } from "../actor-context";
 import type { ValidationIssue } from "../errors";
 import type { AcademyId, CorrelationId, SystemActorId, UserId } from "../identifiers";
 import { memberReportKeys, type MemberReportKey } from "../members/member-contracts";
@@ -75,9 +76,57 @@ export const auditActions = Object.freeze([
   "enrolment.request.approval.failed",
   "enrolment.request.detail.read",
   "member.directory.initialized",
+  "booking.created",
+  "booking.cancelled",
+  "dropin.created",
+  "dropin.cancelled",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
+
+/** The four actions that carry the class block; the rest of the log is read-side only. */
+export const classEventActions = Object.freeze([
+  "booking.created",
+  "booking.cancelled",
+  "dropin.created",
+  "dropin.cancelled",
+] as const);
+
+/** Every action the class registrations log reads, including the attendance ones it only shows. */
+export const classAuditActions = Object.freeze([
+  ...classEventActions,
+  "attendance.checked_in",
+  "attendance.corrected",
+  "attendance.proximity_override",
+  "student.checked_out",
+] as const);
+
+export type ClassEventAction = (typeof classEventActions)[number];
+export type ClassAuditAction = (typeof classAuditActions)[number];
+
+export const classActorGroups = Object.freeze(["member", "staff", "system"] as const);
+export type ClassActorGroup = (typeof classActorGroups)[number];
+export type ClassActorRole = UserRole | "system" | "regyfit";
+
+export const classAuditSources = Object.freeze(["bpt", "regyfit"] as const);
+export type ClassAuditSource = (typeof classAuditSources)[number];
+
+const staffRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
+
+/** Regyfit rows were written by athletes, so an imported actor counts as a member. */
+export function classActorGroup(role: ClassActorRole): ClassActorGroup {
+  if (role === "system") return "system";
+  if (staffRoles.includes(role as (typeof staffRoles)[number])) return "staff";
+  return "member";
+}
+
+const ipv4Pattern =
+  /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/u;
+const ipv6Pattern = /^[0-9a-fA-F:]{2,45}$/u;
+
+export function isAuditIpAddress(value: unknown): value is string {
+  return typeof value === "string" && (ipv4Pattern.test(value) || ipv6Pattern.test(value));
+}
 
 type CommonAuditEventDraft = Readonly<{
   academyId: AcademyId;
@@ -129,9 +178,35 @@ type RestrictedMemberReadAuditVariant =
 export type RestrictedMemberReadAuditEventDraft = CommonAuditEventDraft &
   RestrictedMemberReadAuditVariant;
 
+/**
+ * What the log shows about one class event. The student is an identifier when the row belongs to a
+ * student record and a plain name when it was imported from Regyfit without a match.
+ */
+export type ClassAuditEventClass = Readonly<{
+  studentId: string | null;
+  studentName: string | null;
+  sessionId: string;
+  sessionStartAt: string;
+  programId: string | null;
+  locationId: string | null;
+}>;
+
+type ClassAuditVariant = Readonly<{
+  action: ClassEventAction;
+  class: ClassAuditEventClass;
+  actorIp: string | null;
+  actorRole: ClassActorRole;
+  actorGroup: ClassActorGroup;
+  actorName: string | null;
+  source: ClassAuditSource;
+}>;
+
+export type ClassAuditEventDraft = CommonAuditEventDraft & ClassAuditVariant;
+
 export type AuditEventDraft = CommonAuditEventDraft &
   (
     | RestrictedMemberReadAuditVariant
+    | ClassAuditVariant
     | Readonly<{
         action:
           | "admin.role.granted"
@@ -267,6 +342,24 @@ const commonFields = Object.freeze([
   "correlationId",
 ] as const);
 const restrictedMemberReadFields = Object.freeze([...commonFields, "result"]);
+const classEventFields = Object.freeze([
+  ...commonFields,
+  "class",
+  "actorIp",
+  "actorRole",
+  "actorGroup",
+  "actorName",
+  "source",
+]);
+const classBlockFields = Object.freeze([
+  "studentId",
+  "studentName",
+  "sessionId",
+  "sessionStartAt",
+  "programId",
+  "locationId",
+] as const);
+const classActorRoles = Object.freeze([...userRoles, "system", "regyfit"] as const);
 /**
  * Every restricted read is bound to one declared purpose. The target is the reader's own rate
  * limit document rather than what was read: the ledger records that somebody spent a restricted
@@ -343,6 +436,10 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "enrolment.request.approval.failed": commonFields,
   "enrolment.request.detail.read": restrictedMemberReadFields,
   "member.directory.initialized": commonFields,
+  "booking.created": classEventFields,
+  "booking.cancelled": classEventFields,
+  "dropin.created": classEventFields,
+  "dropin.cancelled": classEventFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
     "imported",
@@ -499,6 +596,14 @@ function validSourceRoute(value: unknown): value is string {
   }
   const segments = value.split("/");
   return !value.includes("//") && !segments.includes(".") && !segments.includes("..");
+}
+
+function isClassEventAction(action: AuditAction): action is ClassEventAction {
+  return classEventActions.includes(action as ClassEventAction);
+}
+
+function isClassIdentifier(value: unknown): value is string {
+  return typeof value === "string" && safeAuditIdentifierPattern.test(value);
 }
 
 function validCalendarDate(value: unknown): value is string {
@@ -684,6 +789,46 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         !/^level-write-[a-f0-9]{64}$/u.test(snapshot.correlationId)
       ) {
         issues.push(issue([], "AUDIT_LEVEL_WRITE_SCOPE_INVALID"));
+      }
+    }
+
+    if (isClassEventAction(parsedAction)) {
+      const block = snapshot.class;
+      if (!isPlainRecord(block) || !hasExactFields(block, classBlockFields)) {
+        issues.push(issue(["class"], "AUDIT_CLASS_BLOCK_INVALID"));
+      } else {
+        if (!isClassIdentifier(block.sessionId)) {
+          issues.push(issue(["class", "sessionId"], "AUDIT_CLASS_IDENTIFIER_INVALID"));
+        }
+        for (const key of ["studentId", "programId", "locationId"] as const) {
+          if (block[key] !== null && !isClassIdentifier(block[key])) {
+            issues.push(issue(["class", key], "AUDIT_CLASS_IDENTIFIER_INVALID"));
+          }
+        }
+        if (block.studentName !== null && !isBoundedString(block.studentName, 128)) {
+          issues.push(issue(["class", "studentName"], "AUDIT_CLASS_STUDENT_NAME_INVALID"));
+        }
+        if (
+          typeof block.sessionStartAt !== "string" ||
+          !dateTimePattern.test(block.sessionStartAt) ||
+          Number.isNaN(Date.parse(block.sessionStartAt))
+        ) {
+          issues.push(issue(["class", "sessionStartAt"], "AUDIT_CLASS_SESSION_START_INVALID"));
+        }
+      }
+      if (snapshot.actorIp !== null && !isAuditIpAddress(snapshot.actorIp)) {
+        issues.push(issue(["actorIp"], "AUDIT_CLASS_ACTOR_IP_INVALID"));
+      }
+      if (!classActorRoles.includes(snapshot.actorRole as ClassActorRole)) {
+        issues.push(issue(["actorRole"], "AUDIT_CLASS_ACTOR_ROLE_INVALID"));
+      } else if (snapshot.actorGroup !== classActorGroup(snapshot.actorRole as ClassActorRole)) {
+        issues.push(issue(["actorGroup"], "AUDIT_CLASS_ACTOR_GROUP_INVALID"));
+      }
+      if (snapshot.actorName !== null && !isBoundedString(snapshot.actorName, 128)) {
+        issues.push(issue(["actorName"], "AUDIT_CLASS_ACTOR_NAME_INVALID"));
+      }
+      if (!classAuditSources.includes(snapshot.source as ClassAuditSource)) {
+        issues.push(issue(["source"], "AUDIT_CLASS_SOURCE_INVALID"));
       }
     }
 
@@ -1060,6 +1205,28 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           expiresAt: snapshot.expiresAt as string,
           contentSha256: snapshot.contentSha256 as string,
           byteLength: snapshot.byteLength as number,
+        }),
+      );
+    }
+    if (isClassEventAction(parsedAction)) {
+      const block = snapshot.class as Record<string, unknown>;
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          class: Object.freeze({
+            studentId: block.studentId as string | null,
+            studentName: block.studentName as string | null,
+            sessionId: block.sessionId as string,
+            sessionStartAt: block.sessionStartAt as string,
+            programId: block.programId as string | null,
+            locationId: block.locationId as string | null,
+          }),
+          actorIp: snapshot.actorIp as string | null,
+          actorRole: snapshot.actorRole as ClassActorRole,
+          actorGroup: snapshot.actorGroup as ClassActorGroup,
+          actorName: snapshot.actorName as string | null,
+          source: snapshot.source as ClassAuditSource,
         }),
       );
     }

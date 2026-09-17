@@ -249,6 +249,10 @@ describe("domain contracts", () => {
       "enrolment.request.approval.failed",
       "enrolment.request.detail.read",
       "member.directory.initialized",
+      "booking.created",
+      "booking.cancelled",
+      "dropin.created",
+      "dropin.cancelled",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");
