@@ -3663,6 +3663,284 @@
   }
 }
 
+/* T051V2 member record (DESIGN.md: square, status as text + left rule, no pills, 44px targets). */
+.member-record {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.member-record-header {
+  border-top: 0.35rem solid var(--bpt-purple);
+  background: var(--gi-white);
+  padding: 1.25rem;
+}
+
+.member-record-header h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0.35rem 0 0.9rem;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.member-record-header h2:focus-visible,
+.member-record-button:focus-visible,
+.member-record-link:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}
+
+.member-record-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+.member-record-facts div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.member-record-facts dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.member-record-facts dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin: 0;
+}
+
+.member-record-status {
+  border-left: 0.35rem solid var(--line);
+  padding-left: 0.5rem;
+}
+
+.member-record-status-active {
+  border-left-color: #176b49;
+  color: #176b49;
+}
+
+.member-record-status-inactive,
+.member-record-status-suspended {
+  border-left-color: #8d1c2f;
+  color: #721626;
+}
+
+.member-record-birthday {
+  background: #f0efff;
+  border-left: 0.35rem solid var(--bpt-purple);
+  font-weight: 700;
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.9rem;
+}
+
+.member-record-cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.member-record-cards > .member-record-wide {
+  grid-column: 1 / -1;
+}
+
+.member-record-card {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  min-width: 0;
+  padding: 1rem;
+}
+
+.member-record-card h3,
+.member-record-empty h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0.35rem 0 0.6rem;
+  text-transform: uppercase;
+}
+
+.member-record-card p {
+  font-variant-numeric: tabular-nums;
+  margin: 0.25rem 0;
+}
+
+.member-record-empty {
+  background: var(--gi-white);
+  border-left: 0.35rem solid var(--line);
+  padding: 1.25rem;
+}
+
+.member-record-empty p:not(.admin-eyebrow) {
+  color: var(--muted);
+  margin: 0 0 1rem;
+  max-width: 36rem;
+}
+
+.member-record-button,
+.member-record-link {
+  align-items: center;
+  border: 1px solid var(--bpt-purple);
+  border-radius: 0;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  min-height: 3.15rem;
+  padding: 0.8rem 1.15rem;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    transform 220ms ease;
+}
+
+.member-record-button {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+.member-record-link {
+  background: var(--gi-white);
+  color: var(--bpt-purple);
+}
+
+.member-record-button:hover,
+.member-record-link:hover {
+  transform: translateY(-2px);
+}
+
+.member-record-button:disabled {
+  border-color: var(--line);
+  background: var(--line);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.member-record-skeleton {
+  display: grid;
+  gap: 1rem;
+}
+
+.member-record-skeleton span {
+  background: #e8e7e3;
+  display: block;
+  height: 7rem;
+}
+
+.member-record-skeleton span:first-child {
+  height: 10rem;
+}
+
+.member-record-notice {
+  background: #fff0f2;
+  border-left: 0.35rem solid #8d1c2f;
+  color: #5f1020;
+  padding: 1rem 1.25rem;
+}
+
+.member-record-tabs {
+  overflow-x: auto;
+}
+
+.member-record-tabs .admin-member-profile-tab {
+  min-height: 2.75rem;
+}
+
+.member-record-form {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.member-record-form fieldset {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 1rem;
+}
+
+.member-record-form legend {
+  color: var(--bpt-purple);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding: 0 0.35rem;
+  text-transform: uppercase;
+}
+
+.member-record-form .login-field select,
+.member-record-form .login-field textarea {
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 3rem;
+  padding: 0.75rem;
+  width: 100%;
+}
+
+.member-record-form .login-field input:focus-visible,
+.member-record-form .login-field select:focus-visible,
+.member-record-form .login-field textarea:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
+.member-record-form .member-record-wide {
+  grid-column: 1 / -1;
+}
+
+.member-record-hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.member-record-save-bar {
+  align-items: center;
+  background: var(--canvas);
+  border-top: 2px solid var(--mat-ink);
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  position: sticky;
+}
+
+@media (max-width: 50rem) {
+  .member-record-form fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member-record-button,
+  .member-record-link {
+    transition: none;
+  }
+
+  .member-record-button:hover,
+  .member-record-link:hover {
+    transform: none;
+  }
+}
+
 .shop-admin-page {
   max-width: 86rem;
 }
