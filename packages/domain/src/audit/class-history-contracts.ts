@@ -148,7 +148,7 @@ const jerseyParts = new Intl.DateTimeFormat("en-GB", {
 });
 
 /** "16 Sep 2026 at 18:30" in Jersey local time, or null when there is no session to name. */
-function formatJerseyMoment(value: string | null): string | null {
+export function formatJerseyMoment(value: string | null): string | null {
   if (value === null) return null;
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) return null;
