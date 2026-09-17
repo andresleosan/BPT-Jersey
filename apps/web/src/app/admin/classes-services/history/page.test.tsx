@@ -156,6 +156,42 @@ describe("Class registrations log", () => {
     );
   });
 
+  it("never offers an auth uid as a Logged by option", async () => {
+    // Production writes no actorName for a system row, and the uid must not become its label.
+    const namelessRow = {
+      ...memberRow,
+      id: "evt-3",
+      actorId: "uid-quorum-sweep",
+      actorRole: "system",
+      actorGroup: "system",
+      actorName: null,
+    };
+    mocks.fetchClassHistory.mockResolvedValue({
+      rows: [memberRow, staffRow, namelessRow],
+      total: 3,
+    });
+    render(<HistoryPage />);
+    fireEvent.click(screen.getByRole("button", { name: "LIST" }));
+    await screen.findByText("RECORDS (3)");
+
+    const labels = within(screen.getByLabelText("Logged by"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+
+    expect(labels).toEqual(["Anyone", "Office", "Olivia Lewis"]);
+    for (const uid of [memberRow.actorId, staffRow.actorId, namelessRow.actorId]) {
+      expect(labels).not.toContain(uid);
+    }
+  });
+
+  it("offers every record count the spec lists, 750 included", () => {
+    render(<HistoryPage />);
+    const labels = within(screen.getByLabelText("No. of records"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(labels).toEqual(["100", "250", "500", "750", "1000"]);
+  });
+
   it("renders an em dash for a record with no address", async () => {
     render(<HistoryPage />);
     fireEvent.click(screen.getByRole("button", { name: "LIST" }));

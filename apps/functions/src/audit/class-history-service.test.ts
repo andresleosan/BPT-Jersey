@@ -114,10 +114,12 @@ type FakeStore = ClassHistoryStore & {
   students: Map<string, string>;
   sessions: Map<string, ClassHistorySession>;
   staff: Map<string, string>;
+  members: Map<string, string>;
   lastQuery: ClassHistoryQuery | null;
   readStudentCalls: string[][];
   readSessionCalls: string[][];
   readStaffCalls: string[][];
+  readMemberCalls: string[][];
 };
 
 function createStore(): FakeStore {
@@ -134,10 +136,12 @@ function createStore(): FakeStore {
       ],
     ]),
     staff: new Map([["coach-9", "Coach Ana"]]),
+    members: new Map([["s1", "Mia Perez"]]),
     lastQuery: null,
     readStudentCalls: [],
     readSessionCalls: [],
     readStaffCalls: [],
+    readMemberCalls: [],
     queryEvents: (query) => {
       store.lastQuery = query;
       return Promise.resolve(store.events);
@@ -153,6 +157,10 @@ function createStore(): FakeStore {
     readStaffNames: (ids) => {
       store.readStaffCalls.push([...ids]);
       return Promise.resolve(store.staff);
+    },
+    readMemberNames: (uids) => {
+      store.readMemberCalls.push([...uids]);
+      return Promise.resolve(store.members);
     },
   };
   return store;
@@ -193,6 +201,7 @@ describe("readClassHistory", () => {
     expect(store.readStudentCalls).toEqual([["s1", "s2"]]);
     expect(store.readSessionCalls).toEqual([["session-1"]]);
     expect(store.readStaffCalls).toEqual([["coach-9"]]);
+    expect(store.readMemberCalls).toEqual([["s1"]]);
   });
 
   it("shows Former member when the student no longer exists", async () => {
@@ -261,6 +270,29 @@ describe("readClassHistory", () => {
     expect(rows[0]?.sentence).toBe(
       "Noah Grant was booked by Office into Adults Gi on 16 Sep 2026 at 18:30",
     );
+  });
+
+  it("names the member who booked by resolving their uid to the student record", async () => {
+    const store = createStore();
+
+    const { rows } = await readClassHistory(store, input, ownerActor);
+
+    // The writers store actorName: null for every member row, so an empty USER column here would
+    // be exactly what production shows.
+    expect(memberBooking.actorName).toBe(null);
+    expect(rows[0]?.actorName).toBe("Mia Perez");
+    expect(rows[0]?.actorName).not.toBe(memberBooking.actorId);
+  });
+
+  it("labels a member actor with no student record of their own as Member", async () => {
+    const store = createStore();
+    // A guardian books for their child: the uid holds no student record, so nothing resolves.
+    store.events = [{ ...memberBooking, actorId: "uid-guardian" }];
+
+    const { rows } = await readClassHistory(store, input, ownerActor);
+
+    expect(rows[0]?.actorName).toBe("Member");
+    expect(rows[0]?.actorName).not.toBe("uid-guardian");
   });
 
   it("still returns a row for an attendance event stored without a class block", async () => {

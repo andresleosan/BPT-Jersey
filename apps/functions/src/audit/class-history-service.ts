@@ -18,6 +18,9 @@ import type { UserRole } from "@bpt-jersey/domain";
 export const classHistoryMinimumLimit = 100;
 export const classHistoryMaximumLimit = 1000;
 
+/** What the USER column says for a member actor whose uid resolves to no student record. */
+export const memberActorLabel = "Member";
+
 /**
  * One audit row as the store hands it over. The class block is null for the attendance events
  * written before the block existed: those rows still belong in the log.
@@ -61,6 +64,8 @@ export type ClassHistoryStore = Readonly<{
   readStudents: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
   readSessions: (ids: readonly string[]) => Promise<ReadonlyMap<string, ClassHistorySession>>;
   readStaffNames: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  /** Keyed by the Firebase Auth uid an audit event carries, valued with the student's own name. */
+  readMemberNames: (uids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 }>;
 
 export type ClassHistoryActor = Readonly<{
@@ -116,11 +121,15 @@ export async function readClassHistory(
   const staffIds = distinct(
     events.map((event) => (event.actorGroup === "staff" ? event.actorId : null)),
   );
+  const memberIds = distinct(
+    events.map((event) => (event.actorGroup === "member" ? event.actorId : null)),
+  );
 
-  const [students, sessions, staffNames] = await Promise.all([
+  const [students, sessions, staffNames, memberNames] = await Promise.all([
     store.readStudents(studentIds),
     store.readSessions(sessionIds),
     store.readStaffNames(staffIds),
+    store.readMemberNames(memberIds),
   ]);
 
   const showIp = canReadRestrictedIp(actor.role);
@@ -136,7 +145,15 @@ export async function readClassHistory(
     // fall back to - and never as the actor's own auth uid.
     const staffName =
       event.actorGroup === "staff" ? (staffNames.get(event.actorId) ?? "Office") : undefined;
-    const actorName = staffName ?? event.actorName;
+    // The writers store no name at all for a member actor, so the uid is resolved here against the
+    // student who holds that account. A guardian booking for their child holds no student record
+    // of their own: that row is labelled "Member" rather than showing the auth uid or borrowing the
+    // child's name, which would put words in somebody else's mouth.
+    const memberName =
+      event.actorGroup === "member"
+        ? (memberNames.get(event.actorId) ?? event.actorName ?? memberActorLabel)
+        : undefined;
+    const actorName = staffName ?? memberName ?? event.actorName;
     const sessionStartAt = session?.startAt ?? block?.sessionStartAt ?? null;
     const programId = block?.programId ?? session?.programId ?? null;
     const programName = session?.programName ?? null;

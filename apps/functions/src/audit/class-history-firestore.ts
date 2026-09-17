@@ -84,25 +84,38 @@ function chunk<T>(values: readonly T[], size: number): T[][] {
  * query is used instead, chunked to Firestore's 30-value `in` limit and merged. The auth uid is
  * never put in the returned map's values - only the resolved `staffId` is.
  */
-async function readStaffKeysByUserId(
+/**
+ * A member actor is the same shape of lookup: `students` is keyed by studentId and carries the
+ * account's uid in `userId`, so the same query resolves an audit event's `actorId` to the student's
+ * own `fullName`. With `nameField` null the value is the document's own id instead (the staffKey);
+ * with a field name it is that field's value.
+ */
+async function readByUserId(
   firestore: Firestore,
-  staffCollectionPath: string,
+  collectionPath: string,
   uids: readonly string[],
+  nameField: string | null,
 ): Promise<ReadonlyMap<string, string>> {
   if (uids.length === 0) return new Map();
-  const keysByUid = new Map<string, string>();
+  const valuesByUid = new Map<string, string>();
   const snapshots = await Promise.all(
     chunk(uids, maxWhereInSize).map((group) =>
-      firestore.collection(staffCollectionPath).where("userId", "in", group).get(),
+      firestore.collection(collectionPath).where("userId", "in", group).get(),
     ),
   );
   for (const snapshot of snapshots) {
     for (const document of snapshot.docs) {
       const data = document.data() as Record<string, unknown>;
-      if (typeof data.userId === "string") keysByUid.set(data.userId, document.id);
+      if (typeof data.userId !== "string") continue;
+      if (nameField === null) {
+        valuesByUid.set(data.userId, document.id);
+        continue;
+      }
+      const name = data[nameField];
+      if (typeof name === "string" && name.length > 0) valuesByUid.set(data.userId, name);
     }
   }
-  return keysByUid;
+  return valuesByUid;
 }
 
 /**
@@ -166,7 +179,8 @@ export function createClassHistoryStore(
     },
 
     readStudents: (ids) => readNameMap(firestore, studentsPath, ids, "fullName"),
-    readStaffNames: (ids) => readStaffKeysByUserId(firestore, staffPath, ids),
+    readStaffNames: (ids) => readByUserId(firestore, staffPath, ids, null),
+    readMemberNames: (uids) => readByUserId(firestore, studentsPath, uids, "fullName"),
 
     async readSessions(ids) {
       if (ids.length === 0) return new Map();

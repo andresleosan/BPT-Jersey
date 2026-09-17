@@ -54,6 +54,7 @@ function store(overrides: Partial<ClassHistoryStore> = {}): ClassHistoryStore {
         ],
       ]),
     readStaffNames: async () => new Map<string, string>(),
+    readMemberNames: async () => new Map([["student-1", "Ana Silva"]]),
     ...overrides,
   };
 }
