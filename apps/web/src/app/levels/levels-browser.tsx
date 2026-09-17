@@ -9,10 +9,14 @@ import type {
 
 import { getLevelCatalog } from "../../lib/levels-client";
 import {
+  beltTipColors,
   distinctBeltColors,
   formatAgeRange,
   formatMinimumTime,
   groupBelts,
+  ordinal,
+  stripeOrdinal,
+  techniqueSets,
 } from "./levels-grouping";
 import "./levels.css";
 
@@ -20,9 +24,8 @@ export type LevelsBrowserProps = Readonly<{
   roleContext?: "admin" | "coach" | "client";
 }>;
 
-function ordinal(n: number): string {
-  return `${n}${["th", "st", "nd", "rd"][n % 10 > 3 || Math.floor((n % 100) / 10) === 1 ? 0 : n % 10]}`;
-}
+// A physical belt tip holds four stripes; kids' belts go up to eleven, so the rest is a count.
+const tipMarks = 4;
 
 function BeltBar({
   name,
@@ -39,6 +42,7 @@ function BeltBar({
     : second
       ? `linear-gradient(to right, ${first} 50%, ${second} 50%)`
       : first;
+  const { tip, stripe } = beltTipColors(visual);
   return (
     <div
       aria-label={`${name} belt`}
@@ -48,11 +52,12 @@ function BeltBar({
     >
       <span
         className="belt-tip"
-        style={{ "--tip": visual.stripeColor ?? "#1A1A18" } as React.CSSProperties}
+        style={{ "--tip": tip, "--stripe": stripe } as React.CSSProperties}
       >
-        {Array.from({ length: Math.min(stripeCount, 4) }, (_, i) => (
+        {Array.from({ length: Math.min(stripeCount, tipMarks) }, (_, i) => (
           <i key={i} />
         ))}
+        {stripeCount > tipMarks ? <b>+{stripeCount - tipMarks}</b> : null}
       </span>
     </div>
   );
@@ -225,54 +230,56 @@ export function LevelsBrowser({ roleContext = "admin" }: LevelsBrowserProps) {
         </p>
       ) : (
         <div aria-label="Belts" className="levels-grid" role="region">
-          {visible.map(({ belt, stripes, ageGroup }) => (
-            <article
-              aria-labelledby={`belt-${belt.definitionKey}`}
-              className="belt-card"
-              key={belt.definitionKey}
-            >
-              <BeltBar name={belt.name} stripeCount={stripes.length} visual={belt.visual} />
-              <p className="belt-eyebrow">
-                {ageGroup === "kids" ? "Kids" : "Adults"} · #{belt.sequence}
-              </p>
-              <h2 className="belt-name" id={`belt-${belt.definitionKey}`}>
-                {belt.name}
-              </h2>
-              <dl className="belt-criteria">
-                <div>
-                  <dt>Age</dt>
-                  <dd>{formatAgeRange(belt.criteria.minAge, belt.criteria.maxAge)}</dd>
-                </div>
-                <div>
-                  <dt>Min classes</dt>
-                  <dd>{belt.criteria.minClasses ?? "None"}</dd>
-                </div>
-                <div>
-                  <dt>Min time</dt>
-                  <dd>{formatMinimumTime(belt.criteria.minimumTime)}</dd>
-                </div>
-              </dl>
-              {stripes.length > 0 ? (
-                <ol aria-label={`${belt.name} stripes`} className="belt-stripes">
-                  {stripes.map((s) => (
-                    <li key={s.definitionKey}>
-                      <strong>{ordinal(s.stripeNumber ?? 0)} stripe</strong>
-                      <span>
-                        {s.criteria.minClasses ? `${s.criteria.minClasses} classes` : "—"} ·{" "}
-                        {formatMinimumTime(s.criteria.minimumTime)}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              ) : null}
-              {(requirementsByDefKey.get(belt.definitionKey) ?? []).length > 0 ? (
-                <p className="belt-skills">
-                  <span>Techniques</span>{" "}
-                  {requirementsByDefKey.get(belt.definitionKey)!.join(" · ")}
+          {visible.map((group) => {
+            const { belt, stripes, ageGroup } = group;
+            return (
+              <article
+                aria-labelledby={`belt-${belt.definitionKey}`}
+                className="belt-card"
+                key={belt.definitionKey}
+              >
+                <BeltBar name={belt.name} stripeCount={stripes.length} visual={belt.visual} />
+                <p className="belt-eyebrow">
+                  {ageGroup === "kids" ? "Kids" : "Adults"} · #{belt.sequence}
                 </p>
-              ) : null}
-            </article>
-          ))}
+                <h2 className="belt-name" id={`belt-${belt.definitionKey}`}>
+                  {belt.name}
+                </h2>
+                <dl className="belt-criteria">
+                  <div>
+                    <dt>Age</dt>
+                    <dd>{formatAgeRange(belt.criteria.minAge, belt.criteria.maxAge)}</dd>
+                  </div>
+                  <div>
+                    <dt>Min classes</dt>
+                    <dd>{belt.criteria.minClasses ?? "None"}</dd>
+                  </div>
+                  <div>
+                    <dt>Min time</dt>
+                    <dd>{formatMinimumTime(belt.criteria.minimumTime)}</dd>
+                  </div>
+                </dl>
+                {stripes.length > 0 ? (
+                  <ol aria-label={`${belt.name} stripes`} className="belt-stripes">
+                    {stripes.map((s, position) => (
+                      <li key={s.definitionKey}>
+                        <strong>{ordinal(stripeOrdinal(s, position))} stripe</strong>
+                        <span>
+                          {s.criteria.minClasses ? `${s.criteria.minClasses} classes` : "—"} ·{" "}
+                          {formatMinimumTime(s.criteria.minimumTime)}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+                {techniqueSets(group, requirementsByDefKey).map(({ appliesTo, techniques }) => (
+                  <p className="belt-skills" key={appliesTo}>
+                    <span>Techniques · {appliesTo}</span> {techniques.join(" · ")}
+                  </p>
+                ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
