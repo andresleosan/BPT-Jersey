@@ -104,7 +104,7 @@ const baseInput = {
 } as const;
 
 describe("membership plan Firestore store", () => {
-  it("lists active plans in catalog order through a real active query limited to ten", async () => {
+  it("lists active plans in catalog order through a real active query limited to the catalog size", async () => {
     const westAdult = record(PLAN_CATALOG[4]);
     const payg = record(PLAN_CATALOG[0]!);
     const { store, queries } = services({
@@ -118,7 +118,7 @@ describe("membership plan Firestore store", () => {
       path: "academies/academy-1/plans",
       field: "active",
       value: true,
-      limit: 10,
+      limit: PLAN_CATALOG.length,
     });
   });
 
@@ -294,6 +294,15 @@ describe("membership plan Firestore store", () => {
       updatedAt: "2026-08-21T10:00:00.000Z",
       updatedBy: "actor-2",
     });
+  });
+
+  it("lists every catalog plan when all eleven are active", async () => {
+    const { store } = services();
+    await store.seedPlanCatalog(baseInput);
+    await store.activatePlan({ ...baseInput, planId: "town-teens" });
+
+    const listed = await store.listPlans("academy-1");
+    expect(listed.map((plan) => plan.planId)).toEqual(PLAN_CATALOG.map((plan) => plan.planId));
   });
 
   it("seeds retired catalog plans as inactive", async () => {

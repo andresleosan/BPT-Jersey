@@ -99,7 +99,7 @@ export class PlanStoreError extends Error {
 const safePathSegmentPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const dateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
-const PLAN_QUERY_LIMIT = 10;
+const PLAN_QUERY_LIMIT = planIds.length;
 
 function pathSegment(value: string, label: string): string {
   if (typeof value !== "string" || !safePathSegmentPattern.test(value)) {
