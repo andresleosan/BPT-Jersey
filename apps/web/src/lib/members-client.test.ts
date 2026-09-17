@@ -22,6 +22,7 @@ import {
   listMemberNames,
   lookupMemberIdentity,
   MemberDirectoryUninitializedError,
+  revealRegyfitRecordField,
   updateMember,
 } from "./members-client";
 
@@ -251,6 +252,38 @@ describe("canonical members web client", () => {
       }),
     );
     await expect(listMemberNames()).rejects.toThrow("The member list is unavailable. Please try again.");
+  });
+
+  it("reveals one Regyfit field with its closed purpose and sanitizes every failure", async () => {
+    mocks.callable.mockResolvedValueOnce({ data: { value: "ID-000789" } });
+    await expect(revealRegyfitRecordField("152", "idCardNumber")).resolves.toBe("ID-000789");
+    expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "revealRegyfitRecordField");
+    expect(mocks.callable).toHaveBeenCalledWith({
+      recordId: "152",
+      field: "idCardNumber",
+      purpose: "regyfit-record-review",
+    });
+
+    mocks.callable.mockResolvedValueOnce({ data: { value: "ID-000789", recordId: "152" } });
+    await expect(revealRegyfitRecordField("152", "idCardNumber")).rejects.toThrow(
+      "Unable to reveal this value. Please try again.",
+    );
+
+    mocks.callable.mockRejectedValueOnce({ code: "functions/resource-exhausted", message: "raw" });
+    await expect(revealRegyfitRecordField("152", "idCardNumber")).rejects.toThrow(
+      "Too many restricted reads. Wait five minutes and try again.",
+    );
+
+    mocks.callable.mockRejectedValueOnce(new Error("private Firebase stack detail"));
+    await expect(revealRegyfitRecordField("152", "vatNumber")).rejects.toThrow(
+      "Unable to reveal this value. Please try again.",
+    );
+
+    mocks.callable.mockClear();
+    await expect(revealRegyfitRecordField("../152", "idCardNumber")).rejects.toThrow(
+      "Unable to reveal this value. Please try again.",
+    );
+    expect(mocks.callable).not.toHaveBeenCalled();
   });
 });
 
