@@ -184,6 +184,27 @@ describe("memberships admin page", () => {
     );
   });
 
+  it("flags a stored plan that differs from the catalogue and loads the catalogue values", async () => {
+    const user = userEvent.setup();
+    membershipApi.listManagedPlans.mockResolvedValue([activePlan, inactivePlan]);
+    membershipApi.listMemberships.mockResolvedValue([]);
+    membersApi.listMembers.mockResolvedValue({ rows: directoryRows, nextCursor: undefined });
+    render(<MembershipsAdminPage />);
+
+    await user.selectOptions(await screen.findByLabelText("Plan to edit"), "west-adult");
+    expect(screen.getByText("Differs from catalogue")).toBeInTheDocument();
+    expect(screen.getByLabelText("Weekly class limit")).toHaveValue("none");
+
+    await user.click(screen.getByRole("button", { name: "Load catalogue values" }));
+    expect(screen.getByLabelText("Weekly class limit")).toHaveValue("2");
+    expect(membershipApi.saveMembershipPlan).not.toHaveBeenCalled();
+
+    await user.selectOptions(screen.getByLabelText("Plan to edit"), "town-adult");
+    expect(screen.queryByText("Differs from catalogue")).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Per term" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "3 classes" })).toBeInTheDocument();
+  });
+
   it("follows the directory cursor and narrows the selector with a search", async () => {
     const user = userEvent.setup();
     membershipApi.listManagedPlans.mockResolvedValue([activePlan]);

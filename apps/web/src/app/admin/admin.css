@@ -3337,6 +3337,12 @@
   color: #6f1111;
 }
 
+.membership-message-warning {
+  background: #fff8e6;
+  border-left: 0.35rem solid #c98b00;
+  color: #765400;
+}
+
 .membership-helper,
 .membership-secondary-text,
 .membership-count,

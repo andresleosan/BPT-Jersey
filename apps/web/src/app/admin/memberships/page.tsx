@@ -32,6 +32,7 @@ import {
   type ManagedMembershipPlan,
 } from "../../../lib/membership-admin-client";
 import { listMembers } from "../../../lib/members-client";
+import { formatPlanPrice } from "../../../lib/plan-copy";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 
 import "../admin.css";
@@ -112,11 +113,14 @@ function copyPlan(plan: PlanDraft): PlanDraft {
   };
 }
 
-function formatMoney(priceMinor: number): string {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "GBP",
-  }).format(priceMinor / 100);
+const billingLabel = {
+  "per-session": "Per session",
+  monthly: "Monthly",
+  term: "Per term",
+} as const;
+
+function samePlan(left: PlanDraft, right: PlanDraft): boolean {
+  return JSON.stringify(copyPlan(left)) === JSON.stringify(copyPlan(right));
 }
 
 function replacePlan(
@@ -192,8 +196,8 @@ function PlanCatalog({ plans }: { plans: readonly ManagedMembershipPlan[] }) {
                   <strong>{plan.displayName}</strong>
                   <small className="membership-secondary-text">{planId}</small>
                 </td>
-                <td>{plan.billingPeriod === "monthly" ? "Monthly" : "Per session"}</td>
-                <td>{formatMoney(plan.priceMinor)}</td>
+                <td>{billingLabel[plan.billingPeriod]}</td>
+                <td>{formatPlanPrice(plan)}</td>
                 <td>{plan.eligibleParticipantTypes.join(", ")}</td>
                 <td>
                   <AdminStatusBadge status={status} />
@@ -285,6 +289,11 @@ export function MembershipsAdminPage() {
     workspace.status === "ready"
       ? workspace.plans.find((plan) => plan.planId === selectedPlanId)
       : undefined;
+  const catalogPlan = PLAN_CATALOG.find((plan) => plan.planId === selectedPlanId);
+  const differsFromCatalogue =
+    configuredPlan !== undefined &&
+    catalogPlan !== undefined &&
+    !samePlan(configuredPlan, catalogPlan);
   const activePlans = useMemo(
     () => (workspace.status === "ready" ? workspace.plans.filter((plan) => plan.active) : []),
     [workspace],
@@ -468,6 +477,22 @@ export function MembershipsAdminPage() {
                 <p className="admin-eyebrow">Plan editor</p>
                 <h3>Configure plan</h3>
               </div>
+              {differsFromCatalogue ? (
+                <div className="membership-message membership-message-warning" role="status">
+                  <p>
+                    <strong>Differs from catalogue</strong>
+                  </p>
+                  <p>{"This saved plan doesn't match the published prices and rules."}</p>
+                  <button
+                    className="membership-secondary-button"
+                    disabled={busy !== undefined}
+                    onClick={() => catalogPlan && setPlanDraft(copyPlan(catalogPlan))}
+                    type="button"
+                  >
+                    Load catalogue values
+                  </button>
+                </div>
+              ) : null}
               <div className="membership-form-grid">
                 <label className="membership-field" htmlFor="membership-plan-editor-id">
                   Plan to edit
@@ -527,7 +552,7 @@ export function MembershipsAdminPage() {
                   >
                     {billingPeriods.map((period) => (
                       <option key={period} value={period}>
-                        {period === "monthly" ? "Monthly" : "Per session"}
+                        {billingLabel[period]}
                       </option>
                     ))}
                   </select>
@@ -551,6 +576,7 @@ export function MembershipsAdminPage() {
                     <option value="none">Unlimited</option>
                     <option value="1">1 class</option>
                     <option value="2">2 classes</option>
+                    <option value="3">3 classes</option>
                   </select>
                 </label>
                 <label className="membership-field" htmlFor="membership-plan-open-mat-fee">
