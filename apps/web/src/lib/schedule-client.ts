@@ -167,12 +167,19 @@ export async function saveProgram(input: CreateProgramInput): Promise<ProgramRec
   return result.data.program;
 }
 
-async function callSafely<Req, Res>(name: string, input: Req, failure: string): Promise<Res> {
+async function callSafely<Req, Res>(
+  name: string,
+  input: Req,
+  failure: string,
+  preconditionFailure = failure,
+): Promise<Res> {
   const callable = httpsCallable<Req, Res>(getFirebaseFunctions(), name);
   try {
     return (await callable(input)).data;
-  } catch {
-    throw new Error(failure);
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
+    throw new Error(code === "functions/failed-precondition" ? preconditionFailure : failure);
   }
 }
 
@@ -227,21 +234,14 @@ export async function previewWeek(weekStart: string): Promise<WeekPreview> {
 }
 
 export async function copyWeek(input: CopyWeekInput): Promise<readonly SessionRecord[]> {
-  const callable = httpsCallable<CopyWeekInput, { sessions: SessionRecord[] }>(
-    getFirebaseFunctions(),
-    "copyWeek",
-  );
-  try {
-    return (await callable(input)).data.sessions;
-  } catch (error) {
-    const code =
-      typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
-    throw new Error(
-      code === "functions/failed-precondition"
-        ? "Set a capacity on every session in this week before copying it."
-        : "Unable to copy the week",
-    );
-  }
+  return (
+    await callSafely<CopyWeekInput, { sessions: SessionRecord[] }>(
+      "copyWeek",
+      input,
+      "Unable to copy the week",
+      "Set a capacity on every session in this week before copying it.",
+    )
+  ).sessions;
 }
 
 export async function deleteWeek(input: DeleteWeekInput): Promise<readonly SessionRecord[]> {
