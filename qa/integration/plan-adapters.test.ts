@@ -6,7 +6,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { CallableRequest } from "firebase-functions/v2/https";
 
-import { PLAN_CATALOG, planIds } from "@bpt-jersey/domain/memberships";
+import { PLAN_CATALOG, planIds, retiredPlanIds } from "@bpt-jersey/domain/memberships";
 
 import { requireUserActor } from "../../apps/functions/src/auth/user-authorization.js";
 import {
@@ -132,11 +132,15 @@ describe("membership plan adapters against Auth/Firestore emulators", () => {
     const secondSnapshot = await firestore.collection(`academies/${academyA}/plans`).get();
     const secondEnvelopes = await readPlanEnvelopes(academyA);
 
-    expect(first).toHaveLength(10);
-    expect(second).toHaveLength(10);
+    expect(first).toHaveLength(planIds.length);
+    expect(second).toHaveLength(planIds.length);
     expect(first.map((plan) => plan.planId)).toEqual([...planIds]);
-    expect(firstSnapshot.size).toBe(10);
-    expect(secondSnapshot.size).toBe(10);
+    // Retired plans are seeded so existing memberships still resolve, but never offered.
+    expect(first.filter((plan) => !plan.active).map((plan) => plan.planId)).toEqual([
+      ...retiredPlanIds,
+    ]);
+    expect(firstSnapshot.size).toBe(planIds.length);
+    expect(secondSnapshot.size).toBe(planIds.length);
     for (const planId of planIds) {
       expect(secondEnvelopes.get(planId)).toEqual(firstEnvelopes.get(planId));
     }
@@ -159,7 +163,9 @@ describe("membership plan adapters against Auth/Firestore emulators", () => {
     await seedAcademyA();
     const coachRequest = await requestFor(coachA, null);
     const initialList = await listPlansHandler(coachRequest, { store });
-    expect(initialList.map((plan) => plan.planId)).toEqual([...planIds]);
+    expect(initialList.map((plan) => plan.planId)).toEqual(
+      planIds.filter((planId) => !retiredPlanIds.includes(planId)),
+    );
     expect(initialList[0]).not.toHaveProperty("createdAt");
 
     const beforeCorrection = (await firestore.doc(`academies/${academyA}/plans/payg`).get()).data();

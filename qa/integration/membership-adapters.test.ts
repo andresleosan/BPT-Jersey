@@ -391,7 +391,7 @@ function services(): MembershipCallableServices {
  * repeating the plan at each call site.
  */
 function planForStudent(studentId: string): string {
-  return studentId === adultStudentRecordA ? "bpt-jersey-adult" : "town-teens";
+  return studentId === adultStudentRecordA ? "bpt-jersey-adult" : "town-kids-1x";
 }
 
 async function createMembership(
