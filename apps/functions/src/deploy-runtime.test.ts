@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,7 +6,11 @@ import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { getApps } from "firebase-admin/app";
 
-import { deployArtifactPnpmArguments, rewriteDeployRuntimeImports } from "./deploy-runtime.js";
+import {
+  deployArtifactPnpmArguments,
+  domainImportReplacements,
+  rewriteDeployRuntimeImports,
+} from "./deploy-runtime.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -20,6 +24,42 @@ describe("deploy runtime import preparation", () => {
   it("deploys into the artifact without switching the source workspace to production mode", () => {
     expect(deployArtifactPnpmArguments).toContain("deploy");
     expect(deployArtifactPnpmArguments).not.toContain("--prod");
+  });
+
+  /**
+   * A new domain subpath reaches the deploy artifact as an unrewritten import and only fails when
+   * the whole runtime is prepared. This asks the sources directly, so the missing map entry is named.
+   */
+  it("maps every domain subpath the Functions sources import at runtime", async () => {
+    async function sourceFiles(directory: string): Promise<readonly string[]> {
+      const entries = await readdir(directory, { withFileTypes: true });
+      const files: string[] = [];
+      for (const entry of entries) {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) files.push(...(await sourceFiles(path)));
+        else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) files.push(path);
+      }
+      return files;
+    }
+
+    const unmapped: string[] = [];
+    for (const path of await sourceFiles(import.meta.dirname)) {
+      const source = await readFile(path, "utf8");
+      const statements = source.matchAll(
+        /(?:^|[\n;])\s*(?:import|export)\s+([^"';]*?)from\s*["'](@bpt-jersey\/domain[^"']*)["']/gu,
+      );
+      for (const [, clause, specifier] of statements) {
+        // Type-only imports are erased by the compiler, so they never reach the runtime artifact.
+        if (clause?.trimStart().startsWith("type ") === true) continue;
+        if (specifier !== undefined && !Object.hasOwn(domainImportReplacements, specifier)) {
+          unmapped.push(`${specifier} (${path})`);
+        }
+      }
+    }
+    expect(unmapped).toEqual([]);
+    expect(domainImportReplacements["@bpt-jersey/domain/members/profile"]).toBe(
+      "../../domain/members/member-profile-contracts.js",
+    );
   });
 
   it("rewrites domain subpaths in a temporary copied runtime and rejects leftovers", async () => {
