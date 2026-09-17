@@ -12,6 +12,8 @@ import {
   type AvailableMembershipPlan,
   type ClientMembership,
 } from "../../../lib/membership-client";
+import { participantBand } from "../../../lib/participant-band";
+import { describePlanAccess, formatPlanPrice } from "../../../lib/plan-copy";
 import { getClientProfile } from "../../../lib/profile-client";
 
 import "./membership.css";
@@ -29,30 +31,6 @@ type Workspace = Readonly<{
   memberships: readonly ClientMembership[];
   subjects: readonly Subject[];
 }>;
-
-const moneyFormatter = new Intl.NumberFormat("en-GB", {
-  style: "currency",
-  currency: "GBP",
-});
-
-function planPeriod(plan: AvailableMembershipPlan): string {
-  if (plan.billingPeriod === "per-session") return "per session";
-  return "per month";
-}
-
-function participantBand(dateOfBirth: string): ParticipantType {
-  const parts = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(dateOfBirth);
-  if (!parts) return "adult";
-  const today = new Date();
-  let age = today.getUTCFullYear() - Number(parts[1]);
-  const month = Number(parts[2]) - 1;
-  const day = Number(parts[3]);
-  if (today.getUTCMonth() < month || (today.getUTCMonth() === month && today.getUTCDate() < day)) {
-    age -= 1;
-  }
-  if (age >= 18) return "adult";
-  return age >= 12 ? "teens" : "kids";
-}
 
 function MembershipContent() {
   const { session } = useClientSession();
@@ -258,22 +236,22 @@ function MembershipContent() {
                 {eligiblePlans.length === 0 ? (
                   <p>No active plan matches this participant and training centre.</p>
                 ) : (
-                  <div className="client-plan-grid">
-                    {eligiblePlans.map((plan) => (
-                      <article className="client-plan-card" key={plan.planId}>
-                        <h3>{plan.displayName}</h3>
-                        <p>
-                          <strong>{moneyFormatter.format(plan.priceMinor / 100)}</strong>{" "}
-                          {planPeriod(plan)}
-                        </p>
-                        <span>
-                          {plan.weeklyClassLimit === null
-                            ? "Unlimited weekly classes"
-                            : `${plan.weeklyClassLimit} class${plan.weeklyClassLimit === 1 ? "" : "es"} per week`}
-                        </span>
-                      </article>
-                    ))}
-                  </div>
+                  <>
+                    <div className="client-plan-grid">
+                      {eligiblePlans.map((plan) => (
+                        <article className="client-plan-card" key={plan.planId}>
+                          <h3>{plan.displayName}</h3>
+                          <p>
+                            <strong>{formatPlanPrice(plan)}</strong>
+                          </p>
+                          <span>{describePlanAccess(plan)}</span>
+                        </article>
+                      ))}
+                    </div>
+                    <p className="client-destination-intro">
+                      Open mats don&apos;t count towards your weekly classes.
+                    </p>
+                  </>
                 )}
               </section>
               <form className="client-trial-form" onSubmit={(event) => void startTrial(event)}>
