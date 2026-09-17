@@ -778,3 +778,179 @@ describe("canonical member directory writer, linked to an account (T122)", () =>
     });
   });
 });
+
+describe("DETAILS block on the canonical update (T051V2)", () => {
+  // Three saves in a row need three audit ids; the shared helper mints a fixed one.
+  function service(firestore: MemberDirectoryFirestore) {
+    let auditSequence = 0;
+    return createCanonicalMemberDirectoryService({
+      firestore,
+      projectId: "demo-bpt-jersey",
+      identitySecretMaterial: identitySecret,
+      identitySecretVersion: "identity-v1",
+      integritySecretMaterial: integritySecret,
+      integritySecretVersion: "integrity-v1",
+      generateStudentId: () => "student-new-1",
+      generateAuditId: () => `audit-details-${++auditSequence}`,
+    });
+  }
+
+  const profilePath = "academies/academy-1/studentAdminProfiles/student-existing-1";
+  const details = { profession: "Tester", heightCm: 175, howHeard: "Website" } as const;
+
+  it("replaces the details block when sent and keeps it when omitted", async () => {
+    const harness = fakeFirestore(existingMemberSeed());
+    const writer = service(harness.firestore);
+
+    await writer.updateAdminMember({
+      actor: actor(),
+      value: { ...updateInput("11111111-1111-4111-8111-111111111111"), details },
+      now,
+    });
+    expect(harness.records.get(profilePath)).toEqual(expect.objectContaining({ details }));
+
+    await writer.updateAdminMember({
+      actor: actor(),
+      value: updateInput("22222222-2222-4222-8222-222222222222"),
+      now,
+    });
+    expect(harness.records.get(profilePath)).toEqual(expect.objectContaining({ details }));
+
+    await writer.updateAdminMember({
+      actor: actor(),
+      value: { ...updateInput("33333333-3333-4333-8333-333333333333"), details: {} },
+      now,
+    });
+    expect(Object.hasOwn(harness.records.get(profilePath) ?? {}, "details")).toBe(false);
+  });
+
+  it("replays a details save exactly once", async () => {
+    const harness = fakeFirestore(existingMemberSeed());
+    const writer = service(harness.firestore);
+    const value = { ...updateInput("44444444-4444-4444-8444-444444444444"), details };
+    await writer.updateAdminMember({ actor: actor(), value, now });
+    const writes = harness.committedWritePaths.length;
+    await expect(writer.updateAdminMember({ actor: actor(), value, now })).resolves.toEqual({
+      memberId: "student-existing-1",
+      studentId: "student-existing-1",
+    });
+    expect(harness.committedWritePaths).toHaveLength(writes);
+  });
+
+  it("refuses a member number reserved by another student and writes no details", async () => {
+    const conflictKey = buildStudentIdentityKey({
+      academyId: "academy-1",
+      kind: "membership-number",
+      value: "NEW 0001",
+      ownerStudentId: "student-other",
+      secretMaterial: identitySecret,
+      secretVersion: "identity-v1",
+      now: "2026-09-03T20:00:00.000Z",
+      actorId: "system-1",
+    });
+    const harness = fakeFirestore(
+      existingMemberSeed({
+        [`academies/academy-1/studentIdentityKeys/${conflictKey.keyId}`]: conflictKey,
+      }),
+    );
+    await expect(
+      service(harness.firestore).updateAdminMember({
+        actor: actor(),
+        value: { ...updateInput(), details },
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(harness.committedWritePaths).toEqual([]);
+    expect(Object.hasOwn(harness.records.get(profilePath) ?? {}, "details")).toBe(false);
+  });
+
+  it("creates an admin profile for a member who has none", async () => {
+    const seeded = existingMemberSeed();
+    delete seeded[profilePath];
+    for (const path of Object.keys(seeded)) {
+      if (path.includes("/studentIdentityKeys/")) delete seeded[path];
+    }
+    const harness = fakeFirestore(seeded);
+
+    // An explicit payload without identifiers: spreading `updateInput()` and overriding with
+    // `undefined` would leave keys whose value is undefined, which `isPlainData` refuses.
+    await service(harness.firestore).updateAdminMember({
+      actor: actor(),
+      value: {
+        studentId: "student-existing-1",
+        requestId: "55555555-5555-4555-8555-555555555555",
+        fullName: "Updated Synthetic Adult",
+        dateOfBirth: "2000-01-02",
+        trainingCenter: "West",
+        trainingTimePreferences: ["morning"],
+        gender: "female",
+        details,
+      },
+      now,
+    });
+
+    expect(harness.records.get(profilePath)).toEqual({
+      studentId: "student-existing-1",
+      academyId: "academy-1",
+      gender: "female",
+      details,
+      source: "admin",
+      schemaVersion: "1",
+      createdAt: now,
+      createdBy: "owner-1",
+      updatedAt: now,
+      updatedBy: "owner-1",
+    });
+  });
+
+  it("refuses a recommender that does not exist or belongs to another academy", async () => {
+    // The domain can only refuse a self-recommendation, so proving the recommender is a real
+    // student of this academy is the writer's job.
+    const otherAcademyStudent = {
+      ...(existingMemberSeed()["academies/academy-1/students/student-existing-1"] as Record<
+        string,
+        unknown
+      >),
+      studentId: "student-other-1",
+      academyId: "academy-2",
+    } as MemberDirectoryDocumentData;
+
+    for (const seeded of [
+      {},
+      { "academies/academy-1/students/student-other-1": otherAcademyStudent },
+    ]) {
+      const harness = fakeFirestore(existingMemberSeed(seeded));
+
+      await expect(
+        service(harness.firestore).updateAdminMember({
+          actor: actor(),
+          value: {
+            ...updateInput("66666666-6666-4666-8666-666666666666"),
+            details: { ...details, recommendedByStudentId: "student-other-1" },
+          },
+          now,
+        }),
+      ).rejects.toMatchObject({ code: "invalid" });
+      expect(harness.committedWritePaths).toEqual([]);
+    }
+  });
+
+  it("stores notes typed in a browser textarea with their line breaks normalised", async () => {
+    // A textarea submits CRLF, and a stored carriage return is a control character the profile
+    // schema refuses - so the input schema normalises it instead of failing the whole save.
+    const harness = fakeFirestore(existingMemberSeed());
+
+    await service(harness.firestore).updateAdminMember({
+      actor: actor(),
+      value: {
+        ...updateInput("77777777-7777-4777-8777-777777777777"),
+        details: { internalNotes: "First line\r\nSecond line" },
+      },
+      now,
+    });
+
+    expect(harness.records.get(profilePath)).toEqual(
+      expect.objectContaining({ details: { internalNotes: "First line\nSecond line" } }),
+    );
+  });
+});

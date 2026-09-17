@@ -194,6 +194,13 @@ export type StudentAdminDetails = Readonly<z.infer<typeof studentAdminDetailsSch
 export const studentAdminDetailsInputSchema = z
   .strictObject({
     ...studentAdminDetailsBaseShape,
+    // A browser textarea submits CRLF, and a stored carriage return is a control character the
+    // stored schema refuses, so the input normalises line breaks before the stored rules apply.
+    internalNotes: z
+      .string()
+      .transform((value) => value.replace(/\r\n?/gu, "\n"))
+      .pipe(internalNotesSchema)
+      .optional(),
     healthNumber: administrativeIdentifierInputSchema.optional(),
     howHeard: z.enum(memberHowHeardOptions).optional(),
     initialContact: z.enum(memberInitialContactOptions).optional(),

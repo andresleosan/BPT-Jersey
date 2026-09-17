@@ -466,6 +466,9 @@ function buildUpdatedAdminProfile(
   actorId: string,
   now: string,
 ): StudentAdminProfile {
+  // T051V2: `details` is the one block an older caller does not know about, so "not sent" keeps it
+  // and an empty object clears it. Every other field keeps its full-replacement meaning.
+  const nextDetails = input.details ?? existing.details;
   const parsed = studentAdminProfileSchema.safeParse({
     studentId: existing.studentId,
     academyId: existing.academyId,
@@ -478,6 +481,9 @@ function buildUpdatedAdminProfile(
       ? {}
       : { emergencyContact: { ...input.emergencyContact } }),
     ...(input.postalAddress === undefined ? {} : { postalAddress: { ...input.postalAddress } }),
+    ...(nextDetails === undefined || Object.keys(nextDetails).length === 0
+      ? {}
+      : { details: { ...nextDetails } }),
     ...profileProvenance(existing),
     schemaVersion: existing.schemaVersion,
     createdAt: existing.createdAt,
@@ -489,6 +495,30 @@ function buildUpdatedAdminProfile(
     throw new CanonicalMemberDirectoryError("invalid", "Invalid updated admin profile");
   }
   return Object.freeze(parsed.data);
+}
+
+/**
+ * The profile a member without one starts from when office first saves their record: no
+ * identifiers, so no reservation is released, and `admin` provenance because office creates it.
+ */
+function emptyAdminProfile(
+  student: StudentProfile,
+  actorId: string,
+  now: string,
+): StudentAdminProfile {
+  return Object.freeze(
+    studentAdminProfileSchema.parse({
+      studentId: student.studentId,
+      academyId: student.academyId,
+      gender: "unknown",
+      source: "admin",
+      schemaVersion: "1",
+      createdAt: now,
+      createdBy: actorId,
+      updatedAt: now,
+      updatedBy: actorId,
+    }),
+  );
 }
 
 function matchesIdentityReservation(
@@ -1086,24 +1116,41 @@ export function createCanonicalMemberDirectoryService(
           documentData(studentSnapshot, "Student"),
           now.slice(0, 10),
         );
-        const existingProfile = studentAdminProfileSchema.safeParse(
-          documentData(profileSnapshot, "Student admin profile"),
-        );
         if (
           !existingStudent.ok ||
-          !existingProfile.success ||
           studentSnapshot.id !== studentId ||
-          profileSnapshot.id !== studentId ||
           existingStudent.value.studentId !== studentId ||
-          existingStudent.value.academyId !== academyId ||
-          existingProfile.data.studentId !== studentId ||
-          existingProfile.data.academyId !== academyId
+          existingStudent.value.academyId !== academyId
         ) {
           throw new CanonicalMemberDirectoryError(
             "unavailable",
             "Canonical member record is unavailable",
           );
         }
+        // T051V2: minors created through Families only get an admin profile when the waiver carried
+        // optional blocks, so office's first save is what creates one for them.
+        const profileIsNew = !profileSnapshot.exists;
+        const storedProfile = profileIsNew
+          ? undefined
+          : studentAdminProfileSchema.safeParse(
+              documentData(profileSnapshot, "Student admin profile"),
+            );
+        if (
+          storedProfile !== undefined &&
+          (!storedProfile.success ||
+            profileSnapshot.id !== studentId ||
+            storedProfile.data.studentId !== studentId ||
+            storedProfile.data.academyId !== academyId)
+        ) {
+          throw new CanonicalMemberDirectoryError(
+            "unavailable",
+            "Canonical member record is unavailable",
+          );
+        }
+        const existingProfile =
+          storedProfile?.success === true
+            ? storedProfile.data
+            : emptyAdminProfile(existingStudent.value, actorId, now);
 
         const nextStudent = buildUpdatedStudent(
           existingStudent.value,
@@ -1112,12 +1159,33 @@ export function createCanonicalMemberDirectoryService(
           now,
         );
         const nextProfile = buildUpdatedAdminProfile(
-          existingProfile.data,
+          existingProfile,
           parsedInput.value,
           actorId,
           now,
         );
-        const oldKeys = buildKeys(existingProfile.data, dependencies);
+        // T051V2: the domain can only refuse a self-recommendation, so the writer is the only place
+        // that can prove the recommender is a real student of this academy before storing it.
+        const recommendedByStudentId = nextProfile.details?.recommendedByStudentId;
+        if (recommendedByStudentId !== undefined) {
+          const recommenderSnapshot = await transaction.get(
+            dependencies.firestore.doc(studentPath(academyId, recommendedByStudentId)),
+          );
+          const recommender = recommenderSnapshot.exists
+            ? parseStudentProfileAt(recommenderSnapshot.data(), now.slice(0, 10))
+            : undefined;
+          if (
+            recommender?.ok !== true ||
+            recommender.value.studentId !== recommendedByStudentId ||
+            recommender.value.academyId !== academyId
+          ) {
+            throw new CanonicalMemberDirectoryError(
+              "invalid",
+              "Recommending student is unavailable",
+            );
+          }
+        }
+        const oldKeys = buildKeys(existingProfile, dependencies);
         const desiredKeys = buildKeys(nextProfile, dependencies, { now, actorId });
         const keyPlan = new Map<string, StudentIdentityKey>();
         oldKeys.forEach((key) => keyPlan.set(key.keyId, key));
@@ -1217,7 +1285,8 @@ export function createCanonicalMemberDirectoryService(
         });
 
         transaction.set(studentRef, nextStudent);
-        transaction.set(profileRef, nextProfile);
+        if (profileIsNew) transaction.create(profileRef, nextProfile);
+        else transaction.set(profileRef, nextProfile);
         newReservations.forEach(({ key, reference }) => transaction.create(reference, key));
         transaction.set(stateRef, nextState);
         transaction.set(guardRef, nextControl.guard);
