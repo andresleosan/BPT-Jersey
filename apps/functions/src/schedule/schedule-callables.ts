@@ -804,6 +804,7 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
         actor.userId,
         undefined,
         actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
       );
     } catch (error) {
       return mapAttendanceError(error);
@@ -840,6 +841,7 @@ export function createSelfCheckInHandler(options: StudentScopeOptions) {
         actor.userId,
         undefined,
         actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
       );
       return { attendance };
     } catch (error) {
@@ -967,6 +969,7 @@ export function createCorrectAttendanceHandler(options: { store: ScheduleStore }
         actor.userId,
         undefined,
         actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
       );
     } catch (error) {
       return mapAttendanceError(error);
@@ -1081,6 +1084,7 @@ export function createRecordCheckoutHandler(options: StudentScopeOptions) {
         actor.userId,
         undefined,
         actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
       );
     } catch (error) {
       return mapAttendanceError(error);
