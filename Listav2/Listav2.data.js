@@ -785,16 +785,13 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T050V2: [
     requirement(
-      "1) Asignar aforo a las sesiones importadas con capacity null (bloqueo): 298 de 389, 82 futuras.",
+      "1-3) Hecho 2026-09-17: aforo 40 en las 82 sesiones futuras sin aforo, ninguna sesión sin programId y 48 functions desplegadas desde origin/main e61031c.",
     ),
-    requirement("2) Confirmar que ningún documento de sesión en producción carece de programId."),
     requirement(
-      "3) Desplegar las functions, solo con confirmación del operador en chat. La web ya está en producción: el push de 20ed898 a main la publicó automáticamente en Cloudflare Pages el 2026-09-17; las functions siguen con el despliegue manual anterior. No editar planes hasta desplegar las functions.",
+      "4-5) Hecho: town-teens desactivado y west-teens-payg creado y activo (£7.50, teens, West).",
     ),
-    requirement('4) Desactivar town-teens con "Deactivate plan".'),
-    requirement("5) Crear west-teens-payg: elegirlo en el editor y guardar."),
     requirement(
-      '6) Revisar quién tiene payg, west-adult y west-teens (guardar el catálogo les reduce acceso); después "Load catalogue values" + guardar en cada plan marcado "Differs from catalogue". Hasta entonces el calendario del socio (lee PLAN_CATALOG) y el servidor (lee el plan guardado) pueden discrepar.',
+      '6) Guardar y activar los 9 planes que siguen "Not configured" antes de dar de alta o importar socios: el selector solo ofrece planes activos y al reservar el servidor lee el plan guardado.',
     ),
     requirement("7) No revertir functions tras editar planes sin restaurar antes los planes."),
   ],
@@ -1834,7 +1831,7 @@ const classesServicesItems = [
     "revision",
     "11 planes (trimestre, 3x, town-teens retirado, west-teens-payg), aforo obligatorio en sesiones y copy week, open mats fuera del límite semanal, precios públicos desde el catálogo.",
     "T046V2",
-    "Rama feature/plans-pricing-capacity. Gate 2026-09-17 y capturas qa/screenshots/t050-*; detalle en tasksv2.md. Bloqueo de despliegue: 298 sesiones importadas sin aforo.",
+    "Rama feature/plans-pricing-capacity. Gate 2026-09-17 y capturas qa/screenshots/t050-*; detalle en tasksv2.md. En producción desde 2026-09-17: aforos asignados y 48 functions desplegadas; faltan 9 planes por guardar y activar.",
     [
       REF_TASKS,
       "docs/superpowers/specs/2026-09-17-plans-pricing-capacity-design.md",
