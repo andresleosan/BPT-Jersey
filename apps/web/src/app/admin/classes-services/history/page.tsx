@@ -5,6 +5,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import {
   classHistoryRegistrationTypes,
   formatJerseyMoment,
+  jerseyWallClockToInstant,
   type ClassHistoryRegistrationType,
   type ClassHistoryRow,
 } from "@bpt-jersey/domain/audit/class-history";
@@ -44,9 +45,12 @@ function isoDateDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** The date and time boxes are read together: an empty time box means midnight. */
-function sinceTimestamp(date: string, time: string): string {
-  return `${date}T${time === "" ? "00:00" : time}:00Z`;
+/**
+ * The date and time boxes are read together, on a Jersey clock: an empty time box means midnight
+ * in Jersey, not midnight UTC, which on BST would quietly drop the first hour of the day.
+ */
+function sinceTimestamp(date: string, time: string): string | null {
+  return jerseyWallClockToInstant(date, time === "" ? "00:00" : time);
 }
 
 export function HistoryPage() {
@@ -62,14 +66,19 @@ export function HistoryPage() {
   // Every actor the screen has already seen, so choosing one never removes them from the list.
   const [actors, setActors] = useState<readonly Actor[]>([]);
 
-  const query = (): FetchClassHistoryInput => ({
-    academyId: session.academyId,
-    since: sinceTimestamp(sinceDate, sinceTime),
-    actorId: actorId === "" ? null : actorId,
-    registrationType,
-    limit,
-    cursor: null,
-  });
+  /** Null when the boxes do not name a real Jersey moment: the log is never asked a bad question. */
+  const query = (): FetchClassHistoryInput | null => {
+    const since = sinceTimestamp(sinceDate, sinceTime);
+    if (since === null) return null;
+    return {
+      academyId: session.academyId,
+      since,
+      actorId: actorId === "" ? null : actorId,
+      registrationType,
+      limit,
+      cursor: null,
+    };
+  };
 
   function rememberActors(listed: readonly ClassHistoryRow[]): void {
     setActors((current) => {
@@ -85,10 +94,12 @@ export function HistoryPage() {
 
   async function onList(event: FormEvent): Promise<void> {
     event.preventDefault();
+    const input = query();
+    if (input === null) return;
     setStatus("loading");
     setError(null);
     try {
-      const listing = await fetchClassHistory(query());
+      const listing = await fetchClassHistory(input);
       setRows(listing.rows);
       rememberActors(listing.rows);
       setStatus("ready");
@@ -100,9 +111,11 @@ export function HistoryPage() {
   }
 
   async function onExportPdf(): Promise<void> {
+    const input = query();
+    if (input === null) return;
     setError(null);
     try {
-      const { blob, fileName } = await downloadClassHistoryPdf(query());
+      const { blob, fileName } = await downloadClassHistoryPdf(input);
       // The client hands back bytes on purpose; triggering the save belongs to the screen.
       const href = URL.createObjectURL(blob);
       const anchor = document.createElement("a");

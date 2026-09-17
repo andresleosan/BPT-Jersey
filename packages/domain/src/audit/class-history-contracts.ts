@@ -176,6 +176,57 @@ export function formatJerseyMoment(value: string | null): string | null {
   return `${day} ${monthName} ${year} at ${displayHour}:${minute}`;
 }
 
+const jerseyWallParts = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Jersey",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/u;
+const isoTimePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/u;
+
+/** The Jersey wall clock at one instant, expressed as the milliseconds that clock reads. */
+function jerseyWallClockAt(instantMs: number): number {
+  const parts = new Map(
+    jerseyWallParts.formatToParts(new Date(instantMs)).map((part) => [part.type, part.value]),
+  );
+  // Intl writes midnight as 24 in some ICU builds; the clock reads it as 00.
+  const hourPart = parts.get("hour");
+  return Date.UTC(
+    Number(parts.get("year")),
+    Number(parts.get("month")) - 1,
+    Number(parts.get("day")),
+    hourPart === "24" ? 0 : Number(hourPart),
+    Number(parts.get("minute")),
+    Number(parts.get("second")),
+  );
+}
+
+/**
+ * The UTC instant of a date and time the operator typed on a Jersey clock, as an ISO string.
+ *
+ * Everything this feature shows is Jersey local - the sentences, the PDF's file name - so a filter
+ * read as UTC would silently drop the first hour of every summer day, Jersey being UTC+1 on BST.
+ * There is no date library here, so the offset is found with Intl: guess with the offset that
+ * applies at the naive instant, then re-check with the offset that applies at the guess, which
+ * settles a DST change in either direction. Returns null for anything that is not a "YYYY-MM-DD"
+ * date and a "HH:MM" time, rather than inventing a moment nobody asked for.
+ */
+export function jerseyWallClockToInstant(date: string, time: string): string | null {
+  if (!isoDatePattern.test(date) || !isoTimePattern.test(time)) return null;
+  const naive = Date.parse(`${date}T${time}:00Z`);
+  if (Number.isNaN(naive)) return null;
+  const first = naive - (jerseyWallClockAt(naive) - naive);
+  const second = naive - (jerseyWallClockAt(first) - first);
+  const instant = jerseyWallClockAt(second) === naive ? second : first;
+  return `${new Date(instant).toISOString().slice(0, 19)}Z`;
+}
+
 function theClassOf(moment: string | null): string {
   return moment === null ? "the class" : `the class of ${moment}`;
 }

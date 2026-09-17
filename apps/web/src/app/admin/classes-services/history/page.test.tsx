@@ -90,7 +90,7 @@ describe("Class registrations log", () => {
     ).toBeInTheDocument();
   });
 
-  it("sends the chosen filters", async () => {
+  it("sends the chosen filters, reading the date on a Jersey clock", async () => {
     render(<HistoryPage />);
     fireEvent.change(screen.getByLabelText("Since"), { target: { value: "2026-09-01" } });
     fireEvent.change(screen.getByLabelText("Registration type"), {
@@ -101,7 +101,8 @@ describe("Class registrations log", () => {
     await waitFor(() =>
       expect(mocks.fetchClassHistory).toHaveBeenCalledWith({
         academyId: "bpt-jersey",
-        since: "2026-09-01T00:00:00Z",
+        // 1 Sep is BST, so Jersey midnight is 23:00 UTC the evening before.
+        since: "2026-08-31T23:00:00Z",
         actorId: null,
         registrationType: "coach-bookings",
         limit: 250,
@@ -110,16 +111,36 @@ describe("Class registrations log", () => {
     );
   });
 
-  it("reads the time box together with the date", async () => {
+  it("reads the time box together with the date, in Jersey summer time", async () => {
     render(<HistoryPage />);
     fireEvent.change(screen.getByLabelText("Since"), { target: { value: "2026-09-01" } });
     fireEvent.change(screen.getByLabelText("Since time"), { target: { value: "07:30" } });
     fireEvent.click(screen.getByRole("button", { name: "LIST" }));
     await waitFor(() =>
       expect(mocks.fetchClassHistory).toHaveBeenCalledWith(
-        expect.objectContaining({ since: "2026-09-01T07:30:00Z" }),
+        expect.objectContaining({ since: "2026-09-01T06:30:00Z" }),
       ),
     );
+  });
+
+  it("reads a winter date on the same clock, when Jersey is on GMT", async () => {
+    render(<HistoryPage />);
+    fireEvent.change(screen.getByLabelText("Since"), { target: { value: "2026-01-15" } });
+    fireEvent.change(screen.getByLabelText("Since time"), { target: { value: "07:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "LIST" }));
+    await waitFor(() =>
+      expect(mocks.fetchClassHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ since: "2026-01-15T07:30:00Z" }),
+      ),
+    );
+  });
+
+  it("asks the log nothing when the date box does not name a real day", async () => {
+    render(<HistoryPage />);
+    fireEvent.change(screen.getByLabelText("Since"), { target: { value: "01/09/2026" } });
+    fireEvent.click(screen.getByRole("button", { name: "LIST" }));
+    await waitFor(() => expect(screen.queryByRole("table")).toBeNull());
+    expect(mocks.fetchClassHistory).not.toHaveBeenCalled();
   });
 
   it("filters by an actor it has actually seen, sending that actor's id", async () => {
