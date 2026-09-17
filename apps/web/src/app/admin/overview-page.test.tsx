@@ -78,6 +78,29 @@ describe("admin overview", () => {
     expect(screen.queryByLabelText("Quick actions")).not.toBeInTheDocument();
   });
 
+  it("asks for a capacity instead of showing an unlimited class today", async () => {
+    api.getDailyOperationsDashboard.mockResolvedValue({
+      sessions: [
+        {
+          session: {
+            title: "Legacy class",
+            classId: null,
+            instructorId: "coach-a",
+            startAt: "2026-09-17T17:30:00.000Z",
+            endAt: "2026-09-17T18:30:00.000Z",
+            status: "scheduled",
+          },
+          summary: { capacity: null, totalBookings: 3 },
+        },
+      ],
+    } as never);
+    render(<OverviewPage />);
+
+    const table = await screen.findByRole("table", { name: "Today's classes" });
+    expect(within(table).getByText("Set capacity")).toBeInTheDocument();
+    expect(within(table).queryByText(/∞/u)).not.toBeInTheDocument();
+  });
+
   it("lists at most the three nearest birthdays with their day, and never a year of birth", async () => {
     api.listUpcomingBirthdays.mockResolvedValue([
       {
