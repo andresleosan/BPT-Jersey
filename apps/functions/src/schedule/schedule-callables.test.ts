@@ -1880,6 +1880,7 @@ describe("classes-services callables", () => {
     ).rejects.toMatchObject({
       code: "failed-precondition",
       message: "Every session in the source week needs a capacity before it can be copied",
+      details: { reason: "capacity-not-set" },
     });
   });
 });
