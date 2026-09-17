@@ -19,8 +19,10 @@ function record(overrides: Partial<RegyfitMemberRecord>): RegyfitMemberRecord {
     fullName: "Synthetic Child",
     gender: "unknown",
     birthDate: "2019-06-12",
+    idCardNumber: "ID-000789",
+    healthNumber: "HN-4455",
     membershipState: "inactive",
-    appAccess: { login: "a1", password: "104569", logins: 0 },
+    appAccess: { login: "a1", logins: 0 },
     graduation: { belt: "Grey - 5th Stripe" },
     plan: { paymentMode: "Inactive" },
     attendance: { records: [] },
@@ -30,6 +32,11 @@ function record(overrides: Partial<RegyfitMemberRecord>): RegyfitMemberRecord {
     schemaVersion: "1",
     ...overrides,
   };
+}
+
+function storedWithLegacyPassword(overrides: Partial<RegyfitMemberRecord> = {}) {
+  const base = record(overrides);
+  return { ...base, appAccess: { ...base.appAccess, password: "104569" } };
 }
 
 function request(
@@ -127,20 +134,37 @@ describe("Regyfit member record callables", () => {
     );
   });
 
-  it("returns the full record for the actor's academy only", async () => {
-    const { services, paths } = servicesFor([record({})]);
+  it("returns the record masked and without the legacy password, for the actor's academy only", async () => {
+    const { services, paths } = servicesFor([storedWithLegacyPassword()]);
 
     const result = await getRegyfitMemberRecordHandler(
       request("owner", { recordId: "152" }),
       services,
     );
 
-    expect(result).toEqual(record({}));
+    expect(result).toEqual({
+      ...record({}),
+      idCardNumber: "•••789",
+      healthNumber: "•••455",
+    });
+    expect(result.appAccess).toEqual({ login: "a1", logins: 0 });
+    expect(JSON.stringify(result)).not.toContain("104569");
+    expect(JSON.stringify(result)).not.toContain("ID-000789");
+    expect(JSON.stringify(result)).not.toContain("HN-4455");
     expect(result).not.toHaveProperty("academyId");
     expect(paths).toEqual([`academies/${academyId}/regyfitMemberRecords/152`]);
     await expect(
       getRegyfitMemberRecordHandler(request("owner", { recordId: "152" }, "other"), services),
     ).rejects.toMatchObject({ code: "not-found" });
+  });
+
+  it("still lists directories whose stored records carry a legacy password", async () => {
+    const { services } = servicesFor([storedWithLegacyPassword()]);
+
+    const page = await listRegyfitMemberRecordsHandler(request("administrator"), services);
+
+    expect(page.total).toBe(1);
+    expect(JSON.stringify(page)).not.toContain("104569");
   });
 
   it("rejects malformed record requests and invalid stored documents", async () => {

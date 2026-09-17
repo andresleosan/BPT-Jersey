@@ -17,7 +17,7 @@ import { createRequire } from "node:module";
 
 // Runs against the compiled domain runtime: build it first with
 //   corepack pnpm --filter @bpt-jersey/domain build:runtime
-import { parseRegyfitMemberRecord } from "../../packages/domain/lib/members/regyfit-member-record-contracts.js";
+import { parseStoredRegyfitMemberRecord } from "../../packages/domain/lib/members/regyfit-member-record-contracts.js";
 
 const requireFromFunctions = createRequire(
   new URL("../../apps/functions/package.json", import.meta.url),
@@ -72,7 +72,8 @@ function loadRecords(file) {
   const seen = new Set();
   const failures = [];
   for (const candidate of parsed) {
-    const result = parseRegyfitMemberRecord(candidate);
+    // Drops a captured appAccess.password: the importer never writes it (spec 2026-09-17 §4).
+    const result = parseStoredRegyfitMemberRecord(candidate);
     if (!result.ok) {
       failures.push({
         recordId: candidate?.recordId,

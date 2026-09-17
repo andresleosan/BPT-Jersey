@@ -3,7 +3,8 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 import { z } from "zod";
 
 import {
-  parseRegyfitMemberRecord,
+  maskRegyfitMemberRecord,
+  parseStoredRegyfitMemberRecord,
   toRegyfitMemberDirectoryRow,
   type RegyfitMemberDirectoryPage,
   type RegyfitMemberRecord,
@@ -51,18 +52,7 @@ function parseRecordRequestData(request: CallableRequest): string {
 }
 
 function parseStoredRecord(value: unknown): RegyfitMemberRecord {
-  const stored =
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) === Object.prototype
-      ? (value as Record<string, unknown>)
-      : undefined;
-  if (stored === undefined) {
-    throw new HttpsError("internal", "A stored Regyfit member record is invalid");
-  }
-  const record = Object.fromEntries(Object.entries(stored).filter(([key]) => key !== "academyId"));
-  const parsed = parseRegyfitMemberRecord(record);
+  const parsed = parseStoredRegyfitMemberRecord(value);
   if (!parsed.ok) {
     throw new HttpsError("internal", "A stored Regyfit member record is invalid");
   }
@@ -118,7 +108,7 @@ export async function getRegyfitMemberRecordHandler(
   if (record.recordId !== recordId) {
     throw new HttpsError("internal", "A stored Regyfit member record is invalid");
   }
-  return record;
+  return maskRegyfitMemberRecord(record);
 }
 
 export const listRegyfitMemberRecords = onCall(browserAdminCallableOptions, async (request) =>
