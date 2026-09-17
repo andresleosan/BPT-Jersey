@@ -124,7 +124,6 @@ function rowParts(row) {
     .split(",")
     .map((name) => name.trim())
     .filter((name) => name !== "");
-  if (trainers.length === 0) throw new Error(`No trainer (row ${row.id})`);
   return {
     title: rawTitle.replace(/\s+AULA$/u, "").trim(),
     location,
@@ -136,11 +135,15 @@ function rowParts(row) {
   };
 }
 
-export function mapSessionRow(row, { academyId, programIdsByName, now, timezone }) {
+export function mapSessionRow(
+  row,
+  { academyId, programIdsByName, locationIdsByName = locationIds, now, timezone },
+) {
   const parts = rowParts(row);
+  if (parts.trainers.length === 0) throw new Error(`No trainer (row ${row.id})`);
   const programId = programIdsByName.get(parts.title);
   if (!programId) throw new Error(`No type named "${parts.title}" (row ${row.id})`);
-  const locationId = locationIds.get(parts.location);
+  const locationId = locationIdsByName.get(parts.location);
   if (!locationId) throw new Error(`Unknown location "${parts.location}" (row ${row.id})`);
   const capacityText = parts.registrations.split("/")[1]?.trim();
   const capacity = capacityText === "∞" ? null : Number(capacityText);
@@ -173,7 +176,18 @@ export function mapSessionRow(row, { academyId, programIdsByName, now, timezone 
   };
 }
 
-export function planImport({ types, rows }, { academyId, now, timezone, from, to }) {
+export function planImport(
+  { types, rows },
+  {
+    academyId,
+    now,
+    timezone,
+    from,
+    to,
+    existingProgramIdsByName = new Map(),
+    existingLocationIdsByName = new Map(),
+  },
+) {
   const programs = types.map((type) => mapType(type, academyId));
   const namesById = new Map();
   for (const { programId, name } of programs) {
@@ -185,12 +199,19 @@ export function planImport({ types, rows }, { academyId, now, timezone, from, to
     }
     namesById.set(programId, name);
   }
-  const programIdsByName = new Map(programs.map((program) => [program.name, program.programId]));
+  // A type already in the target (created by hand in the admin screen) keeps its own id, so the
+  // import links sessions to it instead of writing a second program with the same name.
+  const programIdsByName = new Map(
+    programs.map(({ name, programId }) => [name, existingProgramIdsByName.get(name) ?? programId]),
+  );
+  const locationIdsByName = new Map([...locationIds, ...existingLocationIdsByName]);
+  const toCreate = programs.filter(({ name }) => !existingProgramIdsByName.has(name));
   const seen = new Map();
   const trainers = new Set();
   const sessions = [];
   let outsideWindow = 0;
   let duplicates = 0;
+  let withoutTrainer = 0;
   for (const row of rows) {
     // The list capture pages overlap, so the same class can arrive twice with identical cells.
     const earlier = seen.get(row.id);
@@ -207,10 +228,25 @@ export function planImport({ types, rows }, { academyId, now, timezone, from, to
       outsideWindow += 1;
       continue;
     }
-    sessions.push(mapSessionRow(row, { academyId, programIdsByName, now, timezone }));
+    // ponytail: a session needs an instructor; one trainerless Regyfit class is reported, not invented.
+    if (rowTrainers.length === 0) {
+      withoutTrainer += 1;
+      continue;
+    }
+    sessions.push(
+      mapSessionRow(row, { academyId, programIdsByName, locationIdsByName, now, timezone }),
+    );
     for (const name of rowTrainers) trainers.add(name);
   }
-  return { programs, sessions, trainers: [...trainers].sort(), outsideWindow, duplicates };
+  return {
+    programs: toCreate,
+    reusedPrograms: programs.length - toCreate.length,
+    sessions,
+    trainers: [...trainers].sort(),
+    outsideWindow,
+    duplicates,
+    withoutTrainer,
+  };
 }
 
 function isLoopbackHost(value) {

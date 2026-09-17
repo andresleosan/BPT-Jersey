@@ -13,6 +13,9 @@
 // REGYFIT_OPERATOR_CONFIRMATION=classes-services-types-sessions-production-v1, and is run only
 // after the operator confirms in chat. The capture must stay outside the repository.
 //
+// Every run (dry run included) first reads the target read-only: types and locations that already
+// exist are linked by name instead of written again, and the JSON line reports what is there.
+//
 // Apply is create-only: a document that already exists at a planned path is skipped, so a rerun
 // never modifies existing documents (admin edits survive). The JSON line reports `created` and
 // `skippedExisting`.
@@ -69,6 +72,15 @@ async function main() {
   }
   const directory = captureDirectory();
   const read = (file) => JSON.parse(readFileSync(join(directory, file), "utf8"));
+  const firestore = getFirestore(getApps()[0] ?? initializeApp({ projectId }));
+  const academy = `academies/${academyId}`;
+  const [existingPrograms, existingLocations, existingSessions] = await Promise.all(
+    ["programs", "locations", "sessions"].map((name) =>
+      firestore.collection(`${academy}/${name}`).get(),
+    ),
+  );
+  const idsByName = (snapshot, idField) =>
+    new Map(snapshot.docs.map((doc) => [doc.get("name"), doc.get(idField) ?? doc.id]));
   const plan = planImport(
     { types: read("class-service-types.json"), rows: read("scheduled-classes-list.json").rows },
     {
@@ -77,6 +89,8 @@ async function main() {
       timezone: "Europe/Jersey",
       from: optionalDate("REGYFIT_IMPORT_FROM"),
       to: optionalDate("REGYFIT_IMPORT_TO"),
+      existingProgramIdsByName: idsByName(existingPrograms, "programId"),
+      existingLocationIdsByName: idsByName(existingLocations, "locationId"),
     },
   );
   const applied = process.env.REGYFIT_IMPORT_APPLY === "true";
@@ -84,7 +98,6 @@ async function main() {
   let skippedExisting = 0;
 
   if (applied) {
-    const firestore = getFirestore(getApps()[0] ?? initializeApp({ projectId }));
     const writes = [
       ...plan.programs.map((doc) => [`academies/${academyId}/programs/${doc.programId}`, doc]),
       ...plan.sessions.map((doc) => [`academies/${academyId}/sessions/${doc.sessionId}`, doc]),
@@ -112,12 +125,22 @@ async function main() {
       projectId,
       academyId,
       applied,
+      before: {
+        programs: existingPrograms.size,
+        locations: existingLocations.size,
+        sessions: existingSessions.size,
+        importedSessions: existingSessions.docs.filter(
+          (doc) => doc.get("createdBy") === "regyfit-import",
+        ).length,
+      },
       created,
       skippedExisting,
-      programs: plan.programs.length,
+      programsToCreate: plan.programs.length,
+      reusedPrograms: plan.reusedPrograms,
       sessions: plan.sessions.length,
       outsideWindow: plan.outsideWindow,
       duplicates: plan.duplicates,
+      withoutTrainer: plan.withoutTrainer,
       trainers: plan.trainers,
     }),
   );
