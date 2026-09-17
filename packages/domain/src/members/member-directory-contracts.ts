@@ -115,6 +115,93 @@ export const postalAddressSchema = z
 
 export type PostalAddress = Readonly<z.infer<typeof postalAddressSchema>>;
 
+const administrativeIdentifierInputSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .refine((value) => !controlCharacterPattern.test(value), {
+    message: "Identifier contains control characters",
+  })
+  .transform(normalizeAdministrativeIdentifier)
+  .pipe(administrativeIdentifierSchema);
+
+// T051V2 (E1): the DETAILS fields Regyfit shows that the canonical record did not hold yet. They
+// live in one optional block of the Restricted admin profile, so documents written before it still
+// parse and the full-replacement update can treat "not sent" as "keep" for the whole block.
+export const memberHowHeardOptions = Object.freeze([
+  "Friends",
+  "Social networks",
+  "Radio",
+  "Television",
+  "Flyers",
+  "Website",
+  "WhatsApp",
+  "Others",
+] as const);
+export type MemberHowHeardOption = (typeof memberHowHeardOptions)[number];
+
+export const memberInitialContactOptions = Object.freeze([
+  "Phone",
+  "Facebook",
+  "In person",
+  "Instagram",
+  "Website",
+  "WhatsApp",
+] as const);
+export type MemberInitialContactOption = (typeof memberInitialContactOptions)[number];
+
+// ponytail: the option lists are code constants, not an academy setting with a manage dialog.
+// Stored values are bounded text, so moving the lists into academy settings later needs no migration.
+
+// Tab (0x09) and line feed (0x0a) are allowed in notes; every other C0 control and DEL is not.
+const notesControlCharacterPattern = /[\u0000-\u0008\u000b-\u001f\u007f]/u;
+const internalNotesSchema = z
+  .string()
+  .min(1)
+  .max(2000)
+  .refine((value) => value === value.trim() && !notesControlCharacterPattern.test(value), {
+    message: "Notes must be trimmed and contain no control characters other than line breaks",
+  });
+
+const studentAdminDetailsBaseShape = {
+  shortName: canonicalText(64).optional(),
+  nickname: canonicalText(64).optional(),
+  city: canonicalText(120).optional(),
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/u)
+    .optional(),
+  idCardExpiresOn: dateOnlySchema.optional(),
+  profession: canonicalText(120).optional(),
+  weightKg: z.number().finite().min(1).max(400).optional(),
+  heightCm: z.number().finite().min(30).max(250).optional(),
+  registeredOn: dateOnlySchema.optional(),
+  recommendedByStudentId: opaqueIdentifierSchema.optional(),
+  internalNotes: internalNotesSchema.optional(),
+} as const;
+
+export const studentAdminDetailsSchema = z
+  .strictObject({
+    ...studentAdminDetailsBaseShape,
+    healthNumber: administrativeIdentifierSchema.optional(),
+    howHeard: canonicalText(64).optional(),
+    initialContact: canonicalText(64).optional(),
+  })
+  .readonly();
+
+export type StudentAdminDetails = Readonly<z.infer<typeof studentAdminDetailsSchema>>;
+
+export const studentAdminDetailsInputSchema = z
+  .strictObject({
+    ...studentAdminDetailsBaseShape,
+    healthNumber: administrativeIdentifierInputSchema.optional(),
+    howHeard: z.enum(memberHowHeardOptions).optional(),
+    initialContact: z.enum(memberInitialContactOptions).optional(),
+  })
+  .readonly();
+
+export type StudentAdminDetailsInput = Readonly<z.infer<typeof studentAdminDetailsInputSchema>>;
+
 const studentAdminProfileBaseShape = {
   studentId: opaqueIdentifierSchema,
   academyId: opaqueIdentifierSchema,
@@ -125,6 +212,7 @@ const studentAdminProfileBaseShape = {
   frequencyNote: canonicalText(256).optional(),
   emergencyContact: emergencyContactSchema.optional(),
   postalAddress: postalAddressSchema.optional(),
+  details: studentAdminDetailsSchema.optional(),
   schemaVersion: z.literal("1"),
   createdAt: auditDateTimeSchema,
   createdBy: opaqueIdentifierSchema,
@@ -346,6 +434,7 @@ export const memberRecordMaintenanceDetailSchema = z.strictObject({
   frequencyNote: canonicalText(256).optional(),
   emergencyContact: emergencyContactSchema.optional(),
   postalAddress: postalAddressSchema.optional(),
+  details: studentAdminDetailsSchema.optional(),
 });
 
 export type MemberRecordMaintenanceDetail = Readonly<
@@ -369,16 +458,6 @@ export type StudentDirectorySource = Readonly<{
 export function normalizeAdministrativeIdentifier(value: string): string {
   return value.normalize("NFKC").trim().toUpperCase();
 }
-
-const administrativeIdentifierInputSchema = z
-  .string()
-  .min(1)
-  .max(64)
-  .refine((value) => !controlCharacterPattern.test(value), {
-    message: "Identifier contains control characters",
-  })
-  .transform(normalizeAdministrativeIdentifier)
-  .pipe(administrativeIdentifierSchema);
 
 const createTrainingPreferencesSchema = z
   .array(z.enum(trainingTimePreferences))
@@ -444,6 +523,12 @@ export const adminUpdateStudentInputSchema = z
     frequencyNote: canonicalText(256).optional(),
     emergencyContact: emergencyContactSchema.optional(),
     postalAddress: postalAddressSchema.optional(),
+    /** Absent = keep the stored block; present = replace it (T051V2). */
+    details: studentAdminDetailsInputSchema.optional(),
+  })
+  .refine((value) => value.details?.recommendedByStudentId !== value.studentId, {
+    path: ["details", "recommendedByStudentId"],
+    message: "A member cannot recommend themselves",
   })
   .readonly();
 
@@ -619,5 +704,6 @@ export function toMemberRecordMaintenanceDetail(
     ...(profile.postalAddress === undefined
       ? {}
       : { postalAddress: Object.freeze({ ...profile.postalAddress }) }),
+    ...(profile.details === undefined ? {} : { details: Object.freeze({ ...profile.details }) }),
   });
 }

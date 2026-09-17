@@ -6,12 +6,16 @@ import {
   adminCreateStudentInputSchema,
   memberDirectoryStateSchema,
   memberDirectoryOperationPhases,
+  memberHowHeardOptions,
+  memberInitialContactOptions,
   maskMembershipReference,
   memberNameRowSchema,
   memberRecordMaintenanceDetailSchema,
   publicAdminIdentifierLookupKinds,
   parseAdminCreateStudentInput,
   parseAdminUpdateStudentInput,
+  studentAdminDetailsInputSchema,
+  studentAdminDetailsSchema,
   studentAdminProfileSchema,
   toAdminDirectoryRow,
   toMemberRecordMaintenanceDetail,
@@ -597,6 +601,116 @@ describe("canonical member directory contracts", () => {
         email: "x",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("member record DETAILS extension (T051V2)", () => {
+  const details = {
+    shortName: "Test A",
+    nickname: "Tester",
+    city: "St Helier",
+    country: "JE",
+    idCardExpiresOn: "2030-01-31",
+    healthNumber: "HN0000",
+    profession: "Tester",
+    weightKg: 70.5,
+    heightCm: 175,
+    registeredOn: "2026-01-15",
+    recommendedByStudentId: "student-2",
+    howHeard: "Friends",
+    initialContact: "In person",
+    internalNotes: "Line one\nLine two",
+  } as const;
+
+  it("parses a stored profile written before the extension and one carrying details", () => {
+    expect(studentAdminProfileSchema.safeParse(adminProfile).success).toBe(true);
+    const parsed = studentAdminProfileSchema.safeParse({ ...adminProfile, details });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.details).toEqual(details);
+  });
+
+  it("keeps the stored details strict and bounded", () => {
+    for (const bad of [
+      { ...details, unknownField: "x" },
+      { ...details, weightKg: 0 },
+      { ...details, weightKg: 401 },
+      { ...details, heightCm: 29 },
+      { ...details, heightCm: 251 },
+      { ...details, country: "Jersey" },
+      { ...details, idCardExpiresOn: "2030-02-30" },
+      { ...details, shortName: " padded " },
+      { ...details, internalNotes: "x".repeat(2001) },
+      { ...details, internalNotes: `bell${String.fromCharCode(7)}` },
+      { ...details, recommendedByStudentId: "../student" },
+    ]) {
+      expect(studentAdminDetailsSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("seeds the academy option lists with the Regyfit values", () => {
+    expect(memberHowHeardOptions).toEqual([
+      "Friends",
+      "Social networks",
+      "Radio",
+      "Television",
+      "Flyers",
+      "Website",
+      "WhatsApp",
+      "Others",
+    ]);
+    expect(memberInitialContactOptions).toEqual([
+      "Phone",
+      "Facebook",
+      "In person",
+      "Instagram",
+      "Website",
+      "WhatsApp",
+    ]);
+  });
+
+  it("normalises the health number and closes the option lists on write", () => {
+    const parsed = studentAdminDetailsInputSchema.safeParse({
+      ...details,
+      healthNumber: " hn0000 ",
+    });
+    expect(parsed.success && parsed.data.healthNumber).toBe("HN0000");
+    expect(
+      studentAdminDetailsInputSchema.safeParse({ ...details, howHeard: "Carrier pigeon" }).success,
+    ).toBe(false);
+    expect(
+      studentAdminDetailsInputSchema.safeParse({ ...details, initialContact: "Fax" }).success,
+    ).toBe(false);
+  });
+
+  it("accepts details on the full-replacement update and refuses self-recommendation", () => {
+    const update = {
+      studentId: "student-1",
+      requestId: "41cbb1aa-7020-4bb5-88a4-dbc73c5f0123",
+      fullName: "Test Member A",
+      dateOfBirth: "2000-01-02",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      gender: "unknown",
+    } as const;
+    expect(adminUpdateStudentInputSchema.safeParse(update).success).toBe(true);
+    expect(adminUpdateStudentInputSchema.safeParse({ ...update, details }).success).toBe(true);
+    expect(
+      adminUpdateStudentInputSchema.safeParse({
+        ...update,
+        details: { ...details, recommendedByStudentId: "student-1" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("carries stored details into the maintenance detail and omits the key when absent", () => {
+    const withDetails = toMemberRecordMaintenanceDetail(student, {
+      ...adminProfile,
+      details,
+    } as StudentAdminProfile);
+    expect(withDetails.details).toEqual(details);
+    expect(memberRecordMaintenanceDetailSchema.safeParse(withDetails).success).toBe(true);
+    const without = toMemberRecordMaintenanceDetail(student, adminProfile as StudentAdminProfile);
+    expect(Object.hasOwn(without, "details")).toBe(false);
   });
 });
 
