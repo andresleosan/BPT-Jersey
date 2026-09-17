@@ -75,6 +75,7 @@ export const auditActions = Object.freeze([
   "enrolment.request.approval.failed",
   "enrolment.request.detail.read",
   "member.directory.initialized",
+  "regyfit.record.field.read",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -124,6 +125,10 @@ type RestrictedMemberReadAuditVariant =
   | Readonly<{
       action: "enrolment.request.detail.read";
       result: EnrolmentRequestDetailReadAuditResult;
+    }>
+  | Readonly<{
+      action: "regyfit.record.field.read";
+      result: MemberDetailReadAuditResult;
     }>;
 
 export type RestrictedMemberReadAuditEventDraft = CommonAuditEventDraft &
@@ -276,6 +281,7 @@ const restrictedReadPurposes = Object.freeze({
   "member.detail.read": "member-record-maintenance",
   "member.identity.lookup": "member-identity-lookup",
   "enrolment.request.detail.read": "enrolment-request-review",
+  "regyfit.record.field.read": "regyfit-record-review",
 } as const);
 const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.freeze({
   "admin.role.granted": commonFields,
@@ -342,6 +348,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "enrolment.request.approved": commonFields,
   "enrolment.request.approval.failed": commonFields,
   "enrolment.request.detail.read": restrictedMemberReadFields,
+  "regyfit.record.field.read": restrictedMemberReadFields,
   "member.directory.initialized": commonFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
@@ -547,7 +554,8 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
     if (
       parsedAction === "member.detail.read" ||
       parsedAction === "member.identity.lookup" ||
-      parsedAction === "enrolment.request.detail.read"
+      parsedAction === "enrolment.request.detail.read" ||
+      parsedAction === "regyfit.record.field.read"
     ) {
       const expectedPurpose = restrictedReadPurposes[parsedAction];
       const allowedResults: readonly string[] =
@@ -921,6 +929,15 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           ...base,
           action: parsedAction,
           result: snapshot.result as EnrolmentRequestDetailReadAuditResult,
+        }),
+      );
+    }
+    if (parsedAction === "regyfit.record.field.read") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          result: snapshot.result as MemberDetailReadAuditResult,
         }),
       );
     }

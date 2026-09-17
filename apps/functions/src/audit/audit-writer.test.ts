@@ -67,6 +67,16 @@ const restrictedLookupDraft = {
   result: "no-match",
 } as unknown as AuditEventDraft;
 
+const regyfitRevealDraft = {
+  academyId: "academy-1",
+  actorId: "owner-1",
+  action: "regyfit.record.field.read",
+  targetRef: "academies/academy-1/studentRestrictedReadLimits/owner-1",
+  purpose: "regyfit-record-review",
+  correlationId: "restricted-audit-reveal-1",
+  result: "not-found",
+} as unknown as AuditEventDraft;
+
 function modernEvent(overrides: Readonly<Record<string, unknown>> = {}) {
   return {
     ...regyfitDraft,
@@ -137,6 +147,21 @@ describe("audit writer", () => {
     expect(create).toHaveBeenCalledOnce();
     expect(create).toHaveBeenCalledWith(ref, {
       ...restrictedLookupDraft,
+      auditEventId: ref.id,
+      occurredAt: expect.anything(),
+      schemaVersion: 1,
+    });
+  });
+
+  it("preserves the closed result when creating Regyfit record field reveal evidence", () => {
+    const create = vi.fn();
+    const ref = { id: "restricted-audit-reveal-1" };
+
+    appendAuditEventInTransaction({ create }, ref, regyfitRevealDraft);
+
+    expect(create).toHaveBeenCalledOnce();
+    expect(create).toHaveBeenCalledWith(ref, {
+      ...regyfitRevealDraft,
       auditEventId: ref.id,
       occurredAt: expect.anything(),
       schemaVersion: 1,
