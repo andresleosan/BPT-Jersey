@@ -35,6 +35,7 @@ export {
   initializeCanonicalMemberDirectory,
   listMembers,
   lookupMemberIdentity,
+  revealRegyfitRecordField,
   updateCanonicalMember as updateMember,
 } from "./members/member-directory-callables.js";
 export { listMemberNames } from "./members/member-names-callables.js";
