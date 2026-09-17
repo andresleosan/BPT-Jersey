@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,8 +8,10 @@ import type { FullMemberProfile } from "@bpt-jersey/domain/members/profile";
 
 const client = vi.hoisted(() => {
   class MemberDetailsConflictError extends Error {}
+  class MemberDetailsSaveError extends Error {}
   return {
     MemberDetailsConflictError,
+    MemberDetailsSaveError,
     saveMemberDetails: vi.fn(),
     searchMemberNames: vi.fn(),
   };
@@ -16,6 +20,8 @@ const client = vi.hoisted(() => {
 vi.mock("../../../../lib/member-profile-client", () => client);
 
 import { DetailsTab } from "./details-tab";
+
+const outOfListMessage = "This stored value is no longer a choice. Pick one from the list.";
 
 const profile: FullMemberProfile = {
   view: "full",
@@ -265,6 +271,78 @@ describe("DETAILS tab", () => {
     await user.selectOptions(howHeard, "Website");
     expect(screen.getByLabelText("How they heard").getAttribute("aria-invalid")).toBe("false");
     expect(within(howHeard).queryByText("Google")).toBeNull();
+  });
+
+  it("gives an invalid select and the notes textarea the hooks the record CSS styles", async () => {
+    const { user } = renderTab({
+      details: {
+        ...profile.details,
+        details: { ...profile.details.details, howHeard: "Google" },
+      } as never,
+    });
+    const howHeard = screen.getByLabelText("How they heard");
+    expect(howHeard.tagName).toBe("SELECT");
+    expect(howHeard.getAttribute("aria-invalid")).toBe("true");
+    expect(howHeard.closest(".login-field")).not.toBeNull();
+    expect(screen.getByText(outOfListMessage).className).toBe("member-record-error");
+    expect(screen.getByLabelText("Internal notes").getAttribute("aria-invalid")).toBe("false");
+
+    await user.click(screen.getByRole("button", { name: "Save details" }));
+    // The stylesheet is not loaded in jsdom, so the record's own CSS is read from disk. The path
+    // is resolved from either working directory vitest may run this project from.
+    const cssPath = ["apps/web/src/app/admin/admin.css", "src/app/admin/admin.css"].find(
+      existsSync,
+    );
+    const css = readFileSync(cssPath!, "utf8");
+    for (const selector of [
+      '.member-record-form .login-field input[aria-invalid="true"]',
+      '.member-record-form .login-field select[aria-invalid="true"]',
+      '.member-record-form .login-field textarea[aria-invalid="true"]',
+      '.member-record-form .login-field:has([aria-invalid="true"])',
+      ".member-record-error",
+    ]) {
+      expect(css).toContain(selector);
+    }
+  });
+
+  it("says that waiting is the fix when a save is rate limited", async () => {
+    client.saveMemberDetails.mockRejectedValue(
+      new client.MemberDetailsSaveError(
+        "Too many member changes in a few minutes. Wait a moment and try again.",
+      ),
+    );
+    const { user } = renderTab();
+    await user.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "Too many member changes in a few minutes. Wait a moment and try again.",
+    );
+  });
+
+  it("keeps the generic sentence for a failure it does not recognise", async () => {
+    client.saveMemberDetails.mockRejectedValue(new TypeError("raw internal detail"));
+    const { user } = renderTab();
+    await user.click(screen.getByRole("button", { name: "Save details" }));
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "Unable to save member details. Please try again.",
+    );
+  });
+
+  it("ignores a second save while one is in flight", async () => {
+    let release = (): void => {};
+    client.saveMemberDetails.mockReturnValue(
+      new Promise<void>((resolve) => {
+        release = () => resolve();
+      }),
+    );
+    const { user } = renderTab();
+    await user.click(screen.getByRole("button", { name: "Save details" }));
+    await user.keyboard("{Control>}s{/Control}");
+    await user.keyboard("{Meta>}s{/Meta}");
+    expect(client.saveMemberDetails).toHaveBeenCalledOnce();
+    release();
+    await screen.findByText("Details saved.");
   });
 
   it("omits the notes key instead of sending an empty string", async () => {

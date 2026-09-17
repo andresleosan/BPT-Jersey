@@ -29,12 +29,24 @@ const rateLimitedError =
 const loadError = "Unable to load this member record. Please try again.";
 const conflictError = "That member number is already used by another member.";
 const saveError = "Unable to save member details. Please try again.";
+// The per-actor budget is shared by every member-record caller, so the office will meet it: the
+// sentence has to say that waiting is the fix, not that something unknown went wrong.
+const saveRateLimitedError =
+  "Too many member changes in a few minutes. Wait a moment and try again.";
 const searchError = "Unable to search members. Please try again.";
 
 export class MemberRecordLoadError extends Error {
   public constructor(message: string) {
     super(message);
     this.name = "MemberRecordLoadError";
+  }
+}
+
+/** A save failure whose message is already safe to show, so the form can surface it as it is. */
+export class MemberDetailsSaveError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "MemberDetailsSaveError";
   }
 }
 
@@ -79,7 +91,7 @@ export async function getMemberProfile(studentId: string): Promise<MemberProfile
 
 export async function saveMemberDetails(input: UpdateMemberDetailsInput): Promise<void> {
   const parsed = updateMemberDetailsInputSchema.safeParse(input);
-  if (!parsed.success) throw new Error(saveError);
+  if (!parsed.success) throw new MemberDetailsSaveError(saveError);
   let data: unknown;
   try {
     const callable = httpsCallable<UpdateMemberDetailsInput, unknown>(
@@ -88,15 +100,17 @@ export async function saveMemberDetails(input: UpdateMemberDetailsInput): Promis
     );
     data = (await callable(parsed.data)).data;
   } catch (error) {
-    if (errorCode(error).endsWith("already-exists")) throw new MemberDetailsConflictError();
-    throw new Error(saveError);
+    const code = errorCode(error);
+    if (code.endsWith("already-exists")) throw new MemberDetailsConflictError();
+    if (code.endsWith("resource-exhausted")) throw new MemberDetailsSaveError(saveRateLimitedError);
+    throw new MemberDetailsSaveError(saveError);
   }
   if (
     typeof data !== "object" ||
     data === null ||
     (data as { studentId?: unknown }).studentId !== parsed.data.studentId
   ) {
-    throw new Error(saveError);
+    throw new MemberDetailsSaveError(saveError);
   }
 }
 

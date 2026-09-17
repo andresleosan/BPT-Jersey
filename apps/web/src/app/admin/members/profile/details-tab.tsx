@@ -16,6 +16,7 @@ import {
 
 import {
   MemberDetailsConflictError,
+  MemberDetailsSaveError,
   saveMemberDetails,
   searchMemberNames,
 } from "../../../../lib/member-profile-client";
@@ -47,12 +48,18 @@ const bmiLabels = {
  */
 const outOfListMessage = "This stored value is no longer a choice. Pick one from the list.";
 
+const saveFallbackError = "Unable to save member details. Please try again.";
+
 function isOutOfList(value: string, options: readonly string[]): boolean {
   return value !== "" && !options.includes(value);
 }
 
 function OutOfListHint() {
-  return <span role="alert">{outOfListMessage}</span>;
+  return (
+    <span className="member-record-error" role="alert">
+      {outOfListMessage}
+    </span>
+  );
 }
 
 function fieldId(field: DetailsDraftField): string {
@@ -202,6 +209,7 @@ export function DetailsTab({
   const [draft, setDraft] = useState<DetailsDraft>(baseline);
   const [requestId, setRequestId] = useState(() => globalThis.crypto.randomUUID());
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [saveErrorMessage, setSaveErrorMessage] = useState(saveFallbackError);
   const [invalidFields, setInvalidFields] = useState<readonly DetailsDraftField[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
   const dirty = isDraftDirty(baseline, draft);
@@ -264,6 +272,13 @@ export function DetailsTab({
         setSaveState("conflict");
         document.getElementById(fieldId("membershipNumber"))?.focus();
       } else {
+        // The client turns every save failure into one safe sentence, so a rate limit can say that
+        // waiting is the fix. Anything else (a bug in this page) keeps the generic sentence.
+        setSaveErrorMessage(
+          error instanceof MemberDetailsSaveError && error.message !== ""
+            ? error.message
+            : saveFallbackError,
+        );
         setSaveState("error");
       }
     }
@@ -589,9 +604,7 @@ export function DetailsTab({
         {saveState === "conflict" ? (
           <p role="alert">That member number is already used by another member.</p>
         ) : null}
-        {saveState === "error" ? (
-          <p role="alert">Unable to save member details. Please try again.</p>
-        ) : null}
+        {saveState === "error" ? <p role="alert">{saveErrorMessage}</p> : null}
       </div>
     </form>
   );
