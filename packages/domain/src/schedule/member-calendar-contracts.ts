@@ -278,6 +278,10 @@ export function deriveSessionStatus(input: {
     (input.booking.status === "confirmed" || input.booking.status === "requested");
   if (booked) return Object.freeze({ status: "booked" });
 
+  const bookable =
+    input.session.status === "scheduled" &&
+    isWithinBookingCutoff(input.session.startAt, input.now.toISOString(), calendarCutoffMinutes);
+  if (!bookable || input.session.capacity === null) return Object.freeze({ status: "closed" });
   if (
     input.program.discipline !== "open-mat" &&
     input.member.weeklyClassLimit !== null &&
@@ -285,11 +289,6 @@ export function deriveSessionStatus(input: {
   ) {
     return Object.freeze({ status: "locked", lockedReason: "weekly_limit" });
   }
-
-  const bookable =
-    input.session.status === "scheduled" &&
-    isWithinBookingCutoff(input.session.startAt, input.now.toISOString(), calendarCutoffMinutes);
-  if (!bookable || input.session.capacity === null) return Object.freeze({ status: "closed" });
   if (input.session.capacity !== null && input.bookedCount >= input.session.capacity) {
     return Object.freeze({ status: "full" });
   }
