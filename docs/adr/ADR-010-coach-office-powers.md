@@ -71,3 +71,21 @@ oficina (la interfaz lo indica con «Enrolment needs an office account»). Se ev
 apertura completa del directorio y un callable acotado de busqueda de alumnos con `membershipId`,
 por el coste de ADR-009. El resto del directorio de staff (crear, editar, activar, disponibilidad,
 asignaciones) no cambia.
+
+## Enmienda 2026-09-17
+
+Decision del operador en chat (grill G6 de `docs/superpowers/specs/2026-09-17-member-profile-e0-e2-design.md`):
+`headCoach` y `coach` abren la ficha canonica de un alumno en `/admin/members/profile` y lo buscan
+por nombre en `/admin/members/search`.
+
+- `getMemberProfile` recorta en el servidor: owner/administrator reciben la ficha completa por la
+  lectura restringida auditada (mismo presupuesto y accion `member.detail.read` que `getMemberDetail`);
+  headCoach/coach reciben solo la cabecera (nombre, edad, tipo de participante, estado, aviso de
+  cumpleanos), autorizados con la autorizacion de niveles (`resolveStudent`), sin identificadores,
+  fecha de nacimiento, datos de DETAILS, membresia ni responsables. Guardian y adultStudent: denegado.
+- `searchMemberNames` devuelve como maximo 20 `{ studentId, fullName }` por nombre para los cuatro roles
+  de staff. No abre `listMembers`, `listMemberNames`, `lookupMemberIdentity` ni `getMemberDetail`, que
+  siguen siendo de la oficina.
+- La interfaz muestra al coach solo la pestana PROFILE (tarjeta IBJJF y Manage, E2). Ocultar pestanas
+  no es el control: los tests de `member-profile-callables.test.ts` fijan el conjunto exacto de claves
+  por rol.

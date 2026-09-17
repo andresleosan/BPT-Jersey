@@ -39,6 +39,7 @@ export {
   updateCanonicalMember as updateMember,
 } from "./members/member-directory-callables.js";
 export { listMemberNames } from "./members/member-names-callables.js";
+export { getMemberProfile, searchMemberNames } from "./members/member-profile-callables.js";
 export { getClientProfile, saveClientProfile } from "./profiles/profile-callables.js";
 export { getGuardianProfile, saveGuardianProfile } from "./profiles/guardian-profile-callables.js";
 export { createFamily, getFamily, updateFamily } from "./families/family-callables.js";
