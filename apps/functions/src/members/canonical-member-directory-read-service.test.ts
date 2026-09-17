@@ -1017,3 +1017,120 @@ describe("Regyfit record field reveal", () => {
     });
   });
 });
+
+describe("member profile record read (T051V2)", () => {
+  it("returns the student and the admin profile, audited on the shared budget", async () => {
+    const harness = fakeStore();
+    const reader = service(harness.store);
+
+    const record = await reader.memberProfileRecord({
+      actor: actor(),
+      value: { studentId: "student-1" },
+      now,
+    });
+
+    expect(record.student).toEqual(expect.objectContaining({ studentId: "student-1" }));
+    expect(record.adminProfile).toEqual(
+      expect.objectContaining({ studentId: "student-1", membershipNumber: "BPT 00000001" }),
+    );
+    expect(harness.records.get("academies/academy-1/auditEvents/restricted-audit-1")).toEqual(
+      expect.objectContaining({
+        action: "member.detail.read",
+        purpose: "member-record-maintenance",
+        result: "completed",
+      }),
+    );
+    expect(harness.records.get("academies/academy-1/studentRestrictedReadLimits/owner-1")).toEqual(
+      expect.objectContaining({ attemptCount: 1 }),
+    );
+  });
+
+  it("answers a student without an admin profile", async () => {
+    const seeded = seed();
+    delete seeded["academies/academy-1/studentAdminProfiles/student-2"];
+    const reader = service(fakeStore(seeded).store);
+    const record = await reader.memberProfileRecord({
+      actor: actor(),
+      value: { studentId: "student-2" },
+      now,
+    });
+    expect(record.adminProfile).toBeUndefined();
+    expect(record.student.studentId).toBe("student-2");
+  });
+
+  it("audits a miss as not-found", async () => {
+    const harness = fakeStore();
+    await expect(
+      service(harness.store).memberProfileRecord({
+        actor: actor(),
+        value: { studentId: "student-missing" },
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "not-found" });
+    expect(harness.records.get("academies/academy-1/auditEvents/restricted-audit-1")).toEqual(
+      expect.objectContaining({ result: "not-found" }),
+    );
+  });
+
+  it("refuses coaches and loose input before any transaction", async () => {
+    const harness = fakeStore();
+    const reader = service(harness.store);
+    await expect(
+      reader.memberProfileRecord({
+        actor: { ...actor(), role: "coach" as never },
+        value: { studentId: "student-1" },
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "unauthorized" });
+    for (const value of [{}, { studentId: "student-1", purpose: "x" }, { studentId: "../x" }]) {
+      await expect(
+        reader.memberProfileRecord({ actor: actor(), value, now }),
+      ).rejects.toMatchObject({ code: "invalid" });
+    }
+    expect(harness.transactions).toBe(0);
+  });
+
+  it("refuses an actor whose App Check is unverified, before any transaction", async () => {
+    const harness = fakeStore();
+    await expect(
+      service(harness.store).memberProfileRecord({
+        actor: { ...actor(), appCheckVerified: false },
+        value: { studentId: "student-1" },
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "unauthorized" });
+    expect(harness.transactions).toBe(0);
+  });
+
+  it("reads only the actor's own academy, so another academy's student is a miss", async () => {
+    const otherStudentPath = "academies/academy-2/students/student-9";
+    const harness = fakeStore({
+      ...seed(),
+      [otherStudentPath]: { ...student("student-9", "Delta Student"), academyId: "academy-2" },
+      "academies/academy-2/studentAdminProfiles/student-9": {
+        ...profile("student-9", "BPT 00000009"),
+        academyId: "academy-2",
+      },
+    });
+
+    await expect(
+      service(harness.store).memberProfileRecord({
+        actor: actor(),
+        value: { studentId: "student-9" },
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "not-found" });
+    expect(harness.readPaths).not.toContain(otherStudentPath);
+  });
+
+  it("stops at the shared limit of 20 restricted reads", async () => {
+    const harness = fakeStore();
+    const reader = service(harness.store);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await reader.memberProfileRecord({ actor: actor(), value: { studentId: "student-1" }, now });
+    }
+    await expect(
+      reader.memberProfileRecord({ actor: actor(), value: { studentId: "student-1" }, now }),
+    ).rejects.toMatchObject({ code: "rate-limited" });
+  });
+});
