@@ -67,6 +67,31 @@ const restrictedLookupDraft = {
   result: "no-match",
 } as unknown as AuditEventDraft;
 
+function checkedInDraft(overrides: Readonly<Record<string, unknown>> = {}): AuditEventDraft {
+  return {
+    academyId: "academy-1",
+    actorId: "coach-1",
+    action: "attendance.checked_in",
+    targetRef: "academies/academy-1/attendance/attendance-1",
+    purpose: "schedule-attendance-operation",
+    correlationId: "attendance-1",
+    class: {
+      studentId: "student-1",
+      studentName: null,
+      sessionId: "session-1",
+      sessionStartAt: "2026-09-18T18:00:00.000Z",
+      programId: "adult-fundamentals",
+      locationId: "town",
+    },
+    actorIp: null,
+    actorRole: "coach",
+    actorGroup: "staff",
+    actorName: null,
+    source: "bpt",
+    ...overrides,
+  } as unknown as AuditEventDraft;
+}
+
 function modernEvent(overrides: Readonly<Record<string, unknown>> = {}) {
   return {
     ...regyfitDraft,
@@ -207,6 +232,57 @@ describe("audit writer", () => {
         }),
       ).toBe(false);
     }
+  });
+
+  it("replays a check-in audited before the class block existed", () => {
+    const legacyStored = {
+      academyId: "academy-1",
+      actorId: "coach-1",
+      action: "attendance.checked_in",
+      targetRef: "academies/academy-1/attendance/attendance-1",
+      purpose: "schedule-attendance-operation",
+      correlationId: "attendance-1",
+      auditEventId: "attendance-check-in-attendance-1",
+      occurredAt: { seconds: 1, nanoseconds: 0 },
+      result: "completed",
+      schemaVersion: 1,
+    };
+
+    expect(
+      matchesAuditEventReplay(legacyStored, "attendance-check-in-attendance-1", checkedInDraft()),
+    ).toBe(true);
+    expect(
+      matchesAuditEventReplay(
+        { ...legacyStored, actorId: "coach-2" },
+        "attendance-check-in-attendance-1",
+        checkedInDraft(),
+      ),
+    ).toBe(false);
+  });
+
+  it("replays a class event whose caller reaches it from another address", () => {
+    const stored = {
+      ...(checkedInDraft({ actorIp: "82.112.144.10" }) as unknown as Record<string, unknown>),
+      auditEventId: "attendance-check-in-attendance-1",
+      occurredAt: { seconds: 1, nanoseconds: 0 },
+      result: "completed",
+      schemaVersion: 1,
+    };
+
+    expect(
+      matchesAuditEventReplay(
+        stored,
+        "attendance-check-in-attendance-1",
+        checkedInDraft({ actorIp: "82.112.144.11" }),
+      ),
+    ).toBe(true);
+    expect(
+      matchesAuditEventReplay(
+        stored,
+        "attendance-check-in-attendance-1",
+        checkedInDraft({ actorRole: "administrator", actorGroup: "staff" }),
+      ),
+    ).toBe(false);
   });
 
   it("requires no mutation API other than create", () => {

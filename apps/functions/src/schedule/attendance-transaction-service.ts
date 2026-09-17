@@ -91,6 +91,8 @@ type MutationContext<Input> = Readonly<{
   input: Input;
   actorId: string;
   actorRole: ScheduleMutationActorRole;
+  /** The caller's address as the callable read it; a scheduled or system call has none. */
+  actorIp?: string | null;
   occurredAt?: string;
 }>;
 
@@ -151,6 +153,7 @@ function auditDraft(
     academyId: string;
     actorId: string;
     actorRole: ScheduleMutationActorRole;
+    actorIp: string | null;
     action:
       | "attendance.checked_in"
       | "attendance.corrected"
@@ -177,7 +180,7 @@ function auditDraft(
       programId: input.session.programId,
       locationId: input.session.locationId,
     },
-    actorIp: null,
+    actorIp: input.actorIp,
     actorRole: input.actorRole,
     actorGroup: classActorGroup(input.actorRole),
     actorName: null,
@@ -447,6 +450,7 @@ export function createTransactionalAttendanceService(
           academyId,
           actorId,
           actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
           action: "attendance.checked_in",
           targetRef: path(academyId, "attendance", attendanceId),
           correlationId: attendanceId,
@@ -457,6 +461,7 @@ export function createTransactionalAttendanceService(
           academyId,
           actorId,
           actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
           action: "attendance.proximity_override",
           targetRef: path(academyId, "attendance", attendanceId),
           correlationId: attendanceId,
@@ -565,6 +570,7 @@ export function createTransactionalAttendanceService(
           academyId,
           actorId,
           actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
           action: "attendance.checked_in",
           targetRef: path(academyId, "attendance", attendanceId),
           correlationId: attendanceId,
@@ -695,6 +701,7 @@ export function createTransactionalAttendanceService(
           academyId,
           actorId,
           actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
           action: "attendance.corrected",
           targetRef: path(academyId, "attendance", canonicalId),
           correlationId: correctionId,
@@ -825,6 +832,7 @@ export function createTransactionalAttendanceService(
           academyId,
           actorId,
           actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
           action: "student.checked_out",
           targetRef: path(academyId, "checkouts", checkoutId),
           correlationId: checkoutId,
