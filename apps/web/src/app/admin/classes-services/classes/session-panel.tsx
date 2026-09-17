@@ -220,6 +220,13 @@ export function SessionPanel({
     });
   }
 
+  const capacityValue = Number(draft.capacity);
+  const capacityInvalid =
+    draft.capacity.trim() === "" ||
+    !Number.isInteger(capacityValue) ||
+    capacityValue < 1 ||
+    capacityValue > 300;
+
   async function submit(): Promise<void> {
     setBusy(true);
     setError(null);
@@ -288,12 +295,6 @@ export function SessionPanel({
   const readOnly = !canEdit;
   const endsBeforeStart = minutesOf(draft.endTime) <= minutesOf(draft.startTime);
   const noTrainer = draft.trainers.length === 0;
-  const capacityValue = Number(draft.capacity);
-  const capacityInvalid =
-    draft.capacity.trim() === "" ||
-    !Number.isInteger(capacityValue) ||
-    capacityValue < 1 ||
-    capacityValue > 300;
   const blocked = busy || endsBeforeStart || noTrainer || capacityInvalid;
 
   return (
