@@ -58,6 +58,7 @@ import {
 import {
   BookingTransactionError,
   createBookingTransactionService,
+  type BookingAuditActor,
   type BookingFirestore,
 } from "./booking-transaction-service.js";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
@@ -273,12 +274,14 @@ export type ScheduleStore = Readonly<{
     academyId: string,
     input: RequestBookingInput,
     actorId: string,
+    auditActor?: BookingAuditActor,
   ) => Promise<BookingRecord>;
   cancelBooking: (
     academyId: string,
     input: CancelBookingInput,
     actorId: string,
     isStaffOverride?: boolean,
+    auditActor?: BookingAuditActor,
   ) => Promise<BookingRecord>;
   listSessionBookings: (academyId: string, sessionId: string) => Promise<readonly BookingRecord[]>;
   listStudentBookings: (academyId: string, studentId: string) => Promise<readonly BookingRecord[]>;
@@ -1349,8 +1352,9 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       input: RequestBookingInput,
       actorId: string,
+      auditActor?: BookingAuditActor,
     ): Promise<BookingRecord> {
-      return bookingTransactions.requestBooking(academyId, input, actorId);
+      return bookingTransactions.requestBooking(academyId, input, actorId, auditActor);
     },
 
     async cancelBooking(
@@ -1358,8 +1362,15 @@ export function createFirestoreScheduleStore(options: {
       input: CancelBookingInput,
       actorId: string,
       isStaffOverride = false,
+      auditActor?: BookingAuditActor,
     ): Promise<BookingRecord> {
-      return bookingTransactions.cancelBooking(academyId, input, actorId, isStaffOverride);
+      return bookingTransactions.cancelBooking(
+        academyId,
+        input,
+        actorId,
+        isStaffOverride,
+        auditActor,
+      );
     },
 
     async listSessionBookings(

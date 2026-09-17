@@ -27,6 +27,7 @@ import {
   weekRangeFor,
 } from "@bpt-jersey/domain/schedule/classes-services";
 
+import { clientIpFromRequest } from "../audit/client-ip.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { BookingTransactionError } from "./booking-transaction-service.js";
 import { SessionQuorumSweepError } from "./quorum-sweep-service.js";
@@ -671,7 +672,10 @@ export function createRequestBookingHandler(options: StudentScopeOptions) {
     await requireStudentScope(request, parsed.value.studentId, options);
 
     try {
-      const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId);
+      const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId, {
+        ip: clientIpFromRequest(request),
+        role: actor.role,
+      });
       return {
         booking,
       };
@@ -695,7 +699,13 @@ export function createCancelBookingHandler(options: StudentScopeOptions) {
 
     await requireStudentScope(request, parsed.value.studentId, options);
 
-    const booking = await store.cancelBooking(actor.academyId, parsed.value, actor.userId, isStaff);
+    const booking = await store.cancelBooking(
+      actor.academyId,
+      parsed.value,
+      actor.userId,
+      isStaff,
+      { ip: clientIpFromRequest(request), role: actor.role },
+    );
 
     return {
       booking,

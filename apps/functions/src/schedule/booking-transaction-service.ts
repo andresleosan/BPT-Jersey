@@ -1,3 +1,8 @@
+import {
+  classActorGroup,
+  type AuditEventDraft,
+  type ClassActorRole,
+} from "@bpt-jersey/domain/audit";
 import { evaluateFinancialAccess } from "@bpt-jersey/domain/finance/access";
 import {
   evaluatePlanAccess,
@@ -29,6 +34,7 @@ import {
   parseWaitlistEntryRecord,
 } from "@bpt-jersey/domain/schedule/advanced-booking";
 
+import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import {
   readFinancialAccountInTransaction,
   type FinanceFirestore,
@@ -68,6 +74,9 @@ export type BookingQuery = Readonly<{
   where: (field: string, operator: "==" | ">=" | "<", value: unknown) => BookingQuery;
   limit: (count: number) => BookingQuery;
 }>;
+/** A collection also mints document ids, which the audit log needs (one event per write). */
+export type BookingCollection = BookingQuery &
+  Readonly<{ doc: (id?: string) => BookingDocumentReference }>;
 export type BookingTransaction = Readonly<{
   get: {
     (reference: BookingDocumentReference): Promise<BookingDocumentSnapshot>;
@@ -78,9 +87,17 @@ export type BookingTransaction = Readonly<{
 }>;
 export type BookingFirestore = Readonly<{
   doc: (path: string) => BookingDocumentReference;
-  collection: (path: string) => BookingQuery;
+  collection: (path: string) => BookingCollection;
   runTransaction: <T>(update: (transaction: BookingTransaction) => Promise<T>) => Promise<T>;
 }>;
+
+/** Who is booking, as the class registrations log records it. A call with no request is system. */
+export type BookingAuditActor = Readonly<{ ip: string | null; role: ClassActorRole }>;
+
+export const systemBookingAuditActor: BookingAuditActor = Object.freeze({
+  ip: null,
+  role: "system",
+});
 
 export type ConfirmBookingInTransactionInput = Readonly<{
   firestore: BookingFirestore;
@@ -88,6 +105,8 @@ export type ConfirmBookingInTransactionInput = Readonly<{
   academyId: string;
   request: RequestBookingInput;
   actorId: string;
+  actorIp: string | null;
+  actorRole: ClassActorRole;
   now: string;
   reservationWaitlistId?: string;
 }>;
@@ -128,6 +147,11 @@ function validDate(value: unknown): value is string {
     date.getUTCMonth() === Number(match[2]) - 1 &&
     date.getUTCDate() === Number(match[3])
   );
+}
+
+/** A session stored without a programme or a site still gets a line, with those columns empty. */
+function classIdentifier(value: unknown): string | null {
+  return typeof value === "string" && identifierPattern.test(value) ? value : null;
 }
 
 function path(academyId: string, name: string): string {
@@ -546,6 +570,48 @@ async function occupancy(input: {
   return { confirmed: students.size, reserved };
 }
 
+/**
+ * One line of the class registrations log. The student always has a record here, so the name
+ * column stays empty: only a Regyfit import, which has no record to point at, fills it in.
+ */
+function classBookingDraft(
+  input: Readonly<{
+    academyId: string;
+    actorId: string;
+    action: "booking.created" | "booking.cancelled";
+    bookingId: string;
+    studentId: string;
+    sessionId: string;
+    sessionStartAt: string;
+    programId: string | null;
+    locationId: string | null;
+    actorIp: string | null;
+    actorRole: ClassActorRole;
+  }>,
+): AuditEventDraft {
+  return {
+    academyId: input.academyId,
+    actorId: input.actorId,
+    action: input.action,
+    targetRef: path(input.academyId, "bookings") + "/" + input.bookingId,
+    purpose: "class-booking-log",
+    correlationId: input.bookingId,
+    class: {
+      studentId: input.studentId,
+      studentName: null,
+      sessionId: input.sessionId,
+      sessionStartAt: input.sessionStartAt,
+      programId: input.programId,
+      locationId: input.locationId,
+    },
+    actorIp: input.actorIp,
+    actorRole: input.actorRole,
+    actorGroup: classActorGroup(input.actorRole),
+    actorName: null,
+    source: "bpt",
+  } as AuditEventDraft;
+}
+
 async function bookingTarget(input: {
   firestore: BookingFirestore;
   transaction: BookingTransaction;
@@ -596,6 +662,10 @@ async function executeBookingInTransaction(
     reservationWaitlistId = input.reservationWaitlistId;
   }
 
+  // The log line gets a generated id rather than one derived from the booking: booking ids are
+  // deterministic, so booking the same class again after a cancellation would otherwise overwrite
+  // the first line and the log would lose a place that really was taken.
+  const auditRef = input.firestore.collection(path(academyId, "auditEvents")).doc();
   const sessionRef = input.firestore.doc(path(academyId, "sessions") + "/" + sessionId);
   const membershipRef = input.firestore.doc(path(academyId, "memberships") + "/" + membershipId);
   const studentRef = input.firestore.doc(path(academyId, "students") + "/" + studentId);
@@ -737,6 +807,23 @@ async function executeBookingInTransaction(
     updatedBy: actorId,
   });
   input.transaction.set(target.reference, record);
+  appendAuditEventInTransaction(
+    input.transaction,
+    auditRef,
+    classBookingDraft({
+      academyId,
+      actorId,
+      action: "booking.created",
+      bookingId: record.bookingId,
+      studentId,
+      sessionId,
+      sessionStartAt: storedSession.startAt,
+      programId: storedSession.programId,
+      locationId: storedSession.locationId,
+      actorIp: input.actorIp,
+      actorRole: input.actorRole,
+    }),
+  );
   input.transaction.set(capacityRef, {
     academyId,
     sessionId,
@@ -800,6 +887,8 @@ async function cancelBookingInTransaction(input: {
   academyId: string;
   request: CancelBookingInput;
   actorId: string;
+  actorIp: string | null;
+  actorRole: ClassActorRole;
   now: string;
   isStaffOverride: boolean;
 }): Promise<BookingRecord> {
@@ -809,6 +898,8 @@ async function cancelBookingInTransaction(input: {
   const studentId = segment(input.request.studentId, "studentId");
   if (!validDate(input.now)) return invalid("invalid", "now is invalid");
 
+  // Generated, never derived: a cancellation must never land on the line of an earlier booking.
+  const auditRef = input.firestore.collection(path(academyId, "auditEvents")).doc();
   const sessionRef = input.firestore.doc(path(academyId, "sessions") + "/" + sessionId);
   const capacityRef = input.firestore.doc(
     path(academyId, "sessionCapacityStates") + "/" + sessionId,
@@ -852,6 +943,23 @@ async function cancelBookingInTransaction(input: {
     updatedBy: actorId,
   });
   input.transaction.set(target.reference, updated);
+  appendAuditEventInTransaction(
+    input.transaction,
+    auditRef,
+    classBookingDraft({
+      academyId,
+      actorId,
+      action: "booking.cancelled",
+      bookingId: updated.bookingId,
+      studentId,
+      sessionId,
+      sessionStartAt: storedSession.startAt as string,
+      programId: classIdentifier(storedSession.programId),
+      locationId: classIdentifier(storedSession.locationId),
+      actorIp: input.actorIp,
+      actorRole: input.actorRole,
+    }),
+  );
   input.transaction.set(capacityRef, {
     academyId,
     sessionId,
@@ -873,6 +981,7 @@ export function createBookingTransactionService(options: {
       academyId: string,
       request: RequestBookingInput,
       actorId: string,
+      auditActor: BookingAuditActor = systemBookingAuditActor,
     ): Promise<BookingRecord> {
       const current = now();
       return options.firestore.runTransaction((transaction) =>
@@ -882,6 +991,8 @@ export function createBookingTransactionService(options: {
           academyId,
           request,
           actorId,
+          actorIp: auditActor.ip,
+          actorRole: auditActor.role,
           now: current,
         }),
       );
@@ -891,6 +1002,7 @@ export function createBookingTransactionService(options: {
       request: CancelBookingInput,
       actorId: string,
       isStaffOverride = false,
+      auditActor: BookingAuditActor = systemBookingAuditActor,
     ): Promise<BookingRecord> {
       const current = now();
       return options.firestore.runTransaction((transaction) =>
@@ -900,6 +1012,8 @@ export function createBookingTransactionService(options: {
           academyId,
           request,
           actorId,
+          actorIp: auditActor.ip,
+          actorRole: auditActor.role,
           now: current,
           isStaffOverride,
         }),
