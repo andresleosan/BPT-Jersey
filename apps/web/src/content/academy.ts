@@ -139,12 +139,6 @@ export const academyContent = {
       description:
         "A clear entry point for people with no previous martial-arts experience or returning to training.",
     },
-    {
-      label: "MMA",
-      title: "MMA at BPT",
-      description:
-        "A combat-sports pathway for students looking for a different challenge; event availability is confirmed separately.",
-    },
   ] satisfies readonly ProgramItem[],
   instructors: [
     {

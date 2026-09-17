@@ -572,17 +572,16 @@ button:focus-visible {
 }
 
 .program-list.program-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: var(--line);
+  border: 1px solid var(--line);
+  gap: 1px;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 }
 
 .program-card {
-  border-bottom: 1px solid var(--line);
+  background: var(--gi-white);
   min-width: 0;
   padding: 1.5rem 1.25rem 2rem;
-}
-
-.program-card:nth-child(odd) {
-  border-right: 1px solid var(--line);
 }
 
 .program-card h3 {
@@ -840,10 +839,6 @@ button:focus-visible {
 
   .program-list.program-grid {
     grid-template-columns: 1fr;
-  }
-
-  .program-card:nth-child(odd) {
-    border-right: 0;
   }
 
   .merch-grid {
