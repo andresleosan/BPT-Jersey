@@ -289,7 +289,7 @@ export function deriveSessionStatus(input: {
   ) {
     return Object.freeze({ status: "locked", lockedReason: "weekly_limit" });
   }
-  if (input.session.capacity !== null && input.bookedCount >= input.session.capacity) {
+  if (input.bookedCount >= input.session.capacity) {
     return Object.freeze({ status: "full" });
   }
   return Object.freeze({ status: "open" });

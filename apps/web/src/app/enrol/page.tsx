@@ -612,9 +612,7 @@ function EnrolContent() {
               </select>
             </label>
             <section aria-labelledby="enrol-plans-title" className="enrol-plans">
-              <h2 className="enrol-plans-title" id="enrol-plans-title">
-                Plans at {form.trainingCenter}
-              </h2>
+              <h2 id="enrol-plans-title">Plans at {form.trainingCenter}</h2>
               <PlanPriceList site={form.trainingCenter} />
             </section>
             <fieldset className="enrol-preferences">
