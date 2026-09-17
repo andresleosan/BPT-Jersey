@@ -798,7 +798,7 @@ const RESOLUTION_REQUIREMENTS = {
     ),
     requirement("2) Confirmar que ningún documento de sesión en producción carece de programId."),
     requirement(
-      "3) Desplegar functions y web juntos, solo con confirmación del operador en chat; no editar planes hasta que ambos estén en producción.",
+      "3) Desplegar las functions, solo con confirmación del operador en chat. La web ya está en producción: el push de 20ed898 a main la publicó automáticamente en Cloudflare Pages el 2026-09-17; las functions siguen con el despliegue manual anterior. No editar planes hasta desplegar las functions.",
     ),
     requirement('4) Desactivar town-teens con "Deactivate plan".'),
     requirement("5) Crear west-teens-payg: elegirlo en el editor y guardar."),
