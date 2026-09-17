@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "import:regyfit-classes-services": "node scripts/regyfit-classes-services-import.mjs",
     "import:regyfit-access": "corepack pnpm --filter @bpt-jersey/domain build:runtime && corepack pnpm --filter @bpt-jersey/functions build && node scripts/import-regyfit-access.mjs",
     "test:e2e": "node run-e2e.mjs",
     "test:e2e:repeat": "node run-e2e.mjs --grep @smoke --repeat-each=5",
