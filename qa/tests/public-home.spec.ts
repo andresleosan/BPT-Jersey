@@ -51,9 +51,10 @@ test.describe("public homepage @smoke", () => {
     await expect(page.getByRole("heading", { name: "Classes in Jersey" })).toBeVisible();
     await expect(page.getByText("Office 9, 13 Library Place", { exact: true })).toBeVisible();
     const feesSection = page.locator("#fees");
-    await expect(feesSection.getByText("£85", { exact: true })).toBeVisible();
-    await expect(feesSection.getByText("£10 / £65", { exact: true })).toBeVisible();
-    await expect(feesSection.getByText("£95", { exact: true })).toBeVisible();
+    await expect(feesSection.getByText("£125 per month", { exact: true })).toBeVisible();
+    await expect(feesSection.getByText("£135 per term", { exact: true })).toBeVisible();
+    await expect(feesSection.getByText("£7.50 per class", { exact: true })).toBeVisible();
+    await expect(feesSection.getByText("Town Teens", { exact: true })).toHaveCount(0);
     const scheduleRows = page.locator("#classes table tbody tr.schedule-row");
     await expect(scheduleRows).toHaveCount(8);
     await expect(scheduleRows.first()).toBeVisible();

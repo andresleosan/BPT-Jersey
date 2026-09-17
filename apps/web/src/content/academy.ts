@@ -6,12 +6,6 @@ export type ScheduleEntry = {
   level: string;
 };
 
-export type FeeItem = {
-  label: string;
-  amount: string;
-  detail: string;
-};
-
 export type ProgramItem = {
   label: string;
   title: string;
@@ -152,23 +146,6 @@ export const academyContent = {
         "A combat-sports pathway for students looking for a different challenge; event availability is confirmed separately.",
     },
   ] satisfies readonly ProgramItem[],
-  fees: [
-    {
-      label: "Town",
-      amount: "£85",
-      detail: "Monthly fee covering all classes and open mats.",
-    },
-    {
-      label: "BPT West / Strive",
-      amount: "£10 / £65",
-      detail: "Per session or monthly; the published £8 class wording should be confirmed.",
-    },
-    {
-      label: "Kids",
-      amount: "£95",
-      detail: "Once weekly for the current school term.",
-    },
-  ] satisfies readonly FeeItem[],
   instructors: [
     {
       name: 'Professor Vladimiro "Miro" Afonso',

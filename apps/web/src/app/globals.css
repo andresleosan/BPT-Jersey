@@ -556,8 +556,7 @@ button:focus-visible {
 }
 
 .instructor-card span,
-.program-card > p:last-child,
-.fee-card > p:last-child {
+.program-card > p:last-child {
   color: var(--muted);
 }
 
@@ -565,8 +564,7 @@ button:focus-visible {
   background: var(--gi-white);
 }
 
-.program-list,
-.fee-list {
+.program-list {
   display: grid;
   list-style: none;
   margin: 3rem 0 0;
@@ -577,24 +575,17 @@ button:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.fee-list.fee-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.program-card,
-.fee-card {
+.program-card {
   border-bottom: 1px solid var(--line);
   min-width: 0;
   padding: 1.5rem 1.25rem 2rem;
 }
 
-.program-card:nth-child(odd),
-.fee-card:not(:nth-child(3n)) {
+.program-card:nth-child(odd) {
   border-right: 1px solid var(--line);
 }
 
-.program-card h3,
-.fee-card h3 {
+.program-card h3 {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: clamp(1.8rem, 3vw, 2.8rem);
   line-height: 0.95;
@@ -602,23 +593,64 @@ button:focus-visible {
   text-transform: uppercase;
 }
 
-.fee-card h3 {
-  color: var(--bpt-purple);
-  font-size: 1.45rem;
-  line-height: 1;
-}
-
-.program-card > p:last-child,
-.fee-card > p:last-child {
+.program-card > p:last-child {
   margin: 1rem 0 0;
 }
 
-.fee-amount {
-  color: var(--mat-ink);
+.plan-price-list {
+  display: grid;
+  gap: 2.5rem;
+  margin: 3rem 0 0;
+}
+
+.plan-price-list h3 {
+  color: var(--bpt-purple);
   font-family: var(--font-display), Impact, sans-serif;
-  font-size: clamp(2.5rem, 5vw, 4.5rem);
-  line-height: 0.85;
-  margin: 1.25rem 0 0;
+  font-size: 1.45rem;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+}
+
+.plan-price-list ul {
+  border-top: 2px solid var(--mat-ink);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-price-row {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 0.25rem 1.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 1rem 0;
+}
+
+.plan-price-row span {
+  color: var(--muted);
+  display: block;
+}
+
+.plan-price-row .plan-price-amount {
+  color: var(--mat-ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 42rem) {
+  .plan-price-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plan-price-row .plan-price-amount {
+    text-align: left;
+  }
 }
 
 .merch-section {
@@ -806,13 +838,11 @@ button:focus-visible {
     justify-self: start;
   }
 
-  .program-list.program-grid,
-  .fee-list.fee-grid {
+  .program-list.program-grid {
     grid-template-columns: 1fr;
   }
 
-  .program-card:nth-child(odd),
-  .fee-card:not(:nth-child(3n)) {
+  .program-card:nth-child(odd) {
     border-right: 0;
   }
 
@@ -3406,6 +3436,14 @@ button:focus-visible {
   letter-spacing: 0.08em;
   padding: 0 0.4rem;
   text-transform: uppercase;
+}
+
+.enrol-plans {
+  grid-column: 1 / -1;
+}
+
+.enrol-plans .plan-price-list {
+  margin-top: 1rem;
 }
 
 .enrol-field {

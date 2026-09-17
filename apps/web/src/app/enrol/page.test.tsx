@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -121,6 +121,19 @@ describe("enrolment request page", () => {
     expect(enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0]).toMatchObject({
       waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
     });
+  });
+
+  it("shows the plans of the chosen training centre without selling one", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
+    await user.selectOptions(screen.getByLabelText("Training centre"), "West");
+
+    const plans = screen.getByRole("region", { name: "Plans at West" });
+    expect(within(plans).getByText("£65 per month")).toBeInTheDocument();
+    expect(within(plans).queryByText("£85 per month")).not.toBeInTheDocument();
+    expect(within(plans).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("submits an adult applying for themselves without empty optional fields", async () => {
