@@ -181,6 +181,8 @@
 
 .cs-hours-labels span {
   display: block;
+  line-height: 1;
+  transform: translateY(-0.35em);
 }
 
 .cs-day {
@@ -191,7 +193,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  padding: 0.25rem 0 0.5rem;
+  /* One fixed height for the hours spacer and every day, so the hour labels line up with the rows. */
+  box-sizing: border-box;
+  height: 3rem;
+  padding: 0.25rem 0.35rem 0.5rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -199,6 +204,9 @@
 }
 
 .cs-day-counts {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
@@ -209,6 +217,28 @@
 .cs-day-grid {
   border-top: 1px solid var(--paper-edge);
   border-left: 1px solid var(--paper-edge);
+}
+
+.cs-day[data-today] .cs-day-header,
+.cs-day[data-today] .cs-day-grid {
+  background-color: #f0efff;
+}
+
+.cs-day[data-today] .cs-day-header {
+  color: var(--bpt-purple);
+  box-shadow: inset 0 0.2rem 0 var(--bpt-purple);
+}
+
+/* The now line: slots are transparent, so a 2px band in the grid background shows through them
+   and sessions (opaque) cover it, as on a paper timetable. */
+.cs-day-grid[style*="--now"] {
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(var(--now) * 100% - 1px),
+    var(--bpt-purple) calc(var(--now) * 100% - 1px),
+    var(--bpt-purple) calc(var(--now) * 100% + 1px),
+    transparent calc(var(--now) * 100% + 1px)
+  );
 }
 
 .cs-slot {
@@ -230,28 +260,61 @@ button.cs-slot:focus-visible {
 }
 
 .cs-event {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
+  column-gap: 0.25rem;
   position: relative;
   z-index: 1;
-  border: 1px solid var(--mat-ink);
-  border-left: 0.3rem solid var(--mat-ink);
+  min-width: 0;
+  border: 1px solid rgb(26 26 24 / 18%);
   padding: 0.2rem 0.35rem;
+  color: var(--mat-ink);
   text-align: left;
-  font-size: 0.7rem;
-  line-height: 1.2;
+  font-size: 0.72rem;
+  line-height: 1.25;
   overflow: hidden;
   cursor: pointer;
+  transition: border-color 160ms ease;
+}
+
+.cs-event:hover,
+.cs-event:focus-visible {
+  border-color: var(--bpt-purple);
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--bpt-purple);
+}
+
+/* Title and time stay on one line each, cut with an ellipsis like the Regyfit timetable. */
+.cs-event-title,
+.cs-event-time {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .cs-event-title {
-  font-weight: 700;
+  font-weight: 600;
 }
 
-.cs-event-time,
+.cs-event-time {
+  font-size: 0.64rem;
+  color: rgb(26 26 24 / 72%);
+}
+
 .cs-event-chip {
-  font-size: 0.65rem;
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
+  padding: 0 0.3rem;
+  border: 1px solid rgb(26 26 24 / 35%);
+  background: rgb(255 255 255 / 55%);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .cs-event[data-status="cancelled"] {
@@ -566,4 +629,93 @@ button.cs-slot:focus-visible {
     border-top: 0.35rem solid var(--bpt-purple);
     padding: 1rem 0 0;
   }
+}
+
+/* ── Compact filter toolbar (Regyfit-style dropdowns) ── */
+
+.cs-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cs-dropdown {
+  position: relative;
+}
+
+.cs-dropdown > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  background: var(--gi-white);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  list-style: none;
+  cursor: pointer;
+  transition: border-color 160ms ease;
+}
+
+.cs-dropdown > summary::-webkit-details-marker {
+  display: none;
+}
+
+.cs-dropdown > summary::after {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: translateY(-0.1rem) rotate(45deg);
+}
+
+.cs-dropdown[open] > summary,
+.cs-dropdown > summary:hover,
+.cs-dropdown > summary:focus-visible {
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+  outline: none;
+}
+
+.cs-dropdown-panel {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 14rem;
+  max-height: 18rem;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  background: var(--gi-white);
+  box-shadow: 0 0.5rem 1.5rem rgb(26 26 24 / 12%);
+}
+
+.cs-filter-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.cs-filter-status select {
+  min-height: 44px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--line);
+  background: var(--gi-white);
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
 }

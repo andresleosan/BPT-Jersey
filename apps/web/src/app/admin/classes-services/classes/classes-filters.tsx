@@ -39,8 +39,48 @@ export type ClassesFiltersProps = Readonly<{
   onChange: (filters: ClassFilters) => void;
 }>;
 
-function selection(event: { target: HTMLSelectElement }): string[] {
-  return [...event.target.selectedOptions].map((option) => option.value);
+type Option = Readonly<{ value: string; label: string }>;
+
+/**
+ * A compact multi-select: a native `<details>` summary that opens a group of checkboxes, so the
+ * filter row stays one line high like the Regyfit toolbar. Nothing ticked means "all".
+ */
+function FilterDropdown({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: readonly Option[];
+  selected: readonly string[];
+  onChange: (values: string[]) => void;
+}): ReactElement {
+  // ponytail: <details> does not close on an outside click; add a listener if staff find it odd.
+  return (
+    <details className="cs-dropdown">
+      <summary>{selected.length ? `${label} · ${selected.length}` : label}</summary>
+      <fieldset className="cs-dropdown-panel">
+        <legend className="visually-hidden">{label}</legend>
+        {options.map((option) => (
+          <label key={option.value} className="cs-check">
+            <input
+              type="checkbox"
+              checked={selected.includes(option.value)}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...selected, option.value]
+                    : selected.filter((value) => value !== option.value),
+                )
+              }
+            />
+            {option.label}
+          </label>
+        ))}
+      </fieldset>
+    </details>
+  );
 }
 
 export function ClassesFilters({
@@ -55,49 +95,28 @@ export function ClassesFilters({
   }
 
   return (
-    <div className="cs-form-row">
-      <label className="cs-field">
-        <span>Locations</span>
-        <select
-          multiple
-          value={filters.locations}
-          onChange={(event) => patch({ locations: selection(event) })}
-        >
-          {locations.map((location) => (
-            <option key={location.locationId} value={location.locationId}>
-              {location.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="cs-field">
-        <span>Types</span>
-        <select
-          multiple
-          value={filters.programs}
-          onChange={(event) => patch({ programs: selection(event) })}
-        >
-          {programs.map((program) => (
-            <option key={program.programId} value={program.programId}>
-              {program.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="cs-field">
-        <span>Staff</span>
-        <select
-          multiple
-          value={filters.staff}
-          onChange={(event) => patch({ staff: selection(event) })}
-        >
-          {staff.map((row) => (
-            <option key={row.staffKey} value={row.staffKey}>
-              {row.staffKey}
-            </option>
-          ))}
-        </select>
-      </label>
+    <div className="cs-filter-row">
+      <FilterDropdown
+        label="Locations"
+        options={locations.map((location) => ({
+          value: location.locationId,
+          label: location.name,
+        }))}
+        selected={filters.locations}
+        onChange={(values) => patch({ locations: values })}
+      />
+      <FilterDropdown
+        label="Types"
+        options={programs.map((program) => ({ value: program.programId, label: program.name }))}
+        selected={filters.programs}
+        onChange={(values) => patch({ programs: values })}
+      />
+      <FilterDropdown
+        label="Staff"
+        options={staff.map((row) => ({ value: row.staffKey, label: row.staffKey }))}
+        selected={filters.staff}
+        onChange={(values) => patch({ staff: values })}
+      />
       <label className="cs-check">
         <input
           type="checkbox"
@@ -106,7 +125,7 @@ export function ClassesFilters({
         />
         Mine
       </label>
-      <label className="cs-field">
+      <label className="cs-filter-status">
         <span>Status</span>
         <select
           value={filters.status}
