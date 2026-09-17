@@ -4,8 +4,10 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import type {
   RegyfitAttendanceStatus,
   RegyfitMemberRecord,
+  RegyfitRevealableField,
 } from "@bpt-jersey/domain/members/regyfit-records";
 
+import { revealRegyfitRecordField } from "../../../../lib/members-client";
 import { AdminStatusBadge } from "../../admin-ui";
 
 const tabs = [
@@ -64,6 +66,61 @@ function EmptySection({ title, message }: { title: string; message: string }) {
   );
 }
 
+/**
+ * A masked identifier with an explicit, audited reveal. The revealed value lives only in this
+ * component's state: it is gone on tab change, record change or reload, and never reaches the URL,
+ * storage or the console.
+ */
+function RevealableValue({
+  recordId,
+  field,
+  label,
+  masked,
+}: {
+  recordId: string;
+  field: RegyfitRevealableField;
+  label: string;
+  masked: string | undefined;
+}) {
+  const [revealed, setRevealed] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<string | undefined>(undefined);
+  const [pending, setPending] = useState(false);
+
+  if (masked === undefined) return <>—</>;
+
+  async function reveal(): Promise<void> {
+    setPending(true);
+    setError(undefined);
+    try {
+      setRevealed(await revealRegyfitRecordField(recordId, field));
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Unable to reveal this value. Please try again.",
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <span className="admin-member-profile-reveal">
+      <span>{revealed ?? masked}</span>
+      {revealed === undefined ? (
+        <button
+          aria-label={`Reveal ${label}`}
+          className="regyfit-filter-button"
+          disabled={pending}
+          onClick={() => void reveal()}
+          type="button"
+        >
+          Reveal
+        </button>
+      ) : null}
+      {error === undefined ? null : <span role="alert">{error}</span>}
+    </span>
+  );
+}
+
 function ProfileTabContent({ record }: { record: RegyfitMemberRecord }) {
   const { attendance, appAccess, graduation } = record;
   return (
@@ -89,7 +146,6 @@ function ProfileTabContent({ record }: { record: RegyfitMemberRecord }) {
         <FieldList
           entries={[
             ["Login", displayValue(appAccess.login)],
-            ["Password", displayValue(appAccess.password)],
             ["Logins", displayValue(appAccess.logins)],
             ["APP - last login", displayValue(appAccess.lastLogin)],
           ]}
@@ -153,10 +209,37 @@ function DetailsTabContent({ record }: { record: RegyfitMemberRecord }) {
       <Card title="Documents and numbers">
         <FieldList
           entries={[
-            ["ID card Nº", displayValue(record.idCardNumber)],
+            [
+              "ID card Nº",
+              <RevealableValue
+                field="idCardNumber"
+                key={`${record.recordId}-idCardNumber`}
+                label="ID card Nº"
+                masked={record.idCardNumber}
+                recordId={record.recordId}
+              />,
+            ],
             ["ID card due date", displayValue(record.idCardDue)],
-            ["Health number", displayValue(record.healthNumber)],
-            ["VAT number", displayValue(record.vatNumber)],
+            [
+              "Health number",
+              <RevealableValue
+                field="healthNumber"
+                key={`${record.recordId}-healthNumber`}
+                label="Health number"
+                masked={record.healthNumber}
+                recordId={record.recordId}
+              />,
+            ],
+            [
+              "VAT number",
+              <RevealableValue
+                field="vatNumber"
+                key={`${record.recordId}-vatNumber`}
+                label="VAT number"
+                masked={record.vatNumber}
+                recordId={record.recordId}
+              />,
+            ],
           ]}
         />
       </Card>

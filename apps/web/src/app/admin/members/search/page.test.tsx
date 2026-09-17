@@ -9,6 +9,7 @@ const clientMocks = vi.hoisted(() => ({
   getRegyfitMemberRecord: vi.fn(),
   listRegyfitMemberRecords: vi.fn(),
   lookupMemberIdentity: vi.fn(),
+  revealRegyfitRecordField: vi.fn(),
   updateMember: vi.fn(),
 }));
 
@@ -33,13 +34,14 @@ const regyfitRecord: RegyfitMemberRecord = {
   email: "guardian@example.test",
   mobile: "00447700000000",
   country: "Jersey",
+  idCardNumber: "•••789",
   gender: "unknown",
   birthDate: "2019-06-12",
   age: 7,
   registrationDate: "2026-02-01",
   membershipState: "inactive",
   accountManager: "Synthetic Guardian",
-  appAccess: { login: "a1", password: "104569", logins: 0, lastLogin: "----" },
+  appAccess: { login: "a1", logins: 0, lastLogin: "----" },
   graduation: {
     modality: "JIU-JITSU - IBJJF",
     belt: "Grey 4-5 and 5-7yo - 5th Stripe",
@@ -97,6 +99,7 @@ describe("Exact canonical member lookup page", () => {
     clientMocks.getRegyfitMemberRecord.mockReset();
     clientMocks.listRegyfitMemberRecords.mockReset();
     clientMocks.lookupMemberIdentity.mockReset();
+    clientMocks.revealRegyfitRecordField.mockReset();
     clientMocks.updateMember.mockReset();
   });
 
@@ -335,7 +338,7 @@ describe("Regyfit academy member directory", () => {
       "true",
     );
     expect(within(profile).getByText("134 days ago")).toBeVisible();
-    expect(within(profile).getByText("104569")).toBeVisible();
+    expect(within(profile).queryByText("Password")).not.toBeInTheDocument();
     expect(within(profile).getByText("Grey 4-5 and 5-7yo - 5th Stripe")).toBeVisible();
     expect(within(profile).getByText("Synthetic Guardian")).toBeVisible();
     expect(screen.getByLabelText("Exact identifier")).toHaveValue("1");
@@ -380,5 +383,53 @@ describe("Regyfit academy member directory", () => {
 
     const alert = await screen.findByText("Unable to load the member record. Please try again.");
     expect(alert).not.toHaveTextContent("private record failure");
+  });
+
+  it("shows restricted identifiers masked and reveals one on an explicit action", async () => {
+    const user = userEvent.setup();
+    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
+    clientMocks.getRegyfitMemberRecord.mockResolvedValue(regyfitRecord);
+    clientMocks.revealRegyfitRecordField.mockResolvedValue("ID-000789");
+    render(<SearchMembersPage />);
+    await screen.findByText("Synthetic Child");
+    await user.click(screen.getByRole("button", { name: "Open full record for Synthetic Child" }));
+    const profile = await screen.findByRole("region", { name: "Synthetic Child" });
+
+    await user.click(within(profile).getByRole("tab", { name: "Details" }));
+    expect(within(profile).getByText("•••789")).toBeVisible();
+    expect(clientMocks.revealRegyfitRecordField).not.toHaveBeenCalled();
+    expect(
+      within(profile).queryByRole("button", { name: "Reveal VAT number" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(profile).getByRole("button", { name: "Reveal ID card Nº" }));
+
+    expect(clientMocks.revealRegyfitRecordField).toHaveBeenCalledWith("152", "idCardNumber");
+    expect(await within(profile).findByText("ID-000789")).toBeVisible();
+    expect(
+      within(profile).queryByRole("button", { name: "Reveal ID card Nº" }),
+    ).not.toBeInTheDocument();
+    expect(window.location.href).not.toContain("ID-000789");
+  });
+
+  it("sanitizes a reveal failure next to the field", async () => {
+    const user = userEvent.setup();
+    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
+    clientMocks.getRegyfitMemberRecord.mockResolvedValue(regyfitRecord);
+    clientMocks.revealRegyfitRecordField.mockRejectedValue(
+      new Error("Too many restricted reads. Wait five minutes and try again."),
+    );
+    render(<SearchMembersPage />);
+    await screen.findByText("Synthetic Child");
+    await user.click(screen.getByRole("button", { name: "Open full record for Synthetic Child" }));
+    const profile = await screen.findByRole("region", { name: "Synthetic Child" });
+    await user.click(within(profile).getByRole("tab", { name: "Details" }));
+
+    await user.click(within(profile).getByRole("button", { name: "Reveal ID card Nº" }));
+
+    expect(await within(profile).findByRole("alert")).toHaveTextContent(
+      "Too many restricted reads. Wait five minutes and try again.",
+    );
+    expect(within(profile).getByText("•••789")).toBeVisible();
   });
 });

@@ -3631,6 +3631,15 @@
   text-align: right;
 }
 
+.admin-member-profile-reveal {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 .admin-member-profile-note,
 .admin-member-profile-empty p:not(.admin-eyebrow) {
   color: var(--muted);
