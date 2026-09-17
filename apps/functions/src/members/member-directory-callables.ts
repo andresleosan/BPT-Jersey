@@ -49,7 +49,7 @@ function serverTimestamp(): string {
   return new Date().toISOString();
 }
 
-function mapDirectoryError(error: unknown): never {
+export function mapMemberDirectoryError(error: unknown): never {
   if (error instanceof CanonicalMemberDirectoryError) {
     switch (error.code) {
       case "unauthorized":
@@ -94,7 +94,7 @@ export async function createMemberDirectoryHandler(
       now: services.now(),
     });
   } catch (error) {
-    return mapDirectoryError(error);
+    return mapMemberDirectoryError(error);
   }
 }
 
@@ -110,7 +110,7 @@ export async function updateMemberDirectoryHandler(
       now: services.now(),
     });
   } catch (error) {
-    return mapDirectoryError(error);
+    return mapMemberDirectoryError(error);
   }
 }
 
@@ -126,7 +126,7 @@ export async function listMembersHandler(
       now: services.now(),
     });
   } catch (error) {
-    return mapDirectoryError(error);
+    return mapMemberDirectoryError(error);
   }
 }
 
@@ -142,7 +142,7 @@ export async function getMemberDetailHandler(
       now: services.now(),
     });
   } catch (error) {
-    return mapDirectoryError(error);
+    return mapMemberDirectoryError(error);
   }
 }
 
@@ -158,7 +158,7 @@ export async function lookupMemberIdentityHandler(
       now: services.now(),
     });
   } catch (error) {
-    return mapDirectoryError(error);
+    return mapMemberDirectoryError(error);
   }
 }
 
@@ -174,7 +174,7 @@ export async function revealRegyfitRecordFieldHandler(
       now: services.now(),
     });
   } catch (error) {
-    return mapDirectoryError(error);
+    return mapMemberDirectoryError(error);
   }
 }
 
@@ -236,7 +236,7 @@ function requiredProjectId(): string {
   return projectId;
 }
 
-function defaultServices(): MemberDirectoryCallableServices {
+export function defaultMemberDirectoryCallableServices(): MemberDirectoryCallableServices {
   const firestore = getFirestore();
   const auth = getAuth();
   const adapters = createMemberDirectoryFirestoreAdapters(firestore);
@@ -289,21 +289,21 @@ function defaultInitializationServices(): CanonicalDirectoryInitializationCallab
 
 export { createMemberDirectoryActorActivityCheck };
 
-const memberDirectoryCallableOptions = {
+export const memberDirectoryCallableOptions = {
   enforceAppCheck: true,
   secrets: [identityKeySecret, migrationIntegritySecret, directoryCursorSecret],
 };
 
 export const createCanonicalMember = onCall(memberDirectoryCallableOptions, async (request) =>
-  createMemberDirectoryHandler(request, defaultServices()),
+  createMemberDirectoryHandler(request, defaultMemberDirectoryCallableServices()),
 );
 
 export const updateCanonicalMember = onCall(memberDirectoryCallableOptions, async (request) =>
-  updateMemberDirectoryHandler(request, defaultServices()),
+  updateMemberDirectoryHandler(request, defaultMemberDirectoryCallableServices()),
 );
 
 export const listMembers = onCall(memberDirectoryCallableOptions, async (request) =>
-  listMembersHandler(request, defaultServices()),
+  listMembersHandler(request, defaultMemberDirectoryCallableServices()),
 );
 
 /**
@@ -317,13 +317,13 @@ export const initializeCanonicalMemberDirectory = onCall(
 );
 
 export const getMemberDetail = onCall(memberDirectoryCallableOptions, async (request) =>
-  getMemberDetailHandler(request, defaultServices()),
+  getMemberDetailHandler(request, defaultMemberDirectoryCallableServices()),
 );
 
 export const lookupMemberIdentity = onCall(memberDirectoryCallableOptions, async (request) =>
-  lookupMemberIdentityHandler(request, defaultServices()),
+  lookupMemberIdentityHandler(request, defaultMemberDirectoryCallableServices()),
 );
 
 export const revealRegyfitRecordField = onCall(memberDirectoryCallableOptions, async (request) =>
-  revealRegyfitRecordFieldHandler(request, defaultServices()),
+  revealRegyfitRecordFieldHandler(request, defaultMemberDirectoryCallableServices()),
 );
