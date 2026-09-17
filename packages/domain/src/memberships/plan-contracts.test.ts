@@ -8,6 +8,7 @@ import {
   parsePlanRecord,
   participantTypes,
   planIds,
+  retiredPlanIds,
   sessionTypes,
   siteValues,
   type PlanDraft,
@@ -16,20 +17,10 @@ import {
 } from "./plan-contracts";
 
 const expectedCatalog = [
-  [
-    "payg",
-    "Pay as you go",
-    1000,
-    "per-session",
-    ["adult", "kids", "teens"],
-    ["Town", "West"],
-    null,
-    ["Town", "West"],
-    null,
-  ],
+  ["payg", "West Pay as you go", 1000, "per-session", ["adult"], ["West"], null, [], null],
   [
     "bpt-jersey-adult",
-    "BPT Jersey Adult",
+    "BPT Jersey Town & West",
     12500,
     "monthly",
     ["adult"],
@@ -38,13 +29,34 @@ const expectedCatalog = [
     ["Town", "West"],
     null,
   ],
-  ["west-kids-1x", "West Kids 1x", 9500, "monthly", ["kids"], ["West"], 1, ["West"], null],
-  ["west-kids-2x", "West Kids 2x", 11500, "monthly", ["kids"], ["West"], 2, ["Town"], null],
-  ["west-adult", "West Adult", 6500, "monthly", ["adult"], ["West"], null, ["Town", "West"], null],
-  ["west-teens", "West Teens", 4500, "monthly", ["teens"], ["West"], 2, ["West"], 750],
+  ["west-kids-1x", "West Kids 1x", 9500, "term", ["kids"], ["West"], 1, [], null],
+  ["west-kids-2x", "West Kids 2x", 11500, "term", ["kids"], ["West"], 2, ["Town"], null],
+  ["west-adult", "West Adult", 6500, "monthly", ["adult"], ["West"], 2, ["Town"], null],
+  ["west-teens", "West Teens", 4500, "monthly", ["teens"], ["West"], 2, [], null],
+  [
+    "west-teens-payg",
+    "West Teens single class",
+    750,
+    "per-session",
+    ["teens"],
+    ["West"],
+    null,
+    [],
+    null,
+  ],
   ["town-adult", "Town Adult", 8500, "monthly", ["adult"], ["Town"], null, ["Town"], null],
-  ["town-kids-1x", "Town Kids 1x", 9500, "monthly", ["kids"], ["Town"], 1, ["Town"], null],
-  ["town-kids-2x", "Town Kids 2x", 13500, "monthly", ["kids"], ["Town"], 2, ["Town"], null],
+  ["town-kids-1x", "Town Kids & Teens 1x", 9500, "term", ["kids", "teens"], ["Town"], 1, [], null],
+  [
+    "town-kids-2x",
+    "Town Kids & Teens 3x",
+    13500,
+    "term",
+    ["kids", "teens"],
+    ["Town"],
+    3,
+    ["Town"],
+    null,
+  ],
   ["town-teens", "Town Teens", 4500, "monthly", ["teens"], ["Town"], 2, ["Town"], 750],
 ] as const;
 
@@ -66,7 +78,7 @@ describe("membership plan contracts", () => {
   it("publishes the closed vocabularies", () => {
     expect(planIds).toEqual(expectedCatalog.map(([planId]) => planId));
     expect(participantTypes).toEqual(["adult", "kids", "teens"]);
-    expect(billingPeriods).toEqual(["per-session", "monthly"]);
+    expect(billingPeriods).toEqual(["per-session", "monthly", "term"]);
     expect(siteValues).toEqual(["Town", "West"]);
     expect(sessionTypes).toEqual(["class", "openMat"]);
     for (const values of [planIds, participantTypes, billingPeriods, siteValues, sessionTypes]) {
@@ -74,8 +86,8 @@ describe("membership plan contracts", () => {
     }
   });
 
-  it("contains exactly the approved ten-plan catalog", () => {
-    expect(PLAN_CATALOG).toHaveLength(10);
+  it("contains exactly the approved eleven-plan catalog", () => {
+    expect(PLAN_CATALOG).toHaveLength(11);
     expect(Object.isFrozen(PLAN_CATALOG)).toBe(true);
     expect(PLAN_CATALOG).toEqual(
       expectedCatalog.map(
@@ -122,7 +134,12 @@ describe("membership plan contracts", () => {
 
     expect(result).toEqual({
       ok: true,
-      value: PLAN_CATALOG[0],
+      value: {
+        ...PLAN_CATALOG[0],
+        eligibleParticipantTypes: ["adult", "kids", "teens"],
+        classSites: ["Town", "West"],
+        openMatSites: ["Town", "West"],
+      },
     });
     if (result.ok) {
       expect(Object.isFrozen(result.value)).toBe(true);
@@ -138,12 +155,12 @@ describe("membership plan contracts", () => {
       { ...PLAN_CATALOG[0], planId: "unknown" },
       { ...PLAN_CATALOG[0], currency: "EUR" },
       { ...PLAN_CATALOG[0], priceMinor: 10.5 },
-      { ...PLAN_CATALOG[0], weeklyClassLimit: 3 },
+      { ...PLAN_CATALOG[0], weeklyClassLimit: 4 },
       { ...PLAN_CATALOG[0], eligibleParticipantTypes: [] },
       { ...PLAN_CATALOG[0], eligibleParticipantTypes: ["adult", "adult"] },
       { ...PLAN_CATALOG[0], eligibleParticipantTypes: ["none"] },
       { ...PLAN_CATALOG[0], classSites: ["North"] },
-      { ...PLAN_CATALOG[0], openMatSites: [] },
+      { ...PLAN_CATALOG[0], openMatSites: ["West", "West"] },
       { ...PLAN_CATALOG[0], openMatFeeMinor: 1.25 },
       { ...PLAN_CATALOG[0], active: true },
       { ...PLAN_CATALOG[0], [Symbol("unexpected")]: true },
@@ -278,35 +295,33 @@ describe("membership plan contracts", () => {
     });
   });
 
-  it("uses the PAYG price for both class and Open Mat sessions", () => {
+  it("charges PAYG per West adult class and refuses Town, other audiences and open mats", () => {
     const payg = record();
-    expect(
-      evaluatePlanAccess(payg, {
-        participantType: "adult",
-        site: "Town",
-        sessionType: "class",
-        weeklyClassesUsed: 0,
-      }),
-    ).toMatchObject({
+    const west = {
+      participantType: "adult",
+      site: "West",
+      sessionType: "class",
+      weeklyClassesUsed: 9,
+    } as const;
+    expect(evaluatePlanAccess(payg, west)).toEqual({
       allowed: true,
+      code: "ALLOWED",
       feeMinor: 1000,
     });
-    expect(
-      evaluatePlanAccess(payg, {
-        participantType: "teens",
-        site: "West",
-        sessionType: "openMat",
-        weeklyClassesUsed: 0,
-      }),
-    ).toMatchObject({
-      allowed: true,
-      feeMinor: 1000,
-    });
+    expect(evaluatePlanAccess(payg, { ...west, site: "Town" }).code).toBe(
+      "CLASS_SITE_NOT_ELIGIBLE",
+    );
+    expect(evaluatePlanAccess(payg, { ...west, participantType: "teens" }).code).toBe(
+      "PARTICIPANT_TYPE_NOT_ELIGIBLE",
+    );
+    expect(evaluatePlanAccess(payg, { ...west, sessionType: "openMat" }).code).toBe(
+      "OPEN_MAT_SITE_NOT_ELIGIBLE",
+    );
   });
 
   it("fails closed for malformed eligibility plans and inputs", () => {
     expect(
-      evaluatePlanAccess({ ...record(), weeklyClassLimit: 3 } as unknown as PlanRecord, {
+      evaluatePlanAccess({ ...record(), weeklyClassLimit: 4 } as unknown as PlanRecord, {
         participantType: "adult",
         site: "Town",
         sessionType: "class",
@@ -365,5 +380,52 @@ describe("membership plan contracts", () => {
       code: "INVALID_INPUT",
       feeMinor: 0,
     });
+  });
+
+  it("lists town-teens as the only retired plan", () => {
+    expect(retiredPlanIds).toEqual(["town-teens"]);
+    expect(Object.isFrozen(retiredPlanIds)).toBe(true);
+  });
+
+  it("accepts a limit of 3, a term period and no open-mat sites; refuses a limit of 4", () => {
+    const draft = { ...PLAN_CATALOG.find((plan) => plan.planId === "town-kids-2x")! };
+    expect(parsePlanDraft({ ...draft, openMatSites: [] }).ok).toBe(true);
+    expect(parsePlanDraft({ ...draft, weeklyClassLimit: 4 }).ok).toBe(false);
+  });
+
+  it("applies each catalog plan's real entitlements", () => {
+    const plan = (planId: string) =>
+      record(PLAN_CATALOG.find((item) => item.planId === planId) as PlanDraft);
+    const at = (
+      participantType: PlanAccessInput["participantType"],
+      site: PlanAccessInput["site"],
+      sessionType: PlanAccessInput["sessionType"],
+      weeklyClassesUsed = 0,
+    ): PlanAccessInput => ({ participantType, site, sessionType, weeklyClassesUsed });
+    const code = (planId: string, input: PlanAccessInput) =>
+      evaluatePlanAccess(plan(planId), input).code;
+
+    expect(code("bpt-jersey-adult", at("adult", "Town", "class", 50))).toBe("ALLOWED");
+    expect(code("bpt-jersey-adult", at("adult", "West", "openMat"))).toBe("ALLOWED");
+    expect(code("west-adult", at("adult", "West", "class", 1))).toBe("ALLOWED");
+    expect(code("west-adult", at("adult", "West", "class", 2))).toBe("WEEKLY_LIMIT_REACHED");
+    expect(code("west-adult", at("adult", "Town", "openMat", 2))).toBe("ALLOWED");
+    expect(code("west-adult", at("adult", "West", "openMat"))).toBe("OPEN_MAT_SITE_NOT_ELIGIBLE");
+    expect(code("west-kids-1x", at("kids", "West", "openMat"))).toBe("OPEN_MAT_SITE_NOT_ELIGIBLE");
+    expect(code("west-kids-2x", at("kids", "Town", "openMat", 2))).toBe("ALLOWED");
+    expect(code("west-kids-2x", at("kids", "Town", "class"))).toBe("CLASS_SITE_NOT_ELIGIBLE");
+    expect(code("west-teens", at("teens", "West", "openMat"))).toBe("OPEN_MAT_SITE_NOT_ELIGIBLE");
+    expect(evaluatePlanAccess(plan("west-teens-payg"), at("teens", "West", "class", 5))).toEqual({
+      allowed: true,
+      code: "ALLOWED",
+      feeMinor: 750,
+    });
+    expect(code("town-adult", at("adult", "Town", "class", 40))).toBe("ALLOWED");
+    expect(code("town-adult", at("adult", "West", "class"))).toBe("CLASS_SITE_NOT_ELIGIBLE");
+    expect(code("town-kids-1x", at("teens", "Town", "class"))).toBe("ALLOWED");
+    expect(code("town-kids-1x", at("kids", "Town", "class", 1))).toBe("WEEKLY_LIMIT_REACHED");
+    expect(code("town-kids-2x", at("teens", "Town", "class", 2))).toBe("ALLOWED");
+    expect(code("town-kids-2x", at("kids", "Town", "class", 3))).toBe("WEEKLY_LIMIT_REACHED");
+    expect(code("town-kids-2x", at("kids", "Town", "openMat", 3))).toBe("ALLOWED");
   });
 });

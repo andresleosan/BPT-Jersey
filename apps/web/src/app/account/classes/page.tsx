@@ -92,6 +92,12 @@ function bookingFailure(error: unknown): Readonly<{ text: string; waitlist: bool
       waitlist: false,
     };
   }
+  if (code === "functions/failed-precondition" && reason === "weekly-limit") {
+    return { text: "You've used this week's classes on your plan.", waitlist: false };
+  }
+  if (code === "functions/failed-precondition" && reason === "capacity-not-set") {
+    return { text: "This session isn't open for booking yet.", waitlist: false };
+  }
   if (code === "functions/failed-precondition" && reason === "ineligible") {
     return {
       text: "The selected membership is not eligible for this class.",

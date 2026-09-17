@@ -8,6 +8,7 @@ export const planIds = Object.freeze([
   "west-kids-2x",
   "west-adult",
   "west-teens",
+  "west-teens-payg",
   "town-adult",
   "town-kids-1x",
   "town-kids-2x",
@@ -18,7 +19,7 @@ export type PlanId = (typeof planIds)[number];
 export const participantTypes = Object.freeze(["adult", "kids", "teens"] as const);
 export type ParticipantType = (typeof participantTypes)[number];
 
-export const billingPeriods = Object.freeze(["per-session", "monthly"] as const);
+export const billingPeriods = Object.freeze(["per-session", "monthly", "term"] as const);
 export type BillingPeriod = (typeof billingPeriods)[number];
 
 export const siteValues = Object.freeze(["Town", "West"] as const);
@@ -26,6 +27,9 @@ export type Site = (typeof siteValues)[number];
 
 export const sessionTypes = Object.freeze(["class", "openMat"] as const);
 export type SessionType = (typeof sessionTypes)[number];
+
+export const weeklyClassLimits = Object.freeze([1, 2, 3, null] as const);
+export type WeeklyClassLimit = (typeof weeklyClassLimits)[number];
 
 type PlanFields = Readonly<{
   planId: PlanId;
@@ -35,7 +39,7 @@ type PlanFields = Readonly<{
   billingPeriod: BillingPeriod;
   eligibleParticipantTypes: readonly ParticipantType[];
   classSites: readonly Site[];
-  weeklyClassLimit: 1 | 2 | null;
+  weeklyClassLimit: WeeklyClassLimit;
   openMatSites: readonly Site[];
   openMatFeeMinor: number | null;
 }>;
@@ -290,15 +294,12 @@ function parsePlanFields(
     siteValues,
     ["openMatSites"],
     issues,
-    true,
+    false,
   );
-  if (
-    value.weeklyClassLimit !== null &&
-    value.weeklyClassLimit !== 1 &&
-    value.weeklyClassLimit !== 2
-  ) {
-    issues.push(issue(["weeklyClassLimit"], "invalid_limit"));
-  }
+  const weeklyClassLimitValid = weeklyClassLimits.includes(
+    value.weeklyClassLimit as WeeklyClassLimit,
+  );
+  if (!weeklyClassLimitValid) issues.push(issue(["weeklyClassLimit"], "invalid_limit"));
   if (value.openMatFeeMinor !== null && !isSafeMinor(value.openMatFeeMinor)) {
     issues.push(issue(["openMatFeeMinor"], "invalid_money"));
   }
@@ -310,9 +311,7 @@ function parsePlanFields(
     eligibleParticipantTypes === undefined ||
     classSites === undefined ||
     openMatSites === undefined ||
-    (value.weeklyClassLimit !== null &&
-      value.weeklyClassLimit !== 1 &&
-      value.weeklyClassLimit !== 2) ||
+    !weeklyClassLimitValid ||
     (value.openMatFeeMinor !== null && !isSafeMinor(value.openMatFeeMinor))
   ) {
     return undefined;
@@ -325,7 +324,7 @@ function parsePlanFields(
     billingPeriod,
     eligibleParticipantTypes,
     classSites,
-    weeklyClassLimit: value.weeklyClassLimit,
+    weeklyClassLimit: value.weeklyClassLimit as WeeklyClassLimit,
     openMatSites,
     openMatFeeMinor: value.openMatFeeMinor,
   };
@@ -427,7 +426,7 @@ function draft(
   billingPeriod: BillingPeriod,
   eligibleParticipantTypes: readonly ParticipantType[],
   classSites: readonly Site[],
-  weeklyClassLimit: 1 | 2 | null,
+  weeklyClassLimit: WeeklyClassLimit,
   openMatSites: readonly Site[],
   openMatFeeMinor: number | null,
 ): PlanDraft {
@@ -446,20 +445,10 @@ function draft(
 }
 
 export const PLAN_CATALOG: readonly PlanDraft[] = Object.freeze([
-  draft(
-    "payg",
-    "Pay as you go",
-    1000,
-    "per-session",
-    ["adult", "kids", "teens"],
-    ["Town", "West"],
-    null,
-    ["Town", "West"],
-    null,
-  ),
+  draft("payg", "West Pay as you go", 1000, "per-session", ["adult"], ["West"], null, [], null),
   draft(
     "bpt-jersey-adult",
-    "BPT Jersey Adult",
+    "BPT Jersey Town & West",
     12500,
     "monthly",
     ["adult"],
@@ -468,25 +457,50 @@ export const PLAN_CATALOG: readonly PlanDraft[] = Object.freeze([
     ["Town", "West"],
     null,
   ),
-  draft("west-kids-1x", "West Kids 1x", 9500, "monthly", ["kids"], ["West"], 1, ["West"], null),
-  draft("west-kids-2x", "West Kids 2x", 11500, "monthly", ["kids"], ["West"], 2, ["Town"], null),
+  draft("west-kids-1x", "West Kids 1x", 9500, "term", ["kids"], ["West"], 1, [], null),
+  draft("west-kids-2x", "West Kids 2x", 11500, "term", ["kids"], ["West"], 2, ["Town"], null),
+  draft("west-adult", "West Adult", 6500, "monthly", ["adult"], ["West"], 2, ["Town"], null),
+  draft("west-teens", "West Teens", 4500, "monthly", ["teens"], ["West"], 2, [], null),
   draft(
-    "west-adult",
-    "West Adult",
-    6500,
-    "monthly",
-    ["adult"],
+    "west-teens-payg",
+    "West Teens single class",
+    750,
+    "per-session",
+    ["teens"],
     ["West"],
     null,
-    ["Town", "West"],
+    [],
     null,
   ),
-  draft("west-teens", "West Teens", 4500, "monthly", ["teens"], ["West"], 2, ["West"], 750),
   draft("town-adult", "Town Adult", 8500, "monthly", ["adult"], ["Town"], null, ["Town"], null),
-  draft("town-kids-1x", "Town Kids 1x", 9500, "monthly", ["kids"], ["Town"], 1, ["Town"], null),
-  draft("town-kids-2x", "Town Kids 2x", 13500, "monthly", ["kids"], ["Town"], 2, ["Town"], null),
+  draft(
+    "town-kids-1x",
+    "Town Kids & Teens 1x",
+    9500,
+    "term",
+    ["kids", "teens"],
+    ["Town"],
+    1,
+    [],
+    null,
+  ),
+  draft(
+    "town-kids-2x",
+    "Town Kids & Teens 3x",
+    13500,
+    "term",
+    ["kids", "teens"],
+    ["Town"],
+    3,
+    ["Town"],
+    null,
+  ),
   draft("town-teens", "Town Teens", 4500, "monthly", ["teens"], ["Town"], 2, ["Town"], 750),
 ]);
+
+// ponytail: retired plans stay in the catalog so existing memberships still resolve; T047V2 replaces
+// this list with a per-plan flag when plans become dynamic.
+export const retiredPlanIds: readonly PlanId[] = Object.freeze(["town-teens"]);
 
 function denied(code: PlanAccessDenialCode): PlanAccessDecision {
   return Object.freeze({ allowed: false as const, code, feeMinor: 0 as const });

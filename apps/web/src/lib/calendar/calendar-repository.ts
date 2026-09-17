@@ -6,7 +6,12 @@ import type {
   RequestBookingInput,
   SessionRecord,
 } from "@bpt-jersey/domain/schedule";
-import type { ParticipantType, PlanId, Site } from "@bpt-jersey/domain/memberships";
+import type {
+  ParticipantType,
+  PlanId,
+  Site,
+  WeeklyClassLimit,
+} from "@bpt-jersey/domain/memberships";
 import type { NoShowPenaltyRecord } from "@bpt-jersey/domain/penalties";
 import type { SelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
 
@@ -25,6 +30,7 @@ export type CalendarParticipant = Readonly<{
   participantType: ParticipantType;
   planClassSites: readonly Site[];
   planOpenMatSites: readonly Site[];
+  weeklyClassLimit: WeeklyClassLimit;
 }>;
 
 export type CalendarMember = Readonly<{

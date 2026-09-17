@@ -17,6 +17,7 @@ const maya: CalendarParticipant = {
   participantType: "teens",
   planClassSites: ["Town"],
   planOpenMatSites: ["Town"],
+  weeklyClassLimit: 2,
 };
 const leo: CalendarParticipant = {
   studentId: "leo",
@@ -26,6 +27,7 @@ const leo: CalendarParticipant = {
   participantType: "kids",
   planClassSites: ["West"],
   planOpenMatSites: ["Town"],
+  weeklyClassLimit: 2,
 };
 
 function renderHeader(props: Partial<Parameters<typeof CalendarHeader>[0]> = {}) {

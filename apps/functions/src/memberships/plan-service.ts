@@ -3,6 +3,7 @@ import {
   parsePlanDraft,
   parsePlanRecord,
   planIds,
+  retiredPlanIds,
   type PlanDraft,
   type PlanId,
   type PlanRecord,
@@ -98,7 +99,7 @@ export class PlanStoreError extends Error {
 const safePathSegmentPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const dateTimePattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:?\d{2})$/u;
-const PLAN_QUERY_LIMIT = 10;
+const PLAN_QUERY_LIMIT = planIds.length;
 
 function pathSegment(value: string, label: string): string {
   if (typeof value !== "string" || !safePathSegmentPattern.test(value)) {
@@ -368,7 +369,7 @@ export function createPlanStore(dependencies: PlanStoreDependencies): PlanStore 
             const created = parseCreatedRecord({
               ...plan,
               academyId,
-              active: true,
+              active: !retiredPlanIds.includes(plan.planId),
               schemaVersion: "1",
               createdAt: now,
               createdBy: actorId,

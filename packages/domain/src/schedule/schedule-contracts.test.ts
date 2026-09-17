@@ -1730,8 +1730,8 @@ describe("classes-services additions", () => {
     );
   });
 
-  it("accepts unlimited capacity, several trainers, booking rules and waiting list", () => {
-    const parsed = parseCreateSessionInput({
+  it("refuses unlimited capacity and accepts several trainers, booking rules and waiting list", () => {
+    const input = {
       programId: "p1",
       locationId: "town",
       instructorId: "coach-1",
@@ -1739,19 +1739,21 @@ describe("classes-services additions", () => {
       title: "Open Mat",
       startAt: "2026-09-14T17:00:00.000Z",
       endAt: "2026-09-14T18:00:00.000Z",
-      capacity: null,
+      capacity: 20,
       minParticipants: 0,
       bookingRules: "defined",
       waitingList: "off",
-    });
+    };
+    expect(parseCreateSessionInput({ ...input, capacity: null }).ok).toBe(false);
+    const parsed = parseCreateSessionInput(input);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.value.capacity).toBeNull();
+    expect(parsed.value.capacity).toBe(20);
     expect(parsed.value.instructorIds).toEqual(["coach-1", "coach-2"]);
     expect(parsed.value.waitingList).toBe("off");
   });
 
-  it("keeps minParticipants within capacity only when capacity is a number", () => {
+  it("keeps minParticipants within capacity", () => {
     const base = {
       programId: "p1",
       locationId: "town",
@@ -1761,13 +1763,17 @@ describe("classes-services additions", () => {
       endAt: "2026-09-14T18:00:00.000Z",
     };
     expect(parseCreateSessionInput({ ...base, capacity: 5, minParticipants: 6 }).ok).toBe(false);
-    expect(parseCreateSessionInput({ ...base, capacity: null, minParticipants: 6 }).ok).toBe(true);
+    expect(parseCreateSessionInput({ ...base, capacity: 6, minParticipants: 6 }).ok).toBe(true);
+    expect(parseCreateSessionInput({ ...base, capacity: null, minParticipants: 6 }).ok).toBe(false);
   });
 
   it("updates trainers and capacity on an existing session", () => {
     expect(
-      parseUpdateSessionInput({ sessionId: "s1", instructorIds: ["a", "b"], capacity: null }).ok,
+      parseUpdateSessionInput({ sessionId: "s1", instructorIds: ["a", "b"], capacity: 12 }).ok,
     ).toBe(true);
+    expect(
+      parseUpdateSessionInput({ sessionId: "s1", instructorIds: ["a", "b"], capacity: null }).ok,
+    ).toBe(false);
     expect(parseUpdateSessionInput({ sessionId: "s1", instructorIds: [] }).ok).toBe(false);
   });
 });
@@ -1808,12 +1814,43 @@ describe("classes-services follow-ups", () => {
     expect(parsed.ok && parsed.value.instructorIds).toEqual(["coach-2", "coach-3"]);
   });
 
-  it("caps minParticipants at 300 on an unlimited session", () => {
+  it("caps minParticipants at the maximum capacity of 300", () => {
     expect(
-      parseCreateSessionInput({ ...sessionBase, capacity: null, minParticipants: 300 }).ok,
+      parseCreateSessionInput({ ...sessionBase, capacity: 300, minParticipants: 300 }).ok,
     ).toBe(true);
     expect(
-      parseCreateSessionInput({ ...sessionBase, capacity: null, minParticipants: 301 }).ok,
+      parseCreateSessionInput({ ...sessionBase, capacity: null, minParticipants: 300 }).ok,
     ).toBe(false);
+    expect(
+      parseCreateSessionInput({ ...sessionBase, capacity: 300, minParticipants: 301 }).ok,
+    ).toBe(false);
+  });
+});
+
+describe("session capacity is required", () => {
+  const create = {
+    classId: null,
+    programId: "p1",
+    locationId: "town",
+    instructorId: "coach-1",
+    title: "Adults BJJ",
+    startAt: "2099-09-01T18:00:00.000Z",
+    endAt: "2099-09-01T19:00:00.000Z",
+    capacity: 20,
+    minParticipants: 0,
+  };
+
+  it.each([null, undefined, 0, 301, 2.5, "20"])("refuses capacity %s when creating", (capacity) => {
+    expect(parseCreateSessionInput({ ...create, capacity }).ok).toBe(false);
+  });
+
+  it("accepts 1 and 300 when creating", () => {
+    expect(parseCreateSessionInput({ ...create, capacity: 1 }).ok).toBe(true);
+    expect(parseCreateSessionInput({ ...create, capacity: 300 }).ok).toBe(true);
+  });
+
+  it("refuses clearing the capacity when updating", () => {
+    expect(parseUpdateSessionInput({ sessionId: "s1", capacity: null }).ok).toBe(false);
+    expect(parseUpdateSessionInput({ sessionId: "s1", capacity: 12 }).ok).toBe(true);
   });
 });

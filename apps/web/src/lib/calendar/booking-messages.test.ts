@@ -31,6 +31,15 @@ describe("booking messages", () => {
     expect(bookingFailureMessage(new Error("boom"))).toBe("Couldn't book. Refresh and try again.");
   });
 
+  it.each([
+    ["weekly-limit", "You've used this week's classes on your plan."],
+    ["capacity-not-set", "This session isn't open for booking yet."],
+  ])("explains the %s refusal", (reason, text) => {
+    expect(
+      bookingFailureMessage({ code: "functions/failed-precondition", details: { reason } }),
+    ).toBe(text);
+  });
+
   it("maps cancellation failures", () => {
     expect(
       cancellationFailureMessage({

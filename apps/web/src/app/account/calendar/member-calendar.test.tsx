@@ -162,6 +162,46 @@ describe("MemberCalendar", () => {
     expect(screen.getByRole("button", { name: "Earlier" })).toBeEnabled();
   });
 
+  it("counts the whole Jersey week's classes against the plan limit, even days not on screen", async () => {
+    // Thursday 2026-09-17 10:00 BST: the phone shows Thu and Fri; Mon and Wed are off screen.
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date("2026-09-17T09:00:00.000Z") });
+    stubViewport(false);
+    const fixture = createFixtureCalendarRepository("teenStudent");
+    const booked = ["2026-09-14_town_prog-teens", "2026-09-16_town_prog-teens"];
+    const loadWeek = vi.fn(async (...args: Parameters<typeof fixture.loadWeek>) => {
+      const loaded = await fixture.loadWeek(...args);
+      const template = loaded.bookings[0];
+      if (!template) throw new Error("fixture booking missing");
+      return {
+        ...loaded,
+        attendance: [],
+        bookings: booked.map((sessionId) => ({
+          ...template,
+          bookingId: `bk_${sessionId}`,
+          sessionId,
+          status: "confirmed" as const,
+        })),
+      };
+    });
+    render(
+      <MemberCalendar onSignOut={vi.fn()} repository={{ ...fixture, loadWeek }} session={teen} />,
+    );
+    const friday = await waitFor(() => {
+      const card = document.querySelector('[data-session-id="2026-09-18_town_prog-teens"]');
+      if (!card) throw new Error("Friday teens class not rendered");
+      return card as HTMLElement;
+    });
+    expect(loadWeek).toHaveBeenCalledWith(
+      "sam",
+      "2026-09-13T23:00:00.000Z",
+      "2026-09-20T22:59:59.999Z",
+    );
+    expect(document.querySelector('[data-session-id="2026-09-14_town_prog-teens"]')).toBeNull();
+    expect(friday).toHaveAttribute("data-status", "locked");
+    await userEvent.click(within(friday).getByRole("button", { name: "Not available" }));
+    expect(within(friday).getByText("Weekly class limit reached")).toBeInTheDocument();
+  });
+
   it("shows an error panel with retry when loading fails", async () => {
     stubViewport(false);
     const broken = {
@@ -588,7 +628,10 @@ describe("MemberCalendar", () => {
       fireEvent.change(slider, { target: { value: "100" } });
       fireEvent.keyUp(slider, { key: "End" });
       await waitFor(() => expect(resolveClockIn).toBeDefined());
-      await userEvent.click(screen.getByRole("button", { name: "Later" }));
+      // The calendar loads whole Monday–Sunday weeks, so step forward until the loaded range moves.
+      for (let step = 0; step < 4 && !resolveNextWeek; step += 1) {
+        await userEvent.click(screen.getByRole("button", { name: "Later" }));
+      }
       await waitFor(() => expect(resolveNextWeek).toBeDefined());
       await act(async () => {
         resolveClockIn?.({
@@ -609,12 +652,14 @@ describe("MemberCalendar", () => {
         });
         resolveNextWeek?.();
       });
-      const sessionInNewRange = nextWeek?.sessions[0];
-      if (!sessionInNewRange) throw new Error("new range session missing");
+      const newRangeSessions = nextWeek?.sessions ?? [];
+      if (newRangeSessions.length === 0) throw new Error("new range session missing");
       await waitFor(() =>
         expect(
-          document.querySelector('[data-session-id="' + sessionInNewRange.sessionId + '"]'),
-        ).toBeInTheDocument(),
+          newRangeSessions.some((row) =>
+            document.querySelector('[data-session-id="' + row.sessionId + '"]'),
+          ),
+        ).toBe(true),
       );
       expect(screen.queryByRole("heading", { name: "You're in" })).not.toBeInTheDocument();
     });

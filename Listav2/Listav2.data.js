@@ -783,6 +783,21 @@ const RESOLUTION_REQUIREMENTS = {
       "Ensayo completo en emulador; producción solo con confirmación del operador en chat.",
     ),
   ],
+  T050V2: [
+    requirement(
+      "1) Asignar aforo a las sesiones importadas con capacity null (bloqueo): 298 de 389, 82 futuras.",
+    ),
+    requirement("2) Confirmar que ningún documento de sesión en producción carece de programId."),
+    requirement(
+      "3) Desplegar functions y web juntos, solo con confirmación del operador en chat; no editar planes hasta que ambos estén en producción.",
+    ),
+    requirement('4) Desactivar town-teens con "Deactivate plan".'),
+    requirement("5) Crear west-teens-payg: elegirlo en el editor y guardar."),
+    requirement(
+      '6) Revisar quién tiene payg, west-adult y west-teens (guardar el catálogo les reduce acceso); después "Load catalogue values" + guardar en cada plan marcado "Differs from catalogue". Hasta entonces el calendario del socio (lee PLAN_CATALOG) y el servidor (lee el plan guardado) pueden discrepar.',
+    ),
+    requirement("7) No revertir functions tras editar planes sin restaurar antes los planes."),
+  ],
 };
 
 /**
@@ -1563,6 +1578,19 @@ const TASK_SURFACES = {
     "apps/web/src/app/admin/classes-services",
   ],
   T049V2: ["apps/functions/src/migrations/regyfit", "docs/data/migrations/regyfit"],
+  T050V2: [
+    "packages/domain/src/memberships",
+    "packages/domain/src/schedule",
+    "apps/functions/src/memberships",
+    "apps/functions/src/schedule",
+    "apps/web/src/app/admin/classes-services",
+    "apps/web/src/app/admin/memberships",
+    "apps/web/src/app/account",
+    "apps/web/src/app/enrol",
+    "apps/web/src/app/page.tsx",
+    "apps/web/src/lib/calendar",
+    "qa/tests/schedule-auth-emulator.spec.ts",
+  ],
   T029V2: ["apps/web/src/app/admin/members/requests/page.tsx"],
   T030V2: ["apps/functions/src/health", "apps/web/src/app/admin/members/medical"],
   T031V2: ["apps/web/src/app/admin/admin-routes.ts", "apps/web/src/app/admin/admin-shell.tsx"],
@@ -1798,6 +1826,20 @@ const classesServicesItems = [
     "T048V2",
     "Plan en docs/superpowers/plans/ (por escribir). Emulador primero; producción solo con confirmación en chat.",
     [REF_TASKS],
+    "funcion",
+  ),
+  task(
+    "T050V2",
+    "Planes y precios reales, aforo obligatorio y límite semanal solo de clases",
+    "revision",
+    "11 planes (trimestre, 3x, town-teens retirado, west-teens-payg), aforo obligatorio en sesiones y copy week, open mats fuera del límite semanal, precios públicos desde el catálogo.",
+    "T046V2",
+    "Rama feature/plans-pricing-capacity. Gate 2026-09-17 y capturas qa/screenshots/t050-*; detalle en tasksv2.md. Bloqueo de despliegue: 298 sesiones importadas sin aforo.",
+    [
+      REF_TASKS,
+      "docs/superpowers/specs/2026-09-17-plans-pricing-capacity-design.md",
+      "docs/superpowers/plans/2026-09-17-plans-pricing-capacity.md",
+    ],
     "funcion",
   ),
 ];
