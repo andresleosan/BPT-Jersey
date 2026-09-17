@@ -17,6 +17,7 @@
     "src/actor-context.ts",
     "src/auth/admin-contracts.ts",
     "src/audit/audit-event.ts",
+    "src/audit/class-history-contracts.ts",
     "src/authorization/access-policy.ts",
     "src/members/member-contracts.ts",
     "src/members/member-directory-contracts.ts",

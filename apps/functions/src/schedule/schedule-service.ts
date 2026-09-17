@@ -58,6 +58,7 @@ import {
 import {
   BookingTransactionError,
   createBookingTransactionService,
+  type BookingAuditActor,
   type BookingFirestore,
 } from "./booking-transaction-service.js";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
@@ -273,12 +274,14 @@ export type ScheduleStore = Readonly<{
     academyId: string,
     input: RequestBookingInput,
     actorId: string,
+    auditActor?: BookingAuditActor,
   ) => Promise<BookingRecord>;
   cancelBooking: (
     academyId: string,
     input: CancelBookingInput,
     actorId: string,
     isStaffOverride?: boolean,
+    auditActor?: BookingAuditActor,
   ) => Promise<BookingRecord>;
   listSessionBookings: (academyId: string, sessionId: string) => Promise<readonly BookingRecord[]>;
   listStudentBookings: (academyId: string, studentId: string) => Promise<readonly BookingRecord[]>;
@@ -292,6 +295,7 @@ export type ScheduleStore = Readonly<{
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
+    actorIp?: string | null,
   ) => Promise<AttendanceRecord>;
   recordSelfCheckIn: (
     academyId: string,
@@ -299,6 +303,7 @@ export type ScheduleStore = Readonly<{
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
+    actorIp?: string | null,
   ) => Promise<AttendanceRecord>;
   listSessionAttendance: (
     academyId: string,
@@ -314,6 +319,7 @@ export type ScheduleStore = Readonly<{
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
+    actorIp?: string | null,
   ) => Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }>;
   reconcileSessionNoShows: (
     academyId: string,
@@ -332,6 +338,7 @@ export type ScheduleStore = Readonly<{
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
+    actorIp?: string | null,
   ) => Promise<CheckoutRecord>;
   listSessionCheckouts: (
     academyId: string,
@@ -1349,8 +1356,9 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       input: RequestBookingInput,
       actorId: string,
+      auditActor?: BookingAuditActor,
     ): Promise<BookingRecord> {
-      return bookingTransactions.requestBooking(academyId, input, actorId);
+      return bookingTransactions.requestBooking(academyId, input, actorId, auditActor);
     },
 
     async cancelBooking(
@@ -1358,8 +1366,15 @@ export function createFirestoreScheduleStore(options: {
       input: CancelBookingInput,
       actorId: string,
       isStaffOverride = false,
+      auditActor?: BookingAuditActor,
     ): Promise<BookingRecord> {
-      return bookingTransactions.cancelBooking(academyId, input, actorId, isStaffOverride);
+      return bookingTransactions.cancelBooking(
+        academyId,
+        input,
+        actorId,
+        isStaffOverride,
+        auditActor,
+      );
     },
 
     async listSessionBookings(
@@ -1426,12 +1441,14 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       occurredAt?: string,
       actorRole?: ScheduleMutationActorRole,
+      actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
       return attendanceTransactions.recordCheckIn({
         academyId,
         input,
         actorId,
         actorRole: requireAttendanceActorRole(actorRole),
+        actorIp,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       });
     },
@@ -1442,12 +1459,14 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       occurredAt?: string,
       actorRole?: ScheduleMutationActorRole,
+      actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
       return attendanceTransactions.recordSelfCheckIn({
         academyId,
         input,
         actorId,
         actorRole: requireAttendanceActorRole(actorRole),
+        actorIp,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       });
     },
@@ -1486,12 +1505,14 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       occurredAt?: string,
       actorRole?: ScheduleMutationActorRole,
+      actorIp: string | null = null,
     ): Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }> {
       return attendanceTransactions.correctAttendance({
         academyId,
         input,
         actorId,
         actorRole: requireAttendanceActorRole(actorRole),
+        actorIp,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       });
     },
@@ -1586,12 +1607,14 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       occurredAt?: string,
       actorRole?: ScheduleMutationActorRole,
+      actorIp: string | null = null,
     ): Promise<CheckoutRecord> {
       return attendanceTransactions.recordCheckout({
         academyId,
         input,
         actorId,
         actorRole: requireAttendanceActorRole(actorRole),
+        actorIp,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       });
     },

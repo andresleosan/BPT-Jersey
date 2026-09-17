@@ -1,0 +1,81 @@
+/* The class registrations log: a paper ledger, not a dashboard. */
+
+.cs-history-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.cs-history-header h2 {
+  margin: 0;
+}
+
+.cs-history-note {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  max-width: 60ch;
+}
+
+.cs-history-empty {
+  margin: 0;
+  padding: 1rem 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.cs-history-table {
+  border-top: 1px solid var(--line);
+}
+
+.cs-history-table th {
+  border-bottom: 1px solid var(--line);
+  color: var(--bpt-purple);
+  font-weight: 700;
+}
+
+.cs-history-when,
+.cs-history-ip {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cs-history-task {
+  overflow-wrap: anywhere;
+}
+
+/* No spinner anywhere: while the log is read, the rows are drawn at their real height in Paper
+   Edge, so the card does not jump when the records arrive. */
+.cs-history-skeleton {
+  display: grid;
+  gap: 1px;
+  border-top: 1px solid var(--line);
+  padding-top: 1px;
+}
+
+.cs-history-skeleton-row {
+  display: block;
+  height: 2.2rem;
+  background: var(--paper-edge);
+}
+
+@media (max-width: 50rem) {
+  .cs-history-when,
+  .cs-history-ip {
+    white-space: normal;
+  }
+
+  .cs-history-table tr {
+    border-bottom: 1px solid var(--paper-edge);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-history-skeleton-row,
+  .cs-history-table * {
+    transition: none;
+  }
+}

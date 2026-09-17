@@ -365,6 +365,39 @@ describe("check-in proximity signal at the transaction boundary (T109)", () => {
     expect(fixture.documents.has(overrideAuditPath)).toBe(false);
   });
 
+  it("stores the caller address and the class block with the check-in event", async () => {
+    const { fixture, service } = fixtureFor({ latitude: 49.186, longitude: -2.106 });
+
+    await service.recordCheckIn({
+      academyId,
+      input: { sessionId, studentId, method: "manual", proximity: measurement(18) },
+      actorId: "coach-user-1",
+      actorRole: "coach",
+      actorIp: "82.112.144.10",
+    });
+
+    expect(
+      fixture.documents.get(
+        `academies/${academyId}/auditEvents/attendance-check-in-${attendanceId}`,
+      ),
+    ).toMatchObject({
+      action: "attendance.checked_in",
+      actorIp: "82.112.144.10",
+      actorRole: "coach",
+      actorGroup: "staff",
+      actorName: null,
+      source: "bpt",
+      class: {
+        studentId,
+        studentName: null,
+        sessionId,
+        sessionStartAt: "2026-09-03T18:00:00.000Z",
+        programId: null,
+        locationId: "town",
+      },
+    });
+  });
+
   it("refuses a measurement outside the radius with no reason and writes nothing", async () => {
     const { fixture, service } = fixtureFor({ latitude: 49.186, longitude: -2.106 });
 
