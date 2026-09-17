@@ -38,9 +38,11 @@ const staffKey = "staff-office-1";
 
 /**
  * Three events, one per actor group the four columns must render: a member booking with an
- * address, the same member cancelling, and a drop-in given by staff (whose name is resolved
- * through the staff document rather than shown as an auth uid). `occurredAt` is a Timestamp, as
- * the audit writer writes it.
+ * address, the same member cancelling, and a drop-in given by staff. Every row carries
+ * `actorName: null`, which is what the booking and attendance writers store in production: both
+ * the member's and the staff member's name are resolved server-side from the `userId` on their
+ * student / staff document, never shown as an auth uid. `occurredAt` is a Timestamp, as the audit
+ * writer writes it.
  */
 function events(staffUid) {
   const classBlock = {
@@ -60,7 +62,7 @@ function events(staffUid) {
         actorId: memberUid,
         actorRole: "adultStudent",
         actorGroup: "member",
-        actorName: studentName,
+        actorName: null,
         actorIp: "203.0.113.10",
         source: "bpt",
         class: classBlock,
@@ -74,7 +76,7 @@ function events(staffUid) {
         actorId: memberUid,
         actorRole: "adultStudent",
         actorGroup: "member",
-        actorName: studentName,
+        actorName: null,
         actorIp: "203.0.113.10",
         source: "bpt",
         class: classBlock,
@@ -117,7 +119,10 @@ async function main() {
       startAt: sessionStartAt,
       endAt: "2026-09-16T18:30:00.000Z",
     });
-    await academy.collection("students").doc(studentId).set({ academyId, fullName: studentName });
+    await academy
+      .collection("students")
+      .doc(studentId)
+      .set({ academyId, fullName: studentName, userId: memberUid });
     await academy
       .collection("students")
       .doc(otherStudentId)

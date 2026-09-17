@@ -33,7 +33,7 @@ const registrationTypeLabels: Record<ClassHistoryRegistrationType, string> = {
 };
 
 /** The service clamps to 100...1000, so the screen never offers a number it would silently change. */
-const recordCounts = [100, 250, 500, 1000] as const;
+const recordCounts = [100, 250, 500, 750, 1000] as const;
 
 const dash = "—";
 
@@ -108,12 +108,14 @@ export function HistoryPage() {
     };
   };
 
+  // Only a row the server resolved a name for becomes an option: an auth uid is never shown to the
+  // browser, so a nameless row is left out of the list rather than labelled with its actorId.
   function rememberActors(listed: readonly ClassHistoryRow[]): void {
     setActors((current) => {
       const known = new Map(current.map((actor) => [actor.actorId, actor]));
       for (const row of listed) {
-        if (!known.has(row.actorId)) {
-          known.set(row.actorId, { actorId: row.actorId, label: row.actorName ?? row.actorId });
+        if (row.actorName !== null && !known.has(row.actorId)) {
+          known.set(row.actorId, { actorId: row.actorId, label: row.actorName });
         }
       }
       return [...known.values()].sort((a, b) => a.label.localeCompare(b.label));
