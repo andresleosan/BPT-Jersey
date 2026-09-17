@@ -17,8 +17,12 @@ import {
 import {
   regyfitMemberDirectoryPageSchema,
   regyfitMemberRecordSchema,
+  revealRegyfitRecordFieldInputSchema,
+  revealRegyfitRecordFieldResultSchema,
   type RegyfitMemberDirectoryPage,
   type RegyfitMemberRecord,
+  type RegyfitRevealableField,
+  type RevealRegyfitRecordFieldInput,
 } from "@bpt-jersey/domain/members/regyfit-records";
 
 import { getFirebaseFunctions } from "./firebase-client";
@@ -41,6 +45,8 @@ const safeLookupError = "Unable to find member. Please try again.";
 const safeRegyfitListError = "Unable to load the academy directory. Please try again.";
 const safeRegyfitRecordError = "Unable to load the member record. Please try again.";
 const safeMemberNamesError = "The member list is unavailable. Please try again.";
+const safeRevealError = "Unable to reveal this value. Please try again.";
+const revealRateLimitedError = "Too many restricted reads. Wait five minutes and try again.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -310,6 +316,31 @@ export async function getRegyfitMemberRecord(recordId: string): Promise<RegyfitM
     return Object.freeze(parsed.data);
   } catch {
     throw new Error(safeRegyfitRecordError);
+  }
+}
+
+export async function revealRegyfitRecordField(
+  recordId: string,
+  field: RegyfitRevealableField,
+): Promise<string> {
+  const input = revealRegyfitRecordFieldInputSchema.safeParse({
+    recordId,
+    field,
+    purpose: "regyfit-record-review",
+  });
+  if (!input.success) throw new Error(safeRevealError);
+  try {
+    const callable = httpsCallable<RevealRegyfitRecordFieldInput, unknown>(
+      getFirebaseFunctions(),
+      "revealRegyfitRecordField",
+    );
+    const result = await callable(input.data);
+    const parsed = revealRegyfitRecordFieldResultSchema.safeParse(result.data);
+    if (!parsed.success) throw new Error(safeRevealError);
+    return parsed.data.value;
+  } catch (error) {
+    const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+    throw new Error(code.endsWith("resource-exhausted") ? revealRateLimitedError : safeRevealError);
   }
 }
 
