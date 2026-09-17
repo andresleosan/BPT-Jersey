@@ -31,6 +31,7 @@ import {
   revealRegyfitRecordFieldInputSchema,
   type RevealRegyfitRecordFieldResult,
 } from "@bpt-jersey/domain/members/regyfit-records";
+import { memberProfileRequestSchema } from "@bpt-jersey/domain/members/profile";
 import { parseStudentProfileAt, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import { z } from "zod";
 import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
@@ -69,6 +70,12 @@ export type AdminDirectoryPage = Readonly<{
 export type ExactMemberLookupResult =
   Readonly<{ matched: false }> | Readonly<{ matched: true; row: AdminDirectoryRow }>;
 
+/** The canonical halves of one member record, read under the restricted-read budget (T051V2). */
+export type MemberProfileRecord = Readonly<{
+  student: StudentProfile;
+  adminProfile?: StudentAdminProfile;
+}>;
+
 type DirectoryReadCommand = Readonly<{
   actor: CanonicalMemberDirectoryActor;
   value: unknown;
@@ -79,6 +86,12 @@ export type CanonicalMemberDirectoryReadService = Readonly<{
   list: (command: DirectoryReadCommand) => Promise<AdminDirectoryPage>;
   detail: (command: DirectoryReadCommand) => Promise<MemberRecordMaintenanceDetail>;
   lookup: (command: DirectoryReadCommand) => Promise<ExactMemberLookupResult>;
+  /**
+   * The member record page's office read. Same budget, same audit action and purpose as `detail`:
+   * it exposes the same restricted fields, so it must cost the same. Unlike `detail`, a student
+   * without an admin profile is a valid record (minors enrolled without waiver blocks).
+   */
+  memberProfileRecord: (command: DirectoryReadCommand) => Promise<MemberProfileRecord>;
   /**
    * One enrolment request, in full, for the reviewer about to decide it. It lives here rather than
    * beside the enrolment queue because it is the same kind of read as a member record: the same
@@ -891,6 +904,46 @@ export function createCanonicalMemberDirectoryReadService(
           return Object.freeze({
             kind: "success",
             value: toMemberRecordMaintenanceDetail(student, profile),
+            auditResult: "completed",
+          });
+        },
+      });
+    },
+
+    async memberProfileRecord(command) {
+      requireAuthorizedActor(command.actor);
+      const now = requiredTimestamp(command.now);
+      const value = parseInput(memberProfileRequestSchema, command.value);
+      return runRestricted<MemberProfileRecord>({
+        command: Object.freeze({ ...command, now }),
+        action: "member.detail.read",
+        purpose: "member-record-maintenance",
+        dependencies,
+        operation: async (transaction) => {
+          const [studentDocument, profileDocument] = await Promise.all([
+            transaction.get(studentPath(command.actor.academyId, value.studentId)),
+            transaction.get(profilePath(command.actor.academyId, value.studentId)),
+          ]);
+          if (!studentDocument.exists) {
+            return Object.freeze({ kind: "failure", code: "not-found", auditResult: "not-found" });
+          }
+          const student = parseStudent(
+            studentDocument,
+            command.actor.academyId,
+            value.studentId,
+            now.slice(0, 10),
+          );
+          const adminProfile = parseOptionalAdminProfile(
+            profileDocument,
+            command.actor.academyId,
+            value.studentId,
+          );
+          return Object.freeze({
+            kind: "success",
+            value: Object.freeze({
+              student,
+              ...(adminProfile === undefined ? {} : { adminProfile }),
+            }),
             auditResult: "completed",
           });
         },

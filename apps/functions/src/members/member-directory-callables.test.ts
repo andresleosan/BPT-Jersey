@@ -72,6 +72,9 @@ function services(): MemberDirectoryCallableServices {
         gender: "unknown" as const,
       })),
       lookup: vi.fn(async () => ({ matched: false as const })),
+      memberProfileRecord: vi.fn(async () => {
+        throw new Error("not used by these handlers");
+      }),
       enrolmentRequestDetail: vi.fn(async () => ({
         enrolmentRequestId: "enrolment-1",
         status: "submitted" as const,
