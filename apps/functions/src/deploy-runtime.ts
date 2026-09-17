@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze({
   "@bpt-jersey/domain/audit": "../../domain/audit/audit-event.js",
+  "@bpt-jersey/domain/audit/class-history": "../../domain/audit/class-history-contracts.js",
   "@bpt-jersey/domain/consents": "../../domain/consents/consent-contracts.js",
   "@bpt-jersey/domain/consents/enrolment-waiver": "../../domain/consents/enrolment-waiver-terms.js",
   "@bpt-jersey/domain/crm": "../../domain/crm/crm-contracts.js",

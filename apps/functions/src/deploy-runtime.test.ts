@@ -192,6 +192,8 @@ describe("deploy runtime import preparation", () => {
     expect(deployedFunctions["getOperationalReport"]).toBeTypeOf("function");
     expect(deployedFunctions["prepareAggregateReportExport"]).toBeTypeOf("function");
     expect(deployedFunctions["recordCheckout"]).toBeTypeOf("function");
+    expect(deployedFunctions["listClassHistory"]).toBeTypeOf("function");
+    expect(deployedFunctions["exportClassHistoryPdf"]).toBeTypeOf("function");
     expect(getApps()).toHaveLength(1);
   }, 60_000);
 });

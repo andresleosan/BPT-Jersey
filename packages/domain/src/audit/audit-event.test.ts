@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { auditActions, parseAuditEventDraft } from "./audit-event";
+import {
+  auditActions,
+  classActorGroup,
+  isAuditIpAddress,
+  parseAuditEventDraft,
+} from "./audit-event";
 
 const common = {
   academyId: "academy-1",
@@ -211,6 +216,28 @@ describe("audit event draft contract", () => {
 
   it("accepts exact metadata-only Regyfit import evidence", () => {
     expect(parseAuditEventDraft(regyfitImport)).toEqual({ ok: true, value: regyfitImport });
+  });
+
+  it("accepts the class history read and holds it to its own purpose and vocabulary", () => {
+    const draft = {
+      ...common,
+      action: "class.history.read",
+      targetRef: "academies/academy-1/studentRestrictedReadLimits/admin-1",
+      purpose: "class-history-read",
+      correlationId: "class-history-audit-1",
+      result: "completed",
+    } as const;
+
+    expect(auditActions).toContain(draft.action);
+    expect(parseAuditEventDraft(draft)).toEqual({ ok: true, value: draft });
+    for (const candidate of [
+      { ...draft, purpose: "member-record-maintenance" },
+      { ...draft, targetRef: "academies/academy-1/auditEvents/event-1" },
+      { ...draft, result: "no-match" },
+      { ...draft, class: { sessionId: "session-1" } },
+    ]) {
+      expect(parseAuditEventDraft(candidate).ok).toBe(false);
+    }
   });
 
   it("accepts exact metadata-only restricted member read evidence", () => {
@@ -596,4 +623,135 @@ it("accepts waiver and consent lifecycle actions without payload or PII", () => 
       false,
     );
   }
+});
+
+const classDraft = {
+  academyId: "demo-academy",
+  actorId: "user-1",
+  action: "booking.created" as const,
+  targetRef: "academies/demo-academy/bookings/b1",
+  purpose: "class-booking-log",
+  correlationId: "b1",
+  class: {
+    studentId: "s1",
+    studentName: null,
+    sessionId: "sess1",
+    sessionStartAt: "2026-09-16T17:30:00Z",
+    programId: "gi-all-levels",
+    locationId: "town",
+  },
+  actorIp: "82.112.144.10",
+  actorRole: "adultStudent" as const,
+  actorGroup: "member" as const,
+  actorName: null,
+  source: "bpt" as const,
+};
+
+it("accepts a class booking event and keeps every field it was given", () => {
+  expect(parseAuditEventDraft(classDraft)).toEqual({ ok: true, value: classDraft });
+});
+
+it("accepts a class event for a session without programme or location", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, programId: null, locationId: null },
+  });
+  expect(result.ok).toBe(true);
+});
+
+it("rejects a class event whose IP is not an address", () => {
+  const result = parseAuditEventDraft({ ...classDraft, actorIp: "not-an-ip" });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["actorIp"], code: "AUDIT_CLASS_ACTOR_IP_INVALID" }],
+  });
+});
+
+it("rejects a class event whose actor group contradicts its actor role", () => {
+  const result = parseAuditEventDraft({ ...classDraft, actorGroup: "staff" });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["actorGroup"], code: "AUDIT_CLASS_ACTOR_GROUP_INVALID" }],
+  });
+});
+
+it("rejects a class event whose class block carries an extra field", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, email: "person@example.test" },
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["class"], code: "AUDIT_CLASS_BLOCK_INVALID" }],
+  });
+});
+
+it("accepts an imported event with no student id and a plain name", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, studentId: null, studentName: "Olivia Lewis" },
+    actorRole: "regyfit" as const,
+    actorGroup: "member" as const,
+    actorName: "Prof. Charles Tromans",
+    source: "regyfit" as const,
+  });
+  expect(result.ok).toBe(true);
+});
+
+it("still accepts an event written before this change", () => {
+  const result = parseAuditEventDraft({
+    academyId: "demo-academy",
+    actorId: "user-1",
+    action: "member.created",
+    targetRef: "academies/demo-academy/students/s1",
+    purpose: "member-record-maintenance",
+    correlationId: `write-${"a".repeat(64)}`,
+  });
+  expect(result.ok).toBe(true);
+});
+
+it("groups every role into member, staff or system", () => {
+  expect(classActorGroup("guardian")).toBe("member");
+  expect(classActorGroup("teenStudent")).toBe("member");
+  expect(classActorGroup("headCoach")).toBe("staff");
+  expect(classActorGroup("administrator")).toBe("staff");
+  expect(classActorGroup("system")).toBe("system");
+  expect(classActorGroup("regyfit")).toBe("member");
+});
+
+describe("isAuditIpAddress", () => {
+  it("accepts the IPv6 shapes a real socket hands over", () => {
+    for (const address of [
+      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+      "2001:db8:85a3::8a2e:370:7334",
+      "::1",
+      "::",
+      "fe80::1",
+      "::ffff:1.2.3.4",
+      "::ffff:0:1.2.3.4",
+      "2001:db8::192.0.2.128",
+    ]) {
+      expect(isAuditIpAddress(address), address).toBe(true);
+    }
+  });
+
+  it("rejects strings that only look like an address", () => {
+    for (const value of [
+      "ab",
+      "::::",
+      ":::",
+      "12345::1",
+      "2001:db8:::1",
+      "2001:db8::1::2",
+      "gggg::1",
+      "1.2.3.256",
+      "",
+    ]) {
+      expect(isAuditIpAddress(value), value).toBe(false);
+    }
+  });
+
+  it("still accepts a plain IPv4 address", () => {
+    expect(isAuditIpAddress("82.112.144.10")).toBe(true);
+  });
 });

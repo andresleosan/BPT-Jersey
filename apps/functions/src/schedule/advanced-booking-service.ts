@@ -15,7 +15,9 @@ import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import {
   confirmBookingInTransaction,
   readConfirmedBookingReplayInTransaction,
+  systemBookingAuditActor,
   validateBookingOfferInTransaction,
+  type BookingAuditActor,
   type BookingFirestore,
   type BookingTransaction,
 } from "./booking-transaction-service.js";
@@ -57,6 +59,8 @@ export type WaitlistStore = Readonly<{
     studentId: string;
     response: WaitlistOfferResponse;
     actorId: string;
+    /** Accepting an offer creates a booking, and that booking gets its own log line. */
+    auditActor?: BookingAuditActor;
     now?: string;
   }) => Promise<WaitlistEntryRecord>;
   listSessionWaitlist: (
@@ -876,6 +880,8 @@ export function createFirestoreWaitlistStore({
               membershipId: candidate.membershipId,
             },
             actorId,
+            actorIp: null,
+            actorRole: "system",
             now,
           });
         } catch (error) {
@@ -911,6 +917,7 @@ export function createFirestoreWaitlistStore({
     async respondToWaitlistOffer(input) {
       const academyId = segment(input.academyId, "academyId");
       const actorId = segment(input.actorId, "actorId");
+      const auditActor = input.auditActor ?? systemBookingAuditActor;
       const sessionId = segment(input.sessionId, "sessionId");
       const studentId = segment(input.studentId, "studentId");
       const now = nowValue(input.now);
@@ -1007,6 +1014,8 @@ export function createFirestoreWaitlistStore({
               membershipId: current.membershipId,
             },
             actorId,
+            actorIp: auditActor.ip,
+            actorRole: auditActor.role,
             now,
             reservationWaitlistId: current.waitlistId,
           });

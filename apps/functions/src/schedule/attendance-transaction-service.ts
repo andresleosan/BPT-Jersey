@@ -1,4 +1,4 @@
-import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+import { classActorGroup, type AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import {
@@ -77,11 +77,22 @@ export type AttendanceFirestore = Readonly<{
   runTransaction: <T>(update: (transaction: AttendanceTransaction) => Promise<T>) => Promise<T>;
 }>;
 
+/** What the class block of an attendance audit event needs to know about the session. */
+type SessionAuditFacts = Readonly<{
+  sessionId: string;
+  startAt: string;
+  status: string;
+  locationId: LocationId | null;
+  programId: string | null;
+}>;
+
 type MutationContext<Input> = Readonly<{
   academyId: string;
   input: Input;
   actorId: string;
   actorRole: ScheduleMutationActorRole;
+  /** The caller's address as the callable read it; a scheduled or system call has none. */
+  actorIp?: string | null;
   occurredAt?: string;
 }>;
 
@@ -132,24 +143,48 @@ function path(academyId: string, collection: string, id: string): string {
   return `academies/${academyId}/${collection}/${id}`;
 }
 
+/**
+ * Every attendance event carries the same class block as a booking event, so the class
+ * registrations log reads one shape for the whole life of a place in a class. The student is
+ * always a record here, so the name column stays empty; only a Regyfit import fills it.
+ */
 function auditDraft(
-  academyId: string,
-  actorId: string,
-  action:
-    | "attendance.checked_in"
-    | "attendance.corrected"
-    | "attendance.proximity_override"
-    | "student.checked_out",
-  targetRef: string,
-  correlationId: string,
+  input: Readonly<{
+    academyId: string;
+    actorId: string;
+    actorRole: ScheduleMutationActorRole;
+    actorIp: string | null;
+    action:
+      | "attendance.checked_in"
+      | "attendance.corrected"
+      | "attendance.proximity_override"
+      | "student.checked_out";
+    targetRef: string;
+    correlationId: string;
+    studentId: string;
+    session: SessionAuditFacts;
+  }>,
 ): AuditEventDraft {
   return {
-    academyId,
-    actorId,
-    action,
-    targetRef,
+    academyId: input.academyId,
+    actorId: input.actorId,
+    action: input.action,
+    targetRef: input.targetRef,
     purpose: "schedule-attendance-operation",
-    correlationId,
+    correlationId: input.correlationId,
+    class: {
+      studentId: input.studentId,
+      studentName: null,
+      sessionId: input.session.sessionId,
+      sessionStartAt: input.session.startAt,
+      programId: input.session.programId,
+      locationId: input.session.locationId,
+    },
+    actorIp: input.actorIp,
+    actorRole: input.actorRole,
+    actorGroup: classActorGroup(input.actorRole),
+    actorName: null,
+    source: "bpt",
   } as AuditEventDraft;
 }
 
@@ -202,7 +237,7 @@ function requireSession(
   academyId: string,
   sessionId: string,
   allowCompleted: boolean,
-): Readonly<{ startAt: string; status: string; locationId: LocationId | null }> {
+): SessionAuditFacts {
   const value = data(snapshot);
   if (value === undefined) return fail("not-found", "Session is unavailable");
   if (snapshot.id !== sessionId || value.sessionId !== sessionId || value.academyId !== academyId) {
@@ -221,7 +256,11 @@ function requireSession(
     typeof value.locationId === "string" && identifierPattern.test(value.locationId)
       ? value.locationId
       : null;
-  return { startAt: value.startAt, status: String(value.status), locationId };
+  const programId =
+    typeof value.programId === "string" && identifierPattern.test(value.programId)
+      ? value.programId
+      : null;
+  return { sessionId, startAt: value.startAt, status: String(value.status), locationId, programId };
 }
 
 function requireStudent(
@@ -393,20 +432,6 @@ export function createTransactionalAttendanceService(
       const overrideAuditRef = options.firestore.doc(
         path(academyId, "auditEvents", `attendance-proximity-override-${attendanceId}`),
       );
-      const draft = auditDraft(
-        academyId,
-        actorId,
-        "attendance.checked_in",
-        path(academyId, "attendance", attendanceId),
-        attendanceId,
-      );
-      const overrideDraft = auditDraft(
-        academyId,
-        actorId,
-        "attendance.proximity_override",
-        path(academyId, "attendance", attendanceId),
-        attendanceId,
-      );
 
       return options.firestore.runTransaction(async (transaction) => {
         const [sessionSnapshot, studentSnapshot, bookings, attendanceSnapshot, auditSnapshot] =
@@ -421,6 +446,28 @@ export function createTransactionalAttendanceService(
         requireStudent(studentSnapshot, academyId, studentId);
         requireConfirmedBooking(bookings, academyId, sessionId, studentId);
         const existing = storedAttendance(attendanceSnapshot, academyId, sessionId, studentId);
+        const draft = auditDraft({
+          academyId,
+          actorId,
+          actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
+          action: "attendance.checked_in",
+          targetRef: path(academyId, "attendance", attendanceId),
+          correlationId: attendanceId,
+          studentId,
+          session,
+        });
+        const overrideDraft = auditDraft({
+          academyId,
+          actorId,
+          actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
+          action: "attendance.proximity_override",
+          targetRef: path(academyId, "attendance", attendanceId),
+          correlationId: attendanceId,
+          studentId,
+          session,
+        });
 
         // The proximity signal is judged against the session's own site, and only when that site
         // has coordinates. It never blocks the check-in by itself: an out-of-radius measurement
@@ -507,13 +554,6 @@ export function createTransactionalAttendanceService(
       const auditRef = options.firestore.doc(
         path(academyId, "auditEvents", `attendance-check-in-${attendanceId}`),
       );
-      const draft = auditDraft(
-        academyId,
-        actorId,
-        "attendance.checked_in",
-        path(academyId, "attendance", attendanceId),
-        attendanceId,
-      );
 
       return options.firestore.runTransaction(async (transaction) => {
         const [sessionSnapshot, studentSnapshot, bookings, attendanceSnapshot, auditSnapshot] =
@@ -526,6 +566,17 @@ export function createTransactionalAttendanceService(
           ]);
         const session = requireSession(sessionSnapshot, academyId, sessionId, false);
         requireStudent(studentSnapshot, academyId, studentId);
+        const draft = auditDraft({
+          academyId,
+          actorId,
+          actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
+          action: "attendance.checked_in",
+          targetRef: path(academyId, "attendance", attendanceId),
+          correlationId: attendanceId,
+          studentId,
+          session,
+        });
         try {
           requireConfirmedBooking(bookings, academyId, sessionId, studentId);
         } catch (error) {
@@ -626,13 +677,6 @@ export function createTransactionalAttendanceService(
       const auditRef = options.firestore.doc(
         path(academyId, "auditEvents", `attendance-correction-${correctionId}`),
       );
-      const draft = auditDraft(
-        academyId,
-        actorId,
-        "attendance.corrected",
-        path(academyId, "attendance", canonicalId),
-        correctionId,
-      );
 
       return options.firestore.runTransaction(async (transaction) => {
         const [
@@ -650,9 +694,20 @@ export function createTransactionalAttendanceService(
           transaction.get(correctionRef),
           transaction.get(auditRef),
         ]);
-        requireSession(sessionSnapshot, academyId, sessionId, true);
+        const session = requireSession(sessionSnapshot, academyId, sessionId, true);
         requireStudent(studentSnapshot, academyId, studentId);
         requireConfirmedBooking(bookings, academyId, sessionId, studentId);
+        const draft = auditDraft({
+          academyId,
+          actorId,
+          actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
+          action: "attendance.corrected",
+          targetRef: path(academyId, "attendance", canonicalId),
+          correlationId: correctionId,
+          studentId,
+          session,
+        });
         const existingCanonical = storedAttendance(
           canonicalSnapshot,
           academyId,
@@ -739,13 +794,6 @@ export function createTransactionalAttendanceService(
       const auditRef = options.firestore.doc(
         path(academyId, "auditEvents", `student-checkout-${checkoutId}`),
       );
-      const draft = auditDraft(
-        academyId,
-        actorId,
-        "student.checked_out",
-        path(academyId, "checkouts", checkoutId),
-        checkoutId,
-      );
 
       return options.firestore.runTransaction(async (transaction) => {
         const studentSnapshot = await transaction.get(studentRef);
@@ -778,8 +826,19 @@ export function createTransactionalAttendanceService(
           transaction.get(familyRef),
           transaction.get(relationshipQuery),
         ]);
-        requireSession(sessionSnapshot, academyId, sessionId, true);
+        const session = requireSession(sessionSnapshot, academyId, sessionId, true);
         requireConfirmedBooking(bookings, academyId, sessionId, studentId);
+        const draft = auditDraft({
+          academyId,
+          actorId,
+          actorRole: context.actorRole,
+          actorIp: context.actorIp ?? null,
+          action: "student.checked_out",
+          targetRef: path(academyId, "checkouts", checkoutId),
+          correlationId: checkoutId,
+          studentId,
+          session,
+        });
         const attendance = storedAttendance(attendanceSnapshot, academyId, sessionId, studentId);
         if (
           attendance === undefined ||
