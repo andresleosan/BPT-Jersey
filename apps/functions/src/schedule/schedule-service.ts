@@ -574,7 +574,13 @@ function mergeProgramV2(current: ProgramRecord, input: UpdateProgramInput): Prog
  * that one member, and the rest of the week still copies. Anything else (a broken transaction, an
  * unreachable store) is a failure of the copy itself and must not be swallowed.
  */
-const uncopyableBookingCodes: readonly string[] = ["capacity", "financial", "ineligible"];
+const uncopyableBookingCodes: readonly string[] = [
+  "capacity",
+  "capacity-not-set",
+  "financial",
+  "ineligible",
+  "weekly-limit",
+];
 
 function refusedByBookingRules(error: unknown): boolean {
   return error instanceof BookingTransactionError && uncopyableBookingCodes.includes(error.code);

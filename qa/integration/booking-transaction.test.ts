@@ -196,6 +196,26 @@ beforeAll(async () => {
       updatedAt: "2026-01-01T00:00:00Z",
       updatedBy: "owner-1",
     }),
+    firestore.doc("academies/" + academyId + "/programs/adult-open-mat").set({
+      programId: "adult-open-mat",
+      academyId,
+      name: "Adult Open Mat",
+      ageBand: "adult",
+      discipline: "open-mat",
+      level: "all-levels",
+      active: true,
+      schemaVersion: "1",
+    }),
+    firestore.doc("academies/" + academyId + "/plans/west-adult").set({
+      ...PLAN_CATALOG.find((item) => item.planId === "west-adult")!,
+      academyId,
+      active: true,
+      schemaVersion: "1",
+      createdAt: "2026-01-01T00:00:00Z",
+      createdBy: "owner-1",
+      updatedAt: "2026-01-01T00:00:00Z",
+      updatedBy: "owner-1",
+    }),
     ...["student-1", "student-2"].flatMap((studentId, index) => [
       firestore.doc("academies/" + academyId + "/students/" + studentId).set(student(studentId)),
       firestore
@@ -299,27 +319,78 @@ describe("transactional booking against the Firestore emulator", () => {
     }
   }, 60_000);
 
-  it("never reports capacity for an unlimited session", async () => {
-    const sessionId = "session-unlimited";
-    const contenders = ["a", "b"].map((suffix) => ({
-      studentId: "unlimited-student-" + suffix,
-      membershipId: "unlimited-membership-" + suffix,
-    }));
+  it("refuses a legacy session without capacity before touching plan or locks", async () => {
+    const sessionId = "session-uncapped";
+    const contender = { studentId: "uncapped-student", membershipId: "uncapped-membership" };
     await Promise.all([
       firestore
         .doc("academies/" + academyId + "/sessions/" + sessionId)
         .set(session(sessionId, null)),
-      ...contenders.map((contender) => seedStudentMembership(contender)),
+      seedStudentMembership(contender),
     ]);
 
-    for (const contender of contenders) {
-      const booked = await store.requestBooking(
-        academyId,
-        { sessionId, studentId: contender.studentId, membershipId: contender.membershipId },
-        contender.studentId,
-      );
-      expect(booked.status).toBe("confirmed");
-    }
+    await expect(
+      store.requestBooking(academyId, { sessionId, ...contender }, contender.studentId),
+    ).rejects.toMatchObject({ code: "capacity-not-set" });
+    const lock = await firestore
+      .doc("academies/" + academyId + "/sessionCapacityStates/" + sessionId)
+      .get();
+    expect(lock.exists).toBe(false);
+  });
+
+  it("counts only classes towards the weekly limit and keeps open-mat sites per plan", async () => {
+    const member = { studentId: "west-adult-student", membershipId: "west-adult-membership" };
+    await seedStudentMembership({ ...member, planId: "west-adult" });
+    // Week of Monday 2099-08-31 (Jersey). Open mat first: if it counted, the second class would fail.
+    const rows = [
+      {
+        id: "wk-open-mat-town",
+        program: "adult-open-mat",
+        location: "town",
+        startAt: "2099-08-31T18:00:00Z",
+      },
+      {
+        id: "wk-class-1",
+        program: "adult-fundamentals",
+        location: "west",
+        startAt: "2099-09-01T18:00:00Z",
+      },
+      {
+        id: "wk-class-2",
+        program: "adult-fundamentals",
+        location: "west",
+        startAt: "2099-09-02T18:00:00Z",
+      },
+      {
+        id: "wk-class-3",
+        program: "adult-fundamentals",
+        location: "west",
+        startAt: "2099-09-03T18:00:00Z",
+      },
+      {
+        id: "wk-open-mat-west",
+        program: "adult-open-mat",
+        location: "west",
+        startAt: "2099-09-04T18:00:00Z",
+      },
+    ];
+    await Promise.all(
+      rows.map((row) =>
+        firestore.doc("academies/" + academyId + "/sessions/" + row.id).set({
+          ...session(row.id, 10, row.startAt),
+          programId: row.program,
+          locationId: row.location,
+        }),
+      ),
+    );
+    const book = (sessionId: string) =>
+      store.requestBooking(academyId, { sessionId, ...member }, member.studentId);
+
+    expect((await book("wk-open-mat-town")).status).toBe("confirmed");
+    expect((await book("wk-class-1")).status).toBe("confirmed");
+    expect((await book("wk-class-2")).status).toBe("confirmed");
+    await expect(book("wk-class-3")).rejects.toMatchObject({ code: "weekly-limit" });
+    await expect(book("wk-open-mat-west")).rejects.toMatchObject({ code: "ineligible" });
   });
 
   it("ignores a confirmed booking whose historical session was cancelled in another week", async () => {

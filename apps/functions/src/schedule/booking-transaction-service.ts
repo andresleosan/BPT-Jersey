@@ -36,7 +36,15 @@ import {
 } from "../finance/finance-service.js";
 
 type BookingErrorCode =
-  "capacity" | "conflict" | "financial" | "ineligible" | "invalid" | "not-found" | "tenant";
+  | "capacity"
+  | "capacity-not-set"
+  | "conflict"
+  | "financial"
+  | "ineligible"
+  | "invalid"
+  | "not-found"
+  | "tenant"
+  | "weekly-limit";
 
 export class BookingTransactionError extends Error {
   public constructor(
@@ -162,18 +170,19 @@ function historicalSession(
   snapshot: BookingDocumentSnapshot,
   academyId: string,
   sessionId: string,
-): Pick<SessionRecord, "startAt" | "status"> {
+): Pick<SessionRecord, "startAt" | "status" | "programId"> {
   const value = data(snapshot, "session");
   if (snapshot.id !== sessionId || value.sessionId !== sessionId || value.academyId !== academyId) {
     return invalid("tenant", "Session scope is invalid");
   }
   if (
     !["scheduled", "active", "cancelled", "completed"].includes(value.status as string) ||
+    typeof value.programId !== "string" ||
     !validDate(value.startAt)
   ) {
     return invalid("invalid", "Stored session is invalid");
   }
-  return value as Pick<SessionRecord, "startAt" | "status">;
+  return value as Pick<SessionRecord, "startAt" | "status" | "programId">;
 }
 
 function program(
@@ -371,6 +380,22 @@ function quotaId(studentId: string, week: string): string {
   return "v2:" + studentId.length + ":" + studentId + ":" + week.length + ":" + week;
 }
 
+/** Open mats never use up a weekly class place. A missing program counts as a class (fail closed). */
+async function isOpenMatProgram(
+  input: { firestore: BookingFirestore; transaction: BookingTransaction; academyId: string },
+  programId: string,
+  cache: Map<string, boolean>,
+): Promise<boolean> {
+  const cached = cache.get(programId);
+  if (cached !== undefined) return cached;
+  const snapshot = await input.transaction.get(
+    input.firestore.doc(path(input.academyId, "programs") + "/" + programId),
+  );
+  const openMat = snapshot.exists && snapshot.data()?.discipline === "open-mat";
+  cache.set(programId, openMat);
+  return openMat;
+}
+
 async function weeklyUsage(input: {
   firestore: BookingFirestore;
   transaction: BookingTransaction;
@@ -396,6 +421,7 @@ async function weeklyUsage(input: {
     return invalid("invalid", "Weekly session query limit exceeded");
   }
   let used = 0;
+  const openMatByProgram = new Map<string, boolean>();
   for (const sessionSnapshot of sessions.docs) {
     const historical = historicalSession(sessionSnapshot, input.academyId, sessionSnapshot.id);
     if (historical.status === "cancelled" || weekStart(historical.startAt) !== input.week) {
@@ -426,7 +452,7 @@ async function weeklyUsage(input: {
       existing.status === "confirmed" &&
       !input.currentIds.includes(existing.bookingId)
     ) {
-      used += 1;
+      if (!(await isOpenMatProgram(input, historical.programId, openMatByProgram))) used += 1;
     }
   }
   return used;
@@ -619,6 +645,9 @@ async function executeBookingInTransaction(
     }
     return target.existing;
   }
+  if (storedSession.capacity === null) {
+    return invalid("capacity-not-set", "Session has no capacity set");
+  }
 
   const [planSnapshot, programSnapshot] = await Promise.all([
     input.transaction.get(
@@ -674,20 +703,19 @@ async function executeBookingInTransaction(
   ) {
     return invalid("financial", "Financial access is not eligible");
   }
-  if (
-    !evaluatePlanAccess(storedPlan, {
-      participantType: audience(storedStudent, storedProgram, storedSession.startAt),
-      site: storedSession.locationId === "town" ? "Town" : "West",
-      sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
-      weeklyClassesUsed: used,
-    }).allowed
-  ) {
-    return invalid("ineligible", "Plan access is not eligible");
+  const access = evaluatePlanAccess(storedPlan, {
+    participantType: audience(storedStudent, storedProgram, storedSession.startAt),
+    site: storedSession.locationId === "town" ? "Town" : "West",
+    sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
+    weeklyClassesUsed: used,
+  });
+  if (!access.allowed) {
+    return invalid(
+      access.code === "WEEKLY_LIMIT_REACHED" ? "weekly-limit" : "ineligible",
+      "Plan access is not eligible",
+    );
   }
-  if (
-    storedSession.capacity !== null &&
-    occupied.confirmed + occupied.reserved >= storedSession.capacity
-  ) {
+  if (occupied.confirmed + occupied.reserved >= storedSession.capacity) {
     return invalid("capacity", "Session capacity reached");
   }
   if (mode === "validate-offer") return undefined;
