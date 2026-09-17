@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const projectId = "demo-bpt-jersey";
 const selfCheckInAdultEmail = "t040-adult@example.test";
+const weeklyLimitAdultEmail = "t050-adult@example.test";
 
 if (
   process.env.T096_SCHEDULE_EMULATOR_E2E !== "true" ||
@@ -103,6 +104,14 @@ run(["qa/scripts/seed-onboarding-emulator.mjs"], {
   T094_ADULT_EMAIL: selfCheckInAdultEmail,
   T094_GUARDIAN_EMAIL: "t040-unused-guardian@example.test",
 });
+// T050V2 owns a third synthetic adult because its West Adult membership must be the only current
+// one for that client.
+run(["qa/scripts/seed-onboarding-emulator.mjs"], {
+  T094_E2E_ACADEMY_ID: academyId,
+  T094_E2E_PASSWORD: password,
+  T094_ADULT_EMAIL: weeklyLimitAdultEmail,
+  T094_GUARDIAN_EMAIL: "t050-unused-guardian@example.test",
+});
 run([
   "apps/functions/scripts/member-directory-empty-initialize.mjs",
   `--academy-id=${academyId}`,
@@ -121,5 +130,6 @@ run(
     // The spec drives callables directly, so no static web server is needed.
     BASE_URL: `http://127.0.0.1:${functionsPort}`,
     T040_ADULT_EMAIL: selfCheckInAdultEmail,
+    T050_ADULT_EMAIL: weeklyLimitAdultEmail,
   },
 );
