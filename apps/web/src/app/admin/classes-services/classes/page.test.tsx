@@ -191,6 +191,51 @@ describe("Classes & Services 2.0 page", () => {
     expect(screen.getByText("14 – 20 SEP 2026")).toBeInTheDocument();
   });
 
+  it("shows past (completed) classes under Active like Regyfit, and cancelled ones only under Inactive", async () => {
+    mocks.listSessions.mockImplementation(async (query: { from: string }) =>
+      query.from.startsWith("2026-01")
+        ? yearSessions
+        : [
+            { ...townSession, status: "completed" },
+            { ...westSession, status: "cancelled", cancellationReason: "Coach away" },
+          ],
+    );
+    render(<ClassesPage />);
+    expect(
+      await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /NO GI Morning/ })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+      target: { value: "inactive" },
+    });
+    expect(screen.getByRole("button", { name: /NO GI Morning/ })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /GI All Levels Evenings/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks for the week's counts alongside its sessions and the year total only once the week is on screen", async () => {
+    let releaseWeek: (rows: readonly unknown[]) => void = () => undefined;
+    mocks.listSessions.mockImplementation((query: { from: string }) =>
+      query.from.startsWith("2026-01")
+        ? Promise.resolve(yearSessions)
+        : new Promise((resolve) => {
+            releaseWeek = resolve;
+          }),
+    );
+    render(<ClassesPage />);
+    await waitFor(() => expect(mocks.listSessions).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.listSessionBookedCounts).toHaveBeenCalledTimes(1));
+    expect(mocks.listSessions.mock.calls.some(([q]) => q.from.startsWith("2026-01"))).toBe(false);
+    releaseWeek(weekSessions);
+    expect(
+      await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.listSessions.mock.calls.some(([q]) => q.from.startsWith("2026-01"))).toBe(true),
+    );
+  });
+
   it("filters by location and by mine", async () => {
     render(<ClassesPage />);
     await screen.findByRole("button", { name: /GI All Levels Evenings/ });

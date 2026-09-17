@@ -1212,14 +1212,17 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       query: ListSessionsQuery,
     ): Promise<readonly SessionRecord[]> {
-      const snapshot = await firestore.collection(`academies/${academyId}/sessions`).get();
+      // A range on the single field startAt needs no composite index; location and program stay
+      // in memory so any combination of filters keeps working without one.
+      const snapshot = await firestore
+        .collection(`academies/${academyId}/sessions`)
+        .where("startAt", ">=", query.from)
+        .where("startAt", "<=", query.to)
+        .get();
 
       return snapshot.docs
         .map((doc) => doc.data() as SessionRecord)
         .filter((session) => {
-          if (session.startAt < query.from || session.startAt > query.to) {
-            return false;
-          }
           if (query.locationId && session.locationId !== query.locationId) {
             return false;
           }
