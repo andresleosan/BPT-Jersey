@@ -175,6 +175,16 @@ export function mapSessionRow(row, { academyId, programIdsByName, now, timezone 
 
 export function planImport({ types, rows }, { academyId, now, timezone, from, to }) {
   const programs = types.map((type) => mapType(type, academyId));
+  const namesById = new Map();
+  for (const { programId, name } of programs) {
+    const earlier = namesById.get(programId);
+    if (earlier !== undefined) {
+      throw new Error(
+        `Regyfit types "${earlier}" and "${name}" map to the same programId ${programId}`,
+      );
+    }
+    namesById.set(programId, name);
+  }
   const programIdsByName = new Map(programs.map((program) => [program.name, program.programId]));
   const seen = new Map();
   const trainers = new Set();
@@ -205,7 +215,7 @@ export function planImport({ types, rows }, { academyId, now, timezone, from, to
 
 function isLoopbackHost(value) {
   const host = value?.split(":")[0]?.toLowerCase();
-  return host === "127.0.0.1" || host === "localhost" || host === "::1";
+  return host === "127.0.0.1" || host === "localhost";
 }
 
 export function resolveTarget(env) {
@@ -214,7 +224,11 @@ export function resolveTarget(env) {
     if (!isLoopbackHost(env.FIRESTORE_EMULATOR_HOST)) {
       throw new Error("Emulator imports require FIRESTORE_EMULATOR_HOST on a loopback host");
     }
-    return { target, projectId: env.GCLOUD_PROJECT?.trim() || "demo-bpt-jersey" };
+    const projectId = env.GCLOUD_PROJECT?.trim() || "demo-bpt-jersey";
+    if (!/^demo-/u.test(projectId)) {
+      throw new Error("Emulator imports require a demo- project id");
+    }
+    return { target, projectId };
   }
   if (target === "production") {
     if (env.FIRESTORE_EMULATOR_HOST) {
