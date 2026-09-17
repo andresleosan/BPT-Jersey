@@ -213,6 +213,28 @@ describe("audit event draft contract", () => {
     expect(parseAuditEventDraft(regyfitImport)).toEqual({ ok: true, value: regyfitImport });
   });
 
+  it("accepts the class history read and holds it to its own purpose and vocabulary", () => {
+    const draft = {
+      ...common,
+      action: "class.history.read",
+      targetRef: "academies/academy-1/studentRestrictedReadLimits/admin-1",
+      purpose: "class-history-read",
+      correlationId: "class-history-audit-1",
+      result: "completed",
+    } as const;
+
+    expect(auditActions).toContain(draft.action);
+    expect(parseAuditEventDraft(draft)).toEqual({ ok: true, value: draft });
+    for (const candidate of [
+      { ...draft, purpose: "member-record-maintenance" },
+      { ...draft, targetRef: "academies/academy-1/auditEvents/event-1" },
+      { ...draft, result: "no-match" },
+      { ...draft, class: { sessionId: "session-1" } },
+    ]) {
+      expect(parseAuditEventDraft(candidate).ok).toBe(false);
+    }
+  });
+
   it("accepts exact metadata-only restricted member read evidence", () => {
     for (const draft of restrictedMemberReadDrafts) {
       expect(auditActions).toContain(draft.action);
