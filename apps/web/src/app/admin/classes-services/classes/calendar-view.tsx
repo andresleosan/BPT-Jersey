@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
-import { layoutWeek, localParts, mondayOf } from "./week-grid";
+import { layoutWeek, localParts, mondayOf, nowMarker } from "./week-grid";
 import type { GridSession, PlacedSession } from "./week-grid";
 
 export type CalendarViewProps = Readonly<{
@@ -44,6 +45,16 @@ const monthNames = [
   "November",
   "December",
 ];
+
+/** The current instant, refreshed every minute so the now line moves while the page is open. */
+function useNow(): string {
+  const [now, setNow] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date().toISOString()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
 
 function EventButton({
   session,
@@ -90,6 +101,8 @@ function DayColumn({
   hours,
   timezone,
   canEdit,
+  today,
+  nowTop,
   onOpen,
   onCreate,
 }: {
@@ -101,13 +114,15 @@ function DayColumn({
   hours: readonly number[];
   timezone: string;
   canEdit: boolean;
+  today: boolean;
+  nowTop: number | null;
   onOpen: (sessionId: string) => void;
   onCreate: (date: string, startTime: string) => void;
 }): ReactElement {
   const halfHours = (hours.length - 1) * 2;
   return (
-    <div className="cs-day">
-      <div className="cs-day-header">
+    <div className="cs-day" data-today={today ? "true" : undefined}>
+      <div className="cs-day-header" aria-current={today ? "date" : undefined}>
         <span>{label}</span>
         <span className="cs-day-counts">
           {classes} classes &middot; {registrations} registrations
@@ -115,11 +130,15 @@ function DayColumn({
       </div>
       <div
         className="cs-day-grid"
-        style={{
-          display: "grid",
-          gridTemplateRows: `repeat(${halfHours}, 1.6rem)`,
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        }}
+        style={
+          {
+            display: "grid",
+            gridTemplateRows: `repeat(${halfHours}, 1.6rem)`,
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            // The now line is painted by the grid background (see `.cs-day-grid[style*="--now"]`).
+            ...(nowTop === null ? {} : { "--now": String(nowTop) }),
+          } as CSSProperties
+        }
       >
         {Array.from({ length: halfHours }, (_, row) => {
           const hour = hours[0]! + row / 2;
@@ -172,6 +191,7 @@ function WeekOrDay({
   onlyDate: string | undefined;
 }): ReactElement {
   const layout = layoutWeek(sessions, mondayOf(weekStart), timezone, window);
+  const marker = nowMarker(useNow(), mondayOf(weekStart), timezone, window);
   const days = onlyDate ? layout.days.filter((d) => d.date === onlyDate) : layout.days;
   return (
     <div className="cs-week">
@@ -197,6 +217,8 @@ function WeekOrDay({
           hours={layout.hours}
           timezone={timezone}
           canEdit={canEdit}
+          today={marker?.date === day.date}
+          nowTop={marker?.date === day.date ? marker.top : null}
           onOpen={onOpen}
           onCreate={onCreate}
         />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayLabel, layoutWeek, mondayOf, weekDays } from "./week-grid";
+import { dayLabel, layoutWeek, mondayOf, nowMarker, weekDays } from "./week-grid";
 
 const base = {
   colour: "#F0EFFF",
@@ -147,5 +147,21 @@ describe("week grid", () => {
     );
     expect(layout.days[0]!.classes).toBe(1);
     expect(layout.days[0]!.registrations).toBe(4);
+  });
+
+  it("marks today and places the now line as a share of the visible hours, in the academy timezone", () => {
+    const window = { fromHour: 6, toHour: 24 };
+    // 14:30 in Jersey (BST, UTC+1) on Thursday 17 September.
+    expect(nowMarker("2026-09-17T13:30:00.000Z", "2026-09-14", "Europe/Jersey", window)).toEqual({
+      date: "2026-09-17",
+      top: (14.5 - 6) / 18,
+    });
+    // Before the window: today is still marked, but no line is drawn.
+    expect(nowMarker("2026-09-17T04:00:00.000Z", "2026-09-14", "Europe/Jersey", window)).toEqual({
+      date: "2026-09-17",
+      top: null,
+    });
+    // Another week on screen: nothing to mark.
+    expect(nowMarker("2026-09-24T13:30:00.000Z", "2026-09-14", "Europe/Jersey", window)).toBeNull();
   });
 });

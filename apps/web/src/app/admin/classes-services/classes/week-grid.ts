@@ -137,3 +137,22 @@ export function layoutWeek(
   });
   return Object.freeze({ days: Object.freeze(days), hours: Object.freeze(hours) });
 }
+
+/**
+ * Today's column and the height of the "now" line as a share (0–1) of the visible hours, or
+ * `top: null` when the current time is outside them. `null` when today is not in the week shown.
+ */
+export function nowMarker(
+  nowIso: string,
+  weekStart: string,
+  timezone: string,
+  window: { fromHour: number; toHour: number },
+): { date: string; top: number | null } | null {
+  const { date, hour } = localParts(nowIso, timezone);
+  if (!weekDays(weekStart).includes(date)) return null;
+  const inside = hour >= window.fromHour && hour <= window.toHour;
+  return {
+    date,
+    top: inside ? (hour - window.fromHour) / (window.toHour - window.fromHour) : null,
+  };
+}
