@@ -1,5 +1,13 @@
+import { z } from "zod";
+
 import { deriveUpcomingBirthdays } from "../birthdays/upcoming-birthday-contracts";
 import { ageInCompletedYears } from "../levels/level-contracts";
+import { currentMembershipStatuses } from "../memberships/membership-contracts";
+import { participantTypes } from "../profiles/profile-contracts";
+import {
+  adminUpdateStudentInputSchema,
+  memberRecordMaintenanceDetailSchema,
+} from "./member-directory-contracts";
 
 /**
  * T051V2 (E1): what the canonical member record derives instead of storing. Nothing here reads a
@@ -127,3 +135,111 @@ export function nextFreeMemberNumber(existing: readonly (string | undefined)[]):
   }
   return String(highest + 1);
 }
+
+export const memberRecordTabs = Object.freeze([
+  "profile",
+  "details",
+  "plan",
+  "documents",
+  "payments",
+  "classes",
+  "communication",
+  "notes",
+] as const);
+export type MemberRecordTab = (typeof memberRecordTabs)[number];
+
+const opaqueIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
+const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
+const displayText = (max: number) => z.string().min(1).max(max);
+
+export const memberProfileRequestSchema = z.strictObject({ studentId: opaqueIdSchema }).readonly();
+export type MemberProfileRequest = Readonly<z.infer<typeof memberProfileRequestSchema>>;
+
+export const birthdayBadgeSchema = z.union([
+  z.strictObject({ kind: z.literal("today") }),
+  z.strictObject({ kind: z.literal("inDays"), days: z.number().int().min(1).max(7) }),
+  z.null(),
+]);
+
+const headerShape = {
+  studentId: opaqueIdSchema,
+  fullName: displayText(160),
+  age: z.number().int().min(0).max(130).nullable(),
+  participantType: z.enum(participantTypes),
+  status: z.enum(["active", "inactive", "suspended"]),
+  birthdayBadge: birthdayBadgeSchema,
+} as const;
+
+/** What headCoach and coach receive (grill G6): no identifier of any kind. */
+export const coachMemberProfileHeaderSchema = z.strictObject(headerShape);
+
+export const memberProfileHeaderSchema = z.strictObject({
+  ...headerShape,
+  maskedMemberReference: z
+    .string()
+    .regex(/^\*{4}.{4}$/u)
+    .optional(),
+});
+export type MemberProfileHeader = Readonly<z.infer<typeof memberProfileHeaderSchema>>;
+
+export const memberProfileCardsSchema = z.strictObject({
+  memberSince: dateOnlySchema,
+  monthsAsMember: z.number().int().min(0),
+  profession: displayText(120).optional(),
+  accountManagers: z
+    .array(z.strictObject({ displayName: displayText(160), familyId: opaqueIdSchema }))
+    .max(10),
+  currentMembership: z
+    .strictObject({
+      membershipId: opaqueIdSchema,
+      planName: displayText(160),
+      status: z.enum(currentMembershipStatuses),
+      validUntil: dateOnlySchema.nullable(),
+    })
+    .nullable(),
+});
+export type MemberProfileCards = Readonly<z.infer<typeof memberProfileCardsSchema>>;
+
+/** One definition of every DETAILS field: the maintenance detail, extended in T051V2. */
+export const memberDetailsSchema = memberRecordMaintenanceDetailSchema;
+export type MemberDetails = Readonly<z.infer<typeof memberDetailsSchema>>;
+
+/** DETAILS are saved through the existing `updateMember` callable (full replacement). */
+export const updateMemberDetailsInputSchema = adminUpdateStudentInputSchema;
+export type UpdateMemberDetailsInput = Readonly<z.infer<typeof updateMemberDetailsInputSchema>>;
+
+const fullMemberProfileSchema = z.strictObject({
+  view: z.literal("full"),
+  header: memberProfileHeaderSchema,
+  cards: memberProfileCardsSchema,
+  details: memberDetailsSchema,
+  nextFreeMemberNumber: z
+    .string()
+    .regex(/^\d{1,10}$/u)
+    .optional(),
+});
+const coachMemberProfileSchema = z.strictObject({
+  view: z.literal("coach"),
+  header: coachMemberProfileHeaderSchema,
+});
+
+export const memberProfileSchema = z.discriminatedUnion("view", [
+  fullMemberProfileSchema,
+  coachMemberProfileSchema,
+]);
+export type MemberProfile = Readonly<z.infer<typeof memberProfileSchema>>;
+export type FullMemberProfile = Readonly<z.infer<typeof fullMemberProfileSchema>>;
+export type CoachMemberProfile = Readonly<z.infer<typeof coachMemberProfileSchema>>;
+
+export const memberNameSearchLimit = 20;
+
+export const memberNameSearchRequestSchema = z
+  .strictObject({ query: z.string().trim().min(2).max(80) })
+  .readonly();
+
+export const memberNameSearchResultSchema = z.strictObject({
+  members: z
+    .array(z.strictObject({ studentId: opaqueIdSchema, fullName: displayText(160) }))
+    .max(memberNameSearchLimit),
+});
+export type MemberNameSearchResult = Readonly<z.infer<typeof memberNameSearchResultSchema>>;
