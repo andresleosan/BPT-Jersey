@@ -1,0 +1,83 @@
+import type { Firestore } from "firebase-admin/firestore";
+
+import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
+import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
+import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
+import { parseUserProfile } from "@bpt-jersey/domain/profiles";
+
+import type { MemberProfileStore } from "./member-profile-service.js";
+
+const maxRelationships = 100;
+const maxMemberships = 100;
+
+/**
+ * Admin SDK reads for the member record. Every document is parsed with its domain parser and a
+ * document that does not parse is skipped: a broken guardian link must not hide the record.
+ * All queries are single-field equality or plain collection reads (no composite index).
+ */
+export function createMemberProfileFirestoreStore(firestore: Firestore): MemberProfileStore {
+  const academy = (academyId: string) => firestore.collection("academies").doc(academyId);
+  return Object.freeze({
+    async getFamily(academyId, familyId) {
+      const snapshot = await academy(academyId).collection("families").doc(familyId).get();
+      const parsed = snapshot.exists ? parseFamilyRecord(snapshot.data()) : undefined;
+      return parsed?.ok === true && parsed.value.academyId === academyId ? parsed.value : undefined;
+    },
+    async listStudentRelationships(academyId, studentId) {
+      const snapshot = await academy(academyId)
+        .collection("relationships")
+        .where("studentId", "==", studentId)
+        .limit(maxRelationships)
+        .get();
+      return snapshot.docs.flatMap((document) => {
+        const parsed = parseFamilyRelationship(document.data());
+        return parsed.ok && parsed.value.relationshipId === document.id ? [parsed.value] : [];
+      });
+    },
+    async getUserDisplayName(academyId, userId) {
+      const snapshot = await academy(academyId).collection("users").doc(userId).get();
+      const parsed = snapshot.exists ? parseUserProfile(snapshot.data()) : undefined;
+      return parsed?.ok === true ? parsed.value.displayName : undefined;
+    },
+    async listStudentMemberships(academyId, studentId) {
+      const snapshot = await academy(academyId)
+        .collection("memberships")
+        .where("studentId", "==", studentId)
+        .limit(maxMemberships)
+        .get();
+      return snapshot.docs.flatMap((document) => {
+        const parsed = parseMembershipRecord(document.data());
+        return parsed.ok && parsed.value.academyId === academyId ? [parsed.value] : [];
+      });
+    },
+    async getPlanDisplayName(academyId, planId) {
+      const snapshot = await academy(academyId).collection("plans").doc(planId).get();
+      const parsed = snapshot.exists ? parsePlanRecord(snapshot.data()) : undefined;
+      return parsed?.ok === true ? parsed.value.displayName : undefined;
+    },
+    async listMembershipNumbers(academyId, limit) {
+      const snapshot = await academy(academyId)
+        .collection("studentAdminProfiles")
+        .select("membershipNumber")
+        .limit(limit)
+        .get();
+      return snapshot.docs.map((document) => {
+        const value = document.get("membershipNumber") as unknown;
+        return typeof value === "string" ? value : undefined;
+      });
+    },
+    async listStudentNames(academyId, limit) {
+      const snapshot = await academy(academyId)
+        .collection("students")
+        .select("fullName")
+        .limit(limit)
+        .get();
+      return snapshot.docs.flatMap((document) => {
+        const fullName = document.get("fullName") as unknown;
+        return typeof fullName === "string" && fullName.trim().length > 0
+          ? [{ studentId: document.id, fullName: fullName.trim() }]
+          : [];
+      });
+    },
+  });
+}
