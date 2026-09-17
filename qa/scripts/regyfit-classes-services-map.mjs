@@ -119,10 +119,16 @@ function rowParts(row) {
   const [, , , rawTitle, location, trainer, dateText, range, , , registrations] = row.cells;
   const times = /^(\d{2}:\d{2}) - (\d{2}:\d{2})$/u.exec(range.trim());
   if (!times) throw new Error(`Unparseable time range "${range}" (row ${row.id})`);
+  // Co-taught classes list their trainers in one cell, joined by ", ".
+  const trainers = trainer
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
+  if (trainers.length === 0) throw new Error(`No trainer (row ${row.id})`);
   return {
     title: rawTitle.replace(/\s+AULA$/u, "").trim(),
     location,
-    trainer: trainer.trim(),
+    trainers,
     date: parseRegyfitDate(dateText),
     start: times[1],
     end: times[2],
@@ -141,7 +147,7 @@ export function mapSessionRow(row, { academyId, programIdsByName, now, timezone 
   if (capacity !== null && !(Number.isInteger(capacity) && capacity > 0)) {
     throw new Error(`Unparseable capacity "${parts.registrations}" (row ${row.id})`);
   }
-  const instructorId = trainerKeyFor(parts.trainer);
+  const instructorIds = [...new Set(parts.trainers.map(trainerKeyFor))];
   const endAt = zonedIso(parts.date, parts.end, timezone);
   return {
     sessionId: `regyfit-${row.id.replace(/^feed_aula/u, "")}`,
@@ -149,8 +155,8 @@ export function mapSessionRow(row, { academyId, programIdsByName, now, timezone 
     classId: null,
     programId,
     locationId,
-    instructorId,
-    instructorIds: [instructorId],
+    instructorId: instructorIds[0],
+    instructorIds,
     title: parts.title,
     startAt: zonedIso(parts.date, parts.start, timezone),
     endAt,
@@ -186,13 +192,13 @@ export function planImport({ types, rows }, { academyId, now, timezone, from, to
       continue;
     }
     seen.set(row.id, row.cells);
-    const { date, trainer } = rowParts(row);
+    const { date, trainers: rowTrainers } = rowParts(row);
     if ((from && date < from) || (to && date > to)) {
       outsideWindow += 1;
       continue;
     }
     sessions.push(mapSessionRow(row, { academyId, programIdsByName, now, timezone }));
-    trainers.add(trainer);
+    for (const name of rowTrainers) trainers.add(name);
   }
   return { programs, sessions, trainers: [...trainers].sort(), outsideWindow, duplicates };
 }
