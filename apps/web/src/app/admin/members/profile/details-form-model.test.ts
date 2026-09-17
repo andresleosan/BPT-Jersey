@@ -157,5 +157,9 @@ describe("DETAILS form model", () => {
     expect(idExpiryNotice("2026-10-17", "2026-09-17")).toEqual({ kind: "soon", days: 30 });
     expect(idExpiryNotice("2026-10-18", "2026-09-17")).toBeNull();
     expect(idExpiryNotice("", "2026-09-17")).toBeNull();
+    // A half-typed date still parses as an instant, so only the date-only shape keeps the notice
+    // quiet while the admin types.
+    expect(idExpiryNotice("2026-09", "2026-09-17")).toBeNull();
+    expect(idExpiryNotice("2026", "2026-09-17")).toBeNull();
   });
 });
