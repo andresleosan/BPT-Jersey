@@ -248,9 +248,13 @@ function MembershipContent() {
                         </article>
                       ))}
                     </div>
-                    <p className="client-destination-intro">
-                      Open mats don&apos;t count towards your weekly classes.
-                    </p>
+                    {eligiblePlans.some(
+                      (plan) => plan.weeklyClassLimit !== null && plan.openMatSites.length > 0,
+                    ) ? (
+                      <p className="client-destination-intro">
+                        Open mats don&apos;t count towards your weekly classes.
+                      </p>
+                    ) : null}
                   </>
                 )}
               </section>
