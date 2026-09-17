@@ -71,6 +71,7 @@ const maya: CalendarParticipant = {
   participantType: "teens",
   planClassSites: ["Town"],
   planOpenMatSites: ["Town"],
+  weeklyClassLimit: 2,
 };
 const leo: CalendarParticipant = {
   studentId: "leo",
@@ -80,6 +81,7 @@ const leo: CalendarParticipant = {
   participantType: "kids",
   planClassSites: ["West"],
   planOpenMatSites: ["Town"],
+  weeklyClassLimit: 2,
 };
 const sam: CalendarParticipant = {
   studentId: "sam",
@@ -89,6 +91,7 @@ const sam: CalendarParticipant = {
   participantType: "teens",
   planClassSites: ["Town"],
   planOpenMatSites: ["Town"],
+  weeklyClassLimit: 2,
 };
 const alex: CalendarParticipant = {
   studentId: "alex",
@@ -98,6 +101,7 @@ const alex: CalendarParticipant = {
   participantType: "adult",
   planClassSites: ["Town", "West"],
   planOpenMatSites: ["Town", "West"],
+  weeklyClassLimit: null,
 };
 const members: Readonly<Record<CalendarRole, CalendarMember>> = Object.freeze({
   guardian: { role: "guardian", displayName: "Jordan Demo", participants: [maya, leo] },

@@ -9,6 +9,7 @@ import {
   deriveSessionStatus,
   formatDayHeading,
   formatSessionTimeRange,
+  jerseyWeekKey,
   lockedReasonLabel,
   memberGroupLabel,
   nextOffset,
@@ -181,6 +182,7 @@ const maya: CalendarMemberContext = {
   participantType: "teens",
   planClassSites: ["Town"],
   planOpenMatSites: ["Town"],
+  weeklyClassLimit: 2,
 };
 
 const booking: BookingRecord = {
@@ -326,6 +328,44 @@ describe("deriveSessionStatus", () => {
         bookedCount: 0,
       }).status,
     ).toBe("locked");
+  });
+  it("locks a class once the weekly class limit is used, but never an open mat or a booked class", () => {
+    expect(deriveSessionStatus({ ...base, weeklyClassesBooked: 2 })).toEqual({
+      status: "locked",
+      lockedReason: "weekly_limit",
+    });
+    expect(deriveSessionStatus({ ...base, weeklyClassesBooked: 1 }).status).toBe("open");
+    expect(
+      deriveSessionStatus({ ...base, program: openMatProgram, weeklyClassesBooked: 2 }).status,
+    ).toBe("open");
+    expect(deriveSessionStatus({ ...base, booking, weeklyClassesBooked: 2 }).status).toBe("booked");
+    expect(
+      deriveSessionStatus({
+        ...base,
+        member: { ...maya, weeklyClassLimit: null },
+        weeklyClassesBooked: 9,
+      }).status,
+    ).toBe("open");
+  });
+
+  it("closes a session that has no capacity set", () => {
+    expect(deriveSessionStatus({ ...base, session: { ...session, capacity: null } }).status).toBe(
+      "closed",
+    );
+  });
+});
+
+describe("jerseyWeekKey", () => {
+  it("returns the Jersey Monday, including late Sunday UTC that is already Monday in BST", () => {
+    expect(jerseyWeekKey("2026-09-16T17:00:00.000Z")).toBe("2026-09-14");
+    expect(jerseyWeekKey("2026-09-20T22:30:00.000Z")).toBe("2026-09-14");
+    expect(jerseyWeekKey("2026-09-20T23:30:00.000Z")).toBe("2026-09-21");
+  });
+});
+
+describe("lockedReasonLabel weekly limit", () => {
+  it("names the weekly limit", () => {
+    expect(lockedReasonLabel("weekly_limit", "Town", "teens")).toBe("Weekly class limit reached");
   });
 });
 
