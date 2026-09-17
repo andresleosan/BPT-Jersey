@@ -60,9 +60,9 @@ export const regyfitGraduationSchema = z.strictObject({
   daysProgress: canonicalText(24).optional(),
 });
 
+// The Regyfit app password is never stored or served (spec 2026-09-17 §4, decision 4).
 export const regyfitAppAccessSchema = z.strictObject({
   login: canonicalText(64).optional(),
-  password: canonicalText(64).optional(),
   logins: countSchema.optional(),
   lastLogin: canonicalText(64).optional(),
 });
@@ -228,4 +228,69 @@ export function parseRegyfitMemberDirectoryPage(
   const parsed = regyfitMemberDirectoryPageSchema.safeParse(value);
   if (!parsed.success) return err(zodIssues(parsed.error));
   return ok(Object.freeze(parsed.data) as RegyfitMemberDirectoryPage);
+}
+
+export const regyfitRevealableFields = Object.freeze([
+  "idCardNumber",
+  "healthNumber",
+  "vatNumber",
+] as const);
+export type RegyfitRevealableField = (typeof regyfitRevealableFields)[number];
+
+// ponytail: one purpose today; a second purpose also needs adding to the audit allowlist.
+export const regyfitRecordRevealPurposes = Object.freeze(["regyfit-record-review"] as const);
+export type RegyfitRecordRevealPurpose = (typeof regyfitRecordRevealPurposes)[number];
+
+export const revealRegyfitRecordFieldInputSchema = z.strictObject({
+  recordId: z.string().regex(recordIdPattern),
+  field: z.enum(regyfitRevealableFields),
+  purpose: z.enum(regyfitRecordRevealPurposes),
+});
+export type RevealRegyfitRecordFieldInput = Readonly<
+  z.infer<typeof revealRegyfitRecordFieldInputSchema>
+>;
+
+export const revealRegyfitRecordFieldResultSchema = z.strictObject({
+  value: canonicalText(64),
+});
+export type RevealRegyfitRecordFieldResult = Readonly<
+  z.infer<typeof revealRegyfitRecordFieldResultSchema>
+>;
+
+const maskPrefix = "•••";
+
+export function maskRegyfitRestrictedValue(value: string): string {
+  return value.length <= 3 ? maskPrefix : `${maskPrefix}${value.slice(-3)}`;
+}
+
+export function maskRegyfitMemberRecord(record: RegyfitMemberRecord): RegyfitMemberRecord {
+  const masked: Record<string, unknown> = { ...record };
+  for (const field of regyfitRevealableFields) {
+    const value = record[field];
+    if (value !== undefined) masked[field] = maskRegyfitRestrictedValue(value);
+  }
+  return Object.freeze(masked) as RegyfitMemberRecord;
+}
+
+function withoutKey(value: Record<string, unknown>, key: string): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).filter(([entry]) => entry !== key));
+}
+
+/**
+ * A Firestore document carries `academyId`, and records imported before 2026-09-17 still carry
+ * `appAccess.password` until the production purge runs. Both are dropped here, explicitly, so the
+ * strict schema keeps rejecting anything else instead of failing the whole panel.
+ */
+export function parseStoredRegyfitMemberRecord(
+  value: unknown,
+): Result<RegyfitMemberRecord, readonly ValidationIssue[]> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return err(Object.freeze([{ path: Object.freeze([]), code: "invalid_plain_data" }]));
+  }
+  const record = withoutKey(value as Record<string, unknown>, "academyId");
+  const access = record.appAccess;
+  if (typeof access === "object" && access !== null && !Array.isArray(access)) {
+    record.appAccess = withoutKey(access as Record<string, unknown>, "password");
+  }
+  return parseRegyfitMemberRecord(record);
 }
