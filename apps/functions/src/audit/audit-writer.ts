@@ -72,7 +72,8 @@ function storedResult(draft: AuditEventDraft): string {
   if (
     draft.action === "member.detail.read" ||
     draft.action === "member.identity.lookup" ||
-    draft.action === "enrolment.request.detail.read"
+    draft.action === "enrolment.request.detail.read" ||
+    draft.action === "class.history.read"
   ) {
     return draft.result;
   }

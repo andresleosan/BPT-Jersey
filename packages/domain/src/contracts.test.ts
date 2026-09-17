@@ -253,6 +253,7 @@ describe("domain contracts", () => {
       "booking.cancelled",
       "dropin.created",
       "dropin.cancelled",
+      "class.history.read",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

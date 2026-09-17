@@ -80,6 +80,7 @@ export const auditActions = Object.freeze([
   "booking.cancelled",
   "dropin.created",
   "dropin.cancelled",
+  "class.history.read",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -156,10 +157,19 @@ export const memberIdentityLookupAuditResults = Object.freeze([
  */
 export const enrolmentRequestDetailReadAuditResults = memberDetailReadAuditResults;
 
+/**
+ * Reading the class registrations log hands the reader every booking, cancellation and check-in of
+ * the period, with the member names and - for the roles allowed to see it - the recorded address.
+ * That is the same Confidential material a member record holds, so the read reports its outcome
+ * with the same vocabulary and is spent against the same per-actor read budget.
+ */
+export const classHistoryReadAuditResults = memberDetailReadAuditResults;
+
 export type MemberDetailReadAuditResult = (typeof memberDetailReadAuditResults)[number];
 export type EnrolmentRequestDetailReadAuditResult =
   (typeof enrolmentRequestDetailReadAuditResults)[number];
 export type MemberIdentityLookupAuditResult = (typeof memberIdentityLookupAuditResults)[number];
+export type ClassHistoryReadAuditResult = (typeof classHistoryReadAuditResults)[number];
 
 type RestrictedMemberReadAuditVariant =
   | Readonly<{
@@ -173,6 +183,10 @@ type RestrictedMemberReadAuditVariant =
   | Readonly<{
       action: "enrolment.request.detail.read";
       result: EnrolmentRequestDetailReadAuditResult;
+    }>
+  | Readonly<{
+      action: "class.history.read";
+      result: ClassHistoryReadAuditResult;
     }>;
 
 export type RestrictedMemberReadAuditEventDraft = CommonAuditEventDraft &
@@ -365,6 +379,7 @@ const restrictedReadPurposes = Object.freeze({
   "member.detail.read": "member-record-maintenance",
   "member.identity.lookup": "member-identity-lookup",
   "enrolment.request.detail.read": "enrolment-request-review",
+  "class.history.read": "class-history-read",
 } as const);
 const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.freeze({
   "admin.role.granted": commonFields,
@@ -431,6 +446,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "enrolment.request.approved": commonFields,
   "enrolment.request.approval.failed": commonFields,
   "enrolment.request.detail.read": restrictedMemberReadFields,
+  "class.history.read": restrictedMemberReadFields,
   "member.directory.initialized": commonFields,
   "booking.created": classEventFields,
   "booking.cancelled": classEventFields,
@@ -648,7 +664,8 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
     if (
       parsedAction === "member.detail.read" ||
       parsedAction === "member.identity.lookup" ||
-      parsedAction === "enrolment.request.detail.read"
+      parsedAction === "enrolment.request.detail.read" ||
+      parsedAction === "class.history.read"
     ) {
       const expectedPurpose = restrictedReadPurposes[parsedAction];
       const allowedResults: readonly string[] =
@@ -1062,6 +1079,15 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           ...base,
           action: parsedAction,
           result: snapshot.result as EnrolmentRequestDetailReadAuditResult,
+        }),
+      );
+    }
+    if (parsedAction === "class.history.read") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          result: snapshot.result as ClassHistoryReadAuditResult,
         }),
       );
     }
