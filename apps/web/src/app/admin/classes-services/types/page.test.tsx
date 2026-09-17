@@ -164,6 +164,43 @@ describe("Class / Service Types tab", () => {
     expect(screen.queryByText("GI All Levels Evenings")).not.toBeInTheDocument();
   });
 
+  it("edits name and abbreviation inline and keeps the row open when the save fails", async () => {
+    mocks.updateProgram.mockRejectedValueOnce(new Error("Unable to update the class type"));
+    mocks.updateProgram.mockImplementationOnce(async (input) => ({ ...program, ...input }));
+    render(<TypesPage />);
+    await screen.findByText("GI All Levels Evenings");
+    fireEvent.click(screen.getByRole("button", { name: "Edit GI All Levels Evenings" }));
+    fireEvent.change(screen.getByLabelText("New name of GI All Levels Evenings"), {
+      target: { value: "GI Evenings" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save GI All Levels Evenings" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to update the class type");
+    fireEvent.click(screen.getByRole("button", { name: "Save GI All Levels Evenings" }));
+    await waitFor(() =>
+      expect(mocks.updateProgram).toHaveBeenLastCalledWith({
+        programId: "p1",
+        name: "GI Evenings",
+        abbreviation: "LEV_EVE",
+      }),
+    );
+    expect(await screen.findByText("GI Evenings")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/new name of/i)).not.toBeInTheDocument();
+  });
+
+  it("sorts by name and flips direction from the header", async () => {
+    mocks.getScheduleCatalog.mockResolvedValue({ locations: [], programs: [bareProgram, program] });
+    render(<TypesPage />);
+    await screen.findByText("GI All Levels Evenings");
+    const names = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.querySelector(".types-name-title")?.textContent);
+    expect(names()).toEqual(["GI All Levels Evenings", "Open Mat"]);
+    fireEvent.click(screen.getByRole("button", { name: "Name" }));
+    expect(names()).toEqual(["Open Mat", "GI All Levels Evenings"]);
+  });
+
   it("is read-only for a coach", async () => {
     mocks.useAdminOrStaffSession.mockReturnValue({ role: "coach" });
     render(<TypesPage />);
@@ -178,5 +215,15 @@ describe("Class / Service Types tab", () => {
     ).toBeDisabled();
     expect(screen.getByLabelText(/e-mail for GI All Levels Evenings/i)).toBeDisabled();
     expect(screen.getByLabelText(/list GI All Levels Evenings/i)).toBeDisabled();
+  });
+});
+
+describe("inkOn", () => {
+  it("picks dark ink on light swatches and white on dark ones", async () => {
+    const { inkOn } = await import("./page");
+    expect(inkOn("#F0EFFF")).toBe("#1e293b");
+    expect(inkOn("#1befa2")).toBe("#1e293b");
+    expect(inkOn("#ff0000")).toBe("#1e293b");
+    expect(inkOn("#2F2483")).toBe("#ffffff");
   });
 });
