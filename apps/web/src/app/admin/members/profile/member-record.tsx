@@ -132,10 +132,35 @@ export function MemberRecord() {
   const [attempt, setAttempt] = useState(0);
   const detailsDirty = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const locationRef = useRef<RecordLocation | null>(null);
+  const activeTabRef = useRef<MemberRecordTab>("profile");
 
+  /**
+   * A history move (Back / Forward) changes the tab without passing through `selectTab`, so the
+   * unsaved-DETAILS question is asked here too. On cancel the previous entry is pushed back, which
+   * keeps the address bar and the rendered tab saying the same thing.
+   */
   useEffect(() => {
     function sync(): void {
-      setLocation(readRecordLocation(window.location.search));
+      const next = readRecordLocation(window.location.search);
+      const current = locationRef.current;
+      if (
+        current !== null &&
+        current.studentId !== null &&
+        activeTabRef.current === "details" &&
+        next.tab !== "details" &&
+        detailsDirty.current &&
+        !window.confirm(unsavedDetailsQuestion)
+      ) {
+        window.history.pushState(
+          null,
+          "",
+          recordHref(current.studentId, "details", current.manage),
+        );
+        return;
+      }
+      detailsDirty.current = false;
+      setLocation(next);
     }
     sync();
     window.addEventListener("popstate", sync);
@@ -186,6 +211,24 @@ export function MemberRecord() {
     load.status === "ready" && load.profile.view === "full" ? memberRecordTabs : ["profile"];
   const activeTab: MemberRecordTab =
     location !== null && visibleTabs.includes(location.tab) ? location.tab : "profile";
+  // The `popstate` listener is registered once, so it reads the current location through refs.
+  useEffect(() => {
+    locationRef.current = location;
+    activeTabRef.current = activeTab;
+  });
+
+  /**
+   * An unknown `?tab=`, or a tab this viewer cannot open, falls back to PROFILE. Rewrite the query
+   * so the URL names the tab actually on screen - otherwise the link stays wrong for ever, because
+   * clicking the tab it already renders does nothing.
+   */
+  useEffect(() => {
+    if (load.status !== "ready" || location === null || location.studentId === null) return;
+    const href = recordHref(location.studentId, activeTab, location.manage);
+    if (window.location.search === href.slice(href.indexOf("?"))) return;
+    window.history.replaceState(null, "", href);
+    if (location.tab !== activeTab) setLocation({ ...location, tab: activeTab });
+  }, [activeTab, load.status, location]);
 
   function selectTab(tab: MemberRecordTab): boolean {
     if (location === null || location.studentId === null || tab === activeTab) return false;
