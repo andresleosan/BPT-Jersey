@@ -44,6 +44,8 @@ Decisiones de alcance del operador (2026-09-16):
 | 13 | Importación | Plan aparte (Plan 4): script `qa/scripts/regyfit-classes-services-import.mjs` que lee `/root/regyfit-capture/data/` (nunca el repo), carga catálogo → sesiones → inscripciones → drop-ins → historial (eventos de auditoría) enlazando personas con `students` por nombre normalizado y dejando en `unmatched.json` los que no casen para revisión manual. Emulador primero; producción solo con confirmación en chat. |
 | 14 | Pruebas | Vitest por callable sobre fakes; `qa/rules` para las colecciones nuevas; Playwright `@classes-services` por pestaña (móvil y escritorio) contra el export estático en :9471 con capturas en `qa/screenshots/cs-*.png` comparadas visualmente contra las de Regyfit; `verify:mvp` verde antes de integrar. |
 
+> Nota 2026-09-17 (T050V2): el catálogo real de precios, límites (1/2/3), trimestre, open mats por sede y aforo obligatorio ya están en PLAN_CATALOG y en la reserva; T047V2 debe migrar estas reglas a planes dinámicos, no sustituirlas por los nombres de Regyfit sin revisar.
+
 Decisiones del grill-me (2026-09-16, tras la spec):
 
 | # | Tema | Decisión |
@@ -53,6 +55,8 @@ Decisiones del grill-me (2026-09-16, tras la spec):
 | 17 | Personas sin casar | Nombre sin alumno equivalente → se crea `students` archivado con `source: "regyfit"` y solo el nombre, en una lista de revisión para fusionar o borrar; retención ADR-008. El cruce usa `membershipNumber` (número de socio de Regyfit ya presente por la importación de fichas) y, si falta, el nombre normalizado. |
 | 18 | PDF | Servidor con `pdf-lib` (ya usado en `member-report-pdf.ts` y la evidencia de waivers); sustituye la vista imprimible de la decisión 12. Excel = el canal de `exports` existente. |
 | 19 | Rama | Rama nueva `feature/classes-services-clone` desde la cabeza actual de `feature/admin-classes-billing-levels` (que va cinco commits por delante de `main` con el trabajo de miembros); una sesión paralela sigue en la rama vieja. |
+
+> Nota 2026-09-17 (T050V2): el catálogo real de precios, límites (1/2/3), trimestre, open mats por sede y aforo obligatorio ya están en PLAN_CATALOG y en la reserva; T047V2 debe migrar estas reglas a planes dinámicos, no sustituirlas por los nombres de Regyfit sin revisar.
 
 ## 3. Fuera de alcance
 

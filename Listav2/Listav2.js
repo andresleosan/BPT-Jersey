@@ -792,6 +792,15 @@ const RESOLUTION_REQUIREMENTS = {
       "Ensayo completo en emulador; producción solo con confirmación del operador en chat.",
     ),
   ],
+  T050V2: [
+    requirement(
+      "Asignar aforo a las 298 sesiones importadas con capacity null (82 futuras) antes de desplegar las functions.",
+    ),
+    requirement(
+      "Desactivar town-teens y guardar en /admin/memberships cada plan marcado Differs from catalogue.",
+    ),
+    requirement("Desplegar functions y web solo con confirmación del operador en chat."),
+  ],
 };
 
 /**
@@ -1572,6 +1581,19 @@ const TASK_SURFACES = {
     "apps/web/src/app/admin/classes-services",
   ],
   T049V2: ["apps/functions/src/migrations/regyfit", "docs/data/migrations/regyfit"],
+  T050V2: [
+    "packages/domain/src/memberships",
+    "packages/domain/src/schedule",
+    "apps/functions/src/memberships",
+    "apps/functions/src/schedule",
+    "apps/web/src/app/admin/classes-services",
+    "apps/web/src/app/admin/memberships",
+    "apps/web/src/app/account",
+    "apps/web/src/app/enrol",
+    "apps/web/src/app/page.tsx",
+    "apps/web/src/lib/calendar",
+    "qa/tests/schedule-auth-emulator.spec.ts",
+  ],
   T029V2: ["apps/web/src/app/admin/members/requests/page.tsx"],
   T030V2: ["apps/functions/src/health", "apps/web/src/app/admin/members/medical"],
   T031V2: ["apps/web/src/app/admin/admin-routes.ts", "apps/web/src/app/admin/admin-shell.tsx"],
@@ -1807,6 +1829,20 @@ const classesServicesItems = [
     "T048V2",
     "Plan en docs/superpowers/plans/ (por escribir). Emulador primero; producción solo con confirmación en chat.",
     [REF_TASKS],
+    "funcion",
+  ),
+  task(
+    "T050V2",
+    "Planes y precios reales, aforo obligatorio y límite semanal solo de clases",
+    "revision",
+    "11 planes (trimestre, 3x, town-teens retirado, west-teens-payg), aforo obligatorio en sesiones y copy week, open mats fuera del límite semanal, precios públicos desde el catálogo.",
+    "T046V2",
+    "Rama feature/plans-pricing-capacity. Gate 2026-09-17 y capturas qa/screenshots/t050-*; detalle en tasksv2.md. Bloqueo de despliegue: 298 sesiones importadas sin aforo.",
+    [
+      REF_TASKS,
+      "docs/superpowers/specs/2026-09-17-plans-pricing-capacity-design.md",
+      "docs/superpowers/plans/2026-09-17-plans-pricing-capacity.md",
+    ],
     "funcion",
   ),
 ];
@@ -2384,10 +2420,7 @@ function renderResolutionBoard(resolutionList, filters = {}) {
     const note = RESOLUTION_NOTES[item.id];
     if (note) {
       const noteElement = createElement("p", undefined, "resolution-item-note");
-      noteElement.append(
-        createElement("strong", "Lo que ya sabemos: "),
-        document.createTextNode(note),
-      );
+      noteElement.append(createElement("strong", "Lo que ya sabemos: "), document.createTextNode(note));
       entry.append(noteElement);
     }
 
@@ -2398,7 +2431,10 @@ function renderResolutionBoard(resolutionList, filters = {}) {
 
       const box = createElement("span", requirement.done === true ? "X" : "", "requirement-box");
       box.setAttribute("role", "img");
-      box.setAttribute("aria-label", requirement.done === true ? "Resuelto:" : "Pendiente:");
+      box.setAttribute(
+        "aria-label",
+        requirement.done === true ? "Resuelto:" : "Pendiente:",
+      );
 
       listItem.append(box, createElement("span", requirement.text, "resolution-requirement-text"));
       list.append(listItem);
@@ -2456,9 +2492,7 @@ function renderParallelWork(item) {
   const surface = createElement("p", undefined, "parallel-surface");
   surface.append(
     createElement("span", "Toca: ", "parallel-key"),
-    document.createTextNode(
-      item.surface.length === 0 ? "no toca codigo" : item.surface.join(" · "),
-    ),
+    document.createTextNode(item.surface.length === 0 ? "no toca codigo" : item.surface.join(" · ")),
   );
   container.append(surface);
 
