@@ -3,6 +3,7 @@ import {
   parsePlanDraft,
   parsePlanRecord,
   planIds,
+  retiredPlanIds,
   type PlanDraft,
   type PlanId,
   type PlanRecord,
@@ -368,7 +369,7 @@ export function createPlanStore(dependencies: PlanStoreDependencies): PlanStore 
             const created = parseCreatedRecord({
               ...plan,
               academyId,
-              active: true,
+              active: !retiredPlanIds.includes(plan.planId),
               schemaVersion: "1",
               createdAt: now,
               createdBy: actorId,

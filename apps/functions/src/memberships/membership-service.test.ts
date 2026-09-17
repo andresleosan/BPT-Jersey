@@ -167,7 +167,7 @@ function relationship(overrides: Partial<FamilyRelationship> = {}): FamilyRelati
 
 function plan(overrides: Partial<PlanRecord> = {}): PlanRecord {
   return {
-    ...PLAN_CATALOG[7]!,
+    ...PLAN_CATALOG.find((candidate) => candidate.planId === "town-kids-1x")!,
     academyId,
     active: true,
     schemaVersion: "1",
