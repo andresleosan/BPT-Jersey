@@ -3339,7 +3339,7 @@
 
 .membership-message-warning {
   background: #fff8e6;
-  border-left: 0.35rem solid #c98b00;
+  border-left-color: #c98b00;
   color: #765400;
 }
 

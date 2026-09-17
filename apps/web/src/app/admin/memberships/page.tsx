@@ -478,11 +478,13 @@ export function MembershipsAdminPage() {
                 <h3>Configure plan</h3>
               </div>
               {differsFromCatalogue ? (
-                <div className="membership-message membership-message-warning" role="status">
-                  <p>
-                    <strong>Differs from catalogue</strong>
-                  </p>
-                  <p>{"This saved plan doesn't match the published prices and rules."}</p>
+                <div className="membership-message membership-message-warning">
+                  <div role="status">
+                    <p>
+                      <strong>Differs from catalogue</strong>
+                    </p>
+                    <p>{"This saved plan doesn't match the published prices and rules."}</p>
+                  </div>
                   <button
                     className="membership-secondary-button"
                     disabled={busy !== undefined}
