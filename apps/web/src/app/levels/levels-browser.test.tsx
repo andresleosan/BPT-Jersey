@@ -84,6 +84,45 @@ describe("LevelsBrowser Shared Component", () => {
     expect(within(list).getAllByRole("listitem")).toHaveLength(groupWithStripes!.stripes.length);
   });
 
+  it("numbers stripes from the real catalogue, where stripeNumber is always null", async () => {
+    levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+
+    render(<LevelsBrowser roleContext="admin" />);
+    await screen.findByRole("region", { name: "Belts" });
+
+    const eleven = groups.find((g) => g.stripes.length === 11)!;
+    const card = screen.getByRole("article", { name: eleven.belt.name });
+    const labels = within(within(card).getByRole("list")).getAllByRole("listitem");
+    expect(labels.map((li) => li.querySelector("strong")?.textContent)).toEqual(
+      ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th"].map(
+        (n) => `${n} stripe`,
+      ),
+    );
+    expect(screen.queryByText("0th stripe")).toBeNull();
+  });
+
+  it("keeps every technique requirement of the real catalogue visible", async () => {
+    levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
+
+    render(<LevelsBrowser roleContext="admin" />);
+    await screen.findByRole("region", { name: "Belts" });
+
+    const skills = new Map(mockProjection.skills.map((s) => [s.key, s]));
+    for (const requirement of mockProjection.requirements) {
+      const level = mockProjection.definitions.find(
+        (d) => d.definitionKey === requirement.definitionKey,
+      )!;
+      const beltKey = level.kind === "belt" ? level.definitionKey : level.parentDefinitionKey!;
+      const belt = mockProjection.definitions.find((d) => d.definitionKey === beltKey)!;
+      const card = screen.getByRole("article", { name: belt.name });
+      const label = `${skills.get(requirement.skillKey)!.displayLabel} (Min ${requirement.minimumRating}★)`;
+      expect(card.textContent).toContain(label);
+    }
+
+    const whiteKids = screen.getByRole("article", { name: "WHITE BELT KIDS 4-5 and 5-7 YO" });
+    expect(whiteKids.textContent).toContain("Techniques · Belt, 1st–4th stripe");
+  });
+
   it("filters by age group", async () => {
     levelsApi.getLevelCatalog.mockResolvedValue(mockProjection);
 
