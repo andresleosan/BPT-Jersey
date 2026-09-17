@@ -12,6 +12,10 @@
 // Production additionally requires GCLOUD_PROJECT=bptjersey-f5a25 and
 // REGYFIT_OPERATOR_CONFIRMATION=classes-services-types-sessions-production-v1, and is run only
 // after the operator confirms in chat. The capture must stay outside the repository.
+//
+// Apply is create-only: a document that already exists at a planned path is skipped, so a rerun
+// never modifies existing documents (admin edits survive). The JSON line reports `created` and
+// `skippedExisting`.
 
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -76,6 +80,8 @@ async function main() {
     },
   );
   const applied = process.env.REGYFIT_IMPORT_APPLY === "true";
+  let created = 0;
+  let skippedExisting = 0;
 
   if (applied) {
     const firestore = getFirestore(getApps()[0] ?? initializeApp({ projectId }));
@@ -83,11 +89,19 @@ async function main() {
       ...plan.programs.map((doc) => [`academies/${academyId}/programs/${doc.programId}`, doc]),
       ...plan.sessions.map((doc) => [`academies/${academyId}/sessions/${doc.sessionId}`, doc]),
     ];
-    // Deterministic ids: a rerun overwrites the same documents instead of duplicating classes.
+    // Deterministic ids and create-only writes: a rerun neither duplicates nor overwrites.
     for (let index = 0; index < writes.length; index += 400) {
+      const chunk = writes.slice(index, index + 400);
+      const snapshots = await firestore.getAll(...chunk.map(([path]) => firestore.doc(path)));
       const batch = firestore.batch();
-      for (const [path, doc] of writes.slice(index, index + 400))
-        batch.set(firestore.doc(path), doc);
+      chunk.forEach(([path, doc], position) => {
+        if (snapshots[position].exists) {
+          skippedExisting += 1;
+        } else {
+          batch.create(firestore.doc(path), doc);
+          created += 1;
+        }
+      });
       await batch.commit();
     }
   }
@@ -98,6 +112,8 @@ async function main() {
       projectId,
       academyId,
       applied,
+      created,
+      skippedExisting,
       programs: plan.programs.length,
       sessions: plan.sessions.length,
       outsideWindow: plan.outsideWindow,
