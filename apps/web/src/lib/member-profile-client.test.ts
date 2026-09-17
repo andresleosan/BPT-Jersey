@@ -127,6 +127,13 @@ describe("member profile web client", () => {
     expect(mocks.callable).not.toHaveBeenCalled();
   });
 
+  it("says a rate-limited save only needs waiting", async () => {
+    mocks.callable.mockRejectedValueOnce({ code: "functions/resource-exhausted" });
+    await expect(saveMemberDetails(detailsInput)).rejects.toThrow(
+      "Too many member changes in a few minutes. Wait a moment and try again.",
+    );
+  });
+
   it("searches by name only from two characters and parses the rows", async () => {
     await expect(searchMemberNames(" t ")).resolves.toEqual([]);
     expect(mocks.httpsCallable).not.toHaveBeenCalled();
