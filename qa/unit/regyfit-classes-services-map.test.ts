@@ -170,6 +170,29 @@ describe("mapSessionRow", () => {
     expect(session.locationId).toBe("west");
   });
 
+  it("splits a co-taught TRAINERS cell into one instructor per person", () => {
+    const session = mapSessionRow(
+      row("8", "14 Sep 2026", "06:00 - 07:00", { 5: "Synthetic Coach One, Synthetic Coach Two" }),
+      { academyId: "a", programIdsByName, now, timezone },
+    );
+    expect(session.instructorId).toBe("regyfit-trainer-synthetic-coach-one");
+    expect(session.instructorIds).toEqual([
+      "regyfit-trainer-synthetic-coach-one",
+      "regyfit-trainer-synthetic-coach-two",
+    ]);
+  });
+
+  it("refuses a row with no trainer", () => {
+    expect(() =>
+      mapSessionRow(row("9", "14 Sep 2026", "06:00 - 07:00", { 5: "" }), {
+        academyId: "a",
+        programIdsByName,
+        now,
+        timezone,
+      }),
+    ).toThrow("No trainer (row feed_aula9)");
+  });
+
   it("fails loudly on an unknown type or location rather than dropping the class", () => {
     const options = { academyId: "a", programIdsByName, now, timezone };
     expect(() =>
@@ -199,6 +222,22 @@ describe("planImport", () => {
     expect(plan.sessions.map((s) => s.sessionId)).toEqual(["regyfit-11", "regyfit-12"]);
     expect(plan.outsideWindow).toBe(2);
     expect(plan.trainers).toEqual(["Synthetic Trainer"]);
+  });
+
+  it("lists each co-teaching trainer once, by name", () => {
+    const plan = planImport(
+      {
+        types: [type()],
+        rows: [
+          row("30", "14 Sep 2026", "06:00 - 07:00", {
+            5: "Synthetic Coach One, Synthetic Coach Two",
+          }),
+          row("31", "15 Sep 2026", "06:00 - 07:00", { 5: "Synthetic Coach Two" }),
+        ],
+      },
+      { academyId: "a", now, timezone },
+    );
+    expect(plan.trainers).toEqual(["Synthetic Coach One", "Synthetic Coach Two"]);
   });
 
   it("skips an identical repeated row but refuses a conflicting one", () => {
