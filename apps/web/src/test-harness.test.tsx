@@ -23,7 +23,7 @@ describe("web test harness", () => {
     // Both training centres appear in the hero location block and again in the contact section.
     expect(screen.getAllByText("Office 9, 13 Library Place")).toHaveLength(2);
     expect(screen.getAllByText("L'Avenue de la Reine Elizabeth II")).toHaveLength(2);
-    expect(screen.getByText("£85")).toBeVisible();
+    expect(screen.getByText("£85 per month")).toBeVisible();
 
     const bookingLinks = screen.getAllByRole("link", { name: "Book a free class" });
 

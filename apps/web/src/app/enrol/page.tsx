@@ -19,6 +19,7 @@ import {
   submitEnrolmentRequest,
   withdrawEnrolmentRequest,
 } from "../../lib/enrolment-client";
+import { PlanPriceList } from "../plan-price-list";
 
 const preferenceOptions = [
   { value: "morning", label: "Morning" },
@@ -610,6 +611,12 @@ function EnrolContent() {
                 ))}
               </select>
             </label>
+            <section aria-labelledby="enrol-plans-title" className="enrol-plans">
+              <h2 className="enrol-plans-title" id="enrol-plans-title">
+                Plans at {form.trainingCenter}
+              </h2>
+              <PlanPriceList site={form.trainingCenter} />
+            </section>
             <fieldset className="enrol-preferences">
               <legend>Training times</legend>
               {preferenceOptions.map((option) => (

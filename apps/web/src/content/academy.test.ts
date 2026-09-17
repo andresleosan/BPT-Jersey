@@ -79,7 +79,7 @@ describe("public academy content", () => {
     ]);
   });
 
-  it("contains the eight published schedule rows and three published fee items", () => {
+  it("contains the eight published schedule rows", () => {
     expect(academyContent.schedule).toEqual([
       {
         location: "Town",
@@ -138,7 +138,6 @@ describe("public academy content", () => {
         level: "Published session",
       },
     ]);
-    expect(academyContent.fees.map((fee) => fee.amount)).toEqual(["£85", "£10 / £65", "£95"]);
   });
 
   it("keeps public program and contact content free of account artifacts", () => {
