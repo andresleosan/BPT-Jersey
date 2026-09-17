@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { auditActions, parseAuditEventDraft } from "./audit-event";
+import { auditActions, classActorGroup, parseAuditEventDraft } from "./audit-event";
 
 const common = {
   academyId: "academy-1",
@@ -596,4 +596,98 @@ it("accepts waiver and consent lifecycle actions without payload or PII", () => 
       false,
     );
   }
+});
+
+const classDraft = {
+  academyId: "demo-academy",
+  actorId: "user-1",
+  action: "booking.created" as const,
+  targetRef: "academies/demo-academy/bookings/b1",
+  purpose: "class-booking-log",
+  correlationId: "b1",
+  class: {
+    studentId: "s1",
+    studentName: null,
+    sessionId: "sess1",
+    sessionStartAt: "2026-09-16T17:30:00Z",
+    programId: "gi-all-levels",
+    locationId: "town",
+  },
+  actorIp: "82.112.144.10",
+  actorRole: "adultStudent" as const,
+  actorGroup: "member" as const,
+  actorName: null,
+  source: "bpt" as const,
+};
+
+it("accepts a class booking event and keeps every field it was given", () => {
+  expect(parseAuditEventDraft(classDraft)).toEqual({ ok: true, value: classDraft });
+});
+
+it("accepts a class event for a session without programme or location", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, programId: null, locationId: null },
+  });
+  expect(result.ok).toBe(true);
+});
+
+it("rejects a class event whose IP is not an address", () => {
+  const result = parseAuditEventDraft({ ...classDraft, actorIp: "not-an-ip" });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["actorIp"], code: "AUDIT_CLASS_ACTOR_IP_INVALID" }],
+  });
+});
+
+it("rejects a class event whose actor group contradicts its actor role", () => {
+  const result = parseAuditEventDraft({ ...classDraft, actorGroup: "staff" });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["actorGroup"], code: "AUDIT_CLASS_ACTOR_GROUP_INVALID" }],
+  });
+});
+
+it("rejects a class event whose class block carries an extra field", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, email: "person@example.test" },
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["class"], code: "AUDIT_CLASS_BLOCK_INVALID" }],
+  });
+});
+
+it("accepts an imported event with no student id and a plain name", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, studentId: null, studentName: "Olivia Lewis" },
+    actorRole: "regyfit" as const,
+    actorGroup: "member" as const,
+    actorName: "Prof. Charles Tromans",
+    source: "regyfit" as const,
+  });
+  expect(result.ok).toBe(true);
+});
+
+it("still accepts an event written before this change", () => {
+  const result = parseAuditEventDraft({
+    academyId: "demo-academy",
+    actorId: "user-1",
+    action: "member.created",
+    targetRef: "academies/demo-academy/students/s1",
+    purpose: "member-record-maintenance",
+    correlationId: `write-${"a".repeat(64)}`,
+  });
+  expect(result.ok).toBe(true);
+});
+
+it("groups every role into member, staff or system", () => {
+  expect(classActorGroup("guardian")).toBe("member");
+  expect(classActorGroup("teenStudent")).toBe("member");
+  expect(classActorGroup("headCoach")).toBe("staff");
+  expect(classActorGroup("administrator")).toBe("staff");
+  expect(classActorGroup("system")).toBe("system");
+  expect(classActorGroup("regyfit")).toBe("member");
 });
