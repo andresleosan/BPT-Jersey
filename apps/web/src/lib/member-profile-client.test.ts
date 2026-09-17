@@ -11,6 +11,7 @@ vi.mock("firebase/functions", () => ({ httpsCallable: mocks.httpsCallable }));
 
 import {
   MemberDetailsConflictError,
+  MemberRecordLoadError,
   getMemberProfile,
   isMemberRecordId,
   saveMemberDetails,
@@ -71,6 +72,15 @@ describe("member profile web client", () => {
     await expect(getMemberProfile("student-1")).rejects.toThrow(
       "Unable to load this member record. Please try again.",
     );
+  });
+
+  it("refuses a well-formed record that belongs to another member", async () => {
+    mocks.callable.mockResolvedValue({
+      data: { ...coachProfile, header: { ...coachProfile.header, studentId: "student-2" } },
+    });
+    const error = await getMemberProfile("student-1").catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(MemberRecordLoadError);
+    expect((error as Error).message).toBe("Unable to load this member record. Please try again.");
   });
 
   it("maps callable failures to fixed, safe messages", async () => {
