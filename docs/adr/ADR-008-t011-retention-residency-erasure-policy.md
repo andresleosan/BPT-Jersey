@@ -28,3 +28,9 @@ Costes: inventario de proveedores, DPIA, automatización de borrado y pruebas pe
 ## Gates de aceptación
 
 Enmienda 2026-09-06 (decisión del operador): se retiran de los gates el reviewer independiente y el registro JOIC. Quedan: completar la razón social del controller —forma jurídica, número de registro y domicilio—; aprobar la DPIA; resolver y firmar las diez decisiones; documentar transferencias/DPA; implementar controles de menores/salud; y pasar la matriz de pruebas. La firma que cierra es la del controller, sin contraparte que la revise.
+
+Enmienda 2026-09-17 (T011/T048V2-H): el campo `actorIp` de los eventos de auditoría de clases se
+borra a los 12 meses de escrito mediante el barrido diario `sweepClassIpRetention`
+(`apps/functions/src/audit/class-ip-retention-sweep.ts`), que limpia solo ese campo y conserva el
+evento íntegro; probado en `apps/functions/src/audit/class-ip-retention-sweep.test.ts`. Es el
+primer plazo del calendario de la sección 3 que deja de ser propuesta y pasa a ejecutarse.
