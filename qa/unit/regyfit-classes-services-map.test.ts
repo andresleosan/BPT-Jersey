@@ -266,6 +266,18 @@ describe("planImport", () => {
       ),
     ).toThrow("Regyfit row id feed_aula21 appears twice with different cells");
   });
+
+  it("refuses two types that would write the same program", () => {
+    const options = { academyId: "a", now, timezone };
+    expect(() =>
+      planImport({ types: [type(), type({ name: "Synthetic GI  Evenings!" })], rows: [] }, options),
+    ).toThrow(
+      'Regyfit types "Synthetic GI Evenings" and "Synthetic GI  Evenings!" map to the same programId regyfit-synthetic-gi-evenings',
+    );
+    expect(() => planImport({ types: [type(), type()], rows: [] }, options)).toThrow(
+      'Regyfit types "Synthetic GI Evenings" and "Synthetic GI Evenings" map to the same programId regyfit-synthetic-gi-evenings',
+    );
+  });
 });
 
 describe("resolveTarget", () => {
@@ -283,6 +295,20 @@ describe("resolveTarget", () => {
       }),
     ).toThrow("loopback");
     expect(() => resolveTarget({ REGYFIT_IMPORT_TARGET: "emulator" })).toThrow("loopback");
+  });
+
+  it("refuses an emulator import into a project id that is not demo-", () => {
+    const emulator = {
+      REGYFIT_IMPORT_TARGET: "emulator",
+      FIRESTORE_EMULATOR_HOST: "localhost:8080",
+    };
+    expect(resolveTarget({ ...emulator, GCLOUD_PROJECT: "demo-other" })).toEqual({
+      target: "emulator",
+      projectId: "demo-other",
+    });
+    expect(() => resolveTarget({ ...emulator, GCLOUD_PROJECT: "bptjersey-f5a25" })).toThrow(
+      "Emulator imports require a demo- project id",
+    );
   });
 
   it("requires the project and the operator confirmation for production", () => {
