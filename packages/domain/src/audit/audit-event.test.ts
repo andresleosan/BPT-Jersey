@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { auditActions, classActorGroup, parseAuditEventDraft } from "./audit-event";
+import {
+  auditActions,
+  classActorGroup,
+  isAuditIpAddress,
+  parseAuditEventDraft,
+} from "./audit-event";
 
 const common = {
   academyId: "academy-1",
@@ -712,4 +717,41 @@ it("groups every role into member, staff or system", () => {
   expect(classActorGroup("administrator")).toBe("staff");
   expect(classActorGroup("system")).toBe("system");
   expect(classActorGroup("regyfit")).toBe("member");
+});
+
+describe("isAuditIpAddress", () => {
+  it("accepts the IPv6 shapes a real socket hands over", () => {
+    for (const address of [
+      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+      "2001:db8:85a3::8a2e:370:7334",
+      "::1",
+      "::",
+      "fe80::1",
+      "::ffff:1.2.3.4",
+      "::ffff:0:1.2.3.4",
+      "2001:db8::192.0.2.128",
+    ]) {
+      expect(isAuditIpAddress(address), address).toBe(true);
+    }
+  });
+
+  it("rejects strings that only look like an address", () => {
+    for (const value of [
+      "ab",
+      "::::",
+      ":::",
+      "12345::1",
+      "2001:db8:::1",
+      "2001:db8::1::2",
+      "gggg::1",
+      "1.2.3.256",
+      "",
+    ]) {
+      expect(isAuditIpAddress(value), value).toBe(false);
+    }
+  });
+
+  it("still accepts a plain IPv4 address", () => {
+    expect(isAuditIpAddress("82.112.144.10")).toBe(true);
+  });
 });

@@ -121,9 +121,32 @@ export function classActorGroup(role: ClassActorRole): ClassActorGroup {
   return "member";
 }
 
-const ipv4Pattern =
-  /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/u;
-const ipv6Pattern = /^[0-9a-fA-F:]{2,45}$/u;
+const ipv4Octet = "(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
+const ipv4Address = `(?:${ipv4Octet}\\.){3}${ipv4Octet}`;
+const ipv4Pattern = new RegExp(`^${ipv4Address}$`, "u");
+const hextet = "[0-9a-fA-F]{1,4}";
+/**
+ * Real IPv6, not merely "hex digits and colons": a character class accepts "ab" and "::::" while
+ * rejecting the IPv4-mapped `::ffff:1.2.3.4` that Node's socket address yields behind a proxy, so
+ * the address would be silently dropped. Every group count of the compressed `::` forms is spelled
+ * out, and the last two alternatives carry the IPv4-mapped and IPv4-embedded shapes.
+ */
+const ipv6Pattern = new RegExp(
+  "^(?:" +
+    `(?:${hextet}:){7}${hextet}|` +
+    `(?:${hextet}:){1,7}:|` +
+    `(?:${hextet}:){1,6}:${hextet}|` +
+    `(?:${hextet}:){1,5}(?::${hextet}){1,2}|` +
+    `(?:${hextet}:){1,4}(?::${hextet}){1,3}|` +
+    `(?:${hextet}:){1,3}(?::${hextet}){1,4}|` +
+    `(?:${hextet}:){1,2}(?::${hextet}){1,5}|` +
+    `${hextet}:(?::${hextet}){1,6}|` +
+    `:(?:(?::${hextet}){1,7}|:)|` +
+    `::(?:ffff(?::0{1,4})?:)?${ipv4Address}|` +
+    `(?:${hextet}:){1,4}:${ipv4Address}` +
+    ")$",
+  "u",
+);
 
 export function isAuditIpAddress(value: unknown): value is string {
   return typeof value === "string" && (ipv4Pattern.test(value) || ipv6Pattern.test(value));
@@ -161,7 +184,9 @@ export const enrolmentRequestDetailReadAuditResults = memberDetailReadAuditResul
  * Reading the class registrations log hands the reader every booking, cancellation and check-in of
  * the period, with the member names and - for the roles allowed to see it - the recorded address.
  * That is the same Confidential material a member record holds, so the read reports its outcome
- * with the same vocabulary and is spent against the same per-actor read budget.
+ * with the same vocabulary and is anchored on the same per-actor budget document. Only the
+ * vocabulary is shared: the class history read is not counted against that budget, so its
+ * `rate-limited` result is never written.
  */
 export const classHistoryReadAuditResults = memberDetailReadAuditResults;
 
