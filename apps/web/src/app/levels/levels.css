@@ -111,10 +111,16 @@
   padding: 0 0.6rem;
 }
 .belt-tip i {
-  background: var(--gi-white);
+  background: var(--stripe);
   display: block;
   height: 1.4rem;
   width: 0.35rem;
+}
+.belt-tip b {
+  color: var(--gi-white);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 .belt-eyebrow {
   color: var(--bpt-purple);

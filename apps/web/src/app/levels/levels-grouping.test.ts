@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 
-import { beltAgeGroup, distinctBeltColors, groupBelts } from "./levels-grouping";
+import {
+  beltTipColors,
+  beltAgeGroup,
+  distinctBeltColors,
+  groupBelts,
+  ordinal,
+  stripeOrdinal,
+  techniqueSets,
+} from "./levels-grouping";
 
 function def(
   overrides: Partial<LevelDefinitionRecord> &
@@ -101,6 +109,62 @@ describe("belt grouping", () => {
     expect(beltAgeGroup({ minAge: null, maxAge: null, minClasses: null, minimumTime: null })).toBe(
       "adults",
     );
+  });
+
+  it("numbers a stripe by its position when the catalogue leaves stripeNumber null", () => {
+    const unnumbered = def({ definitionKey: "k-white-x", kind: "stripe", sequence: 4 });
+    expect(stripeOrdinal(unnumbered, 0)).toBe(1);
+    expect(stripeOrdinal(unnumbered, 10)).toBe(11);
+    expect(stripeOrdinal(whiteS2, 0)).toBe(2);
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22].map(ordinal)).toEqual([
+      "1st",
+      "2nd",
+      "3rd",
+      "4th",
+      "11th",
+      "12th",
+      "13th",
+      "21st",
+      "22nd",
+    ]);
+  });
+
+  it("shows every technique once per distinct list, naming the levels it applies to", () => {
+    const stripes = [1, 2, 3, 4, 5].map((n) =>
+      def({
+        definitionKey: `k-white-s${n}`,
+        kind: "stripe",
+        sequence: 1 + n,
+        parentDefinitionKey: "k-white",
+      }),
+    );
+    const [group] = groupBelts({ definitions: [white, ...stripes] });
+    const foundation = ["Tie The Belt (Min 2★)", "Bridges (Min 3★)"];
+    const techniques = new Map<string, readonly string[]>([
+      ["k-white", foundation],
+      ["k-white-s1", foundation],
+      ["k-white-s2", [...foundation].reverse()],
+      ["k-white-s4", foundation],
+      ["k-white-s5", ["Guard Pull (Min 3★)"]],
+    ]);
+
+    expect(techniqueSets(group!, techniques)).toEqual([
+      { appliesTo: "Belt, 1st–2nd, 4th stripe", techniques: foundation },
+      { appliesTo: "5th stripe", techniques: ["Guard Pull (Min 3★)"] },
+    ]);
+    expect(techniqueSets(group!, new Map())).toEqual([]);
+  });
+
+  it("draws stripes in the stripe colour on a tip that contrasts with the belt", () => {
+    const visual = (colors: string[]) => ({ ...white.visual, colors, stripeColor: "#ffffff" });
+    // Colours taken from the catalogue: blue, brown and black belts.
+    expect(beltTipColors(visual(["#1e96c0", "#1890ba", "#1485ac"]))).toEqual({
+      tip: "#1a1a18",
+      stripe: "#ffffff",
+    });
+    expect(beltTipColors(visual(["#6d3415", "#602d12", "#562911"])).tip).toBe("#1a1a18");
+    expect(beltTipColors(visual(["#262626", "#121212", "#000000"])).tip).toBe("#b3202a");
+    expect(beltTipColors({ ...white.visual, stripeColor: null }).stripe).toBe("#ffffff");
   });
 
   it("lists each colour once with the first belt that wears it", () => {
