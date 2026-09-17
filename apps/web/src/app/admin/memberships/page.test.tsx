@@ -192,7 +192,10 @@ describe("memberships admin page", () => {
     render(<MembershipsAdminPage />);
 
     await user.selectOptions(await screen.findByLabelText("Plan to edit"), "west-adult");
-    expect(screen.getByText("Differs from catalogue")).toBeInTheDocument();
+    const drift = screen.getByText("Differs from catalogue").closest('[role="status"]');
+    expect(drift).not.toBeNull();
+    // The live region announces the words only; the action sits outside it.
+    expect(within(drift as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Weekly class limit")).toHaveValue("none");
 
     await user.click(screen.getByRole("button", { name: "Load catalogue values" }));
