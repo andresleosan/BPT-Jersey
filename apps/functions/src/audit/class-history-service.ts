@@ -131,7 +131,11 @@ export async function readClassHistory(
     const studentId = block === null ? null : block.studentId;
     const recordName = studentId === null ? undefined : students.get(studentId);
     const studentName = recordName ?? block?.studentName ?? null;
-    const staffName = event.actorGroup === "staff" ? staffNames.get(event.actorId) : undefined;
+    // A staff actor with no matching profile (the uid never resolved to a staffKey) is shown as
+    // "Office" rather than the empty/generic wording composeClassHistorySentence would otherwise
+    // fall back to - and never as the actor's own auth uid.
+    const staffName =
+      event.actorGroup === "staff" ? (staffNames.get(event.actorId) ?? "Office") : undefined;
     const actorName = staffName ?? event.actorName;
     const sessionStartAt = session?.startAt ?? block?.sessionStartAt ?? null;
     const programId = block?.programId ?? session?.programId ?? null;
