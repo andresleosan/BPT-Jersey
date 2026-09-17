@@ -104,10 +104,14 @@ async function loadRange(
     from = end + 1;
   }
   const loaded = await Promise.all(
-    windows.map(async (window) => ({
-      sessions: await listSessions(window),
-      booked: withCounts ? await listSessionBookedCounts(window) : {},
-    })),
+    windows.map(async (window) => {
+      // Each call waits on its own App Check token, so the two reads go out together.
+      const [sessions, booked] = await Promise.all([
+        listSessions(window),
+        withCounts ? listSessionBookedCounts(window) : Promise.resolve({}),
+      ]);
+      return { sessions, booked };
+    }),
   );
   // A class that straddles a window edge can come back twice; the session id is the identity.
   const byId = new Map<string, SessionRecord>();
@@ -240,7 +244,8 @@ export function ClassesPage(): ReactElement {
   }, [catalog, range, weekStart, timezone, listRange, reload]);
 
   useEffect(() => {
-    if (catalog === null || totalRef.current !== null) return undefined;
+    // The year TOTAL is a nicety: it waits for the week to be on screen instead of competing with it.
+    if (catalog === null || loading || totalRef.current !== null) return undefined;
     let abandoned = false;
     void (async () => {
       try {
@@ -256,7 +261,7 @@ export function ClassesPage(): ReactElement {
     return () => {
       abandoned = true;
     };
-  }, [catalog, timezone, reload]);
+  }, [catalog, loading, timezone, reload]);
 
   // A class needs a trainer, and trainers come from an office-only read: no list, no creation.
   const canCreate = canEdit && staffStatus === "ready";

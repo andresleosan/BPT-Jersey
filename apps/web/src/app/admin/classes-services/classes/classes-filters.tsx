@@ -24,11 +24,14 @@ export const emptyClassFilters: ClassFilters = Object.freeze({
   status: "active",
 });
 
-/** `active` covers the two live states; `inactive` covers the two closed ones. */
+/**
+ * As on the Regyfit timetable, `active` is every class that took place or will (past ones are
+ * `completed`), and `inactive` is only what was cancelled.
+ */
 export function statusMatches(status: SessionStatus, filter: StatusFilter): boolean {
   if (filter === "all") return true;
-  const live = status === "scheduled" || status === "active";
-  return filter === "active" ? live : !live;
+  const cancelled = status === "cancelled";
+  return filter === "active" ? !cancelled : cancelled;
 }
 
 export type ClassesFiltersProps = Readonly<{
