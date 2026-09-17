@@ -1583,6 +1583,70 @@ describe("classes-services Firestore store", () => {
     };
   };
 
+  it("asks Firestore only for the sessions inside the date range instead of reading them all", async () => {
+    const calls: string[] = [];
+    const rows = [
+      {
+        sessionId: "early",
+        startAt: "2026-09-13T10:00:00.000Z",
+        locationId: "town",
+        programId: "p",
+      },
+      {
+        sessionId: "town",
+        startAt: "2026-09-15T17:30:00.000Z",
+        locationId: "town",
+        programId: "p",
+      },
+      {
+        sessionId: "west",
+        startAt: "2026-09-14T17:30:00.000Z",
+        locationId: "west",
+        programId: "p",
+      },
+    ];
+    type Filter = (row: (typeof rows)[number]) => boolean;
+    const query = (filters: Filter[]) => ({
+      where: (field: "startAt", op: ">=" | "<=", value: string) => {
+        calls.push(`where ${field} ${op} ${value}`);
+        return query([
+          ...filters,
+          (row) => (op === ">=" ? row[field] >= value : row[field] <= value),
+        ]);
+      },
+      get: async () => ({
+        docs: rows
+          .filter((row) => filters.every((keep) => keep(row)))
+          .sort((a, b) => a.startAt.localeCompare(b.startAt))
+          .map((row) => ({ id: row.sessionId, data: () => row })),
+      }),
+    });
+    const firestore = {
+      collection: (path: string) => {
+        if (path !== `academies/${academyId}/sessions`) throw new Error(`unexpected ${path}`);
+        return {
+          ...query([]),
+          get: async () => {
+            throw new Error("the whole sessions collection must not be read");
+          },
+        };
+      },
+    };
+    const store = createFirestoreScheduleStore({ firestore: firestore as never });
+
+    const sessions = await store.listSessions(academyId, {
+      from: "2026-09-14T00:00:00.000Z",
+      to: "2026-09-20T23:59:59.999Z",
+      locationId: "town",
+    });
+
+    expect(sessions.map((session) => session.sessionId)).toEqual(["town"]);
+    expect(calls).toEqual([
+      "where startAt >= 2026-09-14T00:00:00.000Z",
+      "where startAt <= 2026-09-20T23:59:59.999Z",
+    ]);
+  });
+
   it("lists a created site after the canonical ones, by id", async () => {
     const { firestore } = fakeFirestore();
     const store = createFirestoreScheduleStore({ firestore: firestore as never });
