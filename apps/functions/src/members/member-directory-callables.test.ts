@@ -86,6 +86,7 @@ function services(): MemberDirectoryCallableServices {
         submittedBy: "shopper-1",
         submittedAt: now,
       })),
+      regyfitRecordFieldReveal: vi.fn(async () => ({ value: "ID-000789" })),
     },
     isActorActive: vi.fn(async () => true),
     now: () => now,
