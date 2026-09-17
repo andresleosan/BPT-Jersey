@@ -271,12 +271,12 @@ describe("membership plan Firestore store", () => {
     ).rejects.toMatchObject({ code: "invalid" });
   });
 
-  it("seeds exactly ten catalog plans and preserves envelopes on repeat", async () => {
+  it("seeds exactly eleven catalog plans and preserves envelopes on repeat", async () => {
     const { store, records, writes } = services();
     const first = await store.seedPlanCatalog(baseInput);
-    expect(first).toHaveLength(10);
+    expect(first).toHaveLength(11);
     expect(first.map((plan) => plan.planId)).toEqual(PLAN_CATALOG.map((plan) => plan.planId));
-    expect(writes).toHaveLength(10);
+    expect(writes).toHaveLength(11);
 
     const existing = records.get("academies/academy-1/plans/payg");
     expect(existing).toBeDefined();
@@ -285,15 +285,22 @@ describe("membership plan Firestore store", () => {
       actorId: "actor-2",
       now: "2026-08-21T10:00:00.000Z",
     });
-    expect(second).toHaveLength(10);
-    expect(writes).toHaveLength(20);
-    expect(writes.slice(10).every((write) => write.startsWith("set:"))).toBe(true);
+    expect(second).toHaveLength(11);
+    expect(writes).toHaveLength(22);
+    expect(writes.slice(11).every((write) => write.startsWith("set:"))).toBe(true);
     expect(records.get("academies/academy-1/plans/payg")).toMatchObject({
       createdAt: (existing as PlanRecord).createdAt,
       createdBy: (existing as PlanRecord).createdBy,
       updatedAt: "2026-08-21T10:00:00.000Z",
       updatedBy: "actor-2",
     });
+  });
+
+  it("seeds retired catalog plans as inactive", async () => {
+    const { store } = services();
+    const seeded = await store.seedPlanCatalog(baseInput);
+    expect(seeded.find((plan) => plan.planId === "town-teens")?.active).toBe(false);
+    expect(seeded.find((plan) => plan.planId === "town-kids-2x")?.active).toBe(true);
   });
 
   it("updates stale catalog fields during seed without changing the existing envelope", async () => {

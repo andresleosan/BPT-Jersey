@@ -13,6 +13,7 @@ import {
   type PlanDraft,
   type PlanId,
   type Site,
+  type WeeklyClassLimit,
 } from "@bpt-jersey/domain/memberships";
 import {
   membershipTransitionTargets,
@@ -542,7 +543,7 @@ export function MembershipsAdminPage() {
                         weeklyClassLimit:
                           event.target.value === "none"
                             ? null
-                            : (Number(event.target.value) as 1 | 2),
+                            : (Number(event.target.value) as WeeklyClassLimit),
                       }))
                     }
                     value={planDraft.weeklyClassLimit ?? "none"}
