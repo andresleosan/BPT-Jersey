@@ -48,6 +48,20 @@ export type { AdminClaims, AdminRole, UserClaims } from "./auth/admin-contracts"
 export { auditActions, parseAuditEventDraft } from "./audit/audit-event";
 export type { AuditAction, AuditEventDraft } from "./audit/audit-event";
 export {
+  classHistoryRegistrationTypes,
+  composeClassHistorySentence,
+  isClassHistoryRegistrationType,
+  registrationTypeFilter,
+} from "./audit/class-history-contracts";
+export type {
+  ClassHistoryFilter,
+  ClassHistoryFilterSummary,
+  ClassHistoryRegistrationType,
+  ClassHistoryRow,
+  ClassHistorySentenceInput,
+  ListClassHistoryInput,
+} from "./audit/class-history-contracts";
+export {
   accessDenialReasons,
   accessOperations,
   accessScopes,
