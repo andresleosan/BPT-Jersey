@@ -123,6 +123,35 @@ describe("CalendarView", () => {
     expect(onCreate).toHaveBeenCalledWith("2026-09-14", "06:30");
   });
 
+  it("asks for a capacity on the chip of a session without one", () => {
+    const sessions: GridSession[] = [
+      {
+        ...base,
+        capacity: null,
+        sessionId: "a",
+        title: "Legacy Class",
+        startAt: "2026-09-14T16:30:00.000Z",
+        endAt: "2026-09-14T17:30:00.000Z",
+      },
+    ];
+    render(
+      <CalendarView
+        view="week"
+        weekStart="2026-09-14"
+        sessions={sessions}
+        timezone="Europe/Jersey"
+        window={window}
+        canEdit={false}
+        onOpen={noop}
+        onCreate={noop}
+        onSelectWeek={noop}
+      />,
+    );
+    const card = screen.getByRole("button", { name: /Legacy Class/ });
+    expect(card).toHaveTextContent("Set capacity");
+    expect(card).not.toHaveTextContent("∞");
+  });
+
   it("marks cancelled sessions with data-status and a textual state", () => {
     const sessions: GridSession[] = [
       {

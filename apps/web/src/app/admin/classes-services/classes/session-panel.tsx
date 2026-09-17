@@ -220,11 +220,18 @@ export function SessionPanel({
     });
   }
 
+  const capacityValue = Number(draft.capacity);
+  const capacityInvalid =
+    draft.capacity.trim() === "" ||
+    !Number.isInteger(capacityValue) ||
+    capacityValue < 1 ||
+    capacityValue > 300;
+
   async function submit(): Promise<void> {
     setBusy(true);
     setError(null);
     const { startAt, endAt } = instantsOf(draft, timezone);
-    const capacity = draft.capacity.trim() === "" ? null : Number(draft.capacity);
+    const capacity = capacityValue;
     const instructorIds = draft.trainers;
     const bookingRules = rulesOf(draft);
     try {
@@ -288,7 +295,7 @@ export function SessionPanel({
   const readOnly = !canEdit;
   const endsBeforeStart = minutesOf(draft.endTime) <= minutesOf(draft.startTime);
   const noTrainer = draft.trainers.length === 0;
-  const blocked = busy || endsBeforeStart || noTrainer;
+  const blocked = busy || endsBeforeStart || noTrainer || capacityInvalid;
 
   return (
     <dialog
@@ -381,17 +388,24 @@ export function SessionPanel({
               <input
                 id="cs-capacity"
                 type="number"
+                required
                 min={1}
                 max={300}
                 step={1}
                 value={draft.capacity}
                 disabled={readOnly}
+                aria-invalid={canEdit && capacityInvalid}
                 aria-describedby="cs-capacity-help"
                 onChange={(event) => patch({ capacity: event.target.value })}
               />
-              <small id="cs-capacity-help">Leave empty for no limit</small>
+              <small id="cs-capacity-help">Maximum people on the mat (1–300)</small>
             </div>
           </div>
+          {canEdit && capacityInvalid ? (
+            <p className="cs-notice" data-kind="error" role="alert">
+              Enter a capacity between 1 and 300
+            </p>
+          ) : null}
           <h3>Trainers</h3>
           <ul className="cs-trainers">
             {staff.map((row) => (

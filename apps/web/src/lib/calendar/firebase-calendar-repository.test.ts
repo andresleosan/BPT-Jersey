@@ -12,20 +12,19 @@ const schedule = vi.hoisted(() => ({
 }));
 const penalties = vi.hoisted(() => ({ listNoShowPenalties: vi.fn() }));
 vi.mock("../schedule-client", () => schedule);
-vi.mock("../waitlist-client", () => ({
-  listClientMemberships: vi
-    .fn()
-    .mockResolvedValue([
-      { membershipId: "m-1", studentId: "s-1", planId: "bpt-jersey-adult", status: "active" },
-    ]),
-}));
-vi.mock("../family-client", () => ({ getFamily: vi.fn() }));
+const waitlist = vi.hoisted(() => ({ listClientMemberships: vi.fn() }));
+const family = vi.hoisted(() => ({ getFamily: vi.fn() }));
+vi.mock("../waitlist-client", () => waitlist);
+vi.mock("../family-client", () => family);
 vi.mock("../no-show-penalties-client", () => penalties);
 
 import { createFirebaseCalendarRepository } from "./firebase-calendar-repository";
 
 describe("firebase calendar repository", () => {
   beforeEach(() => {
+    waitlist.listClientMemberships.mockResolvedValue([
+      { membershipId: "m-1", studentId: "s-1", planId: "bpt-jersey-adult", status: "active" },
+    ]);
     schedule.listSessions.mockResolvedValue([{ sessionId: "s1" }]);
     schedule.getScheduleCatalog.mockResolvedValue({
       locations: [],
@@ -88,6 +87,26 @@ describe("firebase calendar repository", () => {
     const member = await repo.loadMember();
     expect(member.participants).toEqual([
       expect.objectContaining({ studentId: "s-1", firstName: "Alex", participantType: "adult" }),
+    ]);
+  });
+
+  it("takes a Town Kids & Teens member's band from their birth date, with the plan's weekly limit", async () => {
+    const thirteen = `${new Date().getUTCFullYear() - 13}-01-01`;
+    waitlist.listClientMemberships.mockResolvedValue([
+      { membershipId: "m-2", studentId: "s-2", planId: "town-kids-2x", status: "active" },
+    ]);
+    family.getFamily.mockResolvedValue({
+      students: [{ studentId: "s-2", fullName: "Maya Demo", dateOfBirth: thirteen }],
+    });
+    const repo = createFirebaseCalendarRepository({ role: "guardian", displayName: "Jordan Demo" });
+    const member = await repo.loadMember();
+    expect(member.participants).toEqual([
+      expect.objectContaining({
+        studentId: "s-2",
+        firstName: "Maya",
+        participantType: "teens",
+        weeklyClassLimit: 3,
+      }),
     ]);
   });
 

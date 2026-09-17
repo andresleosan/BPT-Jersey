@@ -11,7 +11,7 @@ import type {
   ProgramRecord,
   SessionRecord,
 } from "./schedule-contracts";
-import type { ParticipantType, Site } from "../memberships/plan-contracts";
+import type { ParticipantType, Site, WeeklyClassLimit } from "../memberships/plan-contracts";
 
 export const calendarTimeZone = "Europe/Jersey";
 export const calendarMaxOffsetDays = 14;
@@ -77,6 +77,14 @@ export function dateKeyInJersey(date: Date): string {
 function splitKey(dateKey: string): [number, number, number] {
   const [year, month, day] = dateKey.split("-").map(Number);
   return [year ?? 1970, month ?? 1, day ?? 1];
+}
+
+/** Monday (YYYY-MM-DD) of the Jersey week holding `iso`; the week the booking limit counts. */
+export function jerseyWeekKey(iso: string): string {
+  const [year, month, day] = splitKey(dateKeyInJersey(new Date(iso)));
+  const noon = new Date(Date.UTC(year, month - 1, day, 12));
+  const mondayOffset = (noon.getUTCDay() + 6) % 7;
+  return new Date(noon.getTime() - mondayOffset * dayMs).toISOString().slice(0, 10);
 }
 
 /** Noon UTC of the given Jersey date key: always inside that Jersey day (UTC+0 or +1). */
@@ -214,7 +222,7 @@ export const calendarSessionStatuses = Object.freeze([
 ] as const);
 export type CalendarSessionStatus = (typeof calendarSessionStatuses)[number];
 
-export type LockedReason = "age_band" | "site" | "open_mat";
+export type LockedReason = "age_band" | "site" | "open_mat" | "weekly_limit";
 
 export type CalendarMemberContext = Readonly<{
   studentId: string;
@@ -222,6 +230,7 @@ export type CalendarMemberContext = Readonly<{
   participantType: ParticipantType;
   planClassSites: readonly Site[];
   planOpenMatSites: readonly Site[];
+  weeklyClassLimit: WeeklyClassLimit;
 }>;
 
 export type DerivedSessionStatus = Readonly<{
@@ -253,6 +262,7 @@ export function deriveSessionStatus(input: {
   booking?: BookingRecord | undefined;
   attendance?: AttendanceRecord | undefined;
   bookedCount: number;
+  weeklyClassesBooked?: number;
   now: Date;
 }): DerivedSessionStatus {
   const lockedReason = lockedReasonFor(input.session, input.program, input.member);
@@ -271,8 +281,15 @@ export function deriveSessionStatus(input: {
   const bookable =
     input.session.status === "scheduled" &&
     isWithinBookingCutoff(input.session.startAt, input.now.toISOString(), calendarCutoffMinutes);
-  if (!bookable) return Object.freeze({ status: "closed" });
-  if (input.session.capacity !== null && input.bookedCount >= input.session.capacity) {
+  if (!bookable || input.session.capacity === null) return Object.freeze({ status: "closed" });
+  if (
+    input.program.discipline !== "open-mat" &&
+    input.member.weeklyClassLimit !== null &&
+    (input.weeklyClassesBooked ?? 0) >= input.member.weeklyClassLimit
+  ) {
+    return Object.freeze({ status: "locked", lockedReason: "weekly_limit" });
+  }
+  if (input.bookedCount >= input.session.capacity) {
     return Object.freeze({ status: "full" });
   }
   return Object.freeze({ status: "open" });
@@ -334,5 +351,6 @@ export function lockedReasonLabel(
     return `${group} only`;
   }
   if (reason === "site") return `Your plan doesn't cover ${site}`;
+  if (reason === "weekly_limit") return "Weekly class limit reached";
   return `Open Mats at ${site} aren't in your plan`;
 }

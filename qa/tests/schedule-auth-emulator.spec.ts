@@ -224,12 +224,13 @@ function sessionInput(
   };
 }
 
-/** Prepares a canonical adult with an accepted waiver and an active Town membership. */
+/** Prepares a canonical adult with an accepted waiver and an active membership (Town by default). */
 async function enrolAdult(
   request: APIRequestContext,
   owner: Session,
   adult: Session,
   suffix: string,
+  plan: Readonly<{ planId: string; classSites: readonly string[] }> = townAdultPlan,
 ): Promise<Readonly<{ studentId: string; membershipId: string }>> {
   const version = await ok<{ waiverVersionId: string; contentHash: string }>(
     request,
@@ -246,7 +247,8 @@ async function enrolAdult(
       fullName,
       dateOfBirth: "1993-02-03",
       phoneNumber: "+441534000961",
-      trainingCenter: "Town",
+      // Membership creation requires the plan to cover the client's training centre.
+      trainingCenter: plan.classSites[0],
       trainingTimePreferences: ["evening"],
     },
     adult,
@@ -269,18 +271,18 @@ async function enrolAdult(
     },
     adult,
   );
-  await ok(request, "savePlan", townAdultPlan, owner);
+  await ok(request, "savePlan", plan, owner);
   const activation = await call(
     request,
     "activatePlan",
-    { planId: "town-adult" },
+    { planId: plan.planId },
     { session: owner },
   );
   expect([200, 400], JSON.stringify(activation.body)).toContain(activation.status);
   const membership = await ok<{ membershipId: string }>(
     request,
     "createMembership",
-    { studentId, planId: "town-adult", status: "active" },
+    { studentId, planId: plan.planId, status: "active" },
     owner,
   );
   return { studentId, membershipId: membership.membershipId };
@@ -1046,6 +1048,123 @@ test.describe("T096 class operations with Firebase Emulators", () => {
       403,
       "PERMISSION_DENIED",
     );
+  });
+
+  test("enforces capacity, the weekly class limit and open-mat sites for West Adult @critical", async ({
+    request,
+  }) => {
+    test.setTimeout(180_000);
+    // Weekly usage is counted per Europe/Jersey week (Monday start), as the booking service does.
+    const jerseyWeek = (iso: string) => {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Jersey",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "short",
+      }).formatToParts(new Date(iso));
+      const read = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+      const offset = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(read("weekday"));
+      return new Date(
+        Date.UTC(Number(read("year")), Number(read("month")) - 1, Number(read("day")) - offset),
+      )
+        .toISOString()
+        .slice(0, 10);
+    };
+    const starts = [4, 5, 6, 7, 8].map((hours) =>
+      new Date(Date.now() + hours * hour).toISOString(),
+    );
+    test.skip(
+      new Set(starts.map(jerseyWeek)).size !== 1,
+      "sessions would straddle a week boundary",
+    );
+
+    const owner = await signIn(request, process.env.T096_OWNER_EMAIL);
+    // A separate synthetic adult: the other adults already hold a current Town membership.
+    const adult = await signIn(request, process.env.T050_ADULT_EMAIL);
+    const suffix = randomUUID().replace(/-/gu, "").slice(0, 8).toLowerCase();
+    // West Adult: 2 classes a week at West, open mats at Town only.
+    const westAdultPlan = {
+      planId: "west-adult",
+      displayName: "West Adult",
+      priceMinor: 6_500,
+      currency: "GBP",
+      billingPeriod: "monthly",
+      eligibleParticipantTypes: ["adult"],
+      classSites: ["West"],
+      weeklyClassLimit: 2,
+      openMatSites: ["Town"],
+      openMatFeeMinor: null,
+    };
+    const { studentId, membershipId } = await enrolAdult(
+      request,
+      owner,
+      adult,
+      suffix,
+      westAdultPlan,
+    );
+
+    const program = async (name: string, discipline: string) =>
+      (
+        await ok<{ program: { programId: string } }>(
+          request,
+          "saveProgram",
+          { name: `${name} ${suffix}`, ageBand: "adult", discipline, level: "all-levels" },
+          owner,
+        )
+      ).program.programId;
+    const classes = await program("T050 Adults", "bjj");
+    const openMat = await program("T050 Open Mat", "open-mat");
+
+    // Capacity is mandatory.
+    await denied(
+      request,
+      "saveSession",
+      {
+        ...sessionInput(classes, owner.uid, "west", 4 * hour, `T050 Uncapped ${suffix}`),
+        capacity: null,
+      },
+      owner,
+      400,
+      "INVALID_ARGUMENT",
+    );
+
+    const save = async (
+      programId: string,
+      site: "town" | "west",
+      offsetHours: number,
+      title: string,
+    ) =>
+      (
+        await ok<{ session: { sessionId: string } }>(
+          request,
+          "saveSession",
+          sessionInput(programId, owner.uid, site, offsetHours * hour, `${title} ${suffix}`),
+          owner,
+        )
+      ).session.sessionId;
+    const townOpenMat = await save(openMat, "town", 4, "T050 Town open mat");
+    const class1 = await save(classes, "west", 5, "T050 West 1");
+    const class2 = await save(classes, "west", 6, "T050 West 2");
+    const class3 = await save(classes, "west", 7, "T050 West 3");
+    const westOpenMat = await save(openMat, "west", 8, "T050 West open mat");
+
+    const book = (sessionId: string) =>
+      call(request, "requestBooking", { sessionId, studentId, membershipId }, { session: adult });
+
+    // The Town open mat is booked first and does not use up a weekly class place.
+    for (const sessionId of [townOpenMat, class1, class2]) {
+      const booked = await book(sessionId);
+      expect(booked.status, JSON.stringify(booked.body)).toBe(200);
+    }
+    const limited = await book(class3);
+    expect(limited.status, JSON.stringify(limited.body)).toBe(400);
+    expect(limited.body.error?.status).toBe("FAILED_PRECONDITION");
+    expect(limited.body.error?.details?.reason).toBe("weekly-limit");
+    const refusedOpenMat = await book(westOpenMat);
+    expect(refusedOpenMat.status, JSON.stringify(refusedOpenMat.body)).toBe(400);
+    expect(refusedOpenMat.body.error?.status).toBe("FAILED_PRECONDITION");
+    expect(refusedOpenMat.body.error?.details?.reason).toBe("ineligible");
   });
 
   test("fails closed without App Check, without a session and on malformed schedule payloads @critical", async ({

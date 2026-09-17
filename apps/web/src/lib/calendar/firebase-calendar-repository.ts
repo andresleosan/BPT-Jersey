@@ -11,6 +11,7 @@
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 
 import { getFamily } from "../family-client";
+import { participantBand } from "../participant-band";
 import { listNoShowPenalties } from "../no-show-penalties-client";
 import {
   cancelBooking,
@@ -39,10 +40,17 @@ function participantFromPlan(
   membershipId: string,
   planId: string,
   name: string,
+  dateOfBirth: string | undefined,
 ): CalendarParticipant | undefined {
   const plan = PLAN_CATALOG.find((candidate) => candidate.planId === planId);
-  const participantType = plan?.eligibleParticipantTypes[0];
-  if (!plan || !participantType) return undefined;
+  if (!plan) return undefined;
+  // A plan open to several bands (Town Kids & Teens) needs the member's own band.
+  const band = dateOfBirth === undefined ? undefined : participantBand(dateOfBirth);
+  const participantType =
+    band !== undefined && plan.eligibleParticipantTypes.includes(band)
+      ? band
+      : plan.eligibleParticipantTypes[0];
+  if (!participantType) return undefined;
   return {
     studentId,
     firstName: firstName(name),
@@ -51,6 +59,7 @@ function participantFromPlan(
     participantType,
     planClassSites: plan.classSites,
     planOpenMatSites: plan.openMatSites,
+    weeklyClassLimit: plan.weeklyClassLimit,
   };
 }
 
@@ -63,10 +72,12 @@ export function createFirebaseCalendarRepository(session: {
       const memberships = await listClientMemberships();
       const current = memberships.filter((m) => m.status === "active" || m.status === "trial");
       const names = new Map<string, string>();
+      const births = new Map<string, string>();
       if (session.role === "guardian") {
         const family = await getFamily();
         for (const student of family?.students ?? []) {
           names.set(student.studentId, student.fullName);
+          births.set(student.studentId, student.dateOfBirth);
         }
       }
       const participants: CalendarParticipant[] = [];
@@ -77,6 +88,7 @@ export function createFirebaseCalendarRepository(session: {
           membership.membershipId,
           membership.planId,
           names.get(membership.studentId) ?? session.displayName,
+          births.get(membership.studentId),
         );
         if (participant) participants.push(participant);
       }

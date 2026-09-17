@@ -1,6 +1,8 @@
 import { academyContent } from "../content/academy";
 import Image from "next/image";
 
+import { PlanPriceList } from "./plan-price-list";
+
 export default function HomePage() {
   return (
     <>
@@ -144,15 +146,7 @@ export default function HomePage() {
           <div className="section-heading">
             <h2 id="fees-title">Simple ways to train</h2>
           </div>
-          <ul className="fee-list fee-grid">
-            {academyContent.fees.map((fee) => (
-              <li className="fee-card" key={fee.label}>
-                <h3>{fee.label}</h3>
-                <p className="fee-amount">{fee.amount}</p>
-                <p>{fee.detail}</p>
-              </li>
-            ))}
-          </ul>
+          <PlanPriceList />
         </section>
 
         <section className="merch-section" id="shop" aria-labelledby="shop-title">

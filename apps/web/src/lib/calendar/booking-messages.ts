@@ -13,6 +13,12 @@ export function bookingFailureMessage(error: unknown): string {
   if (code === "functions/failed-precondition" && reason === "financial") {
     return "Your account can't book right now. Contact the academy.";
   }
+  if (code === "functions/failed-precondition" && reason === "weekly-limit") {
+    return "You've used this week's classes on your plan.";
+  }
+  if (code === "functions/failed-precondition" && reason === "capacity-not-set") {
+    return "This session isn't open for booking yet.";
+  }
   if (code === "functions/failed-precondition" && reason === "ineligible") {
     return "Your membership doesn't cover this class.";
   }

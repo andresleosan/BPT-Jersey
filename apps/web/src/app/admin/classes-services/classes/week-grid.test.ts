@@ -4,7 +4,7 @@ import { dayLabel, layoutWeek, mondayOf, nowMarker, weekDays } from "./week-grid
 const base = {
   colour: "#F0EFFF",
   booked: 0,
-  capacity: null,
+  capacity: 20,
   status: "scheduled" as const,
   locationId: "town",
   programId: "p",

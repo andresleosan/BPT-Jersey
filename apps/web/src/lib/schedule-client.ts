@@ -167,12 +167,26 @@ export async function saveProgram(input: CreateProgramInput): Promise<ProgramRec
   return result.data.program;
 }
 
-async function callSafely<Req, Res>(name: string, input: Req, failure: string): Promise<Res> {
+async function callSafely<Req, Res>(
+  name: string,
+  input: Req,
+  failure: string,
+  precondition?: { reason: string; message: string },
+): Promise<Res> {
   const callable = httpsCallable<Req, Res>(getFirebaseFunctions(), name);
   try {
     return (await callable(input)).data;
-  } catch {
-    throw new Error(failure);
+  } catch (error) {
+    const isObject = typeof error === "object" && error !== null;
+    const code = isObject ? Reflect.get(error, "code") : undefined;
+    const details: unknown = isObject ? Reflect.get(error, "details") : undefined;
+    const reason =
+      typeof details === "object" && details !== null ? Reflect.get(details, "reason") : undefined;
+    const matched =
+      precondition !== undefined &&
+      code === "functions/failed-precondition" &&
+      reason === precondition.reason;
+    throw new Error(matched ? precondition.message : failure);
   }
 }
 
@@ -232,6 +246,10 @@ export async function copyWeek(input: CopyWeekInput): Promise<readonly SessionRe
       "copyWeek",
       input,
       "Unable to copy the week",
+      {
+        reason: "capacity-not-set",
+        message: "Set a capacity on every session in this week before copying it.",
+      },
     )
   ).sessions;
 }

@@ -66,10 +66,8 @@ const uniqueNonEmptyParticipantTypes = z
   .array(participantTypeSchema)
   .min(1)
   .refine((values) => new Set(values).size === values.length);
-const uniqueNonEmptySites = z
-  .array(siteSchema)
-  .min(1)
-  .refine((values) => new Set(values).size === values.length);
+const uniqueSites = z.array(siteSchema).refine((values) => new Set(values).size === values.length);
+const uniqueNonEmptySites = uniqueSites.refine((values) => values.length > 0);
 
 const planDraftSchema = z
   .object({
@@ -84,8 +82,8 @@ const planDraftSchema = z
     billingPeriod: z.enum(billingPeriods),
     eligibleParticipantTypes: uniqueNonEmptyParticipantTypes,
     classSites: uniqueNonEmptySites,
-    weeklyClassLimit: z.union([z.literal(1), z.literal(2), z.null()]),
-    openMatSites: uniqueNonEmptySites,
+    weeklyClassLimit: z.union([z.literal(1), z.literal(2), z.literal(3), z.null()]),
+    openMatSites: uniqueSites,
     openMatFeeMinor: z.number().int().nonnegative().safe().nullable(),
   })
   .strict();

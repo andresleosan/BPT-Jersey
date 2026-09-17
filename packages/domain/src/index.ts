@@ -229,8 +229,10 @@ export {
   parsePlanRecord,
   participantTypes,
   planIds,
+  retiredPlanIds,
   sessionTypes,
   siteValues,
+  weeklyClassLimits,
 } from "./memberships/plan-contracts";
 export type {
   BillingPeriod,
@@ -242,6 +244,7 @@ export type {
   PlanRecord,
   SessionType,
   Site,
+  WeeklyClassLimit,
 } from "./memberships/plan-contracts";
 
 export {
