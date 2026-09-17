@@ -48,7 +48,8 @@ const classColumns = [
   {
     key: "capacity",
     label: "Capacity",
-    render: (item: OverviewClass) => `${item.booked} / ${item.capacity ?? "∞"}`,
+    render: (item: OverviewClass) =>
+      item.capacity === null ? "Set capacity" : `${item.booked} / ${item.capacity}`,
   },
   {
     key: "status",
