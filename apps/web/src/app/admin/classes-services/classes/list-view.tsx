@@ -184,7 +184,7 @@ export function ListView({
           localParts(row.startAt, timezone).date,
           `${timeOf(row.startAt, timezone)} - ${timeOf(row.endAt, timezone)}`,
           String(row.booked),
-          row.capacity === null ? "" : String(row.capacity),
+          row.capacity === null ? "Set capacity" : String(row.capacity),
           row.status,
         ]
           .map(csvCell)
@@ -344,7 +344,7 @@ export function ListView({
                   {timeOf(row.startAt, timezone)} - {timeOf(row.endAt, timezone)}
                 </td>
                 <td data-label="Registrations">
-                  {row.booked} / {row.capacity ?? "∞"}
+                  {row.capacity === null ? "Set capacity" : `${row.booked} / ${row.capacity}`}
                 </td>
                 <td data-label="Attendance">
                   <Link href={`/admin/attendance?session=${row.sessionId}`}>Attendance</Link>

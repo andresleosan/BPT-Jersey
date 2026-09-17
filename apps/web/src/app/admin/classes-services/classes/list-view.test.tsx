@@ -80,6 +80,12 @@ describe("ListView", () => {
     vi.restoreAllMocks();
   });
 
+  it("asks for a capacity instead of showing an unlimited session", () => {
+    renderList([{ ...sessionAt(0, "Legacy class"), capacity: null }]);
+    expect(screen.getByText("Set capacity")).toBeInTheDocument();
+    expect(screen.queryByText(/∞/u)).not.toBeInTheDocument();
+  });
+
   it("neutralises a formula cell and marks the file as UTF-8", async () => {
     renderList([sessionAt(0, "=1+1")]);
     fireEvent.click(screen.getByRole("button", { name: "Excel" }));
