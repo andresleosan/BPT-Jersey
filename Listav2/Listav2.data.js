@@ -785,12 +785,18 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T050V2: [
     requirement(
-      "Asignar aforo a las 298 sesiones importadas con capacity null (82 futuras) antes de desplegar las functions.",
+      "1) Asignar aforo a las sesiones importadas con capacity null (bloqueo): 298 de 389, 82 futuras.",
     ),
+    requirement("2) Confirmar que ningún documento de sesión en producción carece de programId."),
     requirement(
-      "Desactivar town-teens y guardar en /admin/memberships cada plan marcado Differs from catalogue.",
+      "3) Desplegar functions y web juntos, solo con confirmación del operador en chat; no editar planes hasta que ambos estén en producción.",
     ),
-    requirement("Desplegar functions y web solo con confirmación del operador en chat."),
+    requirement('4) Desactivar town-teens con "Deactivate plan".'),
+    requirement("5) Crear west-teens-payg: elegirlo en el editor y guardar."),
+    requirement(
+      '6) Revisar quién tiene payg, west-adult y west-teens (guardar el catálogo les reduce acceso); después "Load catalogue values" + guardar en cada plan marcado "Differs from catalogue". Hasta entonces el calendario del socio (lee PLAN_CATALOG) y el servidor (lee el plan guardado) pueden discrepar.',
+    ),
+    requirement("7) No revertir functions tras editar planes sin restaurar antes los planes."),
   ],
 };
 
