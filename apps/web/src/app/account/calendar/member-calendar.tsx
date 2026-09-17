@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { weekRangeFor } from "@bpt-jersey/domain/schedule/classes-services";
 import {
+  calendarTimeZone,
   deriveSessionStatus,
+  jerseyWeekKey,
   nextOffset,
   prevOffset,
   visibleDays,
@@ -130,8 +133,17 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
   >({ studentId: "", names: [] });
 
   const days = useMemo(() => visibleDays({ now, viewport, offset }), [now, viewport, offset]);
-  const rangeFrom = days[0]?.startAt ?? "";
-  const rangeTo = days[days.length - 1]?.endAt ?? "";
+  const firstDay = days[0];
+  const lastDay = days[days.length - 1];
+  const loadFrom = firstDay
+    ? weekRangeFor(jerseyWeekKey(firstDay.startAt), calendarTimeZone)
+    : undefined;
+  const loadTo = lastDay
+    ? weekRangeFor(jerseyWeekKey(lastDay.startAt), calendarTimeZone)
+    : undefined;
+  // Whole Monday–Sunday weeks, so the weekly class count is right even when a phone shows two days.
+  const rangeFrom = loadFrom?.ok ? loadFrom.value.from : "";
+  const rangeTo = loadTo?.ok ? loadTo.value.to : "";
 
   useEffect(() => {
     setOffset(0);
@@ -232,7 +244,16 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
       participantType: participant.participantType,
       planClassSites: participant.planClassSites,
       planOpenMatSites: participant.planOpenMatSites,
+      weeklyClassLimit: participant.weeklyClassLimit,
     };
+    const classesBookedByWeek = new Map<string, number>();
+    for (const row of selectedWeek.sessions) {
+      const rowProgram = programs.get(row.programId);
+      if (row.status === "cancelled" || !bookings.has(row.sessionId) || !rowProgram) continue;
+      if (rowProgram.discipline === "open-mat") continue;
+      const key = jerseyWeekKey(row.startAt);
+      classesBookedByWeek.set(key, (classesBookedByWeek.get(key) ?? 0) + 1);
+    }
     const sorted = [...selectedWeek.sessions]
       .filter((s) => s.status !== "cancelled")
       .sort((a, b) => a.startAt.localeCompare(b.startAt));
@@ -248,6 +269,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
         booking,
         attendance: attendance.get(sessionRecord.sessionId),
         bookedCount: selectedWeek.bookedCounts[sessionRecord.sessionId] ?? 0,
+        weeklyClassesBooked: classesBookedByWeek.get(jerseyWeekKey(sessionRecord.startAt)) ?? 0,
         now,
       });
       const list = map.get(day.dateKey) ?? [];

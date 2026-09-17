@@ -193,4 +193,28 @@ describe("account classes", () => {
     );
     expect(screen.queryByText("private capacity internals")).not.toBeInTheDocument();
   });
+
+  it.each([
+    ["weekly-limit", "You've used this week's classes on your plan."],
+    ["capacity-not-set", "This session isn't open for booking yet."],
+  ])("explains the %s refusal without offering the waitlist", async (reason, text) => {
+    scheduleApi.requestBooking.mockRejectedValue(
+      Object.assign(new Error("private refusal internals"), {
+        code: "functions/failed-precondition",
+        details: { reason },
+      }),
+    );
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<AccountClassesPage />);
+
+    const availableClass = await screen.findByRole("article", { name: "Adult Fundamentals" });
+    const reserve = within(availableClass).getByRole("button", { name: "Reserve place" });
+    await waitFor(() => expect(reserve).toBeEnabled());
+    await user.click(reserve);
+    expect(await within(availableClass).findByText(text)).toBeVisible();
+    expect(
+      within(availableClass).queryByRole("link", { name: "Join the waitlist" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("private refusal internals")).not.toBeInTheDocument();
+  });
 });
