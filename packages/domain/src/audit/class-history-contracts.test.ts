@@ -211,3 +211,21 @@ describe("jerseyWallClockToInstant", () => {
     expect(jerseyWallClockToInstant("", "")).toBeNull();
   });
 });
+
+describe("jerseyWallClockToInstant at the two readings that are not one instant", () => {
+  it("resolves the ambiguous autumn hour to the earlier, BST occurrence", () => {
+    // 01:30 on 25 Oct 2026 happens twice: 00:30Z on BST and 01:30Z on GMT. A "since" lower bound
+    // at the earlier one still contains the later one, so no record in that hour is lost.
+    expect(jerseyWallClockToInstant("2026-10-25", "01:30")).toBe("2026-10-25T00:30:00Z");
+    expect(jerseyWallClockToInstant("2026-10-25", "01:00")).toBe("2026-10-25T00:00:00Z");
+    expect(jerseyWallClockToInstant("2026-10-25", "01:59")).toBe("2026-10-25T00:59:00Z");
+  });
+
+  it("resolves the non-existent spring hour forward to 02:00 BST", () => {
+    // 01:00-01:59 on 29 Mar 2026 never happens; the clock jumps straight to 02:00 BST, which is
+    // 01:00Z - the earliest instant whose Jersey reading is not before the gap.
+    expect(jerseyWallClockToInstant("2026-03-29", "01:00")).toBe("2026-03-29T01:00:00Z");
+    expect(jerseyWallClockToInstant("2026-03-29", "01:30")).toBe("2026-03-29T01:00:00Z");
+    expect(jerseyWallClockToInstant("2026-03-29", "01:59")).toBe("2026-03-29T01:00:00Z");
+  });
+});

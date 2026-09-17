@@ -207,23 +207,69 @@ function jerseyWallClockAt(instantMs: number): number {
   );
 }
 
+const halfDayMs = 43_200_000;
+const minuteMs = 60_000;
+
+/** How far the Jersey clock runs ahead of UTC at one instant: 0 on GMT, one hour on BST. */
+function jerseyOffsetAt(instantMs: number): number {
+  return jerseyWallClockAt(instantMs) - instantMs;
+}
+
+/**
+ * The first instant at or after which the Jersey clock reads `wall`, searched between an instant
+ * known to read earlier and one known to read later. Every changeover in the IANA database lands
+ * on a whole minute, so the search stops there rather than chasing milliseconds.
+ */
+function firstInstantReading(wall: number, before: number, after: number): number {
+  let low = before;
+  let high = after;
+  while (high - low > minuteMs) {
+    const mid = low + Math.round((high - low) / (2 * minuteMs)) * minuteMs;
+    if (mid <= low || mid >= high) break;
+    if (jerseyWallClockAt(mid) >= wall) high = mid;
+    else low = mid;
+  }
+  return high;
+}
+
 /**
  * The UTC instant of a date and time the operator typed on a Jersey clock, as an ISO string.
  *
  * Everything this feature shows is Jersey local - the sentences, the PDF's file name - so a filter
  * read as UTC would silently drop the first hour of every summer day, Jersey being UTC+1 on BST.
- * There is no date library here, so the offset is found with Intl: guess with the offset that
- * applies at the naive instant, then re-check with the offset that applies at the guess, which
- * settles a DST change in either direction. Returns null for anything that is not a "YYYY-MM-DD"
- * date and a "HH:MM" time, rather than inventing a moment nobody asked for.
+ * There is no date library here, so the offset comes from Intl: a changeover moves the clock once,
+ * so the offsets twelve hours either side of the wanted reading are the only two it could have been
+ * written on, and a candidate is real when the Jersey clock at it reads back what was typed.
+ *
+ * Twice a year a reading is not one instant, and this is used as the lower bound of a "since"
+ * filter, so it rounds OUTWARD - towards including more - instead of returning null and refusing to
+ * search at all:
+ *
+ * - The ambiguous hour (01:00-01:59 on 25 Oct 2026 happens twice, once on BST and once on GMT)
+ *   resolves to the EARLIER, BST instant. A lower bound at the earlier occurrence still contains
+ *   the later one, so no record written in that hour is lost.
+ * - The non-existent hour (01:00-01:59 on 29 Mar 2026 never happens; the clock jumps 01:00 to
+ *   02:00) resolves forward to the first instant that does exist, 02:00 BST. That is the earliest
+ *   instant whose Jersey reading is not before the gap, so nothing that belongs after the typed
+ *   moment is cut off, and nothing before it is dragged in.
+ *
+ * Returns null for anything that is not a "YYYY-MM-DD" date and a "HH:MM" time, rather than
+ * inventing a moment nobody asked for.
  */
 export function jerseyWallClockToInstant(date: string, time: string): string | null {
   if (!isoDatePattern.test(date) || !isoTimePattern.test(time)) return null;
   const naive = Date.parse(`${date}T${time}:00Z`);
   if (Number.isNaN(naive)) return null;
-  const first = naive - (jerseyWallClockAt(naive) - naive);
-  const second = naive - (jerseyWallClockAt(first) - first);
-  const instant = jerseyWallClockAt(second) === naive ? second : first;
+  const offsets = new Set([jerseyOffsetAt(naive - halfDayMs), jerseyOffsetAt(naive + halfDayMs)]);
+  const candidates = [...offsets].map((offset) => naive - offset).sort((a, b) => a - b);
+  const real = candidates.filter((candidate) => jerseyWallClockAt(candidate) === naive);
+  const instant =
+    real[0] ??
+    firstInstantReading(
+      naive,
+      candidates[0] as number,
+      candidates[candidates.length - 1] as number,
+    );
   return `${new Date(instant).toISOString().slice(0, 19)}Z`;
 }
 

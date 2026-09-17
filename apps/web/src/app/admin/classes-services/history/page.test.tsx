@@ -223,6 +223,37 @@ describe("Class registrations log", () => {
     vi.unstubAllGlobals();
   });
 
+  it("releases the object URL even when the save itself throws", async () => {
+    const blob = new Blob(["%PDF-1.4"], { type: "application/pdf" });
+    mocks.downloadClassHistoryPdf.mockResolvedValue({
+      blob,
+      fileName: "class-history-2026-09-17.pdf",
+    });
+    const createObjectURL = vi.fn(() => "blob:history");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      throw new Error("Not implemented: HTMLAnchorElement.prototype.click");
+    });
+
+    render(<HistoryPage />);
+    fireEvent.click(screen.getByRole("button", { name: "LIST" }));
+    await screen.findByText("RECORDS (2)");
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+
+    expect(
+      await screen.findByText("The PDF could not be prepared. Please try again."),
+    ).toBeInTheDocument();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:history");
+    // The raw DOM failure never reaches the operator.
+    expect(screen.queryByText(/Not implemented/u)).toBeNull();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    click.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
   it("shows the PDF failure without losing the records on screen", async () => {
     mocks.downloadClassHistoryPdf.mockRejectedValue(
       new Error("The PDF could not be prepared. Please try again."),

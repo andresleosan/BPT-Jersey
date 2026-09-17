@@ -41,8 +41,36 @@ type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 type Actor = Readonly<{ actorId: string; label: string }>;
 
+/**
+ * The date the box starts on, in UTC rather than on a Jersey clock: it is only a suggestion the
+ * operator edits before pressing LIST, and being a day out either side of midnight changes nothing
+ * that is read. The value the filter is actually built from goes through `sinceTimestamp`.
+ */
 function isoDateDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** One sentence whenever the PDF does not arrive, whichever step failed; never a raw DOM error. */
+const pdfError = "The PDF could not be prepared. Please try again.";
+
+/**
+ * Hands the prepared bytes to the browser. The object URL is released on every path - a failed
+ * click would otherwise pin the whole PDF in memory for the life of the tab.
+ */
+function saveFile(blob: Blob, fileName: string): void {
+  const href = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = fileName;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+  } catch {
+    throw new Error(pdfError);
+  } finally {
+    URL.revokeObjectURL(href);
+  }
 }
 
 /**
@@ -117,14 +145,7 @@ export function HistoryPage() {
     try {
       const { blob, fileName } = await downloadClassHistoryPdf(input);
       // The client hands back bytes on purpose; triggering the save belongs to the screen.
-      const href = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = href;
-      anchor.download = fileName;
-      document.body.append(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(href);
+      saveFile(blob, fileName);
     } catch (caught) {
       setError((caught as Error).message);
     }
