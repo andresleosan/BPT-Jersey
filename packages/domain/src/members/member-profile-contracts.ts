@@ -170,7 +170,10 @@ const headerShape = {
   birthdayBadge: birthdayBadgeSchema,
 } as const;
 
-/** What headCoach and coach receive (grill G6): no identifier of any kind. */
+/**
+ * What headCoach and coach receive (grill G6): the `studentId` that links to the record and nothing
+ * else that identifies the member - no member number, no masked member reference, no contact detail.
+ */
 export const coachMemberProfileHeaderSchema = z.strictObject(headerShape);
 
 export const memberProfileHeaderSchema = z.strictObject({

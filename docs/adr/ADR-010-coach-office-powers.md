@@ -81,8 +81,10 @@ por nombre en `/admin/members/search`.
 - `getMemberProfile` recorta en el servidor: owner/administrator reciben la ficha completa por la
   lectura restringida auditada (mismo presupuesto y accion `member.detail.read` que `getMemberDetail`);
   headCoach/coach reciben solo la cabecera (nombre, edad, tipo de participante, estado, aviso de
-  cumpleanos), autorizados con la autorizacion de niveles (`resolveStudent`), sin identificadores,
-  fecha de nacimiento, datos de DETAILS, membresia ni responsables. Guardian y adultStudent: denegado.
+  cumpleanos), autorizados con la autorizacion de niveles (`resolveStudent`). La cabecera lleva el
+  `studentId` que enlaza con la ficha y nada mas que identifique al alumno: sin numero de socio, sin
+  referencia de membresia enmascarada, sin fecha de nacimiento, datos de DETAILS, membresia ni
+  responsables. Guardian y adultStudent: denegado.
 - `searchMemberNames` devuelve como maximo 20 `{ studentId, fullName }` por nombre para los cuatro roles
   de staff. No abre `listMembers`, `listMemberNames`, `lookupMemberIdentity` ni `getMemberDetail`, que
   siguen siendo de la oficina.

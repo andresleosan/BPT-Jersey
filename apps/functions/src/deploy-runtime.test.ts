@@ -45,10 +45,13 @@ describe("deploy runtime import preparation", () => {
     const unmapped: string[] = [];
     for (const path of await sourceFiles(import.meta.dirname)) {
       const source = await readFile(path, "utf8");
+      // Every shape that survives compilation: `import … from`, `export … from`, `import("…")`
+      // and the side-effect `import "…"`.
       const statements = source.matchAll(
-        /(?:^|[\n;])\s*(?:import|export)\s+([^"';]*?)from\s*["'](@bpt-jersey\/domain[^"']*)["']/gu,
+        /\b(?:import\s+([^"';]*?)from\s*|export\s+([^"';]*?)from\s*|import\s*\(\s*|import\s+)["'](@bpt-jersey\/domain[^"']*)["']/gu,
       );
-      for (const [, clause, specifier] of statements) {
+      for (const [, importClause, exportClause, specifier] of statements) {
+        const clause = importClause ?? exportClause;
         // Type-only imports are erased by the compiler, so they never reach the runtime artifact.
         if (clause?.trimStart().startsWith("type ") === true) continue;
         if (specifier !== undefined && !Object.hasOwn(domainImportReplacements, specifier)) {
