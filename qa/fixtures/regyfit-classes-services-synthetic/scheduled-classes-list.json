@@ -1,0 +1,116 @@
+{
+  "headers": [
+    "EXCEL",
+    "LOCATION",
+    "TRAINERS",
+    "DATE",
+    "TIME",
+    "DROP-INS",
+    "TRIALS",
+    "REGISTRATIONS",
+    "ATTENDANCE",
+    "RESULTS"
+  ],
+  "rows": [
+    {
+      "week": "2026-09-01",
+      "id": "feed_aula9001",
+      "cells": [
+        "",
+        "",
+        "",
+        "Synthetic GI Mornings AULA",
+        "BPT Town",
+        "Synthetic Coach One",
+        "14 Sep 2026",
+        "06:00 - 07:00",
+        "0",
+        "0",
+        "0/∞",
+        "",
+        ""
+      ],
+      "icon": "/admin2/imagens/icons/656.svg"
+    },
+    {
+      "week": "2026-09-08",
+      "id": "feed_aula9002",
+      "cells": [
+        "",
+        "",
+        "",
+        "Synthetic GI Mornings AULA",
+        "BPT Town",
+        "Synthetic Coach One",
+        "16 Sep 2026",
+        "07:00 - 08:00",
+        "0",
+        "0",
+        "0/40",
+        "",
+        ""
+      ],
+      "icon": "/admin2/imagens/icons/656.svg"
+    },
+    {
+      "week": "2026-09-08",
+      "id": "feed_aula9003",
+      "cells": [
+        "",
+        "",
+        "",
+        "Synthetic Open Mat AULA",
+        "BPT West",
+        "Synthetic Coach Two",
+        "19 Sep 2026",
+        "10:00 - 12:00",
+        "0",
+        "0",
+        "0/∞",
+        "",
+        ""
+      ],
+      "icon": "/admin2/imagens/icons/227.svg"
+    },
+    {
+      "week": "2026-09-15",
+      "id": "feed_aula9004",
+      "cells": [
+        "",
+        "",
+        "",
+        "Synthetic Open Mat AULA",
+        "BPT Town",
+        "Synthetic Coach Two",
+        "20 Sep 2026",
+        "19:00 - 20:30",
+        "0",
+        "0",
+        "0/∞",
+        "",
+        ""
+      ],
+      "icon": "/admin2/imagens/icons/227.svg"
+    },
+    {
+      "week": "2026-09-15",
+      "id": "feed_aula9005",
+      "cells": [
+        "",
+        "",
+        "",
+        "Synthetic GI Mornings AULA",
+        "BPT Town",
+        "Synthetic Coach One",
+        "21 Sep 2026",
+        "06:00 - 07:00",
+        "0",
+        "0",
+        "0/∞",
+        "",
+        ""
+      ],
+      "icon": "/admin2/imagens/icons/656.svg"
+    }
+  ]
+}
