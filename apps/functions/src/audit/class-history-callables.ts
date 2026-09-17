@@ -148,9 +148,11 @@ function jerseyDay(generatedAt: string): string {
 }
 
 /**
- * The ledger entry points at the reader's own restricted-read budget, never at what was read:
- * exactly as the member record reads do, so the log states that somebody spent a restricted read
- * without repeating the Confidential material in a second place.
+ * The ledger entry points at the reader's own restricted-read budget document, never at what was
+ * read: exactly as the member record reads do, so the log states who read the class history without
+ * repeating the Confidential material in a second place. That document is the conventional anchor
+ * for a restricted read and nothing more - this read is not counted against the budget: nothing
+ * here reads or increments it, and no caller is ever refused as rate-limited.
  */
 function readAuditDraft(
   actor: AdminActor,
