@@ -249,6 +249,7 @@ describe("domain contracts", () => {
       "enrolment.request.approval.failed",
       "enrolment.request.detail.read",
       "member.directory.initialized",
+      "regyfit.record.field.read",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

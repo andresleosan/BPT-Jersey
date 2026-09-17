@@ -184,6 +184,14 @@ const restrictedMemberReadDrafts = [
     correlationId: "restricted-audit-lookup-1",
     result: "no-match",
   },
+  {
+    ...common,
+    action: "regyfit.record.field.read",
+    targetRef: "academies/academy-1/studentRestrictedReadLimits/admin-1",
+    purpose: "regyfit-record-review",
+    correlationId: "restricted-audit-reveal-1",
+    result: "not-found",
+  },
 ] as const;
 describe("audit event draft contract", () => {
   it("accepts both minimal administrative role actions", () => {
@@ -221,7 +229,7 @@ describe("audit event draft contract", () => {
   });
 
   it("rejects non-minimal or incorrectly scoped restricted member read evidence", () => {
-    const [detail, lookup] = restrictedMemberReadDrafts;
+    const [detail, lookup, reveal] = restrictedMemberReadDrafts;
     for (const candidate of [
       { ...detail, targetRef: "academies/academy-1/students/student-1" },
       { ...detail, purpose: "member-identity-lookup" },
@@ -232,6 +240,11 @@ describe("audit event draft contract", () => {
       { ...lookup, digest: "a".repeat(64) },
       { ...lookup, keyId: "private-key-1" },
       { ...lookup, membershipNumber: "BPT 00000001" },
+      { ...reveal, purpose: "member-record-maintenance" },
+      { ...reveal, result: "no-match" },
+      { ...reveal, targetRef: "academies/academy-1/regyfitMemberRecords/152" },
+      { ...reveal, field: "idCardNumber" },
+      { ...reveal, value: "ID-000789" },
     ]) {
       expect(parseAuditEventDraft(candidate).ok).toBe(false);
     }
