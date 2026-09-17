@@ -55,8 +55,8 @@ estilo BPT según DESIGN.md, no el de Regyfit (#3).
 - Un visor general de auditoría para toda la academia (opción C descartada): esta pantalla es el
   clon de Regyfit, limitado a eventos de clases.
 - Exportación a Excel: Regyfit solo ofrece PDF en esta pantalla.
-- Purga automática de la IP a los 12 meses: la política se escribe en ADR-008 y el barrido se
-  apoya en el proceso de retención existente (T011); esta spec no crea un proceso programado nuevo.
+- Un visor de auditoría con paginación infinita: la pantalla lista un tramo (100–1000 filas), como
+  Regyfit, y punto.
 - Borrar o editar eventos: el registro es inmutable por definición.
 
 ## 4. Arquitectura por capas
@@ -94,10 +94,19 @@ class: {
   locationId: string | null
 }
 actorIp: string | null            // IPv4/IPv6 validada; null cuando no hay petición HTTP
-actorRole: "member" | "guardian" | "coach" | "staff" | "admin" | "system" | "regyfit"
+actorRole: UserRole | "system" | "regyfit"   // G1: el rol real de actor-context.ts, sin agrupar
+actorGroup: "member" | "staff" | "system"    // G2: derivado del rol, solo para poder filtrar
 actorName: string | null          // solo para actores importados que no existen en BPT
 source: "bpt" | "regyfit"
 ```
+
+`actorRole` guarda el rol tal cual estaba en el momento del hecho (`owner`, `administrator`,
+`headCoach`, `coach`, `guardian`, `adultStudent`, `teenStudent`, `shopper`), más `"system"` y
+`"regyfit"` para los dos casos sin usuario (G1). `actorGroup` se deriva al escribir: *member* =
+`guardian`, `adultStudent`, `teenStudent`, `shopper`; *staff* = `owner`, `administrator`,
+`headCoach`, `coach`; *system* = el resto. Es redundante a propósito: Firestore no sabe filtrar
+por un conjunto de valores y ordenar por otra cosa sin multiplicar los índices, y sin este campo
+el recuento "RECORDS (N)" mentiría (G2).
 
 Reglas de validación: `sessionStartAt` es ISO con zona; `actorIp` se valida con zod contra IPv4 e
 IPv6 y se rechaza cualquier otra cosa; el resto de campos son ids con formato de segmento. El
@@ -112,11 +121,23 @@ pruebas de que un evento antiguo sigue siendo válido.
   que ya se usa para la reserva. Si la auditoría falla, falla la reserva: no puede haber una
   reserva sin su línea de registro.
 - `booking.cancelled`: igual, dentro de `cancelBookingInTransaction`.
-- El id del documento se deriva del id de la reserva (`booking-created-<bookingId>`,
-  `booking-cancelled-<bookingId>`), así que un reintento de la transacción no duplica la fila.
-- `actorIp` se lee en el callable (`request.rawRequest.ip`), se valida y se pasa al servicio. En
-  las llamadas sin petición HTTP (procesos programados) es `null`.
+- **Id del evento (G6)**: el id de una reserva es determinista a partir de sesión + alumno
+  (`buildBookingIdCandidates`, `booking-transaction-service.ts:430`), así que el documento se
+  reutiliza cuando alguien reserva, cancela y vuelve a reservar la misma clase. Por eso el id del
+  evento **no** se deriva del de la reserva: se genera con id automático **antes** de abrir la
+  transacción, y el cuerpo solo usa esa referencia. Un reintento de la transacción reutiliza la
+  misma referencia (no duplica) y cada reserva o cancelación deja su propia línea.
+- **IP (G4)**: se toma la primera entrada de `X-Forwarded-For` y, si no la hay,
+  `request.rawRequest.ip`; se valida como IPv4/IPv6 y, si no es válida, se guarda `null` en vez de
+  basura. Las funciones v2 están detrás del balanceador de Google, así que esto **se verifica con
+  una reserva real** (emulador y producción) antes de dar la columna por buena: una columna de IP
+  que miente es peor que no tenerla. En llamadas sin petición HTTP es `null`.
 - `actorRole` sale de las claims ya resueltas por el contexto de actor; no se vuelve a calcular.
+  `actorGroup` se deriva de él en el mismo sitio.
+- **Fallo cerrado (G9)**: si el evento no se puede escribir, la reserva no se crea. Para que eso
+  sea aceptable, el evento **no puede depender de datos opcionales**: `programId` y `locationId`
+  son anulables, y la primera prueba del cambio es que una sesión sin programa ni sede se reserva
+  igual y deja su línea con esos campos vacíos (hay sesiones importadas con datos incompletos).
 - Las cuatro acciones de asistencia solo ganan el bloque `class` y la IP; su escritura no cambia.
 
 ## 7. La consulta
@@ -125,18 +146,24 @@ pruebas de que un evento antiguo sigue siendo válido.
 
 - `limit` se recorta en el servidor al rango 100–1000 (los valores del selector de Regyfit).
 - Consulta: `auditEvents` filtrando por academia, acción dentro del conjunto que corresponde al
-  tipo elegido y `occurredAt >= since`, ordenado por `occurredAt` descendente. `auditEvents` es
+  tipo elegido, `actorGroup` y `occurredAt >= since`, ordenado por `occurredAt` descendente.
+  `auditEvents` es
   subcolección de la academia, así que el ámbito ya está implícito; el índice compuesto nuevo en
-  `firestore.indexes.json` es `auditEvents (action asc, occurredAt desc)` y se añade
-  en el mismo commit que la consulta (CLAUDE.md: un índice que falta no se ve hasta ejecución).
-- `registrationType` traduce los diez tipos de Regyfit a pares de acción + rol del actor. Por
-  ejemplo, "Registrations in classes/services by members" = `booking.created` con rol `member` o
-  `guardian`; "…by coachs" = `booking.created` con rol `coach`, `staff` o `admin`. Como el rol no
-  es filtrable junto con el resto sin multiplicar los índices, **el filtro por rol se aplica en el
-  servidor sobre la página leída**, pidiendo hasta el doble de filas y recortando al límite.
-- Resolución de nombres: los `studentId` distintos de la página se leen en bloque (`getAll`), y lo
-  mismo con las sesiones necesarias para la frase. Un alumno borrado o no encontrado sale como
-  "Former member" y nunca rompe la fila.
+  `firestore.indexes.json` es `auditEvents (action asc, actorGroup asc, occurredAt desc)` y se
+  añade en el mismo commit que la consulta (CLAUDE.md: un índice que falta no se ve hasta ejecución).
+- `registrationType` traduce los diez tipos de Regyfit a pares de acción + `actorGroup`: por
+  ejemplo "Registrations in classes/services by members" = `booking.created` + `member`, y
+  "…by coachs" = `booking.created` + `staff`. El filtro va **en la consulta**, no recortando
+  después, de modo que el recuento mostrado es el real (G2).
+- **Resolución de nombres (G7)**: los `studentId` distintos de la página se leen en bloque con un
+  solo `getAll`, y lo mismo con las sesiones necesarias para la frase. El evento guarda ids, no
+  nombres, para que el borrado de un socio (ADR-008) lo borre **también del registro** sin
+  recorrer la auditoría. Un alumno borrado o no encontrado sale como "Former member" y nunca rompe
+  la fila; el nombre solo se guarda en el evento cuando no hay a quién apuntar (filas importadas
+  sin casar).
+- **"Logged by" (G3)**: el desplegable se rellena con `listStaffProfiles`
+  (`apps/functions/src/staff/staff-callables.ts:568`), es decir personal y admins. No se carga el
+  directorio de socios en la pantalla; filtrar por un socio concreto se hace desde su ficha.
 - La respuesta lleva, por fila: `occurredAt`, `actorLabel` (nombre corto del actor), `actorIp`
   (solo si quien pregunta es admin) y `text` (la frase ya compuesta), más los campos
   estructurados que la tabla necesita.
@@ -189,8 +216,14 @@ tabla; sin adornos. El cliente lo descarga como `class-history-<fecha>.pdf`.
 ## 10. La importación del histórico
 
 Captura previa (fuera del repo, runbook de staging privado): recaptura completa por VNC desde el
-16 de enero de 2026, paginando con `Since` en tramos que no superen las 1000 filas por consulta, a
-`/root/regyfit-capture/data/history-log.full.json`. Nunca se pulsa guardar ni borrar en Regyfit.
+16 de enero de 2026, paginando con `Since` en ventanas semanales que no superen las 1000 filas por
+consulta, a `/root/regyfit-capture/data/history-log.full.json`. Nunca se pulsa guardar ni borrar
+en Regyfit.
+
+**La captura no bloquea la construcción (G8)**: todo se construye y se prueba con datos falsos, y
+la recaptura y la importación son las **dos últimas tareas** del plan. El túnel SSH lo abre el
+operador cuando se llegue ahí; si ese día no puede, el resto ya está desplegado y el histórico
+entra después.
 
 `qa/scripts/regyfit-history-import.mjs`:
 
@@ -222,7 +255,14 @@ Captura previa (fuera del repo, runbook de staging privado): recaptura completa 
   `dangerouslySetInnerHTML`; la frase no admite marcado.
 - Leer el registro deja rastro (`class.history.read`), de modo que la auditoría también cubre a
   quien audita.
-- ADR-008 se enmienda con la línea de retención de `actorIp` (12 meses) en eventos de clases.
+- **Retención de la IP (G5)**: comprobado que `apps/functions/src/retention/` solo **genera
+  avisos**; no hay ningún proceso que borre nada. Prometer 12 meses sin quien los aplique sería
+  una política falsa, así que esta spec incluye un barrido propio: una función programada diaria
+  que **borra el campo `actorIp`** (no el evento: el registro sigue íntegro) de los eventos de
+  clases con más de 12 meses, por lotes. Se apunta en
+  `docs/operations/t011-retention-residency-erasure-policy.md` y en la matriz de pruebas, con una
+  prueba que la ejecuta sobre eventos con fecha vieja y comprueba que la IP desaparece y el evento
+  sobrevive. ADR-008 se enmienda con esa línea.
 
 ## 12. Pruebas
 
@@ -250,3 +290,17 @@ producción en silencio). Orden: `pnpm --filter @bpt-jersey/domain build:runtime
 push a `main` (Cloudflare Pages publica la web sola). Comprobación en producción: un POST sin
 autenticar a `listClassHistory` debe responder 401, no 404. La importación del histórico va
 después del despliegue y solo con confirmación explícita del operador.
+
+## 14. Decisiones del grill (2026-09-17, sobre esta spec)
+
+| # | Tema | Decisión |
+| - | ---- | -------- |
+| G1 | Roles | Se guarda el `UserRole` real de `actor-context.ts` (más `system` y `regyfit`), no una agrupación inventada. |
+| G2 | Filtro socio/coach | Campo derivado `actorGroup` para poder filtrar en la consulta; el recuento mostrado es el real. |
+| G3 | "Logged by" | Solo personal y admins, vía `listStaffProfiles`; no se carga el directorio de socios. |
+| G4 | IP | Primera entrada de `X-Forwarded-For`, con `rawRequest.ip` de respaldo, validada; se verifica con una reserva real antes de dar la columna por buena. |
+| G5 | Retención | Barrido programado diario que borra `actorIp` a los 12 meses y deja el evento intacto, con prueba. |
+| G6 | Id del evento | Id automático generado antes de la transacción; el id de reserva es determinista y se reutiliza. |
+| G7 | Nombres | Se resuelven al leer agrupando ids; el evento guarda ids para que el borrado de un socio alcance también al registro. |
+| G8 | Captura | No bloquea: recaptura e importación son las dos últimas tareas del plan. |
+| G9 | Fallo de auditoría | Falla cerrado (sin reserva sin registro), pero el evento no depende de datos opcionales y hay prueba con sesión incompleta. |
