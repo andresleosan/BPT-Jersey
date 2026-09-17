@@ -49,6 +49,23 @@ Grill decisions (2026-09-17, same session):
 - G9: criteria come from Regyfit, with a BPT-vs-Regyfit diff report reviewed before publishing.
 - G10: class counter = imported Regyfit baseline + BPT attendance after the cutoff.
 
+Planning decisions (2026-09-17, after the four plans were drafted):
+
+- G11: adult WHITE BELT keeps BPT's own rule (25 classes, 90 days) instead of Regyfit's 20/60 — the
+  single genuine rule difference found in the diff; an explicit exception to G9, applied in one
+  override table in `buildIbjjfV2CatalogSources`, so BPT's percentage for that level will not match
+  Regyfit's.
+- G12: opening, assigning and voiding levels stay headCoach/owner; an administrator sees the whole
+  record and the history but does not promote (narrows G6's "owner/admin everything" for these three
+  actions).
+- G13: `axe-core` is declared as a `qa` devDependency for the Playwright accessibility check (already
+  in the lockfile at 4.13.0 through `eslint-plugin-jsx-a11y`; nothing new is downloaded).
+- Production gate discovered while planning: production has no published level catalogue and
+  `NEXT_PUBLIC_LEVELS_BACKEND` is false. Before any production import: operator-approved seed-guard
+  change + seed of `ibjjf-v2`, the flag enabled in the Cloudflare Pages build, and Plans A–C deployed.
+- The 2026-09-07 ruling that kept imported cleartext app passwords (tasks.md T125, acta decision D11)
+  is superseded by §2 decision 4; the ledger task records that.
+
 ## 3. Architecture
 
 Static export constraint (`output: "export"`): no dynamic segments. The record is a static route
