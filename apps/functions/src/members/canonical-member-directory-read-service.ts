@@ -26,6 +26,11 @@ import {
   toEnrolmentRequestDetail,
   type EnrolmentRequestDetail,
 } from "@bpt-jersey/domain/members/enrolment-requests";
+import {
+  parseStoredRegyfitMemberRecord,
+  revealRegyfitRecordFieldInputSchema,
+  type RevealRegyfitRecordFieldResult,
+} from "@bpt-jersey/domain/members/regyfit-records";
 import { parseStudentProfileAt, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import { z } from "zod";
 import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
@@ -84,6 +89,14 @@ export type CanonicalMemberDirectoryReadService = Readonly<{
    * a frozen directory must not hide from office what somebody asked for.
    */
   enrolmentRequestDetail: (command: DirectoryReadCommand) => Promise<EnrolmentRequestDetail>;
+  /**
+   * One restricted identifier of an imported Regyfit record, revealed on purpose. Same machinery
+   * as the enrolment request read: provisioned actor, shared budget, audit event. A Regyfit record
+   * is not a canonical directory record, so the canonical reader precondition does not apply.
+   */
+  regyfitRecordFieldReveal: (
+    command: DirectoryReadCommand,
+  ) => Promise<RevealRegyfitRecordFieldResult>;
 }>;
 
 export type CanonicalMemberDirectoryReadDependencies = Readonly<{
@@ -161,9 +174,15 @@ const restrictedReadLimitSchema = z.strictObject({
 type CursorPayload = Readonly<z.infer<typeof cursorPayloadSchema>>;
 type RestrictedReadLimit = Readonly<z.infer<typeof restrictedReadLimitSchema>>;
 type RestrictedAction =
-  "member.detail.read" | "member.identity.lookup" | "enrolment.request.detail.read";
+  | "member.detail.read"
+  | "member.identity.lookup"
+  | "enrolment.request.detail.read"
+  | "regyfit.record.field.read";
 type RestrictedPurpose =
-  "member-record-maintenance" | "member-identity-lookup" | "enrolment-request-review";
+  | "member-record-maintenance"
+  | "member-identity-lookup"
+  | "enrolment-request-review"
+  | "regyfit-record-review";
 type RestrictedOperationOutcome<T> =
   | Readonly<{ kind: "success"; value: T; auditResult: "completed" | "no-match" }>
   | Readonly<{
@@ -289,6 +308,10 @@ function keyPath(academyId: string, keyId: string): string {
 
 function enrolmentRequestPath(academyId: string, enrolmentRequestId: string): string {
   return `academies/${academyId}/enrolmentRequests/${enrolmentRequestId}`;
+}
+
+function regyfitMemberRecordPath(academyId: string, recordId: string): string {
+  return `academies/${academyId}/regyfitMemberRecords/${recordId}`;
 }
 
 function ratePath(academyId: string, actorId: string): string {
@@ -1000,6 +1023,43 @@ export function createCanonicalMemberDirectoryReadService(
               matched: true as const,
               row: toAdminDirectoryRow(student, profile),
             }),
+            auditResult: "completed",
+          });
+        },
+      });
+    },
+    async regyfitRecordFieldReveal(command) {
+      requireAuthorizedActor(command.actor);
+      const now = requiredTimestamp(command.now);
+      const value = parseInput(revealRegyfitRecordFieldInputSchema, command.value);
+      return runRestricted<RevealRegyfitRecordFieldResult>({
+        command: Object.freeze({ ...command, now }),
+        action: "regyfit.record.field.read",
+        purpose: value.purpose,
+        dependencies,
+        requiresCanonicalReader: false,
+        operation: async (transaction) => {
+          const document = await transaction.get(
+            regyfitMemberRecordPath(command.actor.academyId, value.recordId),
+          );
+          if (!document.exists) {
+            return Object.freeze({ kind: "failure", code: "not-found", auditResult: "not-found" });
+          }
+          const parsed = parseStoredRegyfitMemberRecord(document.data);
+          if (
+            !parsed.ok ||
+            parsed.value.recordId !== value.recordId ||
+            document.id !== value.recordId
+          ) {
+            throw new DirectoryDataIssue("Stored Regyfit member record is unreadable");
+          }
+          const revealed = parsed.value[value.field];
+          if (revealed === undefined) {
+            return Object.freeze({ kind: "failure", code: "not-found", auditResult: "not-found" });
+          }
+          return Object.freeze({
+            kind: "success",
+            value: Object.freeze({ value: revealed }),
             auditResult: "completed",
           });
         },

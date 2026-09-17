@@ -846,3 +846,140 @@ describe("enrolment request detail read", () => {
     ).rejects.toMatchObject({ code: "invalid" });
   });
 });
+
+describe("Regyfit record field reveal", () => {
+  const recordPath = "academies/academy-1/regyfitMemberRecords/152";
+  const command = Object.freeze({
+    actor: actor(),
+    value: { recordId: "152", field: "idCardNumber", purpose: "regyfit-record-review" },
+    now,
+  });
+
+  function storedRecord(overrides: Readonly<Record<string, unknown>> = {}) {
+    return {
+      recordId: "152",
+      fullName: "Synthetic Child",
+      idCardNumber: "ID-000789",
+      gender: "unknown",
+      membershipState: "inactive",
+      appAccess: { login: "a1", password: "104569" },
+      graduation: {},
+      plan: {},
+      attendance: { records: [] },
+      payments: [],
+      capturedAt: "2026-09-04T18:04:32.000Z",
+      source: "regyfit-admin-capture",
+      schemaVersion: "1",
+      academyId: "academy-1",
+      ...overrides,
+    };
+  }
+
+  it("returns exactly the one requested value", async () => {
+    const harness = fakeStore({ ...seed(), [recordPath]: storedRecord() });
+
+    const result = await service(harness.store).regyfitRecordFieldReveal(command);
+
+    expect(result).toEqual({ value: "ID-000789" });
+  });
+
+  it("audits the reveal and spends it from the shared restricted read budget", async () => {
+    const harness = fakeStore({ ...seed(), [recordPath]: storedRecord() });
+
+    await service(harness.store).regyfitRecordFieldReveal(command);
+
+    const audit = harness.records.get("academies/academy-1/auditEvents/restricted-audit-1");
+    expect(audit).toEqual(
+      expect.objectContaining({
+        action: "regyfit.record.field.read",
+        targetRef: "academies/academy-1/studentRestrictedReadLimits/owner-1",
+        purpose: "regyfit-record-review",
+        result: "completed",
+      }),
+    );
+    expect(JSON.stringify(audit)).not.toContain("ID-000789");
+    expect(harness.records.get("academies/academy-1/studentRestrictedReadLimits/owner-1")).toEqual(
+      expect.objectContaining({ attemptCount: 1 }),
+    );
+  });
+
+  it("audits a miss for an absent record or an empty field", async () => {
+    const missing = fakeStore(seed());
+    await expect(service(missing.store).regyfitRecordFieldReveal(command)).rejects.toMatchObject({
+      code: "not-found",
+    });
+    expect(missing.records.get("academies/academy-1/auditEvents/restricted-audit-1")).toEqual(
+      expect.objectContaining({ action: "regyfit.record.field.read", result: "not-found" }),
+    );
+
+    const empty = fakeStore({ ...seed(), [recordPath]: storedRecord() });
+    await expect(
+      service(empty.store).regyfitRecordFieldReveal({
+        ...command,
+        value: { ...command.value, field: "vatNumber" },
+      }),
+    ).rejects.toMatchObject({ code: "not-found" });
+  });
+
+  it("blocks over the budget without reading the record", async () => {
+    const seeded = seed();
+    seeded["academies/academy-1/studentRestrictedReadLimits/owner-1"] = {
+      actorId: "owner-1",
+      academyId: "academy-1",
+      windowStartedAt: "2026-09-03T20:00:00.000Z",
+      attemptCount: 20,
+      overLimitObserved: false,
+      schemaVersion: "1",
+      updatedAt: "2026-09-03T20:00:00.000Z",
+    };
+    const harness = fakeStore({ ...seeded, [recordPath]: storedRecord() });
+
+    await expect(service(harness.store).regyfitRecordFieldReveal(command)).rejects.toMatchObject({
+      code: "rate-limited",
+    });
+    expect(harness.readPaths).not.toContain(recordPath);
+  });
+
+  it("rejects fields and purposes outside the closed lists before any transaction", async () => {
+    const harness = fakeStore({ ...seed(), [recordPath]: storedRecord() });
+    const reader = service(harness.store);
+
+    for (const value of [
+      { ...command.value, field: "password" },
+      { ...command.value, field: "email" },
+      { ...command.value, purpose: "member-record-maintenance" },
+      { ...command.value, recordId: "../152" },
+    ]) {
+      await expect(reader.regyfitRecordFieldReveal({ ...command, value })).rejects.toMatchObject({
+        code: "invalid",
+      });
+    }
+    expect(harness.transactions).toBe(0);
+  });
+
+  it("refuses a coach and an actor the academy no longer provisions", async () => {
+    const harness = fakeStore({ ...seed(), [recordPath]: storedRecord() });
+    await expect(
+      service(harness.store).regyfitRecordFieldReveal({
+        ...command,
+        actor: { ...actor(), role: "coach" as never },
+      }),
+    ).rejects.toMatchObject({ code: "unauthorized" });
+
+    const withoutActor = seed();
+    delete withoutActor["academies/academy-1/users/owner-1"];
+    const unprovisioned = fakeStore({ ...withoutActor, [recordPath]: storedRecord() });
+    await expect(
+      service(unprovisioned.store).regyfitRecordFieldReveal(command),
+    ).rejects.toMatchObject({ code: "unauthorized" });
+    expect(unprovisioned.readPaths).not.toContain(recordPath);
+  });
+
+  it("treats a stored record that disagrees with its path as unavailable", async () => {
+    const harness = fakeStore({ ...seed(), [recordPath]: storedRecord({ recordId: "153" }) });
+
+    await expect(service(harness.store).regyfitRecordFieldReveal(command)).rejects.toMatchObject({
+      code: "unavailable",
+    });
+  });
+});
