@@ -975,6 +975,40 @@ describe("Regyfit record field reveal", () => {
     expect(unprovisioned.readPaths).not.toContain(recordPath);
   });
 
+  it("refuses an actor whose App Check is unverified", async () => {
+    const harness = fakeStore({ ...seed(), [recordPath]: storedRecord() });
+
+    await expect(
+      service(harness.store).regyfitRecordFieldReveal({
+        ...command,
+        actor: { ...actor(), appCheckVerified: false },
+      }),
+    ).rejects.toMatchObject({ code: "unauthorized" });
+    expect(harness.readPaths).not.toContain(recordPath);
+  });
+
+  it("reads the record of the actor's own academy, never another", async () => {
+    const otherPath = "academies/academy-2/regyfitMemberRecords/152";
+    const harness = fakeStore({
+      ...seed(),
+      [recordPath]: storedRecord(),
+      "academies/academy-2/users/owner-2": provisionedAdminDocument({
+        userId: "owner-2",
+        academyId: "academy-2",
+      }),
+      [otherPath]: storedRecord({ idCardNumber: "ID-000456", academyId: "academy-2" }),
+    });
+
+    const result = await service(harness.store).regyfitRecordFieldReveal({
+      ...command,
+      actor: { ...actor("owner-2"), academyId: "academy-2" },
+    });
+
+    expect(result).toEqual({ value: "ID-000456" });
+    expect(harness.readPaths).toContain(otherPath);
+    expect(harness.readPaths).not.toContain(recordPath);
+  });
+
   it("treats a stored record that disagrees with its path as unavailable", async () => {
     const harness = fakeStore({ ...seed(), [recordPath]: storedRecord({ recordId: "153" }) });
 
