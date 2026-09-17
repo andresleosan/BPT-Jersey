@@ -98,7 +98,7 @@ const sessionTwo = {
   title: "No-Gi Fundamentals",
   startAt: "2026-09-17T18:00:00.000Z",
   endAt: "2026-09-17T19:00:00.000Z",
-  capacity: null as number | null,
+  capacity: 16 as number | null,
 };
 
 const sessions = [sessionOne, sessionTwo];

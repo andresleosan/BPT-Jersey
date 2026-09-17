@@ -213,11 +213,13 @@ describe("Classes & Services 2.0 page", () => {
     render(<ClassesPage />);
     fireEvent.click(await screen.findByRole("button", { name: /GI All Levels Evenings/ }));
     const dialog = await screen.findByRole("dialog", { name: /Create classes\/services/i });
-    fireEvent.change(within(dialog).getByLabelText("Maximum capacity"), { target: { value: "" } });
+    fireEvent.change(within(dialog).getByLabelText("Maximum capacity"), {
+      target: { value: "12" },
+    });
     fireEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
     await waitFor(() =>
       expect(mocks.updateSession).toHaveBeenCalledWith(
-        expect.objectContaining({ sessionId: "s1", capacity: null }),
+        expect.objectContaining({ sessionId: "s1", capacity: 12 }),
       ),
     );
   });

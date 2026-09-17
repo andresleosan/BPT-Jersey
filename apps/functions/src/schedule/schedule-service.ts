@@ -642,6 +642,9 @@ async function copyWeekWith(
   );
   // The same predicate as the preview: what the operator was shown is what gets copied.
   const source = liveSessions(await store.listSessions(academyId, from));
+  if (source.some((session) => session.capacity === null)) {
+    throw new Error("Every session in the source week needs a capacity before it can be copied");
+  }
   // Only a live session occupies a slot: a week that was deleted must be refillable.
   const target = liveSessions(await store.listSessions(academyId, to));
   const created: SessionRecord[] = [];
@@ -667,7 +670,8 @@ async function copyWeekWith(
         title: session.title,
         startAt,
         endAt: shiftIsoInZone(session.endAt, days, timezone),
-        capacity: session.capacity,
+        // checked above: no source session is uncapped
+        capacity: session.capacity as number,
         minParticipants: session.minParticipants,
         isSeminar: session.isSeminar,
         ...(session.description !== undefined ? { description: session.description } : {}),

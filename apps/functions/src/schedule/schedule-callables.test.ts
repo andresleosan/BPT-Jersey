@@ -1818,7 +1818,7 @@ describe("classes-services callables", () => {
           title: "Open Mat",
           startAt: "2026-09-14T17:00:00.000Z",
           endAt: "2026-09-14T18:00:00.000Z",
-          capacity: null,
+          capacity: 20,
           minParticipants: 0,
         },
         "owner",
@@ -1863,5 +1863,23 @@ describe("classes-services callables", () => {
         fakeRequest({ weekStart: "2026-09-21", reason: "Closed" }, "coach"),
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  it("answers failed-precondition when the source week holds a session without capacity", async () => {
+    const store = createInMemoryScheduleStore();
+    vi.spyOn(store, "copyWeek").mockRejectedValue(
+      new Error("Every session in the source week needs a capacity before it can be copied"),
+    );
+    await expect(
+      createCopyWeekHandler({ store })(
+        fakeRequest(
+          { fromWeekStart: "2026-09-14", toWeekStart: "2026-09-21", copyBookings: false },
+          "owner",
+        ),
+      ),
+    ).rejects.toMatchObject({
+      code: "failed-precondition",
+      message: "Every session in the source week needs a capacity before it can be copied",
+    });
   });
 });
