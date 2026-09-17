@@ -24,6 +24,7 @@ const pilotNavigation = [
   "Overview",
   "Attendance",
   "Members",
+  "Memberships",
   "Enrolment requests",
   "Medical conditions",
   "Classes / Services",
@@ -269,14 +270,17 @@ describe("administrative shell", () => {
     ]);
   });
 
-  it("no longer lists memberships or waivers, though their routes still exist", () => {
+  it("lists memberships but not waivers, whose route still exists", () => {
     render(
       <AdminShell session={syntheticSession}>
         <p>Content</p>
       </AdminShell>,
     );
     const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
-    expect(within(navigation).queryByRole("link", { name: "Memberships" })).toBeNull();
+    expect(within(navigation).getByRole("link", { name: "Memberships" })).toHaveAttribute(
+      "href",
+      "/admin/memberships",
+    );
     expect(within(navigation).queryByRole("link", { name: "Waivers" })).toBeNull();
     expect(within(navigation).getByRole("link", { name: "Medical conditions" })).toHaveAttribute(
       "href",

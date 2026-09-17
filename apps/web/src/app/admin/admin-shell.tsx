@@ -20,9 +20,9 @@ type NavigationGroup = Readonly<{ label: string; items: readonly NavigationItem[
  * The pilot navigation: what the office and the coaches use in a normal day, grouped by job.
  * Working modules outside the pilot scope (class waitlists, CRM, retention, lesson plans) keep
  * their routes, callables and tests but are not listed here; Families is reached from Members and
- * the finance dashboard from Billing. Memberships and waivers keep their routes
- * (`/admin/memberships`, `/admin/waivers`) and tests but left the menu on 2026-09-12 at the
- * operator's request. Classes and Levels were added to the coach menu on 2026-09-14 (ADR-010
+ * the finance dashboard from Billing. Waivers keeps its route (`/admin/waivers`) and tests but
+ * left the menu on 2026-09-12 at the operator's request; Memberships left with it and came back
+ * on 2026-09-17, when the operator had no way to reach the plan catalogue. Classes and Levels were added to the coach menu on 2026-09-14 (ADR-010
  * amendment); see Classes read-only and Levels powers in ADR-010.
  */
 const navigationGroups: readonly NavigationGroup[] = [
@@ -37,6 +37,7 @@ const navigationGroups: readonly NavigationGroup[] = [
     label: "People",
     items: [
       { label: "Members", href: "/admin/members" },
+      { label: "Memberships", href: "/admin/memberships" },
       { label: "Enrolment requests", href: "/admin/members/requests" },
       { label: "Medical conditions", href: "/admin/members/medical" },
     ],
