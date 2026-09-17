@@ -319,6 +319,14 @@ describe("CoachDashboardPage", () => {
     expect(await screen.findByText("No birthdays at Town this week.")).toBeInTheDocument();
   });
 
+  it("says a session's capacity is not set instead of printing a broken ratio", async () => {
+    scheduleClientMock.listSessions.mockResolvedValue([{ ...mockTownSession, capacity: null }]);
+    render(<CoachDashboardPage />);
+
+    expect(await screen.findByText("Capacity not set · 5 booked")).toBeInTheDocument();
+    expect(screen.queryByText(/not set booked/u)).not.toBeInTheDocument();
+  });
+
   it("filters classes when switching to West premises", async () => {
     render(<CoachDashboardPage />);
 
