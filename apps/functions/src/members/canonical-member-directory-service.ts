@@ -1165,8 +1165,10 @@ export function createCanonicalMemberDirectoryService(
           now,
         );
         // T051V2: the domain can only refuse a self-recommendation, so the writer is the only place
-        // that can prove the recommender is a real student of this academy before storing it.
-        const recommendedByStudentId = nextProfile.details?.recommendedByStudentId;
+        // that can prove the recommender is a real student of this academy before storing it. Only
+        // the block being written is checked: a kept block was already validated when it was sent,
+        // and re-checking it would fail unrelated saves once that recommender leaves the academy.
+        const recommendedByStudentId = parsedInput.value.details?.recommendedByStudentId;
         if (recommendedByStudentId !== undefined) {
           const recommenderSnapshot = await transaction.get(
             dependencies.firestore.doc(studentPath(academyId, recommendedByStudentId)),

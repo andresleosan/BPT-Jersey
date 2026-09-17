@@ -935,6 +935,41 @@ describe("DETAILS block on the canonical update (T051V2)", () => {
     }
   });
 
+  it("keeps saving a member whose stored recommender has since left, unless details are sent", async () => {
+    // The recommender check covers what is being written. Re-checking the kept block would break
+    // unrelated saves (phone, gender) the day that recommender is deleted or moved academy.
+    const seeded = existingMemberSeed();
+    const storedProfilePath = profilePath;
+    seeded[storedProfilePath] = {
+      ...(seeded[storedProfilePath] as Record<string, unknown>),
+      details: { recommendedByStudentId: "student-gone-1" },
+    } as MemberDirectoryDocumentData;
+    const harness = fakeFirestore(seeded);
+    const writer = service(harness.firestore);
+
+    await expect(
+      writer.updateAdminMember({
+        actor: actor(),
+        value: updateInput("88888888-8888-4888-8888-888888888888"),
+        now,
+      }),
+    ).resolves.toEqual({ memberId: "student-existing-1", studentId: "student-existing-1" });
+    expect(harness.records.get(storedProfilePath)).toEqual(
+      expect.objectContaining({ details: { recommendedByStudentId: "student-gone-1" } }),
+    );
+
+    await expect(
+      writer.updateAdminMember({
+        actor: actor(),
+        value: {
+          ...updateInput("99999999-9999-4999-8999-999999999999"),
+          details: { recommendedByStudentId: "student-gone-1" },
+        },
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "invalid" });
+  });
+
   it("stores notes typed in a browser textarea with their line breaks normalised", async () => {
     // A textarea submits CRLF, and a stored carriage return is a control character the profile
     // schema refuses - so the input schema normalises it instead of failing the whole save.
