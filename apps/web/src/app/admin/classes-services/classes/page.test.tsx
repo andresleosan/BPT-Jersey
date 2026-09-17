@@ -236,6 +236,31 @@ describe("Classes & Services 2.0 page", () => {
     );
   });
 
+  it("asks for the week without waiting for the catalogue, and for staff only once the week is on screen", async () => {
+    let releaseCatalog: (value: typeof catalog) => void = () => undefined;
+    mocks.getScheduleCatalog.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseCatalog = resolve;
+        }),
+    );
+    render(<ClassesPage />);
+    // Every callable waits for its own App Check token: the week goes first, staff is not needed to read it.
+    await waitFor(() => expect(mocks.listSessions).toHaveBeenCalled());
+    expect(mocks.listSessionBookedCounts).toHaveBeenCalled();
+    expect(mocks.listStaffProfiles).not.toHaveBeenCalled();
+    expect(
+      await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(mocks.listStaffProfiles).toHaveBeenCalledTimes(1));
+    releaseCatalog(catalog);
+    // The catalogue arriving later colours the cards but does not ask for the week again.
+    await waitFor(() => expect(mocks.listSessions.mock.calls.length).toBeGreaterThan(1));
+    expect(
+      mocks.listSessions.mock.calls.filter(([q]) => q.from.startsWith("2026-09-13")).length,
+    ).toBe(1);
+  });
+
   it("filters by location and by mine", async () => {
     render(<ClassesPage />);
     await screen.findByRole("button", { name: /GI All Levels Evenings/ });
@@ -287,7 +312,8 @@ describe("Classes & Services 2.0 page", () => {
   it("opens the panel in create mode from the header button", async () => {
     render(<ClassesPage />);
     await screen.findByRole("button", { name: /GI All Levels Evenings/ });
-    fireEvent.click(screen.getByRole("button", { name: "Add a class" }));
+    // Creation needs the trainer list, which is read right after the week.
+    fireEvent.click(await screen.findByRole("button", { name: "Add a class" }));
     const dialog = await screen.findByRole("dialog", { name: /Create classes\/services/i });
     expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-09-14");
     expect(within(dialog).getByLabelText("Start time")).toHaveValue("17:00");
@@ -345,11 +371,11 @@ describe("Classes & Services 2.0 page", () => {
     expect(
       await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
     ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Trainer list unavailable: creating classes is disabled."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add a class" })).not.toBeInTheDocument();
-    expect(
-      screen.getByText("Trainer list unavailable: creating classes is disabled."),
-    ).toBeInTheDocument();
     // Editing and the week actions do not need the trainer list.
     expect(screen.getByRole("button", { name: "Copy week" })).toBeInTheDocument();
   });

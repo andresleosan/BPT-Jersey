@@ -197,7 +197,12 @@ export function ClassesPage(): ReactElement {
     };
   }, []);
 
+  // Every callable waits for its own App Check token, so the order of the first reads is the order
+  // the page fills in: the week first, then staff (only needed to create a class or filter by trainer).
+  const staffRequested = useRef(false);
   useEffect(() => {
+    if (loading || staffRequested.current) return undefined;
+    staffRequested.current = true;
     let abandoned = false;
     void (async () => {
       try {
@@ -217,12 +222,13 @@ export function ClassesPage(): ReactElement {
     return () => {
       abandoned = true;
     };
-  }, []);
+  }, [loading]);
 
   const listRange = view === "list" ? dateRange : null;
 
   useEffect(() => {
-    if (catalog === null) return undefined;
+    // The week does not wait for the catalogue: sessions only need the timezone, which falls back to
+    // the academy's own until the catalogue arrives.
     let abandoned = false;
     setLoading(true);
     void (async () => {
@@ -241,7 +247,7 @@ export function ClassesPage(): ReactElement {
     return () => {
       abandoned = true;
     };
-  }, [catalog, range, weekStart, timezone, listRange, reload]);
+  }, [range, weekStart, timezone, listRange, reload]);
 
   useEffect(() => {
     // The year TOTAL is a nicety: it waits for the week to be on screen instead of competing with it.
