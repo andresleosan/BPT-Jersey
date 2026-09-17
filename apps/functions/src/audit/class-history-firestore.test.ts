@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { Timestamp } from "firebase-admin/firestore";
 import { describe, expect, it, vi } from "vitest";
 
@@ -315,5 +317,97 @@ describe("createClassHistoryStore.readStaffNames", () => {
     expect(staff.get("uid-0")).toBe("staff-0");
     expect(staff.get("uid-34")).toBe("staff-34");
     expect(staff.size).toBe(35);
+  });
+});
+
+/**
+ * The "Logged by" filter adds a fourth equality to a query that already orders by time, and
+ * Firestore answers an unindexed composite query with FAILED_PRECONDITION at runtime rather than
+ * at deploy time. This test derives the index the query needs from the calls the adapter actually
+ * makes and looks it up in the shipped `firestore.indexes.json`, so the two can never drift apart.
+ */
+type ShippedIndexField = Readonly<{ fieldPath: string; order?: string }>;
+type ShippedIndex = Readonly<{
+  collectionGroup: string;
+  queryScope: string;
+  fields: readonly ShippedIndexField[];
+}>;
+
+function shippedIndexes(): readonly ShippedIndex[] {
+  const file = new URL("../../../../firestore.indexes.json", import.meta.url);
+  const parsed = JSON.parse(readFileSync(file, "utf8")) as Readonly<{
+    indexes: readonly ShippedIndex[];
+  }>;
+  return parsed.indexes;
+}
+
+describe("createClassHistoryStore.readMemberNames", () => {
+  it("resolves a member uid to the student's own full name", async () => {
+    const firestore = fakeStaffFirestore([
+      [doc("student-ana", { userId: "uid-member-ana", fullName: "Ana Synthetic" })],
+    ]);
+    const store = createClassHistoryStore(firestore as never, "demo-academy");
+
+    const members = await store.readMemberNames(["uid-member-ana"]);
+
+    expect(firestore.collection).toHaveBeenCalledWith("academies/demo-academy/students");
+    expect(firestore.whereCalls).toEqual([["userId", "in", ["uid-member-ana"]]]);
+    expect(members.get("uid-member-ana")).toBe("Ana Synthetic");
+  });
+
+  it("never answers with the auth uid when no student holds that account", async () => {
+    const firestore = fakeStaffFirestore([[]]);
+    const store = createClassHistoryStore(firestore as never, "demo-academy");
+
+    const members = await store.readMemberNames(["uid-guardian"]);
+
+    expect(members.has("uid-guardian")).toBe(false);
+    expect([...members.values()]).not.toContain("uid-guardian");
+  });
+
+  it("returns an empty map without querying when there are no uids", async () => {
+    const firestore = fakeStaffFirestore([]);
+    const store = createClassHistoryStore(firestore as never, "demo-academy");
+
+    const members = await store.readMemberNames([]);
+
+    expect(members.size).toBe(0);
+    expect(firestore.collection).not.toHaveBeenCalled();
+  });
+});
+
+describe("the class history query and the shipped composite indexes", () => {
+  it("has a shipped auditEvents index for the Logged by filter", async () => {
+    const query = fakeQuery([]);
+    const store = createClassHistoryStore(fakeFirestore(query) as never, "demo-academy");
+
+    await store.queryEvents({ ...baseQuery, actorId: "uid-member-ana" });
+
+    const equalityFields = query.where.mock.calls
+      .filter((call) => call[1] === "==" || call[1] === "in")
+      .map((call) => call[0] as string);
+    expect([...equalityFields].sort()).toEqual(["action", "actorGroup", "actorId"]);
+    expect(query.orderBy).toHaveBeenCalledWith("occurredAt", "desc");
+
+    const match = shippedIndexes().find(
+      (index) =>
+        index.collectionGroup === "auditEvents" &&
+        index.queryScope === "COLLECTION" &&
+        index.fields.length === equalityFields.length + 1 &&
+        index.fields
+          .slice(0, equalityFields.length)
+          .every(
+            (field) => equalityFields.includes(field.fieldPath) && field.order === "ASCENDING",
+          ) &&
+        index.fields.at(-1)?.fieldPath === "occurredAt" &&
+        index.fields.at(-1)?.order === "DESCENDING",
+    );
+
+    expect(match?.fields.map((field) => `${field.fieldPath}:${field.order ?? ""}`)).toEqual([
+      "actorId:ASCENDING",
+      "action:ASCENDING",
+      "actorGroup:ASCENDING",
+      "occurredAt:DESCENDING",
+    ]);
   });
 });
