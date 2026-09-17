@@ -3337,6 +3337,11 @@
   color: #6f1111;
 }
 
+.membership-price {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .membership-message-warning {
   background: #fff8e6;
   border-left-color: #c98b00;

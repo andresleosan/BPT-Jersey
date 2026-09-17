@@ -197,7 +197,7 @@ function PlanCatalog({ plans }: { plans: readonly ManagedMembershipPlan[] }) {
                   <small className="membership-secondary-text">{planId}</small>
                 </td>
                 <td>{billingLabel[plan.billingPeriod]}</td>
-                <td>{formatPlanPrice(plan)}</td>
+                <td className="membership-price">{formatPlanPrice(plan)}</td>
                 <td>{plan.eligibleParticipantTypes.join(", ")}</td>
                 <td>
                   <AdminStatusBadge status={status} />
