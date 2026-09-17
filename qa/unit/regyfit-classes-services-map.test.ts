@@ -74,7 +74,7 @@ describe("ids", () => {
   it("derives stable slugs", () => {
     expect(programIdFor("GI Beginners Evenings")).toBe("regyfit-gi-beginners-evenings");
     expect(programIdFor("13-15YO")).toBe("regyfit-13-15yo");
-    expect(trainerKeyFor("Amoné Mouton")).toBe("regyfit-trainer-amone-mouton");
+    expect(trainerKeyFor("Zoé Exemple")).toBe("regyfit-trainer-zoe-exemple");
   });
 });
 
