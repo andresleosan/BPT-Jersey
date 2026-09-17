@@ -6,6 +6,15 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
  * address on a class audit event is kept for twelve months and then cleared, while the event
  * itself stays in the ledger forever. This module is the enforcer of that promise - nothing
  * before it deleted anything (`apps/functions/src/retention/` only produces alerts).
+ *
+ * WARNING for whoever next stores an IP on a non-class audit action: this sweep does not filter
+ * by `action`. It clears `actorIp` on EVERY audit event older than twelve months, across every
+ * academy, regardless of what wrote it. Today that is harmless because only the four class
+ * actions (`classAuditActions`) ever populate `actorIp` - but a new action that starts writing an
+ * IP inherits this same twelve-month policy silently, with no separate decision. If that action
+ * needs a different retention period, change this sweep (and the policy docs it points at:
+ * `docs/operations/t011-retention-residency-erasure-policy.md`, `docs/adr/ADR-008-...`) rather than
+ * assuming it is already covered.
  */
 
 const batchSize = 400;
@@ -53,11 +62,12 @@ function twelveMonthsBefore(now: string): string {
 }
 
 /**
- * Clears `actorIp` on every class audit event whose `occurredAt` is more than twelve months
- * before `now`, leaving every other field - including the event itself - untouched. Runs in
- * batches of at most `batchSize` writes so a long history never breaks a single sweep, and is
- * idempotent: an event whose IP is already null is read but never rewritten, so a repeat run over
- * the same history clears nothing and writes nothing.
+ * Clears `actorIp` on every audit event (of any action, in any academy) whose `occurredAt` is
+ * more than twelve months before `now`, leaving every other field - including the event itself -
+ * untouched. See the module-level warning above: it does not check `action`. Runs in batches of
+ * at most `batchSize` writes so a long history never breaks a single sweep, and is idempotent: an
+ * event whose IP is already null is read but never rewritten, so a repeat run over the same
+ * history clears nothing and writes nothing.
  */
 export async function sweepClassIpRetention(
   store: ClassIpRetentionStore,
