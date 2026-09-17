@@ -69,19 +69,30 @@ export function mapSessionRow(
   options: {
     academyId: string;
     programIdsByName: ReadonlyMap<string, string>;
+    locationIdsByName?: ReadonlyMap<string, string>;
     now: string;
     timezone: string;
   },
 ): SessionDocument;
 export function planImport(
   capture: { types: RegyfitType[]; rows: RegyfitRow[] },
-  options: { academyId: string; now: string; timezone: string; from?: string; to?: string },
+  options: {
+    academyId: string;
+    now: string;
+    timezone: string;
+    from?: string;
+    to?: string;
+    existingProgramIdsByName?: ReadonlyMap<string, string>;
+    existingLocationIdsByName?: ReadonlyMap<string, string>;
+  },
 ): {
   programs: ProgramDocument[];
+  reusedPrograms: number;
   sessions: SessionDocument[];
   trainers: string[];
   outsideWindow: number;
   duplicates: number;
+  withoutTrainer: number;
 };
 export function resolveTarget(env: Record<string, string | undefined>): {
   target: "emulator" | "production";

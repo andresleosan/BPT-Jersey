@@ -267,6 +267,46 @@ describe("planImport", () => {
     ).toThrow("Regyfit row id feed_aula21 appears twice with different cells");
   });
 
+  it("links sessions to programs and locations that already exist, creating only missing types", () => {
+    const plan = planImport(
+      {
+        types: [type(), type({ name: "Synthetic NoGi", abbreviation: "SYN_NO" })],
+        rows: [
+          row("40", "14 Sep 2026", "06:00 - 07:00"),
+          row("41", "14 Sep 2026", "07:00 - 08:00", { 3: "Synthetic NoGi AULA", 4: "BPT West" }),
+        ],
+      },
+      {
+        academyId: "a",
+        now,
+        timezone,
+        existingProgramIdsByName: new Map([["Synthetic GI Evenings", "Xq9randomId"]]),
+        existingLocationIdsByName: new Map([["BPT Town", "bpt-town"]]),
+      },
+    );
+    expect(plan.programs.map((p) => p.programId)).toEqual(["regyfit-synthetic-nogi"]);
+    expect(plan.reusedPrograms).toBe(1);
+    expect(plan.sessions.map((s) => [s.programId, s.locationId])).toEqual([
+      ["Xq9randomId", "bpt-town"],
+      ["regyfit-synthetic-nogi", "west"],
+    ]);
+  });
+
+  it("skips and counts a class with no trainer instead of aborting the whole import", () => {
+    const plan = planImport(
+      {
+        types: [type()],
+        rows: [
+          row("50", "14 Sep 2026", "06:00 - 07:00", { 5: "" }),
+          row("51", "14 Sep 2026", "07:00 - 08:00"),
+        ],
+      },
+      { academyId: "a", now, timezone },
+    );
+    expect(plan.sessions.map((s) => s.sessionId)).toEqual(["regyfit-51"]);
+    expect(plan.withoutTrainer).toBe(1);
+  });
+
   it("refuses two types that would write the same program", () => {
     const options = { academyId: "a", now, timezone };
     expect(() =>
