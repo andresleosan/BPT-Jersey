@@ -6,7 +6,13 @@ import {
   deriveBmi,
   deriveShortNameVariants,
   memberAgeOn,
+  memberNameSearchRequestSchema,
+  memberNameSearchResultSchema,
+  memberProfileRequestSchema,
+  memberProfileSchema,
+  memberRecordTabs,
   nextFreeMemberNumber,
+  updateMemberDetailsInputSchema,
   wholeMonthsBetween,
 } from "./member-profile-contracts";
 
@@ -91,5 +97,142 @@ describe("DETAILS helpers", () => {
     expect(nextFreeMemberNumber(["1", "0152", "A-7", undefined, "99"])).toBe("153");
     expect(nextFreeMemberNumber([])).toBe("1");
     expect(nextFreeMemberNumber(["BPT 0001"])).toBe("1");
+  });
+});
+
+describe("member profile contracts", () => {
+  const coachHeader = {
+    studentId: "student-1",
+    fullName: "Test Member A",
+    age: 26,
+    participantType: "adult",
+    status: "active",
+    birthdayBadge: { kind: "inDays", days: 3 },
+  } as const;
+  const fullProfile = {
+    view: "full",
+    header: { ...coachHeader, maskedMemberReference: "****0000" },
+    cards: {
+      memberSince: "2026-01-15",
+      monthsAsMember: 8,
+      profession: "Tester",
+      accountManagers: [{ displayName: "Test Guardian", familyId: "family-1" }],
+      currentMembership: {
+        membershipId: "membership-1",
+        planName: "Test Plan",
+        status: "active",
+        validUntil: "2026-12-31",
+      },
+    },
+    details: {
+      studentId: "student-1",
+      fullName: "Test Member A",
+      dateOfBirth: "2000-09-20",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      participantType: "adult",
+      active: true,
+      status: "active",
+      gender: "unknown",
+      membershipNumber: "00000000",
+      details: { heightCm: 175, weightKg: 70 },
+    },
+    nextFreeMemberNumber: "12",
+  } as const;
+
+  it("lists the eight record tabs in Regyfit order", () => {
+    expect(memberRecordTabs).toEqual([
+      "profile",
+      "details",
+      "plan",
+      "documents",
+      "payments",
+      "classes",
+      "communication",
+      "notes",
+    ]);
+  });
+
+  it("accepts only a strict studentId request", () => {
+    expect(memberProfileRequestSchema.safeParse({ studentId: "student-1" }).success).toBe(true);
+    for (const bad of [
+      {},
+      { studentId: "" },
+      { studentId: "../x" },
+      { studentId: "student-1", academyId: "academy-2" },
+      { studentId: "student-1", view: "full" },
+    ]) {
+      expect(memberProfileRequestSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("parses the full view and the coach view", () => {
+    expect(memberProfileSchema.safeParse(fullProfile).success).toBe(true);
+    expect(memberProfileSchema.safeParse({ view: "coach", header: coachHeader }).success).toBe(
+      true,
+    );
+  });
+
+  it("refuses a coach view carrying anything beyond the header", () => {
+    for (const bad of [
+      { view: "coach", header: { ...coachHeader, maskedMemberReference: "****0000" } },
+      { view: "coach", header: coachHeader, details: fullProfile.details },
+      { view: "coach", header: coachHeader, cards: fullProfile.cards },
+      { view: "coach", header: { ...coachHeader, dateOfBirth: "2000-09-20" } },
+    ]) {
+      expect(memberProfileSchema.safeParse(bad).success).toBe(false);
+    }
+  });
+
+  it("bounds the badge and refuses unknown keys in the full view", () => {
+    expect(
+      memberProfileSchema.safeParse({
+        ...fullProfile,
+        header: { ...fullProfile.header, birthdayBadge: { kind: "inDays", days: 8 } },
+      }).success,
+    ).toBe(false);
+    expect(memberProfileSchema.safeParse({ ...fullProfile, auditId: "audit-1" }).success).toBe(
+      false,
+    );
+    expect(
+      memberProfileSchema.safeParse({
+        ...fullProfile,
+        header: { ...fullProfile.header, birthdayBadge: null },
+        cards: { ...fullProfile.cards, currentMembership: null, accountManagers: [] },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("uses the directory update input for DETAILS saves", () => {
+    expect(
+      updateMemberDetailsInputSchema.safeParse({
+        studentId: "student-1",
+        requestId: "41cbb1aa-7020-4bb5-88a4-dbc73c5f0123",
+        fullName: "Test Member A",
+        dateOfBirth: "2000-09-20",
+        trainingCenter: "Town",
+        trainingTimePreferences: ["evening"],
+        gender: "unknown",
+        details: { howHeard: "Website" },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("keeps the name search small and closed", () => {
+    expect(memberNameSearchRequestSchema.safeParse({ query: " te " }).success).toBe(true);
+    for (const bad of [{ query: "t" }, { query: "x".repeat(81) }, { query: "test", limit: 500 }]) {
+      expect(memberNameSearchRequestSchema.safeParse(bad).success).toBe(false);
+    }
+    const member = { studentId: "student-1", fullName: "Test Member A" };
+    expect(memberNameSearchResultSchema.safeParse({ members: [member] }).success).toBe(true);
+    expect(
+      memberNameSearchResultSchema.safeParse({ members: Array.from({ length: 21 }, () => member) })
+        .success,
+    ).toBe(false);
+    expect(
+      memberNameSearchResultSchema.safeParse({
+        members: [{ ...member, dateOfBirth: "2000-01-01" }],
+      }).success,
+    ).toBe(false);
   });
 });
