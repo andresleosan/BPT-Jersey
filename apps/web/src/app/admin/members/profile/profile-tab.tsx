@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -5,9 +7,23 @@ import type { FullMemberProfile, MemberProfile } from "@bpt-jersey/domain/member
 
 import { formatRecordDate } from "./record-format";
 
-function membershipStatusLabel(status: "trial" | "active" | "paused" | "overdue"): string {
+type MembershipStatus = "trial" | "active" | "paused" | "overdue";
+
+function membershipStatusLabel(status: MembershipStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
+
+/**
+ * DESIGN.md §2 has three semantic statuses, and a membership status is not binary: `paused` and
+ * `overdue` want the office's attention (Attention Amber), while a `trial` is a normal beginning and
+ * must never read as a refusal.
+ */
+const membershipStatusClass: Readonly<Record<MembershipStatus, string>> = {
+  trial: "member-record-status-trial",
+  active: "member-record-status-active",
+  paused: "member-record-status-attention",
+  overdue: "member-record-status-attention",
+};
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   const id = `member-record-card-${title.toLowerCase().replaceAll(" ", "-")}`;
@@ -45,11 +61,9 @@ function OfficeCards({ profile }: { profile: FullMemberProfile }) {
             ))}
           </ul>
         )}
-        {cards.accountManagers.length === 0 ? null : (
-          <Link className="member-record-link" href="/admin/families">
-            Open Families
-          </Link>
-        )}
+        <Link className="member-record-link" href="/admin/families">
+          Open Families
+        </Link>
       </Card>
       <Card title="Plan">
         {cards.currentMembership === null ? (
@@ -60,9 +74,7 @@ function OfficeCards({ profile }: { profile: FullMemberProfile }) {
               <strong>{cards.currentMembership.planName}</strong>
             </p>
             <p
-              className={`member-record-status member-record-status-${
-                cards.currentMembership.status === "active" ? "active" : "inactive"
-              }`}
+              className={`member-record-status ${membershipStatusClass[cards.currentMembership.status]}`}
             >
               {membershipStatusLabel(cards.currentMembership.status)}
             </p>
@@ -87,6 +99,10 @@ function OfficeCards({ profile }: { profile: FullMemberProfile }) {
 /**
  * PROFILE (spec §5.4). `ibjjfCardSlot` is Plan C's insertion point for the JIU-JITSU IBJJF card; it is
  * the only card a coach sees.
+ *
+ * The slot is tested for truthiness, not for `undefined`: a caller that passes
+ * `condition ? <IbjjfCard /> : null` must get the same result as one that passes nothing, or the
+ * wrapper renders empty and the coach loses the Levels fallback.
  */
 export function ProfileTab({
   profile,
@@ -95,13 +111,12 @@ export function ProfileTab({
   profile: MemberProfile;
   ibjjfCardSlot?: ReactNode;
 }) {
+  const hasIbjjfCard = Boolean(ibjjfCardSlot);
   return (
     <div className="member-record-cards">
-      {ibjjfCardSlot === undefined ? null : (
-        <div className="member-record-wide">{ibjjfCardSlot}</div>
-      )}
+      {hasIbjjfCard ? <div className="member-record-wide">{ibjjfCardSlot}</div> : null}
       {profile.view === "full" ? <OfficeCards profile={profile} /> : null}
-      {profile.view === "coach" && ibjjfCardSlot === undefined ? (
+      {profile.view === "coach" && !hasIbjjfCard ? (
         <section
           aria-labelledby="record-empty-levels"
           className="member-record-empty member-record-wide"

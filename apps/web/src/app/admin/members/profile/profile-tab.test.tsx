@@ -96,6 +96,50 @@ describe("PROFILE tab", () => {
     expect(screen.queryByText("Test Guardian")).toBeNull();
   });
 
+  it.each([
+    ["trial", "Trial", "member-record-status-trial"],
+    ["active", "Active", "member-record-status-active"],
+    ["paused", "Paused", "member-record-status-attention"],
+    ["overdue", "Overdue", "member-record-status-attention"],
+  ] as const)("shows a %s membership as text plus its own left rule", (status, label, rule) => {
+    render(
+      <ProfileTab
+        profile={{
+          ...full,
+          cards: {
+            ...full.cards,
+            currentMembership: {
+              membershipId: "membership-1",
+              planName: "Test Plan",
+              status,
+              validUntil: "2026-12-31",
+            },
+          },
+        }}
+      />,
+    );
+    const plan = screen.getByRole("region", { name: "Plan" });
+    expect(within(plan).getByText(label).className).toBe(`member-record-status ${rule}`);
+  });
+
+  it("keeps Families reachable when there is no account manager", () => {
+    render(<ProfileTab profile={{ ...full, cards: { ...full.cards, accountManagers: [] } }} />);
+    const manager = screen.getByRole("region", { name: "Account manager" });
+    expect(within(manager).getByRole("link", { name: "Open Families" }).getAttribute("href")).toBe(
+      "/admin/families",
+    );
+  });
+
+  it("treats a null slot as no slot at all", () => {
+    const { container } = render(
+      <ProfileTab profile={{ view: "coach", header }} ibjjfCardSlot={null} />,
+    );
+    expect(screen.getByRole("link", { name: "Open Levels" }).getAttribute("href")).toBe(
+      "/admin/levels",
+    );
+    expect(container.querySelectorAll("div.member-record-wide")).toHaveLength(0);
+  });
+
   it("gives a coach without the IBJJF card a way to Levels, and nothing restricted", () => {
     render(<ProfileTab profile={{ view: "coach", header }} />);
     expect(screen.getByRole("link", { name: "Open Levels" }).getAttribute("href")).toBe(
@@ -133,5 +177,20 @@ describe("empty record tabs", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Open Details" }));
     expect(onOpenDetails).toHaveBeenCalledOnce();
+  });
+
+  it("still offers one way out when the viewer cannot open Details", () => {
+    render(
+      <RecordEmptyTab
+        tab="notes"
+        studentId="student-1"
+        canOpenDetails={false}
+        onOpenDetails={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open Members" }).getAttribute("href")).toBe(
+      "/admin/members",
+    );
   });
 });

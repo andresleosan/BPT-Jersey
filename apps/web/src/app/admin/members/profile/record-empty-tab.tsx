@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import type { MemberRecordTab } from "@bpt-jersey/domain/members/profile";
@@ -72,7 +74,12 @@ export function RecordEmptyTab({
           <button className="member-record-button" onClick={onOpenDetails} type="button">
             Open Details
           </button>
-        ) : null}
+        ) : (
+          /* Never a dead end (DESIGN.md §4): a viewer without DETAILS still gets one way out. */
+          <Link className="member-record-link" href="/admin/members">
+            Open Members
+          </Link>
+        )}
       </section>
     );
   }

@@ -3735,6 +3735,18 @@
   color: #721626;
 }
 
+/* Attention Amber (DESIGN.md §2): needs the office's attention, but is not a refusal. */
+.member-record-status-attention {
+  border-left-color: #c98b00;
+  color: #765400;
+}
+
+/* A trial is not a failure state, so it reads in the one accent rather than a status colour. */
+.member-record-status-trial {
+  border-left-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+}
+
 .member-record-birthday {
   background: #f0efff;
   border-left: 0.35rem solid var(--bpt-purple);
