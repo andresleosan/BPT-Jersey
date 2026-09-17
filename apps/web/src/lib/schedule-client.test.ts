@@ -518,10 +518,20 @@ describe("Schedule Client", () => {
 
   it("asks for a capacity when the source week holds an uncapped session", async () => {
     const input = { fromWeekStart: "2026-09-07", toWeekStart: "2026-09-14", copyBookings: false };
-    mockCallable.mockRejectedValueOnce({ code: "functions/failed-precondition" });
+    mockCallable.mockRejectedValueOnce({
+      code: "functions/failed-precondition",
+      details: { reason: "capacity-not-set" },
+    });
     await expect(copyWeek(input)).rejects.toThrow(
       "Set a capacity on every session in this week before copying it.",
     );
+    mockCallable.mockRejectedValueOnce({ code: "functions/failed-precondition" });
+    await expect(copyWeek(input)).rejects.toThrow("Unable to copy the week");
+    mockCallable.mockRejectedValueOnce({
+      code: "functions/failed-precondition",
+      details: { reason: "other" },
+    });
+    await expect(copyWeek(input)).rejects.toThrow("Unable to copy the week");
     mockCallable.mockRejectedValueOnce({ code: "functions/internal" });
     await expect(copyWeek(input)).rejects.toThrow("Unable to copy the week");
   });

@@ -171,15 +171,22 @@ async function callSafely<Req, Res>(
   name: string,
   input: Req,
   failure: string,
-  preconditionFailure = failure,
+  precondition?: { reason: string; message: string },
 ): Promise<Res> {
   const callable = httpsCallable<Req, Res>(getFirebaseFunctions(), name);
   try {
     return (await callable(input)).data;
   } catch (error) {
-    const code =
-      typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
-    throw new Error(code === "functions/failed-precondition" ? preconditionFailure : failure);
+    const isObject = typeof error === "object" && error !== null;
+    const code = isObject ? Reflect.get(error, "code") : undefined;
+    const details: unknown = isObject ? Reflect.get(error, "details") : undefined;
+    const reason =
+      typeof details === "object" && details !== null ? Reflect.get(details, "reason") : undefined;
+    const matched =
+      precondition !== undefined &&
+      code === "functions/failed-precondition" &&
+      reason === precondition.reason;
+    throw new Error(matched ? precondition.message : failure);
   }
 }
 
@@ -239,7 +246,10 @@ export async function copyWeek(input: CopyWeekInput): Promise<readonly SessionRe
       "copyWeek",
       input,
       "Unable to copy the week",
-      "Set a capacity on every session in this week before copying it.",
+      {
+        reason: "capacity-not-set",
+        message: "Set a capacity on every session in this week before copying it.",
+      },
     )
   ).sessions;
 }

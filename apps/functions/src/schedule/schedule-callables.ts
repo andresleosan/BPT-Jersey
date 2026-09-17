@@ -215,7 +215,7 @@ function mapWeekError(
     throw new HttpsError("invalid-argument", message);
   }
   if (/needs a capacity/u.test(message)) {
-    throw new HttpsError("failed-precondition", message);
+    throw new HttpsError("failed-precondition", message, { reason: "capacity-not-set" });
   }
   console.error("week operation failed", error);
   throw new HttpsError("internal", fallbackMessage);
