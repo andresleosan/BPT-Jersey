@@ -10,6 +10,11 @@
       "import": "./src/audit/audit-event.ts",
       "default": "./lib/audit/audit-event.js"
     },
+    "./audit/class-history": {
+      "types": "./src/audit/class-history-contracts.ts",
+      "import": "./src/audit/class-history-contracts.ts",
+      "default": "./lib/audit/class-history-contracts.js"
+    },
     "./migration/regyfit-access": {
       "types": "./src/migration/regyfit-access.ts",
       "import": "./src/migration/regyfit-access.ts",
