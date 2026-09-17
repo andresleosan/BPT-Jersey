@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Synthetic GI Mornings",
+    "abbreviation": "SYN_GI_MO",
+    "colour": "#d7fffd",
+    "active": true,
+    "type": "Class: Registrations = weekly/monthly frequency",
+    "dropIns": "Unlimited",
+    "email": false,
+    "list": false,
+    "message": "",
+    "icon": "../../imagens/icons/656.svg"
+  },
+  {
+    "name": "Synthetic Open Mat",
+    "abbreviation": "SYN_OM",
+    "colour": "#d7eaff",
+    "active": true,
+    "type": "Class: Unlimited registrations",
+    "dropIns": "Unlimited",
+    "email": false,
+    "list": false,
+    "message": "",
+    "icon": "../../imagens/icons/227.svg"
+  }
+]
