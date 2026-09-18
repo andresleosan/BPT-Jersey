@@ -4,13 +4,14 @@ import { classesServicesTabs } from "./classes-services/classes-services-tabs";
 export type StaffRouteRole = StaffSession["role"];
 
 /**
- * What the mat can open inside /admin, in menu order. Operator decisions 2026-09-12 (ADR-010) and
- * 2026-09-14 (ADR-010 amendment: Classes read-only for coaches, Levels for both). The member
- * directory stays office-only.
+ * What the mat can open inside /admin, in menu order. Operator decisions 2026-09-12 (ADR-010),
+ * 2026-09-14 (Classes read-only, Levels) and 2026-09-17 (member record header and name search,
+ * grill G6). The office directory (/admin/members and its add/import pages) stays office-only.
  */
 const coachRoutes = Object.freeze([
   "/admin",
   "/admin/attendance",
+  "/admin/members/search",
   "/admin/members/requests",
   "/admin/members/medical",
   "/admin/classes-services",
@@ -27,6 +28,8 @@ const offMenuStaffRoutes = Object.freeze([
   "/admin/lesson-plans",
   // Kept so the mat still reaches the redirect that /admin/classes became on 2026-09-16.
   "/admin/classes",
+  // The member record opens from search and the overview; `getMemberProfile` trims it to the header.
+  "/admin/members/profile",
 ] as const);
 
 const classesServicesRoot = "/admin/classes-services";

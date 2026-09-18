@@ -7,6 +7,7 @@ describe("staff routes", () => {
     expect(staffRoutes.coach).toEqual([
       "/admin",
       "/admin/attendance",
+      "/admin/members/search",
       "/admin/members/requests",
       "/admin/members/medical",
       "/admin/classes-services",
@@ -20,7 +21,7 @@ describe("staff routes", () => {
     expect(isStaffRouteAllowed("/admin/attendance/today", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/members/requests", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/members", "coach")).toBe(false);
-    expect(isStaffRouteAllowed("/admin/members/search", "coach")).toBe(false);
+    expect(isStaffRouteAllowed("/admin/members/search", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/classes-services", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/classes-services/locations", "coach")).toBe(true);
     expect(isStaffRouteAllowed("/admin/classes-services", "headCoach")).toBe(true);
@@ -54,5 +55,15 @@ describe("staff routes", () => {
     expect(isStaffRouteAllowed("/admin/lesson-plans", "headCoach")).toBe(true);
     // The legacy /admin/classes page only redirects now, so the mat still has to be let in.
     expect(isStaffRouteAllowed("/admin/classes", "coach")).toBe(true);
+  });
+
+  it("opens the member record and name search to the mat, not the office directory (ADR-010, 2026-09-17)", () => {
+    for (const role of ["coach", "headCoach"] as const) {
+      expect(isStaffRouteAllowed("/admin/members/profile", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/members/search", role)).toBe(true);
+      expect(isStaffRouteAllowed("/admin/members", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/members/add", role)).toBe(false);
+      expect(isStaffRouteAllowed("/admin/members/import", role)).toBe(false);
+    }
   });
 });

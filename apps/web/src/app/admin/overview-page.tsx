@@ -9,6 +9,7 @@ import { upcomingBirthdayMaxWindowDays, type UpcomingBirthday } from "@bpt-jerse
 import { AdminMetric, AdminSectionHeader, AdminStatusBadge } from "./admin-ui";
 import { AdminDataTable } from "./admin-data-table";
 import { useAdminOrStaffSession } from "./admin-gate";
+import { recordHref } from "./members/profile/member-record";
 import { getOperationalReport } from "../../lib/reports-client";
 import { getDailyOperationsDashboard } from "../../lib/schedule-client";
 import { birthdayDateLabel, listUpcomingBirthdays } from "../../lib/birthdays-client";
@@ -93,7 +94,9 @@ function BirthdayTodayBand({ entries }: { entries: readonly UpcomingBirthday[] }
       <ul className="admin-birthday-today-names">
         {today.map((entry) => (
           <li key={entry.studentId}>
-            <span className="admin-birthday-badge">{entry.displayName}</span>
+            <Link className="admin-birthday-badge" href={recordHref(entry.studentId)}>
+              {entry.displayName}
+            </Link>
           </li>
         ))}
       </ul>
@@ -124,7 +127,9 @@ function NextBirthdaysCard({ state }: { state: BirthdayState }) {
               <span className="admin-birthday-date">
                 {entry.daysAway === 0 ? "Today" : birthdayDateLabel(entry.daysAway)}
               </span>
-              <strong>{entry.displayName}</strong>
+              <strong>
+                <Link href={recordHref(entry.studentId)}>{entry.displayName}</Link>
+              </strong>
               <span className="admin-birthday-age">turns {entry.turningAge}</span>
             </li>
           ))}

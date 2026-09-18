@@ -23,7 +23,8 @@ type NavigationGroup = Readonly<{ label: string; items: readonly NavigationItem[
  * the finance dashboard from Billing. Memberships and waivers keep their routes
  * (`/admin/memberships`, `/admin/waivers`) and tests but left the menu on 2026-09-12 at the
  * operator's request. Classes and Levels were added to the coach menu on 2026-09-14 (ADR-010
- * amendment); see Classes read-only and Levels powers in ADR-010.
+ * amendment); see Classes read-only and Levels powers in ADR-010. Member search was added for
+ * office and coaches on 2026-09-17 (ADR-010 amendment, member record).
  */
 const navigationGroups: readonly NavigationGroup[] = [
   {
@@ -37,6 +38,7 @@ const navigationGroups: readonly NavigationGroup[] = [
     label: "People",
     items: [
       { label: "Members", href: "/admin/members" },
+      { label: "Member search", href: "/admin/members/search" },
       { label: "Enrolment requests", href: "/admin/members/requests" },
       { label: "Medical conditions", href: "/admin/members/medical" },
     ],
