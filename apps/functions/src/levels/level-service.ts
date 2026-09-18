@@ -18,6 +18,7 @@ import {
   minimumDaysOf,
   promotionNoteSchema,
   assessmentEvidenceNotesSchema,
+  recordSkillRatingsInputSchema,
   skillRatingsSchema,
   studentLevelHistorySchema,
   type ImportedBaseline,
@@ -766,6 +767,21 @@ function evidenceNotesOf(notes: unknown): string {
   if (!parsed.success) {
     throw new LevelStoreError("invalid", "Assessment evidence notes are invalid");
   }
+  return parsed.data;
+}
+
+/**
+ * Review of Task 11 (Minor-1): `input.studentId` and `input.definitionKey` go straight into a
+ * Firestore document path and into the evaluation id, and until now nothing in this method parsed
+ * them — they were refused only by accident, downstream, and with a message about something else.
+ * The whole input is parsed here with the very schema the callable boundary (Task 12) will use,
+ * for the same reason the two helpers above exist: the write is irreversible and no boundary
+ * exists yet. `ratings` and `evidenceNotes` are checked first so their two distinct messages
+ * survive; everything else that the schema refuses lands on this one.
+ */
+function skillRatingsInputOf(input: unknown): RecordSkillRatingsInput {
+  const parsed = recordSkillRatingsInputSchema.safeParse(input);
+  if (!parsed.success) throw new LevelStoreError("invalid", "Skill ratings input is invalid");
   return parsed.data;
 }
 
@@ -1524,9 +1540,10 @@ export function createLevelCatalogStore({
       assertRatingRole(evaluatorRole);
       const ratings = skillRatingsOf(input.ratings);
       const evidenceNotes = evidenceNotesOf(input.evidenceNotes);
+      const { studentId, definitionKey } = skillRatingsInputOf(input);
       const now = params.evaluatedAt ?? new Date().toISOString();
       const planned = ratings.map((rating) => {
-        const evaluationId = buildEvaluationId(input.studentId, rating.skillKey, now);
+        const evaluationId = buildEvaluationId(studentId, rating.skillKey, now);
         const audit = levelAuditDraft({
           academyId,
           actorId: evaluatorId,
@@ -1551,21 +1568,19 @@ export function createLevelCatalogStore({
           actorStaffId: evaluatorStaffId,
         });
         const student = storedStudent(
-          await transaction.get(
-            firestore.doc(`academies/${academyId}/students/${input.studentId}`),
-          ),
+          await transaction.get(firestore.doc(`academies/${academyId}/students/${studentId}`)),
           academyId,
-          input.studentId,
+          studentId,
         );
         assertActiveStudent(student);
         const definition = await transaction.get(
-          firestore.doc(`academies/${academyId}/levelDefinitions/${input.definitionKey}`),
+          firestore.doc(`academies/${academyId}/levelDefinitions/${definitionKey}`),
         );
         const definitionData = definition.data();
         if (
           !definition.exists ||
           definitionData?.academyId !== academyId ||
-          definitionData.definitionKey !== input.definitionKey ||
+          definitionData.definitionKey !== definitionKey ||
           typeof definitionData.systemId !== "string"
         ) {
           throw new LevelStoreError("conflict", "Assessment references are not current");
@@ -1589,6 +1604,10 @@ export function createLevelCatalogStore({
         // Every existing document is read before anything is written: the whole batch is one
         // transaction, so a single replayed rating leaves the member neither half assessed nor
         // half audited.
+        // ponytail: this is N round trips, one per rating. `transaction.getAll(...refs)` would be
+        // one, but neither `GenericTransaction` nor the test fake has `getAll` today, and the
+        // ceiling is low: the published catalogue has 11 skills and the contract caps a batch at
+        // 100. Worth doing when something else needs `getAll` anyway.
         const existing = await Promise.all(planned.map((entry) => transaction.get(entry.ref)));
         if (
           !system.exists ||
@@ -1604,11 +1623,11 @@ export function createLevelCatalogStore({
           const record: EvaluationRecord = {
             evaluationId: entry.evaluationId,
             academyId,
-            studentId: input.studentId,
+            studentId,
             // Decision 3: the Manage view has no session, and `EvaluationRecord.sessionId` was
             // widened to `string | null` (Task 6) precisely for this path.
             sessionId: null,
-            definitionKey: input.definitionKey,
+            definitionKey,
             skillKey: entry.rating.skillKey,
             score: entry.rating.score,
             evidenceNotes,
@@ -1628,7 +1647,7 @@ export function createLevelCatalogStore({
             observedAt: now,
             dimensions: [
               {
-                definitionKey: input.definitionKey,
+                definitionKey,
                 skillKey: entry.rating.skillKey,
                 score: entry.rating.score,
               },
@@ -2932,19 +2951,18 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       assertRatingRole(evaluatorRole);
       const ratings = skillRatingsOf(input.ratings);
       const evidenceNotes = evidenceNotesOf(input.evidenceNotes);
+      const { studentId, definitionKey } = skillRatingsInputOf(input);
       const now = new Date().toISOString();
       const evaluatedAt = params.evaluatedAt ?? now;
       const catalog = await this.listPublished(academyId);
       const catalogKeys = new Set(catalog.skills.map((skill) => skill.key));
-      if (
-        !catalog.definitions.some((definition) => definition.definitionKey === input.definitionKey)
-      ) {
+      if (!catalog.definitions.some((definition) => definition.definitionKey === definitionKey)) {
         throw new LevelStoreError("conflict", "Assessment references are not current");
       }
       const planned = ratings.map((rating) => ({
         rating,
-        key: `${academyId}__${input.studentId}__${buildEvaluationId(input.studentId, rating.skillKey, evaluatedAt)}`,
-        evaluationId: buildEvaluationId(input.studentId, rating.skillKey, evaluatedAt),
+        key: `${academyId}__${studentId}__${buildEvaluationId(studentId, rating.skillKey, evaluatedAt)}`,
+        evaluationId: buildEvaluationId(studentId, rating.skillKey, evaluatedAt),
       }));
       if (
         planned.some(
@@ -2957,9 +2975,9 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         evaluations.set(entry.key, {
           evaluationId: entry.evaluationId,
           academyId,
-          studentId: input.studentId,
+          studentId,
           sessionId: null,
-          definitionKey: input.definitionKey,
+          definitionKey,
           skillKey: entry.rating.skillKey,
           score: entry.rating.score,
           evidenceNotes,
