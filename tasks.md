@@ -8266,8 +8266,8 @@ Final unit suite: 354 files, 3,705 tests passed. Build, typecheck, lint, focused
 
 ## Member recovery: name-only support and production diagnosis — 2026-09-18
 
-Status: implemented and locally verified on `fix/member-recovery-name-only`; production
-release pending explicit operator confirmation.
+Status: implemented and locally verified on `fix/member-recovery-name-only`. The operator
+approved production release; the Firebase phase is complete and the frontend release is prepared.
 
 The reported generic error is explained by the missing recovery Functions deployment
 (HTTP 404). Read-only production checks also found the missing queue index and 124 of
@@ -8279,3 +8279,9 @@ Validation: 78 focused tests and 4 Firestore integration/rules tests passed; typ
 lint, deployment artifact, static build and desktop/mobile browser smoke passed.
 No production records were changed. Release evidence and exact deployment scope:
 `docs/operations/2026-09-18-member-recovery-release.md`.
+
+Production execution: the five recovery functions are ACTIVE, rules are deployed and the index
+is READY. Existing functions are unchanged. Corrected the reCAPTCHA allowlist to include the
+production apex domain while keeping App Check enforced. The automated production browser is
+still rejected by attestation; real-account acceptance remains a user check. No member data was
+changed by release verification. See the release note for evidence and validation limits.
