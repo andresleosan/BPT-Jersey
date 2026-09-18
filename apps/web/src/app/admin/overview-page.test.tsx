@@ -144,6 +144,9 @@ describe("admin overview", () => {
     expect(items).toHaveLength(3);
     expect(items[0]).toHaveTextContent(/Ana Coelho/);
     expect(items[0]).toHaveTextContent(/turns 30/);
+    expect(
+      within(items[0] as HTMLElement).getByRole("link", { name: "Ana Coelho" }),
+    ).toHaveAttribute("href", "/admin/members/profile?id=s-1");
     expect(items[0]).toHaveTextContent(/^\S+ \d{1,2} \S{3}/); // e.g. "Mon 14 Sep" before the name
     expect(card).not.toHaveTextContent("Dan Extra");
     expect(card).not.toHaveTextContent(/19\d\d|20\d\d/);
@@ -165,7 +168,30 @@ describe("admin overview", () => {
 
     const band = await screen.findByRole("status", { name: "Birthday today" });
     expect(band).toHaveTextContent("Ana Coelho turns 30 today");
-    expect(within(band).getByText("Ana Coelho")).toBeVisible();
+    expect(within(band).getByRole("link", { name: "Ana Coelho" })).toHaveAttribute(
+      "href",
+      "/admin/members/profile?id=s-1",
+    );
+  });
+
+  it("links birthday names to the record for coaches too", async () => {
+    gate.role = "coach";
+    api.listUpcomingBirthdays.mockResolvedValue([
+      {
+        studentId: "s-1",
+        displayName: "Test Member A",
+        daysAway: 0,
+        turningAge: 30,
+        participantType: "adult",
+        trainingCenter: "Town",
+      },
+    ]);
+    render(<OverviewPage />);
+    const band = await screen.findByRole("status", { name: "Birthday today" });
+    expect(within(band).getByRole("link", { name: "Test Member A" })).toHaveAttribute(
+      "href",
+      "/admin/members/profile?id=s-1",
+    );
   });
 
   it("keeps the rest of the overview when birthdays cannot be read", async () => {

@@ -24,6 +24,7 @@ const pilotNavigation = [
   "Overview",
   "Attendance",
   "Members",
+  "Member search",
   "Enrolment requests",
   "Medical conditions",
   "Classes / Services",
@@ -211,7 +212,7 @@ describe("administrative shell", () => {
     ).toBeNull();
   });
 
-  it("shows a coach the six mat modules plus a way back to the coach portal", () => {
+  it("shows a coach the seven mat modules plus a way back to the coach portal", () => {
     const coachSession = {
       ...syntheticSession,
       role: "coach" as const,
@@ -232,6 +233,7 @@ describe("administrative shell", () => {
     ).toEqual([
       "->Overview",
       "->Attendance",
+      "->Member search",
       "->Enrolment requests",
       "->Medical conditions",
       "->Classes / Services",
@@ -241,7 +243,7 @@ describe("administrative shell", () => {
     expect(screen.getByText("Coach operational access")).toBeVisible();
   });
 
-  it("head coach sees the same six modules as coach", () => {
+  it("head coach sees the same seven modules as coach", () => {
     const headCoachSession = {
       ...syntheticSession,
       role: "headCoach" as const,
@@ -262,6 +264,7 @@ describe("administrative shell", () => {
     ).toEqual([
       "->Overview",
       "->Attendance",
+      "->Member search",
       "->Enrolment requests",
       "->Medical conditions",
       "->Classes / Services",

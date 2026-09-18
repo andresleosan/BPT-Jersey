@@ -133,6 +133,19 @@
   text-transform: uppercase;
 }
 
+a.admin-birthday-badge {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+a.admin-birthday-badge:focus-visible,
+.admin-birthday-list a:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+
 .admin-birthday-list {
   display: grid;
   gap: 0.7rem;
