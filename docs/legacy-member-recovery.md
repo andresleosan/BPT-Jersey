@@ -1,8 +1,8 @@
 # Legacy member access recovery
 
-Members start at `/login/recover`, also linked from member sign-in. They enter their full name and previous email, then continue with Google or an email/password account. Existing Firebase accounts can sign in or reset their password. Google sign-in supports any account accepted by the configured Google provider.
+Members start at `/login/recover`, also linked from member sign-in. They enter their full name and, optionally, their previous email, then continue with Google or an email/password account. Existing Firebase accounts can sign in or reset their password. Google sign-in supports any account accepted by the configured Google provider.
 
-The initial response is intentionally identical whether a record matches or not. Automatic recovery requires a unique legacy record matching the supplied name and previous email, plus server-confirmed ownership of that same verified email. A new email, ambiguous match or conflicting ownership needs office identity review at `/admin/members/recovery`. Approval requires selecting the source record and explicitly confirming independent identity verification. The office queue shows only unexpired, verified, account-bound requests awaiting review, with the oldest account bindings first. Resolved requests are excluded; resolving a page and refreshing reveals the next pending requests.
+The initial response is intentionally identical whether a record matches or not. Automatic recovery requires a unique legacy record matching the supplied name and previous email, plus server-confirmed ownership of that same verified email. Members without an email on file, or who cannot remember it, can leave the previous email blank and choose their new address at the authentication step. Name-only requests always need independent office identity review, even if the authenticated address happens to match an imported address. A new email, ambiguous match or conflicting ownership also needs office identity review at `/admin/members/recovery`. Approval requires selecting the source record and explicitly confirming independent identity verification. The office queue shows only unexpired, verified, account-bound requests awaiting review, with the oldest account bindings first. Resolved requests are excluded; resolving a page and refreshing reveals the next pending requests.
 
 Required missing profile details are requested only after identity authorization. Known children use the existing guardian process. Inactive or suspended memberships require office follow-up; recovering identity never renews or reactivates membership.
 
@@ -37,3 +37,5 @@ Tests use synthetic records and the `demo-bpt-jersey` project only. Production a
 - `qa/rules/member-directory-boundary.test.ts` checks that every browser role is denied direct access to the new collections.
 
 See the implementation plan in `docs/superpowers/plans/2026-09-18-legacy-member-recovery.md` for final verification evidence and branch status.
+
+The production investigation and name-only follow-up are recorded in [the recovery release note](operations/2026-09-18-member-recovery-release.md).

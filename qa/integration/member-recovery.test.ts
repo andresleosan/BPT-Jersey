@@ -113,6 +113,30 @@ suite("member recovery Firestore transaction integration", () => {
     }
     if (app) await deleteApp(app);
   });
+  it("persists a name-only ticket without an automatic account link", async () => {
+    const ticket = await service.begin({ fullName: "Synthetic Member" }, "192.0.2.3");
+    expect(await service.complete({ recoveryId: ticket.recoveryId }, "name-only-account")).toEqual({
+      status: "pending-review",
+    });
+    const saved = (
+      await database.doc(root + "memberRecoveryRequests/" + ticket.recoveryId).get()
+    ).data();
+    expect(saved).toMatchObject({
+      previousEmail: "",
+      accountVerified: true,
+      status: "pending-review",
+    });
+    expect(saved?.candidates).toHaveLength(1);
+    expect(
+      (
+        await database
+          .collection(root + "regyfitMemberLinks")
+          .where("userId", "==", "name-only-account")
+          .get()
+      ).size,
+    ).toBe(0);
+    expect(claims.has("name-only-account")).toBe(false);
+  });
   it("serializes two competing identities, persists exactly one canonical student and permits replay", async () => {
     const a = await service.begin(
       { fullName: "Synthetic Member", email: "member@example.test" },

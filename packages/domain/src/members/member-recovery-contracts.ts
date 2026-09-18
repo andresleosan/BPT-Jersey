@@ -20,7 +20,13 @@ export const memberRecoveryProfileSchema = z.strictObject({
 export type MemberRecoveryProfile = z.infer<typeof memberRecoveryProfileSchema>;
 export const beginMemberRecoveryInputSchema = z.strictObject({
   fullName: boundedText,
-  email: z.string().trim().max(320).pipe(z.email()),
+  email: z
+    .string()
+    .trim()
+    .max(320)
+    .transform((value) => value || undefined)
+    .pipe(z.email().optional())
+    .optional(),
 });
 export const beginMemberRecoveryResultSchema = z.strictObject({
   recoveryId: opaqueId,

@@ -32,7 +32,7 @@ async function begin() {
   const user = userEvent.setup();
   render(<RecoveryForm />);
   await user.type(screen.getByLabelText("Full name"), "Alex Member");
-  await user.type(screen.getByLabelText("Previous email address"), "old@example.test");
+  await user.type(screen.getByLabelText(/Previous email address/), "old@example.test");
   await user.click(screen.getByRole("button", { name: "Find my membership" }));
   await screen.findByRole("button", { name: "Continue with Google" });
   return user;
@@ -46,6 +46,16 @@ it("offers authentication without exposing a match or storing identity data", as
   expect(screen.queryByText(/member found|no member found/i)).not.toBeInTheDocument();
   expect(Object.values(sessionStorage)).toEqual([recoveryId]);
   expect(screen.getByLabelText("Email address")).toBeVisible();
+  expect(screen.getByLabelText("New password")).toBeVisible();
+});
+it("continues with a name alone and offers a new email or Google account", async () => {
+  const user = userEvent.setup();
+  render(<RecoveryForm />);
+  await user.type(screen.getByLabelText("Full name"), "Alex Member");
+  await user.click(screen.getByRole("button", { name: "Find my membership" }));
+  expect(await screen.findByRole("button", { name: "Continue with Google" })).toBeVisible();
+  expect(api.beginMemberRecovery).toHaveBeenCalledWith({ fullName: "Alex Member" });
+  expect(screen.getByLabelText("Email address")).toBeRequired();
   expect(screen.getByLabelText("New password")).toBeVisible();
 });
 it("waits for email verification and refreshes before checking again", async () => {
@@ -112,7 +122,7 @@ it("keeps infrastructure errors out of the page and allows retry", async () => {
   const user = userEvent.setup();
   render(<RecoveryForm />);
   await user.type(screen.getByLabelText("Full name"), "Alex Member");
-  await user.type(screen.getByLabelText("Previous email address"), "old@example.test");
+  await user.type(screen.getByLabelText(/Previous email address/), "old@example.test");
   await user.click(screen.getByRole("button", { name: "Find my membership" }));
   expect(await screen.findByRole("alert")).not.toHaveTextContent("backend-diagnostic-marker");
   expect(screen.getByRole("button", { name: "Find my membership" })).toBeEnabled();

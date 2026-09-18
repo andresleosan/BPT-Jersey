@@ -8263,3 +8263,19 @@ Plan and validation: `docs/superpowers/plans/2026-09-18-legacy-member-recovery.m
 Operational guide: `docs/legacy-member-recovery.md`.
 
 Final unit suite: 354 files, 3,705 tests passed. Build, typecheck, lint, focused format, Firestore emulator integration/rules and browser smoke passed. Independent reviews are closed with no open findings. The production release must include the documented recovery queue index.
+
+## Member recovery: name-only support and production diagnosis — 2026-09-18
+
+Status: implemented and locally verified on `fix/member-recovery-name-only`; production
+release pending explicit operator confirmation.
+
+The reported generic error is explained by the missing recovery Functions deployment
+(HTTP 404). Read-only production checks also found the missing queue index and 124 of
+249 imported members without email. Previous email is now optional; name-only recovery
+requires a verified account and independent office approval before linking original data.
+All new application text is English.
+
+Validation: 78 focused tests and 4 Firestore integration/rules tests passed; typecheck,
+lint, deployment artifact, static build and desktop/mobile browser smoke passed.
+No production records were changed. Release evidence and exact deployment scope:
+`docs/operations/2026-09-18-member-recovery-release.md`.
