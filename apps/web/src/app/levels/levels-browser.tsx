@@ -27,7 +27,7 @@ export type LevelsBrowserProps = Readonly<{
 // A physical belt tip holds four stripes; kids' belts go up to eleven, so the rest is a count.
 const tipMarks = 4;
 
-function BeltBar({
+export function BeltBar({
   name,
   stripeCount,
   visual,

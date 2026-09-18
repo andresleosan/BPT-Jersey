@@ -169,3 +169,26 @@ export function formatMinimumTime(time: LevelCriteria["minimumTime"]): string {
   if (time.days > 0) parts.push(`${time.days} ${time.days === 1 ? "day" : "days"}`);
   return parts.length > 0 ? parts.join(" ") : "None";
 }
+
+export type BeltPosition = Readonly<{
+  belt: LevelDefinitionRecord;
+  definition: LevelDefinitionRecord;
+  stripeCount: number;
+}>;
+
+/** The belt a level sits on and how many stripe marks its bar carries. */
+export function beltPosition(
+  groups: readonly BeltGroup[],
+  definitionKey: string,
+): BeltPosition | null {
+  for (const group of groups) {
+    if (group.belt.definitionKey === definitionKey) {
+      return { belt: group.belt, definition: group.belt, stripeCount: 0 };
+    }
+    const index = group.stripes.findIndex((stripe) => stripe.definitionKey === definitionKey);
+    if (index >= 0) {
+      return { belt: group.belt, definition: group.stripes[index]!, stripeCount: index + 1 };
+    }
+  }
+  return null;
+}
