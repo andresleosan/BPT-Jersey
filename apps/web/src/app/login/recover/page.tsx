@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { RecoveryForm } from "./recovery-form";
-import "../../admin/admin.css";
 import "./recovery.css";
 export const metadata: Metadata = {
   title: "Recover member access",

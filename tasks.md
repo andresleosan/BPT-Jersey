@@ -8285,3 +8285,17 @@ is READY. Existing functions are unchanged. Corrected the reCAPTCHA allowlist to
 production apex domain while keeping App Check enforced. The automated production browser is
 still rejected by attestation; real-account acceptance remains a user check. No member data was
 changed by release verification. See the release note for evidence and validation limits.
+
+
+## Member recovery performance and usability — 2026-09-18
+
+Implemented on `perf/member-recovery`: defer recovery callable code, remove unused admin CSS,
+announce pending work, focus step headings, improve connection/popup feedback and touch targets.
+All app text is English. Initial source payload is 21.2% smaller for JavaScript and 50.1% smaller
+for CSS. Three isolated mobile runs had median LCP 1,916ms and CLS 0; timing variance prevents
+a reliable rendering-speed percentage claim.
+
+Validation: 44 focused tests, typecheck, lint, static build, focused formatting and compiled
+browser checks at 390/1280px passed. Real-account production recovery remains unverified due
+to the previously documented automated App Check limitation. Evidence and measurement limits:
+`docs/operations/2026-09-18-member-recovery-performance.md`.
