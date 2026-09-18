@@ -1,0 +1,80 @@
+.recovery-layout {
+  width: min(100%, 38rem);
+  margin: 0 auto;
+}
+.recovery-form {
+  display: grid;
+  gap: 1.2rem;
+}
+.recovery-form h1,
+.recovery-form h2,
+.recovery-form p {
+  margin: 0;
+}
+.recovery-form h1 {
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  line-height: 1.1;
+}
+.recovery-form p {
+  line-height: 1.6;
+}
+.recovery-form form,
+.recovery-form > div {
+  display: grid;
+  gap: 1rem;
+}
+.recovery-fields {
+  display: grid;
+  gap: 1rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.recovery-fields label {
+  display: grid;
+  gap: 0.45rem;
+  font-weight: 600;
+}
+.recovery-fields input:not([type="checkbox"]),
+.recovery-fields select {
+  width: 100%;
+  min-height: 2.8rem;
+  border: 1px solid #b9b6c3;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  background: white;
+  color: #24212f;
+  font: inherit;
+}
+.recovery-fields fieldset {
+  border: 1px solid #b9b6c3;
+  border-radius: 0.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.recovery-fields .recovery-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+}
+.recovery-checkbox input {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: #2f2483;
+}
+.recovery-form .button {
+  min-height: 2.75rem;
+  white-space: normal;
+}
+.recovery-form :focus-visible {
+  outline: 3px solid #2f2483;
+  outline-offset: 3px;
+}
+.recovery-form [role="alert"] {
+  padding: 0.8rem;
+  border: 1px solid #ab2626;
+  border-radius: 0.5rem;
+  color: #7d1717;
+}
