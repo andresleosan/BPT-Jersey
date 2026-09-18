@@ -272,6 +272,37 @@ describe("readClassHistory", () => {
     );
   });
 
+  it("shows the Regyfit user an imported staff row names, never Office", async () => {
+    const store = createStore();
+    store.events = [
+      { ...importedEvent, id: "event-3s", actorGroup: "staff", actorName: "Prof. Charles Tromans" },
+    ];
+
+    const { rows } = await readClassHistory(store, input, ownerActor);
+
+    // The actor is a Regyfit user, so the staff lookup can never resolve it: the captured name is
+    // the only truthful answer, and it is what the academy saw in Regyfit's own USER column.
+    expect(rows[0]?.actorName).toBe("Prof. Charles Tromans");
+    expect(rows[0]?.sentence).toBe(
+      "Olivia Lewis was booked by Prof. Charles Tromans into Adults Gi on 16 Sep 2026 at 18:30",
+    );
+  });
+
+  it("still shows Office for a BPT staff row with no profile, whatever name it stored", async () => {
+    const store = createStore();
+    store.events = [
+      { ...staffBooking, actorId: "coach-unknown", actorName: "Somebody Else", source: "bpt" },
+    ];
+
+    const { rows } = await readClassHistory(store, input, ownerActor);
+
+    // A name stored on a BPT-written row would be a fabrication: only an import carries one.
+    expect(rows[0]?.actorName).toBe("Office");
+    expect(rows[0]?.sentence).toBe(
+      "Noah Grant was booked by Office into Adults Gi on 16 Sep 2026 at 18:30",
+    );
+  });
+
   it("names the member who booked by resolving their uid to the student record", async () => {
     const store = createStore();
 

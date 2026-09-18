@@ -146,8 +146,16 @@ export async function readClassHistory(
     // A staff actor with no matching profile (the uid never resolved to a staffKey) is shown as
     // "Office" rather than the empty/generic wording composeClassHistorySentence would otherwise
     // fall back to - and never as the actor's own auth uid.
+    // An imported row's actor is a Regyfit user, never a BPT staff profile, so that lookup can only
+    // ever fail and the captured name - the one the academy actually saw in Regyfit's USER column -
+    // is the only truthful answer. It wins only for an imported row: on a BPT-written one a stored
+    // name would be a fabrication, so those still resolve the profile and fall back to "Office".
+    const importedActorName =
+      event.source === "regyfit" && event.actorName !== null ? event.actorName : undefined;
     const staffName =
-      event.actorGroup === "staff" ? (staffNames.get(event.actorId) ?? "Office") : undefined;
+      event.actorGroup === "staff"
+        ? (importedActorName ?? staffNames.get(event.actorId) ?? "Office")
+        : undefined;
     // The writers store no name at all for a member actor, so the uid is resolved here against the
     // student who holds that account. A guardian booking for their child holds no student record
     // of their own: that row is labelled "Member" rather than showing the auth uid or borrowing the
