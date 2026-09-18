@@ -8,6 +8,29 @@ import { createInMemoryLevelStore } from "./level-service";
 describe("Level Service & Store", () => {
   const normalized = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
 
+  /**
+   * Opens a level at the first belt of the seeded catalogue and returns that belt and the very next
+   * definition by sequence — the only promotion pair either store accepts.
+   */
+  async function openConsecutiveLevel(
+    store: ReturnType<typeof createInMemoryLevelStore>,
+    studentId: string,
+  ): Promise<{ from: string; to: string }> {
+    const catalog = await store.listPublished("demo-academy");
+    const ordered = [...catalog.definitions].sort((left, right) => left.sequence - right.sequence);
+    const from = ordered.find((definition) => definition.kind === "belt")!;
+    const to = ordered.find((definition) => definition.sequence === from.sequence + 1)!;
+    await store.openStudentLevel({
+      academyId: "demo-academy",
+      input: { studentId, definitionKey: from.definitionKey, decisionNotes: "Opened." },
+      openedBy: "headcoach-1",
+      openedByStaffId: "staff-head-1",
+      openedByRole: "headCoach",
+      openedAt: "2026-09-05T10:00:00.000Z",
+    });
+    return { from: from.definitionKey, to: to.definitionKey };
+  }
+
   it("seeds the full catalog into Firestore store and lists published catalog", async () => {
     const store = createInMemoryLevelStore();
 
@@ -233,13 +256,16 @@ describe("Level Service & Store", () => {
     it("approves and rejects promotions and lists graduation history", async () => {
       const store = createInMemoryLevelStore();
       await store.seed({ academyId: "demo-academy", normalized });
+      // T051V2 parity: the in-memory store now refuses a promotion that does not move a real head,
+      // exactly as the Firestore store does, so the head has to exist first.
+      const { from, to } = await openConsecutiveLevel(store, "student-1");
 
       const approved = await store.approvePromotion({
         academyId: "demo-academy",
         input: {
           studentId: "student-1",
-          fromDefinitionKey: "white-0",
-          toDefinitionKey: "white-1",
+          fromDefinitionKey: from,
+          toDefinitionKey: to,
           decisionNotes: "Strong technical consistency and leadership during sparring sessions.",
           ceremonyDate: "2026-09-01T18:00:00Z",
         },
@@ -250,7 +276,7 @@ describe("Level Service & Store", () => {
 
       expect(approved.status).toBe("approved");
       expect(approved.studentId).toBe("student-1");
-      expect(approved.toDefinitionKey).toBe("white-1");
+      expect(approved.toDefinitionKey).toBe(to);
       expect(approved.decidedByRole).toBe("headCoach");
 
       const rejected = await store.rejectPromotion({

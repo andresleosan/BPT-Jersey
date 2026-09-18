@@ -53,9 +53,17 @@ export function computeLevelProgress(
 }
 
 /**
- * Grill G10: classes = imported Regyfit baseline + BPT attended/late attendance on or after the
- * level start. With a baseline, BPT attendance counts from the cutoff day (inclusive); the importer
- * guarantees the baseline stops the day before, so nothing is counted twice.
+ * Grill G10 / spec §6.2: classes = imported Regyfit baseline + BPT attended/late attendance whose
+ * DATE is on or after both the level start and, when there is one, the baseline cutoff.
+ *
+ * Both halves compare whole UTC days, never instants. A promotion is stored as an instant, so an
+ * instant comparison would drop a class trained the morning of a promotion made at midday: it would
+ * count toward neither the old level (the head has already moved) nor the new one. The day
+ * comparison makes the promotion day belong to the NEW level.
+ *
+ * `cutoff` is the FIRST day counted from BPT attendance — the day after the last day included in
+ * `importedBaseline.classes` — so the invariant is that every class is counted exactly once:
+ * before the cutoff it is already inside the baseline, on or after it, it comes from BPT.
  */
 export function countClassesAtLevel(
   input: Readonly<{
@@ -65,15 +73,13 @@ export function countClassesAtLevel(
     until?: string;
   }>,
 ): ClassesAtLevel {
-  const startMs =
-    input.currentLevelStartedAt === null
-      ? Number.NEGATIVE_INFINITY
-      : Date.parse(input.currentLevelStartedAt);
+  const startDay =
+    input.currentLevelStartedAt === null ? null : input.currentLevelStartedAt.slice(0, 10);
   const bpt = input.attendedAt.filter((attendedAt) => {
-    const attendedMs = Date.parse(attendedAt);
-    if (Number.isNaN(attendedMs) || attendedMs < startMs) return false;
+    if (Number.isNaN(Date.parse(attendedAt))) return false;
     // Plan D contract: days are compared as UTC prefixes, not Jersey days.
     const day = attendedAt.slice(0, 10);
+    if (startDay !== null && day < startDay) return false;
     if (input.importedBaseline !== null && day < input.importedBaseline.cutoff) return false;
     return input.until === undefined || day <= input.until;
   }).length;

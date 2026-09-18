@@ -74,6 +74,30 @@ describe("Level Callables", () => {
     return store;
   }
 
+  /**
+   * T051V2 parity: the in-memory store refuses a promotion that does not move a real head, exactly
+   * as the Firestore store does. Opens the first belt for `studentId` and returns that belt and the
+   * next definition by sequence.
+   */
+  async function openConsecutiveLevel(
+    store: ReturnType<typeof createInMemoryLevelStore>,
+    studentId: string,
+  ): Promise<{ from: string; to: string }> {
+    const catalog = await store.listPublished("demo-academy");
+    const ordered = [...catalog.definitions].sort((left, right) => left.sequence - right.sequence);
+    const from = ordered.find((definition) => definition.kind === "belt")!;
+    const to = ordered.find((definition) => definition.sequence === from.sequence + 1)!;
+    await store.openStudentLevel({
+      academyId: "demo-academy",
+      input: { studentId, definitionKey: from.definitionKey, decisionNotes: "Opened." },
+      openedBy: "headcoach-1",
+      openedByStaffId: "staff-head-1",
+      openedByRole: "headCoach",
+      openedAt: "2026-09-05T10:00:00.000Z",
+    });
+    return { from: from.definitionKey, to: to.definitionKey };
+  }
+
   it("allows authenticated owner to read the catalog", async () => {
     const store = createTestStore();
     const handler = createListLevelCatalogHandler({ store, authorization });
@@ -368,13 +392,14 @@ describe("Level Callables", () => {
       const approveHandler = createApprovePromotionHandler({ store, authorization });
       const rejectHandler = createRejectPromotionHandler({ store, authorization });
       const listHandler = createListGraduationsHandler({ store, authorization });
+      const { from, to } = await openConsecutiveLevel(store, "student-1");
 
       const appRes = await approveHandler(
         fakeRequest(
           {
             studentId: "student-1",
-            fromDefinitionKey: "white-0",
-            toDefinitionKey: "white-1",
+            fromDefinitionKey: from,
+            toDefinitionKey: to,
             decisionNotes: "Exemplary commitment, technical guard precision and class leadership.",
             ceremonyDate: "2026-09-01T18:00:00Z",
           },
@@ -386,7 +411,7 @@ describe("Level Callables", () => {
 
       expect(appRes.graduation.status).toBe("approved");
       expect(appRes.graduation.studentId).toBe("student-1");
-      expect(appRes.graduation.toDefinitionKey).toBe("white-1");
+      expect(appRes.graduation.toDefinitionKey).toBe(to);
 
       const rejRes = await rejectHandler(
         fakeRequest(

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { computeLevelProgress } from "@bpt-jersey/domain/levels";
-import { createLevelCatalogStore } from "./level-service";
+import { createInMemoryLevelStore, createLevelCatalogStore } from "./level-service";
 import { normalizeLevelCatalogSource } from "./level-source";
 
 const academyId = "academy-1";
@@ -281,9 +281,10 @@ describe("progress summary at the current level (T051V2)", () => {
       [`academies/${academyId}/studentLevelProgress/student-1`, head()],
       [path, { ...record, occurredAt: "not-a-date" }],
     ]);
+    // m1: the refusal has to name the record, or the operator cannot find it.
     await expect(store.getStudentProgressSummary(academyId, "student-1")).rejects.toMatchObject({
       code: "conflict",
-      message: "Attendance time is invalid",
+      message: "Attendance time is invalid: att-bad",
     });
   });
 
@@ -318,5 +319,193 @@ describe("progress summary at the current level (T051V2)", () => {
       lastApprovedPromotionId: null,
       importedBaseline: baseline,
     });
+  });
+});
+
+/**
+ * Task 7 review, Major-3: the two stores are one contract. Every expectation below runs against
+ * BOTH, so a change to one that is not made to the other fails here rather than in Task 10 or 12,
+ * where a green test over the in-memory store would be a lie about the production path.
+ */
+const levelStartedAt = "2026-07-01T00:00:00.000Z";
+
+type ParitySummary = Readonly<{
+  state: string;
+  currentDefinitionKey: string | null;
+  imported: number | null;
+}>;
+
+type ParityFixture = Readonly<{
+  approve: (input: {
+    studentId: string;
+    fromDefinitionKey: string;
+    toDefinitionKey: string;
+  }) => Promise<string>;
+  progressOf: (studentId: string) => Promise<ParitySummary>;
+  currentDefinitionKey: () => Promise<string | null>;
+  readRestore: (graduationId: string) => Promise<unknown>;
+}>;
+
+type AnyLevelStore = ReturnType<typeof createInMemoryLevelStore>;
+
+async function paritySummary(store: AnyLevelStore, studentId: string): Promise<ParitySummary> {
+  const summary = await store.getStudentProgressSummary(academyId, studentId);
+  return summary.state === "initialized"
+    ? {
+        state: summary.state,
+        currentDefinitionKey: summary.currentDefinition.definitionKey,
+        imported: summary.criteria.classes.imported,
+      }
+    : { state: summary.state, currentDefinitionKey: null, imported: null };
+}
+
+function approveThrough(store: AnyLevelStore): ParityFixture["approve"] {
+  return async (input) =>
+    (
+      await store.approvePromotion({
+        academyId,
+        input: { ...input, decisionNotes: "Met in person." },
+        decidedBy: "head-user-1",
+        decidedByStaffId: "staff-head-1",
+        decidedByRole: "headCoach",
+        decidedAt,
+      })
+    ).graduationId;
+}
+
+const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
+  [
+    "Firestore store",
+    async () => {
+      const { store, records } = await seededStore([
+        [`academies/${academyId}/studentLevelProgress/student-1`, head()],
+        // A second real student with no level head: the Firestore store reads the canonical student
+        // before the head, so "no head" has to be asked of a student that exists.
+        [
+          `academies/${academyId}/students/student-2`,
+          {
+            studentId: "student-2",
+            academyId,
+            fullName: "Synthetic Newcomer",
+            dateOfBirth: "1992-02-02",
+            trainingCenter: "Town",
+            trainingTimePreferences: ["evening"],
+            participantType: "adult",
+            active: true,
+            status: "active",
+            schemaVersion: "1",
+            createdAt: created,
+            createdBy: "owner-user-1",
+            updatedAt: created,
+            updatedBy: "owner-user-1",
+          },
+        ],
+      ]);
+      return {
+        approve: approveThrough(store as unknown as AnyLevelStore),
+        progressOf: async (studentId) =>
+          paritySummary(store as unknown as AnyLevelStore, studentId),
+        currentDefinitionKey: async () =>
+          (records.get(`academies/${academyId}/studentLevelProgress/student-1`)
+            ?.currentDefinitionKey ?? null) as string | null,
+        readRestore: async (graduationId) =>
+          records.get(`academies/${academyId}/levelPromotions/${graduationId}`)?.restore,
+      };
+    },
+  ],
+  [
+    "in-memory store",
+    async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId, normalized });
+      await store.openStudentLevel({
+        academyId,
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-belt",
+          decisionNotes: "Synthetic opening note.",
+        },
+        openedBy: "head-user-1",
+        openedByStaffId: "staff-head-1",
+        openedByRole: "headCoach",
+        openedAt: levelStartedAt,
+      });
+      return {
+        approve: approveThrough(store),
+        progressOf: async (studentId) => paritySummary(store, studentId),
+        currentDefinitionKey: async () =>
+          (await paritySummary(store, "student-1")).currentDefinitionKey,
+        readRestore: async (graduationId) =>
+          (
+            (await store.listGraduations(academyId, "student-1")).find(
+              (record) => record.graduationId === graduationId,
+            ) as unknown as { restore?: unknown } | undefined
+          )?.restore,
+      };
+    },
+  ],
+];
+
+describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeFixture) => {
+  it("moves the head, records the restore snapshot and leaves no imported baseline", async () => {
+    const fixture = await makeFixture();
+    const graduationId = await fixture.approve({
+      studentId: "student-1",
+      fromDefinitionKey: "white-belt",
+      toDefinitionKey: "white-1st-stripe",
+    });
+    expect(await fixture.currentDefinitionKey()).toBe("white-1st-stripe");
+    expect(await fixture.readRestore(graduationId)).toEqual({
+      currentDefinitionKey: "white-belt",
+      currentLevelStartedAt: levelStartedAt,
+      lastApprovedPromotionId: null,
+      importedBaseline: null,
+    });
+    expect(await fixture.progressOf("student-1")).toEqual({
+      state: "initialized",
+      currentDefinitionKey: "white-1st-stripe",
+      imported: 0,
+    });
+  });
+
+  it("reports an uninitialized summary for a student with no head", async () => {
+    const fixture = await makeFixture();
+    expect(await fixture.progressOf("student-2")).toEqual({
+      state: "uninitialized",
+      currentDefinitionKey: null,
+      imported: null,
+    });
+  });
+
+  it("refuses a promotion with no head, a stale `from`, a skipped sequence or a duplicate", async () => {
+    const conflict = { code: "conflict", message: "Promotion references are not current" };
+    for (const input of [
+      {
+        studentId: "student-2",
+        fromDefinitionKey: "white-belt",
+        toDefinitionKey: "white-1st-stripe",
+      },
+      {
+        studentId: "student-1",
+        fromDefinitionKey: "white-1st-stripe",
+        toDefinitionKey: "white-2nd-stripe",
+      },
+      {
+        studentId: "student-1",
+        fromDefinitionKey: "white-belt",
+        toDefinitionKey: "white-2nd-stripe",
+      },
+    ]) {
+      const fixture = await makeFixture();
+      await expect(fixture.approve(input)).rejects.toMatchObject(conflict);
+    }
+    const fixture = await makeFixture();
+    const promotion = {
+      studentId: "student-1",
+      fromDefinitionKey: "white-belt",
+      toDefinitionKey: "white-1st-stripe",
+    };
+    await fixture.approve(promotion);
+    await expect(fixture.approve(promotion)).rejects.toMatchObject(conflict);
   });
 });
