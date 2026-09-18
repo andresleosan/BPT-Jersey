@@ -49,6 +49,7 @@ type Draft = Readonly<{
   locationId: string;
   programId: string;
   capacity: string;
+  minParticipants: string;
   trainers: readonly string[];
   rulesMode: "defined" | "custom";
   bookUntil: string;
@@ -105,6 +106,7 @@ function draftFor(
       locationId: session.locationId,
       programId: session.programId,
       capacity: session.capacity === null ? "" : String(session.capacity),
+      minParticipants: String(session.minParticipants ?? 4),
       trainers: session.instructorIds ?? [session.instructorId],
       rulesMode: custom ? "custom" : "defined",
       bookUntil: custom ? String(rules.bookUntilMinutesBefore) : "0",
@@ -123,6 +125,7 @@ function draftFor(
     locationId: catalog.locations[0]?.locationId ?? "",
     programId: catalog.programs[0]?.programId ?? "",
     capacity: "",
+    minParticipants: "4",
     trainers: [],
     rulesMode: "defined",
     bookUntil: "0",
@@ -223,7 +226,22 @@ export function SessionPanel({
     capacityValue < 1 ||
     capacityValue > 300;
 
+  const minimumValue = Number(draft.minParticipants);
+  const minimumInvalid =
+    draft.minParticipants.trim() === "" ||
+    !Number.isInteger(minimumValue) ||
+    minimumValue < 0 ||
+    minimumValue > 300;
+  const minimumExceedsCapacity =
+    !capacityInvalid && !minimumInvalid && minimumValue > capacityValue;
+  const minimumError = minimumInvalid
+    ? "Enter a minimum number of participants between 0 and 300"
+    : minimumExceedsCapacity
+      ? "Minimum participants cannot exceed maximum capacity"
+      : null;
+
   async function submit(): Promise<void> {
+    if (!canEdit || blocked) return;
     setBusy(true);
     setError(null);
     const { startAt, endAt } = instantsOf(draft, timezone);
@@ -238,6 +256,7 @@ export function SessionPanel({
         if (Date.parse(startAt) !== Date.parse(session.startAt)) changes.startAt = startAt;
         if (Date.parse(endAt) !== Date.parse(session.endAt)) changes.endAt = endAt;
         if (capacity !== session.capacity) changes.capacity = capacity;
+        if (minimumValue !== session.minParticipants) changes.minParticipants = minimumValue;
         if ((instructorIds[0] ?? "") !== session.instructorId)
           changes.instructorId = instructorIds[0] ?? "";
         const currentTrainers = session.instructorIds ?? [session.instructorId];
@@ -263,6 +282,7 @@ export function SessionPanel({
         startAt,
         endAt,
         capacity,
+        minParticipants: minimumValue,
         instructorIds,
         bookingRules,
         waitingList: draft.waitingList,
@@ -291,7 +311,7 @@ export function SessionPanel({
   const readOnly = !canEdit;
   const endsBeforeStart = minutesOf(draft.endTime) <= minutesOf(draft.startTime);
   const noTrainer = draft.trainers.length === 0;
-  const blocked = busy || endsBeforeStart || noTrainer || capacityInvalid;
+  const blocked = busy || endsBeforeStart || noTrainer || capacityInvalid || minimumError !== null;
 
   return (
     <dialog
@@ -379,6 +399,42 @@ export function SessionPanel({
                 ))}
               </select>
             </label>
+          </div>
+          <h3>Session capacity</h3>
+          <div className="cs-form-row">
+            <div className="cs-field">
+              <label htmlFor="cs-min-participants">Minimum participants</label>
+              <input
+                id="cs-min-participants"
+                type="number"
+                required
+                min={0}
+                max={capacityInvalid ? 300 : capacityValue}
+                step={1}
+                value={draft.minParticipants}
+                disabled={readOnly}
+                aria-invalid={canEdit && minimumError !== null}
+                aria-describedby={
+                  canEdit && minimumError !== null
+                    ? "cs-min-participants-help cs-min-participants-error"
+                    : "cs-min-participants-help"
+                }
+                onChange={(event) => patch({ minParticipants: event.target.value })}
+              />
+              <small id="cs-min-participants-help">
+                Minimum confirmed members needed for the session to run. 0 means no minimum.
+              </small>
+              {canEdit && minimumError !== null ? (
+                <p
+                  id="cs-min-participants-error"
+                  className="cs-notice"
+                  data-kind="error"
+                  role="alert"
+                >
+                  {minimumError}
+                </p>
+              ) : null}
+            </div>
             <div className="cs-field">
               <label htmlFor="cs-capacity">Maximum capacity</label>
               <input
@@ -391,17 +447,21 @@ export function SessionPanel({
                 value={draft.capacity}
                 disabled={readOnly}
                 aria-invalid={canEdit && capacityInvalid}
-                aria-describedby="cs-capacity-help"
+                aria-describedby={
+                  canEdit && capacityInvalid
+                    ? "cs-capacity-help cs-capacity-error"
+                    : "cs-capacity-help"
+                }
                 onChange={(event) => patch({ capacity: event.target.value })}
               />
-              <small id="cs-capacity-help">Maximum people on the mat (1–300)</small>
+              <small id="cs-capacity-help">Maximum members who can book (1–300)</small>
+              {canEdit && capacityInvalid ? (
+                <p id="cs-capacity-error" className="cs-notice" data-kind="error" role="alert">
+                  Enter a maximum capacity between 1 and 300
+                </p>
+              ) : null}
             </div>
           </div>
-          {canEdit && capacityInvalid ? (
-            <p className="cs-notice" data-kind="error" role="alert">
-              Enter a capacity between 1 and 300
-            </p>
-          ) : null}
           <h3>Trainers</h3>
           <ul className="cs-trainers">
             {trainerKeys.map((key) => (
