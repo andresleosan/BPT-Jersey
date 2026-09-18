@@ -17,13 +17,19 @@ function CoachHeader() {
       </div>
       <div
         className="admin-user-nav"
-        style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+        style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}
       >
         <Link href="/coach" className="button button-secondary text-sm">
           Dashboard
         </Link>
         <Link href="/coach/levels" className="button button-secondary text-sm">
           Levels
+        </Link>
+        <Link href="/admin" className="button button-secondary text-sm">
+          Workspace
+        </Link>
+        <Link href="/coach/access" className="button button-secondary text-sm">
+          My sign-in
         </Link>
         <span className="admin-user-name">
           {session.displayName || session.email} ({session.role})

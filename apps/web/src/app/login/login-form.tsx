@@ -22,6 +22,7 @@ import {
   toAuthMessage,
 } from "../../lib/login-flow";
 import type { LoginAudience } from "../../lib/login-flow";
+import { isStaffNumber, signInWithStaffId } from "../../lib/staff-login-client";
 
 type LoginMode = "sign-in" | "create-client";
 type FieldErrors = Readonly<{ email?: string; password?: string }>;
@@ -79,8 +80,10 @@ export function LoginForm({ audience }: LoginFormProps) {
   function validate(): FieldErrors {
     const nextErrors: { email?: string; password?: string } = {};
 
-    if (!validEmail(email)) {
-      nextErrors.email = "Enter a valid email address.";
+    if (!validEmail(email) && !(isStaff && isStaffNumber(email))) {
+      nextErrors.email = isStaff
+        ? "Enter your six-digit staff ID or email address."
+        : "Enter a valid email address.";
     }
     if (!password.trim()) {
       nextErrors.password = "Password is required.";
@@ -125,7 +128,9 @@ export function LoginForm({ audience }: LoginFormProps) {
     try {
       const credential = isCreating
         ? await createClientWithEmail(email, password)
-        : await signInWithEmail(email, password);
+        : isStaff && isStaffNumber(email)
+          ? await signInWithStaffId(email, password)
+          : await signInWithEmail(email, password);
       await completeSignIn(credential);
     } catch (error) {
       setAuthError(toAuthMessage(error));
@@ -153,6 +158,13 @@ export function LoginForm({ audience }: LoginFormProps) {
     setAuthError("");
     setNotice("");
 
+    if (isStaff && isStaffNumber(email)) {
+      setNotice(
+        "For a forgotten staff ID password, contact the office. If you have linked Google, you can sign in with Google and ask the office to reset your staff password.",
+      );
+      return;
+    }
+
     if (!validEmail(email)) {
       setFieldErrors({ email: "Enter your email address to reset your password." });
       return;
@@ -178,7 +190,7 @@ export function LoginForm({ audience }: LoginFormProps) {
         <h1 id="login-title">{contextTitle}</h1>
         <p>
           {isStaff
-            ? "Use your provisioned academy account to enter the coach or office workspace."
+            ? "Enter your staff ID or email and password. If you have linked Google, you can also sign in below."
             : "Sign in to manage your account and reach the authenticated client area."}
         </p>
       </div>
@@ -191,14 +203,16 @@ export function LoginForm({ audience }: LoginFormProps) {
         tabIndex={-1}
       >
         <div className="login-field">
-          <label htmlFor="login-email">Email address</label>
+          <label htmlFor="login-email">
+            {isStaff ? "Staff ID or email address" : "Email address"}
+          </label>
           <input
             aria-describedby={fieldErrors.email ? "login-email-error" : undefined}
             aria-invalid={fieldErrors.email ? "true" : "false"}
-            autoComplete="email"
+            autoComplete={isStaff ? "username" : "email"}
             id="login-email"
             onChange={(event) => setEmail(event.target.value)}
-            type="email"
+            type={isStaff ? "text" : "email"}
             value={email}
           />
           {fieldErrors.email ? (

@@ -162,6 +162,7 @@ export function toAuthMessage(error: unknown): string {
     case "auth/invalid-email":
     case "auth/user-not-found":
     case "auth/wrong-password":
+    case "functions/unauthenticated":
       return "We couldn't sign you in. Check your details and try again.";
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
@@ -169,6 +170,7 @@ export function toAuthMessage(error: unknown): string {
     case "auth/network-request-failed":
       return "We couldn't connect. Check your connection and try again.";
     case "auth/too-many-requests":
+    case "functions/resource-exhausted":
       return "There have been too many attempts. Wait a moment and try again.";
     default:
       return "We couldn't complete sign-in. Please try again.";

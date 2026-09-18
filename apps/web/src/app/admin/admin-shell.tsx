@@ -278,9 +278,14 @@ export function AdminShell({
                 </span>
               </p>
               {allowedRoutes ? (
-                <Link className="admin-home-link" href="/coach">
-                  Coach portal
-                </Link>
+                <>
+                  <Link className="admin-home-link" href="/coach">
+                    Coach portal
+                  </Link>
+                  <Link className="admin-home-link" href="/coach/access">
+                    My sign-in
+                  </Link>
+                </>
               ) : null}
               <Link className="admin-home-link" href="/">
                 Home
