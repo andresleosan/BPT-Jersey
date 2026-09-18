@@ -20,6 +20,29 @@ const client = vi.hoisted(() => {
 
 vi.mock("../../../../lib/member-profile-client", () => client);
 
+// The card owns its own reads and has its own suite; MemberRecord is only asked to place it and
+// to hand it the one decision it cannot make for itself: whether this viewer may open a level.
+const gate = vi.hoisted(() => ({ role: "owner" as string }));
+vi.mock("./ibjjf-card", () => ({
+  IbjjfCard: ({
+    canOpenLevel,
+    manageHref,
+    studentId,
+  }: {
+    canOpenLevel: boolean;
+    manageHref: string;
+    studentId: string;
+  }) => (
+    <section
+      aria-label="JIU-JITSU IBJJF"
+      data-can-open-level={String(canOpenLevel)}
+      data-manage-href={manageHref}
+      data-student-id={studentId}
+    />
+  ),
+}));
+vi.mock("../../admin-gate", () => ({ useAdminOrStaffSession: () => ({ role: gate.role }) }));
+
 import { MemberRecord, readRecordLocation, recordHref } from "./member-record";
 
 const header = {
@@ -61,6 +84,7 @@ function open(search: string) {
 }
 
 beforeEach(() => {
+  gate.role = "owner";
   client.getMemberProfile.mockResolvedValue(full);
 });
 
@@ -106,6 +130,8 @@ describe("member record page", () => {
     client.getMemberProfile.mockReturnValue(new Promise<MemberProfile>((done) => (resolve = done)));
     open("?id=student-1");
     expect(screen.getByRole("status", { name: "Loading member record" })).toBeTruthy();
+    // The card reads a restricted method, so it must not mount before the record is known.
+    expect(screen.queryByRole("region", { name: "JIU-JITSU IBJJF" })).toBeNull();
     resolve(full);
 
     expect(await screen.findByRole("heading", { level: 2, name: "Test Member A" })).toBeTruthy();
@@ -126,6 +152,7 @@ describe("member record page", () => {
       "Notes",
     ]);
     expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("region", { name: "JIU-JITSU IBJJF" })).toBeTruthy();
     expect(client.getMemberProfile).toHaveBeenCalledWith("student-1");
   });
 
@@ -141,6 +168,26 @@ describe("member record page", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Profile"]);
     expect(screen.queryByRole("form", { name: "Member details" })).toBeNull();
     expect(screen.queryByText("Member reference")).toBeNull();
+    // A coach reaches PROFILE and nothing else, so the card lives in that panel or nowhere.
+    expect(screen.getByRole("region", { name: "JIU-JITSU IBJJF" })).toBeTruthy();
+  });
+
+  it("lets only an owner or head coach open a level, and points Manage at this record", async () => {
+    open("?id=student-1");
+    const owner = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(owner.getAttribute("data-can-open-level")).toBe("true");
+    expect(owner.getAttribute("data-student-id")).toBe("student-1");
+    expect(owner.getAttribute("data-manage-href")).toBe(
+      "/admin/members/profile?id=student-1&view=manage",
+    );
+
+    for (const role of ["headCoach", "administrator", "coach"]) {
+      cleanup();
+      gate.role = role;
+      open("?id=student-1");
+      const card = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+      expect(card.getAttribute("data-can-open-level")).toBe(String(role === "headCoach"));
+    }
   });
 
   it("moves between tabs with arrow, Home and End keys and keeps the URL in step", async () => {

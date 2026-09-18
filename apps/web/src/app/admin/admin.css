@@ -4408,3 +4408,313 @@ a.admin-birthday-badge:focus-visible,
     grid-template-columns: 1fr;
   }
 }
+
+/* T051V2 IBJJF */
+.ibjjf-card,
+.ibjjf-form,
+.ibjjf-history-section,
+.ibjjf-skills {
+  background: var(--gi-white);
+  border: 2px solid var(--mat-ink);
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1.25rem;
+}
+
+.ibjjf-card h3,
+.ibjjf-manage h2,
+.ibjjf-manage h3,
+.ibjjf-dialog h3 {
+  font-family: var(--font-display), Impact, sans-serif;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.ibjjf-card .admin-auth-button,
+.ibjjf-form .admin-auth-button {
+  justify-self: start;
+  margin-top: 0;
+  min-height: 3.15rem;
+}
+
+.ibjjf-skeleton {
+  background: var(--paper-edge);
+  border-color: var(--paper-edge);
+  min-height: 16rem;
+}
+
+.ibjjf-muted {
+  color: var(--muted);
+  margin: 0;
+  max-width: 36rem;
+}
+
+.ibjjf-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.ibjjf-progress {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.ibjjf-progress p {
+  font-weight: 600;
+  margin: 0;
+}
+
+.ibjjf-progress progress {
+  accent-color: var(--bpt-purple);
+  height: 0.75rem;
+  width: 100%;
+}
+
+.ibjjf-criteria {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.ibjjf-criteria > div {
+  padding: 0.35rem 0.75rem;
+}
+
+.ibjjf-criteria dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.ibjjf-criteria dd {
+  margin: 0;
+}
+
+.ibjjf-met {
+  border-left: 0.35rem solid #176b49;
+}
+
+.ibjjf-unmet {
+  border-left: 0.35rem solid #c98b00;
+}
+
+.ibjjf-met .ibjjf-status {
+  color: #176b49;
+  font-weight: 700;
+}
+
+.ibjjf-unmet .ibjjf-status {
+  color: #765400;
+  font-weight: 700;
+}
+
+.ibjjf-manage {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 72rem;
+  min-width: 0;
+}
+
+.ibjjf-form label,
+.ibjjf-dialog label {
+  display: grid;
+  font-weight: 600;
+  gap: 0.35rem;
+}
+
+.ibjjf-form select,
+.ibjjf-form input,
+.ibjjf-form textarea,
+.ibjjf-dialog textarea {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font: inherit;
+  max-width: 100%;
+  min-height: 3rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.ibjjf-form :focus-visible,
+.ibjjf-dialog :focus-visible,
+.ibjjf-button:focus-visible,
+.ibjjf-skill-group summary:focus-visible,
+.ibjjf-score input:focus-visible + span {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+
+.ibjjf-button {
+  background: var(--gi-white);
+  border: 2px solid var(--mat-ink);
+  border-radius: 0;
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 3.15rem;
+  padding: 0.5rem 1rem;
+}
+
+.ibjjf-dialog {
+  background: var(--gi-white);
+  border: 2px solid var(--mat-ink);
+  box-shadow: 0 1.5rem 0 rgba(47, 36, 131, 0.12);
+  display: grid;
+  gap: 0.75rem;
+  max-width: min(36rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  z-index: 20;
+}
+
+.ibjjf-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.ibjjf-error {
+  background: #fff0f2;
+  border-left: 0.35rem solid #8d1c2f;
+  color: #721626;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+}
+
+.ibjjf-notice {
+  background: #e7f6ee;
+  border-left: 0.35rem solid #176b49;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+}
+
+.ibjjf-history .ibjjf-voided td:nth-child(-n + 4) {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.ibjjf-belt-mini {
+  display: inline-block;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  width: 4rem;
+}
+
+.ibjjf-belt-mini .belt-bar {
+  height: 1rem;
+}
+
+.ibjjf-belt-mini .belt-tip {
+  gap: 0.1rem;
+  min-width: 1.6rem;
+  padding: 0 0.2rem;
+}
+
+.ibjjf-belt-mini .belt-tip i {
+  height: 0.6rem;
+  width: 0.15rem;
+}
+
+.ibjjf-belt-mini .belt-tip b {
+  font-size: 0.55rem;
+}
+
+.ibjjf-skill-group {
+  border: 1px solid var(--line);
+}
+
+.ibjjf-skill-group summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  font-weight: 700;
+  gap: 0.5rem;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+}
+
+.ibjjf-skill {
+  border: 0;
+  border-top: 1px solid var(--paper-edge);
+  margin: 0;
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+.ibjjf-skill legend {
+  font-weight: 600;
+  padding: 0;
+}
+
+.ibjjf-minimum-text {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.ibjjf-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.ibjjf-score {
+  position: relative;
+}
+
+.ibjjf-score input {
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.ibjjf-score span {
+  align-items: center;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.ibjjf-score-minimum span {
+  box-shadow: inset 0 0 0 2px var(--mat-ink);
+}
+
+.ibjjf-score input:checked + span {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+
+@media (max-width: 50rem) {
+  .ibjjf-progress {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .ibjjf-progress p {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ibjjf-card *,
+  .ibjjf-manage * {
+    transition: none;
+  }
+}

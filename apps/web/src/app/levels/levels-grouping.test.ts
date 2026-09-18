@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LevelDefinitionRecord } from "@bpt-jersey/domain/levels";
 
 import {
+  beltPosition,
   beltTipColors,
   beltAgeGroup,
   distinctBeltColors,
@@ -173,5 +174,36 @@ describe("belt grouping", () => {
       { color: "#ffffff", name: "White (kids)" },
       { color: "#1f4fa3", name: "Blue" },
     ]);
+  });
+});
+
+describe("beltPosition", () => {
+  const belt = def({ definitionKey: "white-belt", kind: "belt", sequence: 1, name: "WHITE BELT" });
+  const first = def({
+    definitionKey: "white-1",
+    kind: "stripe",
+    sequence: 2,
+    parentDefinitionKey: "white-belt",
+    name: "White - 1st Stripe",
+  });
+  const second = def({
+    definitionKey: "white-2",
+    kind: "stripe",
+    sequence: 3,
+    parentDefinitionKey: "white-belt",
+    name: "White - 2nd Stripe",
+  });
+  const groups = groupBelts({ definitions: [second, belt, first] });
+
+  it("returns the parent belt and the stripe count for a stripe", () => {
+    expect(beltPosition(groups, "white-2")).toEqual({ belt, definition: second, stripeCount: 2 });
+    expect(beltPosition(groups, "white-1")).toEqual({ belt, definition: first, stripeCount: 1 });
+    expect(beltPosition(groups, "white-belt")).toEqual({ belt, definition: belt, stripeCount: 0 });
+  });
+
+  it("returns null for a key the catalogue does not carry", () => {
+    expect(beltPosition(groups, "missing")).toBeNull();
+    expect(beltPosition(groups, "")).toBeNull();
+    expect(beltPosition([], "white-belt")).toBeNull();
   });
 });

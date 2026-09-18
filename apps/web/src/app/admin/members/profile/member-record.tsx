@@ -23,7 +23,9 @@ import {
   getMemberProfile,
   isMemberRecordId,
 } from "../../../../lib/member-profile-client";
+import { useAdminOrStaffSession } from "../../admin-gate";
 import { DetailsTab } from "./details-tab";
+import { IbjjfCard } from "./ibjjf-card";
 import { ProfileTab } from "./profile-tab";
 import { RecordEmptyTab } from "./record-empty-tab";
 import { participantTypeLabel, statusLabel } from "./record-format";
@@ -127,6 +129,7 @@ function RecordHeader({
 }
 
 export function MemberRecord() {
+  const { role } = useAdminOrStaffSession();
   const [location, setLocation] = useState<RecordLocation | null>(null);
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -268,7 +271,14 @@ export function MemberRecord() {
 
   // Plan C (E2) insertion points: `ibjjfCardSlot` becomes <IbjjfCard studentId={…} />, and the
   // `location.manage` branch below renders <ManageView … /> in place of the PROFILE cards.
-  const ibjjfCardSlot: ReactNode = undefined;
+  const ibjjfCardSlot: ReactNode =
+    readyStudentId === undefined ? undefined : (
+      <IbjjfCard
+        canOpenLevel={role === "owner" || role === "headCoach"}
+        manageHref={recordHref(readyStudentId, "profile", true)}
+        studentId={readyStudentId}
+      />
+    );
 
   function panel(profile: MemberProfile): ReactNode {
     if (activeTab === "profile") {
