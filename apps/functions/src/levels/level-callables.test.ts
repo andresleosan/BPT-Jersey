@@ -531,13 +531,44 @@ describe("Level Callables", () => {
       };
       for (const [role, uid] of [
         ["coach", "coach-1"],
-        ["owner", "owner-1"],
+        ["administrator", "administrator-1"],
+        ["guardian", "guardian-1"],
         ["adultStudent", "student-1"],
       ] as const) {
         await expect(handler(fakeRequest(payload, role, uid, "demo-academy"))).rejects.toThrow(
-          /current head coach is required/u,
+          /head coach or the owner is required/u,
         );
       }
+    });
+
+    // T051V2: the owner opens a level without a staff record. Proved against the REAL in-memory
+    // store, not a mock, so the `openedByStaffId: null` the callable sends is one the store takes.
+    it("lets the owner open a level at a past start date", async () => {
+      const store = createTestStore();
+      const handler = createOpenStudentLevelHandler({ store, authorization });
+      const definitionKey = await firstBeltKey(store);
+
+      const opened = await handler(
+        fakeRequest(
+          {
+            studentId: "student-2",
+            definitionKey,
+            decisionNotes: "Level carried over from the previous academy.",
+            startedOn: "2026-07-01",
+          },
+          "owner",
+          "owner-1",
+          "demo-academy",
+        ),
+      );
+
+      expect(opened.head).toEqual({
+        studentId: "student-2",
+        currentDefinitionKey: definitionKey,
+        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+        state: "initialized",
+      });
+      expect(JSON.stringify(opened)).not.toMatch(/owner-1|decisionNotes/u);
     });
   });
 });
