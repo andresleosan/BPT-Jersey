@@ -304,7 +304,7 @@ describe("Level Service & Store", () => {
   });
 
   describe("Student level opening (T097)", () => {
-    it("opens a belt once per student and refuses stripes and unknown definitions", async () => {
+    it("opens any definition once per student and refuses unknown definitions", async () => {
       const store = createInMemoryLevelStore();
       await store.seed({ academyId: "demo-academy", normalized });
       const catalog = await store.listPublished("demo-academy");
@@ -356,19 +356,19 @@ describe("Level Service & Store", () => {
           openedByRole: "headCoach",
         }),
       ).rejects.toMatchObject({ code: "conflict" });
-      await expect(
-        store.openStudentLevel({
-          academyId: "demo-academy",
-          input: {
-            studentId: "student-2",
-            definitionKey: stripe!.definitionKey,
-            decisionNotes: "Stripes are earned.",
-          },
-          openedBy: "headcoach-1",
-          openedByStaffId: "staff-head-1",
-          openedByRole: "headCoach",
-        }),
-      ).rejects.toMatchObject({ code: "conflict" });
+      // T051V2 Task 8: stripes open too — a member can join already holding one.
+      const openedStripe = await store.openStudentLevel({
+        academyId: "demo-academy",
+        input: {
+          studentId: "student-2",
+          definitionKey: stripe!.definitionKey,
+          decisionNotes: "Holds this stripe.",
+        },
+        openedBy: "headcoach-1",
+        openedByStaffId: "staff-head-1",
+        openedByRole: "headCoach",
+      });
+      expect(openedStripe.head.currentDefinitionKey).toBe(stripe!.definitionKey);
       await expect(
         store.openStudentLevel({
           academyId: "demo-academy",

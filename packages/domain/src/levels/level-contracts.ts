@@ -1574,8 +1574,9 @@ export function parseApprovePromotionInput(
 }
 
 /**
- * Opens a student's level record at a belt chosen by the head coach. Stripes are never opened
- * directly and nothing is granted automatically: the head coach states the belt the student holds.
+ * Opens a student's level record at the definition the head coach or owner states the student
+ * already holds. T051V2: a stripe is a legitimate opening too (a member joins holding one) and
+ * nothing is granted automatically.
  */
 export type OpenStudentLevelInput = Readonly<{
   studentId: string;
@@ -1583,8 +1584,8 @@ export type OpenStudentLevelInput = Readonly<{
   decisionNotes: string;
   /**
    * T051V2: the day the student actually reached this level; absent means "today". A "not in the
-   * future" bound is clock- and timezone-dependent, so it belongs to the open service (Task 9),
-   * as the same bound on `promotedOn` belongs to the assign service (Task 8).
+   * future" bound is clock- and timezone-dependent, so it is enforced by the open service against
+   * the academy's day (`assertLevelStartNotInTheFuture` in `level-service.ts`), not here.
    */
   startedOn?: string;
 }>;

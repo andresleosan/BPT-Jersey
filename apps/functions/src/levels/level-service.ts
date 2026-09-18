@@ -8,6 +8,7 @@ import {
   countClassesAtLevel,
   generateRecognitionCandidates,
   importedBaselineSchema,
+  jerseyDateOf,
   type ImportedBaseline,
   type ApprovePromotionInput,
   type OpenStudentLevelInput,
@@ -139,8 +140,13 @@ export type LevelCatalogStore = Readonly<{
     academyId: string;
     input: OpenStudentLevelInput;
     openedBy: string;
-    openedByStaffId: string;
-    openedByRole: "headCoach";
+    /**
+     * T051V2: nullable because the owner opens a level without a staff record; `assertTransactionalActor`
+     * validates the owner through the member directory instead. A head coach with `null` here still
+     * fails closed on "Staff scope is invalid".
+     */
+    openedByStaffId: string | null;
+    openedByRole: "headCoach" | "owner";
     openedAt?: string;
   }) => Promise<OpenedStudentLevel>;
 }>;
@@ -195,6 +201,28 @@ export type StudentLevelHead = Readonly<{
   updatedAt: string;
   updatedBy: string;
 }>;
+
+/**
+ * T051V2 (G6 narrowed by G12): only the head coach and the owner open a level. A coach or an
+ * administrator is refused here, before anything is read or written, in BOTH stores.
+ */
+function assertLevelOpeningRole(openedByRole: string): void {
+  if (openedByRole !== "headCoach" && openedByRole !== "owner") {
+    throw new LevelStoreError("tenant", "Level opening role is invalid");
+  }
+}
+
+/**
+ * T051V2: `startedOn` is the day the student actually reached the level, so it can never be later
+ * than today. "Today" is the ACADEMY's day (Europe/Jersey), not UTC: between midnight and 01:00
+ * Jersey time in BST the two disagree, and a head coach opening a level just after midnight must
+ * still be able to say "today".
+ */
+function assertLevelStartNotInTheFuture(startedOn: string | undefined, now: string): void {
+  if (startedOn !== undefined && startedOn > jerseyDateOf(now)) {
+    throw new LevelStoreError("invalid", "Level start date is in the future");
+  }
+}
 
 const safeIdentifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
@@ -1465,10 +1493,9 @@ export function createLevelCatalogStore({
     async openStudentLevel(params): Promise<OpenedStudentLevel> {
       const { academyId, input, openedBy, openedByStaffId, openedByRole } = params;
       assertValidAcademyId(academyId);
-      if (openedByRole !== "headCoach") {
-        throw new LevelStoreError("tenant", "Level opening role is invalid");
-      }
+      assertLevelOpeningRole(openedByRole);
       const now = params.openedAt ?? new Date().toISOString();
+      assertLevelStartNotInTheFuture(input.startedOn, now);
       const headRef = firestore.doc(
         `academies/${academyId}/studentLevelProgress/${input.studentId}`,
       );
@@ -1485,7 +1512,7 @@ export function createLevelCatalogStore({
         await assertTransactionalActor(transaction, firestore, {
           academyId,
           actorId: openedBy,
-          actorRole: "headCoach",
+          actorRole: openedByRole,
           actorStaffId: openedByStaffId,
         });
         const student = storedStudent(
@@ -1515,10 +1542,6 @@ export function createLevelCatalogStore({
         ) {
           throw new LevelStoreError("conflict", "Level definition is not current");
         }
-        // Only belts open a record: stripes are earned through approved promotions.
-        if (definitionData.kind !== "belt") {
-          throw new LevelStoreError("conflict", "Only a belt can open a student level");
-        }
         if (existingAudit.exists) {
           throw new LevelStoreError("conflict", "Level opening evidence already exists");
         }
@@ -1527,10 +1550,14 @@ export function createLevelCatalogStore({
           studentId: input.studentId,
           systemId: definitionData.systemId,
           currentDefinitionKey: input.definitionKey,
-          currentLevelStartedAt: now,
+          currentLevelStartedAt:
+            input.startedOn === undefined ? now : `${input.startedOn}T00:00:00.000Z`,
           lastApprovedPromotionId: null,
           openedByStaffId,
           openingNotes: input.decisionNotes,
+          openedDefinitionKey: input.definitionKey,
+          openedOn: input.startedOn ?? jerseyDateOf(now),
+          openedByRole,
           state: "initialized",
           schemaVersion: "1",
           createdAt: now,
@@ -2223,9 +2250,9 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
     async openStudentLevel(params): Promise<OpenedStudentLevel> {
       const { academyId, input, openedBy, openedByStaffId, openedByRole } = params;
       assertValidAcademyId(academyId);
-      if (openedByRole !== "headCoach") {
-        throw new LevelStoreError("tenant", "Level opening role is invalid");
-      }
+      assertLevelOpeningRole(openedByRole);
+      const now = params.openedAt ?? new Date().toISOString();
+      assertLevelStartNotInTheFuture(input.startedOn, now);
       const key = `${academyId}_${input.studentId}`;
       if (heads.has(key)) throw new LevelStoreError("conflict", "Student level is already open");
       const definition = Array.from(definitions.values()).find(
@@ -2236,19 +2263,19 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       if (definition === undefined) {
         throw new LevelStoreError("conflict", "Level definition is not current");
       }
-      if (definition["kind"] !== "belt") {
-        throw new LevelStoreError("conflict", "Only a belt can open a student level");
-      }
-      const now = params.openedAt ?? new Date().toISOString();
       const record: StudentLevelHead = Object.freeze({
         academyId,
         studentId: input.studentId,
         systemId: String(definition["systemId"]),
         currentDefinitionKey: input.definitionKey,
-        currentLevelStartedAt: now,
+        currentLevelStartedAt:
+          input.startedOn === undefined ? now : `${input.startedOn}T00:00:00.000Z`,
         lastApprovedPromotionId: null,
         openedByStaffId,
         openingNotes: input.decisionNotes,
+        openedDefinitionKey: input.definitionKey,
+        openedOn: input.startedOn ?? jerseyDateOf(now),
+        openedByRole,
         state: "initialized",
         schemaVersion: "1",
         createdAt: now,

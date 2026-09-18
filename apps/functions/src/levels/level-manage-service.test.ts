@@ -509,3 +509,200 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     await expect(fixture.approve(promotion)).rejects.toMatchObject(conflict);
   });
 });
+
+/**
+ * T051V2 Task 8: a level may now be opened at any definition (belt or stripe) with an explicit
+ * start date, by the head coach or the owner. The audit and the single-head guarantee are
+ * Firestore concerns, so they are asserted here; every behavioural rule is asserted against BOTH
+ * stores in the parity block below.
+ */
+describe("openStudentLevel at any definition (T051V2)", () => {
+  const open = (overrides: Record<string, unknown> = {}) => ({
+    academyId,
+    input: {
+      studentId: "student-1",
+      definitionKey: "white-2nd-stripe",
+      decisionNotes: "Holds this stripe from Regyfit.",
+      startedOn: "2026-07-01",
+    },
+    openedBy: "owner-user-1",
+    openedByStaffId: null,
+    openedByRole: "owner" as const,
+    openedAt: decidedAt,
+    ...overrides,
+  });
+
+  it("writes exactly the head and its audit event, in that order", async () => {
+    const { store, writes } = await seededStore();
+    await store.openStudentLevel(open());
+    expect(writes.map((write) => write.path)).toEqual([
+      `academies/${academyId}/studentLevelProgress/student-1`,
+      expect.stringMatching(/^academies\/academy-1\/auditEvents\/audit-level-write-/u),
+    ]);
+    expect(writes[0]?.data).toMatchObject({
+      currentDefinitionKey: "white-2nd-stripe",
+      currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+      openedDefinitionKey: "white-2nd-stripe",
+      openedOn: "2026-07-01",
+      openedByRole: "owner",
+      openedByStaffId: null,
+    });
+    expect(writes[1]?.data).toMatchObject({
+      action: "level.opened",
+      targetRef: `academies/${academyId}/studentLevelProgress/student-1`,
+      purpose: "student-level-opening",
+    });
+  });
+
+  it("refuses an owner whose directory entry does not say owner, and writes nothing", async () => {
+    const { store, writes } = await seededStore();
+    await expect(store.openStudentLevel(open({ openedBy: "head-user-1" }))).rejects.toMatchObject({
+      code: "tenant",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a head coach with no staff scope, and writes nothing", async () => {
+    const { store, writes } = await seededStore();
+    await expect(
+      store.openStudentLevel(
+        open({ openedBy: "head-user-1", openedByStaffId: null, openedByRole: "headCoach" }),
+      ),
+    ).rejects.toMatchObject({ code: "tenant" });
+    expect(writes).toHaveLength(0);
+  });
+});
+
+const openParityStores: readonly [string, () => Promise<AnyLevelStore>][] = [
+  ["Firestore store", async () => (await seededStore()).store as unknown as AnyLevelStore],
+  [
+    "in-memory store",
+    async () => {
+      const store = createInMemoryLevelStore();
+      await store.seed({ academyId, normalized });
+      return store;
+    },
+  ],
+];
+
+describe.each(openParityStores)("open-a-level parity — %s (T051V2)", (_label, makeStore) => {
+  const open = (overrides: Record<string, unknown> = {}) => ({
+    academyId,
+    input: {
+      studentId: "student-1",
+      definitionKey: "white-2nd-stripe",
+      decisionNotes: "Holds this stripe from Regyfit.",
+      startedOn: "2026-07-01",
+    },
+    openedBy: "owner-user-1",
+    openedByStaffId: null,
+    openedByRole: "owner" as const,
+    openedAt: decidedAt,
+    ...overrides,
+  });
+
+  it("lets the owner open a stripe at a past start date", async () => {
+    const store = await makeStore();
+    const { head: opened } = await store.openStudentLevel(open());
+    expect(opened).toMatchObject({
+      studentId: "student-1",
+      currentDefinitionKey: "white-2nd-stripe",
+      currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+      openedDefinitionKey: "white-2nd-stripe",
+      openedOn: "2026-07-01",
+      openedByRole: "owner",
+      openedByStaffId: null,
+      state: "initialized",
+    });
+  });
+
+  it("keeps the legacy behaviour without startedOn: the opening instant and the Jersey day", async () => {
+    const store = await makeStore();
+    const { head: opened } = await store.openStudentLevel(
+      open({
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-belt",
+          decisionNotes: "Holds this belt from Regyfit.",
+        },
+        openedBy: "head-user-1",
+        openedByStaffId: "staff-head-1",
+        openedByRole: "headCoach",
+      }),
+    );
+    expect(opened).toMatchObject({
+      currentDefinitionKey: "white-belt",
+      currentLevelStartedAt: decidedAt,
+      openedDefinitionKey: "white-belt",
+      openedOn: "2026-09-10",
+      openedByRole: "headCoach",
+      openedByStaffId: "staff-head-1",
+    });
+  });
+
+  // The bound is the ACADEMY's day (Europe/Jersey), not UTC. At 23:30 UTC on 10 September it is
+  // already the 11th in Jersey (BST), so the 11th is today and must be accepted while the 12th
+  // must not. A UTC implementation refuses the 11th and fails here.
+  it("bounds startedOn by the Jersey day, not the UTC day", async () => {
+    const lateEvening = "2026-09-10T23:30:00.000Z";
+    const onJerseyToday = await makeStore();
+    const { head: opened } = await onJerseyToday.openStudentLevel(
+      open({ input: { ...open().input, startedOn: "2026-09-11" }, openedAt: lateEvening }),
+    );
+    expect(opened.currentLevelStartedAt).toBe("2026-09-11T00:00:00.000Z");
+
+    const defaulted = await makeStore();
+    const { head: today } = await defaulted.openStudentLevel(
+      open({
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-belt",
+          decisionNotes: "Holds this belt from Regyfit.",
+        },
+        openedAt: lateEvening,
+      }),
+    );
+    expect(today.openedOn).toBe("2026-09-11");
+
+    const tomorrow = await makeStore();
+    await expect(
+      tomorrow.openStudentLevel(
+        open({ input: { ...open().input, startedOn: "2026-09-12" }, openedAt: lateEvening }),
+      ),
+    ).rejects.toMatchObject({ code: "invalid", message: "Level start date is in the future" });
+  });
+
+  it("refuses a start date after today", async () => {
+    const store = await makeStore();
+    await expect(
+      store.openStudentLevel(open({ input: { ...open().input, startedOn: "2026-09-11" } })),
+    ).rejects.toMatchObject({ code: "invalid", message: "Level start date is in the future" });
+  });
+
+  // G12 narrows G6: an administrator sees the card and the history but never opens a level. The
+  // message is pinned so a refusal that happens for some other reason cannot pass for this guard.
+  it.each(["coach", "administrator"])("refuses %s", async (role) => {
+    const store = await makeStore();
+    await expect(
+      store.openStudentLevel(
+        open({
+          openedBy: "coach-user-1",
+          openedByStaffId: "staff-coach-1",
+          openedByRole: role as never,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "tenant", message: "Level opening role is invalid" });
+  });
+
+  it("refuses an unknown definition and a second head", async () => {
+    const store = await makeStore();
+    await expect(
+      store.openStudentLevel(open({ input: { ...open().input, definitionKey: "unknown-level" } })),
+    ).rejects.toMatchObject({ code: "conflict" });
+    await store.openStudentLevel(open());
+    await expect(store.openStudentLevel(open())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Student level is already open",
+    });
+  });
+});
