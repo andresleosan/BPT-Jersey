@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionOperationalView, SessionRecord } from "@bpt-jersey/domain/schedule";
@@ -291,15 +291,14 @@ describe("CoachDashboardPage", () => {
   it("renders the coach dashboard with town premises selected by default", async () => {
     render(<CoachDashboardPage />);
 
-    expect(screen.getByText("Coach Operations Dashboard")).toBeInTheDocument();
-    expect(screen.getByText(/Coach Thiago/)).toBeInTheDocument();
+    expect(screen.getByText("Today on the mat")).toBeInTheDocument();
 
     // Verify premises radio buttons
-    const townBtn = screen.getByRole("radio", { name: "Town (St Helier)" });
-    const westBtn = screen.getByRole("radio", { name: "West (St Peter)" });
+    const townBtn = screen.getByRole("button", { name: "Town (St Helier)" });
+    const westBtn = screen.getByRole("button", { name: "West (St Peter)" });
     expect(townBtn).toBeInTheDocument();
     expect(westBtn).toBeInTheDocument();
-    expect(townBtn).toHaveAttribute("aria-checked", "true");
+    expect(townBtn).toHaveAttribute("aria-pressed", "true");
 
     // Expect Town session to be loaded and shown
     await waitFor(() => {
@@ -311,11 +310,11 @@ describe("CoachDashboardPage", () => {
 
     // Quorum status
     await waitFor(() => {
-      expect(screen.getByText("✓ Quorum Met (>=4)")).toBeInTheDocument();
+      expect(screen.getByText("Minimum met (4)")).toBeInTheDocument();
     });
 
     // Birthdays widget: real members now, so with none seeded it says so (T112)
-    expect(screen.getByText("🎂 Upcoming Birthdays")).toBeInTheDocument();
+    expect(screen.getByText("Upcoming birthdays")).toBeInTheDocument();
     expect(await screen.findByText("No birthdays at Town this week.")).toBeInTheDocument();
   });
 
@@ -334,10 +333,10 @@ describe("CoachDashboardPage", () => {
       expect(screen.getByText("Adults Gi Fundamental - Town")).toBeInTheDocument();
     });
 
-    const westBtn = screen.getByRole("radio", { name: "West (St Peter)" });
+    const westBtn = screen.getByRole("button", { name: "West (St Peter)" });
     fireEvent.click(westBtn);
 
-    expect(westBtn).toHaveAttribute("aria-checked", "true");
+    expect(westBtn).toHaveAttribute("aria-pressed", "true");
 
     await waitFor(() => {
       expect(screen.getByText("Kids BJJ - West")).toBeInTheDocument();
@@ -346,7 +345,7 @@ describe("CoachDashboardPage", () => {
 
     // Quorum warning for West class (only 2 booked)
     await waitFor(() => {
-      expect(screen.getByText("⚠ Quorum Warning (2/4)")).toBeInTheDocument();
+      expect(screen.getByText("Below minimum (2/4)")).toBeInTheDocument();
     });
   });
 
@@ -364,7 +363,7 @@ describe("CoachDashboardPage", () => {
 
     // Student-2 is already checked in
     expect(screen.getByText("student-2")).toBeInTheDocument();
-    expect(screen.getByText("✓ Checked In")).toBeInTheDocument();
+    expect(screen.getByText("Checked in")).toBeInTheDocument();
 
     // Perform check-in on student-1
     fireEvent.click(checkInBtn);
@@ -384,18 +383,49 @@ describe("CoachDashboardPage", () => {
     });
   });
 
-  it("submits cash PAYG check-in with receipt confirmation", async () => {
+  it("hides the previous roster while another class loads", async () => {
+    const second = { ...mockTownSession, sessionId: "session-town-2", title: "Evening No Gi" };
+    scheduleClientMock.listSessions.mockResolvedValue([mockTownSession, second]);
+    let resolveNext!: (view: SessionOperationalView) => void;
+    const pending = new Promise<SessionOperationalView>((resolve) => {
+      resolveNext = resolve;
+    });
+    scheduleClientMock.getSessionOperationalView.mockImplementation((id: string) =>
+      id === second.sessionId ? pending : Promise.resolve(mockOperationalView),
+    );
+    render(<CoachDashboardPage />);
+    await screen.findByText("student-1");
+    fireEvent.click(screen.getByRole("button", { name: /Evening No Gi/ }));
+    expect(screen.queryByText("student-1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Check In" })).not.toBeInTheDocument();
+    expect(screen.getByText("Loading roster...")).toBeInTheDocument();
+    await act(async () => resolveNext({ ...mockOperationalView, session: second, roster: [] }));
+    expect(await screen.findByText("No members booked for this session yet.")).toBeInTheDocument();
+  });
+
+  it("shows the session's configured minimum instead of a hard-coded four", async () => {
+    const configured = { ...mockTownSession, minParticipants: 2 };
+    scheduleClientMock.listSessions.mockResolvedValue([configured]);
+    scheduleClientMock.getSessionOperationalView.mockResolvedValue({
+      ...mockOperationalView,
+      session: configured,
+    });
+    render(<CoachDashboardPage />);
+    expect(await screen.findByText("Minimum met (2)")).toBeInTheDocument();
+  });
+
+  it("records attendance for a walk-in member", async () => {
     render(<CoachDashboardPage />);
 
     await waitFor(() => {
       expect(screen.getByRole("table", { name: "Class attendees roster" })).toBeInTheDocument();
     });
 
-    const paygInput = screen.getByPlaceholderText("Student or Member ID (e.g. stu_walkin_01)");
+    const paygInput = screen.getByLabelText("Member ID");
     fireEvent.change(paygInput, { target: { value: "student-walkin-99" } });
 
     const paygSubmitBtn = screen.getByRole("button", {
-      name: "Record Cash PAYG & Check In",
+      name: "Check in member",
     });
     fireEvent.click(paygSubmitBtn);
 
@@ -409,9 +439,7 @@ describe("CoachDashboardPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(
-          "Manual check-in recorded for student student-walkin-99. Record the cash payment in Billing to issue the receipt.",
-        ),
+        screen.getByText("Manual check-in recorded for student student-walkin-99."),
       ).toBeInTheDocument();
     });
   });
@@ -521,7 +549,7 @@ describe("CoachDashboardPage", () => {
       });
     });
 
-    it("gates the cash PAYG check-in behind the same override reason", async () => {
+    it("gates the walk-in check-in behind the same override reason", async () => {
       scheduleClientMock.getScheduleCatalog.mockResolvedValue(townCatalog());
       proximityMock.measureCheckInProximity.mockResolvedValue({
         status: "measured",
@@ -539,10 +567,10 @@ describe("CoachDashboardPage", () => {
         expect(screen.getByLabelText(/Why are you checking students in/u)).toBeInTheDocument();
       });
 
-      fireEvent.change(screen.getByPlaceholderText("Student or Member ID (e.g. stu_walkin_01)"), {
+      fireEvent.change(screen.getByLabelText("Member ID"), {
         target: { value: "student-walkin-99" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Record Cash PAYG & Check In" }));
+      fireEvent.click(screen.getByRole("button", { name: "Check in member" }));
       await waitFor(() => {
         expect(
           screen.getByText(/Record why you are checking this student in/u),
@@ -658,7 +686,7 @@ describe("CoachDashboardPage", () => {
         });
       });
 
-      fireEvent.click(screen.getByRole("radio", { name: "West (St Peter)" }));
+      fireEvent.click(screen.getByRole("button", { name: "West (St Peter)" }));
 
       await waitFor(() => {
         expect(birthdaysMock.listUpcomingBirthdays).toHaveBeenCalledWith({
