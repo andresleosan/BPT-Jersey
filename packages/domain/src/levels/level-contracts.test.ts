@@ -547,6 +547,36 @@ describe("Level Contracts", () => {
       expect(shortNotes.ok).toBe(false);
     });
 
+    // The same rule the T051V2 manage contracts apply to operator free text: a promotion note goes
+    // into an audited record and is rendered in the history, so an escape sequence or a NUL in it
+    // is refused rather than stored.
+    it("rejects promotion approval whose decision notes carry control characters", () => {
+      const base = {
+        studentId: "std-1",
+        fromDefinitionKey: "white-0",
+        toDefinitionKey: "white-1",
+      };
+      for (const control of [
+        String.fromCharCode(0x00),
+        String.fromCharCode(0x1b),
+        String.fromCharCode(0x7f),
+      ]) {
+        expect(
+          parseApprovePromotionInput({
+            ...base,
+            decisionNotes: `Consistent sparring presence${control} across the term.`,
+          }).ok,
+        ).toBe(false);
+      }
+      // Tab and line feed are how a textarea wraps a real note; they stay allowed.
+      expect(
+        parseApprovePromotionInput({
+          ...base,
+          decisionNotes: "Consistent sparring presence.\n\tAcross the whole term.",
+        }).ok,
+      ).toBe(true);
+    });
+
     it("validates and parses reject promotion input", () => {
       const result = parseRejectPromotionInput({
         studentId: "std-1",
