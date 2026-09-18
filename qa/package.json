@@ -12,10 +12,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "5.0.1",
     "@bpt-jersey/domain": "workspace:*",
+    "@firebase/rules-unit-testing": "5.0.1",
     "@playwright/test": "1.61.1",
-    "firebase-admin": "14.2.0",
-    "firebase": "12.16.0"
+    "axe-core": "4.13.0",
+    "firebase": "12.16.0",
+    "firebase-admin": "14.2.0"
   }
 }
