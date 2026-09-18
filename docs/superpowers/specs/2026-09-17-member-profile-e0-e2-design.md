@@ -198,6 +198,10 @@ headCoach, coach (existing level roles); the rest of the record stays owner/admi
 `progress = mean(min(classes/minClasses,1), min(days/minDays,1), [skills])` where
 `skills = Σ min(score_i, required_i) / Σ required_i` included only when the level defines skill
 minimums; a criterion with no minimum is excluded from the mean; result floored to an integer 0–100.
+`computeLevelProgress` returns 100 when the level defines no usable minimum at all (vacuous truth), and a
+`min` of 0 counts as "no minimum" so the mean can never be 0/0. `progressPercent` is `null` when there is
+no next level (top of the catalogue, `targetDefinition === null`), and consumers must render the "no next
+level" state rather than a progress bar.
 Card and Manage call the same function (fixes Regyfit's 100% vs 67% mismatch).
 `classes = importedBaseline + BPT attended/late attendance with date ≥ max(currentLevelStartedAt,
 baselineCutoff)` (grill G10). `importedBaseline`/`baselineCutoff` exist only on a level head created by the

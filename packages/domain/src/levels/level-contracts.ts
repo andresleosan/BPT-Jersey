@@ -695,8 +695,8 @@ export type InitializedStudentProgressSummary = Readonly<{
   targetDefinition: LevelDefinitionRecord | null;
   skillChecklist: readonly SkillChecklistItem[];
   criteria: ProgressCriteriaSummary;
-  /** Spec §6.2: the single progress formula, 0-100. */
-  progressPercent: number;
+  /** Spec §6.2: the single progress formula, 0-100, or `null` when there is no next level. */
+  progressPercent: number | null;
   totalAttendedClasses: number;
   totalHours: number;
   currentLevelStartedAt: string | null;
@@ -1100,7 +1100,7 @@ export function buildStudentProgressSummary(options: {
     criteria,
     progressPercent:
       targetDefinition === null
-        ? 100
+        ? null
         : computeLevelProgress({
             classes: { done: completedClasses, min: requiredClasses },
             days: { done: elapsedDays, min: requiredDays },

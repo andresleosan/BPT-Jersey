@@ -163,6 +163,16 @@ describe("computeLevelProgress", () => {
     ).toBe(0);
   });
 
+  it("returns 0 rather than NaN when an input is not a finite number", () => {
+    expect(
+      computeLevelProgress({
+        classes: { done: Number.NaN, min: 10 },
+        days: { done: 30, min: 30 },
+        skills: [],
+      }),
+    ).toBe(0);
+  });
+
   it("always returns an integer inside 0-100", () => {
     for (let done = 0; done <= 37; done += 1) {
       const percent = computeLevelProgress({
@@ -193,6 +203,23 @@ describe("countClassesAtLevel", () => {
         importedBaseline: null,
       }),
     ).toEqual({ imported: 0, bpt: 3, total: 3 });
+  });
+
+  it("counts a class attended at exactly the level start instant", () => {
+    expect(
+      countClassesAtLevel({
+        attendedAt: ["2026-07-01T00:00:00.000Z"],
+        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+        importedBaseline: null,
+      }),
+    ).toEqual({ imported: 0, bpt: 1, total: 1 });
+    expect(
+      countClassesAtLevel({
+        attendedAt: ["2026-06-30T23:59:59.999Z"],
+        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+        importedBaseline: null,
+      }),
+    ).toEqual({ imported: 0, bpt: 0, total: 0 });
   });
 
   it("adds the baseline and counts BPT attendance from the cutoff day, once", () => {
@@ -334,7 +361,7 @@ describe("listPromotionGaps", () => {
     ).toEqual(["Skips 1 stripe", "Classes 11/25 not met", "Days 71/75 not met"]);
   });
 
-  it("names skipped belts, unmet skill minimums and the age band", () => {
+  it("names skipped stripes, unmet skill minimums and the age band", () => {
     expect(
       listPromotionGaps({
         ...base,
@@ -349,6 +376,25 @@ describe("listPromotionGaps", () => {
     expect(
       listPromotionGaps({ ...base, toDefinitionKey: "blue-belt", classesDone: 50, daysDone: 400 }),
     ).toEqual(["Skips 4 stripes"]);
+  });
+
+  it("names skipped belts, with the noun and the belt/stripe order the dialog shows", () => {
+    expect(
+      listPromotionGaps({
+        ...base,
+        toDefinitionKey: "purple-belt",
+        classesDone: 9999,
+        daysDone: 9999,
+      }),
+    ).toEqual(["Skips 1 belt", "Skips 8 stripes"]);
+    expect(
+      listPromotionGaps({
+        ...base,
+        toDefinitionKey: "brown-belt",
+        classesDone: 9999,
+        daysDone: 9999,
+      }),
+    ).toEqual(["Skips 2 belts", "Skips 12 stripes"]);
   });
 
   it("refuses unknown definitions", () => {
@@ -445,9 +491,10 @@ describe("buildStudentProgressSummary with the single formula", () => {
       }),
     );
     expect(summary.progressPercent).toBe(69);
+    expect(typeof summary.progressPercent).toBe("number");
   });
 
-  it("is 100 at the top of the catalogue, where there is no next level to progress towards", () => {
+  it("is null at the top of the catalogue, where there is no next level to progress towards", () => {
     const summary = buildStudentProgressSummary({
       catalog,
       studentId: "student-1",
@@ -458,7 +505,7 @@ describe("buildStudentProgressSummary with the single formula", () => {
       now: "2026-09-10T00:00:00.000Z",
     });
     expect(summary.targetDefinition).toBeNull();
-    expect(summary.progressPercent).toBe(100);
+    expect(summary.progressPercent).toBeNull();
   });
 
   it("falls back to the total attended count when classesAtLevel is omitted", () => {
