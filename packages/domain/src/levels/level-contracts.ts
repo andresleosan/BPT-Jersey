@@ -1,8 +1,10 @@
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 import { isLevelCatalogVersion, levelCatalogVersionShapes } from "./level-catalog-v2";
+import { computeLevelProgress, minimumDaysOf, type ClassesAtLevel } from "./level-progress";
 
 export * from "./level-catalog-v2";
+export * from "./level-progress";
 
 export const levelDefinitionKinds = Object.freeze(["belt", "stripe"] as const);
 export type LevelDefinitionKind = (typeof levelDefinitionKinds)[number];
@@ -657,6 +659,8 @@ export type ProgressCriteriaSummary = Readonly<{
   classes: Readonly<{
     required: number | null;
     completed: number;
+    /** Grill G10: how many of `completed` came from the Regyfit import rather than BPT attendance. */
+    imported: number;
     met: boolean;
   }>;
   time: Readonly<{
@@ -691,6 +695,8 @@ export type InitializedStudentProgressSummary = Readonly<{
   targetDefinition: LevelDefinitionRecord | null;
   skillChecklist: readonly SkillChecklistItem[];
   criteria: ProgressCriteriaSummary;
+  /** Spec §6.2: the single progress formula, 0-100. */
+  progressPercent: number;
   totalAttendedClasses: number;
   totalHours: number;
   currentLevelStartedAt: string | null;
@@ -956,6 +962,8 @@ export function buildStudentProgressSummary(options: {
   attendedClassesCount?: number;
   totalHours?: number;
   currentLevelStartedAt?: string | null;
+  /** Grill G10: classes at the current level (baseline + BPT). Omitted by legacy callers. */
+  classesAtLevel?: ClassesAtLevel;
   /** T113: only the age band of the target rank is read from it; it never leaves the summary. */
   dateOfBirth?: string | null;
   now?: string;
@@ -968,6 +976,7 @@ export function buildStudentProgressSummary(options: {
     attendedClassesCount = 0,
     totalHours = 0,
     currentLevelStartedAt = null,
+    classesAtLevel,
     dateOfBirth = null,
     now = new Date().toISOString(),
   } = options;
@@ -1026,14 +1035,11 @@ export function buildStudentProgressSummary(options: {
 
   // Calculate classes criteria
   const requiredClasses = targetDefinition?.criteria.minClasses ?? null;
-  const classesMet = requiredClasses === null || attendedClassesCount >= requiredClasses;
+  const completedClasses = classesAtLevel?.total ?? attendedClassesCount;
+  const classesMet = requiredClasses === null || completedClasses >= requiredClasses;
 
   // Calculate time criteria
-  let requiredDays: number | null = null;
-  if (targetDefinition?.criteria.minimumTime) {
-    const mt = targetDefinition.criteria.minimumTime;
-    requiredDays = mt.years * 365 + mt.months * 30 + mt.days;
-  }
+  const requiredDays = minimumDaysOf(targetDefinition?.criteria.minimumTime ?? null);
 
   let elapsedDays = 0;
   if (currentLevelStartedAt) {
@@ -1066,7 +1072,8 @@ export function buildStudentProgressSummary(options: {
   const criteria: ProgressCriteriaSummary = Object.freeze({
     classes: Object.freeze({
       required: requiredClasses,
-      completed: attendedClassesCount,
+      completed: completedClasses,
+      imported: classesAtLevel?.imported ?? 0,
       met: classesMet,
     }),
     time: Object.freeze({
@@ -1091,6 +1098,17 @@ export function buildStudentProgressSummary(options: {
     targetDefinition,
     skillChecklist: Object.freeze(skillChecklist),
     criteria,
+    progressPercent:
+      targetDefinition === null
+        ? 100
+        : computeLevelProgress({
+            classes: { done: completedClasses, min: requiredClasses },
+            days: { done: elapsedDays, min: requiredDays },
+            skills: skillChecklist.map((item) => ({
+              score: item.currentScore,
+              required: item.requiredScore,
+            })),
+          }),
     totalAttendedClasses: attendedClassesCount,
     totalHours,
     currentLevelStartedAt,
