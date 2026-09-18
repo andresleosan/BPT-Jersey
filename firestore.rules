@@ -6,6 +6,22 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /academies/{academyId}/memberRecoveryRequests/{recordId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberRecoveryRateLimits/{recordId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/memberRecoveryWriteReceipts/{recordId} {
+      allow read, write: if false;
+    }
+
+    match /academies/{academyId}/regyfitMemberLinks/{recordId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/regyfitMemberRecords/{recordId} {
       allow read, write: if false;
     }

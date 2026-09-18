@@ -234,3 +234,10 @@ export {
 export * from "./streak/streak-callables.js";
 export * from "./competitors/competitors-callables.js";
 export * from "./account-settings/account-settings-callables.js";
+export {
+  beginMemberRecovery,
+  completeMemberRecovery,
+  listMemberRecoveryRequests,
+  getMemberRecoveryDetail,
+  reviewMemberRecovery,
+} from "./members/member-recovery-callables.js";
