@@ -698,6 +698,50 @@ it("accepts an imported event with no student id and a plain name", () => {
   expect(result.ok).toBe(true);
 });
 
+it("accepts an imported event whose class predates the BPT schedule, keeping the class moment", () => {
+  const imported = {
+    ...classDraft,
+    class: {
+      ...classDraft.class,
+      studentId: null,
+      studentName: "Olivia Lewis",
+      sessionId: null,
+      sessionStartAt: "2026-03-12T18:30:00Z",
+    },
+    actorRole: "regyfit" as const,
+    actorGroup: "member" as const,
+    actorName: "Olivia Lewis",
+    source: "regyfit" as const,
+  };
+  const result = parseAuditEventDraft(imported);
+  expect(result).toEqual({ ok: true, value: imported });
+});
+
+it("rejects a BPT-written class event that names no session", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, sessionId: null },
+    source: "bpt" as const,
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["class", "sessionId"], code: "AUDIT_CLASS_SESSION_ID_REQUIRED" }],
+  });
+});
+
+it("still rejects an imported class event whose session id is not an identifier", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, sessionId: "../escape" },
+    actorRole: "regyfit" as const,
+    source: "regyfit" as const,
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["class", "sessionId"], code: "AUDIT_CLASS_IDENTIFIER_INVALID" }],
+  });
+});
+
 it("still accepts an event written before this change", () => {
   const result = parseAuditEventDraft({
     academyId: "demo-academy",

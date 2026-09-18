@@ -136,7 +136,10 @@ export async function readClassHistory(
 
   const rows = events.map((event): ClassHistoryRow => {
     const block = event.class;
-    const session = block === null ? undefined : sessions.get(block.sessionId);
+    // An imported row may name no session at all, because the class predates the BPT schedule.
+    // There is then nothing to resolve, and the row renders from the moment the event carries.
+    const sessionId = block?.sessionId ?? null;
+    const session = sessionId === null ? undefined : sessions.get(sessionId);
     const studentId = block === null ? null : block.studentId;
     const recordName = studentId === null ? undefined : students.get(studentId);
     const studentName = recordName ?? block?.studentName ?? null;
@@ -169,7 +172,7 @@ export async function readClassHistory(
       actorIp: showIp ? event.actorIp : null,
       studentId,
       studentName,
-      sessionId: block?.sessionId ?? null,
+      sessionId,
       sessionStartAt,
       programId,
       programName,
