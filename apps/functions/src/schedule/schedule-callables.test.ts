@@ -1931,3 +1931,52 @@ describe("classes-services callables", () => {
     expect(cancel.mock.calls[0]?.[4]).toEqual({ ip: "82.112.144.10", role: "adultStudent" });
   });
 });
+
+describe("weekly repetition callable boundaries", () => {
+  const input = {
+    programId: "adult-fundamentals",
+    locationId: "town",
+    instructorId: "coach-1",
+    title: "Weekly class",
+    startAt: "2026-10-19T17:00:00.000Z",
+    endAt: "2026-10-19T18:00:00.000Z",
+    capacity: 12,
+    minParticipants: 2,
+    repeatWeekly: true,
+  };
+  it("persists the requested recurrence and scope through the existing callables", async () => {
+    const store = createInMemoryScheduleStore();
+    const { session } = await createSaveSessionHandler({ store })(fakeRequest(input));
+    expect(session.repeatWeekly).toBe(true);
+    const { session: stopped } = await createUpdateSessionHandler({ store })(
+      fakeRequest({ sessionId: session.sessionId, repeatWeekly: false, repeatScope: "following" }),
+    );
+    expect(stopped.repeatWeekly).toBe(false);
+    expect(stopped.status).toBe("scheduled");
+  });
+  it("keeps recurrence writes manager-only and rejects invalid scope", async () => {
+    const store = createInMemoryScheduleStore();
+    await expect(
+      createSaveSessionHandler({ store })(fakeRequest(input, "member")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    const { session } = await createSaveSessionHandler({ store })(fakeRequest(input));
+    await expect(
+      createUpdateSessionHandler({ store })(
+        fakeRequest(
+          { sessionId: session.sessionId, repeatWeekly: false, repeatScope: "following" },
+          "coach",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createUpdateSessionHandler({ store })(
+        fakeRequest({ sessionId: session.sessionId, repeatWeekly: false, repeatScope: "all" }),
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(
+      createUpdateSessionHandler({ store })(
+        fakeRequest({ sessionId: session.sessionId, repeatWeekly: false }),
+      ),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+  });
+});
