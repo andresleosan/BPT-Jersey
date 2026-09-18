@@ -5,6 +5,7 @@ import type { StudentAdminProfile } from "@bpt-jersey/domain/members/directory";
 import type { MembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { StudentProfile } from "@bpt-jersey/domain/profiles";
 
+import { userDisplayNameOf } from "./member-profile-firestore.js";
 import { createMemberProfileService, type MemberProfileStore } from "./member-profile-service.js";
 
 const now = "2026-09-17T09:00:00.000Z";
@@ -201,6 +202,45 @@ describe("member profile service (T051V2)", () => {
     expect(profile.nextFreeMemberNumber).toBe("13");
     expect(profile.details.gender).toBe("unknown");
     expect(profile.header).not.toHaveProperty("maskedMemberReference");
+  });
+
+  it("keeps a guardian whose user document would fail the full profile parse", async () => {
+    // Synthetic: no phoneNumber at all, and an email the profile parser rejects.
+    const guardianDocument = {
+      userId: "guardian-1",
+      academyId: "academy-1",
+      accountType: "client",
+      displayName: " Test Guardian ",
+      email: "not-an-email",
+      active: true,
+      status: "active",
+      ...audit,
+    };
+    const service = createMemberProfileService({
+      store: store({
+        listStudentRelationships: async () => [relationship()],
+        getUserDisplayName: async () => userDisplayNameOf(guardianDocument),
+      }),
+    });
+
+    const profile = await service.fullProfile({
+      academyId: "academy-1",
+      record: { student: minor() },
+      now,
+    });
+
+    expect(profile.cards.accountManagers).toEqual([
+      { displayName: "Test Guardian", familyId: "family-b" },
+    ]);
+  });
+
+  it("names no account manager for a minor with no guardian link", async () => {
+    const profile = await createMemberProfileService({ store: store() }).fullProfile({
+      academyId: "academy-1",
+      record: { student: minor() },
+      now,
+    });
+    expect(profile.cards.accountManagers).toEqual([]);
   });
 
   it("does not list an adult as their own account manager", async () => {

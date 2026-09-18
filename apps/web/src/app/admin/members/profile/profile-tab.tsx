@@ -4,12 +4,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import type { FullMemberProfile, MemberProfile } from "@bpt-jersey/domain/members/profile";
+import type { CurrentMembershipStatus } from "@bpt-jersey/domain/memberships/lifecycle";
 
 import { formatRecordDate } from "./record-format";
 
-type MembershipStatus = "trial" | "active" | "paused" | "overdue";
-
-function membershipStatusLabel(status: MembershipStatus): string {
+function membershipStatusLabel(status: CurrentMembershipStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
@@ -18,8 +17,10 @@ function membershipStatusLabel(status: MembershipStatus): string {
  * `overdue` want the office's attention (Attention Amber), while a `trial` is a normal beginning, so
  * it keeps the base neutral rule - purple is the accent for emphasis and primary actions, and a
  * purple rule here would read as "this is the highlighted member".
+ *
+ * Keyed by the domain union: a new membership status is a compile error here, not a blank rule.
  */
-const membershipStatusClass: Readonly<Record<MembershipStatus, string>> = {
+export const membershipStatusClass: Readonly<Record<CurrentMembershipStatus, string>> = {
   trial: "",
   active: " member-record-status-active",
   paused: " member-record-status-attention",

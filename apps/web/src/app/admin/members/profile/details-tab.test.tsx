@@ -130,6 +130,13 @@ describe("DETAILS tab", () => {
     }
   });
 
+  it("warns that the registration date is what Profile shows as Member since", () => {
+    renderTab();
+    const field = screen.getByLabelText("Registration date");
+    const hint = document.getElementById(field.getAttribute("aria-describedby") ?? "");
+    expect(hint?.textContent).toBe("This is what the Profile tab shows as Member since.");
+  });
+
   it("derives age, BMI and the ID expiry notice without storing them", () => {
     renderTab();
     expect(screen.getByText("26 years old")).toBeTruthy();

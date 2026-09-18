@@ -541,8 +541,12 @@ export function DetailsTab({
 
       <fieldset>
         <legend>Registration</legend>
-        <Field field="registeredOn" label="Registration date">
-          {text("registeredOn", 10, "date")}
+        <Field
+          field="registeredOn"
+          label="Registration date"
+          hint="This is what the Profile tab shows as Member since."
+        >
+          {text("registeredOn", 10, "date", { describedBy: true })}
         </Field>
         <Field
           field="howHeard"

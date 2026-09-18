@@ -3,12 +3,25 @@ import type { Firestore } from "firebase-admin/firestore";
 import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
-import { parseUserProfile } from "@bpt-jersey/domain/profiles";
 
 import type { MemberProfileStore } from "./member-profile-service.js";
 
 const maxRelationships = 100;
 const maxMemberships = 100;
+const maxDisplayName = 160;
+
+/**
+ * The account manager card renders a name, not contact details, so the guardian is read straight
+ * off the user document: a missing phone number or a malformed email must not hide a real guardian
+ * (the full `parseUserProfile` requires both).
+ */
+export function userDisplayNameOf(data: unknown): string | undefined {
+  if (typeof data !== "object" || data === null) return undefined;
+  const displayName = (data as Record<string, unknown>).displayName;
+  if (typeof displayName !== "string" || displayName.length > maxDisplayName) return undefined;
+  const trimmed = displayName.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
 /**
  * Admin SDK reads for the member record. Every document is parsed with its domain parser and a
@@ -36,8 +49,7 @@ export function createMemberProfileFirestoreStore(firestore: Firestore): MemberP
     },
     async getUserDisplayName(academyId, userId) {
       const snapshot = await academy(academyId).collection("users").doc(userId).get();
-      const parsed = snapshot.exists ? parseUserProfile(snapshot.data()) : undefined;
-      return parsed?.ok === true ? parsed.value.displayName : undefined;
+      return snapshot.exists ? userDisplayNameOf(snapshot.data()) : undefined;
     },
     async listStudentMemberships(academyId, studentId) {
       const snapshot = await academy(academyId)
