@@ -4,10 +4,15 @@ import { parseAuditEventDraft } from "../audit/audit-event";
 import { parseOpenStudentLevelInput } from "./level-contracts";
 import {
   assignLevelInputSchema,
+  assignLevelResultSchema,
+  importedBaselineSchema,
   recordSkillRatingsInputSchema,
+  recordSkillRatingsResultSchema,
   studentLevelCardSchema,
+  studentLevelHistoryRequestSchema,
   studentLevelHistorySchema,
   voidPromotionInputSchema,
+  voidPromotionResultSchema,
 } from "./level-manage-contracts";
 
 const note = "Promoted after a competition result.";
@@ -23,6 +28,33 @@ const assignBase = {
   fromDefinitionKey: "white-belt",
   toDefinitionKey: "white-2nd-stripe",
   promotedOn: "2026-09-10",
+};
+
+const promotionEntry = {
+  entryId: "grad_student-1_white-2nd-stripe_2026-09-10T12:00:00.000Z",
+  kind: "promotion",
+  definitionKey: "white-2nd-stripe",
+  fromDefinitionKey: "white-belt",
+  assignedOn: "2026-09-10",
+  classes: { done: 11, min: 25 },
+  days: { done: 71, min: 75 },
+  decidedByRole: "owner",
+  source: "bpt",
+  note,
+  gaps: ["Skips 1 stripe"],
+  voided: null,
+};
+
+const voidedBlock = {
+  reason: "Assigned to the wrong member.",
+  voidedByRole: "headCoach",
+  voidedOn: "2026-09-11",
+};
+
+const historyBase = {
+  studentId: "student-1",
+  currentDefinitionKey: "white-belt",
+  entries: [promotionEntry],
 };
 
 describe("level manage contracts", () => {
@@ -338,5 +370,196 @@ describe("level manage contracts", () => {
       }).ok,
     ).toBe(false);
     expect(parseAuditEventDraft({ ...draft, correlationId: "level-write-short" }).ok).toBe(false);
+  });
+
+  it("refuses coach as a deciding or voiding role", () => {
+    // Spec 6.3 / G12: only the head coach and the owner assign or void a promotion.
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, decidedByRole: "coach" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, voided: { ...voidedBlock, voidedByRole: "coach" } }],
+      }).success,
+    ).toBe(false);
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, decidedByRole: "headCoach" }],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("refuses an unknown key on every manage object", () => {
+    expect(studentLevelHistorySchema.safeParse({ ...historyBase, academyId: "a" }).success).toBe(
+      false,
+    );
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, classes: { done: 11, min: 25, met: true } }],
+      }).success,
+    ).toBe(false);
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, voided: { ...voidedBlock, voidedBy: "uid" } }],
+      }).success,
+    ).toBe(false);
+    expect(
+      studentLevelHistoryRequestSchema.safeParse({ studentId: "student-1", academyId: "a" })
+        .success,
+    ).toBe(false);
+    expect(
+      recordSkillRatingsInputSchema.safeParse({
+        studentId: "student-1",
+        definitionKey: "white-belt",
+        ratings: [{ skillKey: "tie-the-belt", score: 3 }],
+        sessionId: "session-1",
+      }).success,
+    ).toBe(false);
+    expect(
+      importedBaselineSchema.safeParse({
+        classes: 9,
+        cutoff: "2026-07-01",
+        source: "regyfit-import",
+        academyId: "a",
+      }).success,
+    ).toBe(false);
+    expect(
+      assignLevelResultSchema.safeParse({
+        promotionId: "grad_student-1",
+        toDefinitionKey: "white-1st-stripe",
+        promotedOn: "2026-09-10",
+        gaps: [],
+        restore: {},
+      }).success,
+    ).toBe(false);
+    expect(
+      voidPromotionResultSchema.safeParse({
+        voidId: "void_grad_student-1",
+        voidsPromotionId: "grad_student-1",
+        restoredDefinitionKey: "white-belt",
+        restored: true,
+      }).success,
+    ).toBe(false);
+    expect(recordSkillRatingsResultSchema.safeParse({ recorded: 2, skipped: 0 }).success).toBe(
+      false,
+    );
+  });
+
+  it("refuses a negative or fractional count", () => {
+    const baseline = { classes: 9, cutoff: "2026-07-01", source: "regyfit-import" };
+    expect(importedBaselineSchema.safeParse(baseline).success).toBe(true);
+    expect(importedBaselineSchema.safeParse({ ...baseline, classes: -1 }).success).toBe(false);
+    expect(importedBaselineSchema.safeParse({ ...baseline, classes: 1.5 }).success).toBe(false);
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, classes: { done: -1, min: 25 } }],
+      }).success,
+    ).toBe(false);
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, days: { done: 70.5, min: 75 } }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("bounds the history at 400 entries and a stored note at 1000 characters", () => {
+    const entries = (count: number) => Array.from({ length: count }, () => promotionEntry);
+    expect(
+      studentLevelHistorySchema.safeParse({ ...historyBase, entries: entries(400) }).success,
+    ).toBe(true);
+    expect(
+      studentLevelHistorySchema.safeParse({ ...historyBase, entries: entries(401) }).success,
+    ).toBe(false);
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, note: "x".repeat(1000) }],
+      }).success,
+    ).toBe(true);
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, note: "x".repeat(1001) }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("reads a stored note that is empty or whitespace without failing the whole history", () => {
+    // A read schema over stored data: one bad row must not take the view down.
+    for (const note of ["", "   ", null]) {
+      expect(
+        studentLevelHistorySchema.safeParse({
+          ...historyBase,
+          entries: [{ ...promotionEntry, note }],
+        }).success,
+      ).toBe(true);
+    }
+  });
+
+  it("refuses control characters inside a gap label", () => {
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        entries: [{ ...promotionEntry, gaps: [`${escapeControl}[31mSkips 1 stripe`] }],
+      }).success,
+    ).toBe(false);
+    expect(
+      assignLevelResultSchema.safeParse({
+        promotionId: "grad_student-1",
+        toDefinitionKey: "white-1st-stripe",
+        promotedOn: "2026-09-10",
+        gaps: [`Skips${bellControl} 1 stripe`],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("refuses an empty or whitespace-only evidenceNotes", () => {
+    const base = {
+      studentId: "student-1",
+      definitionKey: "white-belt",
+      ratings: [{ skillKey: "tie-the-belt", score: 3 }],
+    };
+    expect(recordSkillRatingsInputSchema.safeParse(base).success).toBe(true);
+    expect(recordSkillRatingsInputSchema.safeParse({ ...base, evidenceNotes: "" }).success).toBe(
+      false,
+    );
+    expect(recordSkillRatingsInputSchema.safeParse({ ...base, evidenceNotes: "   " }).success).toBe(
+      false,
+    );
+    expect(
+      recordSkillRatingsInputSchema.safeParse({ ...base, evidenceNotes: "Solid guard." }).success,
+    ).toBe(true);
+  });
+
+  it("refuses control characters in the open-level decision notes", () => {
+    const base = { studentId: "student-1", definitionKey: "white-1st-stripe" };
+    expect(parseOpenStudentLevelInput({ ...base, decisionNotes: "Holds this stripe." }).ok).toBe(
+      true,
+    );
+    expect(
+      parseOpenStudentLevelInput({ ...base, decisionNotes: `Holds${nullControl} this stripe.` }).ok,
+    ).toBe(false);
+    expect(
+      parseOpenStudentLevelInput({
+        ...base,
+        decisionNotes: `Holds ${escapeControl}[31m this stripe.`,
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseOpenStudentLevelInput({ ...base, decisionNotes: `Holds${deleteControl} this stripe.` })
+        .ok,
+    ).toBe(false);
+    expect(
+      parseOpenStudentLevelInput({ ...base, decisionNotes: "First line.\nSecond line." }).ok,
+    ).toBe(true);
   });
 });

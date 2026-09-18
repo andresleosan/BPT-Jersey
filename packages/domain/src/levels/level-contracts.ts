@@ -1581,9 +1581,17 @@ export type OpenStudentLevelInput = Readonly<{
   studentId: string;
   definitionKey: string;
   decisionNotes: string;
-  /** T051V2: the day the student actually reached this level; absent means "today". */
+  /**
+   * T051V2: the day the student actually reached this level; absent means "today". A "not in the
+   * future" bound is clock- and timezone-dependent, so it belongs to the open service (Task 9),
+   * as the same bound on `promotedOn` belongs to the assign service (Task 8).
+   */
   startedOn?: string;
 }>;
+
+// Tab (0x09) and line feed (0x0a) are allowed in operator free text; every other C0 control and
+// DEL is not. Same control-character rule as the T051V2 manage contracts.
+const decisionNotesControlCharacterPattern = /[\u0000-\u0008\u000b-\u001f\u007f]/u;
 
 export function parseOpenStudentLevelInput(
   raw: unknown,
@@ -1612,6 +1620,8 @@ export function parseOpenStudentLevelInput(
     decisionNotes.trim().length > 1000
   ) {
     issues.push(issue(["input", "decisionNotes"], "decision_notes_length_3_to_1000"));
+  } else if (decisionNotesControlCharacterPattern.test(decisionNotes)) {
+    issues.push(issue(["input", "decisionNotes"], "decision_notes_control_characters"));
   }
   const startedOn = record["startedOn"];
   if (
