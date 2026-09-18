@@ -1,0 +1,3631 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-09-17",
+  "source": {
+    "system": "Regyfit",
+    "levelSystem": "JIU-JITSU - IBJJF",
+    "method": "saved read-only pages: member skill manager and levels list (structure only)",
+    "mutationsPerformed": false
+  },
+  "skills": [
+    {
+      "regyfitId": "258",
+      "key": "tie-the-belt",
+      "displayLabel": "Tie The Belt",
+      "observedLabel": "1. Tie The Belt",
+      "category": "Fundamentals",
+      "sequence": 1
+    },
+    {
+      "regyfitId": "222",
+      "key": "berimbolo",
+      "displayLabel": "Berimbolo",
+      "observedLabel": null,
+      "category": "Fundamentals",
+      "sequence": 2
+    },
+    {
+      "regyfitId": "190",
+      "key": "dominant-positions-back-control",
+      "displayLabel": "Dominant Positions - Back Control",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 3
+    },
+    {
+      "regyfitId": "185",
+      "key": "dominant-positions-closed-guard",
+      "displayLabel": "Dominant Positions - Closed Guard",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 4
+    },
+    {
+      "regyfitId": "186",
+      "key": "dominant-positions-half-guard",
+      "displayLabel": "Dominant Positions - Half Guard",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 5
+    },
+    {
+      "regyfitId": "246",
+      "key": "dominant-positions-knee-on-belly",
+      "displayLabel": "Dominant Positions - Knee On Belly",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 6
+    },
+    {
+      "regyfitId": "187",
+      "key": "dominant-positions-mount",
+      "displayLabel": "Dominant Positions - Mount",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 7
+    },
+    {
+      "regyfitId": "189",
+      "key": "dominant-positions-north-south-control",
+      "displayLabel": "Dominant Positions - North-south Control",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 8
+    },
+    {
+      "regyfitId": "184",
+      "key": "dominant-positions-open-guard",
+      "displayLabel": "Dominant Positions - Open Guard",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 9
+    },
+    {
+      "regyfitId": "239",
+      "key": "dominant-positions-side-control",
+      "displayLabel": "Dominant Positions - Side Control",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 10
+    },
+    {
+      "regyfitId": "188",
+      "key": "dominant-positions-technical-mount",
+      "displayLabel": "Dominant Positions - Technical Mount",
+      "observedLabel": null,
+      "category": "Dominant Positions",
+      "sequence": 11
+    },
+    {
+      "regyfitId": "244",
+      "key": "escapes-mount-escape",
+      "displayLabel": "Escapes - Mount Escape",
+      "observedLabel": null,
+      "category": "Escapes",
+      "sequence": 12
+    },
+    {
+      "regyfitId": "207",
+      "key": "guard-50-50",
+      "displayLabel": "Guard - 50-50",
+      "observedLabel": null,
+      "category": "Guard",
+      "sequence": 13
+    },
+    {
+      "regyfitId": "205",
+      "key": "guard-butterfly",
+      "displayLabel": "Guard - Butterfly",
+      "observedLabel": null,
+      "category": "Guard",
+      "sequence": 14
+    },
+    {
+      "regyfitId": "206",
+      "key": "guard-de-la-riva",
+      "displayLabel": "Guard - De La Riva",
+      "observedLabel": null,
+      "category": "Guard",
+      "sequence": 15
+    },
+    {
+      "regyfitId": "209",
+      "key": "guard-spider",
+      "displayLabel": "Guard - Spider",
+      "observedLabel": null,
+      "category": "Guard",
+      "sequence": 16
+    },
+    {
+      "regyfitId": "208",
+      "key": "guard-x",
+      "displayLabel": "Guard - X",
+      "observedLabel": null,
+      "category": "Guard",
+      "sequence": 17
+    },
+    {
+      "regyfitId": "237",
+      "key": "guard-passing",
+      "displayLabel": "Guard Passing",
+      "observedLabel": null,
+      "category": "Fundamentals",
+      "sequence": 18
+    },
+    {
+      "regyfitId": "218",
+      "key": "guard-passing-double-under",
+      "displayLabel": "Guard Passing - Double Under",
+      "observedLabel": null,
+      "category": "Guard Passing",
+      "sequence": 19
+    },
+    {
+      "regyfitId": "197",
+      "key": "guard-passing-knee-cut",
+      "displayLabel": "Guard Passing - Knee Cut",
+      "observedLabel": null,
+      "category": "Guard Passing",
+      "sequence": 20
+    },
+    {
+      "regyfitId": "199",
+      "key": "guard-passing-leg-drag",
+      "displayLabel": "Guard Passing - Leg Drag",
+      "observedLabel": null,
+      "category": "Guard Passing",
+      "sequence": 21
+    },
+    {
+      "regyfitId": "198",
+      "key": "guard-passing-over-under",
+      "displayLabel": "Guard Passing - Over-under",
+      "observedLabel": null,
+      "category": "Guard Passing",
+      "sequence": 22
+    },
+    {
+      "regyfitId": "217",
+      "key": "guard-passing-stack",
+      "displayLabel": "Guard Passing - Stack",
+      "observedLabel": null,
+      "category": "Guard Passing",
+      "sequence": 23
+    },
+    {
+      "regyfitId": "196",
+      "key": "guard-passing-torreando",
+      "displayLabel": "Guard Passing - Torreando",
+      "observedLabel": null,
+      "category": "Guard Passing",
+      "sequence": 24
+    },
+    {
+      "regyfitId": "234",
+      "key": "guard-pull",
+      "displayLabel": "Guard Pull",
+      "observedLabel": null,
+      "category": "Fundamentals",
+      "sequence": 25
+    },
+    {
+      "regyfitId": "248",
+      "key": "guard-recovering",
+      "displayLabel": "Guard Recovering",
+      "observedLabel": null,
+      "category": "Fundamentals",
+      "sequence": 26
+    },
+    {
+      "regyfitId": "204",
+      "key": "submissions-americana",
+      "displayLabel": "Submissions - Americana",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 27
+    },
+    {
+      "regyfitId": "214",
+      "key": "submissions-ankle-lock",
+      "displayLabel": "Submissions - Ankle-lock",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 28
+    },
+    {
+      "regyfitId": "191",
+      "key": "submissions-armbar-or-arm-lock",
+      "displayLabel": "Submissions - Armbar Or Arm-lock",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 29
+    },
+    {
+      "regyfitId": "211",
+      "key": "submissions-cross-collar-choke",
+      "displayLabel": "Submissions - Cross Collar Choke",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 30
+    },
+    {
+      "regyfitId": "212",
+      "key": "submissions-ezequiel-choke",
+      "displayLabel": "Submissions - Ezequiel Choke",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 31
+    },
+    {
+      "regyfitId": "216",
+      "key": "submissions-foot-lock-or-toe-hold",
+      "displayLabel": "Submissions - Foot-lock Or Toe Hold",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 32
+    },
+    {
+      "regyfitId": "215",
+      "key": "submissions-heel-hook",
+      "displayLabel": "Submissions - Heel Hook",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 33
+    },
+    {
+      "regyfitId": "192",
+      "key": "submissions-kimura-lock",
+      "displayLabel": "Submissions - Kimura Lock",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 34
+    },
+    {
+      "regyfitId": "213",
+      "key": "submissions-leg-lock-or-knee-bar",
+      "displayLabel": "Submissions - Leg-lock Or Knee Bar",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 35
+    },
+    {
+      "regyfitId": "195",
+      "key": "submissions-omoplata-lock",
+      "displayLabel": "Submissions - Omoplata Lock",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 36
+    },
+    {
+      "regyfitId": "193",
+      "key": "submissions-rear-naked-choke",
+      "displayLabel": "Submissions - Rear Naked Choke",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 37
+    },
+    {
+      "regyfitId": "194",
+      "key": "submissions-triangle-choke",
+      "displayLabel": "Submissions - Triangle Choke",
+      "observedLabel": null,
+      "category": "Submissions",
+      "sequence": 38
+    },
+    {
+      "regyfitId": "210",
+      "key": "submissions-guillotine-choke",
+      "displayLabel": "Submissions - Guillotine Choke",
+      "observedLabel": "Submissions -guillotine Choke",
+      "category": "Submissions",
+      "sequence": 39
+    },
+    {
+      "regyfitId": "201",
+      "key": "sweeps-belly-to-belly-or-hip-bump",
+      "displayLabel": "Sweeps - Belly To Belly Or Hip Bump",
+      "observedLabel": null,
+      "category": "Sweeps",
+      "sequence": 40
+    },
+    {
+      "regyfitId": "220",
+      "key": "sweeps-butterfly",
+      "displayLabel": "Sweeps - Butterfly",
+      "observedLabel": null,
+      "category": "Sweeps",
+      "sequence": 41
+    },
+    {
+      "regyfitId": "221",
+      "key": "sweeps-de-la-riva",
+      "displayLabel": "Sweeps - De La Riva",
+      "observedLabel": null,
+      "category": "Sweeps",
+      "sequence": 42
+    },
+    {
+      "regyfitId": "202",
+      "key": "sweeps-flower",
+      "displayLabel": "Sweeps - Flower",
+      "observedLabel": null,
+      "category": "Sweeps",
+      "sequence": 43
+    },
+    {
+      "regyfitId": "219",
+      "key": "sweeps-heels-or-lumberjack",
+      "displayLabel": "Sweeps - Heels Or Lumberjack",
+      "observedLabel": null,
+      "category": "Sweeps",
+      "sequence": 44
+    },
+    {
+      "regyfitId": "224",
+      "key": "sweeps-pendulum",
+      "displayLabel": "Sweeps - Pendulum",
+      "observedLabel": null,
+      "category": "Sweeps",
+      "sequence": 45
+    },
+    {
+      "regyfitId": "200",
+      "key": "sweeps-scissor",
+      "displayLabel": "Sweeps - Scissor",
+      "observedLabel": null,
+      "category": "Sweeps",
+      "sequence": 46
+    },
+    {
+      "regyfitId": "203",
+      "key": "sweeps-x-guard",
+      "displayLabel": "Sweeps - X-guard",
+      "observedLabel": null,
+      "category": "Sweeps",
+      "sequence": 47
+    },
+    {
+      "regyfitId": "223",
+      "key": "takedowns-and-throws",
+      "displayLabel": "Takedowns & Throws",
+      "observedLabel": null,
+      "category": "Fundamentals",
+      "sequence": 48
+    },
+    {
+      "regyfitId": "259",
+      "key": "warm-up-1-technical-stand-up",
+      "displayLabel": "Warm Up 1 - Technical Stand Up",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 49
+    },
+    {
+      "regyfitId": "269",
+      "key": "warm-up-10-sprawl-walking-backwards",
+      "displayLabel": "Warm Up 10 - Sprawl Walking Backwards",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 50
+    },
+    {
+      "regyfitId": "260",
+      "key": "warm-up-2-bridges",
+      "displayLabel": "Warm Up 2 - Bridges",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 51
+    },
+    {
+      "regyfitId": "262",
+      "key": "warm-up-3-front-breakfall",
+      "displayLabel": "Warm Up 3 - Front Breakfall",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 52
+    },
+    {
+      "regyfitId": "263",
+      "key": "warm-up-4-back-breakfall",
+      "displayLabel": "Warm Up 4 - Back Breakfall",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 53
+    },
+    {
+      "regyfitId": "264",
+      "key": "warm-up-5-front-roll",
+      "displayLabel": "Warm Up 5 - Front Roll",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 54
+    },
+    {
+      "regyfitId": "266",
+      "key": "warm-up-6-backwards-roll",
+      "displayLabel": "Warm Up 6 - Backwards Roll",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 55
+    },
+    {
+      "regyfitId": "265",
+      "key": "warm-up-7-shoulder-roll",
+      "displayLabel": "Warm Up 7 - Shoulder Roll",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 56
+    },
+    {
+      "regyfitId": "267",
+      "key": "warm-up-8-hip-escapes-or-shrimping",
+      "displayLabel": "Warm Up 8 - Hip Escapes Or Shrimping",
+      "observedLabel": null,
+      "category": "Warm Up",
+      "sequence": 57
+    },
+    {
+      "regyfitId": "268",
+      "key": "warm-up-9-hip-shuffles-forward-and-back",
+      "displayLabel": "Warm Up 9 - Hip Shuffles Forward And Back",
+      "observedLabel": "Warm Up 9 - Hip Shuffles Foward And Back",
+      "category": "Warm Up",
+      "sequence": 58
+    }
+  ],
+  "levels": [
+    {
+      "regyfitId": "1120",
+      "name": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 1,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "777",
+      "name": "White 4-5 and 5-7yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 2,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "778",
+      "name": "White 4-5 and 5-7yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 3,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "779",
+      "name": "White 4-5 and 5-7yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 4,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "780",
+      "name": "White 4-5 and 5-7yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 5,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "784",
+      "name": "White 4-5 and 5-7yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 6,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "785",
+      "name": "White 4-5 and 5-7yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 7,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "786",
+      "name": "White 4-5 and 5-7yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 8,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "790",
+      "name": "White 4-5 and 5-7yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 9,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "789",
+      "name": "White 4-5 and 5-7yo - 9th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 10,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "788",
+      "name": "White 4-5 and 5-7yo - 10th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 11,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "787",
+      "name": "White 4-5 and 5-7yo - 11th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 4-5 and 5-7 YO",
+      "sequence": 12,
+      "criteria": {
+        "minAge": null,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1055",
+      "name": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 13,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "591",
+      "name": "Grey and White 4-5 and 5-7yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 14,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "590",
+      "name": "Grey and White 4-5 and 5-7yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 15,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "583",
+      "name": "Grey and White 4-5 and 5-7yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 16,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "582",
+      "name": "Grey and White 4-5 and 5-7yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 17,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "676",
+      "name": "Grey and White 4-5 and 5-7yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 18,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "678",
+      "name": "Grey and White 4-5 and 5-7yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 19,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "679",
+      "name": "Grey and White 4-5 and 5-7yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 20,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "680",
+      "name": "Grey and White 4-5 and 5-7yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 21,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "682",
+      "name": "Grey and White 4-5 and 5-7yo - 9th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 22,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "683",
+      "name": "Grey and White 4-5 and 5-7yo - 10th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 23,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "684",
+      "name": "Grey and White 4-5 and 5-7yo - 11th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 4-5 and 5-7 YO",
+      "sequence": 24,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1056",
+      "name": "GREY BELT 4-5 and 5-7 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 25,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "599",
+      "name": "Grey 4-5 and 5-7yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 26,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "595",
+      "name": "Grey 4-5 and 5-7yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 27,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "589",
+      "name": "Grey 4-5 and 5-7yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 28,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "588",
+      "name": "Grey 4-5 and 5-7yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 29,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "681",
+      "name": "Grey 4-5 and 5-7yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 30,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "685",
+      "name": "Grey 4-5 and 5-7yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 31,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "686",
+      "name": "Grey 4-5 and 5-7yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 32,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "687",
+      "name": "Grey 4-5 and 5-7yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 33,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "688",
+      "name": "Grey 4-5 and 5-7yo - 9th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 34,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "689",
+      "name": "Grey 4-5 and 5-7yo - 10th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 35,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "690",
+      "name": "Grey 4-5 and 5-7yo - 11th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 4-5 and 5-7 YO",
+      "sequence": 36,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1057",
+      "name": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 37,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "592",
+      "name": "Grey and Black 4-5 and 5-7yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 38,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "584",
+      "name": "Grey and Black 4-5 and 5-7yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 39,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "575",
+      "name": "Grey and Black 4-5 and 5-7yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 40,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "574",
+      "name": "Grey and Black 4-5 and 5-7yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 41,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "691",
+      "name": "Grey and Black 4-5 and 5-7yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 42,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "692",
+      "name": "Grey and Black 4-5 and 5-7yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 43,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "693",
+      "name": "Grey and Black 4-5 and 5-7yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 44,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "694",
+      "name": "Grey and Black 4-5 and 5-7yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 45,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "695",
+      "name": "Grey and Black 4-5 and 5-7yo - 9th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 46,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "696",
+      "name": "Grey and Black 4-5 and 5-7yo - 10th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 47,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "697",
+      "name": "Grey and Black 4-5 and 5-7yo - 11th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND BLACK BELT 4-5 and 5-7 YO",
+      "sequence": 48,
+      "criteria": {
+        "minAge": 4,
+        "maxAge": 7,
+        "minClasses": 4,
+        "minDays": 30
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1062",
+      "name": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 49,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "1121",
+      "name": "White 7-8 and 8-10yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 50,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "1122",
+      "name": "White 7-8 and 8-10yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 51,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "1123",
+      "name": "White 7-8 and 8-10yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 52,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "1124",
+      "name": "White 7-8 and 8-10yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 53,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "1125",
+      "name": "White 7-8 and 8-10yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 54,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1126",
+      "name": "White 7-8 and 8-10yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 55,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1127",
+      "name": "White 7-8 and 8-10yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 56,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1128",
+      "name": "White 7-8 and 8-10yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT KIDS 7-8 and 8-10 YO",
+      "sequence": 57,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1145",
+      "name": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 58,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1129",
+      "name": "Grey and White 7-8 and 8-10yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 59,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1130",
+      "name": "Grey and White 7-8 and 8-10yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 60,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1131",
+      "name": "Grey and White 7-8 and 8-10yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 61,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1132",
+      "name": "Grey and White 7-8 and 8-10yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 62,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1133",
+      "name": "Grey and White 7-8 and 8-10yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 63,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1134",
+      "name": "Grey and White 7-8 and 8-10yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 64,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1136",
+      "name": "Grey and White 7-8 and 8-10yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 65,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1137",
+      "name": "Grey and White 7-8 and 8-10yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 66,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 8,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1146",
+      "name": "GREY BELT 7-8 and 8-10 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 67,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1138",
+      "name": "Grey 7-8 and 8-10yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 68,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1139",
+      "name": "Grey 7-8 and 8-10yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 69,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1140",
+      "name": "Grey 7-8 and 8-10yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 70,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1141",
+      "name": "Grey 7-8 and 8-10yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 71,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1142",
+      "name": "Grey 7-8 and 8-10yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 72,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1143",
+      "name": "Grey 7-8 and 8-10yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 73,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1135",
+      "name": "Grey 7-8 and 8-10yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 74,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1144",
+      "name": "Grey 7-8 and 8-10yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT 7-8 and 8-10 YO",
+      "sequence": 75,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1053",
+      "name": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 76,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "556",
+      "name": "Yellow and White 7-8 and 8-10yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 77,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "554",
+      "name": "Yellow and White 7-8 and 8-10yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 78,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "557",
+      "name": "Yellow and White 7-8 and 8-10yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 79,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "558",
+      "name": "Yellow and White 7-8 and 8-10yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 80,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "698",
+      "name": "Yellow and White 7-8 and 8-10yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 81,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "699",
+      "name": "Yellow and White 7-8 and 8-10yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 82,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "700",
+      "name": "Yellow and White 7-8 and 8-10yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 83,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "701",
+      "name": "Yellow and White 7-8 and 8-10yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND WHITE BELT 7-8 and 8-10 YO",
+      "sequence": 84,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1054",
+      "name": "YELLOW BELT 7-8 and 8-10 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 85,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "593",
+      "name": "Yellow 7-8 and 8-10yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 86,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "571",
+      "name": "Yellow 7-8 and 8-10yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 87,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "567",
+      "name": "Yellow 7-8 and 8-10yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 88,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "565",
+      "name": "Yellow 7-8 and 8-10yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 89,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "705",
+      "name": "Yellow 7-8 and 8-10yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 90,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "706",
+      "name": "Yellow 7-8 and 8-10yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 91,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "707",
+      "name": "Yellow 7-8 and 8-10yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 92,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "708",
+      "name": "Yellow 7-8 and 8-10yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT 7-8 and 8-10 YO",
+      "sequence": 93,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1052",
+      "name": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 94,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "553",
+      "name": "Yellow and Black 7-8 and 8-10yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 95,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "555",
+      "name": "Yellow and Black 7-8 and 8-10yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 96,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "552",
+      "name": "Yellow and Black 7-8 and 8-10yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 97,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "551",
+      "name": "Yellow and Black 7-8 and 8-10yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 98,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "713",
+      "name": "Yellow and Black 7-8 and 8-10yo - 5th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 99,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "714",
+      "name": "Yellow and Black 7-8 and 8-10yo - 6th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 100,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "715",
+      "name": "Yellow and Black 7-8 and 8-10yo - 7th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 101,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "716",
+      "name": "Yellow and Black 7-8 and 8-10yo - 8th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW AND BLACK BELT 7-8 and 8-10 YO",
+      "sequence": 102,
+      "criteria": {
+        "minAge": 7,
+        "maxAge": 10,
+        "minClasses": 6,
+        "minDays": 45
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1065",
+      "name": "WHITE BELT TEENS 10-12 AND 13-15 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 103,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "795",
+      "name": "White Teens 10-12 and 13-15yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 104,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "796",
+      "name": "White Teens 10-12 and 13-15yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 105,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "797",
+      "name": "White Teens 10-12 and 13-15yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 106,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "798",
+      "name": "White Teens 10-12 and 13-15yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 107,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": [
+        {
+          "skillKey": "tie-the-belt",
+          "minimumRating": 2
+        },
+        {
+          "skillKey": "warm-up-1-technical-stand-up",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-10-sprawl-walking-backwards",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-2-bridges",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-3-front-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-4-back-breakfall",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-5-front-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-6-backwards-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-7-shoulder-roll",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-8-hip-escapes-or-shrimping",
+          "minimumRating": 3
+        },
+        {
+          "skillKey": "warm-up-9-hip-shuffles-forward-and-back",
+          "minimumRating": 3
+        }
+      ]
+    },
+    {
+      "regyfitId": "1066",
+      "name": "GREY BELT TEENS 10-12 AND 13-15 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 108,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1068",
+      "name": "Grey Teens 10-12 and 13-15yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 109,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1069",
+      "name": "Grey Teens 10-12 and 13-15yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 110,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1070",
+      "name": "Grey Teens 10-12 and 13-15yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 111,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1071",
+      "name": "Grey Teens 10-12 and 13-15yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREY BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 112,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1072",
+      "name": "YELLOW BELT TEENS 10-12 AND 13-15 YO",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 113,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1067",
+      "name": "Yellow Teens 10-12 and 13-15yo - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 114,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1074",
+      "name": "Yellow Teens 10-12 and 13-15yo - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 115,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1075",
+      "name": "Yellow Teens 10-12 and 13-15yo - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 116,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1076",
+      "name": "Yellow Teens 10-12 and 13-15yo - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "YELLOW BELT TEENS 10-12 AND 13-15 YO",
+      "sequence": 117,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1051",
+      "name": "ORANGE AND WHITE BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 118,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "537",
+      "name": "Orange and White - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE AND WHITE BELT",
+      "sequence": 119,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "539",
+      "name": "Orange and White - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE AND WHITE BELT",
+      "sequence": 120,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "536",
+      "name": "Orange and White - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE AND WHITE BELT",
+      "sequence": 121,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "535",
+      "name": "Orange and White - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE AND WHITE BELT",
+      "sequence": 122,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1050",
+      "name": "ORANGE BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 123,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "540",
+      "name": "Orange - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE BELT",
+      "sequence": 124,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "538",
+      "name": "Orange - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE BELT",
+      "sequence": 125,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "541",
+      "name": "Orange - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE BELT",
+      "sequence": 126,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "542",
+      "name": "Orange - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE BELT",
+      "sequence": 127,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1049",
+      "name": "ORANGE AND BLACK BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 128,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "524",
+      "name": "Orange and Black - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE AND BLACK BELT",
+      "sequence": 129,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "523",
+      "name": "Orange and Black - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE AND BLACK BELT",
+      "sequence": 130,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "525",
+      "name": "Orange and Black - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE AND BLACK BELT",
+      "sequence": 131,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "526",
+      "name": "Orange and Black - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "ORANGE AND BLACK BELT",
+      "sequence": 132,
+      "criteria": {
+        "minAge": 10,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1048",
+      "name": "GREEN AND WHITE BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 133,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "508",
+      "name": "Green and White - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN AND WHITE BELT",
+      "sequence": 134,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "507",
+      "name": "Green and White - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN AND WHITE BELT",
+      "sequence": 135,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "509",
+      "name": "Green and White - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN AND WHITE BELT",
+      "sequence": 136,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "510",
+      "name": "Green and White - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN AND WHITE BELT",
+      "sequence": 137,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1046",
+      "name": "GREEN BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 138,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "521",
+      "name": "Green - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN BELT",
+      "sequence": 139,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "522",
+      "name": "Green - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN BELT",
+      "sequence": 140,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "520",
+      "name": "Green - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN BELT",
+      "sequence": 141,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "519",
+      "name": "Green - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN BELT",
+      "sequence": 142,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "1045",
+      "name": "GREEN AND BLACK BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 143,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "658",
+      "name": "Green and Black - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN AND BLACK BELT",
+      "sequence": 144,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "664",
+      "name": "Green and Black - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN AND BLACK BELT",
+      "sequence": 145,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "665",
+      "name": "Green and Black - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN AND BLACK BELT",
+      "sequence": 146,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "667",
+      "name": "Green and Black - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "GREEN AND BLACK BELT",
+      "sequence": 147,
+      "criteria": {
+        "minAge": 13,
+        "maxAge": 15,
+        "minClasses": 10,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "652",
+      "name": "WHITE BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 148,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 20,
+        "minDays": 60
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "505",
+      "name": "White - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT",
+      "sequence": 149,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minDays": 75
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "506",
+      "name": "White - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT",
+      "sequence": 150,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minDays": 75
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "504",
+      "name": "White - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT",
+      "sequence": 151,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minDays": 75
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "503",
+      "name": "White - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "WHITE BELT",
+      "sequence": 152,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 25,
+        "minDays": 75
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "619",
+      "name": "BLUE BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 153,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "626",
+      "name": "Blue - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "BLUE BELT",
+      "sequence": 154,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "625",
+      "name": "Blue - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "BLUE BELT",
+      "sequence": 155,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "624",
+      "name": "Blue - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "BLUE BELT",
+      "sequence": 156,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "623",
+      "name": "Blue - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "BLUE BELT",
+      "sequence": 157,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 50,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "620",
+      "name": "PURPLE BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 158,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "627",
+      "name": "Purple - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "PURPLE BELT",
+      "sequence": 159,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "628",
+      "name": "Purple - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "PURPLE BELT",
+      "sequence": 160,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "629",
+      "name": "Purple - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "PURPLE BELT",
+      "sequence": 161,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "630",
+      "name": "Purple - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "PURPLE BELT",
+      "sequence": 162,
+      "criteria": {
+        "minAge": 16,
+        "maxAge": null,
+        "minClasses": 55,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "621",
+      "name": "BROWN BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 163,
+      "criteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "634",
+      "name": "Brown - 1st Stripe",
+      "kind": "stripe",
+      "parentName": "BROWN BELT",
+      "sequence": 164,
+      "criteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "633",
+      "name": "Brown - 2nd Stripe",
+      "kind": "stripe",
+      "parentName": "BROWN BELT",
+      "sequence": 165,
+      "criteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "632",
+      "name": "Brown - 3rd Stripe",
+      "kind": "stripe",
+      "parentName": "BROWN BELT",
+      "sequence": 166,
+      "criteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "631",
+      "name": "Brown - 4th Stripe",
+      "kind": "stripe",
+      "parentName": "BROWN BELT",
+      "sequence": 167,
+      "criteria": {
+        "minAge": 18,
+        "maxAge": null,
+        "minClasses": 60,
+        "minDays": 180
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "635",
+      "name": "BLACK BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 168,
+      "criteria": {
+        "minAge": 19,
+        "maxAge": null,
+        "minClasses": 150,
+        "minDays": 1095
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "762",
+      "name": "Black - 1st Degree",
+      "kind": "stripe",
+      "parentName": "BLACK BELT",
+      "sequence": 169,
+      "criteria": {
+        "minAge": 22,
+        "maxAge": null,
+        "minClasses": 150,
+        "minDays": 1095
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "636",
+      "name": "Black - 2nd Degree",
+      "kind": "stripe",
+      "parentName": "BLACK BELT",
+      "sequence": 170,
+      "criteria": {
+        "minAge": 25,
+        "maxAge": null,
+        "minClasses": 150,
+        "minDays": 1095
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "637",
+      "name": "Black - 3rd Degree",
+      "kind": "stripe",
+      "parentName": "BLACK BELT",
+      "sequence": 171,
+      "criteria": {
+        "minAge": 28,
+        "maxAge": null,
+        "minClasses": 150,
+        "minDays": 1095
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "638",
+      "name": "Black - 4th Degree",
+      "kind": "stripe",
+      "parentName": "BLACK BELT",
+      "sequence": 172,
+      "criteria": {
+        "minAge": 33,
+        "maxAge": null,
+        "minClasses": 250,
+        "minDays": 1825
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "639",
+      "name": "Black - 5th Degree",
+      "kind": "stripe",
+      "parentName": "BLACK BELT",
+      "sequence": 173,
+      "criteria": {
+        "minAge": 38,
+        "maxAge": null,
+        "minClasses": 250,
+        "minDays": 1825
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "640",
+      "name": "Black - 6th Degree",
+      "kind": "stripe",
+      "parentName": "BLACK BELT",
+      "sequence": 174,
+      "criteria": {
+        "minAge": 43,
+        "maxAge": null,
+        "minClasses": 250,
+        "minDays": 1825
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "641",
+      "name": "RED AND BLACK BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 175,
+      "criteria": {
+        "minAge": 50,
+        "maxAge": null,
+        "minClasses": null,
+        "minDays": 2555
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "642",
+      "name": "RED AND WHITE BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 176,
+      "criteria": {
+        "minAge": 57,
+        "maxAge": null,
+        "minClasses": null,
+        "minDays": 2555
+      },
+      "skillMinimums": []
+    },
+    {
+      "regyfitId": "643",
+      "name": "RED BELT",
+      "kind": "belt",
+      "parentName": null,
+      "sequence": 177,
+      "criteria": {
+        "minAge": 67,
+        "maxAge": null,
+        "minClasses": null,
+        "minDays": null
+      },
+      "skillMinimums": []
+    }
+  ]
+}
