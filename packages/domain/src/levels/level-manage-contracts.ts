@@ -8,12 +8,16 @@ const recordIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,383}$/u);
 const dateOnlySchema = z.string().refine(isLevelCalendarDate);
 const countSchema = z.number().int().min(0).max(1_000_000);
 const decisionRoleSchema = z.enum(["headCoach", "owner"]);
-const gapsSchema = z.array(z.string().min(1).max(120)).max(10);
 const scoreSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
 
 // Tab (0x09) and line feed (0x0a) are allowed in operator free text; every other C0 control and
-// DEL is not. Same rule as Plan B's `internalNotes`
-// (packages/domain/src/members/member-directory-contracts.ts).
+// DEL is not. The control-character rule is byte-identical to Plan B's `internalNotes`
+// (packages/domain/src/members/member-directory-contracts.ts), but the whitespace rule is
+// DELIBERATELY DIFFERENT: Plan B rejects any value that is not already trimmed and bounds the raw
+// string, while this helper normalises CRLF to LF and trims, then bounds the trimmed value. These
+// fields are browser textareas, where padding is an artefact of typing and not an attack, so
+// normalising beats rejecting. Consequence: a padded value that trims into range is accepted here
+// and refused by Plan B, and a padded value that trims out of range is refused here.
 const notesControlCharacterPattern = /[\u0000-\u0008\u000b-\u001f\u007f]/u;
 
 /** Operator free text: trimmed, length-bounded, no control characters other than line breaks. */
@@ -38,6 +42,8 @@ function boundedFreeText(min: number, max: number) {
 }
 
 const noteSchema = boundedFreeText(10, 500);
+// Gaps are rendered in the assign dialog and the history table, so they carry the same rule.
+const gapsSchema = z.array(boundedFreeText(1, 120)).max(10);
 
 /**
  * The wire form of `ImportedBaseline` (declared in `./level-progress`, Task 5). Only the schema
@@ -53,6 +59,8 @@ export const assignLevelInputSchema = z.strictObject({
   studentId: identifierSchema,
   fromDefinitionKey: identifierSchema,
   toDefinitionKey: identifierSchema,
+  // A "not in the future" bound is clock- and timezone-dependent, so it is not a contract rule:
+  // the assign service (Task 8) owns it, as the open service (Task 9) owns it for `startedOn`.
   promotedOn: dateOnlySchema,
   note: noteSchema.optional(),
 });
@@ -98,7 +106,9 @@ export const levelHistoryEntrySchema = z.strictObject({
   days: criterionAtAssignmentSchema.nullable(),
   decidedByRole: decisionRoleSchema.nullable(),
   source: z.enum(["bpt", "regyfit-import"]),
-  note: boundedFreeText(1, 1000).nullable(),
+  // A read schema over stored data: a stored note that is empty, or that trims to empty, must not
+  // fail the whole history. Task 10 maps such a note to `null`. Write-side notes stay at min 10.
+  note: boundedFreeText(0, 1000).nullable(),
   gaps: gapsSchema,
   voided: z
     .strictObject({
@@ -130,7 +140,8 @@ export const recordSkillRatingsInputSchema = z.strictObject({
         message: "Each skill may be rated once per call",
       },
     ),
-  evidenceNotes: boundedFreeText(0, 1000).optional(),
+  // Min 1 so an empty note cannot be sent: omitted and "present but empty" must not be the same.
+  evidenceNotes: boundedFreeText(1, 1000).optional(),
 });
 export type RecordSkillRatingsInput = z.infer<typeof recordSkillRatingsInputSchema>;
 
