@@ -68,11 +68,11 @@ export function IbjjfCard({
 
   if (state.status === "loading") {
     return (
-      <section
-        aria-busy="true"
-        aria-label="JIU-JITSU IBJJF"
-        className="ibjjf-card ibjjf-skeleton"
-      />
+      <section aria-busy="true" aria-label="JIU-JITSU IBJJF" className="ibjjf-card ibjjf-skeleton">
+        <span className="visually-hidden" role="status">
+          Loading the IBJJF level.
+        </span>
+      </section>
     );
   }
 
@@ -115,7 +115,12 @@ export function IbjjfCard({
   const promotedOn = formatPromotedOn(card.currentLevelStartedAt);
   const { classes, time } = card.criteria;
   // Spec 6.2: `null` means the top of the catalogue, NOT nought per cent. It must never reach a bar.
-  const percent = card.targetDefinition === null ? null : card.progressPercent;
+  // `targetDefinition` and `progressPercent` are INDEPENDENTLY nullable in the schema, so the two
+  // are read separately: only an absent target may claim there is nothing left to work towards.
+  const toppedOut = card.targetDefinition === null;
+  // A named next level with no usable percentage gets no bar AND no claim about it.
+  const percent = toppedOut ? null : card.progressPercent;
+  const inBpt = classes.completed - classes.imported;
 
   return (
     <section aria-label="JIU-JITSU IBJJF" className="ibjjf-card">
@@ -129,10 +134,12 @@ export function IbjjfCard({
       )}
       <h3>{position?.definition.name ?? "Level not in the current catalogue"}</h3>
       {promotedOn === null ? null : <p className="ibjjf-muted">{promotedOn}</p>}
-      {percent === null ? (
+      {toppedOut ? (
         <p className="ibjjf-muted">
-          Highest level in the catalogue. There is no next graduation to work towards.
+          This is the highest level BPT tracks, so there is no next graduation to measure.
         </p>
+      ) : percent === null ? (
+        <p className="ibjjf-muted">Progress is not available for this level.</p>
       ) : (
         <div className="ibjjf-progress">
           <p id={`ibjjf-next-${studentId}`}>Next graduation</p>
@@ -149,9 +156,11 @@ export function IbjjfCard({
             </span>{" "}
             <span className="ibjjf-status">{classes.met ? "Met" : "Not met"}</span>
           </dd>
-          {classes.imported > 0 ? (
-            <dd className="ibjjf-muted">
-              {`${classes.imported} from Regyfit + ${classes.completed - classes.imported} in BPT`}
+          {/* Both counts are validated independently, so an imported total larger than the total
+              completed would print a negative BPT count. Say nothing rather than something false. */}
+          {classes.imported > 0 && inBpt >= 0 ? (
+            <dd className="ibjjf-muted ibjjf-number">
+              {`${classes.imported} from Regyfit + ${inBpt} in BPT`}
             </dd>
           ) : null}
         </div>

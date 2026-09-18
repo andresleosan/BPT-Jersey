@@ -4469,10 +4469,32 @@ a.admin-birthday-badge:focus-visible,
   margin: 0;
 }
 
+/* The UA's own progress widget has rounded ends and, where `accent-color` does not apply, a
+   system blue fill: both are banned (DESIGN §5 radius 0, §8 no blue). Reset the element and paint
+   the track and the value by hand in every engine. */
 .ibjjf-progress progress {
-  accent-color: var(--bpt-purple);
+  appearance: none;
+  background: var(--paper-edge);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--bpt-purple);
   height: 0.75rem;
   width: 100%;
+}
+
+.ibjjf-progress progress::-webkit-progress-bar {
+  background: var(--paper-edge);
+  border-radius: 0;
+}
+
+.ibjjf-progress progress::-webkit-progress-value {
+  background: var(--bpt-purple);
+  border-radius: 0;
+}
+
+.ibjjf-progress progress::-moz-progress-bar {
+  background: var(--bpt-purple);
+  border-radius: 0;
 }
 
 .ibjjf-criteria {
@@ -4485,11 +4507,12 @@ a.admin-birthday-badge:focus-visible,
   padding: 0.35rem 0.75rem;
 }
 
+/* One label scale in this card: the same 0.7rem / 0.14em the eyebrow already reuses. */
 .ibjjf-criteria dt {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 

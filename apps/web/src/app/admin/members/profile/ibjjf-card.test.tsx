@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import businessCriteriaJson from "../../../../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
@@ -95,7 +95,7 @@ describe("IbjjfCard", () => {
     expect(bar.querySelectorAll(".belt-tip i")).toHaveLength(1);
   });
 
-  it("states the top of the catalogue instead of a progress bar when there is no next level", async () => {
+  it("says the level is the highest BPT tracks, and only when there is no target level", async () => {
     levelsApi.getStudentLevelCard.mockResolvedValue(
       card({ targetDefinition: null, progressPercent: null }),
     );
@@ -103,7 +103,7 @@ describe("IbjjfCard", () => {
     const region = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
     expect(
       within(region).getByText(
-        "Highest level in the catalogue. There is no next graduation to work towards.",
+        "This is the highest level BPT tracks, so there is no next graduation to measure.",
       ),
     ).toBeInTheDocument();
     expect(within(region).queryByRole("progressbar")).not.toBeInTheDocument();
@@ -111,11 +111,30 @@ describe("IbjjfCard", () => {
     expect(within(region).queryByText("Next graduation")).not.toBeInTheDocument();
   });
 
-  it("never draws a bar for a null percentage even when a target level is present", async () => {
+  // The schema makes `targetDefinition` and `progressPercent` independently nullable. A payload
+  // that names the next stripe must never be described as the top of what BPT tracks.
+  it("makes no claim at all when a target level is present but the percentage is null", async () => {
     levelsApi.getStudentLevelCard.mockResolvedValue(card({ progressPercent: null }));
     render(<IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-1" />);
     const region = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
     expect(within(region).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(
+      within(region).getByText("Progress is not available for this level."),
+    ).toBeInTheDocument();
+    expect(region.textContent).not.toMatch(/highest level/iu);
+    expect(within(region).queryByText("Next graduation")).not.toBeInTheDocument();
+  });
+
+  it("renders the heading fallback when the stored level is not in the current catalogue", async () => {
+    levelsApi.getStudentLevelCard.mockResolvedValue(
+      card({ currentDefinition: { definitionKey: "retired-level-key" } }),
+    );
+    render(<IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-1" />);
+    const region = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(
+      within(region).getByRole("heading", { name: "Level not in the current catalogue" }),
+    ).toBeInTheDocument();
+    expect(within(region).queryByRole("img")).not.toBeInTheDocument();
   });
 
   it("says nothing about Regyfit when no classes were imported", async () => {
@@ -131,6 +150,22 @@ describe("IbjjfCard", () => {
     const region = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
     expect(within(region).getByText("12/25")).toBeInTheDocument();
     expect(region.textContent).not.toMatch(/Regyfit/u);
+  });
+
+  it("says nothing about Regyfit rather than a negative BPT count when the counts disagree", async () => {
+    levelsApi.getStudentLevelCard.mockResolvedValue(
+      card({
+        criteria: {
+          ...initialized.criteria,
+          classes: { required: 25, completed: 3, imported: 9, met: false },
+        },
+      }),
+    );
+    render(<IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-1" />);
+    const region = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(within(region).getByText("3/25")).toBeInTheDocument();
+    expect(region.textContent).not.toMatch(/Regyfit/u);
+    expect(region.textContent).not.toMatch(/-6/u);
   });
 
   it("shows a bare count when the level defines no minimum", async () => {
@@ -229,5 +264,51 @@ describe("IbjjfCard", () => {
       expect(screen.getByRole("heading", { name: "White - 1st Stripe" })).toBeInTheDocument(),
     );
     expect(screen.queryByRole("heading", { name: "WHITE BELT" })).not.toBeInTheDocument();
+  });
+
+  // The effect blanks the card on every member change. Without that, a ready card for member A
+  // stays on screen under member B's name until B's read lands.
+  it("blanks a ready card the moment the member changes", async () => {
+    levelsApi.getStudentLevelCard.mockResolvedValueOnce(initialized);
+    levelsApi.getStudentLevelCard.mockImplementation(() => new Promise(() => {}));
+    const { rerender } = render(
+      <IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-1" />,
+    );
+    await screen.findByRole("heading", { name: "WHITE BELT" });
+    rerender(<IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-2" />);
+    const region = screen.getByRole("region", { name: "JIU-JITSU IBJJF" });
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(within(region).getByRole("status")).toHaveTextContent("Loading the IBJJF level.");
+    expect(screen.queryByRole("heading", { name: "WHITE BELT" })).not.toBeInTheDocument();
+    expect(region.textContent).not.toMatch(/Promoted on|12\/25|44%/u);
+  });
+
+  // A read that fails for the member we already left must not turn the current member's card
+  // into "Levels unavailable".
+  it("keeps the current member's card when the previous member's read fails late", async () => {
+    let rejectFirst: (reason: unknown) => void = () => {};
+    levelsApi.getStudentLevelCard.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectFirst = reject;
+        }),
+    );
+    levelsApi.getStudentLevelCard.mockResolvedValue(
+      card({ currentDefinition: { definitionKey: "white-1st-stripe" } }),
+    );
+    const { rerender } = render(
+      <IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-1" />,
+    );
+    rerender(<IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-2" />);
+    await screen.findByRole("heading", { name: "White - 1st Stripe" });
+
+    await act(async () => {
+      rejectFirst(new Error("PERMISSION_DENIED for student-1"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("heading", { name: "White - 1st Stripe" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
