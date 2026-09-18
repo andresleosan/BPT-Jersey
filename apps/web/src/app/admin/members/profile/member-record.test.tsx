@@ -42,6 +42,32 @@ vi.mock("./ibjjf-card", () => ({
   ),
 }));
 vi.mock("../../admin-gate", () => ({ useAdminOrStaffSession: () => ({ role: gate.role }) }));
+// The Manage view owns its own reads and its own suite; the record only routes `&view=manage` to
+// it and hands it the member and the viewer's role.
+vi.mock("./manage-view", () => ({
+  ManageView: ({
+    age,
+    fullName,
+    recordHref: href,
+    role,
+    studentId,
+  }: {
+    age: number | null;
+    fullName: string;
+    recordHref: string;
+    role: string;
+    studentId: string;
+  }) => (
+    <section
+      aria-label="Manage IBJJF"
+      data-age={String(age)}
+      data-full-name={fullName}
+      data-record-href={href}
+      data-role={role}
+      data-student-id={studentId}
+    />
+  ),
+}));
 
 import { MemberRecord, readRecordLocation, recordHref } from "./member-record";
 
@@ -188,6 +214,48 @@ describe("member record page", () => {
       const card = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
       expect(card.getAttribute("data-can-open-level")).toBe(String(role === "headCoach"));
     }
+  });
+
+  it("opens the Manage view in place of the PROFILE cards, for every role that reaches it", async () => {
+    for (const role of ["owner", "headCoach", "administrator", "coach"]) {
+      cleanup();
+      gate.role = role;
+      open("?id=student-1&view=manage");
+      const manage = await screen.findByRole("region", { name: "Manage IBJJF" });
+      expect(manage.getAttribute("data-student-id")).toBe("student-1");
+      expect(manage.getAttribute("data-full-name")).toBe("Test Member A");
+      expect(manage.getAttribute("data-age")).toBe("26");
+      expect(manage.getAttribute("data-role")).toBe(role);
+      expect(manage.getAttribute("data-record-href")).toBe("/admin/members/profile?id=student-1");
+      expect(screen.queryByRole("region", { name: "JIU-JITSU IBJJF" })).toBeNull();
+    }
+  });
+
+  /**
+   * DELIBERATE (Task 16): Manage is a mode of the PROFILE panel, not a tab. No other tab has a
+   * Manage variant, so carrying `view=manage` into `?tab=payments` would put a flag in the URL
+   * that means nothing there and would silently reopen Manage - with its unsaved note and reason
+   * - when the operator came back to PROFILE after leaving it. Leaving the panel leaves the mode.
+   * Back still returns to Manage, because that history entry really was Manage.
+   */
+  it("leaves the Manage view when the operator leaves the PROFILE tab, and Back returns to it", async () => {
+    const user = open("?id=student-1&view=manage");
+    await screen.findByRole("region", { name: "Manage IBJJF" });
+
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    expect(window.location.search).toBe("?id=student-1&tab=details");
+    expect(screen.queryByRole("region", { name: "Manage IBJJF" })).toBeNull();
+
+    await user.click(screen.getByRole("tab", { name: "Profile" }));
+    expect(window.location.search).toBe("?id=student-1");
+    expect(screen.queryByRole("region", { name: "Manage IBJJF" })).toBeNull();
+    expect(screen.getByRole("region", { name: "JIU-JITSU IBJJF" })).toBeTruthy();
+
+    window.history.back();
+    await waitFor(() => expect(window.location.search).toBe("?id=student-1&tab=details"));
+    window.history.back();
+    await waitFor(() => expect(window.location.search).toBe("?id=student-1&view=manage"));
+    expect(await screen.findByRole("region", { name: "Manage IBJJF" })).toBeTruthy();
   });
 
   it("moves between tabs with arrow, Home and End keys and keeps the URL in step", async () => {
