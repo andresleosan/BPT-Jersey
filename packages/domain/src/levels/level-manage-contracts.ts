@@ -48,6 +48,11 @@ const gapsSchema = z.array(boundedFreeText(1, 120)).max(10);
 /**
  * The wire form of `ImportedBaseline` (declared in `./level-progress`, Task 5). Only the schema
  * lives here; re-declaring the type would collide on the `@bpt-jersey/domain/levels` barrel.
+ *
+ * Spec §6.5: `cutoff` is the FIRST day counted from BPT attendance — the day after the last day
+ * already included in `classes` — not simply "the import date". The invariant it guarantees is that
+ * every class is counted exactly once: dated before `cutoff` it is already inside `classes`, dated
+ * on or after it, it is counted from BPT attendance (`countClassesAtLevel`).
  */
 export const importedBaselineSchema = z.strictObject({
   classes: countSchema,

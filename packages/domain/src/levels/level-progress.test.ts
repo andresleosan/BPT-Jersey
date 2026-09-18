@@ -205,18 +205,21 @@ describe("countClassesAtLevel", () => {
     ).toEqual({ imported: 0, bpt: 3, total: 3 });
   });
 
-  it("counts a class attended at exactly the level start instant", () => {
+  it("counts the whole promotion day toward the new level, and the day before toward neither", () => {
+    // Spec §6.2 compares DATES: a member who trained at 10:00 and 18:00 and was promoted at 12:00
+    // has three classes at the new level (the 9 imported are gone), not two. An instant comparison
+    // would drop the 10:00 class from both levels.
     expect(
       countClassesAtLevel({
-        attendedAt: ["2026-07-01T00:00:00.000Z"],
-        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+        attendedAt: ["2026-07-01T10:00:00.000Z", "2026-07-01T18:00:00.000Z"],
+        currentLevelStartedAt: "2026-07-01T12:00:00.000Z",
         importedBaseline: null,
       }),
-    ).toEqual({ imported: 0, bpt: 1, total: 1 });
+    ).toEqual({ imported: 0, bpt: 2, total: 2 });
     expect(
       countClassesAtLevel({
         attendedAt: ["2026-06-30T23:59:59.999Z"],
-        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+        currentLevelStartedAt: "2026-07-01T12:00:00.000Z",
         importedBaseline: null,
       }),
     ).toEqual({ imported: 0, bpt: 0, total: 0 });
@@ -230,6 +233,26 @@ describe("countClassesAtLevel", () => {
         importedBaseline: { classes: 9, cutoff: "2026-09-01", source: "regyfit-import" },
       }),
     ).toEqual({ imported: 9, bpt: 2, total: 11 });
+  });
+
+  it("counts a class ON the cutoff day from BPT exactly once, never from the baseline too", () => {
+    // The cutoff is the FIRST day counted from BPT attendance; the baseline stops the day before.
+    // A class on the cutoff day is therefore one BPT class on top of the baseline, not a duplicate
+    // and not a class that vanishes.
+    expect(
+      countClassesAtLevel({
+        attendedAt: ["2026-09-01T06:00:00.000Z"],
+        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+        importedBaseline: { classes: 9, cutoff: "2026-09-01", source: "regyfit-import" },
+      }),
+    ).toEqual({ imported: 9, bpt: 1, total: 10 });
+    expect(
+      countClassesAtLevel({
+        attendedAt: ["2026-08-31T23:59:59.999Z"],
+        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+        importedBaseline: { classes: 9, cutoff: "2026-09-01", source: "regyfit-import" },
+      }),
+    ).toEqual({ imported: 9, bpt: 0, total: 9 });
   });
 
   it("stops at an inclusive end day", () => {

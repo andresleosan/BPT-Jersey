@@ -536,6 +536,27 @@ function storedImportedBaseline(value: unknown): ImportedBaseline | null {
   return parsed.data;
 }
 
+/**
+ * Task 7: what a promotion records so Task 10's `voidPromotion` can put the head back, including the
+ * imported baseline the promotion drops. Shared by the Firestore and in-memory stores so the two can
+ * never disagree on the shape. `importedBaseline` is `null`, never absent, when there was none.
+ */
+export type PromotionRestore = Readonly<{
+  currentDefinitionKey: string;
+  currentLevelStartedAt: string | null;
+  lastApprovedPromotionId: string | null;
+  importedBaseline: ImportedBaseline | null;
+}>;
+
+function promotionRestoreOf(headData: Readonly<Record<string, unknown>>): PromotionRestore {
+  return Object.freeze({
+    currentDefinitionKey: headData.currentDefinitionKey as string,
+    currentLevelStartedAt: (headData.currentLevelStartedAt as string | null) ?? null,
+    lastApprovedPromotionId: (headData.lastApprovedPromotionId as string | null) ?? null,
+    importedBaseline: storedImportedBaseline(headData.importedBaseline),
+  });
+}
+
 /** The student's attended/late, uncorrected attendance; every record must carry a real time. */
 function countedAttendance(
   snapshot: GenericQuerySnapshot,
@@ -560,7 +581,9 @@ function countedAttendance(
       return [];
     }
     if (typeof value.occurredAt !== "string" || Number.isNaN(Date.parse(value.occurredAt))) {
-      throw new LevelStoreError("conflict", "Attendance time is invalid");
+      // The record id stays server-side: the web client maps every callable failure to a fixed
+      // user-facing string, so this only ever reaches the operator through the function log.
+      throw new LevelStoreError("conflict", `Attendance time is invalid: ${document.id}`);
     }
     return [value];
   });
@@ -1417,12 +1440,7 @@ export function createLevelCatalogStore({
           decisionStatus: "approved",
           proposedBy: decidedByStaffId,
           decidedByStaffId,
-          restore: {
-            currentDefinitionKey: headData.currentDefinitionKey,
-            currentLevelStartedAt: headData.currentLevelStartedAt ?? null,
-            lastApprovedPromotionId: headData.lastApprovedPromotionId ?? null,
-            importedBaseline: storedImportedBaseline(headData.importedBaseline),
-          },
+          restore: promotionRestoreOf(headData),
         });
         const nextHead: Record<string, unknown> = {
           ...headData,
@@ -1661,7 +1679,9 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
   const auditEvents = new Map<string, Record<string, unknown>>();
   const evaluations = new Map<string, EvaluationRecord>();
   const medicalLeaves = new Map<string, MedicalLeaveRecord>();
-  const graduations = new Map<string, GraduationRecord>();
+  // Like the Firestore promotion document, an approved promotion carries its `restore`; `rejected`
+  // promotions never move a head, so they carry none.
+  const graduations = new Map<string, GraduationRecord & { readonly restore?: PromotionRestore }>();
   const heads = new Map<string, StudentLevelHead>();
 
   return {
@@ -2020,7 +2040,38 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       studentId: string,
     ): Promise<StudentProgressSummary> {
       assertValidAcademyId(academyId);
-      return buildUninitializedStudentProgressSummary(studentId);
+      const head = heads.get(`${academyId}_${studentId}`);
+      if (head === undefined || head.academyId !== academyId || head.studentId !== studentId) {
+        return buildUninitializedStudentProgressSummary(studentId);
+      }
+      const [catalog, studentEvaluations] = await Promise.all([
+        this.listPublished(academyId),
+        this.listStudentEvaluations(academyId, studentId),
+      ]);
+      if (
+        catalog.system.systemId !== head.systemId ||
+        !catalog.definitions.some((d) => d.definitionKey === head.currentDefinitionKey)
+      ) {
+        throw new LevelStoreError("conflict", "Progress definition is not current");
+      }
+      // The in-memory store keeps no attendance and no student records, so BPT attendance is empty
+      // and the date of birth is unknown; the baseline, the level start and the whole shape of the
+      // summary come from the same helpers the Firestore store uses.
+      return buildStudentProgressSummary({
+        catalog,
+        studentId,
+        currentDefinitionKey: head.currentDefinitionKey,
+        evaluations: studentEvaluations,
+        attendedClassesCount: 0,
+        totalHours: 0,
+        currentLevelStartedAt: head.currentLevelStartedAt,
+        classesAtLevel: countClassesAtLevel({
+          attendedAt: [],
+          currentLevelStartedAt: head.currentLevelStartedAt,
+          importedBaseline: storedImportedBaseline(head.importedBaseline),
+        }),
+        dateOfBirth: null,
+      });
     },
 
     async recordMedicalLeave(params): Promise<MedicalLeaveRecord> {
@@ -2101,8 +2152,35 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
 
       const now = decidedAt ?? new Date().toISOString();
       const graduationId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
+      const graduationKey = `${academyId}_${input.studentId}_${graduationId}`;
+      const headKey = `${academyId}_${input.studentId}`;
+      const head = heads.get(headKey);
+      const definitionOf = (definitionKey: string) =>
+        Array.from(definitions.values()).find(
+          (candidate) =>
+            candidate["academyId"] === academyId && candidate["definitionKey"] === definitionKey,
+        );
+      const fromDefinition = definitionOf(input.fromDefinitionKey);
+      const toDefinition = definitionOf(input.toDefinitionKey);
+      // The same refusal the Firestore store raises, for the same five reasons.
+      if (
+        head === undefined ||
+        head.academyId !== academyId ||
+        head.studentId !== input.studentId ||
+        head.state !== "initialized" ||
+        head.currentDefinitionKey !== input.fromDefinitionKey ||
+        fromDefinition === undefined ||
+        toDefinition === undefined ||
+        fromDefinition["systemId"] !== head.systemId ||
+        toDefinition["systemId"] !== head.systemId ||
+        typeof fromDefinition["sequence"] !== "number" ||
+        toDefinition["sequence"] !== fromDefinition["sequence"] + 1 ||
+        graduations.has(graduationKey)
+      ) {
+        throw new LevelStoreError("conflict", "Promotion references are not current");
+      }
 
-      const record: GraduationRecord = Object.freeze({
+      const record: GraduationRecord & { readonly restore: PromotionRestore } = Object.freeze({
         graduationId,
         academyId,
         studentId: input.studentId,
@@ -2119,9 +2197,26 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         createdBy: decidedBy,
         updatedAt: now,
         updatedBy: decidedBy,
+        restore: promotionRestoreOf(head),
       });
 
-      graduations.set(`${academyId}_${input.studentId}_${graduationId}`, record);
+      graduations.set(graduationKey, record);
+      const nextHead: Record<string, unknown> = { ...head };
+      // Grill G10: the imported baseline belongs to the level it was imported at.
+      delete nextHead.importedBaseline;
+      heads.set(
+        headKey,
+        Object.freeze({
+          ...(nextHead as StudentLevelHead),
+          currentDefinitionKey: input.toDefinitionKey,
+          currentLevelStartedAt: now,
+          lastApprovedPromotionId: graduationId,
+          state: "initialized",
+          schemaVersion: "1",
+          updatedAt: now,
+          updatedBy: decidedBy,
+        }),
+      );
       return record;
     },
 

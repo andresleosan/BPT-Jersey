@@ -263,7 +263,12 @@ needs `GCLOUD_PROJECT` + an operator confirmation token, run only after the oper
   list and is not loaded. Never by name or e-mail.
 - **Levels:** matched members get the history as append-only promotion records flagged
   `source: "regyfit-import"` (no `decidedBy`), the current level head with its real start date,
-  `importedBaseline` = Regyfit's classes at the current level and `baselineCutoff` = import date. A
+  `importedBaseline` = Regyfit's classes at the current level and `baselineCutoff` = **the first day
+  counted from BPT attendance**, i.e. the day after the last day already included in
+  `importedBaseline` (the import date only when the capture stops the day before). The invariant it
+  guarantees is that every class is counted exactly once: a class dated before `baselineCutoff` is
+  already inside `importedBaseline`, and a class dated on or after it is counted from BPT
+  attendance. A
   student that already has a level head is skipped (create-only; rerun safe).
 - **Skills:** non-empty Regyfit scores load as one evaluation flagged `source: "regyfit-import"` dated at
   the import; members with no scores load nothing.
