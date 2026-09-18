@@ -62,6 +62,7 @@ describe("createClassHistoryStore.queryEvents", () => {
       occurredAt: Timestamp.fromDate(new Date("2026-09-16T10:00:00.000Z")),
       class: {
         studentId: "s1",
+        memberId: null,
         studentName: null,
         sessionId: "session-1",
         sessionStartAt: "2026-09-16T17:30:00.000Z",
@@ -104,6 +105,7 @@ describe("createClassHistoryStore.queryEvents", () => {
         source: "bpt",
         class: {
           studentId: "s1",
+          memberId: null,
           studentName: null,
           sessionId: "session-1",
           sessionStartAt: "2026-09-16T17:30:00.000Z",
@@ -126,6 +128,7 @@ describe("createClassHistoryStore.queryEvents", () => {
       occurredAt: Timestamp.fromDate(new Date("2026-03-10T09:00:00.000Z")),
       class: {
         studentId: null,
+        memberId: null,
         studentName: "Olivia Lewis",
         sessionId: null,
         sessionStartAt: "2026-03-12T18:30:00.000Z",
@@ -140,6 +143,7 @@ describe("createClassHistoryStore.queryEvents", () => {
 
     expect(events[0]?.class).toEqual({
       studentId: null,
+      memberId: null,
       studentName: "Olivia Lewis",
       sessionId: null,
       sessionStartAt: "2026-03-12T18:30:00.000Z",

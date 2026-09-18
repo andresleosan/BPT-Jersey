@@ -37,6 +37,9 @@ function toClassBlock(value: unknown): ClassAuditEventClass | null {
   }
   return Object.freeze({
     studentId: typeof record.studentId === "string" ? record.studentId : null,
+    // A row stored before the member link existed carries no memberId at all; it reads as "no
+    // member", exactly as the domain parser reads the same gap.
+    memberId: typeof record.memberId === "string" ? record.memberId : null,
     studentName: typeof record.studentName === "string" ? record.studentName : null,
     sessionId: typeof record.sessionId === "string" ? record.sessionId : null,
     sessionStartAt: record.sessionStartAt,
@@ -155,6 +158,7 @@ export function createClassHistoryStore(
   const sessionsPath = `academies/${academyId}/sessions`;
   const programsPath = `academies/${academyId}/programs`;
   const staffPath = `academies/${academyId}/staff`;
+  const membersPath = `academies/${academyId}/members`;
 
   return Object.freeze({
     async queryEvents(query: ClassHistoryQuery) {
@@ -184,6 +188,10 @@ export function createClassHistoryStore(
     readStudents: (ids) => readNameMap(firestore, studentsPath, ids, "fullName"),
     readStaffNames: (ids) => readByUserId(firestore, staffPath, ids, null),
     readMemberNames: (uids) => readByUserId(firestore, studentsPath, uids, "fullName"),
+    // A member directory document is keyed by its own memberId, which is exactly what an imported
+    // row stores, so the names come back in one `getAll` - no `where in` chunking needed here.
+    readDirectoryMemberNames: (memberIds) =>
+      readNameMap(firestore, membersPath, memberIds, "fullName"),
 
     async readSessions(ids) {
       if (ids.length === 0) return new Map();
