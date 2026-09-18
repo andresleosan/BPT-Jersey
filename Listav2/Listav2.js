@@ -823,11 +823,18 @@ const RESOLUTION_REQUIREMENTS = {
     ),
   ],
   T054V2: [
-    requirement("Mergear el PR y comprobar en bptjersey.com/account con un alumno sin membresia activa."),
+    requirement(
+      "Hecho 2026-09-18: PR #4 mergeado y publicado; el mensaje se sirve en bptjersey.com.",
+    ),
+    requirement("Comprobar en produccion con un alumno real sin membresia activa."),
   ],
   T055V2: [
-    requirement("Desplegar los 4 callables de perfiles con --only explicito y comprobar 401 y CORS."),
-    requirement("Niveles tras integrar T051V2; salud y export agregado siguen cerrados sin piloto."),
+    requirement(
+      "Hecho 2026-09-18: 4 callables de perfiles desplegados, 401 sin sesion y CORS comprobados.",
+    ),
+    requirement(
+      "Niveles tras integrar T051V2; salud y export agregado siguen cerrados sin piloto.",
+    ),
   ],
 };
 
@@ -1916,7 +1923,7 @@ const classesServicesItems = [
   task(
     "T054V2",
     "La vista de cliente /account se quedaba cargando si el alumno no tiene membresia activa",
-    "revision",
+    "desplegada",
     "Con cero participantes el efecto de la semana nunca corria y weekState se quedaba en loading: esqueleto infinito. Ahora se muestra un aviso para contactar con la academia.",
     "-",
     "Test nuevo que falla con el codigo anterior; 92/92 en /account, lint y typecheck limpios. Login verificado con Playwright en .com, www y pages.dev.",
@@ -1925,8 +1932,8 @@ const classesServicesItems = [
   ),
   task(
     "T055V2",
-    "25 callables que la web publicada usa no existen en produccion (404)",
-    "pendiente",
+    "25 callables que la web publicada usa no existen en produccion (404); quedan 21",
+    "revision",
     "Perfil de cliente, perfil de tutor, niveles, salud, facturas, membresias, planes de clase, importacion PDF y export agregado responden 404. Varios se dejaron fuera a proposito porque fallan cerrados sin piloto.",
     "-",
     "Medido 2026-09-18 con POST sin sesion: desplegada responde 401, estas 404. Triage por grupo en tasksv2.md.",
