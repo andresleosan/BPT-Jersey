@@ -9,6 +9,7 @@ import {
   countClassesAtLevel,
   daysAtLevel,
   generateRecognitionCandidates,
+  historyFreeTextSchema,
   importedBaselineSchema,
   isLevelCalendarDate,
   jerseyDateOf,
@@ -697,6 +698,108 @@ function assignmentNoteOf(note: unknown): string | null {
   return parsed.data;
 }
 
+/**
+ * Review of Task 10 (Major-1): the void reason is the ONLY record of why a real, audited promotion
+ * was cancelled, and an unreadable one used to be stored verbatim and then erase the promotion
+ * from the history at read time. It is re-checked at the store with `promotionNoteSchema` — the
+ * very schema the callable boundary (Task 12) parses with — for exactly the reason
+ * `assignmentNoteOf` above is: 10-500 characters after trimming, no control character other than a
+ * line break. The trimmed value is what gets stored. Unlike a note, a reason is never optional.
+ */
+function voidReasonOf(reason: unknown): string {
+  const parsed = promotionNoteSchema.safeParse(reason);
+  if (!parsed.success) throw new LevelStoreError("invalid", "Void reason is invalid");
+  return parsed.data;
+}
+
+/** The four ways a void is refused. One user-facing message; this is the server-side half. */
+type VoidRefusalCause = "no-such-promotion" | "already-voided" | "not-latest" | "no-restore";
+
+/** The head a void puts back, taken from the voided promotion's own restore snapshot. */
+type VoidRestoreSnapshot = Readonly<{
+  currentDefinitionKey: string;
+  currentLevelStartedAt: string;
+  lastApprovedPromotionId: string | null;
+  importedBaseline: unknown;
+}>;
+
+/**
+ * Review of Task 10 (Major-5): the four refusals are deliberately indistinguishable to the caller
+ * — a head coach who may not void must not learn which promotions exist — but support was left
+ * with nothing when an operator reports "it will not let me undo this". The discriminated cause is
+ * decided once, here, shared by both stores (which is also why the in-memory store can no longer
+ * drift from the Firestore one on any of these clauses), and logged at the throw site.
+ *
+ * A promotion written before `5b67c1b` carries no `restore` at all and is deliberately NOT
+ * voidable (`no-restore`): putting the head back would mean guessing the level the student came
+ * from, the instant it started and the imported baseline the promotion dropped.
+ */
+function voidRestoreOf(
+  params: Readonly<{
+    headData: Readonly<Record<string, unknown>> | undefined;
+    promotionData: Readonly<Record<string, unknown>> | undefined;
+    voidExists: boolean;
+    academyId: string;
+    studentId: string;
+    promotionId: string;
+  }>,
+): VoidRefusalCause | VoidRestoreSnapshot {
+  const { headData, promotionData, academyId, studentId, promotionId } = params;
+  if (
+    promotionData === undefined ||
+    promotionData.academyId !== academyId ||
+    promotionData.studentId !== studentId ||
+    promotionData.status !== "approved" ||
+    // A void is a record in the same collection; voiding one is not a thing.
+    promotionData.kind === "void"
+  ) {
+    return "no-such-promotion";
+  }
+  // Kept for defence in depth and UNREACHABLE by the normal path in both stores: once a void lands
+  // the head no longer names that promotion, so a second attempt dies on `not-latest` first. Only
+  // a corrupted head that still names an already-voided promotion reaches it.
+  if (params.voidExists) return "already-voided";
+  if (
+    headData === undefined ||
+    headData.academyId !== academyId ||
+    headData.studentId !== studentId ||
+    headData.lastApprovedPromotionId !== promotionId
+  ) {
+    return "not-latest";
+  }
+  const restore = promotionData.restore as Record<string, unknown> | undefined;
+  if (restore === undefined) return "no-restore";
+  const currentDefinitionKey = restore.currentDefinitionKey;
+  const currentLevelStartedAt = restore.currentLevelStartedAt;
+  const lastApprovedPromotionId = restore.lastApprovedPromotionId;
+  if (typeof currentDefinitionKey !== "string") return "no-restore";
+  if (typeof currentLevelStartedAt !== "string") return "no-restore";
+  if (lastApprovedPromotionId !== null && typeof lastApprovedPromotionId !== "string") {
+    return "no-restore";
+  }
+  return Object.freeze({
+    currentDefinitionKey,
+    currentLevelStartedAt,
+    lastApprovedPromotionId,
+    importedBaseline: restore.importedBaseline,
+  });
+}
+
+/**
+ * `console.error` is the logging facility this repo already uses inside Cloud Functions
+ * (`apps/functions/src/schedule/schedule-callables.ts`), where it lands in Cloud Logging; no new
+ * dependency and no new pattern. Nothing restricted (ADR-009 rule 14) is named: the academy, the
+ * student and the promotion are ordinary scope ids, and the reason the operator typed is NOT
+ * logged.
+ */
+function refuseVoid(
+  cause: VoidRefusalCause,
+  scope: Readonly<{ academyId: string; studentId: string; promotionId: string }>,
+): never {
+  console.error("level.promotion.void refused", { cause, ...scope });
+  throw new LevelStoreError("conflict", "Promotion cannot be voided");
+}
+
 /** The best score the student has ever been given for each skill. */
 function bestScores(evaluations: readonly EvaluationRecord[]): Record<string, number> {
   const scores: Record<string, number> = {};
@@ -725,10 +828,31 @@ function historyCriterion(value: unknown): { done: number; min: number | null } 
  * `decisionNotes: ""`, so an empty or whitespace-only stored note means there is NO note — not a
  * note that happens to be blank. Without this the Manage view would render an empty note row as
  * if a coach had written one.
+ *
+ * Review of Task 10 (Major-2): the candidates are parsed with `historyFreeTextSchema`, the very
+ * schema the row is then parsed with, so a stored value the read schema cannot take (too long, a
+ * control character, not a string at all) reads as "not recorded" instead of failing — and
+ * deleting — the whole row. Shared by the promotion note, the opening note and the void reason.
  */
-function historyNote(...values: readonly unknown[]): string | null {
+function historyFreeText(...values: readonly unknown[]): string | null {
   for (const value of values) {
-    if (typeof value === "string" && value.trim() !== "") return value;
+    const parsed = historyFreeTextSchema.safeParse(value);
+    if (parsed.success && parsed.data !== "") return parsed.data;
+  }
+  return null;
+}
+
+/**
+ * The day a void was decided: `decidedAt` is what every void this code writes carries, `createdAt`
+ * is the same instant and is the fallback for a row whose `decidedAt` cannot be read. When neither
+ * reads, the date is NOT RECORDED. It is never replaced by the promotion's own date, which would
+ * read as a fact about the void that nobody recorded.
+ */
+function historyVoidedOn(...values: readonly unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const day = value.slice(0, 10);
+    if (isLevelCalendarDate(day)) return day;
   }
   return null;
 }
@@ -739,8 +863,13 @@ function historyNote(...values: readonly unknown[]): string | null {
  *
  * `levelHistoryEntrySchema` is a READ schema over stored data, so each row is parsed on its own
  * and a row that cannot be parsed is left out: one unreadable record must not blank the whole
- * history. A void whose decided role cannot be read drops the promotion it voids with it, because
- * the alternative is showing a cancelled promotion as if the student still held that belt.
+ * history.
+ *
+ * Review of Task 10 (Major-2), RULING: a void record that exists ALWAYS marks its promotion
+ * voided. Unreadable sub-fields of the void degrade to `null` — "not recorded" — they never remove
+ * a row, and nothing is ever fabricated to fill them. Showing a cancelled promotion as still
+ * standing is a lie the operator can see and challenge; omitting the promotion is a lie the
+ * operator cannot see at all, and it destroys the evidence the append-only design exists for.
  */
 function buildLevelHistory(
   studentId: string,
@@ -759,10 +888,15 @@ function buildLevelHistory(
       const imported = record.source === "regyfit-import";
       const atAssignment = record.atAssignment as Record<string, unknown> | undefined;
       return {
-        entryId: String(record.promotionId),
+        // Review of Task 10 (Major-3): these three go to the per-row parse RAW. They used to go
+        // through `String(...)`, so a promotion missing `toDefinitionKey` became the string
+        // `"undefined"` — which `identifierSchema` accepts — and the member was shown promoted to
+        // a belt called `undefined`, row present and standing. Anything that is not a string now
+        // fails this row's own parse, exactly the way a malformed `promotedOn` already does.
+        entryId: record.promotionId,
         kind: "promotion",
-        definitionKey: String(record.toDefinitionKey),
-        fromDefinitionKey: String(record.fromDefinitionKey),
+        definitionKey: record.toDefinitionKey,
+        fromDefinitionKey: record.fromDefinitionKey,
         // `promotedOn` only exists on an assignment; a recognition-panel approval is dated by the
         // day it was decided.
         assignedOn:
@@ -773,7 +907,7 @@ function buildLevelHistory(
         days: historyCriterion(atAssignment?.days),
         decidedByRole: imported ? null : historyDecisionRole(record.decidedByRole),
         source: imported ? "regyfit-import" : "bpt",
-        note: historyNote(record.note, record.decisionNotes),
+        note: historyFreeText(record.note, record.decisionNotes),
         gaps: Array.isArray(record.gaps)
           ? record.gaps.filter((gap): gap is string => typeof gap === "string")
           : [],
@@ -781,9 +915,9 @@ function buildLevelHistory(
           voided === undefined
             ? null
             : {
-                reason: voided.reason,
+                reason: historyFreeText(voided.reason),
                 voidedByRole: historyDecisionRole(voided.decidedByRole),
-                voidedOn: String(voided.decidedAt).slice(0, 10),
+                voidedOn: historyVoidedOn(voided.decidedAt, voided.createdAt),
               },
       };
     });
@@ -803,7 +937,7 @@ function buildLevelHistory(
       days: null,
       decidedByRole: imported ? null : historyDecisionRole(headData.openedByRole),
       source: imported ? "regyfit-import" : "bpt",
-      note: historyNote(headData.openingNotes),
+      note: historyFreeText(headData.openingNotes),
       gaps: [],
       voided: null,
     });
@@ -2027,6 +2161,7 @@ export function createLevelCatalogStore({
       const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
       assertValidAcademyId(academyId);
       assertPromotionDecisionRole(decidedByRole);
+      const reason = voidReasonOf(input.reason);
       const now = params.decidedAt ?? new Date().toISOString();
       const voidId = `void_${input.promotionId}`;
       const promotionRef = firestore.doc(
@@ -2066,29 +2201,20 @@ export function createLevelCatalogStore({
         ]);
         const headData = head.data();
         const promotionData = promotion.data();
-        const restore = promotionData?.restore as Record<string, unknown> | undefined;
-        if (
-          !head.exists ||
-          headData?.academyId !== academyId ||
-          headData.studentId !== input.studentId ||
-          headData.lastApprovedPromotionId !== input.promotionId ||
-          !promotion.exists ||
-          promotionData?.academyId !== academyId ||
-          promotionData.studentId !== input.studentId ||
-          promotionData.status !== "approved" ||
-          promotionData.kind === "void" ||
-          // Kept for defence in depth, but UNREACHABLE in both stores and therefore untested:
-          // once a void lands the head no longer names that promotion, so a second attempt dies
-          // on `lastApprovedPromotionId` first. The same shape as Task 7's duplicate-promotion
-          // guard; removing either leaves every test green.
-          existingVoid.exists ||
-          restore === undefined ||
-          typeof restore.currentDefinitionKey !== "string" ||
-          typeof restore.currentLevelStartedAt !== "string" ||
-          (restore.lastApprovedPromotionId !== null &&
-            typeof restore.lastApprovedPromotionId !== "string")
-        ) {
-          throw new LevelStoreError("conflict", "Promotion cannot be voided");
+        const restore = voidRestoreOf({
+          headData: head.exists ? headData : undefined,
+          promotionData: promotion.exists ? promotionData : undefined,
+          voidExists: existingVoid.exists,
+          academyId,
+          studentId: input.studentId,
+          promotionId: input.promotionId,
+        });
+        if (typeof restore === "string") {
+          refuseVoid(restore, {
+            academyId,
+            studentId: input.studentId,
+            promotionId: input.promotionId,
+          });
         }
         // Grill G10, and Task 7 review m2: a stored baseline that does not parse refuses the void
         // itself rather than silently restoring a head with no imported classes. A stored `null`
@@ -2099,9 +2225,10 @@ export function createLevelCatalogStore({
           kind: "void",
           academyId,
           studentId: input.studentId,
-          systemId: promotionData.systemId,
+          // `voidRestoreOf` refused already unless this is the approved promotion the head names.
+          systemId: (promotionData as Record<string, unknown>).systemId,
           voidsPromotionId: input.promotionId,
-          reason: input.reason,
+          reason,
           decidedBy,
           decidedByRole,
           decidedByStaffId,
@@ -2996,30 +3123,30 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
       assertValidAcademyId(academyId);
       assertPromotionDecisionRole(decidedByRole);
+      const reason = voidReasonOf(input.reason);
       const now = params.decidedAt ?? new Date().toISOString();
       const voidId = `void_${input.promotionId}`;
       const voidKey = `${academyId}_${input.studentId}_${voidId}`;
       const headKey = `${academyId}_${input.studentId}`;
       const head = heads.get(headKey);
       const promotion = graduations.get(`${academyId}_${input.studentId}_${input.promotionId}`);
-      const restore = promotion?.restore;
-      if (
-        head === undefined ||
-        head.academyId !== academyId ||
-        head.studentId !== input.studentId ||
-        head.lastApprovedPromotionId !== input.promotionId ||
-        promotion === undefined ||
-        promotion.academyId !== academyId ||
-        promotion.studentId !== input.studentId ||
-        promotion.status !== "approved" ||
-        // Unreachable here too, for the same reason as in the Firestore store, and kept for the
-        // same reason: the two guards are one contract.
-        voids.has(voidKey) ||
-        restore === undefined ||
-        typeof restore.currentDefinitionKey !== "string" ||
-        typeof restore.currentLevelStartedAt !== "string"
-      ) {
-        throw new LevelStoreError("conflict", "Promotion cannot be voided");
+      // Review of Task 10 (Major-5): the refusal clauses are no longer written twice. Both stores
+      // ask the SAME function, so the in-memory store cannot drift from the Firestore one on any
+      // of them — which is also why there is no separate in-memory clause left to mutate.
+      const restore = voidRestoreOf({
+        headData: head as unknown as Record<string, unknown> | undefined,
+        promotionData: promotion as unknown as Record<string, unknown> | undefined,
+        voidExists: voids.has(voidKey),
+        academyId,
+        studentId: input.studentId,
+        promotionId: input.promotionId,
+      });
+      if (typeof restore === "string") {
+        refuseVoid(restore, {
+          academyId,
+          studentId: input.studentId,
+          promotionId: input.promotionId,
+        });
       }
       const restoredBaseline = storedImportedBaseline(restore.importedBaseline ?? undefined);
       voids.set(
@@ -3029,9 +3156,10 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
           kind: "void",
           academyId,
           studentId: input.studentId,
-          systemId: head.systemId,
+          // As above: there is no head here only if `voidRestoreOf` already refused.
+          systemId: (head as StudentLevelHead).systemId,
           voidsPromotionId: input.promotionId,
-          reason: input.reason,
+          reason,
           decidedBy,
           decidedByRole,
           decidedByStaffId,
