@@ -800,7 +800,7 @@ const RESOLUTION_REQUIREMENTS = {
       "4-5) Hecho: town-teens desactivado y west-teens-payg creado y activo (£7.50, teens, West).",
     ),
     requirement(
-      '6) Guardar y activar los 9 planes que siguen "Not configured" antes de dar de alta o importar socios: el selector solo ofrece planes activos y al reservar el servidor lee el plan guardado.',
+      "6) Hecho 2026-09-18: los 9 planes que faltaban creados y activados desde el catálogo; producción tiene 11 planes, 10 activos y town-teens inactivo.",
     ),
     requirement("7) No revertir functions tras editar planes sin restaurar antes los planes."),
   ],
@@ -1840,7 +1840,7 @@ const classesServicesItems = [
     "revision",
     "11 planes (trimestre, 3x, town-teens retirado, west-teens-payg), aforo obligatorio en sesiones y copy week, open mats fuera del límite semanal, precios públicos desde el catálogo.",
     "T046V2",
-    "Rama feature/plans-pricing-capacity. Gate 2026-09-17 y capturas qa/screenshots/t050-*; detalle en tasksv2.md. En producción desde 2026-09-17: aforos asignados y 48 functions desplegadas; faltan 9 planes por guardar y activar.",
+    "Rama feature/plans-pricing-capacity. Gate 2026-09-17 y capturas qa/screenshots/t050-*; detalle en tasksv2.md. En producción desde 2026-09-17: aforos asignados, 48 functions desplegadas y los 11 planes en Firestore (10 activos).",
     [
       REF_TASKS,
       "docs/superpowers/specs/2026-09-17-plans-pricing-capacity-design.md",
