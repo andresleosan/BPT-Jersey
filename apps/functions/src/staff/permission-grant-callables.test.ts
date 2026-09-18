@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { browserOrigins } from "../auth/callable-options.js";
+
 import {
   allowedByRoleOrGrant,
   createGrantStaffPermissionHandler,
@@ -33,7 +35,7 @@ const grantPayload = {
 describe("permission grant callables (T116)", () => {
   it("requires and consumes App Check on every grant callable", () => {
     expect(permissionGrantCallableOptions).toEqual({
-      cors: ["https://bptjersey.pages.dev"],
+      cors: browserOrigins,
       invoker: "public",
       enforceAppCheck: true,
       consumeAppCheckToken: true,

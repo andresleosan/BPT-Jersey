@@ -7,6 +7,7 @@ import {
   type NoShowPenaltyStatus,
 } from "@bpt-jersey/domain/penalties";
 
+import { browserOrigins } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { allowedByRoleOrGrant } from "../staff/permission-grant-callables.js";
 import {
@@ -30,7 +31,7 @@ const staffRoles = ["owner", "administrator", "headCoach", "coach"] as const;
 const officeRoles = ["owner", "administrator"] as const;
 
 export const noShowPenaltyCallableOptions = {
-  cors: ["https://bptjersey.pages.dev"],
+  cors: browserOrigins,
   invoker: "public" as const,
   enforceAppCheck: true,
   consumeAppCheckToken: true,

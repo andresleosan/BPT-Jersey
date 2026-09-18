@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { browserOrigins } from "../auth/callable-options.js";
+
 import {
   createListNoShowPenaltiesHandler,
   createProposeNoShowPenaltiesHandler,
@@ -54,7 +56,7 @@ const reason = "Charged after office reviewed the absence.";
 describe("no-show penalty callables (T111)", () => {
   it("requires and consumes App Check on every penalty callable", () => {
     expect(noShowPenaltyCallableOptions).toEqual({
-      cors: ["https://bptjersey.pages.dev"],
+      cors: browserOrigins,
       invoker: "public",
       enforceAppCheck: true,
       consumeAppCheckToken: true,

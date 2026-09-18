@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { browserOrigins } from "../auth/callable-options.js";
+
 import {
   createCancelBookingHandler,
   createCancelSessionHandler,
@@ -65,7 +67,7 @@ const ownStudentScope = async ({
 describe("Schedule Callables", () => {
   it("requires and consumes App Check for every shared schedule callable", () => {
     expect(scheduleCallableOptions).toEqual({
-      cors: ["https://bptjersey.pages.dev"],
+      cors: browserOrigins,
       invoker: "public",
       enforceAppCheck: true,
       consumeAppCheckToken: true,
