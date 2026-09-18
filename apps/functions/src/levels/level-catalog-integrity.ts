@@ -85,7 +85,7 @@ function sortedUniqueIds(values: readonly string[], label: string): readonly str
   return Object.freeze(sorted);
 }
 
-function assertApprovedCatalogShape(normalized: NormalizedLevelCatalog): void {
+export function assertApprovedCatalogShape(normalized: NormalizedLevelCatalog): void {
   const systemId = normalized.system.systemId;
   const shape = isLevelCatalogVersion(systemId) ? levelCatalogVersionShapes[systemId] : undefined;
   if (

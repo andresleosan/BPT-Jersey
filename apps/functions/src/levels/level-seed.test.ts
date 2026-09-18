@@ -11,6 +11,7 @@ import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.
 import { createInMemoryLevelStore, type LevelCatalogStore } from "./level-service";
 import {
   assertLevelSeedTargetEnvironment,
+  loadApprovedLevelCatalog,
   levelCatalogSourcePaths,
   rollbackLevelCatalog,
   seedLevelCatalog,
@@ -457,6 +458,37 @@ describe("Level Seed Guard and Execution", () => {
       store,
     });
     expect(rollback.deletedDefinitions).toBe(177);
+  });
+
+  it("refuses custom sources for ibjjf-v2 instead of silently loading ibjjf-v1", async () => {
+    expect(() =>
+      loadApprovedLevelCatalog({ systemId: "ibjjf-v2", customObserved: observedJson }),
+    ).toThrow(/Custom sources are not supported for ibjjf-v2/);
+
+    const store = createInMemoryLevelStore();
+    await expect(
+      seedLevelCatalog({
+        target: "emulator",
+        academyId: "demo-academy",
+        systemId: "ibjjf-v2",
+        customBusiness: businessCriteriaJson,
+        environment: emulatorEnvironment(),
+        store,
+      }),
+    ).rejects.toThrow(/Custom sources are not supported for ibjjf-v2/);
+  });
+
+  it("refuses an unknown systemId at runtime, like rollback does", async () => {
+    const store = createInMemoryLevelStore();
+    await expect(
+      seedLevelCatalog({
+        target: "emulator",
+        academyId: "demo-academy",
+        systemId: "ibjjf-v3" as unknown as "ibjjf-v2",
+        environment: emulatorEnvironment(),
+        store,
+      }),
+    ).rejects.toThrow(/Unsupported level system seed target/);
   });
 
   it("refuses a second catalogue version in the same academy", async () => {

@@ -93,6 +93,12 @@ export function loadApprovedLevelCatalog(
     systemId?: LevelCatalogVersion;
   }> = {},
 ): NormalizedLevelCatalog {
+  if (
+    input.systemId === "ibjjf-v2" &&
+    (input.customObserved !== undefined || input.customBusiness !== undefined)
+  ) {
+    throw new Error("Custom sources are not supported for ibjjf-v2.");
+  }
   const { observed, business } =
     input.systemId === "ibjjf-v2" &&
     input.customObserved === undefined &&
@@ -204,6 +210,9 @@ export async function seedLevelCatalog(input: SeedLevelCatalogInput): Promise<Le
     throw new Error("Confirmation required for staging: T083-LEVELS-SEED");
   }
   assertLevelSeedTargetEnvironment(input.target, input.environment);
+  if (input.systemId !== undefined && !isLevelCatalogVersion(input.systemId)) {
+    throw new Error("Unsupported level system seed target.");
+  }
 
   const normalized = loadApprovedLevelCatalog(input);
   return input.store.seed({

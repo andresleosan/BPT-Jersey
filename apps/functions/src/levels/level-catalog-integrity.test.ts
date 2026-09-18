@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import {
+  assertApprovedCatalogShape,
   assertStoredLevelCatalogIntegrity,
   buildLevelCatalogPublication,
   LEVEL_CATALOG_DOCUMENT_COUNT,
@@ -75,6 +76,15 @@ describe("Level catalog integrity manifest", () => {
       ),
     ).toBe(false);
   });
+  it("refuses an unknown system version even when its counts match ibjjf-v1", () => {
+    expect(() =>
+      assertApprovedCatalogShape({
+        ...normalized,
+        system: { ...normalized.system, systemId: "ibjjf-v3" },
+      }),
+    ).toThrow(/does not match the approved publication shape/);
+  });
+
   it("binds the ibjjf-v2 publication to its own counts", () => {
     const v2 = loadApprovedLevelCatalog({ systemId: "ibjjf-v2" });
     const v2Publication = buildLevelCatalogPublication({
