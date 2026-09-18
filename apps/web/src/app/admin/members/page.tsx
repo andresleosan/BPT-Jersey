@@ -174,9 +174,6 @@ export function MembersPage() {
             <Link className="admin-home-link" href="/admin/members/search">
               Search members
             </Link>
-            <Link className="admin-home-link" href="/admin/members/recovery">
-              Recover member access
-            </Link>
             <Link className="admin-home-link" href="/admin/families">
               Families and minors
             </Link>
