@@ -315,6 +315,7 @@ describe("canonical Levels security boundary", () => {
       ["level.medical-leave.recorded", "medicalLeaves", "student-medical-leave"],
       ["level.promotion.approved", "levelPromotions", "student-level-promotion"],
       ["level.promotion.rejected", "levelPromotions", "student-level-promotion"],
+      ["level.promotion.voided", "levelPromotions", "student-level-promotion"],
     ] as const;
 
     for (const [action, collection, purpose] of cases) {

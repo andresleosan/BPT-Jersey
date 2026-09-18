@@ -19,6 +19,7 @@ export const auditActions = Object.freeze([
   "level.promotion.approved",
   "level.promotion.rejected",
   "level.opened",
+  "level.promotion.voided",
   "member.import.confirmed",
   "member.detail.read",
   "member.identity.lookup",
@@ -154,6 +155,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "level.promotion.approved"
           | "level.promotion.rejected"
           | "level.opened"
+          | "level.promotion.voided"
           | "membership.created"
           | "membership.status.changed"
           | "staff.created"
@@ -299,6 +301,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "level.promotion.approved": commonFields,
   "level.promotion.rejected": commonFields,
   "level.opened": commonFields,
+  "level.promotion.voided": commonFields,
   "member.detail.read": restrictedMemberReadFields,
   "member.identity.lookup": restrictedMemberReadFields,
   "membership.created": commonFields,
@@ -661,6 +664,8 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       parsedAction === "level.medical-leave.recorded" ||
       parsedAction === "level.promotion.approved" ||
       parsedAction === "level.promotion.rejected" ||
+      // Falls through to levelPromotions / student-level-promotion, like the other two decisions.
+      parsedAction === "level.promotion.voided" ||
       parsedAction === "level.opened"
     ) {
       const targetCollection =
