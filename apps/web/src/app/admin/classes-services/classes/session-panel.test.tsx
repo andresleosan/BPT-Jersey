@@ -142,7 +142,7 @@ describe("SessionPanel", () => {
     fireEvent.change(screen.getByLabelText("Allow bookings until (minutes before)"), {
       target: { value: "30" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
     await waitFor(() =>
       expect(mocks.saveSession).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -183,24 +183,58 @@ describe("SessionPanel", () => {
     );
   }
 
+  it("loads registrations only when requested and preserves them when switching views", async () => {
+    renderCapacityPanel("edit");
+    expect(mocks.listSessionBookings).not.toHaveBeenCalled();
+    expect(mocks.listMemberNames).not.toHaveBeenCalled();
+    expect(mocks.listMemberships).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Registrations" }));
+    await waitFor(() => expect(mocks.listSessionBookings).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Session details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Registrations" }));
+    expect(mocks.listSessionBookings).toHaveBeenCalledTimes(1);
+  });
+
+  it("prevents closing or changing fields while a save is pending", async () => {
+    mocks.updateSession.mockReturnValue(new Promise(() => {}));
+    renderCapacityPanel("edit");
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "24" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Close session" })).toBeDisabled();
+    expect(screen.getByLabelText("Maximum capacity")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Copy session" })).toBeDisabled();
+  });
+
+  it("explains an empty date and restores saving after a valid date is entered", () => {
+    renderCapacityPanel("edit");
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "" } });
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(screen.getByLabelText("Date")).toHaveAccessibleDescription(
+      "Enter a date, start time and end time.",
+    );
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-09-21" } });
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+  });
+
   it("blocks a maximum below the default minimum before sending a create request", () => {
     renderCapacityPanel("create");
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "3" } });
-    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create session" })).toBeDisabled();
     expect(screen.getByLabelText("Minimum participants")).toHaveValue(4);
   });
 
   it("blocks reducing the maximum below an existing minimum", () => {
     renderCapacityPanel("edit", 8);
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "6" } });
-    expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
     expect(screen.getByLabelText("Minimum participants")).toHaveValue(8);
     expect(screen.getByLabelText("Minimum participants")).toHaveAccessibleDescription(
       /Minimum participants cannot exceed maximum capacity/,
     );
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "8" } });
-    expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
     expect(screen.getByLabelText("Minimum participants")).toHaveAttribute("aria-invalid", "false");
   });
 
@@ -211,7 +245,9 @@ describe("SessionPanel", () => {
       if (mode === "create") fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
       const minimum = screen.getByLabelText("Minimum participants");
       const maximum = screen.getByLabelText("Maximum capacity");
-      const save = screen.getByRole("button", { name: mode === "edit" ? "Edit" : "Create" });
+      const save = screen.getByRole("button", {
+        name: mode === "edit" ? "Save changes" : "Create session",
+      });
       for (const [min, max, valid] of [
         ["", "20", false],
         ["-1", "20", false],
@@ -245,7 +281,7 @@ describe("SessionPanel", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
     fireEvent.change(screen.getByLabelText("Minimum participants"), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
     await waitFor(() => expect(mocks.saveSession).toHaveBeenCalledOnce());
     const input = mocks.saveSession.mock.calls[0]![0];
     expect(input).toMatchObject({ minParticipants: 1, capacity: 2 });
@@ -258,7 +294,7 @@ describe("SessionPanel", () => {
     const view = renderCapacityPanel("edit", 8);
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "3" } });
     fireEvent.change(screen.getByLabelText("Minimum participants"), { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(mocks.updateSession).toHaveBeenCalledOnce());
     const input = mocks.updateSession.mock.calls[0]![0];
     expect(input).toEqual({ sessionId: "s1", minParticipants: 2, capacity: 3 });
@@ -267,14 +303,14 @@ describe("SessionPanel", () => {
     renderCapacityPanel("edit", saved.minParticipants, saved.capacity);
     expect(screen.getByLabelText("Minimum participants")).toHaveValue(2);
     expect(screen.getByLabelText("Maximum capacity")).toHaveValue(3);
-    expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   });
 
   it("saves a minimum of zero without changing the maximum", async () => {
     mocks.updateSession.mockResolvedValue({ ...sessionFixture, minParticipants: 0 });
     renderCapacityPanel("edit", 4);
     fireEvent.change(screen.getByLabelText("Minimum participants"), { target: { value: "0" } });
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(mocks.updateSession).toHaveBeenCalledWith({ sessionId: "s1", minParticipants: 0 }),
     );
@@ -283,10 +319,10 @@ describe("SessionPanel", () => {
   it("preserves both limits when copying a session", async () => {
     mocks.saveSession.mockResolvedValue(sessionFixture);
     renderCapacityPanel("edit", 7, 15);
-    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy session" }));
     expect(screen.getByLabelText("Minimum participants")).toHaveValue(7);
     expect(screen.getByLabelText("Maximum capacity")).toHaveValue(15);
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
     await waitFor(() =>
       expect(mocks.saveSession).toHaveBeenCalledWith(
         expect.objectContaining({ minParticipants: 7, capacity: 15 }),
@@ -310,9 +346,9 @@ describe("SessionPanel", () => {
         onClose={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel session" }));
     fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Coach unavailable" } });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm cancellation" }));
     await waitFor(() =>
       expect(mocks.cancelSession).toHaveBeenCalledWith("s1", "Coach unavailable"),
     );
@@ -333,8 +369,8 @@ describe("SessionPanel", () => {
         onClose={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
-    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy session" }));
+    expect(screen.getByRole("button", { name: "Create session" })).toBeInTheDocument();
     expect(screen.getByLabelText("Date")).toHaveValue("2026-09-14");
   });
 
@@ -374,8 +410,8 @@ describe("SessionPanel", () => {
         onClose={vi.fn()}
       />,
     );
-    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel session" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Maximum capacity")).toBeDisabled();
     expect(screen.getByLabelText("Minimum participants")).toBeDisabled();
   });
@@ -399,7 +435,7 @@ describe("SessionPanel", () => {
     // Every field is disabled, so the dialog itself holds the focus and the key reaches it.
     const dialog = screen.getByRole("dialog");
     expect(document.activeElement === dialog || dialog.contains(document.activeElement)).toBe(true);
-    fireEvent.keyDown(dialog, { key: "Escape" });
+    fireEvent(dialog, new Event("cancel", { cancelable: true }));
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -419,13 +455,13 @@ describe("SessionPanel", () => {
       />,
     );
     expect(screen.getByText("Choose at least one trainer")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create session" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "10" } });
-    expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create session" })).toBeEnabled();
     fireEvent.change(screen.getByLabelText("End time"), { target: { value: "17:00" } });
     expect(screen.getByText("End time must be after the start time")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create session" })).toBeDisabled();
   });
 
   it("blocks creating a session until a capacity between 1 and 300 is entered", () => {
@@ -444,7 +480,7 @@ describe("SessionPanel", () => {
       />,
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
-    const create = screen.getByRole("button", { name: "Create" });
+    const create = screen.getByRole("button", { name: "Create session" });
     const capacity = screen.getByLabelText("Maximum capacity");
     expect(capacity).toBeRequired();
     expect(screen.getByText("Enter a maximum capacity between 1 and 300")).toBeInTheDocument();
@@ -474,7 +510,7 @@ describe("SessionPanel", () => {
         onClose={vi.fn()}
       />,
     );
-    const save = screen.getByRole("button", { name: "Edit" });
+    const save = screen.getByRole("button", { name: "Save changes" });
     expect(screen.getByLabelText("Maximum capacity")).toHaveValue(null);
     expect(screen.getByText("Enter a maximum capacity between 1 and 300")).toBeInTheDocument();
     expect(save).toBeDisabled();
@@ -525,8 +561,8 @@ describe("SessionPanel", () => {
         onClose={onClose}
       />,
     );
-    expect(screen.getByLabelText("Date")).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.getByRole("heading", { name: "Edit session" })).toHaveFocus();
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
     expect(onClose).toHaveBeenCalled();
     view.unmount();
     expect(opener).toHaveFocus();
@@ -554,7 +590,7 @@ describe("SessionPanel", () => {
     );
     expect(screen.getByRole("checkbox", { name: "legacy-coach" })).toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-b" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(mocks.updateSession).toHaveBeenCalledWith({
         sessionId: "s1",
@@ -585,7 +621,7 @@ describe("SessionPanel", () => {
     expect(screen.getByRole("checkbox", { name: "Charlie Tromans" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Catalina Bruma" })).toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: "Charlie Tromans" }));
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(mocks.updateSession).toHaveBeenCalledWith({
         sessionId: "s1",
