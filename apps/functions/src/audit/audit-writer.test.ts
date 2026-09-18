@@ -77,6 +77,7 @@ function checkedInDraft(overrides: Readonly<Record<string, unknown>> = {}): Audi
     correlationId: "attendance-1",
     class: {
       studentId: "student-1",
+      memberId: null,
       studentName: null,
       sessionId: "session-1",
       sessionStartAt: "2026-09-18T18:00:00.000Z",
@@ -256,6 +257,33 @@ describe("audit writer", () => {
         { ...legacyStored, actorId: "coach-2" },
         "attendance-check-in-attendance-1",
         checkedInDraft(),
+      ),
+    ).toBe(false);
+  });
+
+  it("replays a class row stored before the class block named a member", () => {
+    const block = (checkedInDraft() as unknown as { class: Record<string, unknown> }).class;
+    // The class block exactly as it was stored before `memberId` existed: every key but that one.
+    const legacyBlock = Object.fromEntries(
+      Object.entries(block).filter(([key]) => key !== "memberId"),
+    );
+    const stored = {
+      ...(checkedInDraft() as unknown as Record<string, unknown>),
+      class: legacyBlock,
+      auditEventId: "attendance-check-in-attendance-1",
+      occurredAt: { seconds: 1, nanoseconds: 0 },
+      result: "completed",
+      schemaVersion: 1,
+    };
+
+    expect(
+      matchesAuditEventReplay(stored, "attendance-check-in-attendance-1", checkedInDraft()),
+    ).toBe(true);
+    expect(
+      matchesAuditEventReplay(
+        stored,
+        "attendance-check-in-attendance-1",
+        checkedInDraft({ class: { ...legacyBlock, memberId: null, studentId: "student-2" } }),
       ),
     ).toBe(false);
   });
