@@ -232,9 +232,9 @@ describe("Level Seed Guard and Execution", () => {
       /Invalid level seed arguments/,
     );
     expect(() => parseArguments(["--target=emulator"])).toThrow(/Invalid level seed arguments/);
-    expect(() =>
-      parseArguments(["--target=emulator", "--academy-id=demo-academy", "--system-id=ibjjf-v1"]),
-    ).toThrow(/Invalid level seed arguments/);
+    expect(
+      parseArguments(["--target=emulator", "--academy-id=demo-academy", "--system-id=ibjjf-v2"]),
+    ).toEqual({ "academy-id": "demo-academy", "system-id": "ibjjf-v2", target: "emulator" });
     expect(() =>
       parseArguments(["--target=emulator", "--academy-id=demo-academy", "--rollback"]),
     ).toThrow(/Invalid level seed arguments/);
@@ -430,5 +430,51 @@ describe("Level Seed Guard and Execution", () => {
     expect(rollbackResult.deletedDefinitions).toBe(171);
     expect(rollbackResult.deletedRequirements).toBe(165);
     expect(rollbackResult.deletedSystems).toBe(1);
+  });
+  it("seeds the approved ibjjf-v2 catalogue into an emulator target", async () => {
+    const store = createInMemoryLevelStore();
+    const result = await seedLevelCatalog({
+      target: "emulator",
+      academyId: "demo-academy-v2",
+      systemId: "ibjjf-v2",
+      environment: emulatorEnvironment(),
+      store,
+    });
+    expect(result).toMatchObject({
+      systemId: "ibjjf-v2",
+      definitionCount: 177,
+      beltCount: 27,
+      stripeCount: 150,
+      skillCount: 58,
+      requirementCount: 165,
+      idempotent: false,
+    });
+    const rollback = await rollbackLevelCatalog({
+      target: "emulator",
+      academyId: "demo-academy-v2",
+      systemId: "ibjjf-v2",
+      environment: emulatorEnvironment(),
+      store,
+    });
+    expect(rollback.deletedDefinitions).toBe(177);
+  });
+
+  it("refuses a second catalogue version in the same academy", async () => {
+    const store = createInMemoryLevelStore();
+    await seedLevelCatalog({
+      target: "emulator",
+      academyId: "demo-academy",
+      environment: emulatorEnvironment(),
+      store,
+    });
+    await expect(
+      seedLevelCatalog({
+        target: "emulator",
+        academyId: "demo-academy",
+        systemId: "ibjjf-v2",
+        environment: emulatorEnvironment(),
+        store,
+      }),
+    ).rejects.toThrow(/Another level catalogue is already published/);
   });
 });

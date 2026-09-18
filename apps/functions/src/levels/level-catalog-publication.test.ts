@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { LEVEL_CATALOG_DOCUMENT_COUNT } from "./level-catalog-integrity";
+import { loadApprovedLevelCatalog } from "./level-seed";
 import { createLevelCatalogStore, type GenericFirestore } from "./level-service";
 import { normalizeLevelCatalogSource } from "./level-source";
 
@@ -278,5 +279,18 @@ describe("Level catalog publication integrity (T101)", () => {
       "level.catalog.published",
       "level.catalog.rolled_back",
     ]);
+  });
+  it("refuses a second catalogue version in the same academy and writes nothing", async () => {
+    const { fake, store } = await publishedFixture();
+    const before = fake.snapshot();
+
+    await expect(
+      store.seed({
+        academyId,
+        normalized: loadApprovedLevelCatalog({ systemId: "ibjjf-v2" }),
+        operationId: "seed-op-v2",
+      }),
+    ).rejects.toThrow(/Another level catalogue is already published/);
+    expect(fake.snapshot()).toEqual(before);
   });
 });

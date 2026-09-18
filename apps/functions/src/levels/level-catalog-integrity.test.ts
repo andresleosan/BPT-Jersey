@@ -8,6 +8,7 @@ import {
   LEVEL_CATALOG_DOCUMENT_COUNT,
   levelCatalogDocumentReferencesSystem,
 } from "./level-catalog-integrity";
+import { loadApprovedLevelCatalog } from "./level-seed";
 import { normalizeLevelCatalogSource } from "./level-source";
 
 const normalized = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
@@ -73,5 +74,20 @@ describe("Level catalog integrity manifest", () => {
         definitionKeys,
       ),
     ).toBe(false);
+  });
+  it("binds the ibjjf-v2 publication to its own counts", () => {
+    const v2 = loadApprovedLevelCatalog({ systemId: "ibjjf-v2" });
+    const v2Publication = buildLevelCatalogPublication({
+      academyId: "demo-academy",
+      normalized: v2,
+      operationId: "seed-operation-v2",
+      publishedAuditEventId: "audit-level-catalog-published-v2",
+    });
+    expect(v2Publication.manifest).toMatchObject({
+      systemId: "ibjjf-v2",
+      catalogDocumentCount: 343,
+      definitionCount: 177,
+      requirementCount: 165,
+    });
   });
 });

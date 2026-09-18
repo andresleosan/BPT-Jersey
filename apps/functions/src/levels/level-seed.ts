@@ -3,6 +3,12 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  buildIbjjfV2CatalogSources,
+  isLevelCatalogVersion,
+  type LevelCatalogVersion,
+} from "@bpt-jersey/domain/levels";
+
+import {
   type LevelCatalogStore,
   type LevelRollbackResult,
   type LevelSeedResult,
@@ -37,6 +43,7 @@ export type SeedLevelCatalogInput = Readonly<{
   store: LevelCatalogStore;
   customObserved?: unknown;
   customBusiness?: unknown;
+  systemId?: LevelCatalogVersion;
 }>;
 
 export type RollbackLevelCatalogInput = Readonly<{
@@ -60,6 +67,7 @@ export const levelCatalogSourcePaths = Object.freeze({
     repositoryRoot,
     "docs/data/ibjjf-levels-business-criteria.sanitized.json",
   ),
+  regyfitStructure: resolve(repositoryRoot, "docs/data/ibjjf-skills-observed.sanitized.json"),
 });
 
 function readApprovedSourceFile(path: string): unknown {
@@ -82,9 +90,18 @@ export function loadApprovedLevelCatalog(
   input: Readonly<{
     customObserved?: unknown;
     customBusiness?: unknown;
+    systemId?: LevelCatalogVersion;
   }> = {},
 ): NormalizedLevelCatalog {
-  const { observed, business } = loadLevelCatalogSources(input);
+  const { observed, business } =
+    input.systemId === "ibjjf-v2" &&
+    input.customObserved === undefined &&
+    input.customBusiness === undefined
+      ? buildIbjjfV2CatalogSources(
+          readApprovedSourceFile(levelCatalogSourcePaths.observed),
+          readApprovedSourceFile(levelCatalogSourcePaths.regyfitStructure),
+        )
+      : loadLevelCatalogSources(input);
   const normalized = normalizeLevelCatalogSource(observed, business);
   // Fail before any store access when the sources are not the exact approved files.
   assertApprovedLevelCatalogSource(normalized);
@@ -203,10 +220,10 @@ export async function rollbackLevelCatalog(
     throw new Error("Confirmation required for staging: T083-LEVELS-ROLLBACK");
   }
   assertLevelSeedTargetEnvironment(input.target, input.environment);
-  if (input.systemId !== "ibjjf-v1") {
+  if (!isLevelCatalogVersion(input.systemId)) {
     throw new Error("Unsupported level system rollback target.");
   }
-  const normalized = loadApprovedLevelCatalog();
+  const normalized = loadApprovedLevelCatalog({ systemId: input.systemId });
 
   return input.store.rollback({
     academyId: input.academyId,

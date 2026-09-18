@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
+import regyfitJson from "../../../../docs/data/ibjjf-skills-observed.sanitized.json";
+import { buildIbjjfV2CatalogSources } from "@bpt-jersey/domain/levels";
 import {
   approvedLevelCatalogSourceHashes,
+  approvedLevelCatalogSourceHashesBySystem,
   assertApprovedLevelCatalogSource,
   normalizeLevelCatalogSource,
 } from "./level-source";
@@ -41,7 +44,31 @@ describe("Level Source Normalizer", () => {
     );
   });
 
+  it("rejects a catalogue whose system is not an approved version", () => {
+    const catalog = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
+    const foreignCatalog = {
+      ...catalog,
+      system: { ...catalog.system, systemId: "ibjjf-v9" },
+    };
+
+    expect(() => assertApprovedLevelCatalogSource(foreignCatalog)).toThrow(
+      /do not match the approved hashes/,
+    );
+  });
+
   it("throws for invalid source data", () => {
     expect(() => normalizeLevelCatalogSource({}, businessCriteriaJson)).toThrow();
+  });
+});
+
+describe("approved ibjjf-v2 source hashes", () => {
+  it("pins the v2 sources built from the committed files", () => {
+    const sources = buildIbjjfV2CatalogSources(observedJson, regyfitJson);
+    const normalized = normalizeLevelCatalogSource(sources.observed, sources.business);
+    expect({
+      observed: normalized.sourceHashes.observed,
+      businessCriteria: normalized.sourceHashes.businessCriteria,
+      combined: normalized.sourceHash,
+    }).toEqual(approvedLevelCatalogSourceHashesBySystem["ibjjf-v2"]);
   });
 });
