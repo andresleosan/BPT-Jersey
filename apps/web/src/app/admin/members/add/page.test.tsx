@@ -34,6 +34,9 @@ describe("Add canonical adult member page", () => {
       "/admin/families",
     );
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Membership number")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("ID card number")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("VAT number")).not.toBeInTheDocument();
   });
 
   it("focuses the first missing field and makes no request", async () => {
@@ -56,7 +59,6 @@ describe("Add canonical adult member page", () => {
     });
     render(<AddMemberPage />);
     await fillRequiredAdult(user);
-    await user.type(screen.getByLabelText("Membership number"), "BPT 00000001");
     await user.type(screen.getByLabelText("Mobile number"), "+44 7000 000000");
 
     await user.click(screen.getByRole("button", { name: "Add adult student" }));
@@ -69,7 +71,6 @@ describe("Add canonical adult member page", () => {
       phoneNumber: "+44 7000 000000",
       trainingCenter: "Town",
       trainingTimePreferences: ["evening"],
-      membershipNumber: "BPT 00000001",
     });
   });
 
