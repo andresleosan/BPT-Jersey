@@ -345,9 +345,12 @@ type ParityFixture = Readonly<{
     input?: Record<string, unknown>,
     overrides?: Record<string, unknown>,
   ) => Promise<AssignLevelResult>;
+  reject: (targetDefinitionKey: string) => Promise<void>;
   progressOf: (studentId: string) => Promise<ParitySummary>;
   currentDefinitionKey: () => Promise<string | null>;
+  levelStartedAt: () => Promise<string | null>;
   readRestore: (graduationId: string) => Promise<unknown>;
+  readPromotion: (graduationId: string) => Promise<Record<string, unknown> | undefined>;
 }>;
 
 type AnyLevelStore = ReturnType<typeof createInMemoryLevelStore>;
@@ -400,6 +403,24 @@ function approveThrough(store: AnyLevelStore): ParityFixture["approve"] {
     ).graduationId;
 }
 
+/**
+ * A REJECTED promotion writes the promotion document `assignLevel` would create for the same level
+ * and the same instant, and moves no head: the one way to reach the replay guard with every other
+ * reference still current, in either store.
+ */
+function rejectThrough(store: AnyLevelStore): ParityFixture["reject"] {
+  return async (targetDefinitionKey) => {
+    await store.rejectPromotion({
+      academyId,
+      input: { studentId: "student-1", targetDefinitionKey, decisionNotes: "Not yet." },
+      decidedBy: "head-user-1",
+      decidedByStaffId: "staff-head-1",
+      decidedByRole: "headCoach",
+      decidedAt,
+    });
+  };
+}
+
 const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
   [
     "Firestore store",
@@ -431,13 +452,19 @@ const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
       return {
         approve: approveThrough(store as unknown as AnyLevelStore),
         assign: assignThrough(store as unknown as AnyLevelStore),
+        reject: rejectThrough(store as unknown as AnyLevelStore),
         progressOf: async (studentId) =>
           paritySummary(store as unknown as AnyLevelStore, studentId),
         currentDefinitionKey: async () =>
           (records.get(`academies/${academyId}/studentLevelProgress/student-1`)
             ?.currentDefinitionKey ?? null) as string | null,
+        levelStartedAt: async () =>
+          (records.get(`academies/${academyId}/studentLevelProgress/student-1`)
+            ?.currentLevelStartedAt ?? null) as string | null,
         readRestore: async (graduationId) =>
           records.get(`academies/${academyId}/levelPromotions/${graduationId}`)?.restore,
+        readPromotion: async (graduationId) =>
+          records.get(`academies/${academyId}/levelPromotions/${graduationId}`),
       };
     },
   ],
@@ -458,12 +485,22 @@ const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
         openedByRole: "headCoach",
         openedAt: levelStartedAt,
       });
+      const promotionOf = async (graduationId: string) =>
+        (await store.listGraduations(academyId, "student-1")).find(
+          (record) => record.graduationId === graduationId,
+        ) as unknown as Record<string, unknown> | undefined;
       return {
         approve: approveThrough(store),
         assign: assignThrough(store),
+        reject: rejectThrough(store),
         progressOf: async (studentId) => paritySummary(store, studentId),
         currentDefinitionKey: async () =>
           (await paritySummary(store, "student-1")).currentDefinitionKey,
+        levelStartedAt: async () => {
+          const summary = await store.getStudentProgressSummary(academyId, "student-1");
+          return summary.state === "initialized" ? summary.currentLevelStartedAt : null;
+        },
+        readPromotion: promotionOf,
         readRestore: async (graduationId) =>
           (
             (await store.listGraduations(academyId, "student-1")).find(
@@ -541,7 +578,10 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
   // Task 9. The in-memory store keeps no attendance and no student record, so its gap list can
   // carry MORE entries than the Firestore one (no date of birth means the age band reads as not
   // met): it fails closed, never open. The two class/day gaps below are identical in both.
-  it("assigns a skipped stripe with a note, moves the head to the promotion day and drops the baseline", async () => {
+  // Renamed in the Task 9 review: neither parity fixture's head carries an `importedBaseline` —
+  // the in-memory store has no way to put one there — so this test never proved the drop. The drop
+  // is asserted where a baseline actually exists, in the Firestore block below.
+  it("assigns a skipped stripe with a note and moves the head to the promotion day", async () => {
     const fixture = await makeFixture();
     const result = await fixture.assign({ note: "Competition result justifies it." });
     expect(result).toMatchObject({
@@ -573,6 +613,56 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
       message: "A note is required when criteria are not met",
     });
     expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+  });
+
+  /**
+   * Review of Task 9 (Major-1): the mandatory note used to be satisfied by `null`, `""`, a space,
+   * `"ok"` and a note carrying a NUL byte — all stored verbatim on an irreversible audited write
+   * whose note is the ONLY record of why somebody was promoted below criteria. The store now
+   * applies the same rule the callable boundary will: absent (`undefined` or `null`) is refused as
+   * missing, anything else is refused as invalid unless it is 10–500 real characters.
+   */
+  it.each([
+    ["null", null, "A note is required when criteria are not met"],
+    ["empty", "", "Promotion note is invalid"],
+    ["whitespace only", "   \n\t  ", "Promotion note is invalid"],
+    ["two characters", "ok", "Promotion note is invalid"],
+    [
+      "a NUL byte",
+      `Competition result${String.fromCharCode(0)} justifies it.`,
+      "Promotion note is invalid",
+    ],
+  ])("refuses a below-criteria assignment whose note is %s", async (_label, note, message) => {
+    const fixture = await makeFixture();
+    await expect(fixture.assign({ note })).rejects.toMatchObject({ code: "invalid", message });
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+  });
+
+  it("stores the note trimmed, and starts the new level on the promotion day", async () => {
+    const fixture = await makeFixture();
+    const result = await fixture.assign({ note: "  Competition result justifies it.  \n" });
+    expect(await fixture.readPromotion(result.promotionId)).toMatchObject({
+      note: "Competition result justifies it.",
+      decisionNotes: "Competition result justifies it.",
+    });
+    // The head starts at midnight on the promotion day, so the day the promotion names and the day
+    // the new level counts from are one and the same.
+    expect(await fixture.levelStartedAt()).toBe("2026-09-10T00:00:00.000Z");
+  });
+
+  // The replay guard: the promotion document for this student, level and instant already exists
+  // (written by a rejection), and every other reference is still current.
+  it("refuses an assignment whose promotion id is already taken, and moves no head", async () => {
+    const fixture = await makeFixture();
+    await fixture.reject("white-2nd-stripe");
+    await expect(
+      fixture.assign({ note: "Competition result justifies it." }),
+    ).rejects.toMatchObject({
+      code: "conflict",
+      message: "Promotion references are not current",
+    });
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+    expect(await fixture.levelStartedAt()).toBe(levelStartedAt);
   });
 
   // The bound is the ACADEMY's day (Europe/Jersey), exactly as `startedOn`: at 23:30Z on the 10th
@@ -1034,6 +1124,69 @@ describe("assignLevel (T051V2, grill G7)", () => {
         message: "Promotion references are not current",
       });
     }
+    expect(writes).toHaveLength(0);
+  });
+
+  /**
+   * Review of Task 9 (Major-3): `until: promotedOn` is what stops a BACKDATED promotion from
+   * counting classes trained AFTER the day it names. Without it `atAssignment.classes.done`
+   * inflates and a genuine "Classes D/M not met" gap disappears — a real gap going unlisted on the
+   * head coach's dialog.
+   */
+  it("counts no class trained after the promotion day, so a backdated promotion cannot inflate", async () => {
+    const beforeThePromotion = [
+      attendance("att-early-1", "2026-07-10T18:00:00.000Z"),
+      attendance("att-early-2", "2026-08-01T18:00:00.000Z"),
+    ];
+    // 25 classes trained between the promotion day and the day the head coach records it: enough
+    // to close the 25-class minimum on their own if they were counted.
+    const afterThePromotion = Array.from({ length: 25 }, (_, index) => {
+      const day = new Date(Date.UTC(2026, 7, 16 + index)).toISOString().slice(0, 10);
+      return attendance(`att-late-${index}`, `${day}T18:00:00.000Z`);
+    });
+    const { store, records } = await seededStore([
+      [`academies/${academyId}/studentLevelProgress/student-1`, head()],
+      ...beforeThePromotion,
+      ...afterThePromotion,
+    ]);
+    const result = await store.assignLevel(
+      assign({
+        toDefinitionKey: "white-1st-stripe",
+        promotedOn: "2026-08-15",
+        note: "Competition result justifies it.",
+      }),
+    );
+    expect(result.gaps).toEqual(["Classes 2/25 not met", "Days 45/75 not met"]);
+    expect(
+      records.get(`academies/${academyId}/levelPromotions/${result.promotionId}`)?.atAssignment,
+    ).toEqual({ classes: { done: 2, min: 25 }, days: { done: 45, min: 75 } });
+  });
+
+  // The head must belong to the catalogue that is published now: a head still on `ibjjf-v1` would
+  // otherwise be promoted against a published `ibjjf-v2`, whose sequence means something else.
+  it("refuses a head whose level system is not the published one, and writes nothing", async () => {
+    const { store, writes } = await seededStore([
+      [`academies/${academyId}/studentLevelProgress/student-1`, head({ systemId: "ibjjf-v2" })],
+    ]);
+    await expect(
+      store.assignLevel(assign({ note: "Competition result justifies it." })),
+    ).rejects.toMatchObject({
+      code: "conflict",
+      message: "Promotion references are not current",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a head that is not initialized, and writes nothing", async () => {
+    const { store, writes } = await seededStore([
+      [`academies/${academyId}/studentLevelProgress/student-1`, head({ state: "suspended" })],
+    ]);
+    await expect(
+      store.assignLevel(assign({ note: "Competition result justifies it." })),
+    ).rejects.toMatchObject({
+      code: "conflict",
+      message: "Promotion references are not current",
+    });
     expect(writes).toHaveLength(0);
   });
 

@@ -577,6 +577,31 @@ describe("Level Contracts", () => {
       ).toBe(true);
     });
 
+    // The twin of the approval rule above: a rejection's notes land in the same audited record and
+    // the level history renders them, so the control-character rule is the same one.
+    it("rejects a promotion rejection whose decision notes carry control characters", () => {
+      const base = { studentId: "std-1", targetDefinitionKey: "white-1" };
+      for (const control of [
+        String.fromCharCode(0x00),
+        String.fromCharCode(0x1b),
+        String.fromCharCode(0x7f),
+      ]) {
+        expect(
+          parseRejectPromotionInput({
+            ...base,
+            decisionNotes: `Needs more sparring rounds${control} before this stripe.`,
+          }).ok,
+        ).toBe(false);
+      }
+      // Tab and line feed are how a textarea wraps a real note; they stay allowed.
+      expect(
+        parseRejectPromotionInput({
+          ...base,
+          decisionNotes: "Needs more sparring rounds.\n\tRevisit next term.",
+        }).ok,
+      ).toBe(true);
+    });
+
     it("validates and parses reject promotion input", () => {
       const result = parseRejectPromotionInput({
         studentId: "std-1",

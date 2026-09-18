@@ -41,7 +41,13 @@ function boundedFreeText(min: number, max: number) {
   );
 }
 
-const noteSchema = boundedFreeText(10, 500);
+/**
+ * The operator note on a promotion decision: 10–500 characters, trimmed, no control characters
+ * other than line breaks. Exported because the assign SERVICE re-checks it at the store, the same
+ * way it re-checks the promotion date there: the note is the only record of why somebody was
+ * promoted below criteria, on an irreversible audited write, so it is not left to the boundary.
+ */
+export const promotionNoteSchema = boundedFreeText(10, 500);
 // Gaps are rendered in the assign dialog and the history table, so they carry the same rule.
 const gapsSchema = z.array(boundedFreeText(1, 120)).max(10);
 
@@ -67,7 +73,7 @@ export const assignLevelInputSchema = z.strictObject({
   // A "not in the future" bound is clock- and timezone-dependent, so it is not a contract rule:
   // the assign service (Task 8) owns it, as the open service (Task 9) owns it for `startedOn`.
   promotedOn: dateOnlySchema,
-  note: noteSchema.optional(),
+  note: promotionNoteSchema.optional(),
 });
 export type AssignLevelInput = z.infer<typeof assignLevelInputSchema>;
 
@@ -82,7 +88,7 @@ export type AssignLevelResult = z.infer<typeof assignLevelResultSchema>;
 export const voidPromotionInputSchema = z.strictObject({
   studentId: identifierSchema,
   promotionId: recordIdSchema,
-  reason: noteSchema,
+  reason: promotionNoteSchema,
 });
 export type VoidPromotionInput = z.infer<typeof voidPromotionInputSchema>;
 
@@ -117,7 +123,7 @@ export const levelHistoryEntrySchema = z.strictObject({
   gaps: gapsSchema,
   voided: z
     .strictObject({
-      reason: noteSchema,
+      reason: promotionNoteSchema,
       voidedByRole: decisionRoleSchema,
       voidedOn: dateOnlySchema,
     })

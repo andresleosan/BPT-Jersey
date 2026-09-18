@@ -354,6 +354,10 @@ describe("dates and categories", () => {
 });
 
 describe("listPromotionGaps", () => {
+  // Every skill the catalogue asks for anywhere, at the top score: what is left is the skips.
+  const topScores: Readonly<Record<string, number>> = Object.fromEntries(
+    catalog.requirements.map((requirement) => [requirement.skillKey, 5]),
+  );
   const base = {
     definitions: catalog.definitions,
     requirements: catalog.requirements,
@@ -418,6 +422,70 @@ describe("listPromotionGaps", () => {
         daysDone: 9999,
       }),
     ).toEqual(["Skips 2 belts", "Skips 12 stripes"]);
+  });
+
+  /**
+   * Review of Task 9 (Major-2): the catalogue lays its four age-band ladders end to end on one
+   * global sequence, so skips are counted only inside the target's own ladder. These four cases are
+   * pinned against the REAL 171-level catalogue, never a fixture, because the bug was the real
+   * catalogue's shape.
+   */
+  describe("counts skips only inside the target's own age-band ladder", () => {
+    it("reports no belt or stripe skip for a child ageing out of the 7–10 ladder", () => {
+      // The ordinary next step for a child who has aged out: the last 7–10 white stripe to the
+      // teens white belt. Counting the global sequence called this "Skips 5 belts, Skips 40
+      // stripes" and forced the head coach to justify a promotion that skips nothing.
+      const gaps = listPromotionGaps({
+        ...base,
+        fromDefinitionKey: "white-7-8-and-8-10yo-8th-stripe",
+        toDefinitionKey: "white-belt-teens-10-12-and-13-15-yo",
+        classesDone: 9999,
+        daysDone: 9999,
+        skillScores: topScores,
+        ageYears: 11,
+      });
+      expect(gaps).toEqual([]);
+    });
+
+    it("still names a genuine two-belt skip inside the adult ladder", () => {
+      expect(
+        listPromotionGaps({
+          ...base,
+          fromDefinitionKey: "white-belt",
+          toDefinitionKey: "brown-belt",
+          classesDone: 9999,
+          daysDone: 9999,
+        }),
+      ).toEqual(["Skips 2 belts", "Skips 12 stripes"]);
+    });
+
+    it("still names a single skipped stripe inside the teens ladder, in the singular", () => {
+      expect(
+        listPromotionGaps({
+          ...base,
+          fromDefinitionKey: "white-belt-teens-10-12-and-13-15-yo",
+          toDefinitionKey: "white-teens-10-12-and-13-15yo-2nd-stripe",
+          classesDone: 9999,
+          daysDone: 9999,
+          skillScores: topScores,
+          ageYears: 13,
+        }),
+      ).toEqual(["Skips 1 stripe"]);
+    });
+
+    it("is empty for a within-ladder move that meets everything", () => {
+      expect(
+        listPromotionGaps({
+          ...base,
+          fromDefinitionKey: "white-belt-teens-10-12-and-13-15-yo",
+          toDefinitionKey: "white-teens-10-12-and-13-15yo-1st-stripe",
+          classesDone: 9999,
+          daysDone: 9999,
+          skillScores: topScores,
+          ageYears: 13,
+        }),
+      ).toEqual([]);
+    });
   });
 
   it("refuses unknown definitions", () => {
