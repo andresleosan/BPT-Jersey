@@ -30,6 +30,7 @@ export const auditActions = Object.freeze([
   "report.export.prepared",
   "family.achievements.generated",
   "lesson.plan.approved",
+  "membership.subscription.updated",
   "membership.created",
   "membership.status.changed",
   "invoice.created",
@@ -275,6 +276,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "level.promotion.approved"
           | "level.promotion.rejected"
           | "level.opened"
+          | "membership.subscription.updated"
           | "membership.created"
           | "membership.status.changed"
           | "staff.created"
@@ -447,6 +449,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "level.opened": commonFields,
   "member.detail.read": restrictedMemberReadFields,
   "member.identity.lookup": restrictedMemberReadFields,
+  "membership.subscription.updated": commonFields,
   "membership.created": commonFields,
   "membership.status.changed": commonFields,
   "invoice.created": Object.freeze([...commonFields, "amountMinor", "currency"]),

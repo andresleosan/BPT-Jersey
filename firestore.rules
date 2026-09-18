@@ -220,6 +220,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/adminNotifications/{notificationId} {
+      allow read, write: if false;
+    }
+    match /academies/{academyId}/membershipChanges/{requestId} {
+      allow read, write: if false;
+    }
     match /academies/{academyId}/auditEvents/{auditEventId} {
       allow read, write: if false;
     }

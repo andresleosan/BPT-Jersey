@@ -1,0 +1,50 @@
+.member-subscription-editor {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid #d8dce2;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #17202a;
+}
+.member-subscription-form {
+  padding-block: 1rem;
+  border-top: 1px solid #e2e5e9;
+}
+.member-subscription-form fieldset {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.member-subscription-form select,
+.member-subscription-form input[type="datetime-local"] {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem;
+  border: 1px solid #8b949e;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+.member-subscription-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 0.5rem;
+}
+.member-subscription-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+}
+.member-subscription-help {
+  color: #4d5865;
+  font-size: 0.9rem;
+  max-width: 65ch;
+}
