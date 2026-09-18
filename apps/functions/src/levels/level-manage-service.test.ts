@@ -2306,3 +2306,93 @@ describe.each(openParityStores)("skill-ratings parity — %s (T051V2)", (_label,
     expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
   });
 });
+
+/**
+ * Operator DECISION 6 (2026-09-18): the LATEST rating for a skill is the one that counts, so a
+ * coach's correction downward lowers readiness. Both halves are asserted here: the skill summary
+ * the Manage view reads, and the skills gap `assignLevel` computes.
+ */
+describe.each(openParityStores)("latest rating wins — %s (T051V2)", (_label, makeStore) => {
+  const kidsBelt = "white-belt-kids-4-5-and-5-7-yo";
+  const kidsFirstStripe = "white-4-5-and-5-7yo-1st-stripe";
+  const correctedAt = "2026-09-10T13:00:00.000Z";
+  const kidsRequirements = normalized.requirements.filter(
+    (requirement) => requirement.definitionKey === kidsFirstStripe,
+  );
+
+  it("replaces the earlier rating in the skill summary and keeps maxScore as history", async () => {
+    const store = await makeStore();
+    await store.recordSkillRatings(rate());
+    await store.recordSkillRatings(
+      rate({ evaluatedAt: correctedAt }, { ratings: [{ skillKey: "tie-the-belt", score: 1 }] }),
+    );
+    const summary = await store.getStudentSkillSummary(academyId, "student-1");
+    expect(summary["tie-the-belt"]).toEqual({
+      count: 2,
+      latestScore: 1,
+      maxScore: 3,
+      lastEvaluatedAt: correctedAt,
+    });
+    expect(summary["warm-up-2-bridges"]).toMatchObject({ latestScore: 4, maxScore: 4, count: 1 });
+  });
+
+  async function assignedGaps(corrected: boolean): Promise<readonly string[]> {
+    const store = await makeStore();
+    await store.openStudentLevel({
+      academyId,
+      input: {
+        studentId: "student-1",
+        definitionKey: kidsBelt,
+        decisionNotes: "Holds this belt from Regyfit.",
+        startedOn: "2026-07-01",
+      },
+      openedBy: "owner-user-1",
+      openedByStaffId: null,
+      openedByRole: "owner" as const,
+      openedAt: decidedAt,
+    });
+    await store.recordSkillRatings(
+      rate(
+        {},
+        {
+          definitionKey: kidsBelt,
+          ratings: kidsRequirements.map((requirement) => ({
+            skillKey: requirement.skillKey,
+            score: 5,
+          })),
+        },
+      ),
+    );
+    if (corrected) {
+      await store.recordSkillRatings(
+        rate(
+          { evaluatedAt: correctedAt },
+          { definitionKey: kidsBelt, ratings: [{ skillKey: "tie-the-belt", score: 1 }] },
+        ),
+      );
+    }
+    const result = await store.assignLevel({
+      academyId,
+      input: {
+        studentId: "student-1",
+        fromDefinitionKey: kidsBelt,
+        toDefinitionKey: kidsFirstStripe,
+        promotedOn: "2026-09-10",
+        note: assignmentNote,
+      },
+      decidedBy: "owner-user-1",
+      decidedByStaffId: null,
+      decidedByRole: "owner" as const,
+      decidedAt,
+    });
+    return result.gaps;
+  }
+
+  it("re-opens the skills gap on an assignment when a rating is corrected downward", async () => {
+    expect(kidsRequirements).toHaveLength(11);
+    const met = await assignedGaps(false);
+    expect(met.some((gap) => gap.startsWith("Skills"))).toBe(false);
+    const corrected = await assignedGaps(true);
+    expect(corrected).toContain("Skills 10/11 at minimum not met");
+  });
+});
