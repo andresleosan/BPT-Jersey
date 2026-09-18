@@ -13,7 +13,7 @@ import {
   type MemberRecoveryRequestRow,
 } from "@bpt-jersey/domain/members/recovery";
 import {
-  parseStoredRegyfitMemberRecord,
+  parseRegyfitMemberRecord,
   type RegyfitMemberRecord,
 } from "@bpt-jersey/domain/members/regyfit-records";
 import {
@@ -27,7 +27,7 @@ import {
   type StudentProfile,
 } from "@bpt-jersey/domain/profiles";
 import { parseFamilyRecord } from "@bpt-jersey/domain/families";
-import { memberAgeOn } from "@bpt-jersey/domain/members/profile";
+import { ageInCompletedYears } from "@bpt-jersey/domain/levels";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import {
@@ -124,6 +124,21 @@ function safeSegment(value: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(value))
     throw new HttpsError("failed-precondition", "Recovery configuration is unavailable");
   return value;
+}
+// Recovery accepts stored import metadata without carrying obsolete access data into identity work.
+// Keep the strict source parser authoritative for every other field; never mutate the import.
+function parseStoredRegyfitMemberRecord(value: unknown) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return parseRegyfitMemberRecord(value);
+  }
+  const record = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "academyId"));
+  const access = record.appAccess;
+  if (typeof access === "object" && access !== null && !Array.isArray(access)) {
+    record.appAccess = Object.fromEntries(
+      Object.entries(access).filter(([key]) => key !== "password"),
+    );
+  }
+  return parseRegyfitMemberRecord(record);
 }
 function validDate(value: string | undefined): value is string {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
@@ -246,7 +261,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       (record.age !== undefined && record.age < 18) ||
       (record.age !== undefined &&
         record.birthDate !== undefined &&
-        memberAgeOn(record.birthDate, record.capturedAt.slice(0, 10)) !== record.age) ||
+        ageInCompletedYears(record.birthDate, record.capturedAt.slice(0, 10)) !== record.age) ||
       (record.birthDate !== undefined &&
         (!validDate(record.birthDate) || record.birthDate > time.slice(0, 10)))
     )
