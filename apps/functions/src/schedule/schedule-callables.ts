@@ -186,7 +186,11 @@ function mapScheduleMutationError(
   if (/does not exist/u.test(message)) {
     throw new HttpsError("not-found", `${resource} not found`);
   }
-  if (/Only scheduled sessions|must end after|cannot exceed capacity/u.test(message)) {
+  if (
+    /Only scheduled sessions|must end after|cannot exceed capacity|Choose this and following sessions|Too many saved occurrences/u.test(
+      message,
+    )
+  ) {
     throw new HttpsError("failed-precondition", message);
   }
   console.error(`schedule ${resource.toLowerCase()} mutation failed`, error);

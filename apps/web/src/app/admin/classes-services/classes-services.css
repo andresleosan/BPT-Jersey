@@ -968,3 +968,7 @@ body:has(.cs-session-dialog[open]) {
     gap: 0.75rem;
   }
 }
+
+.cs-session-repeat {
+  margin-top: 0.75rem;
+}
