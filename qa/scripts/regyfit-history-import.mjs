@@ -301,7 +301,8 @@ export function mapHistoryRow(row, options) {
     return { ok: false, reason: "unreadable-class-moment", sentence, loggedAt: row[0] };
   }
 
-  const session = options.resolveSession(sessionStartAt, parsed.programName) ?? null;
+  const resolved = options.resolveSession(sessionStartAt, parsed.programName) ?? null;
+  const session = resolved === "class-mismatch" ? null : resolved;
   const notes = [];
   let studentId = null;
   let studentName = parsed.studentName;
@@ -314,12 +315,16 @@ export function mapHistoryRow(row, options) {
   } else if (parsed.studentName === null) {
     notes.push("student-not-named");
   } else {
-    const resolved = options.resolveStudent(parsed.studentName);
-    if (resolved === null) notes.push("student-unmatched");
-    else if (resolved === "ambiguous") notes.push("student-ambiguous");
-    else studentId = resolved;
+    const student = options.resolveStudent(parsed.studentName);
+    if (student === null) notes.push("student-unmatched");
+    else if (student === "ambiguous") notes.push("student-ambiguous");
+    else studentId = student;
   }
-  if (session === null && parsed.family !== "attendance") notes.push("session-unmatched");
+  // Every unlinked row is noted, attendance included: a null session id is honest, but one nobody
+  // can see in the review file is invisible, and the operator cannot audit what they cannot see.
+  if (session === null) {
+    notes.push(resolved === "class-mismatch" ? "session-class-mismatch" : "session-unmatched");
+  }
 
   const actorIp = isAuditIpAddress(row[2]) ? row[2] : null;
   const eventId = historyEventId(row);
@@ -417,6 +422,26 @@ function parseArguments(argv) {
   return options;
 }
 
+/**
+ * Which of the sessions that start at one instant a sentence meant: the session itself, null when
+ * nothing at that instant can be told apart, or "class-mismatch" when the sentence names a class
+ * and no single session at that instant is it.
+ */
+export function chooseSession(candidates, programName, programNameById) {
+  if (candidates.length === 0) return null;
+  // Two classes can start at the same minute, and only the typed sentences say which one. A moment
+  // that names several classes and no type stays unlinked rather than picking one.
+  if (programName === null) return candidates.length === 1 ? candidates[0] : null;
+  // When the sentence does name its class, that name decides even against a single candidate: a
+  // lone session at the minute is not evidence it is the class the sentence meant, and a wrongly
+  // linked row is a quiet lie where an unlinked one is merely a gap.
+  const wanted = normaliseName(programName);
+  const matches = candidates.filter(
+    (entry) => normaliseName(String(programNameById.get(entry.programId) ?? "")) === wanted,
+  );
+  return matches.length === 1 ? matches[0] : "class-mismatch";
+}
+
 /** The target's sessions, keyed by the instant they start, so a sentence's moment can find one. */
 function sessionIndex(snapshot) {
   const byStart = new Map();
@@ -502,18 +527,12 @@ async function main() {
   const sessionsByStart = sessionIndex(sessions);
   const studentsByName = studentIndex(students);
 
-  const resolveSession = (startAt, programName) => {
-    const candidates = sessionsByStart.get(new Date(startAt).toISOString()) ?? [];
-    if (candidates.length === 1) return candidates[0];
-    if (candidates.length === 0 || programName === null) return null;
-    // Two classes can start at the same minute, and only the typed sentences say which one. A
-    // moment that names several classes and no type stays unlinked rather than picking one.
-    const wanted = normaliseName(programName);
-    const matches = candidates.filter(
-      (entry) => normaliseName(String(programNames.get(entry.programId) ?? "")) === wanted,
+  const resolveSession = (startAt, programName) =>
+    chooseSession(
+      sessionsByStart.get(new Date(startAt).toISOString()) ?? [],
+      programName,
+      programNames,
     );
-    return matches.length === 1 ? matches[0] : null;
-  };
   const resolveStudent = (name) => studentsByName.get(normaliseName(name)) ?? null;
 
   const results = rows.map((row) =>
