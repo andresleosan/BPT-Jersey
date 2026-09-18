@@ -4,6 +4,7 @@ import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
+import { warn } from "firebase-functions/logger";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
@@ -73,6 +74,8 @@ function mapDirectoryError(error: unknown): never {
     }
   }
   if (error instanceof CanonicalMemberDirectoryReadError) {
+    if (error.code === "unauthorized")
+      warn("member-directory-access-denied", { stage: "directory-read" });
     switch (error.code) {
       case "unauthorized":
         throw new HttpsError("permission-denied", "Member read is not permitted");
@@ -233,6 +236,8 @@ function defaultServices(): MemberDirectoryCallableServices {
   const auth = getAuth();
   const adapters = createMemberDirectoryFirestoreAdapters(firestore);
   const isActorActive = createMemberDirectoryActorActivityCheck({
+    onDenied: (reason) =>
+      warn("member-directory-access-denied", { stage: "actor-activity", reason }),
     getAuthUser: (uid) => auth.getUser(uid),
     getDocument: (path) => firestore.doc(path).get(),
   });

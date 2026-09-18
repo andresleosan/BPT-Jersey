@@ -170,6 +170,21 @@ function activityHarness(
 }
 
 describe("member directory administrative activity gate", () => {
+  it("reports only a fixed denial reason while keeping inactive staff denied", async () => {
+    const onDenied = vi.fn();
+    const check = createMemberDirectoryActorActivityCheck({
+      onDenied,
+      getAuthUser: async () => ({
+        uid: "owner-1",
+        disabled: false,
+        customClaims: { academyId: "academy-1", role: "owner" },
+      }),
+      getDocument: async () => ({ exists: false, data: () => undefined }),
+    });
+    await expect(check(actorStatusInput)).resolves.toBe(false);
+    expect(onDenied).toHaveBeenCalledExactlyOnceWith("staff-missing");
+  });
+
   it("accepts only the exact active provisioning document and current Auth claims", async () => {
     const harness = activityHarness();
 
