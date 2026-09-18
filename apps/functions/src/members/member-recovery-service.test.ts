@@ -257,6 +257,25 @@ describe("legacy member recovery", () => {
       academyId,
     });
   });
+  it("ignores obsolete access data and stored metadata without copying or changing the source", async () => {
+    const h = harness();
+    const stored = {
+      ...source,
+      academyId,
+      appAccess: { password: { obsolete: "synthetic-import-marker" } },
+    };
+    const sourcePath = prefix + "regyfitMemberRecords/123";
+    h.records.set(sourcePath, stored);
+    const ticket = await begin(h);
+    expect(await h.service.complete({ recoveryId: ticket.recoveryId, profile }, "user-1")).toEqual({
+      status: "linked",
+    });
+    expect(h.records.get(sourcePath)).toEqual(stored);
+    for (const [path, value] of h.records) {
+      if (path !== sourcePath)
+        expect(JSON.stringify(value)).not.toContain("synthetic-import-marker");
+    }
+  });
   it("preserves a durable link and repairs failed Auth promotion", async () => {
     const h = harness();
     const ticket = await begin(h);
