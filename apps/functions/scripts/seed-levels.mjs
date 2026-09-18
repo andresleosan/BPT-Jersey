@@ -66,6 +66,7 @@ async function main() {
     const result = await levelSeed.seedLevelCatalog({
       target,
       academyId,
+      systemId,
       confirmation,
       environment,
       store,

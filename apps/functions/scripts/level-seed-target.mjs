@@ -80,8 +80,8 @@ export function parseLevelSeedArguments(arguments_) {
   if (
     !hasTarget ||
     !hasAcademyId ||
-    hasSystemId !== isRollback ||
-    (hasSystemId && options["system-id"] !== "ibjjf-v1")
+    (isRollback && !hasSystemId) ||
+    (hasSystemId && options["system-id"] !== "ibjjf-v1" && options["system-id"] !== "ibjjf-v2")
   ) {
     throw new Error("Invalid level seed arguments.");
   }

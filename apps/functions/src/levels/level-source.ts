@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 
-import { parseLevelCatalogSource, type CanonicalLevelCatalog } from "@bpt-jersey/domain/levels";
+import {
+  parseLevelCatalogSource,
+  type CanonicalLevelCatalog,
+  type LevelCatalogVersion,
+} from "@bpt-jersey/domain/levels";
 
 export type NormalizedLevelCatalog = CanonicalLevelCatalog &
   Readonly<{
@@ -26,11 +30,32 @@ export function computeCatalogSourceHash(observed: unknown, businessCriteria: un
   return createHash("sha256").update(combined).digest("hex");
 }
 
+// ibjjf-v2 is built in memory from the two committed files, so it has no `contentHash` field of its
+// own: these three sha256 values ARE its approved source hash, computed the same way as v1's.
+export const approvedLevelCatalogSourceHashesBySystem: Readonly<
+  Record<
+    LevelCatalogVersion,
+    Readonly<{ observed: string; businessCriteria: string; combined: string }>
+  >
+> = Object.freeze({
+  "ibjjf-v1": approvedLevelCatalogSourceHashes,
+  "ibjjf-v2": Object.freeze({
+    observed: "ea6f2176117f22705dec882e2276e66c7620637f902d5d1a4c81d6705994e0a8",
+    businessCriteria: "ad45b5a754ac898858e7a3a734377e1b7201d82812af34605e68c3581f4154cf",
+    combined: "7b3d072ce9e61b3b24edd6c76a5e221c1f3c1deb886be74de4b74182d31df98c",
+  }),
+});
+
 export function assertApprovedLevelCatalogSource(normalized: NormalizedLevelCatalog): void {
+  const systemId = normalized.system.systemId;
+  const approved = Object.hasOwn(approvedLevelCatalogSourceHashesBySystem, systemId)
+    ? approvedLevelCatalogSourceHashesBySystem[systemId as LevelCatalogVersion]
+    : undefined;
   if (
-    normalized.sourceHash !== approvedLevelCatalogSourceHashes.combined ||
-    normalized.sourceHashes.observed !== approvedLevelCatalogSourceHashes.observed ||
-    normalized.sourceHashes.businessCriteria !== approvedLevelCatalogSourceHashes.businessCriteria
+    approved === undefined ||
+    normalized.sourceHash !== approved.combined ||
+    normalized.sourceHashes.observed !== approved.observed ||
+    normalized.sourceHashes.businessCriteria !== approved.businessCriteria
   ) {
     throw new Error("Level catalog sources do not match the approved hashes.");
   }

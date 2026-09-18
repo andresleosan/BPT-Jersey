@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { isLevelCatalogVersion, levelCatalogVersionShapes } from "@bpt-jersey/domain/levels";
+
 import { assertApprovedLevelCatalogSource, type NormalizedLevelCatalog } from "./level-source.js";
 
 export const LEVEL_CATALOG_MANIFEST_SCHEMA_VERSION = 1 as const;
@@ -19,9 +21,9 @@ export type LevelCatalogManifest = Readonly<{
   catalogDocumentHash: string;
   definitionKeysHash: string;
   requirementKeysHash: string;
-  catalogDocumentCount: typeof LEVEL_CATALOG_DOCUMENT_COUNT;
-  definitionCount: typeof LEVEL_CATALOG_DEFINITION_COUNT;
-  requirementCount: typeof LEVEL_CATALOG_REQUIREMENT_COUNT;
+  catalogDocumentCount: number;
+  definitionCount: number;
+  requirementCount: number;
   publishedOperationId: string;
   publishedAuditEventId: string;
 }>;
@@ -84,13 +86,17 @@ function sortedUniqueIds(values: readonly string[], label: string): readonly str
 }
 
 function assertApprovedCatalogShape(normalized: NormalizedLevelCatalog): void {
+  const systemId = normalized.system.systemId;
+  const shape = isLevelCatalogVersion(systemId) ? levelCatalogVersionShapes[systemId] : undefined;
   if (
-    normalized.system.systemId !== "ibjjf-v1" ||
-    normalized.definitions.length !== LEVEL_CATALOG_DEFINITION_COUNT ||
-    normalized.requirements.length !== LEVEL_CATALOG_REQUIREMENT_COUNT ||
-    normalized.definitions.filter((definition) => definition.kind === "belt").length !== 27 ||
-    normalized.definitions.filter((definition) => definition.kind === "stripe").length !== 144 ||
-    normalized.skills.length !== 11
+    shape === undefined ||
+    normalized.definitions.length !== shape.definitions ||
+    normalized.requirements.length !== shape.requirements ||
+    normalized.definitions.filter((definition) => definition.kind === "belt").length !==
+      shape.belts ||
+    normalized.definitions.filter((definition) => definition.kind === "stripe").length !==
+      shape.stripes ||
+    normalized.skills.length !== shape.skills
   ) {
     throw new Error("Level catalog does not match the approved publication shape.");
   }
@@ -166,9 +172,10 @@ export function buildLevelCatalogPublication(
     catalogDocumentHash,
     definitionKeysHash: hashLevelCatalogValue(definitionIds),
     requirementKeysHash: hashLevelCatalogValue(requirementIds),
-    catalogDocumentCount: LEVEL_CATALOG_DOCUMENT_COUNT,
-    definitionCount: LEVEL_CATALOG_DEFINITION_COUNT,
-    requirementCount: LEVEL_CATALOG_REQUIREMENT_COUNT,
+    catalogDocumentCount:
+      input.normalized.definitions.length + input.normalized.requirements.length + 1,
+    definitionCount: input.normalized.definitions.length,
+    requirementCount: input.normalized.requirements.length,
     publishedOperationId: input.operationId,
     publishedAuditEventId: input.publishedAuditEventId,
   });

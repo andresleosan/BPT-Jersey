@@ -613,13 +613,23 @@ export function createLevelCatalogStore({
       );
 
       return firestore.runTransaction(async (transaction) => {
-        const [systemSnapshot, manifestSnapshot, definitionsSnapshot, requirementsSnapshot] =
-          await Promise.all([
-            transaction.get(systemRef),
-            transaction.get(manifestRef),
-            transaction.get(definitionsCollection),
-            transaction.get(requirementsCollection),
-          ]);
+        const [
+          systemSnapshot,
+          manifestSnapshot,
+          definitionsSnapshot,
+          requirementsSnapshot,
+          systemsSnapshot,
+        ] = await Promise.all([
+          transaction.get(systemRef),
+          transaction.get(manifestRef),
+          transaction.get(definitionsCollection),
+          transaction.get(requirementsCollection),
+          transaction.get(firestore.collection(`academies/${academyId}/levelSystems`)),
+        ]);
+        if (systemsSnapshot.docs.some((document) => document.id !== systemId)) {
+          // ponytail: one published catalogue per academy; switching versions is rollback + seed.
+          throw new LevelStoreError("conflict", "Another level catalogue is already published.");
+        }
         const storedDefinitions = catalogDocumentsForSystem(
           withinLimit(definitionsSnapshot, "Level definitions"),
           systemId,
@@ -1658,6 +1668,14 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
 
       const existing = systems.get(systemKey);
       const existingManifest = manifests.get(manifestKey);
+      if (
+        [...systems.values()].some(
+          (system) => system["academyId"] === academyId && system["systemId"] !== systemId,
+        )
+      ) {
+        // ponytail: one published catalogue per academy; switching versions is rollback + seed.
+        throw new LevelStoreError("conflict", "Another level catalogue is already published.");
+      }
       if (existing !== undefined || existingManifest !== undefined) {
         if (existing === undefined || existingManifest === undefined) {
           throw new LevelStoreError("conflict", "Stored level catalog publication is incomplete.");
