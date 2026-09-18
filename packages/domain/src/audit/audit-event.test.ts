@@ -686,6 +686,31 @@ it("rejects a class event whose class block carries an extra field", () => {
   });
 });
 
+it("accepts an imported event the office wrote, grouped as staff", () => {
+  const imported = {
+    ...classDraft,
+    class: { ...classDraft.class, studentId: null, studentName: "Olivia Lewis" },
+    actorRole: "regyfit" as const,
+    actorGroup: "staff" as const,
+    actorName: "ADMIN",
+    source: "regyfit" as const,
+  };
+  expect(parseAuditEventDraft(imported)).toEqual({ ok: true, value: imported });
+});
+
+it("rejects an imported event grouped as the system", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    actorRole: "regyfit" as const,
+    actorGroup: "system" as const,
+    source: "regyfit" as const,
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["actorGroup"], code: "AUDIT_CLASS_ACTOR_GROUP_INVALID" }],
+  });
+});
+
 it("accepts an imported event with no student id and a plain name", () => {
   const result = parseAuditEventDraft({
     ...classDraft,

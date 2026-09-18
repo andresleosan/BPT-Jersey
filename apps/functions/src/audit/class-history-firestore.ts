@@ -29,13 +29,16 @@ function toIsoString(value: unknown): string | null {
 function toClassBlock(value: unknown): ClassAuditEventClass | null {
   if (typeof value !== "object" || value === null) return null;
   const record = value as Record<string, unknown>;
-  if (typeof record.sessionId !== "string" || typeof record.sessionStartAt !== "string") {
+  // An imported row may carry no session id at all - the Regyfit class predates the BPT schedule -
+  // so only the moment the class ran is required here. Dropping the block over a null id would
+  // lose the student and the moment with it, and the row would render as a nameless class.
+  if (typeof record.sessionStartAt !== "string") {
     return null;
   }
   return Object.freeze({
     studentId: typeof record.studentId === "string" ? record.studentId : null,
     studentName: typeof record.studentName === "string" ? record.studentName : null,
-    sessionId: record.sessionId,
+    sessionId: typeof record.sessionId === "string" ? record.sessionId : null,
     sessionStartAt: record.sessionStartAt,
     programId: typeof record.programId === "string" ? record.programId : null,
     locationId: typeof record.locationId === "string" ? record.locationId : null,
