@@ -1,5 +1,5 @@
 "use client";
-import { GoogleAuthProvider, linkWithPopup, signInWithCustomToken } from "firebase/auth";
+import { GoogleAuthProvider, browserPopupRedirectResolver, linkWithPopup, signInWithCustomToken } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { getFirebaseAuth, getFirebaseFunctions } from "./firebase-client";
 
@@ -21,7 +21,7 @@ export async function linkStaffGoogle() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   // Linking preserves the authenticated UID and its coach profile.
-  const result = await linkWithPopup(user, provider);
+  const result = await linkWithPopup(user, provider, browserPopupRedirectResolver);
   await result.user.getIdToken(true);
 }
 export async function changeStaffPassword(staffNumber: string, password: string, newPassword: string) {
