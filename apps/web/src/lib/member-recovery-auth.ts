@@ -8,10 +8,10 @@ import {
   sendPasswordReset,
 } from "./auth-client";
 import { getFirebaseAuth } from "./firebase-client";
-export type RecoverySession = { email: string | null };
+export type RecoverySession = { uid: string; email: string | null };
 export function subscribeRecoverySession(listener: (session: RecoverySession | null) => void) {
   return onAuthStateChanged(getFirebaseAuth(), (user) =>
-    listener(user ? { email: user.email } : null),
+    listener(user ? { uid: user.uid, email: user.email } : null),
   );
 }
 export async function recoverySignIn(
@@ -25,18 +25,20 @@ export async function recoverySignIn(
       : mode === "create"
         ? await createClientWithEmail(email, password)
         : await signInWithEmail(email, password);
-  return { email: user.email };
+  return { uid: user.uid, email: user.email };
 }
-export async function refreshRecoverySession(): Promise<RecoverySession> {
+export async function refreshRecoverySession(expectedUid?: string): Promise<RecoverySession> {
   const user = getFirebaseAuth().currentUser;
-  if (!user) throw new Error("Sign in to continue.");
+  if (!user || (expectedUid && user.uid !== expectedUid)) throw new Error("Sign in to continue.");
   await reload(user);
+  if (getFirebaseAuth().currentUser?.uid !== user.uid) throw new Error("Sign in to continue.");
   await user.getIdToken(true);
-  return { email: user.email };
+  if (getFirebaseAuth().currentUser?.uid !== user.uid) throw new Error("Sign in to continue.");
+  return { uid: user.uid, email: user.email };
 }
-export async function sendRecoveryVerification(): Promise<void> {
+export async function sendRecoveryVerification(expectedUid?: string): Promise<void> {
   const user = getFirebaseAuth().currentUser;
-  if (!user) throw new Error("Sign in to continue.");
+  if (!user || (expectedUid && user.uid !== expectedUid)) throw new Error("Sign in to continue.");
   await sendEmailVerification(user);
 }
 export const signOutRecovery = signOutFromAuth;
