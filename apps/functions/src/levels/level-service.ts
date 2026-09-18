@@ -5,7 +5,10 @@ import {
   buildGraduationId,
   buildStudentProgressSummary,
   buildUninitializedStudentProgressSummary,
+  countClassesAtLevel,
   generateRecognitionCandidates,
+  importedBaselineSchema,
+  type ImportedBaseline,
   type ApprovePromotionInput,
   type OpenStudentLevelInput,
   type EvaluationRecord,
@@ -178,8 +181,13 @@ export type StudentLevelHead = Readonly<{
   currentDefinitionKey: string;
   currentLevelStartedAt: string;
   lastApprovedPromotionId: string | null;
-  openedByStaffId: string;
+  openedByStaffId: string | null;
   openingNotes: string;
+  openedDefinitionKey?: string;
+  openedOn?: string;
+  openedByRole?: "headCoach" | "owner" | null;
+  source?: "regyfit-import";
+  importedBaseline?: ImportedBaseline;
   state: "initialized";
   schemaVersion: "1";
   createdAt: string;
@@ -518,6 +526,44 @@ function withinLimit<T extends { docs: readonly unknown[] }>(snapshot: T, label:
     throw new LevelStoreError("conflict", `${label} exceeds the safe read limit`);
   }
   return snapshot;
+}
+
+/** Grill G10: a stored baseline that does not parse is a refusal, never a silent zero. */
+function storedImportedBaseline(value: unknown): ImportedBaseline | null {
+  if (value === undefined) return null;
+  const parsed = importedBaselineSchema.safeParse(value);
+  if (!parsed.success) throw new LevelStoreError("tenant", "Imported baseline is invalid");
+  return parsed.data;
+}
+
+/** The student's attended/late, uncorrected attendance; every record must carry a real time. */
+function countedAttendance(
+  snapshot: GenericQuerySnapshot,
+  academyId: string,
+  studentId: string,
+): readonly Record<string, unknown>[] {
+  return withinLimit(snapshot, "Attendance").docs.flatMap((document) => {
+    const value = document.data();
+    if (
+      value.academyId !== academyId ||
+      value.attendanceId !== document.id ||
+      typeof value.studentId !== "string" ||
+      typeof value.sessionId !== "string"
+    ) {
+      throw new LevelStoreError("tenant", "Attendance scope is invalid");
+    }
+    if (
+      value.studentId !== studentId ||
+      value.correctionOf !== null ||
+      (value.state !== "attended" && value.state !== "late")
+    ) {
+      return [];
+    }
+    if (typeof value.occurredAt !== "string" || Number.isNaN(Date.parse(value.occurredAt))) {
+      throw new LevelStoreError("conflict", "Attendance time is invalid");
+    }
+    return [value];
+  });
 }
 
 export function createLevelCatalogStore({
@@ -1022,6 +1068,9 @@ export function createLevelCatalogStore({
       ) {
         throw new LevelStoreError("tenant", "Progress head is invalid");
       }
+      // ponytail: reads the whole attendance and sessions collections under the existing
+      // 400-record ceiling (withinLimit); a per-student query on the existing
+      // (studentId, occurredAt) index replaces it when an academy passes 400 records.
       const [catalog, evaluations, attendanceSnapshot, sessionsSnapshot] = await Promise.all([
         this.listPublished(academyId),
         this.listStudentEvaluations(academyId, studentId),
@@ -1036,25 +1085,7 @@ export function createLevelCatalogStore({
       ) {
         throw new LevelStoreError("conflict", "Progress definition is not current");
       }
-      const attendance = withinLimit(attendanceSnapshot, "Attendance").docs.flatMap((document) => {
-        const value = document.data();
-        if (
-          value.academyId !== academyId ||
-          value.attendanceId !== document.id ||
-          typeof value.studentId !== "string" ||
-          typeof value.sessionId !== "string"
-        ) {
-          throw new LevelStoreError("tenant", "Attendance scope is invalid");
-        }
-        if (
-          value.studentId !== studentId ||
-          value.correctionOf !== null ||
-          (value.state !== "attended" && value.state !== "late")
-        ) {
-          return [];
-        }
-        return [value];
-      });
+      const attendance = countedAttendance(attendanceSnapshot, academyId, studentId);
       const sessions = new Map(
         withinLimit(sessionsSnapshot, "Sessions").docs.map((document) => {
           const value = document.data();
@@ -1090,6 +1121,11 @@ export function createLevelCatalogStore({
         attendedClassesCount: attendance.length,
         totalHours: totalMinutes / 60,
         currentLevelStartedAt: headData.currentLevelStartedAt ?? null,
+        classesAtLevel: countClassesAtLevel({
+          attendedAt: attendance.map((record) => record.occurredAt as string),
+          currentLevelStartedAt: (headData.currentLevelStartedAt as string | null) ?? null,
+          importedBaseline: storedImportedBaseline(headData.importedBaseline),
+        }),
         dateOfBirth: student.dateOfBirth,
       });
     },
@@ -1381,8 +1417,14 @@ export function createLevelCatalogStore({
           decisionStatus: "approved",
           proposedBy: decidedByStaffId,
           decidedByStaffId,
+          restore: {
+            currentDefinitionKey: headData.currentDefinitionKey,
+            currentLevelStartedAt: headData.currentLevelStartedAt ?? null,
+            lastApprovedPromotionId: headData.lastApprovedPromotionId ?? null,
+            importedBaseline: storedImportedBaseline(headData.importedBaseline),
+          },
         });
-        transaction.set(headRef, {
+        const nextHead: Record<string, unknown> = {
           ...headData,
           studentId: input.studentId,
           academyId,
@@ -1393,7 +1435,10 @@ export function createLevelCatalogStore({
           schemaVersion: "1",
           updatedAt: now,
           updatedBy: decidedBy,
-        });
+        };
+        // Grill G10: the imported baseline belongs to the level it was imported at.
+        delete nextHead.importedBaseline;
+        transaction.set(headRef, nextHead);
         appendAuditEventInTransaction(transaction, auditRef, audit);
         return record;
       });
