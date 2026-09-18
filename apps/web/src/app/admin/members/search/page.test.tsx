@@ -13,6 +13,9 @@ const clientMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../lib/members-client", () => clientMocks);
+vi.mock("../../../../lib/subscription-admin-client", () => ({
+  resolveImportedSubscription: vi.fn(async () => ({ studentId: null })),
+}));
 
 import { SearchMembersPage } from "./page";
 

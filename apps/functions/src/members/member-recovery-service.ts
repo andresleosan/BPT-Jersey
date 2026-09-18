@@ -285,16 +285,25 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       secretMaterial: d.identitySecretMaterial,
     });
     const linkRef = ref("regyfitMemberLinks", record.recordId);
-    const [stateSnap, guardSnap, authKeySnap, linkSnap, userSnap, studentsSnap, profilesSnap] =
-      await Promise.all([
-        t.get(stateRef),
-        t.get(guardRef),
-        t.get(ref("studentIdentityKeys", authKeyId)),
-        t.get(linkRef),
-        t.get(ref("users", uid)),
-        t.get(d.firestore.collection(root + "students").limit(1001)),
-        t.get(d.firestore.collection(root + "studentAdminProfiles").limit(1001)),
-      ]);
+    const [
+      stateSnap,
+      guardSnap,
+      authKeySnap,
+      linkSnap,
+      userSnap,
+      studentsSnap,
+      profilesSnap,
+      officeLinkSnap,
+    ] = await Promise.all([
+      t.get(stateRef),
+      t.get(guardRef),
+      t.get(ref("studentIdentityKeys", authKeyId)),
+      t.get(linkRef),
+      t.get(ref("users", uid)),
+      t.get(d.firestore.collection(root + "students").limit(1001)),
+      t.get(d.firestore.collection(root + "studentAdminProfiles").limit(1001)),
+      t.get(ref("regyfitOfficeLinks", record.recordId)),
+    ]);
     if (studentsSnap.docs.length > 1000 || profilesSnap.docs.length > 1000)
       throw new HttpsError("unavailable", "Recovery requires office assistance");
     const state = assertCanonicalMemberDirectoryWriterReady(stateSnap.data(), {
@@ -366,6 +375,18 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       keys.map((key) => t.get(ref("studentIdentityKeys", key.keyId))),
     );
     const targets = new Set<string>();
+    const officeLink = officeLinkSnap.data();
+    if (officeLinkSnap.exists) {
+      if (
+        !officeLink ||
+        officeLink.academyId !== academyId ||
+        officeLink.recordId !== record.recordId ||
+        typeof officeLink.studentId !== "string" ||
+        !students.has(officeLink.studentId)
+      )
+        conflict();
+      targets.add(officeLink.studentId);
+    }
     const administrativeOwners = new Set<string>();
     const existingLink = linkSnap.exists ? parse(linkSchema, linkSnap.data()) : undefined;
     if (existingLink) {
@@ -493,8 +514,24 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       updatedAt: time,
       updatedBy: uid,
     };
+    const oldFamily = familySnap.exists ? parseFamilyRecord(familySnap.data()) : undefined;
+    const claimOfficeFamily =
+      oldFamily?.ok &&
+      oldFamily.value.primaryContactUserId === null &&
+      oldFamily.value.billingContactUserId === null &&
+      (officeLink?.studentId === studentId || familyId === `office-${studentId}`);
     const family = familySnap.exists
-      ? parseFamilyRecord(familySnap.data())
+      ? parseFamilyRecord(
+          claimOfficeFamily
+            ? {
+                ...oldFamily.value,
+                primaryContactUserId: uid,
+                billingContactUserId: uid,
+                updatedAt: time,
+                updatedBy: uid,
+              }
+            : familySnap.data(),
+        )
       : parseFamilyRecord({
           ...envelope,
           familyId,
@@ -643,6 +680,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     t.set(ref("students", studentId), student.value);
     t.set(ref("users", uid), client.value);
     if (!familySnap.exists) t.create(familyRef, family.value);
+    else if (claimOfficeFamily) t.set(familyRef, family.value);
     if (!profiles.has(studentId)) t.create(ref("studentAdminProfiles", studentId), adminProfile);
     for (const key of planned) t.create(ref("studentIdentityKeys", key.keyId), key);
     t.create(linkRef, {

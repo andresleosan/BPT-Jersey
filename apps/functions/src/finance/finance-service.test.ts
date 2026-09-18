@@ -720,3 +720,61 @@ describe("payment instructions (T010/T035 re-scope)", () => {
     expect([...records.keys()].some((key) => key.includes("/settings/"))).toBe(false);
   });
 });
+
+describe("subscription activation from Billing", () => {
+  it.each(["overdue", "cancelled"])(
+    "settles a %s subscription without reviving cancellations",
+    async (status) => {
+      const path = `academies/${academyId}/memberships/${membershipId}`;
+      const membership = {
+        membershipId,
+        academyId,
+        familyId,
+        studentId: "student-1",
+        planId: "payg",
+        status: "active",
+        startsAt: now,
+        endsAt: null,
+        nextBillingAt: null,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: "admin-1",
+        updatedAt: now,
+        updatedBy: "admin-1",
+      };
+      const h = store({ ...seedSources(), [path]: membership });
+      const invoice = await h.service.issueManualInvoice({
+        academyId,
+        actorId: "admin-1",
+        familyId,
+        membershipId,
+        totalMinor: 1000,
+        dueAt: now,
+        chargeKind: "membership",
+        invoiceReference: "SUBSCRIPTION-1",
+        description: "Monthly subscription",
+      });
+      h.records.set(path, { ...membership, status });
+      const payment = {
+        academyId,
+        actorId: "admin-1",
+        invoiceId: invoice.invoiceId,
+        amountMinor: 400,
+        method: "cash" as const,
+        manualReference: "PART-1",
+        occurredAt: now,
+      };
+      await h.service.recordManualPayment(payment);
+      expect(h.records.get(path)?.status).toBe(status);
+      await h.service.recordManualPayment({
+        ...payment,
+        amountMinor: 600,
+        manualReference: "PART-2",
+      });
+      expect(h.records.get(path)?.status).toBe(status === "overdue" ? "active" : "cancelled");
+      expect(h.records.get(`academies/${academyId}/invoices/${invoice.invoiceId}`)?.status).toBe(
+        "paid",
+      );
+    },
+  );
+});

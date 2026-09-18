@@ -1,38 +1,77 @@
 .member-subscription-editor {
   margin-block: 1rem;
-  padding: 1rem;
-  border: 1px solid #d8dce2;
-  border-radius: 0.75rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid #9b9994;
   background: #fff;
-  color: #17202a;
+  color: #1a1a18;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.member-subscription-editor h3,
+.member-subscription-editor h4 {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.35;
+  letter-spacing: normal;
+}
+.member-subscription-editor h3 {
+  font-size: 1.5rem;
 }
 .member-subscription-form {
-  padding-block: 1rem;
-  border-top: 1px solid #e2e5e9;
+  padding-block: 1.25rem;
+  border-top: 1px solid #c8c6c1;
 }
 .member-subscription-form fieldset {
   display: grid;
-  gap: 0.65rem;
+  gap: 1rem;
+  margin: 1rem 0 0;
   padding: 0;
   border: 0;
   min-width: 0;
 }
+.member-subscription-field {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  font-weight: 600;
+}
 .member-subscription-form select,
-.member-subscription-form input[type="datetime-local"] {
+.member-subscription-form input:not([type="checkbox"]) {
   box-sizing: border-box;
+  min-width: 0;
   max-width: 100%;
   width: 100%;
   min-height: 2.75rem;
   padding: 0.65rem;
-  border: 1px solid #8b949e;
-  border-radius: 0.4rem;
+  border: 1px solid #77756f;
+  border-radius: 0;
   background: #fff;
   color: inherit;
   font: inherit;
+  font-weight: 400;
+  font-size: 1rem;
+}
+.member-subscription-form input[readonly] {
+  background: #f2f1ed;
+}
+.member-subscription-editor :is(input, select, button):focus-visible {
+  outline: 3px solid #2f2483;
+  outline-offset: 3px;
+}
+.member-subscription-editor button {
+  min-height: 2.75rem;
+  max-width: 100%;
+  white-space: normal;
+}
+.member-subscription-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
 }
 .member-subscription-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-block: 0.5rem;
@@ -40,11 +79,45 @@
 .member-subscription-checkbox {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   min-height: 2.75rem;
 }
+.member-subscription-checkbox input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: #2f2483;
+}
 .member-subscription-help {
-  color: #4d5865;
-  font-size: 0.9rem;
+  margin-block: 0.25rem;
+  color: #55534e;
+  font-size: 1rem;
+  line-height: 1.5;
   max-width: 65ch;
+}
+.member-subscription-status {
+  padding: 0.35rem 0.6rem;
+  background: #f2f1ed;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.member-subscription-history {
+  border-top: 1px solid #9b9994;
+  padding-top: 1.25rem;
+}
+.member-subscription-history ul {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+.member-subscription-history li {
+  border-bottom: 1px solid #c8c6c1;
+  padding-block: 0.75rem;
+}
+@media (max-width: 40rem) {
+  .member-subscription-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .member-subscription-actions > .admin-auth-button {
+    width: 100%;
+  }
 }

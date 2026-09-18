@@ -505,6 +505,58 @@ describe("legacy member recovery", () => {
       h.records.get(prefix + "memberDirectoryStates/current")?.rollbackEligibleStudentCount,
     ).toBe(1);
   });
+  it("claims an office-linked billing account only after verified recovery and preserves its member", async () => {
+    const h = harness();
+    const initial = await begin(h);
+    await h.service.complete({ recoveryId: initial.recoveryId, profile }, "user-1");
+    const [studentPath, student] = [...h.records.entries()].find(([path]) =>
+      path.startsWith(prefix + "students/"),
+    )!;
+    const offline = { ...student };
+    delete offline.userId;
+    h.records.set(studentPath, offline);
+    const familyPath = prefix + "families/" + student.familyId;
+    const family = h.records.get(familyPath)!;
+    h.records.set(familyPath, {
+      ...family,
+      primaryContactUserId: null,
+      billingContactUserId: null,
+    });
+    h.records.set(prefix + "regyfitOfficeLinks/123", {
+      academyId,
+      recordId: "123",
+      studentId: student.studentId,
+      schemaVersion: "1",
+      createdAt: now,
+      createdBy: "owner-1",
+    });
+    h.records.delete(prefix + "users/user-1");
+    for (const [path, value] of h.records) {
+      if (
+        path.startsWith(prefix + "regyfitMemberLinks/") ||
+        path.startsWith(prefix + "memberRecoveryWriteReceipts/") ||
+        (path.startsWith(prefix + "studentIdentityKeys/") && value.kind === "auth-user-id")
+      )
+        h.records.delete(path);
+    }
+    const next = await begin(h);
+    expect(await h.service.complete({ recoveryId: next.recoveryId }, "user-1")).toEqual({
+      status: "linked",
+    });
+    expect(h.records.get(familyPath)).toMatchObject({
+      familyId: student.familyId,
+      primaryContactUserId: "user-1",
+      billingContactUserId: "user-1",
+      createdAt: family.createdAt,
+    });
+    expect(h.records.get(studentPath)).toMatchObject({
+      studentId: student.studentId,
+      userId: "user-1",
+    });
+    expect(
+      [...h.records.keys()].filter((path) => path.startsWith(prefix + "students/")),
+    ).toHaveLength(1);
+  });
   it("fails closed when the directory is frozen without writing source links", async () => {
     const h = harness();
     h.records.set(prefix + "memberDirectoryStates/current", {

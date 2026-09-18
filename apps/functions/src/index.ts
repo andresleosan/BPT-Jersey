@@ -257,3 +257,12 @@ export {
   subscriptionExpiryNoticesSchedule,
   adminOperationalNotificationCreated,
 } from "./notifications/admin-notification-triggers.js";
+
+export {
+  resolveMemberSubscriptionProfile,
+  registerImportedMemberForOffice,
+} from "./members/member-directory-callables.js";
+export {
+  manageMemberSubscription,
+  listMemberSubscriptionBilling,
+} from "./memberships/subscription-admin-callables.js";
