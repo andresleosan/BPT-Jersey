@@ -38,6 +38,18 @@ beforeEach(() => {
   api.reviewMemberRecovery.mockResolvedValue({ status: "profile-required" });
 });
 afterEach(cleanup);
+it("identifies a request made without a previous email for office review", async () => {
+  api.getMemberRecoveryDetail.mockResolvedValue({
+    request: { ...row, previousEmail: "", accountEmail: "new@example.test" },
+    candidates: [],
+  });
+  const user = userEvent.setup();
+  render(<Page />);
+  await user.click(await screen.findByRole("button", { name: "Review request" }));
+  expect(await screen.findByText("Not supplied")).toBeVisible();
+  expect(screen.getByText("new@example.test")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Approve identity" })).toBeDisabled();
+});
 it("requires a selected record and independent identity confirmation to approve", async () => {
   const user = userEvent.setup();
   render(<Page />);

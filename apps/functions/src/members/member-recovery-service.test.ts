@@ -204,6 +204,52 @@ const begin = (
 ) => h.service.begin({ fullName, email }, "192.0.2.1");
 
 describe("legacy member recovery", () => {
+  it.each([true, false])(
+    "requires office review for a name-only request, stored email present: %s",
+    async (hasEmail) => {
+      const h = harness();
+      const imported = { ...source };
+      if (!hasEmail) Reflect.deleteProperty(imported, "email");
+      h.records.set(prefix + "regyfitMemberRecords/123", imported);
+      const ticket = await h.service.begin({ fullName: "  JOSE   SILVA " }, "192.0.2.1");
+      expect(Object.keys(ticket).sort()).toEqual(["expiresAt", "recoveryId"]);
+      expect(
+        await h.service.complete({ recoveryId: ticket.recoveryId, profile }, "user-1"),
+      ).toEqual({ status: "pending-review" });
+      expect([...h.records.keys()].some((p) => p.startsWith(prefix + "students/"))).toBe(false);
+      const actor = queueOffice(h);
+      const detail = await h.service.detail({ requestId: ticket.recoveryId }, actor);
+      expect(detail.request.previousEmail).toBe("");
+      expect(detail.candidates).toHaveLength(1);
+      h.user({ email: "new@example.test" });
+      await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
+      await h.service.review(
+        {
+          requestId: ticket.recoveryId,
+          decision: "approve",
+          candidateId: detail.candidates[0]!.candidateId,
+          identityConfirmed: true,
+        },
+        actor,
+      );
+      expect(
+        await h.service.complete({ recoveryId: ticket.recoveryId, profile }, "user-1"),
+      ).toEqual({ status: "linked" });
+      expect(h.records.get(prefix + "regyfitMemberRecords/123")).toEqual(imported);
+      expect(h.records.get(prefix + "users/user-1")).toMatchObject({ email: "new@example.test" });
+    },
+  );
+  it("does not treat missing source emails as a match for an unrelated name", async () => {
+    const h = harness();
+    const imported = { ...source };
+    Reflect.deleteProperty(imported, "email");
+    h.records.set(prefix + "regyfitMemberRecords/123", imported);
+    const ticket = await h.service.begin({ fullName: "Unknown Member", email: "  " }, "192.0.2.1");
+    await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
+    const detail = await h.service.detail({ requestId: ticket.recoveryId }, queueOffice(h));
+    expect(detail.candidates).toEqual([]);
+    expect(detail.request.status).toBe("pending-review");
+  });
   it("normalizes accents, case and repeated whitespace", () => {
     expect(normalizeRecoveryName("  JOSÉ   Silva ")).toBe("jose silva");
   });

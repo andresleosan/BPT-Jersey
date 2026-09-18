@@ -720,6 +720,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
         const exact = records.filter(
           ({ record }) =>
             normalizeRecoveryName(record.fullName) === normalizeRecoveryName(ticket.fullName) &&
+            ticket.previousEmail !== "" &&
             record.email !== undefined &&
             email(record.email) === ticket.previousEmail,
         );
@@ -798,7 +799,9 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
           if (!parsed.ok || parsed.value.recordId !== document.id) return [];
           const record = parsed.value;
           return normalizeRecoveryName(record.fullName) === normalizeRecoveryName(input.fullName) ||
-            (record.email !== undefined && email(record.email) === email(input.email))
+            (input.email !== undefined &&
+              record.email !== undefined &&
+              email(record.email) === email(input.email))
             ? [
                 {
                   candidateId: mac("bpt-recovery-candidate-v1", [
@@ -817,7 +820,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
           recoveryId,
           academyId,
           fullName: input.fullName,
-          previousEmail: email(input.email),
+          previousEmail: input.email ? email(input.email) : "",
           createdAt: time,
           updatedAt: time,
           expiresAt,

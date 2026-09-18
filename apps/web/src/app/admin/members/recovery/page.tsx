@@ -172,7 +172,7 @@ export default function MemberRecoveryQueuePage() {
           <h2 id="recovery-review-title">Review {detail.request.fullName}</h2>
           <dl>
             <dt>Previous email supplied</dt>
-            <dd>{detail.request.previousEmail}</dd>
+            <dd>{detail.request.previousEmail || "Not supplied"}</dd>
             <dt>Account email</dt>
             <dd>{detail.request.accountEmail ?? "Not available"}</dd>
           </dl>

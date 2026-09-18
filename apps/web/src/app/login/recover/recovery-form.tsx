@@ -159,10 +159,11 @@ export function RecoveryForm() {
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const previousEmail = String(data.get("previousEmail") ?? "").trim();
     await run(async (operation) => {
       const begun = await beginMemberRecovery({
         fullName: String(data.get("fullName")).trim(),
-        email: String(data.get("previousEmail")).trim(),
+        ...(previousEmail ? { email: previousEmail } : {}),
       });
       if (!operation.current()) return;
       setTicket(begun.recoveryId);
@@ -264,18 +265,19 @@ export function RecoveryForm() {
               <input name="fullName" autoComplete="name" required maxLength={160} />
             </label>
             <label>
-              Previous email address
+              Previous email address (optional)
               <input
                 name="previousEmail"
                 type="email"
                 autoComplete="email"
-                required
+                aria-describedby="previous-email-help"
                 maxLength={320}
               />
             </label>
-            <p>
-              Enter the name and email you used when you joined. If your email has changed, you can
-              use a new address in the next step.
+            <p id="previous-email-help">
+              Enter the full name you used when you joined. Leave the email blank if you did not
+              have one or cannot remember it. You can use Google or a new email address in the next
+              step. The office will check your identity before linking a new address.
             </p>
             <button className="button button-primary" type="submit">
               Find my membership
