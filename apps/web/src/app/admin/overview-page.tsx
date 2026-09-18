@@ -13,6 +13,8 @@ import { getOperationalReport } from "../../lib/reports-client";
 import { getDailyOperationsDashboard } from "../../lib/schedule-client";
 import { birthdayDateLabel, listUpcomingBirthdays } from "../../lib/birthdays-client";
 
+import { AdminNotificationPanel } from "./notifications/admin-notification-panel";
+
 import "./admin.css";
 
 type OverviewClass = Readonly<{
@@ -182,6 +184,7 @@ export function OverviewPage() {
           title="Today's academy view"
           description="Loading the academy's connected schedule, student and membership data."
         />
+        {office ? <AdminNotificationPanel key="notifications" /> : null}
         <p role="status" aria-live="polite">
           Loading connected dashboard...
         </p>
@@ -197,6 +200,7 @@ export function OverviewPage() {
           title="Today's academy view"
           description="The dashboard only displays data returned by the connected backend."
         />
+        {office ? <AdminNotificationPanel key="notifications" /> : null}
         <p className="admin-report-state" role="alert">
           Unable to load today&apos;s connected dashboard. No synthetic data was displayed.
         </p>
@@ -237,6 +241,7 @@ export function OverviewPage() {
         title="Today's academy view"
         description="Live schedule and canonical student, membership and attendance aggregates for the authenticated academy."
       />
+      {office ? <AdminNotificationPanel key="notifications" /> : null}
 
       {birthdays.status === "ready" ? <BirthdayTodayBand entries={birthdays.entries} /> : null}
 
