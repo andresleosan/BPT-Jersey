@@ -1,0 +1,5 @@
+# Cloudflare Pages redirect rules. One canonical host: bptjersey.com. The Pages domain and the www
+# subdomain must not serve the site or rank for it, so both hand every path to the apex with a 301.
+# The trailing "!" forces the redirect even when Pages holds a matching static file.
+https://bptjersey.pages.dev/* https://bptjersey.com/:splat 301!
+https://www.bptjersey.com/* https://bptjersey.com/:splat 301!
