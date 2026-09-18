@@ -8251,15 +8251,3 @@ por la segunda version devolvera nada o algo viejo. **Para el ledger, leer el fi
 lo unico seguro.**
 
 `graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.
-
-## Legacy member access recovery — 2026-09-18
-
-Status: implemented and locally verified; ready for integration. Branch: `feature/legacy-member-recovery`, isolated from pre-existing local edits.
-
-Scope authorized by the operator: add recovery for legacy members using full name and previous email, followed by Google or email/password authentication. All new application text is English. Changed-email ownership requires office review; existing login remains available. No production deployment or production data changes are included in this implementation.
-
-Design: `docs/superpowers/specs/2026-09-18-legacy-member-recovery-design.md`.
-Plan and validation: `docs/superpowers/plans/2026-09-18-legacy-member-recovery.md`.
-Operational guide: `docs/legacy-member-recovery.md`.
-
-Final unit suite: 354 files, 3,705 tests passed. Build, typecheck, lint, focused format, Firestore emulator integration/rules and browser smoke passed. Independent reviews are closed with no open findings. The production release must include the documented recovery queue index.

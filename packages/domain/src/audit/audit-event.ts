@@ -9,8 +9,6 @@ export const auditActions = Object.freeze([
   "admin.role.revoked",
   "member.created",
   "member.updated",
-  "member.recovery.reviewed",
-  "member.recovery.detail.read",
   "guardian.profile.created",
   "guardian.profile.updated",
   "family.created",
@@ -262,8 +260,6 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "admin.role.revoked"
           | "member.created"
           | "member.updated"
-          | "member.recovery.reviewed"
-          | "member.recovery.detail.read"
           | "guardian.profile.created"
           | "guardian.profile.updated"
           | "family.created"
@@ -432,8 +428,6 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "admin.role.revoked": commonFields,
   "member.created": commonFields,
   "member.updated": commonFields,
-  "member.recovery.reviewed": commonFields,
-  "member.recovery.detail.read": commonFields,
   "guardian.profile.created": commonFields,
   "guardian.profile.updated": commonFields,
   "family.created": commonFields,
