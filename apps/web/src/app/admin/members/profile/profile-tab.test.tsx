@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { MemberProfile } from "@bpt-jersey/domain/members/profile";
+import { currentMembershipStatuses } from "@bpt-jersey/domain/memberships/lifecycle";
 
-import { ProfileTab } from "./profile-tab";
+import { ProfileTab, membershipStatusClass } from "./profile-tab";
 import { RecordEmptyTab } from "./record-empty-tab";
 
 afterEach(cleanup);
@@ -47,6 +48,12 @@ const full: MemberProfile = {
 };
 
 describe("PROFILE tab", () => {
+  it("styles every membership status the domain allows", () => {
+    expect(Object.keys(membershipStatusClass).sort()).toEqual(
+      [...currentMembershipStatuses].sort(),
+    );
+  });
+
   it("renders member, account manager and plan cards for office", () => {
     render(<ProfileTab profile={full} />);
     const member = screen.getByRole("region", { name: "Member" });
