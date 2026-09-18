@@ -945,6 +945,7 @@ export function ManageView({
             <SkillsAssessment
               definitionKey={data.card.currentDefinition.definitionKey}
               definitionName={currentDefinition?.name ?? null}
+              hasTarget={targetKey !== null}
               initialScores={data.scores.latest}
               /*
                * A new panel per SERVER reload — an open, an assignment or a void, each of which

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { skillCategory, type SkillDefinition } from "@bpt-jersey/domain/levels";
 
 import { levelsSafeErrors, recordSkillRatings } from "../../../../lib/levels-client";
@@ -41,6 +41,7 @@ export function SkillsAssessment({
   definitionKey,
   definitionName,
   skills,
+  hasTarget,
   minimums,
   initialScores,
   onDirtyChange,
@@ -49,7 +50,10 @@ export function SkillsAssessment({
   studentId: string;
   definitionKey: string;
   definitionName: string | null;
+  /** The whole catalogue; only the skills the TARGET level requires are rated (DECISION 9). */
   skills: readonly SkillDefinition[];
+  /** Whether a next level is recorded at all, which is why an empty `minimums` map is empty. */
+  hasTarget: boolean;
   minimums: Readonly<Record<string, number>>;
   initialScores: Readonly<Record<string, number>>;
   onDirtyChange: (dirty: boolean) => void;
@@ -67,7 +71,17 @@ export function SkillsAssessment({
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
-  const changed = skills.flatMap((skill) => {
+  /**
+   * OPERATOR DECISION 9 (2026-09-18): the operator rates the requirement set of the level being
+   * moved INTO, never the whole catalogue. A skill the target does not require counts towards
+   * nothing the promotion decision reads, and listing it made the per-category counters disagree
+   * with that decision. The minimums map IS the target's requirement set, so it is the filter.
+   * // ponytail: no `useMemo` around this or `groups` - eleven skills, and `minimums` is a fresh
+   * // object on every parent render, so a memo keyed on it would recompute anyway.
+   */
+  const required = skills.filter((skill) => minimums[skill.key] !== undefined);
+
+  const changed = required.flatMap((skill) => {
     const score = scores[skill.key];
     return score === undefined || score === baseline[skill.key]
       ? []
@@ -96,16 +110,28 @@ export function SkillsAssessment({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const groups = useMemo(() => {
-    const byCategory = new Map<string, SkillDefinition[]>();
-    for (const skill of [...skills].sort((left, right) => left.sequence - right.sequence)) {
-      const category = skillCategory(skill.displayLabel);
-      byCategory.set(category, [...(byCategory.get(category) ?? []), skill]);
-    }
-    return [...byCategory.entries()];
-  }, [skills]);
+  const byCategory = new Map<string, SkillDefinition[]>();
+  for (const skill of [...required].sort((left, right) => left.sequence - right.sequence)) {
+    const category = skillCategory(skill.displayLabel);
+    byCategory.set(category, [...(byCategory.get(category) ?? []), skill]);
+  }
+  const groups = [...byCategory.entries()];
 
-  const hasMinimums = skills.some((skill) => minimums[skill.key] !== undefined);
+  /**
+   * A rating on record for a skill the target does not require is neither sent (`changed` is built
+   * from `required`) nor overwritten by this panel - but it is no longer on screen, and "not
+   * shown" must never read as "lost". Counted from the BASELINE, which is what the store holds.
+   */
+  const listed = new Set(required.map((skill) => skill.key));
+  const otherRated = Object.keys(baseline).filter((key) => !listed.has(key)).length;
+  const otherRatings =
+    otherRated === 0 ? null : (
+      <p className="ibjjf-muted">
+        {otherRated === 1
+          ? "A rating for 1 other skill is on record. Nothing here changes it."
+          : `Ratings for ${otherRated} other skills are on record. Nothing here changes them.`}
+      </p>
+    );
 
   async function save(): Promise<void> {
     // One request in flight, held in a ref like the other three writes in this view: `disabled`
@@ -135,14 +161,31 @@ export function SkillsAssessment({
     }
   }
 
+  /**
+   * Nothing to rate. The two causes are different and the panel says which: a next level that
+   * carries no requirement at all (156 of the 171 levels on record today), or no next level, which
+   * is the top of what BPT tracks — DECISION 7's vocabulary, and what the card on the same screen
+   * already says about this member. A plain sentence, not DESIGN.md's empty-state block: that
+   * block ends in a primary button and there is no action to offer here.
+   */
+  if (groups.length === 0) {
+    return (
+      <section aria-labelledby="ibjjf-skills-title" className="ibjjf-skills">
+        <h3 id="ibjjf-skills-title">Skills assessment</h3>
+        <p className="ibjjf-muted">
+          {hasTarget
+            ? "This level requires no rated skills."
+            : "This is the highest level BPT tracks, so there are no skills to rate."}
+        </p>
+        {otherRatings}
+      </section>
+    );
+  }
+
   return (
     <section aria-labelledby="ibjjf-skills-title" className="ibjjf-skills">
       <h3 id="ibjjf-skills-title">Skills assessment</h3>
-      <p className="ibjjf-muted">
-        {hasMinimums
-          ? "Rate each skill from 1 to 5. Minimums apply to the next level."
-          : "Rate each skill from 1 to 5."}
-      </p>
+      <p className="ibjjf-muted">Rate each skill from 1 to 5. Minimums apply to the next level.</p>
       {/*
        * Minimum-1 of the Task 17 review: every "Minimum n" above comes from the TARGET level while
        * the rating itself is filed against the level HELD (plan decision 5). Only one of those two
@@ -151,16 +194,16 @@ export function SkillsAssessment({
       {definitionName === null ? null : (
         <p className="ibjjf-muted">{`Ratings are recorded against ${definitionName}, the level currently held.`}</p>
       )}
+      {otherRatings}
       {groups.map(([category, groupSkills]) => {
         const rated = groupSkills.filter((skill) => scores[skill.key] !== undefined).length;
-        const withMinimum = groupSkills.filter((skill) => minimums[skill.key] !== undefined);
         /*
          * Counted from the BASELINE, never from `scores`. The promotion dialog's
          * "Skills n/m at minimum" is computed from what the store holds, so a counter here that
          * moved on an unsaved click made two numbers about the same member disagree on the same
          * screen. Both now count the saved ratings, and the label says so.
          */
-        const met = withMinimum.filter(
+        const met = groupSkills.filter(
           (skill) => (baseline[skill.key] ?? 0) >= minimums[skill.key]!,
         ).length;
         return (
@@ -168,18 +211,17 @@ export function SkillsAssessment({
             <summary>
               <span>{category}</span>
               <span className="ibjjf-number">
-                {`${rated}/${groupSkills.length} rated${withMinimum.length > 0 ? ` · ${met}/${withMinimum.length} saved at minimum` : ""}`}
+                {`${rated}/${groupSkills.length} rated · ${met}/${groupSkills.length} saved at minimum`}
               </span>
             </summary>
             {groupSkills.map((skill) => {
-              const minimum = minimums[skill.key];
+              // Every listed skill is one the target requires, so it has a minimum by construction.
+              const minimum = minimums[skill.key]!;
               return (
                 <fieldset className="ibjjf-skill" key={skill.key}>
                   <legend>
                     {skill.displayLabel}
-                    {minimum === undefined ? null : (
-                      <span className="ibjjf-minimum-text">{` Minimum ${minimum}`}</span>
-                    )}
+                    <span className="ibjjf-minimum-text">{` Minimum ${minimum}`}</span>
                   </legend>
                   <div className="ibjjf-scores">
                     {scoreValues.map((score) => (

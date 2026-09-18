@@ -1157,11 +1157,70 @@ describe("ManageView skills assessment", () => {
     expect(within(skillGroup(/^Warm Up 2 - Bridges/u)).getByText("Minimum 3")).toBeInTheDocument();
     cleanup();
     // The same held level, whose own 11 requirements are still in the catalogue, moving into an
-    // adult stripe that carries none: nothing may be claimed as a minimum.
+    // adult stripe that carries none: nothing may be claimed as a minimum, and since OPERATOR
+    // DECISION 9 nothing is listed either - a skill the next level does not require does not
+    // count towards it.
     kidsRecord({}, firstStripe);
     renderView("headCoach", 6);
     await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
     expect(screen.queryByText(/Minimum \d/u)).toBeNull();
+    expect(screen.getByText("This level requires no rated skills.")).toBeInTheDocument();
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+  });
+
+  /**
+   * OPERATOR DECISION 9, through the view that owns the requirement set. The shipped catalogue has
+   * exactly one requirement set (11 skills on 15 of 171 levels), so the only way to tell "the
+   * target's requirements" from "the whole catalogue" is a target that requires a subset: this
+   * trims the next level's requirements to two of the eleven.
+   */
+  it("rates only what the next level requires, and says the other ratings are untouched", async () => {
+    const kept = ["tie-the-belt", "warm-up-2-bridges"];
+    api.getLevelCatalog.mockResolvedValue({
+      ...catalog,
+      requirements: catalog.requirements.filter(
+        (requirement) =>
+          requirement.definitionKey !== kidsFirstStripe || kept.includes(requirement.skillKey),
+      ),
+    });
+    api.recordSkillRatings.mockResolvedValue({ studentId: "student-1", recorded: 1 });
+    kidsRecord({ "warm-up-1-technical-stand-up": 3 });
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    // Two skills, five radios each: the other nine of the eleven are not on screen.
+    expect(screen.getAllByRole("radio")).toHaveLength(10);
+    expect(skillGroup(/^Tie The Belt/u)).toBeInTheDocument();
+    expect(skillGroup(/^Warm Up 2 - Bridges/u)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /Technical Stand Up/u })).toBeNull();
+    // The rating that is no longer on screen is neither lost nor hidden without a word.
+    expect(
+      screen.getByText("A rating for 1 other skill is on record. Nothing here changes it."),
+    ).toBeInTheDocument();
+    fireEvent.click(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save ratings" }));
+    await waitFor(() =>
+      expect(api.recordSkillRatings).toHaveBeenCalledWith({
+        studentId: "student-1",
+        definitionKey: kidsBelt,
+        ratings: [{ skillKey: "tie-the-belt", score: 5 }],
+      }),
+    );
+  });
+
+  /** Case 3: the top of what BPT tracks. There is no target, so no requirement set exists to rate. */
+  it("says why there is nothing to rate at the highest level BPT tracks", async () => {
+    api.getStudentLevelCard.mockResolvedValue({
+      ...card,
+      currentDefinition: { definitionKey: topLevel.definitionKey },
+      targetDefinition: null,
+      progressPercent: null,
+    });
+    renderView("headCoach");
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    expect(
+      screen.getByText("This is the highest level BPT tracks, so there are no skills to rate."),
+    ).toBeInTheDocument();
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
 
   it("shows the rating already on record and records against the level held", async () => {
