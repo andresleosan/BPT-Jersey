@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { parseEnrolmentRequestSubmission } from "@bpt-jersey/domain/members/enrolment-requests";
 import { enrolmentWaiverTermsVersion } from "@bpt-jersey/domain/consents/enrolment-waiver";
 
 const authState = vi.hoisted(() => ({
@@ -97,7 +98,7 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
-    await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
 
     expect(await screen.findByText(/read and accept the waiver/i)).toBeVisible();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
@@ -115,6 +116,8 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -123,17 +126,38 @@ describe("enrolment request page", () => {
     });
   });
 
-  it("shows the plans of the chosen training centre without selling one", async () => {
+  it("shows plans only after valid details and requires an adult choice before sending", async () => {
     const user = userEvent.setup();
     render(<EnrolPage />);
-
-    await waitFor(() => expect(screen.getByLabelText("Full name")).toBeVisible());
+    await screen.findByLabelText("Full name");
     await user.selectOptions(screen.getByLabelText("Training centre"), "West");
-
-    const plans = screen.getByRole("region", { name: "Plans at West" });
-    expect(within(plans).getByText("£65 per month")).toBeInTheDocument();
-    expect(within(plans).queryByText("£85 per month")).not.toBeInTheDocument();
-    expect(within(plans).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("£65 per month")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /send request/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter your date of birth.");
+    expect(screen.queryByText("£65 per month")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    expect(screen.getByRole("heading", { name: "Choose your plans" })).toHaveFocus();
+    expect(screen.queryByLabelText("Full name")).not.toBeInTheDocument();
+    expect(screen.getByText("£65 per month")).toBeVisible();
+    expect(screen.queryByText("£85 per month")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Kids|Teens/ })).not.toBeInTheDocument();
+    expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /send request/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Choose an available plan for every student",
+    );
+    expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("radio", { name: /West Adult/ }));
+    await user.click(screen.getByRole("button", { name: /send request/i }));
+    await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
+    expect(enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0]).toMatchObject({
+      planSelections: { applicant: "west-adult", minors: [] },
+    });
   });
 
   it("submits an adult applying for themselves without empty optional fields", async () => {
@@ -145,6 +169,8 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -174,7 +200,7 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
     await user.click(screen.getByLabelText("Evening"));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
-    await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Enter a phone number the academy can reach you on.",
@@ -191,7 +217,7 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText(/parent or guardian/i));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
-    await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Add the child you are enrolling.");
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
@@ -216,11 +242,15 @@ describe("enrolment request page", () => {
     );
     await user.click(screen.getByLabelText("Afternoon", { selector: "#enrol-minor-0-afternoon" }));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    expect(screen.queryByRole("radio", { name: /Town Adult/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /Town Kids & Teens 1x/ }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
     expect(enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0]).toMatchObject({
       applicantIsStudent: false,
+      planSelections: { minors: ["town-kids-1x"] },
       minors: [
         {
           fullName: "Robin Minor",
@@ -230,6 +260,12 @@ describe("enrolment request page", () => {
         },
       ],
     });
+    expect(
+      parseEnrolmentRequestSubmission(
+        enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0],
+        "2026-09-18",
+      ).ok,
+    ).toBe(true);
   });
 
   it("shows an open request instead of the form, with what office asked for", async () => {
@@ -269,7 +305,7 @@ describe("enrolment request page", () => {
     // A withdrawn request is no longer open, so the form comes back: withdrawing is how somebody
     // corrects a request they sent by mistake, not a dead end.
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /send request to the academy/i })).toBeVisible(),
+      expect(screen.getByRole("button", { name: /continue to plans/i })).toBeVisible(),
     );
   });
 
@@ -285,6 +321,8 @@ describe("enrolment request page", () => {
     await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
     await user.click(screen.getByLabelText("Evening"));
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -300,7 +338,7 @@ describe("enrolment request page", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       /could not check whether you already have a request open/i,
     );
-    expect(screen.getByRole("button", { name: /send request to the academy/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /continue to plans/i })).toBeVisible();
   });
 
   /**
@@ -397,5 +435,129 @@ describe("enrolment request page", () => {
 
     await waitFor(() => expect(screen.getByLabelText("Phone (required)")).toBeVisible());
     expect(screen.getByLabelText("Email")).toHaveValue("");
+  });
+});
+
+describe("enrolment steps", () => {
+  async function fillAdult(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByLabelText("Full name");
+    await user.type(screen.getByLabelText("Date of birth"), "1994-04-02");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    await user.click(screen.getByLabelText("Evening"));
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+  }
+
+  it("preserves details and choices on back, then resets a choice when the centre changes", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+    await fillAdult(user);
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
+    await user.click(screen.getByRole("button", { name: /back to details/i }));
+    expect(screen.getByLabelText("Phone (required)")).toHaveValue("07700900123");
+    expect(
+      screen.getByRole("checkbox", { name: /read and understand this waiver/i }),
+    ).toBeChecked();
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    expect(screen.getByRole("radio", { name: /Town Adult/ })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: /back to details/i }));
+    await user.selectOptions(screen.getByLabelText("Training centre"), "West");
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    expect(screen.queryByRole("radio", { name: /Town Adult/ })).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("radio").every((radio) => !(radio as HTMLInputElement).checked),
+    ).toBe(true);
+    expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
+  });
+
+  it("offers each child plans for their own centre and age and waits for all choices", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+    await screen.findByLabelText("Full name");
+    await user.type(screen.getByLabelText("Date of birth"), "1990-01-01");
+    await user.type(screen.getByLabelText("Phone (required)"), "07700900123");
+    await user.click(screen.getByLabelText(/parent or guardian/i));
+    const children = [
+      { name: "Town Child", dob: "2018-05-10", centre: "Town", plan: "Town Kids & Teens 1x" },
+      { name: "West Teen", dob: "2011-05-10", centre: "West", plan: "West Teens single class" },
+    ];
+    for (const [index, child] of children.entries()) {
+      await user.click(screen.getByRole("button", { name: /add a child/i }));
+      const fields = within(screen.getByRole("group", { name: `Child ${index + 1}` }));
+      await user.type(fields.getByLabelText("Full name"), child.name);
+      await user.type(fields.getByLabelText("Date of birth"), child.dob);
+      await user.selectOptions(fields.getByLabelText("Training centre"), child.centre);
+      await user.click(fields.getByLabelText("Afternoon"));
+    }
+    await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    const town = within(screen.getByRole("group", { name: "Town Child · Town" }));
+    const west = within(screen.getByRole("group", { name: "West Teen · West" }));
+    expect(town.getAllByRole("radio")).toHaveLength(2);
+    expect(west.getAllByRole("radio")).toHaveLength(2);
+    expect(west.queryByRole("radio", { name: /West Kids/ })).not.toBeInTheDocument();
+    await user.click(town.getByRole("radio", { name: /Town Kids & Teens 1x/ }));
+    await user.click(screen.getByRole("button", { name: /send request/i }));
+    expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
+    await user.click(west.getByRole("radio", { name: /West Teens single class/ }));
+    await user.click(screen.getByRole("button", { name: /send request/i }));
+    await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
+    const submission = enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0];
+    expect(submission.planSelections).toEqual({ minors: ["town-kids-1x", "west-teens-payg"] });
+    expect(parseEnrolmentRequestSubmission(submission, "2026-09-18").ok).toBe(true);
+    expect(await screen.findByRole("heading", { name: "Waiting for the academy" })).toBeVisible();
+  });
+
+  it("keeps the selected plan and request ID after failure and prevents duplicate sends", async () => {
+    const user = userEvent.setup();
+    enrolmentApi.submitEnrolmentRequest.mockRejectedValueOnce(new Error("Try again"));
+    render(<EnrolPage />);
+    await fillAdult(user);
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
+    await user.click(screen.getByRole("button", { name: /send request/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
+    expect(screen.getByRole("radio", { name: /Town Adult/ })).toBeChecked();
+    const firstSubmission = enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0];
+    let complete: () => void = () => undefined;
+    enrolmentApi.submitEnrolmentRequest.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = () =>
+            resolve({
+              enrolmentRequestId: "enrolment-1",
+              status: "submitted",
+              submittedAt: "2026-09-18T10:00:00.000Z",
+            });
+        }),
+    );
+    await user.click(screen.getByRole("button", { name: /send request/i }));
+    expect(screen.getByRole("button", { name: /sending request/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /back to details/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /sending request/i }));
+    expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledTimes(2);
+    expect(enrolmentApi.submitEnrolmentRequest.mock.calls[1]?.[0]).toEqual(firstSubmission);
+    complete();
+    expect(await screen.findByRole("heading", { name: "Waiting for the academy" })).toBeVisible();
+  });
+
+  it("validates partial contacts, partial addresses and age before showing plans", async () => {
+    const user = userEvent.setup();
+    render(<EnrolPage />);
+    await fillAdult(user);
+    await user.type(screen.getByLabelText("Name", { exact: true }), "Contact");
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Complete the emergency contact");
+    await user.clear(screen.getByLabelText("Name", { exact: true }));
+    await user.type(screen.getByLabelText("Post code"), "JE2 4WW");
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter both the address and the post code");
+    await user.clear(screen.getByLabelText("Post code"));
+    await user.clear(screen.getByLabelText("Date of birth"));
+    await user.type(screen.getByLabelText("Date of birth"), "2020-01-01");
+    await user.click(screen.getByRole("button", { name: /continue to plans/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent("applicants must be 18 or over");
+    expect(screen.queryByRole("heading", { name: "Choose your plans" })).not.toBeInTheDocument();
+    expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
   });
 });

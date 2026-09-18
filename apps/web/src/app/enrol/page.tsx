@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import type {
   EnrolmentRequestClientView,
-  EnrolmentRequestSubmission,
+  EnrolmentRequestDetails,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import { ClientAuthProvider, useClientSession } from "../../lib/client-auth";
 import {
@@ -19,7 +19,14 @@ import {
   submitEnrolmentRequest,
   withdrawEnrolmentRequest,
 } from "../../lib/enrolment-client";
-import { PlanPriceList } from "../plan-price-list";
+import {
+  parseEnrolmentRequestDetails,
+  parseEnrolmentRequestSubmission,
+  maximumEnrolmentRequestMinors,
+} from "@bpt-jersey/domain/members/enrolment-requests";
+import type { PlanId } from "@bpt-jersey/domain/memberships";
+import { EnrolmentPlanChoices } from "./plan-choices";
+import "./enrolment-steps.css";
 
 const preferenceOptions = [
   { value: "morning", label: "Morning" },
@@ -39,6 +46,7 @@ type Center = (typeof centerOptions)[number];
 type Gender = (typeof genderOptions)[number]["value"];
 
 type MinorForm = {
+  selectedPlan: PlanId | "";
   fullName: string;
   dateOfBirth: string;
   gender: Gender;
@@ -47,6 +55,7 @@ type MinorForm = {
 };
 
 type ApplicantForm = {
+  selectedPlan: PlanId | "";
   applicantIsStudent: boolean;
   fullName: string;
   dateOfBirth: string;
@@ -65,6 +74,7 @@ type ApplicantForm = {
 };
 
 const emptyMinor: MinorForm = {
+  selectedPlan: "",
   fullName: "",
   dateOfBirth: "",
   gender: "unknown",
@@ -73,6 +83,7 @@ const emptyMinor: MinorForm = {
 };
 
 const emptyForm: ApplicantForm = {
+  selectedPlan: "",
   applicantIsStudent: true,
   fullName: "",
   dateOfBirth: "",
@@ -110,7 +121,7 @@ function trimmed(value: string): string | undefined {
  * Turns the form into the submission contract. Empty optional fields are dropped rather than sent
  * as empty strings, because the contract rejects an empty string where it accepts an absent field.
  */
-function toSubmission(form: ApplicantForm, requestId: string): EnrolmentRequestSubmission {
+function toDetails(form: ApplicantForm, requestId: string): EnrolmentRequestDetails {
   const emergencyContact =
     trimmed(form.emergencyName) &&
     trimmed(form.emergencyRelationship) &&
@@ -132,15 +143,17 @@ function toSubmission(form: ApplicantForm, requestId: string): EnrolmentRequestS
     applicant: {
       fullName: form.fullName.trim(),
       dateOfBirth: form.dateOfBirth,
-      trainingCenter: form.trainingCenter,
-      trainingTimePreferences: [...form.trainingTimePreferences],
+      trainingCenter: form.applicantIsStudent
+        ? form.trainingCenter
+        : (form.minors[0]?.trainingCenter ?? form.trainingCenter),
+      trainingTimePreferences: form.applicantIsStudent ? [...form.trainingTimePreferences] : [],
       gender: form.gender,
       phoneNumber: form.phoneNumber.trim(),
       ...(trimmed(form.email) === undefined ? {} : { email: form.email.trim() }),
       ...(emergencyContact === undefined ? {} : { emergencyContact }),
       ...(postalAddress === undefined ? {} : { postalAddress }),
     },
-    minors: form.minors.map((minor) => ({
+    minors: (form.applicantIsStudent ? [] : form.minors).map((minor) => ({
       fullName: minor.fullName.trim(),
       dateOfBirth: minor.dateOfBirth,
       gender: minor.gender,
@@ -150,10 +163,14 @@ function toSubmission(form: ApplicantForm, requestId: string): EnrolmentRequestS
     // Only the version travels. The server stores the hash of the text it holds, so the acceptance
     // names words the academy can reproduce rather than words this form claims were on screen.
     waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
-  } as EnrolmentRequestSubmission;
+  };
 }
 
-function validate(form: ApplicantForm): string | undefined {
+function validate(
+  form: ApplicantForm,
+  requestId: string,
+  effectiveDate: string,
+): string | undefined {
   if (!form.fullName.trim()) return "Enter your full name.";
   if (!form.dateOfBirth) return "Enter your date of birth.";
   // Required here, unlike on the administrative form: the academy cannot open a client record
@@ -165,16 +182,35 @@ function validate(form: ApplicantForm): string | undefined {
   if (!form.applicantIsStudent && form.minors.length === 0) {
     return "Add the child you are enrolling.";
   }
-  for (const minor of form.minors) {
+  for (const minor of form.applicantIsStudent ? [] : form.minors) {
     if (!minor.fullName.trim()) return "Enter every child's full name.";
     if (!minor.dateOfBirth) return "Enter every child's date of birth.";
     if (minor.trainingTimePreferences.length === 0) {
       return "Choose at least one training time for every child.";
     }
   }
+  const emergencyFields = [form.emergencyName, form.emergencyRelationship, form.emergencyPhone];
+  if (
+    emergencyFields.some((value) => value.trim()) &&
+    !emergencyFields.every((value) => value.trim())
+  ) {
+    return "Complete the emergency contact name, relationship and phone number.";
+  }
+  if (Boolean(form.addressLine.trim()) !== Boolean(form.postCode.trim())) {
+    return "Enter both the address and the post code.";
+  }
   // Last, so somebody who accepted and then missed a field is not told to accept again.
   if (!form.waiverAccepted) {
     return "Read and accept the waiver before sending your request.";
+  }
+  const parsed = parseEnrolmentRequestDetails(toDetails(form, requestId), effectiveDate);
+  if (!parsed.ok) {
+    const problem = parsed.error[0];
+    if (problem?.path.includes("dateOfBirth")) {
+      return "Check the dates of birth: applicants must be 18 or over and children must be under 18.";
+    }
+    if (problem?.path.includes("email")) return "Enter a valid email address.";
+    return "Check that all details are complete and valid before choosing plans.";
   }
   return undefined;
 }
@@ -300,7 +336,9 @@ function MinorFields({
         Date of birth
         <input
           id={`${prefix}-dob`}
-          onChange={(event) => onChange({ ...minor, dateOfBirth: event.target.value })}
+          onChange={(event) =>
+            onChange({ ...minor, dateOfBirth: event.target.value, selectedPlan: "" })
+          }
           type="date"
           value={minor.dateOfBirth}
         />
@@ -309,7 +347,9 @@ function MinorFields({
         Training centre
         <select
           id={`${prefix}-center`}
-          onChange={(event) => onChange({ ...minor, trainingCenter: event.target.value as Center })}
+          onChange={(event) =>
+            onChange({ ...minor, trainingCenter: event.target.value as Center, selectedPlan: "" })
+          }
           value={minor.trainingCenter}
         >
           {centerOptions.map((option) => (
@@ -351,6 +391,14 @@ function MinorFields({
 function EnrolContent() {
   const { session, status } = useClientSession();
   const [form, setForm] = useState<ApplicantForm>(emptyForm);
+  const [step, setStep] = useState<"details" | "plans">("details");
+  const [requestId, setRequestId] = useState(createEnrolmentRequestId);
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const submitting = useRef(false);
+  const effectiveDate = new Date().toISOString().slice(0, 10);
+  useEffect(() => {
+    if (step === "plans") stepHeading.current?.focus();
+  }, [step]);
   const [requests, setRequests] = useState<readonly EnrolmentRequestClientView[]>();
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -414,19 +462,40 @@ function EnrolContent() {
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    const problem = validate(form);
+    if (submitting.current) return;
+    const problem = validate(form, requestId, effectiveDate);
     if (problem) {
       setMessage(problem);
       return;
     }
-    setBusy(true);
     setMessage(undefined);
+    if (step === "details") {
+      setStep("plans");
+      return;
+    }
+    const parsed = parseEnrolmentRequestSubmission(
+      {
+        ...toDetails(form, requestId),
+        planSelections: {
+          ...(form.applicantIsStudent ? { applicant: form.selectedPlan } : {}),
+          minors: form.applicantIsStudent ? [] : form.minors.map((minor) => minor.selectedPlan),
+        },
+      },
+      effectiveDate,
+    );
+    if (!parsed.ok) {
+      setMessage("Choose an available plan for every student before sending your request.");
+      return;
+    }
+    submitting.current = true;
+    setBusy(true);
     try {
-      const saved = await submitEnrolmentRequest(toSubmission(form, createEnrolmentRequestId()));
+      const saved = await submitEnrolmentRequest(parsed.value);
       setRequests([saved, ...(requests ?? [])]);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to send your request.");
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -436,6 +505,8 @@ function EnrolContent() {
     setMessage(undefined);
     try {
       const updated = await withdrawEnrolmentRequest(enrolmentRequestId);
+      setStep("details");
+      setRequestId(createEnrolmentRequestId());
       setRequests((current) =>
         (current ?? []).map((item) =>
           item.enrolmentRequestId === updated.enrolmentRequestId ? updated : item,
@@ -488,8 +559,8 @@ function EnrolContent() {
       <p className="account-eyebrow">BPT Jersey / Join</p>
       <h1 id="enrol-title">Join the academy</h1>
       <p className="client-destination-intro">
-        Tell the academy who is joining. Reception reviews every request before a place is
-        confirmed, and will ask you to sign the waiver in person.
+        Complete your details, then choose a plan for each student. The academy reviews your request
+        before confirming your registration.
       </p>
 
       {message ? (
@@ -510,240 +581,315 @@ function EnrolContent() {
           request={openRequest}
         />
       ) : (
-        <form className="enrol-form" onSubmit={(event) => void submit(event)}>
-          <fieldset className="enrol-who">
-            <legend>Who is joining</legend>
-            <label htmlFor="enrol-self">
-              <input
-                checked={form.applicantIsStudent}
-                id="enrol-self"
-                name="enrol-who"
-                onChange={() => setForm({ ...form, applicantIsStudent: true })}
-                type="radio"
-              />
-              I am joining as an adult student
-            </label>
-            <label htmlFor="enrol-guardian">
-              <input
-                checked={!form.applicantIsStudent}
-                id="enrol-guardian"
-                name="enrol-who"
-                onChange={() => setForm({ ...form, applicantIsStudent: false })}
-                type="radio"
-              />
-              I am a parent or guardian enrolling a child
-            </label>
-          </fieldset>
-
-          <fieldset className="enrol-applicant">
-            <legend>
-              {form.applicantIsStudent ? "Your details" : "Your details as the guardian"}
-            </legend>
-            <label className="enrol-field" htmlFor="enrol-name">
-              Full name
-              <input
-                autoComplete="name"
-                id="enrol-name"
-                maxLength={160}
-                onChange={(event) => setForm({ ...form, fullName: event.target.value })}
-                value={form.fullName}
-              />
-            </label>
-            <label className="enrol-field" htmlFor="enrol-dob">
-              Date of birth
-              <input
-                autoComplete="bday"
-                id="enrol-dob"
-                onChange={(event) => setForm({ ...form, dateOfBirth: event.target.value })}
-                type="date"
-                value={form.dateOfBirth}
-              />
-            </label>
-            <label className="enrol-field" htmlFor="enrol-phone">
-              Phone (required)
-              <input
-                autoComplete="tel"
-                id="enrol-phone"
-                maxLength={64}
-                onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })}
-                type="tel"
-                value={form.phoneNumber}
-              />
-            </label>
-            <label className="enrol-field" htmlFor="enrol-email">
-              Email
-              <input
-                autoComplete="email"
-                id="enrol-email"
-                maxLength={320}
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
-                type="email"
-                value={form.email}
-              />
-            </label>
-            <label className="enrol-field" htmlFor="enrol-gender">
-              Gender
-              <select
-                id="enrol-gender"
-                onChange={(event) => setForm({ ...form, gender: event.target.value as Gender })}
-                value={form.gender}
-              >
-                {genderOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="enrol-field" htmlFor="enrol-center">
-              Training centre
-              <select
-                id="enrol-center"
-                onChange={(event) =>
-                  setForm({ ...form, trainingCenter: event.target.value as Center })
-                }
-                value={form.trainingCenter}
-              >
-                {centerOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <section aria-labelledby="enrol-plans-title" className="enrol-plans">
-              <h2 id="enrol-plans-title">Plans at {form.trainingCenter}</h2>
-              <PlanPriceList site={form.trainingCenter} />
-            </section>
-            <fieldset className="enrol-preferences">
-              <legend>Training times</legend>
-              {preferenceOptions.map((option) => (
-                <label key={option.value} htmlFor={`enrol-time-${option.value}`}>
+        <form className="enrol-form" noValidate onSubmit={(event) => void submit(event)}>
+          <ol className="enrol-steps" aria-label="Registration progress">
+            <li aria-current={step === "details" ? "step" : undefined}>1. Your details</li>
+            <li aria-current={step === "plans" ? "step" : undefined}>2. Choose plans</li>
+          </ol>
+          {step === "details" ? (
+            <>
+              <fieldset className="enrol-who">
+                <legend>Who is joining</legend>
+                <label htmlFor="enrol-self">
                   <input
-                    checked={form.trainingTimePreferences.includes(option.value)}
-                    id={`enrol-time-${option.value}`}
-                    onChange={() =>
+                    checked={form.applicantIsStudent}
+                    id="enrol-self"
+                    name="enrol-who"
+                    onChange={() => setForm({ ...form, applicantIsStudent: true })}
+                    type="radio"
+                  />
+                  I am joining as an adult student
+                </label>
+                <label htmlFor="enrol-guardian">
+                  <input
+                    checked={!form.applicantIsStudent}
+                    id="enrol-guardian"
+                    name="enrol-who"
+                    onChange={() => setForm({ ...form, applicantIsStudent: false })}
+                    type="radio"
+                  />
+                  I am a parent or guardian enrolling a child
+                </label>
+              </fieldset>
+
+              <fieldset className="enrol-applicant">
+                <legend>
+                  {form.applicantIsStudent ? "Your details" : "Your details as the guardian"}
+                </legend>
+                <label className="enrol-field" htmlFor="enrol-name">
+                  Full name
+                  <input
+                    autoComplete="name"
+                    id="enrol-name"
+                    maxLength={160}
+                    onChange={(event) => setForm({ ...form, fullName: event.target.value })}
+                    value={form.fullName}
+                  />
+                </label>
+                <label className="enrol-field" htmlFor="enrol-dob">
+                  Date of birth
+                  <input
+                    autoComplete="bday"
+                    id="enrol-dob"
+                    onChange={(event) =>
+                      setForm({ ...form, dateOfBirth: event.target.value, selectedPlan: "" })
+                    }
+                    type="date"
+                    value={form.dateOfBirth}
+                  />
+                </label>
+                <label className="enrol-field" htmlFor="enrol-phone">
+                  Phone (required)
+                  <input
+                    autoComplete="tel"
+                    id="enrol-phone"
+                    maxLength={64}
+                    onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })}
+                    type="tel"
+                    value={form.phoneNumber}
+                  />
+                </label>
+                <label className="enrol-field" htmlFor="enrol-email">
+                  Email
+                  <input
+                    autoComplete="email"
+                    id="enrol-email"
+                    maxLength={320}
+                    onChange={(event) => setForm({ ...form, email: event.target.value })}
+                    type="email"
+                    value={form.email}
+                  />
+                </label>
+                <label className="enrol-field" htmlFor="enrol-gender">
+                  Gender
+                  <select
+                    id="enrol-gender"
+                    onChange={(event) => setForm({ ...form, gender: event.target.value as Gender })}
+                    value={form.gender}
+                  >
+                    {genderOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {form.applicantIsStudent ? (
+                  <>
+                    <label className="enrol-field" htmlFor="enrol-center">
+                      Training centre
+                      <select
+                        id="enrol-center"
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            trainingCenter: event.target.value as Center,
+                            selectedPlan: "",
+                          })
+                        }
+                        value={form.trainingCenter}
+                      >
+                        {centerOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <fieldset className="enrol-preferences">
+                      <legend>Training times</legend>
+                      {preferenceOptions.map((option) => (
+                        <label key={option.value} htmlFor={`enrol-time-${option.value}`}>
+                          <input
+                            checked={form.trainingTimePreferences.includes(option.value)}
+                            id={`enrol-time-${option.value}`}
+                            onChange={() =>
+                              setForm({
+                                ...form,
+                                trainingTimePreferences: togglePreference(
+                                  form.trainingTimePreferences,
+                                  option.value,
+                                ),
+                              })
+                            }
+                            type="checkbox"
+                          />
+                          {option.label}
+                        </label>
+                      ))}
+                    </fieldset>
+                  </>
+                ) : null}
+              </fieldset>
+
+              <fieldset className="enrol-emergency">
+                <legend>Emergency contact</legend>
+                <p className="enrol-hint">
+                  Optional here, and required before the first class. The academy stores it with the
+                  student record and nowhere else.
+                </p>
+                <label className="enrol-field" htmlFor="enrol-emergency-name">
+                  Name
+                  <input
+                    id="enrol-emergency-name"
+                    maxLength={160}
+                    onChange={(event) => setForm({ ...form, emergencyName: event.target.value })}
+                    value={form.emergencyName}
+                  />
+                </label>
+                <label className="enrol-field" htmlFor="enrol-emergency-relationship">
+                  Relationship
+                  <input
+                    id="enrol-emergency-relationship"
+                    maxLength={64}
+                    onChange={(event) =>
+                      setForm({ ...form, emergencyRelationship: event.target.value })
+                    }
+                    value={form.emergencyRelationship}
+                  />
+                </label>
+                <label className="enrol-field" htmlFor="enrol-emergency-phone">
+                  Phone
+                  <input
+                    id="enrol-emergency-phone"
+                    maxLength={64}
+                    onChange={(event) => setForm({ ...form, emergencyPhone: event.target.value })}
+                    type="tel"
+                    value={form.emergencyPhone}
+                  />
+                </label>
+              </fieldset>
+
+              <fieldset className="enrol-address">
+                <legend>Address</legend>
+                <label className="enrol-field" htmlFor="enrol-address-line">
+                  Address
+                  <input
+                    autoComplete="street-address"
+                    id="enrol-address-line"
+                    maxLength={240}
+                    onChange={(event) => setForm({ ...form, addressLine: event.target.value })}
+                    value={form.addressLine}
+                  />
+                </label>
+                <label className="enrol-field" htmlFor="enrol-postcode">
+                  Post code
+                  <input
+                    autoComplete="postal-code"
+                    id="enrol-postcode"
+                    maxLength={16}
+                    onChange={(event) => setForm({ ...form, postCode: event.target.value })}
+                    value={form.postCode}
+                  />
+                </label>
+              </fieldset>
+
+              {!form.applicantIsStudent ? (
+                <section className="enrol-minors" aria-labelledby="enrol-minors-title">
+                  <h2 id="enrol-minors-title">Children joining</h2>
+                  {form.minors.map((minor, index) => (
+                    <MinorFields
+                      index={index}
+                      key={index}
+                      minor={minor}
+                      onChange={(next) =>
+                        setForm({
+                          ...form,
+                          minors: form.minors.map((item, position) =>
+                            position === index ? next : item,
+                          ),
+                        })
+                      }
+                      onRemove={() =>
+                        setForm({
+                          ...form,
+                          minors: form.minors.filter((_item, position) => position !== index),
+                        })
+                      }
+                    />
+                  ))}
+                  <button
+                    className="button button-secondary"
+                    disabled={form.minors.length >= maximumEnrolmentRequestMinors}
+                    onClick={() =>
+                      setForm({ ...form, minors: [...form.minors, { ...emptyMinor }] })
+                    }
+                    type="button"
+                  >
+                    Add a child
+                  </button>
+                </section>
+              ) : null}
+
+              <WaiverTerms
+                accepted={form.waiverAccepted}
+                onChange={(next) => setForm({ ...form, waiverAccepted: next })}
+              />
+
+              <button className="button button-primary" type="submit">
+                Continue to plans
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 ref={stepHeading} tabIndex={-1}>
+                Choose your plans
+              </h2>
+              <p className="enrol-hint">
+                Select one plan for each student. Your choices will be sent to the academy for
+                approval.
+              </p>
+              {form.applicantIsStudent ? (
+                <EnrolmentPlanChoices
+                  id="applicant"
+                  fullName={form.fullName}
+                  dateOfBirth={form.dateOfBirth}
+                  trainingCenter={form.trainingCenter}
+                  effectiveDate={effectiveDate}
+                  selectedPlan={form.selectedPlan}
+                  disabled={busy}
+                  onChange={(selectedPlan) => setForm({ ...form, selectedPlan })}
+                />
+              ) : (
+                form.minors.map((minor, index) => (
+                  <EnrolmentPlanChoices
+                    key={index}
+                    id={`child-${index}`}
+                    fullName={minor.fullName}
+                    dateOfBirth={minor.dateOfBirth}
+                    trainingCenter={minor.trainingCenter}
+                    effectiveDate={effectiveDate}
+                    selectedPlan={minor.selectedPlan}
+                    disabled={busy}
+                    onChange={(selectedPlan) =>
                       setForm({
                         ...form,
-                        trainingTimePreferences: togglePreference(
-                          form.trainingTimePreferences,
-                          option.value,
+                        minors: form.minors.map((item, position) =>
+                          position === index ? { ...item, selectedPlan } : item,
                         ),
                       })
                     }
-                    type="checkbox"
                   />
-                  {option.label}
-                </label>
-              ))}
-            </fieldset>
-          </fieldset>
-
-          <fieldset className="enrol-emergency">
-            <legend>Emergency contact</legend>
-            <p className="enrol-hint">
-              Optional here, and required before the first class. The academy stores it with the
-              student record and nowhere else.
-            </p>
-            <label className="enrol-field" htmlFor="enrol-emergency-name">
-              Name
-              <input
-                id="enrol-emergency-name"
-                maxLength={160}
-                onChange={(event) => setForm({ ...form, emergencyName: event.target.value })}
-                value={form.emergencyName}
-              />
-            </label>
-            <label className="enrol-field" htmlFor="enrol-emergency-relationship">
-              Relationship
-              <input
-                id="enrol-emergency-relationship"
-                maxLength={64}
-                onChange={(event) =>
-                  setForm({ ...form, emergencyRelationship: event.target.value })
-                }
-                value={form.emergencyRelationship}
-              />
-            </label>
-            <label className="enrol-field" htmlFor="enrol-emergency-phone">
-              Phone
-              <input
-                id="enrol-emergency-phone"
-                maxLength={64}
-                onChange={(event) => setForm({ ...form, emergencyPhone: event.target.value })}
-                type="tel"
-                value={form.emergencyPhone}
-              />
-            </label>
-          </fieldset>
-
-          <fieldset className="enrol-address">
-            <legend>Address</legend>
-            <label className="enrol-field" htmlFor="enrol-address-line">
-              Address
-              <input
-                autoComplete="street-address"
-                id="enrol-address-line"
-                maxLength={240}
-                onChange={(event) => setForm({ ...form, addressLine: event.target.value })}
-                value={form.addressLine}
-              />
-            </label>
-            <label className="enrol-field" htmlFor="enrol-postcode">
-              Post code
-              <input
-                autoComplete="postal-code"
-                id="enrol-postcode"
-                maxLength={16}
-                onChange={(event) => setForm({ ...form, postCode: event.target.value })}
-                value={form.postCode}
-              />
-            </label>
-          </fieldset>
-
-          <section className="enrol-minors" aria-labelledby="enrol-minors-title">
-            <h2 id="enrol-minors-title">Children joining</h2>
-            {form.minors.map((minor, index) => (
-              <MinorFields
-                index={index}
-                key={index}
-                minor={minor}
-                onChange={(next) =>
-                  setForm({
-                    ...form,
-                    minors: form.minors.map((item, position) => (position === index ? next : item)),
-                  })
-                }
-                onRemove={() =>
-                  setForm({
-                    ...form,
-                    minors: form.minors.filter((_item, position) => position !== index),
-                  })
-                }
-              />
-            ))}
-            <button
-              className="button button-secondary"
-              onClick={() => setForm({ ...form, minors: [...form.minors, { ...emptyMinor }] })}
-              type="button"
-            >
-              Add a child
-            </button>
-          </section>
-
-          <WaiverTerms
-            accepted={form.waiverAccepted}
-            onChange={(next) => setForm({ ...form, waiverAccepted: next })}
-          />
-
-          {/*
-            Deliberately not disabled when the waiver is unaccepted: a dead button explains nothing.
-            The validator says what is missing, in the same place every other missing field is
-            reported.
-          */}
-          <button className="button button-primary" disabled={busy} type="submit">
-            Send request to the academy
-          </button>
+                ))
+              )}
+              <div className="hero-actions">
+                <button
+                  className="button button-secondary"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => {
+                    setStep("details");
+                    setMessage(undefined);
+                  }}
+                >
+                  Back to details
+                </button>
+                <button className="button button-primary" disabled={busy} type="submit">
+                  {busy ? "Sending request..." : "Send request to the academy"}
+                </button>
+              </div>
+            </>
+          )}
         </form>
       )}
     </main>

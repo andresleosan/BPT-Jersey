@@ -4,6 +4,8 @@ import { enrolmentWaiverTermsVersion } from "../consents/enrolment-waiver-terms"
 
 import { adminCreateStudentInputSchema } from "./member-directory-contracts";
 import {
+  getEnrolmentPlans,
+  parseEnrolmentRequestDetails,
   canSubmitEnrolmentRequest,
   isApprovableEnrolmentRequest,
   isOpenEnrolmentRequest,
@@ -52,6 +54,10 @@ function submission(overrides: Record<string, unknown> = {}) {
     applicantIsStudent: true,
     applicant,
     minors: [],
+    planSelections:
+      overrides.applicantIsStudent === false
+        ? { minors: ((overrides.minors ?? []) as unknown[]).map(() => "town-kids-1x") }
+        : { applicant: "town-adult", minors: [] },
     waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
     ...overrides,
   };
@@ -355,5 +361,85 @@ describe("enrolment request approval", () => {
     expect(isApprovableEnrolmentRequest("approval-failed")).toBe(true);
     expect(isApprovableEnrolmentRequest("withdrawn")).toBe(false);
     expect(isApprovableEnrolmentRequest("approved")).toBe(false);
+  });
+});
+
+describe("enrolment plan preferences", () => {
+  it("keeps legacy requests readable and exposes new choices only in the review detail", () => {
+    expect(parseEnrolmentRequestRecord(record).ok).toBe(true);
+    const withPlans = { ...record, planSelections: { minors: ["town-kids-1x" as const] } };
+    expect(parseEnrolmentRequestRecord(withPlans).ok).toBe(true);
+    expect(toEnrolmentRequestDetail(withPlans).planSelections).toEqual(withPlans.planSelections);
+    expect(toEnrolmentRequestRow(withPlans)).not.toHaveProperty("planSelections");
+    expect(toEnrolmentRequestClientView(withPlans)).not.toHaveProperty("planSelections");
+  });
+
+  it("allows a non-training guardian to complete details without training times", () => {
+    const { planSelections, ...details } = submission({
+      applicantIsStudent: false,
+      applicant: { ...applicant, trainingTimePreferences: [] },
+      minors: [minor],
+    });
+    expect(planSelections).toBeDefined();
+    expect(parseEnrolmentRequestDetails(details, effectiveDate).ok).toBe(true);
+    expect(
+      parseEnrolmentRequestSubmission(
+        { ...details, planSelections: { minors: ["town-kids-1x"] } },
+        effectiveDate,
+      ).ok,
+    ).toBe(true);
+    expect(
+      parseEnrolmentRequestSubmission(
+        submission({ applicant: { ...applicant, trainingTimePreferences: [] } }),
+        effectiveDate,
+      ).ok,
+    ).toBe(false);
+  });
+
+  it("requires one appropriate plan for the adult or each child", () => {
+    const { planSelections, ...withoutPlans } = submission();
+    expect(planSelections).toBeDefined();
+    expect(parseEnrolmentRequestSubmission(withoutPlans, effectiveDate).ok).toBe(false);
+    for (const planSelections of [
+      { minors: [] },
+      { applicant: "west-adult", minors: [] },
+      { applicant: "town-kids-1x", minors: [] },
+      { applicant: "unknown", minors: [] },
+    ]) {
+      expect(
+        parseEnrolmentRequestSubmission(submission({ planSelections }), effectiveDate).ok,
+      ).toBe(false);
+    }
+    const family = {
+      applicantIsStudent: false,
+      minors: [minor, { ...minor, fullName: "Second child", trainingCenter: "West" }],
+    };
+    expect(
+      parseEnrolmentRequestSubmission(
+        submission({ ...family, planSelections: { minors: ["town-kids-1x", "west-kids-2x"] } }),
+        effectiveDate,
+      ).ok,
+    ).toBe(true);
+    for (const planSelections of [
+      { minors: [] },
+      { minors: ["town-kids-1x"] },
+      { minors: ["town-kids-1x", "town-kids-2x"] },
+      { applicant: "town-adult", minors: ["town-kids-1x", "west-kids-1x"] },
+    ]) {
+      expect(
+        parseEnrolmentRequestSubmission(submission({ ...family, planSelections }), effectiveDate)
+          .ok,
+      ).toBe(false);
+    }
+  });
+
+  it("filters sites, retired plans, and the exact 12th and 18th birthdays", () => {
+    const ids = (dob: string, site: "Town" | "West") =>
+      getEnrolmentPlans(dob, site, effectiveDate).map((plan) => plan.planId);
+    expect(ids("2014-09-07", "West")).toEqual(["west-kids-1x", "west-kids-2x"]);
+    expect(ids("2014-09-06", "West")).toEqual(["west-teens", "west-teens-payg"]);
+    expect(ids("2008-09-07", "Town")).toEqual(["town-kids-1x", "town-kids-2x"]);
+    expect(ids("2008-09-06", "Town")).toEqual(["bpt-jersey-adult", "town-adult"]);
+    expect(ids("bad-date", "West")).toEqual([]);
   });
 });
