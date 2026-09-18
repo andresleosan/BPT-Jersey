@@ -12,11 +12,17 @@ import {
   importedBaselineSchema,
   isLevelCalendarDate,
   jerseyDateOf,
+  levelHistoryEntrySchema,
   listPromotionGaps,
   minimumDaysOf,
   promotionNoteSchema,
+  studentLevelHistorySchema,
   type ImportedBaseline,
   type ApprovePromotionInput,
+  type LevelHistoryEntry,
+  type StudentLevelHistory,
+  type VoidPromotionInput,
+  type VoidPromotionResult,
   type AssignLevelInput,
   type AssignLevelResult,
   type OpenStudentLevelInput,
@@ -170,6 +176,22 @@ export type LevelCatalogStore = Readonly<{
     decidedByRole: "headCoach" | "owner";
     decidedAt?: string;
   }) => Promise<AssignLevelResult>;
+  /**
+   * T051V2 (plan decision 2): a void is APPEND-ONLY. It writes a `void_<promotionId>` record and
+   * puts the head back from the voided promotion's own `restore` snapshot, so it never has to
+   * reconstruct history; the promotion it voids is never mutated or deleted. Only the promotion
+   * the head names (`lastApprovedPromotionId`) can be voided, so a chain is walked back one step
+   * at a time.
+   */
+  voidPromotion: (params: {
+    academyId: string;
+    input: VoidPromotionInput;
+    decidedBy: string;
+    decidedByStaffId: string | null;
+    decidedByRole: "headCoach" | "owner";
+    decidedAt?: string;
+  }) => Promise<VoidPromotionResult>;
+  getStudentLevelHistory: (academyId: string, studentId: string) => Promise<StudentLevelHistory>;
 }>;
 
 /**
@@ -501,6 +523,7 @@ function levelAuditDraft(
       | "level.medical-leave.recorded"
       | "level.promotion.approved"
       | "level.promotion.rejected"
+      | "level.promotion.voided"
       | "level.opened";
     targetCollection: "assessments" | "medicalLeaves" | "levelPromotions" | "studentLevelProgress";
     targetId: string;
@@ -681,6 +704,127 @@ function bestScores(evaluations: readonly EvaluationRecord[]): Record<string, nu
     scores[evaluation.skillKey] = Math.max(scores[evaluation.skillKey] ?? 0, evaluation.score);
   }
   return scores;
+}
+
+/** Task 10: a stored decision role the history schema recognises; anything else is unknown. */
+function historyDecisionRole(value: unknown): "headCoach" | "owner" | null {
+  return value === "headCoach" || value === "owner" ? value : null;
+}
+
+/** The criteria as they stood at an assignment; anything else reads as "not recorded". */
+function historyCriterion(value: unknown): { done: number; min: number | null } | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { done, min } = value as Record<string, unknown>;
+  return typeof done === "number" && (typeof min === "number" || min === null)
+    ? { done, min }
+    : null;
+}
+
+/**
+ * Carried from Tasks 6 and 9: an assignment made with no note stores `note: null` and
+ * `decisionNotes: ""`, so an empty or whitespace-only stored note means there is NO note — not a
+ * note that happens to be blank. Without this the Manage view would render an empty note row as
+ * if a coach had written one.
+ */
+function historyNote(...values: readonly unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim() !== "") return value;
+  }
+  return null;
+}
+
+/**
+ * Task 10: the level history the Manage view reads — every approved promotion for this student,
+ * each carrying the void that cancelled it, plus the opening the head records, newest first.
+ *
+ * `levelHistoryEntrySchema` is a READ schema over stored data, so each row is parsed on its own
+ * and a row that cannot be parsed is left out: one unreadable record must not blank the whole
+ * history. A void whose decided role cannot be read drops the promotion it voids with it, because
+ * the alternative is showing a cancelled promotion as if the student still held that belt.
+ */
+function buildLevelHistory(
+  studentId: string,
+  headData: Readonly<Record<string, unknown>> | undefined,
+  promotions: readonly Readonly<Record<string, unknown>>[],
+): StudentLevelHistory {
+  const voids = new Map(
+    promotions
+      .filter((record) => record.kind === "void")
+      .map((record) => [String(record.voidsPromotionId), record] as const),
+  );
+  const rows: unknown[] = promotions
+    .filter((record) => record.kind !== "void" && record.status === "approved")
+    .map((record) => {
+      const voided = voids.get(String(record.promotionId));
+      const imported = record.source === "regyfit-import";
+      const atAssignment = record.atAssignment as Record<string, unknown> | undefined;
+      return {
+        entryId: String(record.promotionId),
+        kind: "promotion",
+        definitionKey: String(record.toDefinitionKey),
+        fromDefinitionKey: String(record.fromDefinitionKey),
+        // `promotedOn` only exists on an assignment; a recognition-panel approval is dated by the
+        // day it was decided.
+        assignedOn:
+          typeof record.promotedOn === "string"
+            ? record.promotedOn
+            : String(record.decidedAt).slice(0, 10),
+        classes: historyCriterion(atAssignment?.classes),
+        days: historyCriterion(atAssignment?.days),
+        decidedByRole: imported ? null : historyDecisionRole(record.decidedByRole),
+        source: imported ? "regyfit-import" : "bpt",
+        note: historyNote(record.note, record.decisionNotes),
+        gaps: Array.isArray(record.gaps)
+          ? record.gaps.filter((gap): gap is string => typeof gap === "string")
+          : [],
+        voided:
+          voided === undefined
+            ? null
+            : {
+                reason: voided.reason,
+                voidedByRole: historyDecisionRole(voided.decidedByRole),
+                voidedOn: String(voided.decidedAt).slice(0, 10),
+              },
+      };
+    });
+  if (
+    headData !== undefined &&
+    typeof headData.openedDefinitionKey === "string" &&
+    typeof headData.openedOn === "string"
+  ) {
+    const imported = headData.source === "regyfit-import";
+    rows.push({
+      entryId: `opening_${studentId}`,
+      kind: "opening",
+      definitionKey: headData.openedDefinitionKey,
+      fromDefinitionKey: null,
+      assignedOn: headData.openedOn,
+      classes: null,
+      days: null,
+      decidedByRole: imported ? null : historyDecisionRole(headData.openedByRole),
+      source: imported ? "regyfit-import" : "bpt",
+      note: historyNote(headData.openingNotes),
+      gaps: [],
+      voided: null,
+    });
+  }
+  const entries: LevelHistoryEntry[] = rows.flatMap((row) => {
+    const parsed = levelHistoryEntrySchema.safeParse(row);
+    return parsed.success ? [parsed.data] : [];
+  });
+  // Newest first; the opening is the oldest thing that can share a day with a promotion.
+  entries.sort(
+    (left, right) =>
+      right.assignedOn.localeCompare(left.assignedOn) || (left.kind === "opening" ? 1 : -1),
+  );
+  const parsed = studentLevelHistorySchema.safeParse({
+    studentId,
+    currentDefinitionKey:
+      typeof headData?.currentDefinitionKey === "string" ? headData.currentDefinitionKey : null,
+    entries,
+  });
+  if (!parsed.success) throw new LevelStoreError("conflict", "Level history is invalid");
+  return parsed.data;
 }
 
 /**
@@ -1871,6 +2015,154 @@ export function createLevelCatalogStore({
       });
     },
 
+    /**
+     * Plan decision 2. Everything the void needs was written by the promotion itself, so the only
+     * question asked here is "is this still the promotion the head names?". A promotion written
+     * before `5b67c1b` carries no `restore` at all and is deliberately NOT voidable: putting the
+     * head back would mean guessing the level the student came from, the instant it started and
+     * the imported baseline the promotion dropped — silent, wrong edits to a real person's belt
+     * record. The operator is refused and the record stays exactly as it is.
+     */
+    async voidPromotion(params): Promise<VoidPromotionResult> {
+      const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
+      assertValidAcademyId(academyId);
+      assertPromotionDecisionRole(decidedByRole);
+      const now = params.decidedAt ?? new Date().toISOString();
+      const voidId = `void_${input.promotionId}`;
+      const promotionRef = firestore.doc(
+        `academies/${academyId}/levelPromotions/${input.promotionId}`,
+      );
+      const voidRef = firestore.doc(`academies/${academyId}/levelPromotions/${voidId}`);
+      const headRef = firestore.doc(
+        `academies/${academyId}/studentLevelProgress/${input.studentId}`,
+      );
+      const audit = levelAuditDraft({
+        academyId,
+        actorId: decidedBy,
+        action: "level.promotion.voided",
+        targetCollection: "levelPromotions",
+        targetId: voidId,
+        purpose: "student-level-promotion",
+      });
+      const auditRef = firestore.doc(`academies/${academyId}/auditEvents/${auditEventId(audit)}`);
+      return firestore.runTransaction(async (transaction) => {
+        await assertTransactionalActor(transaction, firestore, {
+          academyId,
+          actorId: decidedBy,
+          actorRole: decidedByRole,
+          actorStaffId: decidedByStaffId,
+        });
+        storedStudent(
+          await transaction.get(
+            firestore.doc(`academies/${academyId}/students/${input.studentId}`),
+          ),
+          academyId,
+          input.studentId,
+        );
+        const [head, promotion, existingVoid] = await Promise.all([
+          transaction.get(headRef),
+          transaction.get(promotionRef),
+          transaction.get(voidRef),
+        ]);
+        const headData = head.data();
+        const promotionData = promotion.data();
+        const restore = promotionData?.restore as Record<string, unknown> | undefined;
+        if (
+          !head.exists ||
+          headData?.academyId !== academyId ||
+          headData.studentId !== input.studentId ||
+          headData.lastApprovedPromotionId !== input.promotionId ||
+          !promotion.exists ||
+          promotionData?.academyId !== academyId ||
+          promotionData.studentId !== input.studentId ||
+          promotionData.status !== "approved" ||
+          promotionData.kind === "void" ||
+          // Kept for defence in depth, but UNREACHABLE in both stores and therefore untested:
+          // once a void lands the head no longer names that promotion, so a second attempt dies
+          // on `lastApprovedPromotionId` first. The same shape as Task 7's duplicate-promotion
+          // guard; removing either leaves every test green.
+          existingVoid.exists ||
+          restore === undefined ||
+          typeof restore.currentDefinitionKey !== "string" ||
+          typeof restore.currentLevelStartedAt !== "string" ||
+          (restore.lastApprovedPromotionId !== null &&
+            typeof restore.lastApprovedPromotionId !== "string")
+        ) {
+          throw new LevelStoreError("conflict", "Promotion cannot be voided");
+        }
+        // Grill G10, and Task 7 review m2: a stored baseline that does not parse refuses the void
+        // itself rather than silently restoring a head with no imported classes. A stored `null`
+        // means the head had no baseline.
+        const restoredBaseline = storedImportedBaseline(restore.importedBaseline ?? undefined);
+        transaction.create(voidRef, {
+          promotionId: voidId,
+          kind: "void",
+          academyId,
+          studentId: input.studentId,
+          systemId: promotionData.systemId,
+          voidsPromotionId: input.promotionId,
+          reason: input.reason,
+          decidedBy,
+          decidedByRole,
+          decidedByStaffId,
+          decidedAt: now,
+          schemaVersion: "1",
+          createdAt: now,
+          createdBy: decidedBy,
+          updatedAt: now,
+          updatedBy: decidedBy,
+        });
+        const nextHead: Record<string, unknown> = {
+          ...headData,
+          currentDefinitionKey: restore.currentDefinitionKey,
+          currentLevelStartedAt: restore.currentLevelStartedAt,
+          lastApprovedPromotionId: restore.lastApprovedPromotionId,
+          updatedAt: now,
+          updatedBy: decidedBy,
+        };
+        delete nextHead.importedBaseline;
+        if (restoredBaseline !== null) nextHead.importedBaseline = restoredBaseline;
+        transaction.set(headRef, nextHead);
+        appendAuditEventInTransaction(transaction, auditRef, audit);
+        return Object.freeze({
+          voidId,
+          voidsPromotionId: input.promotionId,
+          restoredDefinitionKey: restore.currentDefinitionKey,
+        });
+      });
+    },
+
+    async getStudentLevelHistory(
+      academyId: string,
+      studentId: string,
+    ): Promise<StudentLevelHistory> {
+      assertValidAcademyId(academyId);
+      storedStudent(
+        await firestore.doc(`academies/${academyId}/students/${studentId}`).get(),
+        academyId,
+        studentId,
+      );
+      // ponytail: the whole promotions collection, filtered in memory, exactly as
+      // `listGraduations` already reads it — the same 400-record ceiling (`withinLimit`), no new
+      // composite index and no second restricted read per record open.
+      const [head, snapshot] = await Promise.all([
+        firestore.doc(`academies/${academyId}/studentLevelProgress/${studentId}`).get(),
+        firestore.collection(`academies/${academyId}/levelPromotions`).get(),
+      ]);
+      const headData = head.data();
+      if (head.exists && (headData?.academyId !== academyId || headData.studentId !== studentId)) {
+        throw new LevelStoreError("tenant", "Progress head is invalid");
+      }
+      const promotions = withinLimit(snapshot, "Level promotions").docs.flatMap((document) => {
+        const data = document.data();
+        if (data.academyId !== academyId || data.promotionId !== document.id) {
+          throw new LevelStoreError("tenant", "Promotion scope is invalid");
+        }
+        return data.studentId === studentId ? [data] : [];
+      });
+      return buildLevelHistory(studentId, head.exists ? headData : undefined, promotions);
+    },
+
     async rejectPromotion(params): Promise<GraduationRecord> {
       const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
       assertValidAcademyId(academyId);
@@ -1978,12 +2270,14 @@ export function createLevelCatalogStore({
         "Level promotions",
       );
       return snapshot.docs
-        .map((document) => {
+        .flatMap((document) => {
           const data = document.data();
           if (data.academyId !== academyId || data.promotionId !== document.id) {
             throw new LevelStoreError("tenant", "Promotion scope is invalid");
           }
-          return data as unknown as GraduationRecord;
+          // Task 10: a void lives in the same collection but is not a graduation, and every
+          // existing reader of this list would read it as one.
+          return data.kind === "void" ? [] : [data as unknown as GraduationRecord];
         })
         .filter((record) => studentId === undefined || record.studentId === studentId)
         .sort((left, right) => right.decidedAt.localeCompare(left.decidedAt));
@@ -2006,6 +2300,10 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
     GraduationRecord & { readonly restore?: PromotionRestore } & Partial<PromotionAssignment>
   >();
   const heads = new Map<string, StudentLevelHead>();
+  // Task 10: the Firestore store keeps voids in the `levelPromotions` collection beside the
+  // promotions and filters them out of `listGraduations`; here they get their own map, which is
+  // the same thing said in a way this store can type. A void is never a `GraduationRecord`.
+  const voids = new Map<string, Record<string, unknown>>();
 
   return {
     async listPublished(academyId: string): Promise<LevelCatalogProjection> {
@@ -2685,6 +2983,105 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         promotedOn: input.promotedOn,
         gaps: [...assignment.gaps],
       });
+    },
+
+    /**
+     * Parity with the Firestore store: the same role guard with the same message, the same
+     * "only the promotion the head names, only once" rule, the same refusal for a promotion with
+     * no restore snapshot, and the same restored head. As everywhere else in this store, actor
+     * identity is not checked here (there is no `assertTransactionalActor`), so the identity half
+     * is proved against the Firestore store only.
+     */
+    async voidPromotion(params): Promise<VoidPromotionResult> {
+      const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
+      assertValidAcademyId(academyId);
+      assertPromotionDecisionRole(decidedByRole);
+      const now = params.decidedAt ?? new Date().toISOString();
+      const voidId = `void_${input.promotionId}`;
+      const voidKey = `${academyId}_${input.studentId}_${voidId}`;
+      const headKey = `${academyId}_${input.studentId}`;
+      const head = heads.get(headKey);
+      const promotion = graduations.get(`${academyId}_${input.studentId}_${input.promotionId}`);
+      const restore = promotion?.restore;
+      if (
+        head === undefined ||
+        head.academyId !== academyId ||
+        head.studentId !== input.studentId ||
+        head.lastApprovedPromotionId !== input.promotionId ||
+        promotion === undefined ||
+        promotion.academyId !== academyId ||
+        promotion.studentId !== input.studentId ||
+        promotion.status !== "approved" ||
+        // Unreachable here too, for the same reason as in the Firestore store, and kept for the
+        // same reason: the two guards are one contract.
+        voids.has(voidKey) ||
+        restore === undefined ||
+        typeof restore.currentDefinitionKey !== "string" ||
+        typeof restore.currentLevelStartedAt !== "string"
+      ) {
+        throw new LevelStoreError("conflict", "Promotion cannot be voided");
+      }
+      const restoredBaseline = storedImportedBaseline(restore.importedBaseline ?? undefined);
+      voids.set(
+        voidKey,
+        Object.freeze({
+          promotionId: voidId,
+          kind: "void",
+          academyId,
+          studentId: input.studentId,
+          systemId: head.systemId,
+          voidsPromotionId: input.promotionId,
+          reason: input.reason,
+          decidedBy,
+          decidedByRole,
+          decidedByStaffId,
+          decidedAt: now,
+          schemaVersion: "1",
+          createdAt: now,
+          createdBy: decidedBy,
+          updatedAt: now,
+          updatedBy: decidedBy,
+        }),
+      );
+      const nextHead: Record<string, unknown> = {
+        ...head,
+        currentDefinitionKey: restore.currentDefinitionKey,
+        currentLevelStartedAt: restore.currentLevelStartedAt,
+        lastApprovedPromotionId: restore.lastApprovedPromotionId,
+        updatedAt: now,
+        updatedBy: decidedBy,
+      };
+      delete nextHead.importedBaseline;
+      if (restoredBaseline !== null) nextHead.importedBaseline = restoredBaseline;
+      heads.set(headKey, Object.freeze(nextHead as StudentLevelHead));
+      return Object.freeze({
+        voidId,
+        voidsPromotionId: input.promotionId,
+        restoredDefinitionKey: restore.currentDefinitionKey,
+      });
+    },
+
+    async getStudentLevelHistory(
+      academyId: string,
+      studentId: string,
+    ): Promise<StudentLevelHistory> {
+      assertValidAcademyId(academyId);
+      const head = heads.get(`${academyId}_${studentId}`);
+      const promotions = [
+        ...Array.from(graduations.values())
+          .filter((record) => record.academyId === academyId && record.studentId === studentId)
+          // The stored promotion is keyed by `graduationId` here and by `promotionId` in
+          // Firestore; one shared builder reads both.
+          .map((record) => ({ ...record, promotionId: record.graduationId })),
+        ...Array.from(voids.values()).filter(
+          (record) => record.academyId === academyId && record.studentId === studentId,
+        ),
+      ];
+      return buildLevelHistory(
+        studentId,
+        head as unknown as Record<string, unknown> | undefined,
+        promotions,
+      );
     },
 
     async rejectPromotion(params): Promise<GraduationRecord> {

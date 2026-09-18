@@ -3,12 +3,20 @@ import { describe, expect, it } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
-import { computeLevelProgress, type AssignLevelResult } from "@bpt-jersey/domain/levels";
+import {
+  computeLevelProgress,
+  type AssignLevelResult,
+  type StudentLevelHistory,
+  type VoidPromotionResult,
+} from "@bpt-jersey/domain/levels";
 import { createInMemoryLevelStore, createLevelCatalogStore } from "./level-service";
 import { normalizeLevelCatalogSource } from "./level-source";
 
 const academyId = "academy-1";
 const decidedAt = "2026-09-10T12:00:00.000Z";
+const voidAt = "2026-09-11T09:00:00.000Z";
+const assignmentNote = "Competition result justifies it.";
+const voidReason = "Assigned to the wrong member by mistake.";
 const created = "2026-06-01T00:00:00.000Z";
 const baseline = { classes: 9, cutoff: "2026-09-01", source: "regyfit-import" } as const;
 const normalized = normalizeLevelCatalogSource(observedJson, businessCriteriaJson);
@@ -351,6 +359,12 @@ type ParityFixture = Readonly<{
   levelStartedAt: () => Promise<string | null>;
   readRestore: (graduationId: string) => Promise<unknown>;
   readPromotion: (graduationId: string) => Promise<Record<string, unknown> | undefined>;
+  voidPromotion: (
+    promotionId: string,
+    overrides?: Record<string, unknown>,
+  ) => Promise<VoidPromotionResult>;
+  history: (studentId?: string) => Promise<StudentLevelHistory>;
+  graduationIds: () => Promise<readonly string[]>;
 }>;
 
 type AnyLevelStore = ReturnType<typeof createInMemoryLevelStore>;
@@ -421,6 +435,23 @@ function rejectThrough(store: AnyLevelStore): ParityFixture["reject"] {
   };
 }
 
+/**
+ * Task 10: the same void call against either store. The head coach is the default actor here and
+ * the owner is the default assigner above, so the parity block exercises both roles end to end.
+ */
+function voidThrough(store: AnyLevelStore): ParityFixture["voidPromotion"] {
+  return async (promotionId, overrides = {}) =>
+    store.voidPromotion({
+      academyId,
+      input: { studentId: "student-1", promotionId, reason: voidReason },
+      decidedBy: "head-user-1",
+      decidedByStaffId: "staff-head-1",
+      decidedByRole: "headCoach",
+      decidedAt: voidAt,
+      ...overrides,
+    } as never);
+}
+
 const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
   [
     "Firestore store",
@@ -465,6 +496,13 @@ const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
           records.get(`academies/${academyId}/levelPromotions/${graduationId}`)?.restore,
         readPromotion: async (graduationId) =>
           records.get(`academies/${academyId}/levelPromotions/${graduationId}`),
+        voidPromotion: voidThrough(store as unknown as AnyLevelStore),
+        history: async (studentId = "student-1") =>
+          (store as unknown as AnyLevelStore).getStudentLevelHistory(academyId, studentId),
+        graduationIds: async () =>
+          (await store.listGraduations(academyId, "student-1")).map(
+            (record) => record.graduationId,
+          ),
       };
     },
   ],
@@ -501,6 +539,13 @@ const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
           return summary.state === "initialized" ? summary.currentLevelStartedAt : null;
         },
         readPromotion: promotionOf,
+        voidPromotion: voidThrough(store),
+        history: async (studentId = "student-1") =>
+          store.getStudentLevelHistory(academyId, studentId),
+        graduationIds: async () =>
+          (await store.listGraduations(academyId, "student-1")).map(
+            (record) => record.graduationId,
+          ),
         readRestore: async (graduationId) =>
           (
             (await store.listGraduations(academyId, "student-1")).find(
@@ -742,6 +787,133 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
       expect(await fixture.currentDefinitionKey()).toBe("white-belt");
     },
   );
+
+  // Task 10. Plan decision 2: a void restores the head from the promotion's OWN restore snapshot,
+  // so it never has to reconstruct history, and it appends a record rather than mutating one.
+  it("voids the latest assignment, restores the head and marks the history entry voided", async () => {
+    const fixture = await makeFixture();
+    const assigned = await fixture.assign({ note: assignmentNote });
+    const result = await fixture.voidPromotion(assigned.promotionId);
+    expect(result).toEqual({
+      voidId: `void_${assigned.promotionId}`,
+      voidsPromotionId: assigned.promotionId,
+      restoredDefinitionKey: "white-belt",
+    });
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+    expect(await fixture.levelStartedAt()).toBe(levelStartedAt);
+    const history = await fixture.history();
+    expect(history.currentDefinitionKey).toBe("white-belt");
+    expect(history.entries.map((entry) => [entry.entryId, entry.kind])).toEqual([
+      [assigned.promotionId, "promotion"],
+      ["opening_student-1", "opening"],
+    ]);
+    expect(history.entries[0]).toMatchObject({
+      definitionKey: "white-2nd-stripe",
+      fromDefinitionKey: "white-belt",
+      assignedOn: "2026-09-10",
+      decidedByRole: "owner",
+      source: "bpt",
+      note: assignmentNote,
+      voided: { reason: voidReason, voidedByRole: "headCoach", voidedOn: "2026-09-11" },
+    });
+    expect(history.entries[1]).toMatchObject({
+      definitionKey: "white-belt",
+      fromDefinitionKey: null,
+      assignedOn: "2026-07-01",
+      classes: null,
+      days: null,
+      decidedByRole: "headCoach",
+      note: "Synthetic opening note.",
+      gaps: [],
+      voided: null,
+    });
+    // The void is a record of its own and is never a graduation.
+    expect(await fixture.graduationIds()).toEqual([assigned.promotionId]);
+  });
+
+  // Plan decision 2: only the promotion `lastApprovedPromotionId` names may be voided, so a chain
+  // is walked back ONE STEP AT A TIME. The earlier promotion below is a real, approved, restorable
+  // promotion of this very student — the only fixture that can tell "not the latest" apart from
+  // "no such promotion".
+  it("voids only the promotion the head names, one step at a time, and only once", async () => {
+    const fixture = await makeFixture();
+    const first = await fixture.assign(
+      { note: assignmentNote, toDefinitionKey: "white-1st-stripe", promotedOn: "2026-09-09" },
+      { decidedAt: "2026-09-09T12:00:00.000Z" },
+    );
+    const second = await fixture.assign({
+      note: assignmentNote,
+      fromDefinitionKey: "white-1st-stripe",
+    });
+    await expect(fixture.voidPromotion(first.promotionId)).rejects.toMatchObject({
+      code: "conflict",
+      message: "Promotion cannot be voided",
+    });
+    await expect(
+      fixture.voidPromotion("grad_student-1_white-1st-stripe_2026-08-01T00:00:00.000Z"),
+    ).rejects.toMatchObject({ code: "conflict", message: "Promotion cannot be voided" });
+    expect(await fixture.currentDefinitionKey()).toBe("white-2nd-stripe");
+
+    await fixture.voidPromotion(second.promotionId);
+    expect(await fixture.currentDefinitionKey()).toBe("white-1st-stripe");
+    await expect(fixture.voidPromotion(second.promotionId)).rejects.toMatchObject({
+      code: "conflict",
+      message: "Promotion cannot be voided",
+    });
+    // Now, and only now, the earlier promotion is the one the head names.
+    await fixture.voidPromotion(first.promotionId);
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+    expect(await fixture.levelStartedAt()).toBe(levelStartedAt);
+  });
+
+  // G12 narrows G6: an administrator sees the record and the history but never voids a promotion.
+  // The message is pinned because `assertTransactionalActor` also throws `tenant`, so a code-only
+  // assertion would pass for the wrong reason.
+  it.each(["coach", "administrator"])("refuses a void by %s", async (role) => {
+    const fixture = await makeFixture();
+    const assigned = await fixture.assign({ note: assignmentNote });
+    await expect(
+      fixture.voidPromotion(assigned.promotionId, {
+        decidedBy: "coach-user-1",
+        decidedByStaffId: "staff-coach-1",
+        decidedByRole: role,
+      }),
+    ).rejects.toMatchObject({ code: "tenant", message: "Promotion decision role is invalid" });
+    expect(await fixture.currentDefinitionKey()).toBe("white-2nd-stripe");
+  });
+
+  it("lists the opening on its own before any promotion", async () => {
+    const fixture = await makeFixture();
+    expect(await fixture.history()).toEqual({
+      studentId: "student-1",
+      currentDefinitionKey: "white-belt",
+      entries: [
+        {
+          entryId: "opening_student-1",
+          kind: "opening",
+          definitionKey: "white-belt",
+          fromDefinitionKey: null,
+          assignedOn: "2026-07-01",
+          classes: null,
+          days: null,
+          decidedByRole: "headCoach",
+          source: "bpt",
+          note: "Synthetic opening note.",
+          gaps: [],
+          voided: null,
+        },
+      ],
+    });
+  });
+
+  it("returns an empty history for a student without a level", async () => {
+    const fixture = await makeFixture();
+    expect(await fixture.history("student-2")).toEqual({
+      studentId: "student-2",
+      currentDefinitionKey: null,
+      entries: [],
+    });
+  });
 });
 
 /**
@@ -1198,5 +1370,228 @@ describe("assignLevel (T051V2, grill G7)", () => {
       store.assignLevel(assign({ note: "Competition result justifies it." })),
     ).rejects.toMatchObject({ code: "conflict", message: "Student is not active" });
     expect(writes).toHaveLength(0);
+  });
+});
+
+/**
+ * T051V2 Task 10 (plan decision 2): a void is append-only. The original promotion document is
+ * never touched, the head goes back to the promotion's own `restore` snapshot, and only the
+ * promotion the head names can be voided. The audit row, the untouched document and the "no write
+ * at all" guarantees are Firestore concerns and are asserted here; the behavioural rules are
+ * asserted against BOTH stores in the parity block above.
+ */
+describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
+  const promotionPath = (promotionId: string) =>
+    `academies/${academyId}/levelPromotions/${promotionId}`;
+  const headPath = `academies/${academyId}/studentLevelProgress/student-1`;
+
+  async function assigned() {
+    const seeded = await seededStore([
+      [headPath, head({ importedBaseline: baseline })],
+      ...baselineAttendance,
+    ]);
+    const result = await seeded.store.assignLevel({
+      academyId,
+      input: {
+        studentId: "student-1",
+        fromDefinitionKey: "white-belt",
+        toDefinitionKey: "white-2nd-stripe",
+        promotedOn: "2026-09-10",
+        note: assignmentNote,
+      },
+      decidedBy: "owner-user-1",
+      decidedByStaffId: null,
+      decidedByRole: "owner",
+      decidedAt,
+    });
+    seeded.writes.length = 0;
+    return { ...seeded, promotionId: result.promotionId };
+  }
+
+  const voidInput = (promotionId: string, overrides: Record<string, unknown> = {}) => ({
+    academyId,
+    input: { studentId: "student-1", promotionId, reason: voidReason },
+    decidedBy: "head-user-1",
+    decidedByStaffId: "staff-head-1",
+    decidedByRole: "headCoach" as const,
+    decidedAt: voidAt,
+    ...overrides,
+  });
+
+  it("appends a void record, restores the previous head exactly and audits the actor", async () => {
+    const { store, records, writes, promotionId } = await assigned();
+    const promotionBefore = structuredClone(records.get(promotionPath(promotionId)));
+    const result = await store.voidPromotion(voidInput(promotionId));
+    expect(result).toEqual({
+      voidId: `void_${promotionId}`,
+      voidsPromotionId: promotionId,
+      restoredDefinitionKey: "white-belt",
+    });
+    // Append-only: the promotion that was voided is byte-for-byte what it was.
+    expect(records.get(promotionPath(promotionId))).toEqual(promotionBefore);
+    expect(records.get(promotionPath(`void_${promotionId}`))).toMatchObject({
+      promotionId: `void_${promotionId}`,
+      kind: "void",
+      academyId,
+      studentId: "student-1",
+      voidsPromotionId: promotionId,
+      reason: voidReason,
+      decidedBy: "head-user-1",
+      decidedByRole: "headCoach",
+      decidedByStaffId: "staff-head-1",
+      decidedAt: voidAt,
+    });
+    // The head is the head the promotion replaced, including the baseline the promotion dropped.
+    expect(records.get(headPath)).toEqual({
+      ...head({ importedBaseline: baseline }),
+      updatedAt: voidAt,
+      updatedBy: "head-user-1",
+    });
+    const audit = writes.find((write) => write.path.includes("/auditEvents/"))?.data;
+    expect(audit).toMatchObject({
+      action: "level.promotion.voided",
+      // Task 8's surviving mutant: without this the student could be recorded as the author of a
+      // decision about their own belt while every other assertion still passed.
+      actorId: "head-user-1",
+      targetRef: promotionPath(`void_${promotionId}`),
+      purpose: "student-level-promotion",
+    });
+  });
+
+  /**
+   * A promotion written before `5b67c1b` carries no `restore` key at all. Deliberate ruling: it is
+   * NOT voidable. Restoring it would mean guessing the level the student came from, the instant
+   * that level started and the imported baseline the promotion dropped — silent, wrong edits to a
+   * real person's belt record. The operator is refused and the record stays as it is.
+   */
+  it("refuses to void a promotion written before restore snapshots existed, and writes nothing", async () => {
+    const { store, records, writes, promotionId } = await assigned();
+    const stored = { ...records.get(promotionPath(promotionId))! };
+    delete stored.restore;
+    records.set(promotionPath(promotionId), stored);
+    await expect(store.voidPromotion(voidInput(promotionId))).rejects.toMatchObject({
+      code: "conflict",
+      message: "Promotion cannot be voided",
+    });
+    expect(writes).toHaveLength(0);
+    expect(records.get(headPath)?.currentDefinitionKey).toBe("white-2nd-stripe");
+  });
+
+  // Grill G10, carried from Task 7's review (m2): a stored baseline that does not parse refuses
+  // the operation itself, never silently restores a zero.
+  it("refuses a void whose restored baseline is corrupt, and writes nothing", async () => {
+    const { store, records, writes, promotionId } = await assigned();
+    const stored = records.get(promotionPath(promotionId))!;
+    records.set(promotionPath(promotionId), {
+      ...stored,
+      restore: {
+        ...(stored.restore as Record<string, unknown>),
+        importedBaseline: { classes: -1, cutoff: "yesterday" },
+      },
+    });
+    await expect(store.voidPromotion(voidInput(promotionId))).rejects.toMatchObject({
+      code: "tenant",
+      message: "Imported baseline is invalid",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("lists the promotion and the opening newest first, and hides voids from listGraduations", async () => {
+    const { store, promotionId } = await assigned();
+    await store.voidPromotion(voidInput(promotionId));
+    expect(await store.getStudentLevelHistory(academyId, "student-1")).toEqual({
+      studentId: "student-1",
+      currentDefinitionKey: "white-belt",
+      entries: [
+        {
+          entryId: promotionId,
+          kind: "promotion",
+          definitionKey: "white-2nd-stripe",
+          fromDefinitionKey: "white-belt",
+          assignedOn: "2026-09-10",
+          classes: { done: 11, min: 25 },
+          days: { done: 71, min: 75 },
+          decidedByRole: "owner",
+          source: "bpt",
+          note: assignmentNote,
+          gaps: ["Skips 1 stripe", "Classes 11/25 not met", "Days 71/75 not met"],
+          voided: { reason: voidReason, voidedByRole: "headCoach", voidedOn: "2026-09-11" },
+        },
+        {
+          entryId: "opening_student-1",
+          kind: "opening",
+          definitionKey: "white-belt",
+          fromDefinitionKey: null,
+          assignedOn: "2026-07-01",
+          classes: null,
+          days: null,
+          decidedByRole: "headCoach",
+          source: "bpt",
+          note: "Synthetic opening note.",
+          gaps: [],
+          voided: null,
+        },
+      ],
+    });
+    const graduations = await store.listGraduations(academyId, "student-1");
+    expect(graduations.map((graduation) => graduation.graduationId)).toEqual([promotionId]);
+  });
+
+  /**
+   * Carried from Task 6/9: an assignment with no note stores `decisionNotes: ""` and `note: null`,
+   * and a stored note that is only whitespace must not render as a note that exists.
+   */
+  it.each([
+    ["absent", {}],
+    ["empty", { decisionNotes: "" }],
+    ["whitespace only", { decisionNotes: "   \n\t  " }],
+  ])("reads a %s note as null", async (_label, overrides) => {
+    const { store, records, promotionId } = await assigned();
+    const stored = { ...records.get(promotionPath(promotionId))! };
+    delete stored.note;
+    delete stored.decisionNotes;
+    records.set(promotionPath(promotionId), { ...stored, ...overrides });
+    const history = await store.getStudentLevelHistory(academyId, "student-1");
+    expect(history.entries[0]).toMatchObject({ entryId: promotionId, note: null });
+  });
+
+  /**
+   * `levelHistoryEntrySchema` is a read schema over stored data. One unreadable row must not take
+   * the whole history down, so a row that cannot be parsed is left out and everything else is
+   * still shown. A void whose role is unreadable drops the promotion it voids rather than showing
+   * that promotion as if it were still standing.
+   */
+  it("drops a single unreadable row and still returns the rest", async () => {
+    const { store, records, promotionId } = await assigned();
+    records.set(promotionPath(`void_${promotionId}`), {
+      promotionId: `void_${promotionId}`,
+      kind: "void",
+      academyId,
+      studentId: "student-1",
+      voidsPromotionId: promotionId,
+      reason: voidReason,
+      decidedBy: "coach-user-1",
+      decidedByRole: "coach",
+      decidedAt: voidAt,
+    });
+    const history = await store.getStudentLevelHistory(academyId, "student-1");
+    expect(history.entries.map((entry) => entry.entryId)).toEqual(["opening_student-1"]);
+  });
+
+  it("returns an empty history for a student without a level", async () => {
+    const { store } = await seededStore();
+    expect(await store.getStudentLevelHistory(academyId, "student-1")).toEqual({
+      studentId: "student-1",
+      currentDefinitionKey: null,
+      entries: [],
+    });
+  });
+
+  it("refuses a history read for a student who does not exist", async () => {
+    const { store } = await seededStore();
+    await expect(store.getStudentLevelHistory(academyId, "student-9")).rejects.toMatchObject({
+      code: "not-found",
+      message: "Student is not available",
+    });
   });
 });
