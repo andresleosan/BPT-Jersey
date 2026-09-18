@@ -79,6 +79,8 @@ export {
 export { getFinancialDashboard } from "./finance/financial-dashboard-callables.js";
 export {
   approvePromotion,
+  assignLevel,
+  getStudentLevelHistory,
   getStudentProgressSummary,
   listGraduations,
   listLevelCatalog,
@@ -89,6 +91,7 @@ export {
   recordEvaluation,
   recordMedicalLeave,
   rejectPromotion,
+  voidPromotion,
 } from "./levels/level-callables.js";
 export { getProgressReport } from "./levels/progress-report-callables.js";
 export { getFamilyAchievementSummary } from "./levels/family-achievement-callables.js";
