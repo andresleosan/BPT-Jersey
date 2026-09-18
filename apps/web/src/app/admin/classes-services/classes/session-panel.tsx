@@ -181,18 +181,18 @@ export function SessionPanel({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [view, setView] = useState<"details" | "registrations">("details");
+  const [registrationsLoaded, setRegistrationsLoaded] = useState(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const opener = document.activeElement;
     const dialog = dialogRef.current;
-    // Read-only panels disable every field, and a disabled control cannot hold the focus — the
-    // dialog itself takes it so that Escape still reaches this handler.
-    const first = dialog?.querySelector<HTMLElement>(
-      "input:not([disabled]), select:not([disabled]), button:not([disabled])",
-    );
-    (first ?? dialog)?.focus();
+    dialog?.showModal();
+    titleRef.current?.focus({ preventScroll: true });
     return () => {
+      dialog?.close();
       if (opener instanceof HTMLElement) opener.focus();
     };
   }, []);
@@ -244,11 +244,12 @@ export function SessionPanel({
     if (!canEdit || blocked) return;
     setBusy(true);
     setError(null);
-    const { startAt, endAt } = instantsOf(draft, timezone);
+
     const capacity = capacityValue;
     const instructorIds = draft.trainers;
     const bookingRules = rulesOf(draft);
     try {
+      const { startAt, endAt } = instantsOf(draft, timezone);
       if (editing && session) {
         const changes: { -readonly [K in keyof UpdateSessionInput]: UpdateSessionInput[K] } = {
           sessionId: session.sessionId,
@@ -296,7 +297,7 @@ export function SessionPanel({
   }
 
   async function confirmCancellation(): Promise<void> {
-    if (!session) return;
+    if (!session || !canEdit || busy || reason.trim().length < 2) return;
     setBusy(true);
     setError(null);
     try {
@@ -308,324 +309,416 @@ export function SessionPanel({
     }
   }
 
-  const readOnly = !canEdit;
+  const readOnly = !canEdit || busy;
+  const missingDateTime = !draft.date || !draft.startTime || !draft.endTime;
   const endsBeforeStart = minutesOf(draft.endTime) <= minutesOf(draft.startTime);
   const noTrainer = draft.trainers.length === 0;
-  const blocked = busy || endsBeforeStart || noTrainer || capacityInvalid || minimumError !== null;
+  const blocked =
+    busy ||
+    missingDateTime ||
+    endsBeforeStart ||
+    noTrainer ||
+    capacityInvalid ||
+    minimumError !== null;
 
   return (
     <dialog
-      open
       ref={dialogRef}
-      tabIndex={-1}
-      className="cs-dialog"
+      className="cs-dialog cs-session-dialog"
       aria-labelledby={dialogTitleId}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") onClose();
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onClose();
       }}
     >
-      <h2 id={dialogTitleId}>Create classes/services</h2>
-      {error === null ? null : (
-        <p className="cs-notice" data-kind="error" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="cs-session-body">
-        <div className="cs-session-form">
-          <h3>When</h3>
-          <div className="cs-form-row">
-            <label className="cs-field">
-              <span>Date</span>
-              <input
-                type="date"
-                value={draft.date}
-                disabled={readOnly}
-                onChange={(event) => patch({ date: event.target.value })}
-              />
-            </label>
-            <label className="cs-field">
-              <span>Start time</span>
-              <input
-                type="time"
-                value={draft.startTime}
-                disabled={readOnly}
-                onChange={(event) => patch({ startTime: event.target.value })}
-              />
-            </label>
-            <label className="cs-field">
-              <span>End time</span>
-              <input
-                type="time"
-                value={draft.endTime}
-                disabled={readOnly}
-                onChange={(event) => patch({ endTime: event.target.value })}
-              />
-            </label>
+      <header className="cs-session-header">
+        <div className="cs-session-heading">
+          <div>
+            <p className="cs-session-eyebrow">Classes &amp; services</p>
+            <h2 id={dialogTitleId} ref={titleRef} tabIndex={-1}>
+              {editing ? (canEdit ? "Edit session" : "Session details") : "Create session"}
+            </h2>
           </div>
-          {endsBeforeStart ? (
-            <p className="cs-notice" data-kind="error" role="alert">
-              End time must be after the start time
-            </p>
-          ) : null}
-          <h3>Class and location</h3>
-          <div className="cs-form-row">
-            <label className="cs-field">
-              <span>Class/service location</span>
-              <select
-                value={draft.locationId}
-                disabled={readOnly || locked}
-                title={locked ? lockedHint : undefined}
-                onChange={(event) => patch({ locationId: event.target.value })}
-              >
-                {catalog.locations.map((location) => (
-                  <option key={location.locationId} value={location.locationId}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="cs-field">
-              <span>Class/service type</span>
-              <select
-                value={draft.programId}
-                disabled={readOnly || locked}
-                title={locked ? lockedHint : undefined}
-                onChange={(event) => patch({ programId: event.target.value })}
-              >
-                {catalog.programs.map((program) => (
-                  <option key={program.programId} value={program.programId}>
-                    {program.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <button
+            type="button"
+            className="cs-button"
+            aria-label="Close session"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
+        {editing ? (
+          <div className="cs-session-switcher" aria-label="Session view">
+            <button
+              type="button"
+              aria-pressed={view === "details"}
+              disabled={busy}
+              onClick={() => setView("details")}
+            >
+              Session details
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === "registrations"}
+              disabled={busy}
+              onClick={() => {
+                setRegistrationsLoaded(true);
+                setView("registrations");
+              }}
+            >
+              Registrations
+            </button>
           </div>
-          <h3>Session capacity</h3>
-          <div className="cs-form-row">
-            <div className="cs-field">
-              <label htmlFor="cs-min-participants">Minimum participants</label>
-              <input
-                id="cs-min-participants"
-                type="number"
-                required
-                min={0}
-                max={capacityInvalid ? 300 : capacityValue}
-                step={1}
-                value={draft.minParticipants}
-                disabled={readOnly}
-                aria-invalid={canEdit && minimumError !== null}
-                aria-describedby={
-                  canEdit && minimumError !== null
-                    ? "cs-min-participants-help cs-min-participants-error"
-                    : "cs-min-participants-help"
-                }
-                onChange={(event) => patch({ minParticipants: event.target.value })}
-              />
-              <small id="cs-min-participants-help">
-                Minimum confirmed members needed for the session to run. 0 means no minimum.
-              </small>
-              {canEdit && minimumError !== null ? (
-                <p
-                  id="cs-min-participants-error"
-                  className="cs-notice"
-                  data-kind="error"
-                  role="alert"
-                >
-                  {minimumError}
-                </p>
-              ) : null}
-            </div>
-            <div className="cs-field">
-              <label htmlFor="cs-capacity">Maximum capacity</label>
-              <input
-                id="cs-capacity"
-                type="number"
-                required
-                min={1}
-                max={300}
-                step={1}
-                value={draft.capacity}
-                disabled={readOnly}
-                aria-invalid={canEdit && capacityInvalid}
-                aria-describedby={
-                  canEdit && capacityInvalid
-                    ? "cs-capacity-help cs-capacity-error"
-                    : "cs-capacity-help"
-                }
-                onChange={(event) => patch({ capacity: event.target.value })}
-              />
-              <small id="cs-capacity-help">Maximum members who can book (1–300)</small>
-              {canEdit && capacityInvalid ? (
-                <p id="cs-capacity-error" className="cs-notice" data-kind="error" role="alert">
-                  Enter a maximum capacity between 1 and 300
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <h3>Trainers</h3>
-          <ul className="cs-trainers">
-            {trainerKeys.map((key) => (
-              <li key={key}>
-                <label className="cs-check">
-                  <input
-                    type="checkbox"
-                    checked={draft.trainers.includes(key)}
-                    disabled={readOnly}
-                    onChange={() => toggleTrainer(key)}
-                  />
-                  {trainerName(key)}
-                </label>
-              </li>
-            ))}
-          </ul>
-          {canEdit && noTrainer ? (
-            <p className="cs-notice" data-kind="error" role="alert">
-              Choose at least one trainer
-            </p>
-          ) : null}
-          <h3>Booking rules</h3>
-          <div className="cs-form-row">
-            <label className="cs-field">
-              <span>Booking and cancellation</span>
-              <select
-                value={draft.rulesMode}
-                disabled={readOnly}
-                onChange={(event) =>
-                  patch({ rulesMode: event.target.value === "custom" ? "custom" : "defined" })
-                }
-              >
-                <option value="defined">According to the defined rules</option>
-                <option value="custom">Specific rules</option>
-              </select>
-            </label>
-            <label className="cs-field">
-              <span>Waiting list for registrations</span>
-              <select
-                value={draft.waitingList}
-                disabled={readOnly}
-                onChange={(event) => patch({ waitingList: event.target.value as WaitingListMode })}
-              >
-                {waitingListModes.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "general" ? "General" : option === "on" ? "On" : "Off"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {draft.rulesMode === "custom" ? (
-            <div className="cs-form-row">
+        ) : null}
+      </header>
+      <div className="cs-session-scroll">
+        {error === null ? null : (
+          <p className="cs-notice" data-kind="error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="cs-session-body">
+          <div className="cs-session-form" hidden={view !== "details"}>
+            <h3>When</h3>
+            <div className="cs-form-row cs-session-when">
               <label className="cs-field">
-                <span>Allow bookings until (minutes before)</span>
+                <span>Date</span>
                 <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={draft.bookUntil}
+                  type="date"
+                  value={draft.date}
+                  aria-invalid={!draft.date}
+                  aria-describedby={missingDateTime ? "cs-session-time-error" : undefined}
                   disabled={readOnly}
-                  onChange={(event) => patch({ bookUntil: event.target.value })}
+                  onChange={(event) => patch({ date: event.target.value })}
                 />
               </label>
               <label className="cs-field">
-                <span>Allow cancellations until</span>
-                <select
-                  value={draft.cancelUntil}
+                <span>Start time</span>
+                <input
+                  type="time"
+                  value={draft.startTime}
+                  aria-invalid={!draft.startTime}
+                  aria-describedby={missingDateTime ? "cs-session-time-error" : undefined}
                   disabled={readOnly}
-                  onChange={(event) => patch({ cancelUntil: event.target.value as CancelUntil })}
+                  onChange={(event) => patch({ startTime: event.target.value })}
+                />
+              </label>
+              <label className="cs-field">
+                <span>End time</span>
+                <input
+                  type="time"
+                  value={draft.endTime}
+                  aria-invalid={!draft.endTime}
+                  aria-describedby={missingDateTime ? "cs-session-time-error" : undefined}
+                  disabled={readOnly}
+                  onChange={(event) => patch({ endTime: event.target.value })}
+                />
+              </label>
+            </div>
+            {missingDateTime ? (
+              <p id="cs-session-time-error" className="cs-notice" data-kind="error" role="alert">
+                Enter a date, start time and end time.
+              </p>
+            ) : null}
+            {endsBeforeStart ? (
+              <p className="cs-notice" data-kind="error" role="alert">
+                End time must be after the start time
+              </p>
+            ) : null}
+            <h3>Class and location</h3>
+            <div className="cs-form-row">
+              <label className="cs-field">
+                <span>Class/service location</span>
+                <select
+                  value={draft.locationId}
+                  disabled={readOnly || locked}
+                  title={locked ? lockedHint : undefined}
+                  onChange={(event) => patch({ locationId: event.target.value })}
                 >
-                  <option value="start">The start of the class</option>
-                  <option value="end">The end of the class</option>
-                  <option value="custom">A number of minutes before</option>
+                  {catalog.locations.map((location) => (
+                    <option key={location.locationId} value={location.locationId}>
+                      {location.name}
+                    </option>
+                  ))}
                 </select>
               </label>
-              {draft.cancelUntil === "custom" ? (
+              <label className="cs-field">
+                <span>Class/service type</span>
+                <select
+                  value={draft.programId}
+                  disabled={readOnly || locked}
+                  title={locked ? lockedHint : undefined}
+                  onChange={(event) => patch({ programId: event.target.value })}
+                >
+                  {catalog.programs.map((program) => (
+                    <option key={program.programId} value={program.programId}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {locked && canEdit ? (
+              <p className="cs-session-help">To change the class or location, use Copy session.</p>
+            ) : null}
+            <h3>Session capacity</h3>
+            <div className="cs-form-row">
+              <div className="cs-field">
+                <label htmlFor="cs-min-participants">Minimum participants</label>
+                <input
+                  id="cs-min-participants"
+                  type="number"
+                  inputMode="numeric"
+                  required
+                  min={0}
+                  max={capacityInvalid ? 300 : capacityValue}
+                  step={1}
+                  value={draft.minParticipants}
+                  disabled={readOnly}
+                  aria-invalid={canEdit && minimumError !== null}
+                  aria-describedby={
+                    canEdit && minimumError !== null
+                      ? "cs-min-participants-help cs-min-participants-error"
+                      : "cs-min-participants-help"
+                  }
+                  onChange={(event) => patch({ minParticipants: event.target.value })}
+                />
+                <small id="cs-min-participants-help">
+                  Minimum confirmed members needed for the session to run. 0 means no minimum.
+                </small>
+                {canEdit && minimumError !== null ? (
+                  <p
+                    id="cs-min-participants-error"
+                    className="cs-notice"
+                    data-kind="error"
+                    role="alert"
+                  >
+                    {minimumError}
+                  </p>
+                ) : null}
+              </div>
+              <div className="cs-field">
+                <label htmlFor="cs-capacity">Maximum capacity</label>
+                <input
+                  id="cs-capacity"
+                  type="number"
+                  inputMode="numeric"
+                  required
+                  min={1}
+                  max={300}
+                  step={1}
+                  value={draft.capacity}
+                  disabled={readOnly}
+                  aria-invalid={canEdit && capacityInvalid}
+                  aria-describedby={
+                    canEdit && capacityInvalid
+                      ? "cs-capacity-help cs-capacity-error"
+                      : "cs-capacity-help"
+                  }
+                  onChange={(event) => patch({ capacity: event.target.value })}
+                />
+                <small id="cs-capacity-help">Maximum members who can book (1–300)</small>
+                {canEdit && capacityInvalid ? (
+                  <p id="cs-capacity-error" className="cs-notice" data-kind="error" role="alert">
+                    Enter a maximum capacity between 1 and 300
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <h3>Trainers</h3>
+            <ul className="cs-trainers">
+              {trainerKeys.map((key) => (
+                <li key={key}>
+                  <label className="cs-check">
+                    <input
+                      type="checkbox"
+                      checked={draft.trainers.includes(key)}
+                      disabled={readOnly}
+                      onChange={() => toggleTrainer(key)}
+                    />
+                    {trainerName(key)}
+                  </label>
+                </li>
+              ))}
+            </ul>
+            {canEdit && noTrainer ? (
+              <p className="cs-notice" data-kind="error" role="alert">
+                Choose at least one trainer
+              </p>
+            ) : null}
+            <h3>Booking rules</h3>
+            <div className="cs-form-row">
+              <label className="cs-field">
+                <span>Booking and cancellation</span>
+                <select
+                  value={draft.rulesMode}
+                  disabled={readOnly}
+                  onChange={(event) =>
+                    patch({ rulesMode: event.target.value === "custom" ? "custom" : "defined" })
+                  }
+                >
+                  <option value="defined">According to the defined rules</option>
+                  <option value="custom">Specific rules</option>
+                </select>
+              </label>
+              <label className="cs-field">
+                <span>Waiting list for registrations</span>
+                <select
+                  value={draft.waitingList}
+                  disabled={readOnly}
+                  onChange={(event) =>
+                    patch({ waitingList: event.target.value as WaitingListMode })
+                  }
+                >
+                  {waitingListModes.map((option) => (
+                    <option key={option} value={option}>
+                      {option === "general" ? "General" : option === "on" ? "On" : "Off"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {draft.rulesMode === "custom" ? (
+              <div className="cs-form-row">
                 <label className="cs-field">
-                  <span>Allow cancellations until (minutes before)</span>
+                  <span>Allow bookings until (minutes before)</span>
                   <input
                     type="number"
                     min={0}
                     step={1}
-                    value={draft.cancelMinutes}
+                    value={draft.bookUntil}
                     disabled={readOnly}
-                    onChange={(event) => patch({ cancelMinutes: event.target.value })}
+                    onChange={(event) => patch({ bookUntil: event.target.value })}
                   />
                 </label>
-              ) : null}
-              <label className="cs-field">
-                <span>Allow bookings with an advance of (minutes)</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={draft.advance}
-                  disabled={readOnly}
-                  onChange={(event) => patch({ advance: event.target.value })}
-                />
-              </label>
-            </div>
-          ) : null}
-          {confirming ? (
-            <div className="cs-form-row">
-              <label className="cs-field">
-                <span>Reason</span>
-                <input
-                  type="text"
-                  value={reason}
-                  maxLength={200}
-                  onChange={(event) => setReason(event.target.value)}
-                />
-              </label>
-              <button
-                type="button"
-                className="cs-button cs-button-primary"
-                disabled={busy || reason.trim().length < 2}
-                onClick={() => void confirmCancellation()}
-              >
-                Confirm
-              </button>
+                <label className="cs-field">
+                  <span>Allow cancellations until</span>
+                  <select
+                    value={draft.cancelUntil}
+                    disabled={readOnly}
+                    onChange={(event) => patch({ cancelUntil: event.target.value as CancelUntil })}
+                  >
+                    <option value="start">The start of the class</option>
+                    <option value="end">The end of the class</option>
+                    <option value="custom">A number of minutes before</option>
+                  </select>
+                </label>
+                {draft.cancelUntil === "custom" ? (
+                  <label className="cs-field">
+                    <span>Allow cancellations until (minutes before)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={draft.cancelMinutes}
+                      disabled={readOnly}
+                      onChange={(event) => patch({ cancelMinutes: event.target.value })}
+                    />
+                  </label>
+                ) : null}
+                <label className="cs-field">
+                  <span>Allow bookings with an advance of (minutes)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={draft.advance}
+                    disabled={readOnly}
+                    onChange={(event) => patch({ advance: event.target.value })}
+                  />
+                </label>
+              </div>
+            ) : null}
+            {canEdit && editing ? (
+              <div className="cs-session-secondary">
+                <button
+                  type="button"
+                  className="cs-button"
+                  disabled={busy}
+                  onClick={() => {
+                    setCurrent("create");
+                    setConfirming(false);
+                    setError(null);
+                    setView("details");
+                    setRegistrationsLoaded(false);
+                    titleRef.current?.focus({ preventScroll: true });
+                    const scroll = dialogRef.current?.querySelector(".cs-session-scroll");
+                    if (scroll) scroll.scrollTop = 0;
+                  }}
+                >
+                  Copy session
+                </button>
+                <button
+                  type="button"
+                  className="cs-button"
+                  disabled={busy}
+                  aria-expanded={confirming}
+                  onClick={() => setConfirming((previous) => !previous)}
+                >
+                  {confirming ? "Keep session" : "Cancel session"}
+                </button>
+              </div>
+            ) : null}
+            {confirming ? (
+              <div className="cs-form-row cs-session-cancellation">
+                <label className="cs-field">
+                  <span>Reason</span>
+                  <input
+                    type="text"
+                    value={reason}
+                    disabled={busy}
+                    maxLength={200}
+                    onChange={(event) => setReason(event.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="cs-button cs-button-primary"
+                  disabled={busy || reason.trim().length < 2}
+                  onClick={() => void confirmCancellation()}
+                >
+                  {busy ? "Cancelling…" : "Confirm cancellation"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {editing && session && registrationsLoaded ? (
+            <div hidden={view !== "registrations"}>
+              <RegistrationsPanel
+                session={session}
+                canEdit={canEdit && !busy}
+                canReadMemberships={canReadMemberships}
+              />
             </div>
           ) : null}
         </div>
-        {editing && session ? (
-          <RegistrationsPanel
-            session={session}
-            canEdit={canEdit}
-            canReadMemberships={canReadMemberships}
-          />
-        ) : null}
       </div>
-      <div className="cs-dialog-actions">
-        {canEdit && editing ? (
-          <>
-            <button
-              type="button"
-              className="cs-button"
-              onClick={() => setConfirming((previous) => !previous)}
-            >
-              Delete
-            </button>
-            <button type="button" className="cs-button" disabled title="Coming with announcements">
-              Message
-            </button>
-            <button type="button" className="cs-button" onClick={() => setCurrent("create")}>
-              Copy
-            </button>
-          </>
-        ) : null}
-        <button type="button" className="cs-button" onClick={onClose}>
-          Cancel
+      <footer className="cs-dialog-actions cs-session-footer">
+        <button type="button" className="cs-button" disabled={busy} onClick={onClose}>
+          {canEdit && view === "details" ? "Discard changes" : "Close"}
         </button>
-        {canEdit ? (
+        {view === "registrations" ? (
+          <button
+            type="button"
+            className="cs-button cs-button-primary"
+            disabled={busy}
+            onClick={() => setView("details")}
+          >
+            Back to details
+          </button>
+        ) : canEdit ? (
           <button
             type="button"
             className="cs-button cs-button-primary"
             disabled={blocked}
             onClick={() => void submit()}
           >
-            {editing ? "Edit" : "Create"}
+            {busy ? "Saving…" : editing ? "Save changes" : "Create session"}
           </button>
         ) : null}
-      </div>
+      </footer>
     </dialog>
   );
 }

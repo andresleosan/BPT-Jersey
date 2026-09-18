@@ -70,6 +70,22 @@ describe("RegistrationsPanel", () => {
 
   afterEach(cleanup);
 
+  it("shows loading instead of an empty list while registrations are pending", async () => {
+    let resolveBookings!: (rows: readonly unknown[]) => void;
+    mocks.listSessionBookings.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBookings = resolve;
+      }),
+    );
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading registrations");
+    expect(screen.queryByText("No one is registered yet.")).not.toBeInTheDocument();
+    expect(screen.getByRole("searchbox")).toBeDisabled();
+    resolveBookings([]);
+    expect(await screen.findByText("No one is registered yet.")).toBeInTheDocument();
+    expect(screen.getByRole("searchbox")).toBeEnabled();
+  });
+
   it("lists confirmed bookings with a remove button and enrols a member by search", async () => {
     mocks.listSessionBookings.mockResolvedValue([
       { bookingId: "b1", sessionId: "s1", studentId: "st1", status: "confirmed" },
