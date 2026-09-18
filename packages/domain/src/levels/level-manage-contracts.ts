@@ -155,21 +155,33 @@ export const studentLevelHistorySchema = z.strictObject({
 });
 export type StudentLevelHistory = z.infer<typeof studentLevelHistorySchema>;
 
+/**
+ * A batch of ratings: 1-100 of them, each skill named once, each score an integer 1-5. Exported
+ * because the assessment SERVICE re-checks it at the store, for the reason `promotionNoteSchema`
+ * is re-checked there (Task 9): the batch is an irreversible audited write about a real member,
+ * one transaction wide, and the callable boundary that parses it does not exist yet (Task 12).
+ * Both sides using this one schema is what stops them drifting.
+ */
+export const skillRatingsSchema = z
+  .array(z.strictObject({ skillKey: identifierSchema, score: scoreSchema }))
+  .min(1)
+  .max(100)
+  .refine((ratings) => new Set(ratings.map((rating) => rating.skillKey)).size === ratings.length, {
+    message: "Each skill may be rated once per call",
+  });
+
+/**
+ * The operator's evidence note on a batch of ratings. Min 1 so an empty note cannot be sent:
+ * omitted and "present but empty" must not be the same thing. Exported for the same reason as
+ * `skillRatingsSchema` above.
+ */
+export const assessmentEvidenceNotesSchema = boundedFreeText(1, 1000);
+
 export const recordSkillRatingsInputSchema = z.strictObject({
   studentId: identifierSchema,
   definitionKey: identifierSchema,
-  ratings: z
-    .array(z.strictObject({ skillKey: identifierSchema, score: scoreSchema }))
-    .min(1)
-    .max(100)
-    .refine(
-      (ratings) => new Set(ratings.map((rating) => rating.skillKey)).size === ratings.length,
-      {
-        message: "Each skill may be rated once per call",
-      },
-    ),
-  // Min 1 so an empty note cannot be sent: omitted and "present but empty" must not be the same.
-  evidenceNotes: boundedFreeText(1, 1000).optional(),
+  ratings: skillRatingsSchema,
+  evidenceNotes: assessmentEvidenceNotesSchema.optional(),
 });
 export type RecordSkillRatingsInput = z.infer<typeof recordSkillRatingsInputSchema>;
 
