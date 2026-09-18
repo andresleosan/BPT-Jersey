@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chooseSession,
   groupStudentName,
   historyEventDocument,
   historyEventId,
@@ -353,7 +354,28 @@ describe("mapHistoryRow", () => {
     expect(result.draft.class.studentId).toBeNull();
     expect(result.draft.class.studentName).toBeNull();
     expect(result.draft.class.sessionStartAt).toBe("2026-09-16T17:30:00Z");
-    expect(result.notes).toEqual([]);
+    // An unlinked attendance row is noted like any other: a null session the operator cannot see
+    // in the review file is a gap nobody can audit.
+    expect(result.notes).toEqual(["session-unmatched"]);
+  });
+
+  it("leaves a typed sentence unlinked when the only session at that time is another class", () => {
+    const result = mapped(
+      mapHistoryRow(
+        row(
+          "O atleta Synthetic Athlete cancelou a inscrição na aula NoGI do dia 2 Mar 2026 pelas 18:30",
+        ),
+        // The target holds exactly one session at that minute, and it is a different class: a lone
+        // candidate is not evidence, so the row stays unlinked rather than pointing at the wrong one.
+        options({ resolveSession: () => "class-mismatch" }),
+      ),
+    );
+
+    expect(result.draft.class.sessionId).toBeNull();
+    expect(result.draft.class.programId).toBeNull();
+    expect(result.draft.class.sessionStartAt).toBe("2026-03-02T18:30:00Z");
+    expect(result.notes).toContain("session-class-mismatch");
+    expect(result.notes).not.toContain("session-unmatched");
   });
 
   it("drops the address when the log did not record one", () => {
@@ -395,6 +417,36 @@ describe("mapHistoryRow", () => {
     );
 
     expect(result.reason).toBe("unreadable-log-timestamp");
+  });
+});
+
+describe("chooseSession", () => {
+  const gi = { sessionId: "session-gi", programId: "program-gi", locationId: "town" };
+  const nogi = { sessionId: "session-nogi", programId: "program-nogi", locationId: "town" };
+  const names = new Map([
+    ["program-gi", "GI All Levels"],
+    ["program-nogi", "NoGI"],
+  ]);
+
+  it("takes the only session at that minute when the sentence names no class", () => {
+    expect(chooseSession([gi], null, names)).toBe(gi);
+  });
+
+  it("takes none of several sessions when the sentence names no class", () => {
+    expect(chooseSession([gi, nogi], null, names)).toBeNull();
+  });
+
+  it("refuses the only session at that minute when the sentence names another class", () => {
+    // The bug this closes: a lone candidate used to win before the name was ever compared.
+    expect(chooseSession([gi], "NoGI", names)).toBe("class-mismatch");
+  });
+
+  it("picks the named class out of several sessions at that minute", () => {
+    expect(chooseSession([gi, nogi], "nogi", names)).toBe(nogi);
+  });
+
+  it("finds nothing at a minute the target has no session for", () => {
+    expect(chooseSession([], "NoGI", names)).toBeNull();
   });
 });
 

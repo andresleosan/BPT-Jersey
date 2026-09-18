@@ -27,7 +27,11 @@ export type ResolvedSession = {
 
 export type MapOptions = {
   academyId: string;
-  resolveSession: (sessionStartAt: string, programName: string | null) => ResolvedSession | null;
+  /** "class-mismatch" when the class the sentence names picks out no single session at that time. */
+  resolveSession: (
+    sessionStartAt: string,
+    programName: string | null,
+  ) => ResolvedSession | "class-mismatch" | null;
   resolveStudent: (studentName: string) => string | "ambiguous" | null;
 };
 
@@ -75,6 +79,11 @@ export const importActorId: string;
 export const importPurpose: string;
 export const sentenceFamilyNames: readonly string[];
 
+export function chooseSession(
+  candidates: readonly ResolvedSession[],
+  programName: string | null,
+  programNameById: ReadonlyMap<string | null, string | undefined>,
+): ResolvedSession | "class-mismatch" | null;
 export function parseHistorySentence(sentence: string): ParsedSentence | null;
 export function parseLogTimestamp(value: string): string | null;
 export function normaliseName(value: string): string;
