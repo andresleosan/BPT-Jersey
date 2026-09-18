@@ -330,7 +330,8 @@ describe("Level Service & Store", () => {
         studentId: "student-1",
         currentDefinitionKey: belt.definitionKey,
         systemId: belt.systemId,
-        currentLevelStartedAt: "2026-09-05T10:00:00.000Z",
+        // T051V2: the default start is midnight on the Jersey day of the opening.
+        currentLevelStartedAt: "2026-09-05T00:00:00.000Z",
         lastApprovedPromotionId: null,
         state: "initialized",
       });

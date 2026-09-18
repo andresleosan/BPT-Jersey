@@ -8,6 +8,7 @@ import {
   countClassesAtLevel,
   generateRecognitionCandidates,
   importedBaselineSchema,
+  isLevelCalendarDate,
   jerseyDateOf,
   type ImportedBaseline,
   type ApprovePromotionInput,
@@ -219,7 +220,14 @@ function assertLevelOpeningRole(openedByRole: string): void {
  * still be able to say "today".
  */
 function assertLevelStartNotInTheFuture(startedOn: string | undefined, now: string): void {
-  if (startedOn !== undefined && startedOn > jerseyDateOf(now)) {
+  if (startedOn === undefined) return;
+  // Defence in depth: the comparison below is lexical, so a malformed value sorting below today
+  // would otherwise be accepted and concatenated into an instant. The callable boundary already
+  // parses the shape; the store refuses it again, and for its real reason.
+  if (!isLevelCalendarDate(startedOn)) {
+    throw new LevelStoreError("invalid", "Level start date is not a calendar date");
+  }
+  if (startedOn > jerseyDateOf(now)) {
     throw new LevelStoreError("invalid", "Level start date is in the future");
   }
 }
@@ -1550,8 +1558,11 @@ export function createLevelCatalogStore({
           studentId: input.studentId,
           systemId: definitionData.systemId,
           currentDefinitionKey: input.definitionKey,
-          currentLevelStartedAt:
-            input.startedOn === undefined ? now : `${input.startedOn}T00:00:00.000Z`,
+          // T051V2: the head's two opening fields are derived from ONE day so they can never
+          // disagree. Without a startedOn the day is the Jersey day of `now`, and the level
+          // starts at its midnight — not at the opening instant, which at the BST boundary
+          // belongs to the previous Jersey day and would over-count that day's classes.
+          currentLevelStartedAt: `${input.startedOn ?? jerseyDateOf(now)}T00:00:00.000Z`,
           lastApprovedPromotionId: null,
           openedByStaffId,
           openingNotes: input.decisionNotes,
@@ -2268,8 +2279,8 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         studentId: input.studentId,
         systemId: String(definition["systemId"]),
         currentDefinitionKey: input.definitionKey,
-        currentLevelStartedAt:
-          input.startedOn === undefined ? now : `${input.startedOn}T00:00:00.000Z`,
+        // Parity with the Firestore store: one day derives both opening fields.
+        currentLevelStartedAt: `${input.startedOn ?? jerseyDateOf(now)}T00:00:00.000Z`,
         lastApprovedPromotionId: null,
         openedByStaffId,
         openingNotes: input.decisionNotes,

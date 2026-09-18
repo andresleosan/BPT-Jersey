@@ -548,10 +548,36 @@ describe("openStudentLevel at any definition (T051V2)", () => {
       openedByStaffId: null,
     });
     expect(writes[1]?.data).toMatchObject({
+      actorId: "owner-user-1",
       action: "level.opened",
       targetRef: `academies/${academyId}/studentLevelProgress/student-1`,
       purpose: "student-level-opening",
     });
+  });
+
+  // Minor-2: opening at 23:30Z in BST is already the 11th in Jersey. The level must start at the
+  // 11th's midnight, so the class trained at 09:00 Jersey on the 10th — a whole Jersey day before
+  // the recorded opening day — is NOT counted at the new level.
+  it("counts no class from the Jersey day before the opening day", async () => {
+    const { store } = await seededStore([
+      attendance("att-prev-day", "2026-09-10T08:00:00.000Z"),
+      attendance("att-same-day", "2026-09-11T08:00:00.000Z"),
+    ]);
+    const { head: opened } = await store.openStudentLevel(
+      open({
+        input: {
+          studentId: "student-1",
+          definitionKey: "white-belt",
+          decisionNotes: "Holds this belt from Regyfit.",
+        },
+        openedAt: "2026-09-10T23:30:00.000Z",
+      }),
+    );
+    expect(opened.openedOn).toBe("2026-09-11");
+    expect(opened.currentLevelStartedAt).toBe("2026-09-11T00:00:00.000Z");
+    const progress = await store.getStudentProgressSummary(academyId, "student-1");
+    if (progress.state !== "initialized") throw new Error("expected an initialized head");
+    expect(progress.criteria.classes).toMatchObject({ completed: 1, imported: 0 });
   });
 
   it("refuses an owner whose directory entry does not say owner, and writes nothing", async () => {
@@ -616,7 +642,7 @@ describe.each(openParityStores)("open-a-level parity — %s (T051V2)", (_label, 
     });
   });
 
-  it("keeps the legacy behaviour without startedOn: the opening instant and the Jersey day", async () => {
+  it("starts at midnight on the Jersey day without startedOn", async () => {
     const store = await makeStore();
     const { head: opened } = await store.openStudentLevel(
       open({
@@ -632,7 +658,7 @@ describe.each(openParityStores)("open-a-level parity — %s (T051V2)", (_label, 
     );
     expect(opened).toMatchObject({
       currentDefinitionKey: "white-belt",
-      currentLevelStartedAt: decidedAt,
+      currentLevelStartedAt: "2026-09-10T00:00:00.000Z",
       openedDefinitionKey: "white-belt",
       openedOn: "2026-09-10",
       openedByRole: "headCoach",
@@ -663,6 +689,9 @@ describe.each(openParityStores)("open-a-level parity — %s (T051V2)", (_label, 
       }),
     );
     expect(today.openedOn).toBe("2026-09-11");
+    // The two opening fields must name the SAME day: recording openedOn 2026-09-11 while counting
+    // from 23:30Z on the 10th would include the whole previous Jersey day of classes.
+    expect(today.currentLevelStartedAt).toBe("2026-09-11T00:00:00.000Z");
 
     const tomorrow = await makeStore();
     await expect(
@@ -671,6 +700,22 @@ describe.each(openParityStores)("open-a-level parity — %s (T051V2)", (_label, 
       ),
     ).rejects.toMatchObject({ code: "invalid", message: "Level start date is in the future" });
   });
+
+  // Minor-4: the future check compares strings, so a malformed value could sort below today and
+  // be concatenated into an instant. Both a low and a high malformed value are refused, and for
+  // being malformed rather than for being in the future.
+  it.each(["1026-13-45", "2026-13-45"])(
+    "refuses the malformed start date %s",
+    async (startedOn) => {
+      const store = await makeStore();
+      await expect(
+        store.openStudentLevel(open({ input: { ...open().input, startedOn } })),
+      ).rejects.toMatchObject({
+        code: "invalid",
+        message: "Level start date is not a calendar date",
+      });
+    },
+  );
 
   it("refuses a start date after today", async () => {
     const store = await makeStore();
