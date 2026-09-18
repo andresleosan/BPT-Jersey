@@ -62,6 +62,7 @@ describe("createClassHistoryStore.queryEvents", () => {
       occurredAt: Timestamp.fromDate(new Date("2026-09-16T10:00:00.000Z")),
       class: {
         studentId: "s1",
+        memberId: null,
         studentName: null,
         sessionId: "session-1",
         sessionStartAt: "2026-09-16T17:30:00.000Z",
@@ -104,6 +105,7 @@ describe("createClassHistoryStore.queryEvents", () => {
         source: "bpt",
         class: {
           studentId: "s1",
+          memberId: null,
           studentName: null,
           sessionId: "session-1",
           sessionStartAt: "2026-09-16T17:30:00.000Z",
@@ -112,6 +114,42 @@ describe("createClassHistoryStore.queryEvents", () => {
         },
       },
     ]);
+  });
+
+  it("keeps the class block of an imported row that names no session", async () => {
+    const eventDoc = doc("event-import", {
+      action: "booking.created",
+      actorId: "regyfit-import",
+      actorRole: "regyfit",
+      actorGroup: "member",
+      actorName: "Olivia Lewis",
+      actorIp: null,
+      source: "regyfit",
+      occurredAt: Timestamp.fromDate(new Date("2026-03-10T09:00:00.000Z")),
+      class: {
+        studentId: null,
+        memberId: null,
+        studentName: "Olivia Lewis",
+        sessionId: null,
+        sessionStartAt: "2026-03-12T18:30:00.000Z",
+        programId: null,
+        locationId: null,
+      },
+    });
+    const query = fakeQuery([eventDoc]);
+    const store = createClassHistoryStore(fakeFirestore(query) as never, "demo-academy");
+
+    const events = await store.queryEvents(baseQuery);
+
+    expect(events[0]?.class).toEqual({
+      studentId: null,
+      memberId: null,
+      studentName: "Olivia Lewis",
+      sessionId: null,
+      sessionStartAt: "2026-03-12T18:30:00.000Z",
+      programId: null,
+      locationId: null,
+    });
   });
 
   it("filters by actor id and pages from the cursor when they are given", async () => {

@@ -634,6 +634,7 @@ const classDraft = {
   correlationId: "b1",
   class: {
     studentId: "s1",
+    memberId: null,
     studentName: null,
     sessionId: "sess1",
     sessionStartAt: "2026-09-16T17:30:00Z",
@@ -686,6 +687,31 @@ it("rejects a class event whose class block carries an extra field", () => {
   });
 });
 
+it("accepts an imported event the office wrote, grouped as staff", () => {
+  const imported = {
+    ...classDraft,
+    class: { ...classDraft.class, studentId: null, studentName: "Olivia Lewis" },
+    actorRole: "regyfit" as const,
+    actorGroup: "staff" as const,
+    actorName: "ADMIN",
+    source: "regyfit" as const,
+  };
+  expect(parseAuditEventDraft(imported)).toEqual({ ok: true, value: imported });
+});
+
+it("rejects an imported event grouped as the system", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    actorRole: "regyfit" as const,
+    actorGroup: "system" as const,
+    source: "regyfit" as const,
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["actorGroup"], code: "AUDIT_CLASS_ACTOR_GROUP_INVALID" }],
+  });
+});
+
 it("accepts an imported event with no student id and a plain name", () => {
   const result = parseAuditEventDraft({
     ...classDraft,
@@ -696,6 +722,100 @@ it("accepts an imported event with no student id and a plain name", () => {
     source: "regyfit" as const,
   });
   expect(result.ok).toBe(true);
+});
+
+it("accepts an imported event whose class predates the BPT schedule, keeping the class moment", () => {
+  const imported = {
+    ...classDraft,
+    class: {
+      ...classDraft.class,
+      studentId: null,
+      studentName: "Olivia Lewis",
+      sessionId: null,
+      sessionStartAt: "2026-03-12T18:30:00Z",
+    },
+    actorRole: "regyfit" as const,
+    actorGroup: "member" as const,
+    actorName: "Olivia Lewis",
+    source: "regyfit" as const,
+  };
+  const result = parseAuditEventDraft(imported);
+  expect(result).toEqual({ ok: true, value: imported });
+});
+
+it("rejects a BPT-written class event that names no session", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, sessionId: null },
+    source: "bpt" as const,
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["class", "sessionId"], code: "AUDIT_CLASS_SESSION_ID_REQUIRED" }],
+  });
+});
+
+it("still rejects an imported class event whose session id is not an identifier", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, sessionId: "../escape" },
+    actorRole: "regyfit" as const,
+    source: "regyfit" as const,
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["class", "sessionId"], code: "AUDIT_CLASS_IDENTIFIER_INVALID" }],
+  });
+});
+
+/** The class block exactly as it was stored before `memberId` existed: every key but that one. */
+function withoutMemberId(block: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(block).filter(([key]) => key !== "memberId"));
+}
+
+it("still parses a class row stored before the member link existed, reading it as no member", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: withoutMemberId(classDraft.class),
+  });
+  expect(result).toEqual({ ok: true, value: classDraft });
+});
+
+it("round-trips an imported row that names a member of the directory", () => {
+  const imported = {
+    ...classDraft,
+    class: { ...classDraft.class, studentId: null, memberId: "member-7", studentName: null },
+    actorRole: "regyfit" as const,
+    actorGroup: "member" as const,
+    actorName: "Olivia Lewis",
+    source: "regyfit" as const,
+  };
+  expect(parseAuditEventDraft(imported)).toEqual({ ok: true, value: imported });
+});
+
+it("rejects a BPT-written class event that names a directory member", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, memberId: "member-7" },
+    source: "bpt" as const,
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["class", "memberId"], code: "AUDIT_CLASS_MEMBER_ID_FORBIDDEN" }],
+  });
+});
+
+it("rejects a member id that is not an identifier", () => {
+  const result = parseAuditEventDraft({
+    ...classDraft,
+    class: { ...classDraft.class, memberId: "../escape" },
+    actorRole: "regyfit" as const,
+    source: "regyfit" as const,
+  });
+  expect(result).toEqual({
+    ok: false,
+    error: [{ path: ["class", "memberId"], code: "AUDIT_CLASS_IDENTIFIER_INVALID" }],
+  });
 });
 
 it("still accepts an event written before this change", () => {

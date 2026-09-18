@@ -25,6 +25,7 @@ const bookingEvent: ClassHistoryStoredEvent = {
   source: "bpt",
   class: {
     studentId: "student-1",
+    memberId: null,
     studentName: null,
     sessionId: "session-1",
     sessionStartAt: "2026-09-16T17:30:00.000Z",
@@ -55,6 +56,7 @@ function store(overrides: Partial<ClassHistoryStore> = {}): ClassHistoryStore {
       ]),
     readStaffNames: async () => new Map<string, string>(),
     readMemberNames: async () => new Map([["student-1", "Ana Silva"]]),
+    readDirectoryMemberNames: async () => new Map<string, string>(),
     ...overrides,
   };
 }

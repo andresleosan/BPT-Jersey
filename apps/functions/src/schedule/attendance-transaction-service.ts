@@ -174,6 +174,7 @@ function auditDraft(
     correlationId: input.correlationId,
     class: {
       studentId: input.studentId,
+      memberId: null,
       studentName: null,
       sessionId: input.session.sessionId,
       sessionStartAt: input.session.startAt,

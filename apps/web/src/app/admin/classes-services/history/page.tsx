@@ -37,6 +37,9 @@ const recordCounts = [100, 250, 500, 750, 1000] as const;
 
 const dash = "—";
 
+/** One option for the whole Regyfit import, because one actorId is all it can filter on. */
+const importedActorLabel = "Regyfit (imported)";
+
 type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 type Actor = Readonly<{ actorId: string; label: string }>;
@@ -114,8 +117,12 @@ export function HistoryPage() {
     setActors((current) => {
       const known = new Map(current.map((actor) => [actor.actorId, actor]));
       for (const row of listed) {
-        if (row.actorName !== null && !known.has(row.actorId)) {
-          known.set(row.actorId, { actorId: row.actorId, label: row.actorName });
+        // Every imported row shares one actorId while naming a different Regyfit user, so labelling
+        // that option with a person would promise a filter the log cannot run: choosing it returns
+        // the whole import. The option says what it selects; the USER column still names each row.
+        const label = row.source === "regyfit" ? importedActorLabel : row.actorName;
+        if (label !== null && !known.has(row.actorId)) {
+          known.set(row.actorId, { actorId: row.actorId, label });
         }
       }
       return [...known.values()].sort((a, b) => a.label.localeCompare(b.label));

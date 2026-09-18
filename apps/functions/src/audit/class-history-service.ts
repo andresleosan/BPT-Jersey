@@ -64,6 +64,12 @@ export type ClassHistoryStore = Readonly<{
   readStudents: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
   readSessions: (ids: readonly string[]) => Promise<ReadonlyMap<string, ClassHistorySession>>;
   readStaffNames: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  /**
+   * Keyed by the member directory id an imported row carries, valued with that member's own name.
+   * A member who has been erased is simply absent, so the row falls back instead of showing a name
+   * the directory no longer holds.
+   */
+  readDirectoryMemberNames: (memberIds: readonly string[]) => Promise<ReadonlyMap<string, string>>;
   /** Keyed by the Firebase Auth uid an audit event carries, valued with the student's own name. */
   readMemberNames: (uids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
 }>;
@@ -117,6 +123,7 @@ export async function readClassHistory(
   });
 
   const studentIds = distinct(events.map((event) => event.class?.studentId));
+  const directoryMemberIds = distinct(events.map((event) => event.class?.memberId));
   const sessionIds = distinct(events.map((event) => event.class?.sessionId));
   const staffIds = distinct(
     events.map((event) => (event.actorGroup === "staff" ? event.actorId : null)),
@@ -125,26 +132,46 @@ export async function readClassHistory(
     events.map((event) => (event.actorGroup === "member" ? event.actorId : null)),
   );
 
-  const [students, sessions, staffNames, memberNames] = await Promise.all([
+  const [students, sessions, staffNames, memberNames, directoryMemberNames] = await Promise.all([
     store.readStudents(studentIds),
     store.readSessions(sessionIds),
     store.readStaffNames(staffIds),
     store.readMemberNames(memberIds),
+    store.readDirectoryMemberNames(directoryMemberIds),
   ]);
 
   const showIp = canReadRestrictedIp(actor.role);
 
   const rows = events.map((event): ClassHistoryRow => {
     const block = event.class;
-    const session = block === null ? undefined : sessions.get(block.sessionId);
+    // An imported row may name no session at all, because the class predates the BPT schedule.
+    // There is then nothing to resolve, and the row renders from the moment the event carries.
+    const sessionId = block?.sessionId ?? null;
+    const session = sessionId === null ? undefined : sessions.get(sessionId);
     const studentId = block === null ? null : block.studentId;
     const recordName = studentId === null ? undefined : students.get(studentId);
-    const studentName = recordName ?? block?.studentName ?? null;
+    // An imported row points at the member directory instead of a student record, and the name is
+    // read from it here rather than stored: erasing the member erases the name from the log with
+    // them. The captured Regyfit name is kept only for a person the directory never matched, and a
+    // row whose member has since been erased falls back to "Former member" rather than to a name
+    // the directory no longer holds.
+    const directoryMemberId = block?.memberId ?? null;
+    const directoryName =
+      directoryMemberId === null ? undefined : directoryMemberNames.get(directoryMemberId);
+    const studentName = recordName ?? directoryName ?? block?.studentName ?? null;
     // A staff actor with no matching profile (the uid never resolved to a staffKey) is shown as
     // "Office" rather than the empty/generic wording composeClassHistorySentence would otherwise
     // fall back to - and never as the actor's own auth uid.
+    // An imported row's actor is a Regyfit user, never a BPT staff profile, so that lookup can only
+    // ever fail and the captured name - the one the academy actually saw in Regyfit's USER column -
+    // is the only truthful answer. It wins only for an imported row: on a BPT-written one a stored
+    // name would be a fabrication, so those still resolve the profile and fall back to "Office".
+    const importedActorName =
+      event.source === "regyfit" && event.actorName !== null ? event.actorName : undefined;
     const staffName =
-      event.actorGroup === "staff" ? (staffNames.get(event.actorId) ?? "Office") : undefined;
+      event.actorGroup === "staff"
+        ? (importedActorName ?? staffNames.get(event.actorId) ?? "Office")
+        : undefined;
     // The writers store no name at all for a member actor, so the uid is resolved here against the
     // student who holds that account. A guardian booking for their child holds no student record
     // of their own: that row is labelled "Member" rather than showing the auth uid or borrowing the
@@ -169,7 +196,7 @@ export async function readClassHistory(
       actorIp: showIp ? event.actorIp : null,
       studentId,
       studentName,
-      sessionId: block?.sessionId ?? null,
+      sessionId,
       sessionStartAt,
       programId,
       programName,
