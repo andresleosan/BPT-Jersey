@@ -448,6 +448,8 @@ function profileProvenance(profile: StudentAdminProfile): Readonly<Record<string
   switch (profile.source) {
     case "admin":
       return Object.freeze({ source: profile.source });
+    case "regyfit-account-recovery":
+      return Object.freeze({ source: profile.source, recoveryId: profile.recoveryId });
     case "member-pdf-import":
       return Object.freeze({ source: profile.source, importRunId: profile.importRunId });
     case "legacy-member-migration":
