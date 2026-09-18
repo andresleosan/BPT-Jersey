@@ -1953,7 +1953,7 @@ const invalidRatings: readonly [string, unknown][] = [
 describe("recordSkillRatings (T051V2)", () => {
   it("writes one assessment and one audit per rating without a session", async () => {
     const { store, writes } = await seededStore();
-    expect(await store.recordSkillRatings(rate())).toEqual({ recorded: 2 });
+    expect(await store.recordSkillRatings(rate())).toEqual({ studentId: "student-1", recorded: 2 });
 
     const assessments = writes.filter((write) => write.path.includes("/assessments/"));
     expect(assessments.map((write) => write.data)).toEqual([
@@ -2011,7 +2011,10 @@ describe("recordSkillRatings (T051V2)", () => {
 
   it("lets the owner rate with no staff record and the head coach rate with one", async () => {
     const owner = await seededStore();
-    expect(await owner.store.recordSkillRatings(rate(ownerRates))).toEqual({ recorded: 2 });
+    expect(await owner.store.recordSkillRatings(rate(ownerRates))).toEqual({
+      studentId: "student-1",
+      recorded: 2,
+    });
     expect(
       owner.writes
         .filter((write) => write.path.includes("/assessments/"))
@@ -2026,7 +2029,10 @@ describe("recordSkillRatings (T051V2)", () => {
     ]);
 
     const headCoach = await seededStore();
-    expect(await headCoach.store.recordSkillRatings(rate(headCoachRates))).toEqual({ recorded: 2 });
+    expect(await headCoach.store.recordSkillRatings(rate(headCoachRates))).toEqual({
+      studentId: "student-1",
+      recorded: 2,
+    });
     expect(
       headCoach.writes
         .filter((write) => write.path.includes("/assessments/"))
@@ -2202,7 +2208,7 @@ describe("recordSkillRatings (T051V2)", () => {
 describe.each(openParityStores)("skill-ratings parity — %s (T051V2)", (_label, makeStore) => {
   it("records both ratings against a session-less assessment", async () => {
     const store = await makeStore();
-    expect(await store.recordSkillRatings(rate())).toEqual({ recorded: 2 });
+    expect(await store.recordSkillRatings(rate())).toEqual({ studentId: "student-1", recorded: 2 });
     const evaluations = await store.listStudentEvaluations(academyId, "student-1");
     expect(
       [...evaluations]

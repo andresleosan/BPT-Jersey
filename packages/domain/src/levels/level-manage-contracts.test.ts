@@ -11,6 +11,7 @@ import {
   studentLevelCardSchema,
   studentLevelHistoryRequestSchema,
   studentLevelHistorySchema,
+  studentSkillSummaryResponseSchema,
   voidPromotionInputSchema,
   voidPromotionResultSchema,
 } from "./level-manage-contracts";
@@ -538,6 +539,38 @@ describe("level manage contracts", () => {
     expect(
       recordSkillRatingsInputSchema.safeParse({ ...base, evidenceNotes: "Solid guard." }).success,
     ).toBe(true);
+  });
+
+  // T051V2 review fix (Major-2): both of these responses are shown beside a member name, so each
+  // one has to say which member it is about. A response without that echo is not parseable.
+  it("requires the ratings result to name the student it wrote for", () => {
+    expect(recordSkillRatingsResultSchema.safeParse({ recorded: 2 }).success).toBe(false);
+    expect(
+      recordSkillRatingsResultSchema.safeParse({ studentId: "student-1", recorded: 2 }).success,
+    ).toBe(true);
+    expect(
+      recordSkillRatingsResultSchema.safeParse({ studentId: "../students", recorded: 2 }).success,
+    ).toBe(false);
+  });
+
+  it("requires the skill summary to name the student it belongs to", () => {
+    const summary = {
+      summary: {
+        "tie-the-belt": {
+          count: 2,
+          maxScore: 4,
+          latestScore: 3,
+          lastEvaluatedAt: "2026-09-10T12:00:00.000Z",
+        },
+      },
+    };
+    expect(studentSkillSummaryResponseSchema.safeParse(summary).success).toBe(false);
+    expect(
+      studentSkillSummaryResponseSchema.safeParse({ ...summary, studentId: "student-1" }).success,
+    ).toBe(true);
+    expect(
+      studentSkillSummaryResponseSchema.safeParse({ ...summary, studentId: "a/b" }).success,
+    ).toBe(false);
   });
 
   it("refuses control characters in the open-level decision notes", () => {

@@ -210,7 +210,11 @@ export function createRecordEvaluationHandler(dependencies: HandlerDependencies)
 export function createListStudentEvaluationsHandler(dependencies: HandlerDependencies) {
   return async (
     request: CallableRequest<unknown>,
-  ): Promise<{ evaluations: readonly EvaluationRecord[]; summary: StudentSkillSummary }> => {
+  ): Promise<{
+    studentId: string;
+    evaluations: readonly EvaluationRecord[];
+    summary: StudentSkillSummary;
+  }> => {
     const actor = await dependencies.authorization.requireActor(request);
     const requested = targetPayload(request.data, actor);
     const studentId = await targetStudent(dependencies.authorization, actor, requested);
@@ -219,7 +223,9 @@ export function createListStudentEvaluationsHandler(dependencies: HandlerDepende
         dependencies.store.listStudentEvaluations(actor.academyId, studentId),
         dependencies.store.getStudentSkillSummary(actor.academyId, studentId),
       ]);
-      return { evaluations, summary };
+      // T051V2 review fix (Major-2): the RESOLVED student is echoed, so a caller that asked about
+      // one member can refuse a summary that belongs to another (or to the caller themselves).
+      return { studentId, evaluations, summary };
     } catch (error) {
       return mapStoreError(error, "retrieve assessments");
     }

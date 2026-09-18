@@ -185,7 +185,13 @@ export const recordSkillRatingsInputSchema = z.strictObject({
 });
 export type RecordSkillRatingsInput = z.infer<typeof recordSkillRatingsInputSchema>;
 
+/**
+ * T051V2 review fix (Major-2): the result echoes the student the batch was written for, so a
+ * caller can tie the confirmation to the member it asked about. Ratings are the input to a
+ * promotion decision about a named person, and a count alone is true of any member.
+ */
 export const recordSkillRatingsResultSchema = z.strictObject({
+  studentId: identifierSchema,
   recorded: z.number().int().min(1).max(100),
 });
 export type RecordSkillRatingsResult = z.infer<typeof recordSkillRatingsResultSchema>;
@@ -218,7 +224,13 @@ export const studentLevelCardSchema = z.discriminatedUnion("state", [
 ]);
 export type StudentLevelCard = z.infer<typeof studentLevelCardSchema>;
 
+/**
+ * T051V2 review fix (Major-2): `studentId` is required so the skill ratings shown beside a member
+ * name can be tied to the member the caller asked about; without it a summary belonging to another
+ * member (or to the signed-in coach) parses and renders as theirs. Unknown keys are dropped.
+ */
 export const studentSkillSummaryResponseSchema = z.object({
+  studentId: identifierSchema,
   summary: z.record(
     identifierSchema,
     z.object({

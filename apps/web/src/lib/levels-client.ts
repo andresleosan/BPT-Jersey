@@ -464,15 +464,29 @@ export type { StudentLevelCard, StudentLevelHistory };
  * so a message here names the action that failed, never the cause. In particular a void refusal
  * covers four causes (not the latest promotion, already voided, no restore snapshot, no such
  * promotion) and the UI must not guess which one fired.
+ *
+ * `assignInput` is the ONE exception, and only because the client itself knows the cause: it is
+ * used solely for an assignment this code refused before any call, where the date and the note are
+ * the only things that can be wrong. Every refusal that came back from the backend gets `assign`,
+ * which asks for nothing, because a refused administrator (G12) or a level-start conflict can
+ * never be fixed by editing the date or the note.
+ *
+ * All strings end in "try again" wording. That is deliberate and it is the best available: the
+ * four collapsed backend strings do not say whether a refusal is permanent, so the client cannot
+ * tell a transient failure from a final one, and any wording that did claim finality would be
+ * both a guess and a hint at the cause the void string must not give.
  */
 export const levelsSafeErrors = Object.freeze({
   card: "Levels are unavailable right now. Please try again later.",
   history: "Unable to load the level history. Please try again.",
-  assign: "Unable to assign the level. Check the date and the note, then try again.",
+  /** Local, pre-call refusal of an assignment form: the advice is actionable and true. */
+  assignInput: "Unable to assign the level. Check the date and the note, then try again.",
+  /** Any assignment refusal that came from the backend: names the action, asks for nothing. */
+  assign: "Unable to assign the level. Please try again later.",
   void: "Unable to void the promotion. Please try again.",
   ratings: "Unable to save the ratings. Please try again.",
   scores: "Unable to load the skill ratings. Please try again.",
-});
+} as const);
 
 const opaqueStudentIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 
@@ -493,8 +507,32 @@ async function callValidated<Output>(
   }
 }
 
-function requireStudentId(studentId: string, safeError: string): void {
-  if (!opaqueStudentIdPattern.test(studentId)) throw new Error(safeError);
+/**
+ * Parses a caller-supplied input object. The `safeParse` is INSIDE the try because zod reads the
+ * input's fields and does not catch a getter that throws while being read: outside a try, that
+ * getter's own message reaches the operator verbatim. Nothing but `safeError` may leave here.
+ */
+function parseInput<Output>(schema: z.ZodType<Output>, input: unknown, safeError: string): Output {
+  try {
+    const parsed = schema.safeParse(input);
+    if (parsed.success) return parsed.data;
+  } catch {
+    throw new Error(safeError);
+  }
+  throw new Error(safeError);
+}
+
+/**
+ * The type is not the guard: `useParams()`, a search param and a `string | null` record field all
+ * reach here as something other than a string, and `RegExp.prototype.test` would COERCE each one
+ * and let it through. `undefined` is the dangerous one — it would make the wire payload `{}`,
+ * which is the backend's "my own progress" shape, so the signed-in coach's own data would come
+ * back and be rendered under the target member's name.
+ */
+function requireStudentId(studentId: unknown, safeError: string): asserts studentId is string {
+  if (typeof studentId !== "string" || !opaqueStudentIdPattern.test(studentId)) {
+    throw new Error(safeError);
+  }
 }
 
 export async function getStudentLevelCard(studentId: string): Promise<StudentLevelCard> {
@@ -522,17 +560,17 @@ export async function getStudentLevelHistory(studentId: string): Promise<Student
 }
 
 export async function assignLevel(input: AssignLevelInput): Promise<AssignLevelResult> {
-  const parsed = assignLevelInputSchema.safeParse(input);
-  if (!parsed.success) throw new Error(levelsSafeErrors.assign);
-  // Built field by field rather than forwarded whole: an absent note must be an ABSENT KEY on the
-  // wire (a `note: undefined` does not survive callable serialisation intact), and spelling the
-  // four assignment fields out is what keeps this payload from ever carrying a `ratings` key.
+  const parsed = parseInput(assignLevelInputSchema, input, levelsSafeErrors.assignInput);
+  // What keeps a `ratings` key off this payload is the STRICT parse above, which refuses an input
+  // carrying one outright; the spelling below is belt-and-braces and pins the wire shape. What the
+  // spelling does carry on its own is the note: `{ note: undefined }` survives the parse as an OWN
+  // key with an undefined value, and an own `note` key is not the same wire payload as no note.
   const payload = {
-    studentId: parsed.data.studentId,
-    fromDefinitionKey: parsed.data.fromDefinitionKey,
-    toDefinitionKey: parsed.data.toDefinitionKey,
-    promotedOn: parsed.data.promotedOn,
-    ...(parsed.data.note === undefined ? {} : { note: parsed.data.note }),
+    studentId: parsed.studentId,
+    fromDefinitionKey: parsed.fromDefinitionKey,
+    toDefinitionKey: parsed.toDefinitionKey,
+    promotedOn: parsed.promotedOn,
+    ...(parsed.note === undefined ? {} : { note: parsed.note }),
   };
   const result = await callValidated(
     "assignLevel",
@@ -540,19 +578,21 @@ export async function assignLevel(input: AssignLevelInput): Promise<AssignLevelR
     assignLevelResultSchema,
     levelsSafeErrors.assign,
   );
-  if (result.toDefinitionKey !== payload.toDefinitionKey || result.promotedOn !== payload.promotedOn) {
+  if (
+    result.toDefinitionKey !== payload.toDefinitionKey ||
+    result.promotedOn !== payload.promotedOn
+  ) {
     throw new Error(levelsSafeErrors.assign);
   }
   return result;
 }
 
 export async function voidPromotion(input: VoidPromotionInput): Promise<VoidPromotionResult> {
-  const parsed = voidPromotionInputSchema.safeParse(input);
-  if (!parsed.success) throw new Error(levelsSafeErrors.void);
+  const parsed = parseInput(voidPromotionInputSchema, input, levelsSafeErrors.void);
   const payload = {
-    studentId: parsed.data.studentId,
-    promotionId: parsed.data.promotionId,
-    reason: parsed.data.reason,
+    studentId: parsed.studentId,
+    promotionId: parsed.promotionId,
+    reason: parsed.reason,
   };
   const result = await callValidated(
     "voidPromotion",
@@ -566,23 +606,21 @@ export async function voidPromotion(input: VoidPromotionInput): Promise<VoidProm
 
 /**
  * The batch half of the overloaded `recordEvaluation` callable. The dispatch is taken on an OWN
- * `ratings` key, so this payload is built separately from the legacy single-rating one above: a
- * legacy payload that picked up a stray `ratings` key would route here and die on a strict parse.
+ * `ratings` key, and what keeps the LEGACY payload from ever routing here is that its own strict
+ * input schema refuses a stray `ratings` key before anything is sent. The spelling below pins this
+ * payload's wire shape and, on its own, keeps `evidenceNotes: undefined` from becoming an own key.
  */
 export async function recordSkillRatings(
   input: RecordSkillRatingsInput,
 ): Promise<RecordSkillRatingsResult> {
-  const parsed = recordSkillRatingsInputSchema.safeParse(input);
-  if (!parsed.success) throw new Error(levelsSafeErrors.ratings);
+  const parsed = parseInput(recordSkillRatingsInputSchema, input, levelsSafeErrors.ratings);
   // `evidenceNotes` is `min(1)` at both the contract and the store, so an absent note must be an
   // absent key — never an empty string, and never an `undefined` value.
   const payload = {
-    studentId: parsed.data.studentId,
-    definitionKey: parsed.data.definitionKey,
-    ratings: parsed.data.ratings,
-    ...(parsed.data.evidenceNotes === undefined
-      ? {}
-      : { evidenceNotes: parsed.data.evidenceNotes }),
+    studentId: parsed.studentId,
+    definitionKey: parsed.definitionKey,
+    ratings: parsed.ratings,
+    ...(parsed.evidenceNotes === undefined ? {} : { evidenceNotes: parsed.evidenceNotes }),
   };
   const result = await callValidated(
     "recordEvaluation",
@@ -590,7 +628,11 @@ export async function recordSkillRatings(
     recordSkillRatingsResultSchema,
     levelsSafeErrors.ratings,
   );
-  if (result.recorded !== payload.ratings.length) throw new Error(levelsSafeErrors.ratings);
+  // Both halves are load-bearing: the count says the whole batch landed, and the echoed student
+  // says it landed on the member this call named (Major-2).
+  if (result.recorded !== payload.ratings.length || result.studentId !== payload.studentId) {
+    throw new Error(levelsSafeErrors.ratings);
+  }
   return result;
 }
 
@@ -600,15 +642,18 @@ export async function getStudentSkillScores(
   Readonly<{ latest: Readonly<Record<string, number>>; best: Readonly<Record<string, number>> }>
 > {
   requireStudentId(studentId, levelsSafeErrors.scores);
-  const { summary } = await callValidated(
+  const response = await callValidated(
     "listStudentEvaluations",
     { studentId },
     studentSkillSummaryResponseSchema,
     levelsSafeErrors.scores,
   );
+  // Scores decide a promotion about a named member, so a summary that names another member (or
+  // the signed-in coach, which is what an omitted student id would return) is refused (Major-2).
+  if (response.studentId !== studentId) throw new Error(levelsSafeErrors.scores);
   const latest: Record<string, number> = {};
   const best: Record<string, number> = {};
-  for (const [skillKey, item] of Object.entries(summary)) {
+  for (const [skillKey, item] of Object.entries(response.summary)) {
     latest[skillKey] = item.latestScore;
     best[skillKey] = item.maxScore;
   }
