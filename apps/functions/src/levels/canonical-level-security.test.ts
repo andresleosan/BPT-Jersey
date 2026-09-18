@@ -511,7 +511,7 @@ describe("canonical Levels security boundary", () => {
     ).toHaveBeenCalledWith(expect.objectContaining({ decidedByRole: "headCoach" }));
   });
 
-  it("opens a student level atomically with its audit and never a stripe or a second head", async () => {
+  it("opens a student level atomically with its audit and never a second head", async () => {
     const headCoachUser = {
       userId: "head-user-1",
       academyId: "academy-1",
@@ -635,9 +635,9 @@ describe("canonical Levels security boundary", () => {
       code: "conflict",
     });
 
-    await expect(fixture().store.openStudentLevel(open("white-1"))).rejects.toMatchObject({
-      code: "conflict",
-    });
+    // T051V2 Task 8: a stripe is a legitimate opening now (a member joins holding one).
+    const stripe = await fixture().store.openStudentLevel(open("white-1"));
+    expect(stripe.head.currentDefinitionKey).toBe("white-1");
     await expect(fixture().store.openStudentLevel(open("blue-0"))).rejects.toMatchObject({
       code: "conflict",
     });
