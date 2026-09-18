@@ -213,6 +213,23 @@ describe("MemberCalendar", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 
+  it("tells a member with no bookable membership so, instead of loading forever", async () => {
+    stubViewport(false);
+    const empty = {
+      ...createFixtureCalendarRepository("teenStudent"),
+      loadMember: () =>
+        Promise.resolve({
+          role: "teenStudent" as const,
+          displayName: "Sam Demo",
+          participants: [],
+        }),
+    };
+    render(<MemberCalendar onSignOut={vi.fn()} repository={empty} session={teen} />);
+    expect(await screen.findByText(/no active membership/i)).toBeInTheDocument();
+    expect(document.querySelector("[aria-busy='true']")).toBeNull();
+    expect(document.querySelectorAll(".day-column")).toHaveLength(0);
+  });
+
   describe("with the Firebase adapter", () => {
     beforeEach(() => {
       vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date("2026-09-14T09:00:00.000Z") }); // Monday 10:00 Europe/Jersey
