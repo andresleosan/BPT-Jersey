@@ -43,6 +43,7 @@ export type SessionPanelProps = Readonly<{
 type CancelUntil = "start" | "end" | "custom";
 
 type Draft = Readonly<{
+  repeatWeekly: boolean;
   date: string;
   startTime: string;
   endTime: string;
@@ -100,6 +101,7 @@ function draftFor(
     const custom = rules !== "defined";
     const cancelUntil = custom ? rules.cancelUntil : "start";
     return {
+      repeatWeekly: session.repeatWeekly ?? false,
       date: localParts(session.startAt, timezone).date,
       startTime: timeFrom(session.startAt, timezone),
       endTime: timeFrom(session.endAt, timezone),
@@ -119,6 +121,7 @@ function draftFor(
   const date = defaults?.date ?? localParts(new Date().toISOString(), timezone).date;
   const startTime = defaults?.startTime ?? "17:00";
   return {
+    repeatWeekly: false,
     date,
     startTime,
     endTime: timeOf(minutesOf(startTime) + defaultDurationMinutes),
@@ -176,6 +179,7 @@ export function SessionPanel({
   const [draft, setDraft] = useState<Draft>(() =>
     draftFor(mode, session, catalog, timezone, defaults),
   );
+  const [repeatScope, setRepeatScope] = useState<"single" | "following">("single");
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -267,6 +271,12 @@ export function SessionPanel({
           changes.bookingRules = bookingRules;
         if (draft.waitingList !== (session.waitingList ?? "general"))
           changes.waitingList = draft.waitingList;
+        if (draft.repeatWeekly !== (session.repeatWeekly ?? false))
+          changes.repeatWeekly = draft.repeatWeekly;
+        if (session.weeklySeriesId && repeatScope === "following") {
+          changes.repeatScope = "following";
+          changes.repeatWeekly = draft.repeatWeekly;
+        }
         if (Object.keys(changes).length === 1) {
           onClose();
           return;
@@ -287,6 +297,7 @@ export function SessionPanel({
         instructorIds,
         bookingRules,
         waitingList: draft.waitingList,
+        ...(draft.repeatWeekly ? { repeatWeekly: true } : {}),
       };
       onSaved(await saveSession(input));
     } catch (failure) {
@@ -425,6 +436,49 @@ export function SessionPanel({
             {endsBeforeStart ? (
               <p className="cs-notice" data-kind="error" role="alert">
                 End time must be after the start time
+              </p>
+            ) : null}
+            <h3>Repeat</h3>
+            {editing && session?.weeklySeriesId ? (
+              <label className="cs-field">
+                <span>Apply changes to</span>
+                <select
+                  value={repeatScope}
+                  disabled={readOnly}
+                  onChange={(event) => {
+                    const scope = event.target.value === "following" ? "following" : "single";
+                    setRepeatScope(scope);
+                    if (scope === "single") patch({ repeatWeekly: session.repeatWeekly ?? false });
+                  }}
+                >
+                  <option value="single">Only this session</option>
+                  <option value="following">This and following sessions</option>
+                </select>
+              </label>
+            ) : null}
+            <label className="cs-check cs-session-repeat">
+              <input
+                type="checkbox"
+                checked={draft.repeatWeekly}
+                disabled={
+                  readOnly ||
+                  (editing && Boolean(session?.weeklySeriesId) && repeatScope === "single")
+                }
+                aria-describedby="cs-repeat-help"
+                onChange={(event) => patch({ repeatWeekly: event.target.checked })}
+              />
+              Repeat every week
+            </label>
+            <p id="cs-repeat-help" className="cs-session-help">
+              {editing && session?.weeklySeriesId && repeatScope === "single"
+                ? "Changes affect this date only. Choose this and following sessions to change or stop weekly repetition."
+                : "Same day and local time every week, with no end date. Trainers, capacity and booking rules repeat; registrations do not."}
+            </p>
+            {editing && session?.weeklySeriesId && repeatScope === "following" ? (
+              <p className="cs-session-help">
+                {draft.repeatWeekly
+                  ? "Existing registrations stay attached to their dates. Individually edited or cancelled sessions stay unchanged."
+                  : "This session stays scheduled. Following sessions will be cancelled and weekly repetition will stop."}
               </p>
             ) : null}
             <h3>Class and location</h3>
@@ -639,6 +693,8 @@ export function SessionPanel({
                   disabled={busy}
                   onClick={() => {
                     setCurrent("create");
+                    patch({ repeatWeekly: false });
+                    setRepeatScope("single");
                     setConfirming(false);
                     setError(null);
                     setView("details");
@@ -660,6 +716,11 @@ export function SessionPanel({
                   {confirming ? "Keep session" : "Cancel session"}
                 </button>
               </div>
+            ) : null}
+            {confirming && session?.weeklySeriesId ? (
+              <p className="cs-session-help">
+                Cancellation applies to this date only. Other weekly sessions remain scheduled.
+              </p>
             ) : null}
             {confirming ? (
               <div className="cs-form-row cs-session-cancellation">

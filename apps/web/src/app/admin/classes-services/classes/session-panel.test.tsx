@@ -217,6 +217,75 @@ describe("SessionPanel", () => {
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   });
 
+  function renderRepeatingPanel(repeating = true) {
+    render(
+      <SessionPanel
+        mode="edit"
+        session={{
+          ...sessionFixture,
+          ...(repeating ? { weeklySeriesId: "s1", weeklyIndex: 0, repeatWeekly: true } : {}),
+        }}
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+  }
+
+  it("enables indefinite weekly repetition on an existing session", async () => {
+    mocks.updateSession.mockResolvedValue(sessionFixture);
+    renderRepeatingPanel(false);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Repeat every week" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith({ sessionId: "s1", repeatWeekly: true }),
+    );
+  });
+
+  it("creates a weekly series only when repetition is selected", async () => {
+    mocks.saveSession.mockResolvedValue(sessionFixture);
+    renderCapacityPanel("create");
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Repeat every week" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
+    await waitFor(() =>
+      expect(mocks.saveSession).toHaveBeenCalledWith(
+        expect.objectContaining({ repeatWeekly: true, minParticipants: 4, capacity: 12 }),
+      ),
+    );
+  });
+
+  it("defaults to this date and requires following scope before stopping a series", async () => {
+    mocks.updateSession.mockResolvedValue(sessionFixture);
+    renderRepeatingPanel();
+    expect(screen.getByLabelText("Apply changes to")).toHaveValue("single");
+    expect(screen.getByRole("checkbox", { name: "Repeat every week" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Apply changes to"), { target: { value: "following" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Repeat every week" }));
+    expect(screen.getByText(/Following sessions will be cancelled/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith({
+        sessionId: "s1",
+        repeatWeekly: false,
+        repeatScope: "following",
+      }),
+    );
+  });
+
+  it("copies a recurring date as a one-off draft to avoid a second accidental series", () => {
+    renderRepeatingPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Copy session" }));
+    expect(screen.getByRole("checkbox", { name: "Repeat every week" })).not.toBeChecked();
+    expect(screen.queryByLabelText("Apply changes to")).not.toBeInTheDocument();
+  });
+
   it("blocks a maximum below the default minimum before sending a create request", () => {
     renderCapacityPanel("create");
     fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
