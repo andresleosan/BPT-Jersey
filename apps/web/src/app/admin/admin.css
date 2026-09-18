@@ -4624,6 +4624,23 @@ a.admin-birthday-badge:focus-visible,
   text-decoration: line-through;
 }
 
+/* The gaps and the operator's note are two separate facts about one promotion; run together on
+   one line they read as a single sentence. */
+.ibjjf-entry-aside {
+  color: var(--muted);
+  display: block;
+  font-size: 0.85rem;
+}
+
+/* DESIGN.md section 2: a status is text plus its own coloured left rule, never a bare label. */
+.ibjjf-status-voided {
+  background: #fff0f2;
+  border-left: 0.35rem solid #8d1c2f;
+  color: #721626;
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+}
+
 .ibjjf-belt-mini {
   display: inline-block;
   margin-right: 0.5rem;

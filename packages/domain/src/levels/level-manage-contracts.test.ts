@@ -55,6 +55,7 @@ const voidedBlock = {
 const historyBase = {
   studentId: "student-1",
   currentDefinitionKey: "white-belt",
+  lastApprovedPromotionId: promotionEntry.entryId,
   entries: [promotionEntry],
 };
 
@@ -203,6 +204,7 @@ describe("level manage contracts", () => {
     const history = {
       studentId: "student-1",
       currentDefinitionKey: "white-belt",
+      lastApprovedPromotionId: "grad_student-1_white-2nd-stripe_2026-09-10T12:00:00.000Z",
       entries: [
         {
           entryId: "grad_student-1_white-2nd-stripe_2026-09-10T12:00:00.000Z",
@@ -270,6 +272,24 @@ describe("level manage contracts", () => {
         entries: [{ ...history.entries[0], gaps: ["x".repeat(121)] }],
       }).success,
     ).toBe(false);
+  });
+
+  it("carries the promotion the head recorded last, and refuses anything but an id or null", () => {
+    // Critical-1: this is the ONLY promotion `voidPromotion` accepts, so it travels with the
+    // history instead of being guessed from `assignedOn` ordering, which backdating breaks.
+    expect(
+      studentLevelHistorySchema.safeParse({ ...historyBase, lastApprovedPromotionId: null })
+        .success,
+    ).toBe(true);
+    expect(
+      studentLevelHistorySchema.safeParse({
+        ...historyBase,
+        lastApprovedPromotionId: "not an id",
+      }).success,
+    ).toBe(false);
+    const withoutTheField: Record<string, unknown> = { ...historyBase };
+    delete withoutTheField.lastApprovedPromotionId;
+    expect(studentLevelHistorySchema.safeParse(withoutTheField).success).toBe(false);
   });
 
   it("reads only the card fields from a progress summary", () => {

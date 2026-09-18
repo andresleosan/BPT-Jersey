@@ -88,7 +88,7 @@ beforeEach(() => {
 describe("levels manage client — the safe strings", () => {
   // Pinned by text: a UI copy change is a deliberate act, not a silent one. And they must stay
   // distinct, or a caller switching on the literal would tell two different failures apart wrongly.
-  it("is exactly these seven strings", () => {
+  it("is exactly these eight strings", () => {
     expect(levelsSafeErrors).toEqual({
       card: "Levels are unavailable right now. Please try again later.",
       history: "Unable to load the level history. Please try again.",
@@ -97,13 +97,14 @@ describe("levels manage client — the safe strings", () => {
       void: "Unable to void the promotion. Please try again.",
       ratings: "Unable to save the ratings. Please try again.",
       scores: "Unable to load the skill ratings. Please try again.",
+      open: "Unable to open the student level. Please try again.",
     });
   });
 
   it("has no two keys sharing a string", () => {
     const values = Object.values(levelsSafeErrors);
-    expect(values).toHaveLength(7);
-    expect(new Set(values).size).toBe(7);
+    expect(values).toHaveLength(8);
+    expect(new Set(values).size).toBe(8);
   });
 
   it("never hints at the cause of a void refusal", () => {
@@ -254,6 +255,7 @@ describe("levels manage client — the history", () => {
     result = {
       studentId: "student-1",
       currentDefinitionKey: "white-1st-stripe",
+      lastApprovedPromotionId: promotionEntry.entryId,
       entries: [promotionEntry],
     };
     const history = await getStudentLevelHistory("student-1");
@@ -266,6 +268,7 @@ describe("levels manage client — the history", () => {
     result = {
       studentId: "student-1",
       currentDefinitionKey: "white-belt",
+      lastApprovedPromotionId: null,
       entries: [
         { ...promotionEntry, voided: { reason: null, voidedByRole: null, voidedOn: null } },
         {
@@ -291,6 +294,7 @@ describe("levels manage client — the history", () => {
     result = {
       studentId: "student-1",
       currentDefinitionKey: "white-1st-stripe",
+      lastApprovedPromotionId: promotionEntry.entryId,
       entries: [{ ...promotionEntry, classes: null, days: null, gaps: [], note: null }],
     };
     const history = await getStudentLevelHistory("student-1");

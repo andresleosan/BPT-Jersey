@@ -7,6 +7,7 @@ import {
   daysAtLevel,
   jerseyDateOf,
   listPromotionGaps,
+  promotionNoteSchema,
   type LevelCatalogProjection,
   type LevelDefinitionRecord,
   type LevelHistoryEntry,
@@ -40,7 +41,6 @@ type ViewState =
   | Readonly<{ status: "error" }>
   | Readonly<{ status: "ready"; data: Loaded }>;
 
-const openLevelError = "Unable to open the level. Please try again.";
 const notRecorded = "not recorded";
 
 const dayLabel = new Intl.DateTimeFormat("en-GB", {
@@ -64,7 +64,14 @@ function formatDay(day: string | null): string | null {
 const roleLabel = (role: "headCoach" | "owner" | null): string | null =>
   role === "headCoach" ? "Head coach" : role === "owner" ? "Owner" : null;
 
-const noteIsValid = (value: string) => value.trim().length >= 10 && value.trim().length <= 500;
+/**
+ * T051V2 review of Task 16 (Major-1): the dialog used to measure the trimmed length itself, which
+ * is NOT the contract. `promotionNoteSchema` normalises `\r\n?` to `\n` BEFORE measuring and
+ * refuses every C0 control character and DEL, so a 12-character note carrying an invisible BEL or
+ * NUL passed here and was refused by the server with a generic string, on the one screen where the
+ * note is mandatory. The contract is now the only judge.
+ */
+const noteIsValid = (value: string) => promotionNoteSchema.safeParse(value).success;
 
 /**
  * The clients promise that every rejection carries one of their own fixed strings. This checks it
@@ -111,21 +118,46 @@ function ConfirmDialog({
   children: ReactNode;
 }>) {
   const ref = useRef<HTMLDialogElement>(null);
+  /**
+   * T051V2 review of Task 16 (Major-4): this dialog decides something irreversible and audited
+   * about a named person, so it is a REAL modal. `showModal()` is what gives it the focus trap,
+   * the inert background, the backdrop and native Escape; `<dialog open>` set none of those while
+   * looking exactly like it did, and one Shift+Tab reached the background and killed the
+   * hand-rolled Escape with it.
+   *
+   * jsdom implements neither `showModal` nor `close` (probed on jsdom 30), so the unit suite runs
+   * the fallback below and the `onKeyDown` handler is what closes it THERE. A browser always has
+   * `showModal`, so the trap and the native Escape are what run in front of an operator — and
+   * neither an axe pass nor a jsdom test can prove that, so it is owed a manual check.
+   */
   useEffect(() => {
+    const dialog = ref.current;
+    if (dialog === null) return;
     const opener = document.activeElement;
-    ref.current?.querySelector<HTMLElement>("textarea, button")?.focus();
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    dialog.querySelector<HTMLElement>("textarea, button")?.focus();
     return () => {
+      if (typeof dialog.close === "function" && dialog.open) dialog.close();
       if (opener instanceof HTMLElement) opener.focus();
     };
   }, []);
   return (
     <dialog
       aria-labelledby="ibjjf-dialog-title"
+      aria-modal="true"
       className="ibjjf-dialog"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") onCancel();
+      onCancel={(event) => {
+        // Native Escape. Prevented so the platform does not close the element behind React's
+        // back: the state change below is what unmounts it.
+        event.preventDefault();
+        onCancel();
       }}
-      open
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && typeof ref.current?.showModal !== "function") {
+          onCancel();
+        }
+      }}
       ref={ref}
     >
       <h3 id="ibjjf-dialog-title">{title}</h3>
@@ -183,10 +215,11 @@ function OpenLevelForm({
     setError(null);
     try {
       await openStudentLevel({ studentId, definitionKey, startedOn, decisionNotes: notes.trim() });
+      // The flag is NOT cleared here (Critical-3): `onDone` puts the view back into `loading` and
+      // this form unmounts with the reload, so nothing is left clickable over the stale data.
       onDone("Level opened.");
-    } catch {
-      setError(openLevelError);
-    } finally {
+    } catch (failure) {
+      setError(safeMessage(failure, levelsSafeErrors.open));
       inFlight.current = false;
       setBusy(false);
     }
@@ -285,6 +318,12 @@ function AssignLevelForm({
   // Classes are the count as of TODAY; the server recounts them up to the promotion date and has
   // the last word, which is why a backdated promotion says so in the dialog. Scores are the LATEST
   // rating for each skill, never the best ever given (operator DECISION 6).
+  //
+  // T051V2 review of Task 16 (Major-5): `age` is the age TODAY, taken from the record header,
+  // which carries no date of birth — so the age at a backdated `promotedOn` cannot be derived
+  // here without a further read and a contract change. DECISION: the caveat in the dialog names
+  // the age band alongside the classes rather than compute it from a date this view does not
+  // have. The server has the last word on the age band exactly as it does on the classes.
   const gaps =
     target === undefined || promotedOn === ""
       ? []
@@ -302,6 +341,10 @@ function AssignLevelForm({
   const confirmDisabled = noteRequired
     ? !noteIsValid(note)
     : note.trim() !== "" && !noteIsValid(note);
+  // A note that was typed but the contract will not take. `levelsSafeErrors.assignInput` is the
+  // one string in the allowlist whose advice is both true and actionable BEFORE any call, and it
+  // is what points at an invisible control character the length alone cannot explain.
+  const noteRefused = note !== "" && !noteIsValid(note);
 
   function review(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -331,12 +374,14 @@ function AssignLevelForm({
         ...(note.trim() === "" ? {} : { note: note.trim() }),
       });
       setReviewing(false);
+      // Critical-3: the flag is NOT cleared on success. `onDone` puts the view back into
+      // `loading`, which unmounts this form and its dialog, so the operator cannot send the same
+      // promotion twice into the window between the write resolving and the reload landing.
       onDone("Level assigned.");
     } catch (failure) {
       // The dialog stays open: the note is the one thing the operator can still change, and a
       // refusal on an assignment sent without one is the case where that matters most.
       setDialogError(safeMessage(failure, levelsSafeErrors.assign));
-    } finally {
       inFlight.current = false;
       setBusy(false);
     }
@@ -389,7 +434,7 @@ function AssignLevelForm({
           title={`Promote ${fullName} from ${current.name} to ${target.name} on ${formatDay(promotedOn) ?? promotedOn}?`}
         >
           {gaps.length === 0 ? (
-            <p>All criteria for this level are met.</p>
+            <p>All criteria BPT records for this level are met as of today.</p>
           ) : (
             <>
               <p>
@@ -405,7 +450,7 @@ function AssignLevelForm({
           )}
           {promotedOn === today ? null : (
             <p className="ibjjf-muted">
-              {`Classes are counted as of today, not as of ${formatDay(promotedOn) ?? promotedOn}. The final check runs when the promotion is recorded.`}
+              {`Classes and the age band are counted as of today, not as of ${formatDay(promotedOn) ?? promotedOn}. The final check runs when the promotion is recorded.`}
             </p>
           )}
           <label htmlFor="ibjjf-assign-note">
@@ -413,12 +458,18 @@ function AssignLevelForm({
               ? "Note (required, 10 to 500 characters)"
               : "Note (optional, 10 to 500 characters)"}
             <textarea
+              aria-describedby={noteRefused ? "ibjjf-assign-note-problem" : undefined}
               id="ibjjf-assign-note"
               maxLength={500}
               onChange={(event) => setNote(event.target.value)}
               value={note}
             />
           </label>
+          {noteRefused ? (
+            <p className="ibjjf-error" id="ibjjf-assign-note-problem">
+              {levelsSafeErrors.assignInput}
+            </p>
+          ) : null}
           {dialogError === null ? null : (
             <p className="ibjjf-error" role="alert">
               {dialogError}
@@ -445,15 +496,30 @@ function HistoryTable({
   const names = new Map(
     catalog.definitions.map((definition) => [definition.definitionKey, definition.name]),
   );
-  const current = history.entries.find(
-    (entry) => entry.voided === null && entry.definitionKey === history.currentDefinitionKey,
-  );
-  // Only the latest standing promotion can be voided, and the history says which one that is. The
-  // refusal string deliberately covers four causes, so the one an operator can act on is offered
-  // here, from the data, rather than guessed at from an error (Task 10, carried).
-  const voidable = history.entries.find(
-    (entry) => entry.kind === "promotion" && entry.voided === null,
-  );
+  const current =
+    history.currentDefinitionKey === null
+      ? undefined
+      : history.entries.find(
+          (entry) => entry.voided === null && entry.definitionKey === history.currentDefinitionKey,
+        );
+  /**
+   * T051V2 review of Task 16 (Critical-1). Only ONE promotion can be voided, and it is the one the
+   * progress head recorded last — NOT the newest row by `assignedOn`, which is a calendar date the
+   * assign form deliberately lets the operator backdate. The two diverge under ordinary use, and
+   * when they did, the row labelled "Current" was told to "Void the latest promotion first" while
+   * the Void button sat on a row the server refuses. The head's own id now travels with the
+   * history, so this names exactly what `voidPromotion` accepts. The refusal itself stays opaque:
+   * nothing here tries to say which of its four causes fired.
+   */
+  const voidable =
+    history.lastApprovedPromotionId === null
+      ? undefined
+      : history.entries.find(
+          (entry) =>
+            entry.entryId === history.lastApprovedPromotionId &&
+            entry.kind === "promotion" &&
+            entry.voided === null,
+        );
 
   return (
     <section aria-labelledby="ibjjf-history-title" className="ibjjf-history-section">
@@ -495,10 +561,10 @@ function HistoryTable({
                       )}
                       {names.get(entry.definitionKey) ?? entry.definitionKey}
                       {entry.gaps.length === 0 ? null : (
-                        <span className="ibjjf-muted">{` Below criteria: ${entry.gaps.join(", ")}`}</span>
+                        <span className="ibjjf-entry-aside">{`Below criteria: ${entry.gaps.join(", ")}`}</span>
                       )}
                       {entry.note === null ? null : (
-                        <span className="ibjjf-muted">{` ${entry.note}`}</span>
+                        <span className="ibjjf-entry-aside">{entry.note}</span>
                       )}
                     </td>
                     <td className="ibjjf-number">
@@ -518,14 +584,25 @@ function HistoryTable({
                         : (roleLabel(entry.decidedByRole) ?? "—")}
                     </td>
                     <td>
-                      {entry.voided !== null
-                        ? voidedStatus(entry.voided)
-                        : entry.entryId === current?.entryId
-                          ? "Current"
-                          : "Previous"}
+                      {entry.voided !== null ? (
+                        <span className="ibjjf-status-voided">{voidedStatus(entry.voided)}</span>
+                      ) : current !== undefined ? (
+                        entry.entryId === current.entryId ? (
+                          "Current"
+                        ) : (
+                          "Previous"
+                        )
+                      ) : (
+                        // Critical-2: `currentDefinitionKey` is nullable. With no level on record
+                        // there is no "Previous" to claim either — calling a standing promotion a
+                        // former one is a false statement about a real member's belt, so this
+                        // asserts nothing.
+                        "—"
+                      )}
                     </td>
                     <td>
-                      {!isVoidable ? null : voidable?.entryId === entry.entryId ? (
+                      {!isVoidable || voidable === undefined ? null : voidable.entryId ===
+                        entry.entryId ? (
                         <button
                           className="ibjjf-button"
                           onClick={() => onVoid(entry)}
@@ -574,11 +651,17 @@ export function ManageView({
   const today = jerseyDateOf(new Date().toISOString());
 
   /**
-   * Three restricted reads per open — the card, the history and the skill ratings — against the
-   * budget of 20 per five minutes shared by five methods. None is spare: the card carries the
-   * classes and the level start, the history is the table and the one honest source of which
-   * promotion may be voided, and the ratings decide the `Skills n/m at minimum` gap that would
-   * otherwise let the dialog claim every criterion is met for a child whose minimums are not.
+   * FOUR calls per open, one of them the catalogue: `getLevelCatalog` has no client-side cache,
+   * so it is a call like the other three. None is spare: the card carries the classes and the
+   * level start, the history is the table and the one honest source of which promotion may be
+   * voided, and the ratings decide the `Skills n/m at minimum` gap that would otherwise let the
+   * dialog claim every criterion is met for a child whose minimums are not.
+   *
+   * T051V2 review of Task 16 (Major-3): an earlier note here counted three reads and charged them
+   * to a "20 restricted reads / 5 minutes" budget. Both were wrong. The only such limiter in the
+   * codebase is `restrictedAttemptLimit` in `canonical-member-directory-read-service.ts`, whose
+   * action union contains NO levels callable, so no levels read is governed by it. Nothing in the
+   * levels stack may cite that budget.
    */
   useEffect(() => {
     let active = true;
@@ -599,8 +682,17 @@ export function ManageView({
     };
   }, [studentId, attempt]);
 
+  /**
+   * T051V2 review of Task 16 (Critical-3): this used to bump `attempt` and nothing else, so `data`
+   * kept the PRE-WRITE snapshot for the whole refetch. "Level assigned." was announced beside a
+   * history table that did not contain the promotion, and the assign form stayed mounted with the
+   * same values — which, with the in-flight flag cleared as soon as the write resolved, sent a
+   * SECOND identical `assignLevel` from a second operator click. Going back to `loading` unmounts
+   * the forms and the table until the new data lands, so there is nothing stale to act on.
+   */
   const reload = useCallback((message: string) => {
     setNotice(message);
+    setState({ status: "loading" });
     setAttempt((value) => value + 1);
   }, []);
 
@@ -615,6 +707,11 @@ export function ManageView({
       await voidPromotion({ studentId, promotionId: voiding.entryId, reason: reason.trim() });
       setVoiding(null);
       setReason("");
+      // Critical-3: `reload` goes back to `loading` in the SAME React batch as `setVoiding(null)`,
+      // so the dialog, the Void buttons and the stale table are all gone before the flag below is
+      // cleared. There is no render in which a second void could be started over pre-write data.
+      // Unlike the forms, this component is not unmounted by the reload, so the flag and `busy`
+      // must be cleared or no later void could ever be started.
       reload("Promotion voided.");
     } catch (failure) {
       // One string for four causes, by design. Nothing here tries to work out which one fired.

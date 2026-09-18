@@ -1055,10 +1055,24 @@ function buildLevelHistory(
     (left, right) =>
       right.assignedOn.localeCompare(left.assignedOn) || (left.kind === "opening" ? 1 : -1),
   );
+  /**
+   * T051V2 review of Task 16 (Critical-1): the head's `lastApprovedPromotionId` is the ONLY
+   * promotion `voidPromotion` accepts (`return "not-latest"` above), and it is NOT the newest row
+   * by `assignedOn` — the assign form backdates deliberately. It is carried to the reader so the
+   * Void affordance is placed by the server's own rule. It is passed through only when it names a
+   * row that survived its own parse: a head naming a record that is not on screen can offer the
+   * operator nothing, and an id that no longer parses must not take the whole history down.
+   */
+  const lastApproved =
+    typeof headData?.lastApprovedPromotionId === "string" ? headData.lastApprovedPromotionId : null;
   const parsed = studentLevelHistorySchema.safeParse({
     studentId,
     currentDefinitionKey:
       typeof headData?.currentDefinitionKey === "string" ? headData.currentDefinitionKey : null,
+    lastApprovedPromotionId:
+      lastApproved !== null && entries.some((entry) => entry.entryId === lastApproved)
+        ? lastApproved
+        : null,
     entries,
   });
   if (!parsed.success) throw new LevelStoreError("conflict", "Level history is invalid");

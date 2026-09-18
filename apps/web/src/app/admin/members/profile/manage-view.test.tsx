@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
     assignInput: "Unable to assign the level. Check the date and the note, then try again.",
     assign: "Unable to assign the level. Please try again later.",
     void: "Unable to void the promotion. Please try again.",
+    open: "Unable to open the student level. Please try again.",
     ratings: "Unable to save the ratings. Please try again.",
     scores: "Unable to load the skill ratings. Please try again.",
   }),
@@ -123,6 +124,7 @@ beforeEach(() => {
   api.getStudentLevelHistory.mockResolvedValue({
     studentId: "student-1",
     currentDefinitionKey: whiteBelt,
+    lastApprovedPromotionId: promotion.entryId,
     entries: [promotion, opening],
   });
   api.getStudentSkillScores.mockResolvedValue({ latest: {}, best: {} });
@@ -179,6 +181,9 @@ describe("ManageView history", () => {
     expect(rows[2]).toHaveTextContent("Previous");
     expect(within(rows[2]!).getAllByText("—").length).toBe(2);
     expect(within(rows[2]!).queryByRole("button", { name: "Void" })).toBeNull();
+    // An opening is not a promotion: it is offered neither the action nor the instruction, which
+    // would be a step towards something the server refuses under every one of its four causes.
+    expect(rows[2]).not.toHaveTextContent("Void the latest promotion first");
   });
 
   it("offers the one recoverable step on an older promotion instead of explaining a refusal", async () => {
@@ -186,6 +191,7 @@ describe("ManageView history", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: firstStripe,
+      lastApprovedPromotionId: later.entryId,
       entries: [later, promotion, opening],
     });
     renderView();
@@ -216,6 +222,7 @@ describe("ManageView history", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: null,
+      lastApprovedPromotionId: null,
       entries: [degraded, recorded],
     });
     renderView();
@@ -245,6 +252,7 @@ describe("ManageView history", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: whiteBelt,
+      lastApprovedPromotionId: promotion.entryId,
       entries: [later, promotion, opening],
     });
     renderView();
@@ -255,6 +263,107 @@ describe("ManageView history", () => {
     expect(rows[2]).toHaveTextContent("Current");
   });
 
+  /**
+   * T051V2 review of Task 16 (Critical-1). The assign form backdates deliberately, so the
+   * promotion RECORDED last — the only one `voidPromotion` accepts — is not always the newest row
+   * by `assignedOn`. The view used to pick the newest by date, which put the Void button on a row
+   * the server refuses and told the row labelled "Current" to "Void the latest promotion first".
+   */
+  it("offers Void on the promotion the head recorded last, not the newest one by date", async () => {
+    const backdated = {
+      ...promotion,
+      entryId: "grad_recorded_last",
+      definitionKey: firstStripe,
+      assignedOn: dayBack(40),
+    };
+    const newerByDate = { ...promotion, entryId: "grad_newer_by_date", assignedOn: dayBack(5) };
+    api.voidPromotion.mockResolvedValue({
+      voidId: "void_x",
+      voidsPromotionId: backdated.entryId,
+      restoredDefinitionKey: whiteBelt,
+    });
+    api.getStudentLevelHistory.mockResolvedValue({
+      studentId: "student-1",
+      currentDefinitionKey: firstStripe,
+      lastApprovedPromotionId: backdated.entryId,
+      entries: [newerByDate, backdated, opening],
+    });
+    renderView("headCoach");
+    const table = await screen.findByRole("table", { name: "Level history" });
+    const rows = within(table).getAllByRole("row");
+    // Newest by date, and NOT the one the server would accept.
+    expect(rows[1]).toHaveTextContent(uiDay(dayBack(5)));
+    expect(within(rows[1]!).queryByRole("button", { name: "Void" })).toBeNull();
+    expect(rows[1]).toHaveTextContent("Void the latest promotion first");
+    // The row the head names is both "Current" and the one that carries the action.
+    expect(rows[2]).toHaveTextContent("Current");
+    expect(rows[2]).not.toHaveTextContent("Void the latest promotion first");
+    fireEvent.click(within(rows[2]!).getByRole("button", { name: "Void" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(dialog.querySelector("textarea")!, {
+      target: { value: "Assigned to the wrong member." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Void promotion" }));
+    await waitFor(() =>
+      expect(api.voidPromotion).toHaveBeenCalledWith({
+        studentId: "student-1",
+        promotionId: backdated.entryId,
+        reason: "Assigned to the wrong member.",
+      }),
+    );
+  });
+
+  it("never offers Void on an opening, whatever the head names", async () => {
+    // The server refuses a void of an opening under every one of its four causes, so an affordance
+    // on that row could only ever end in the opaque refusal.
+    api.getStudentLevelHistory.mockResolvedValue({
+      studentId: "student-1",
+      currentDefinitionKey: "grey-belt",
+      lastApprovedPromotionId: opening.entryId,
+      entries: [opening],
+    });
+    renderView("headCoach");
+    const table = await screen.findByRole("table", { name: "Level history" });
+    expect(within(table).queryByRole("button", { name: "Void" })).toBeNull();
+    expect(table).not.toHaveTextContent("Void the latest promotion first");
+  });
+
+  it("says nothing about voiding when the head names no promotion at all", async () => {
+    // An unactionable instruction on every row is the self-contradiction Critical-1 describes.
+    api.getStudentLevelHistory.mockResolvedValue({
+      studentId: "student-1",
+      currentDefinitionKey: whiteBelt,
+      lastApprovedPromotionId: null,
+      entries: [promotion, opening],
+    });
+    renderView("headCoach");
+    const table = await screen.findByRole("table", { name: "Level history" });
+    expect(within(table).queryByRole("button", { name: "Void" })).toBeNull();
+    expect(table).not.toHaveTextContent("Void the latest promotion first");
+  });
+
+  /**
+   * T051V2 review of Task 16 (Critical-2). `currentDefinitionKey` is nullable. When it is null the
+   * view used to call every standing promotion "Previous" — telling the operator that the belt the
+   * member holds is a former belt — and still offered Void on it.
+   */
+  it("claims neither Current nor Previous when no level is on record", async () => {
+    api.getStudentLevelHistory.mockResolvedValue({
+      studentId: "student-1",
+      currentDefinitionKey: null,
+      lastApprovedPromotionId: promotion.entryId,
+      entries: [promotion, opening],
+    });
+    renderView("headCoach");
+    const table = await screen.findByRole("table", { name: "Level history" });
+    const rows = within(table).getAllByRole("row");
+    for (const row of [rows[1]!, rows[2]!]) {
+      expect(row).not.toHaveTextContent("Previous");
+      expect(row).not.toHaveTextContent("Current");
+      expect(within(row).getAllByText("—").length).toBeGreaterThan(0);
+    }
+  });
+
   it("keeps a row whose stored day cannot be read, instead of taking the record down", async () => {
     // The client's schema refuses a day that is not a real calendar date, so this state should
     // never arrive; the guard is the second line, and without it `Intl.format` throws on an
@@ -262,6 +371,7 @@ describe("ManageView history", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: whiteBelt,
+      lastApprovedPromotionId: promotion.entryId,
       entries: [{ ...promotion, assignedOn: "not-a-day" }],
     });
     renderView();
@@ -274,6 +384,7 @@ describe("ManageView history", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: whiteBelt,
+      lastApprovedPromotionId: promotion.entryId,
       entries: [
         {
           ...promotion,
@@ -293,6 +404,7 @@ describe("ManageView history", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: null,
+      lastApprovedPromotionId: null,
       entries: [],
     });
     renderView();
@@ -398,6 +510,116 @@ describe("ManageView assignment", () => {
     expect(api.assignLevel).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * T051V2 review of Task 16 (Critical-3). `reload` used to bump the attempt only, so the view
+   * kept the pre-write snapshot for the whole refetch while the in-flight flag was cleared the
+   * moment the write resolved — two operator clicks, two identical `assignLevel` calls, and
+   * "Level assigned." announced beside a history table without the promotion in it.
+   */
+  it("sends one assignment even when the operator clicks again before the reload lands", async () => {
+    api.assignLevel.mockResolvedValue({
+      promotionId: "grad_new",
+      toDefinitionKey: firstStripe,
+      promotedOn: today,
+      gaps: [],
+    });
+    const loaded = {
+      studentId: "student-1",
+      currentDefinitionKey: whiteBelt,
+      lastApprovedPromotionId: promotion.entryId,
+      entries: [promotion, opening],
+    };
+    let releaseHistory = (): void => {};
+    api.getStudentLevelHistory.mockResolvedValueOnce(loaded).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseHistory = () => resolve(loaded);
+        }),
+    );
+    renderView();
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Next level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(dialog.querySelector("textarea")!, {
+      target: { value: "Ready on every count but the clock." },
+    });
+    const confirm = within(dialog).getByRole("button", { name: "Confirm promotion" });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(api.assignLevel).toHaveBeenCalledTimes(1));
+    // The refetch is in flight and held open below.
+    await waitFor(() => expect(api.getStudentLevelHistory).toHaveBeenCalledTimes(2));
+
+    // The write has resolved and the reload has NOT: nothing stale is left to act on.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
+    expect(screen.queryByRole("table", { name: "Level history" })).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("Level assigned.");
+    fireEvent.click(confirm);
+    expect(api.assignLevel).toHaveBeenCalledTimes(1);
+
+    releaseHistory();
+    await screen.findByRole("table", { name: "Level history" });
+    expect(api.assignLevel).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * T051V2 review of Task 16 (Major-1). `promotionNoteSchema` normalises CRLF before measuring and
+   * refuses every C0 control character and DEL. A 12-character note carrying BEL and NUL used to
+   * leave Confirm enabled and was refused by the server with a string that points at nothing.
+   */
+  it("refuses a note the contract refuses, and says which refusal it is", async () => {
+    const invisible = `ok${String.fromCharCode(7)}note${String.fromCharCode(0)}here`;
+    expect(invisible.trim().length).toBe(12);
+    renderView();
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Next level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    const note = within(dialog).getByLabelText("Note (required, 10 to 500 characters)");
+    fireEvent.change(note, { target: { value: invisible } });
+    expect(within(dialog).getByRole("button", { name: "Confirm promotion" })).toBeDisabled();
+    expect(dialog).toHaveTextContent(
+      "Unable to assign the level. Check the date and the note, then try again.",
+    );
+    expect(api.assignLevel).not.toHaveBeenCalled();
+    // A carriage return is normalised, not refused: the same note with CRLF line breaks passes.
+    fireEvent.change(note, { target: { value: `Competition${String.fromCharCode(13)}result.` } });
+    expect(within(dialog).getByRole("button", { name: "Confirm promotion" })).toBeEnabled();
+  });
+
+  it("pins the optional note to the same 10-character floor", async () => {
+    // An optional note of 1-9 characters is not "no note": the schema refuses it, and sending it
+    // for the server to refuse generically is the round trip this check exists to avoid.
+    api.getStudentLevelCard.mockResolvedValue({
+      ...card,
+      criteria: {
+        classes: { required: 25, completed: 40, imported: 0, met: true },
+        time: { requiredDays: 75, elapsedDays: 30, met: true },
+      },
+      currentLevelStartedAt: `${dayBack(400)}T00:00:00.000Z`,
+    });
+    renderView();
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Next level"), { target: { value: firstStripe } });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    const confirm = within(dialog).getByRole("button", { name: "Confirm promotion" });
+    expect(confirm).toBeEnabled();
+    const note = within(dialog).getByLabelText("Note (optional, 10 to 500 characters)");
+    fireEvent.change(note, { target: { value: "too short" } });
+    expect(confirm).toBeDisabled();
+    expect(dialog).toHaveTextContent(
+      "Unable to assign the level. Check the date and the note, then try again.",
+    );
+    fireEvent.change(note, { target: { value: "" } });
+    expect(confirm).toBeEnabled();
+    expect(dialog).not.toHaveTextContent("Check the date and the note");
+  });
+
   it("counts the LATEST rating, not the best one ever given", async () => {
     // white-foundation-v1: 11 minimums on the kids' first stripe. Best says every one is met;
     // the latest says one is not, and the latest is what decides (operator DECISION 6).
@@ -424,6 +646,7 @@ describe("ManageView assignment", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: kidsBelt,
+      lastApprovedPromotionId: promotion.entryId,
       entries: [{ ...promotion, definitionKey: kidsBelt }],
     });
     renderView("headCoach", 6);
@@ -456,6 +679,7 @@ describe("ManageView assignment", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: kidsBelt,
+      lastApprovedPromotionId: promotion.entryId,
       entries: [{ ...promotion, definitionKey: kidsBelt }],
     });
     renderView("headCoach", 12);
@@ -497,7 +721,9 @@ describe("ManageView assignment", () => {
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
     const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveTextContent("All criteria for this level are met.");
+    expect(dialog).toHaveTextContent(
+      "All criteria BPT records for this level are met as of today.",
+    );
     expect(within(dialog).queryByRole("list", { name: "Criteria not met" })).toBeNull();
     const confirm = within(dialog).getByRole("button", { name: "Confirm promotion" });
     expect(confirm).toBeEnabled();
@@ -524,7 +750,7 @@ describe("ManageView assignment", () => {
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent(
-      `Classes are counted as of today, not as of ${uiDay(dayBack(3))}. The final check runs when the promotion is recorded.`,
+      `Classes and the age band are counted as of today, not as of ${uiDay(dayBack(3))}. The final check runs when the promotion is recorded.`,
     );
   });
 
@@ -589,6 +815,7 @@ describe("ManageView assignment", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: topLevel.definitionKey,
+      lastApprovedPromotionId: promotion.entryId,
       entries: [{ ...promotion, definitionKey: topLevel.definitionKey }],
     });
     renderView();
@@ -687,6 +914,39 @@ describe("ManageView void", () => {
     expect(document.body.textContent).not.toContain("uid=abc123");
   });
 
+  /**
+   * T051V2 review of Task 16 (Major-4, mutants M21-M23). No keyboard or focus behaviour of this
+   * dialog had a test. It is now opened with `showModal()`, which is what gives it the focus trap,
+   * the inert background, the backdrop and native Escape in a browser. jsdom 30 implements neither
+   * `showModal` nor `close`, so THESE tests exercise the fallback path — the trap and the native
+   * Escape still owe a manual check in front of a real browser, which an axe pass cannot give.
+   */
+  it("moves focus into the dialog, restores it on close and closes on Escape", async () => {
+    renderView("headCoach");
+    const open = await screen.findByRole("button", { name: "Void" });
+    open.focus();
+    fireEvent.click(open);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(dialog.querySelector("textarea"));
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(api.voidPromotion).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Void" }));
+  });
+
+  it("restores focus to the button that opened it when it is cancelled", async () => {
+    renderView("headCoach");
+    const open = await screen.findByRole("button", { name: "Void" });
+    open.focus();
+    fireEvent.click(open);
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Void" }));
+  });
+
   it("closes on Cancel without calling anything", async () => {
     renderView();
     fireEvent.click(await screen.findByRole("button", { name: "Void" }));
@@ -724,6 +984,7 @@ describe("ManageView roles", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: null,
+      lastApprovedPromotionId: null,
       entries: [],
     });
     renderView("administrator");
@@ -740,6 +1001,7 @@ describe("ManageView open level", () => {
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
       currentDefinitionKey: null,
+      lastApprovedPromotionId: null,
       entries: [],
     });
   });
@@ -808,7 +1070,7 @@ describe("ManageView open level", () => {
     });
     fireEvent.click(within(form).getByRole("button", { name: "Open level" }));
     expect((await within(form).findByRole("alert")).textContent).toBe(
-      "Unable to open the level. Please try again.",
+      "Unable to open the student level. Please try again.",
     );
     expect(document.body.textContent).not.toContain("uid=abc123");
   });

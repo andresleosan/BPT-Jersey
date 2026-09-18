@@ -88,6 +88,25 @@ function fakeFirestore(records: Stored) {
   return { firestore, writes, records };
 }
 
+/** One approved promotion as it is STORED, for the history reads that seed records directly. */
+const rawPromotion = (promotionId: string, toDefinitionKey: string, promotedOn: string) => [
+  `academies/${academyId}/levelPromotions/${promotionId}`,
+  {
+    promotionId,
+    academyId,
+    studentId: "student-1",
+    systemId: "ibjjf-v1",
+    status: "approved",
+    fromDefinitionKey: "white-belt",
+    toDefinitionKey,
+    promotedOn,
+    decidedBy: "owner-user-1",
+    decidedByRole: "owner",
+    decidedAt: `${promotedOn}T12:00:00.000Z`,
+    gaps: [],
+  },
+];
+
 function head(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     academyId,
@@ -866,6 +885,39 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     expect(await fixture.levelStartedAt()).toBe(levelStartedAt);
   });
 
+  /**
+   * T051V2 review of Task 16 (Critical-1). The Manage view used to place the Void affordance on
+   * the first non-voided promotion in `entries`, which is ordered NEWEST FIRST BY `assignedOn` — a
+   * calendar date the operator chooses. The server's rule is the head's `lastApprovedPromotionId`,
+   * the promotion RECORDED last. Two promotions recorded on the same day carry the same
+   * `assignedOn`, so the date ordering tells the reader nothing at all and only the head can name
+   * the one a void would be accepted for. It travels with the history for exactly that reason.
+   */
+  it("names the promotion recorded last, which the row dates cannot identify", async () => {
+    const fixture = await makeFixture();
+    const first = await fixture.assign(
+      { note: assignmentNote, toDefinitionKey: "white-1st-stripe", promotedOn: "2026-09-09" },
+      { decidedAt: "2026-09-09T12:00:00.000Z" },
+    );
+    const second = await fixture.assign({
+      note: assignmentNote,
+      fromDefinitionKey: "white-1st-stripe",
+      promotedOn: "2026-09-09",
+    });
+    const history = await fixture.history();
+    expect(history.lastApprovedPromotionId).toBe(second.promotionId);
+    expect(
+      history.entries
+        .filter((entry) => entry.kind === "promotion" && entry.voided === null)
+        .map((entry) => entry.assignedOn),
+    ).toEqual(["2026-09-09", "2026-09-09"]);
+    // And it follows the head one step at a time, exactly as `voidPromotion` does.
+    await fixture.voidPromotion(second.promotionId);
+    expect((await fixture.history()).lastApprovedPromotionId).toBe(first.promotionId);
+    await fixture.voidPromotion(first.promotionId);
+    expect((await fixture.history()).lastApprovedPromotionId).toBeNull();
+  });
+
   // G12 narrows G6: an administrator sees the record and the history but never voids a promotion.
   // The message is pinned because `assertTransactionalActor` also throws `tenant`, so a code-only
   // assertion would pass for the wrong reason.
@@ -924,6 +976,8 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     expect(await fixture.history()).toEqual({
       studentId: "student-1",
       currentDefinitionKey: "white-belt",
+      // No promotion has been approved, so there is nothing the server would accept a void for.
+      lastApprovedPromotionId: null,
       entries: [
         {
           entryId: "opening_student-1",
@@ -948,6 +1002,7 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     expect(await fixture.history("student-2")).toEqual({
       studentId: "student-2",
       currentDefinitionKey: null,
+      lastApprovedPromotionId: null,
       entries: [],
     });
   });
@@ -1646,6 +1701,8 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
     expect(await store.getStudentLevelHistory(academyId, "student-1")).toEqual({
       studentId: "student-1",
       currentDefinitionKey: "white-belt",
+      // The one promotion was voided, so the head names none and the reader offers no Void.
+      lastApprovedPromotionId: null,
       entries: [
         {
           entryId: promotionId,
@@ -1811,27 +1868,10 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
 
   /** M12: the sort itself, not only its direction — unsorted, these come back oldest first. */
   it("orders three entries newest first, the opening last on a shared day", async () => {
-    const promotion = (promotionId: string, toDefinitionKey: string, promotedOn: string) => [
-      promotionPath(promotionId),
-      {
-        promotionId,
-        academyId,
-        studentId: "student-1",
-        systemId: "ibjjf-v1",
-        status: "approved",
-        fromDefinitionKey: "white-belt",
-        toDefinitionKey,
-        promotedOn,
-        decidedBy: "owner-user-1",
-        decidedByRole: "owner",
-        decidedAt: `${promotedOn}T12:00:00.000Z`,
-        gaps: [],
-      },
-    ];
     const { store } = await seededStore([
       [headPath, head()],
-      promotion("older-promotion", "white-1st-stripe", "2026-07-01") as never,
-      promotion("newer-promotion", "white-2nd-stripe", "2026-09-10") as never,
+      rawPromotion("older-promotion", "white-1st-stripe", "2026-07-01") as never,
+      rawPromotion("newer-promotion", "white-2nd-stripe", "2026-09-10") as never,
     ]);
     const history = await store.getStudentLevelHistory(academyId, "student-1");
     expect(history.entries.map((entry) => entry.entryId)).toEqual([
@@ -1839,6 +1879,39 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
       "older-promotion",
       "opening_student-1",
     ]);
+  });
+
+  /**
+   * T051V2 review of Task 16 (Critical-1). The reader must carry the head's OWN id, never a guess
+   * derived from the row order. Here the promotion the head names is the OLDER one by date, which
+   * is exactly the shape a backdated correction leaves behind — and exactly the shape that put the
+   * Manage view's Void button on a row the server refuses.
+   */
+  it("carries the id the head names even when an older row is the one it names", async () => {
+    const seed = (lastApprovedPromotionId: unknown) =>
+      seededStore([
+        [headPath, head({ lastApprovedPromotionId })],
+        rawPromotion("older-promotion", "white-1st-stripe", "2026-07-01") as never,
+        rawPromotion("newer-promotion", "white-2nd-stripe", "2026-09-10") as never,
+      ]);
+    const named = await (
+      await seed("older-promotion")
+    ).store.getStudentLevelHistory(academyId, "student-1");
+    expect(named.entries.map((entry) => entry.entryId)).toEqual([
+      "newer-promotion",
+      "older-promotion",
+      "opening_student-1",
+    ]);
+    expect(named.lastApprovedPromotionId).toBe("older-promotion");
+    // A head naming a record that is not on screen, or naming nothing readable, can offer the
+    // operator no action at all — and must not take the rest of the history down with it.
+    for (const stored of ["no-such-promotion", 7, null, "not an id"]) {
+      const history = await (
+        await seed(stored)
+      ).store.getStudentLevelHistory(academyId, "student-1");
+      expect(history.lastApprovedPromotionId).toBeNull();
+      expect(history.entries).toHaveLength(3);
+    }
   });
 
   /** M29: an imported opening names no author and says where it came from. */
@@ -1857,6 +1930,7 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
     expect(await store.getStudentLevelHistory(academyId, "student-1")).toEqual({
       studentId: "student-1",
       currentDefinitionKey: null,
+      lastApprovedPromotionId: null,
       entries: [],
     });
   });
