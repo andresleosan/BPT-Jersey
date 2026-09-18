@@ -1880,9 +1880,12 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
  */
 type RatingParams = Parameters<AnyLevelStore["recordSkillRatings"]>[0];
 
-// The cast is deliberate and confined to the INPUT: half of these cases send scores, notes and
-// arrays the contract refuses on purpose, which is the point of the block. Everything outside the
-// input (the actor, the role, the instant) stays type-checked.
+// The cast is deliberate and WIDENS THE WHOLE INPUT OBJECT, not just one field: half of these
+// cases send ids, scores, notes and arrays the contract refuses on purpose, which is the point of
+// the block. The price is that a new required field on `RecordSkillRatingsInput` would not break
+// these tests — everything the cast permits is refused at runtime by design, and the store now
+// parses the whole input with `recordSkillRatingsInputSchema`. Everything outside the input (the
+// actor, the role, the instant) stays type-checked.
 const ratingsInput = (input: Record<string, unknown> = {}) =>
   ({
     studentId: "student-1",
@@ -2108,6 +2111,59 @@ describe("recordSkillRatings (T051V2)", () => {
     expect(writes).toHaveLength(0);
   });
 
+  /**
+   * Review of Task 11 (Major-1): four clauses of this method guarded a catalogue document whose
+   * own stored scope disagrees with the path it was read from, and NO test killed any of them —
+   * an intention, not a rule (LECCIONES §5). They are kept rather than deleted, because none of
+   * them is unreachable: the path says which document is read, never that the document agrees
+   * with it, and a corrupt or half-migrated catalogue record must fail closed instead of
+   * recording a child's rating against another academy or another catalogue version. Each tamper
+   * below is refused today and is ACCEPTED with its clause removed.
+   */
+  it("refuses a definition stamped with another academy, and writes nothing", async () => {
+    const { store, writes, records } = await seededStore();
+    const path = `academies/${academyId}/levelDefinitions/white-belt`;
+    records.set(path, { ...records.get(path)!, academyId: "academy-2" });
+    await expect(store.recordSkillRatings(rate())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Assessment references are not current",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a definition whose key does not match its own document, and writes nothing", async () => {
+    const { store, writes, records } = await seededStore();
+    const path = `academies/${academyId}/levelDefinitions/white-belt`;
+    records.set(path, { ...records.get(path)!, definitionKey: "blue-belt" });
+    await expect(store.recordSkillRatings(rate())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Assessment references are not current",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a system stamped with another academy, and writes nothing", async () => {
+    const { store, writes, records } = await seededStore();
+    const path = `academies/${academyId}/levelSystems/ibjjf-v1`;
+    records.set(path, { ...records.get(path)!, academyId: "academy-2" });
+    await expect(store.recordSkillRatings(rate())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Assessment catalog is not current",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a system whose id does not match the definition's, and writes nothing", async () => {
+    const { store, writes, records } = await seededStore();
+    const path = `academies/${academyId}/levelSystems/ibjjf-v1`;
+    records.set(path, { ...records.get(path)!, systemId: "ibjjf-v2" });
+    await expect(store.recordSkillRatings(rate())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Assessment catalog is not current",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
   it("refuses an inactive student, and writes nothing", async () => {
     const { store, writes, records } = await seededStore();
     const path = `academies/${academyId}/students/student-1`;
@@ -2229,6 +2285,24 @@ describe.each(openParityStores)("skill-ratings parity — %s (T051V2)", (_label,
     await expect(
       store.recordSkillRatings(rate({}, { definitionKey: "no-such-level" })),
     ).rejects.toMatchObject({ code: "conflict", message: "Assessment references are not current" });
+    expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
+  });
+
+  /**
+   * Review of Task 11 (Minor-1): `studentId` and `definitionKey` reach a Firestore document path
+   * and the evaluation id. Before the whole input was parsed they were refused only downstream,
+   * by accident, and with a message about something else ("Level audit scope is invalid" for the
+   * first, a `conflict` for the second). Both now die at the same parse, in both stores.
+   */
+  it.each([
+    ["a studentId that walks out of its collection", { studentId: "student-1/x/session-1" }],
+    ["a definitionKey that walks out of its collection", { definitionKey: "white-belt/x" }],
+  ])("refuses %s", async (_label, input) => {
+    const store = await makeStore();
+    await expect(store.recordSkillRatings(rate({}, input))).rejects.toMatchObject({
+      code: "invalid",
+      message: "Skill ratings input is invalid",
+    });
     expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
   });
 });
