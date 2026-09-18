@@ -598,6 +598,7 @@ function classBookingDraft(
     correlationId: input.bookingId,
     class: {
       studentId: input.studentId,
+      memberId: null,
       studentName: null,
       sessionId: input.sessionId,
       sessionStartAt: input.sessionStartAt,

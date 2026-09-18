@@ -184,6 +184,54 @@ describe("Class registrations log", () => {
     }
   });
 
+  it("offers the whole import as one Regyfit option, never a person's name", async () => {
+    // Every imported row carries the same actorId, so one option is all the filter can honour: a
+    // person's name there would promise a narrower selection than the log can run.
+    const importedByAdmin = {
+      ...memberRow,
+      id: "evt-i1",
+      actorId: "regyfit-import",
+      actorRole: "regyfit",
+      actorGroup: "staff",
+      actorName: "ADMIN",
+      source: "regyfit",
+    };
+    const importedByTrainer = {
+      ...importedByAdmin,
+      id: "evt-i2",
+      actorName: "Prof. Charles Tromans",
+    };
+    mocks.fetchClassHistory.mockResolvedValue({
+      rows: [memberRow, importedByAdmin, importedByTrainer],
+      total: 3,
+    });
+    render(<HistoryPage />);
+    fireEvent.click(screen.getByRole("button", { name: "LIST" }));
+    await screen.findByText("RECORDS (3)");
+
+    const labels = within(screen.getByLabelText("Logged by"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+
+    expect(labels).toEqual(["Anyone", "Olivia Lewis", "Regyfit (imported)"]);
+    expect(labels).not.toContain("ADMIN");
+    expect(labels).not.toContain("Prof. Charles Tromans");
+    // The row itself still says who did it; only the filter option is collapsed.
+    expect(screen.getAllByText("Prof. Charles Tromans").length).toBeGreaterThan(0);
+  });
+
+  it("still labels a BPT staff option with the name the server resolved", async () => {
+    render(<HistoryPage />);
+    fireEvent.click(screen.getByRole("button", { name: "LIST" }));
+    await screen.findByText("RECORDS (2)");
+
+    const labels = within(screen.getByLabelText("Logged by"))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+
+    expect(labels).toEqual(["Anyone", "Office", "Olivia Lewis"]);
+  });
+
   it("offers every record count the spec lists, 750 included", () => {
     render(<HistoryPage />);
     const labels = within(screen.getByLabelText("No. of records"))

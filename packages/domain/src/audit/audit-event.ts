@@ -219,12 +219,20 @@ export type RestrictedMemberReadAuditEventDraft = CommonAuditEventDraft &
 
 /**
  * What the log shows about one class event. The student is an identifier when the row belongs to a
- * student record and a plain name when it was imported from Regyfit without a match.
+ * student record and a plain name when it was imported from Regyfit without a match. `memberId`
+ * points at the member directory instead, and only an imported row may carry one: a BPT booking
+ * identifies its participant by `studentId`, so a member link there would name somebody the writer
+ * never saw. Storing the identifier rather than the name is what makes erasing a member erase their
+ * name from the log too, since the log resolves the name at read time. The session is
+ * an identifier for anything BPT wrote and may be null for an imported row: the Regyfit history
+ * names its class by date and time, and most of those classes predate the BPT schedule, so no
+ * session document exists to point at. `sessionStartAt` always says when the class ran.
  */
 export type ClassAuditEventClass = Readonly<{
   studentId: string | null;
+  memberId: string | null;
   studentName: string | null;
-  sessionId: string;
+  sessionId: string | null;
   sessionStartAt: string;
   programId: string | null;
   locationId: string | null;
@@ -388,12 +396,21 @@ const classEventFields = Object.freeze([
 ]);
 const classBlockFields = Object.freeze([
   "studentId",
+  "memberId",
   "studentName",
   "sessionId",
   "sessionStartAt",
   "programId",
   "locationId",
 ] as const);
+/**
+ * Rows stored before the member link existed carry every class field but `memberId`. They are still
+ * the same fact, so they parse - and replay - with the key simply read as null. Today's writers all
+ * pass the key, because `ClassAuditEventClass` requires it.
+ */
+const legacyClassBlockFields = Object.freeze(
+  classBlockFields.filter((field) => field !== "memberId"),
+);
 const classActorRoles = Object.freeze([...userRoles, "system", "regyfit"] as const);
 /**
  * Every restricted read is bound to one declared purpose. The target is the reader's own rate
@@ -832,16 +849,34 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
 
     if (isClassAuditAction(parsedAction)) {
       const block = snapshot.class;
-      if (!isPlainRecord(block) || !hasExactFields(block, classBlockFields)) {
+      if (
+        !isPlainRecord(block) ||
+        !(hasExactFields(block, classBlockFields) || hasExactFields(block, legacyClassBlockFields))
+      ) {
         issues.push(issue(["class"], "AUDIT_CLASS_BLOCK_INVALID"));
       } else {
-        if (!isClassIdentifier(block.sessionId)) {
+        // Only an imported row may leave the session unlinked. A BPT writer always holds the
+        // session it just booked or cancelled, so a null there is a bug, not a gap in the history.
+        if (block.sessionId === null) {
+          if (snapshot.source !== "regyfit") {
+            issues.push(issue(["class", "sessionId"], "AUDIT_CLASS_SESSION_ID_REQUIRED"));
+          }
+        } else if (!isClassIdentifier(block.sessionId)) {
           issues.push(issue(["class", "sessionId"], "AUDIT_CLASS_IDENTIFIER_INVALID"));
         }
         for (const key of ["studentId", "programId", "locationId"] as const) {
           if (block[key] !== null && !isClassIdentifier(block[key])) {
             issues.push(issue(["class", key], "AUDIT_CLASS_IDENTIFIER_INVALID"));
           }
+        }
+        // A legacy block names no member at all, so an absent key reads as "no member", never as a
+        // broken row. Only an imported row may name one: BPT writes the participant's studentId,
+        // and a member link on a row BPT wrote would be a name nobody recorded.
+        const memberId = block.memberId ?? null;
+        if (memberId !== null && !isClassIdentifier(memberId)) {
+          issues.push(issue(["class", "memberId"], "AUDIT_CLASS_IDENTIFIER_INVALID"));
+        } else if (memberId !== null && snapshot.source !== "regyfit") {
+          issues.push(issue(["class", "memberId"], "AUDIT_CLASS_MEMBER_ID_FORBIDDEN"));
         }
         if (block.studentName !== null && !isBoundedString(block.studentName, 128)) {
           issues.push(issue(["class", "studentName"], "AUDIT_CLASS_STUDENT_NAME_INVALID"));
@@ -859,6 +894,14 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       }
       if (!classActorRoles.includes(snapshot.actorRole as ClassActorRole)) {
         issues.push(issue(["actorRole"], "AUDIT_CLASS_ACTOR_ROLE_INVALID"));
+      } else if (snapshot.actorRole === "regyfit") {
+        // An imported row names no BPT user, so the role cannot say who acted - only the Regyfit
+        // sentence can. An athlete's own booking is a member's work while Regyfit's "ADMIN" rows
+        // are the office's, so the importer states the group and both are accepted. "system" is
+        // not: a row nobody wrote is a BPT automation, never an import.
+        if (snapshot.actorGroup !== "member" && snapshot.actorGroup !== "staff") {
+          issues.push(issue(["actorGroup"], "AUDIT_CLASS_ACTOR_GROUP_INVALID"));
+        }
       } else if (snapshot.actorGroup !== classActorGroup(snapshot.actorRole as ClassActorRole)) {
         issues.push(issue(["actorGroup"], "AUDIT_CLASS_ACTOR_GROUP_INVALID"));
       }
@@ -1263,8 +1306,9 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           action: parsedAction,
           class: Object.freeze({
             studentId: block.studentId as string | null,
+            memberId: (block.memberId ?? null) as string | null,
             studentName: block.studentName as string | null,
-            sessionId: block.sessionId as string,
+            sessionId: block.sessionId as string | null,
             sessionStartAt: block.sessionStartAt as string,
             programId: block.programId as string | null,
             locationId: block.locationId as string | null,
