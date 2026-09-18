@@ -26,7 +26,7 @@ import {
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { DetailsTab } from "./details-tab";
 import { IbjjfCard } from "./ibjjf-card";
-import { ManageView } from "./manage-view";
+import { ManageView, unsavedRatingsQuestion } from "./manage-view";
 import { ProfileTab } from "./profile-tab";
 import { RecordEmptyTab } from "./record-empty-tab";
 import { participantTypeLabel, statusLabel } from "./record-format";
@@ -134,7 +134,14 @@ export function MemberRecord() {
   const [location, setLocation] = useState<RecordLocation | null>(null);
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
-  const detailsDirty = useRef(false);
+  /**
+   * Task 17 review, Major-2: ONE fact, "the panel on screen holds unsaved work", owned here,
+   * because this component owns four of the five ways out of a panel — the tab strip, the arrow
+   * keys, the browser's own Back/Forward and the member-search link. It holds the question to
+   * ask, so a panel names its own stake and `null` means there is nothing to lose. The Details
+   * form and the IBJJF assessment both report into it; they cannot both be on screen at once.
+   */
+  const unsaved = useRef<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const locationRef = useRef<RecordLocation | null>(null);
   const activeTabRef = useRef<MemberRecordTab>("profile");
@@ -148,22 +155,23 @@ export function MemberRecord() {
     function sync(): void {
       const next = readRecordLocation(window.location.search);
       const current = locationRef.current;
-      if (
-        current !== null &&
-        current.studentId !== null &&
-        activeTabRef.current === "details" &&
-        next.tab !== "details" &&
-        detailsDirty.current &&
-        !window.confirm(unsavedDetailsQuestion)
-      ) {
-        window.history.pushState(
-          null,
-          "",
-          recordHref(current.studentId, "details", current.manage),
-        );
-        return;
+      // `beforeunload` does not fire for an in-app history move, so this is the only thing
+      // standing between Back and an unsaved panel - whichever panel it is.
+      if (current !== null && current.studentId !== null && unsaved.current !== null) {
+        const leaving =
+          next.studentId !== current.studentId ||
+          next.tab !== activeTabRef.current ||
+          next.manage !== current.manage;
+        if (leaving && !window.confirm(unsaved.current)) {
+          window.history.pushState(
+            null,
+            "",
+            recordHref(current.studentId, activeTabRef.current, current.manage),
+          );
+          return;
+        }
       }
-      detailsDirty.current = false;
+      unsaved.current = null;
       setLocation(next);
     }
     sync();
@@ -208,8 +216,17 @@ export function MemberRecord() {
   }, [readyStudentId]);
 
   const onDirtyChange = useCallback((dirty: boolean) => {
-    detailsDirty.current = dirty;
+    unsaved.current = dirty ? unsavedDetailsQuestion : null;
   }, []);
+
+  const onRatingsDirtyChange = useCallback((dirty: boolean) => {
+    unsaved.current = dirty ? unsavedRatingsQuestion : null;
+  }, []);
+
+  /** Every exit this component owns asks the same question, of whichever panel is on screen. */
+  function mayLeave(): boolean {
+    return unsaved.current === null || window.confirm(unsaved.current);
+  }
 
   const visibleTabs: readonly MemberRecordTab[] =
     load.status === "ready" && load.profile.view === "full" ? memberRecordTabs : ["profile"];
@@ -236,14 +253,10 @@ export function MemberRecord() {
 
   function selectTab(tab: MemberRecordTab): boolean {
     if (location === null || location.studentId === null || tab === activeTab) return false;
-    if (
-      activeTab === "details" &&
-      detailsDirty.current &&
-      !window.confirm(unsavedDetailsQuestion)
-    ) {
-      return false;
-    }
-    detailsDirty.current = false;
+    // A tab click also leaves the Manage MODE of the PROFILE panel, which is where the unsaved
+    // ratings live, so this question is not about Details alone.
+    if (!mayLeave()) return false;
+    unsaved.current = null;
     window.history.pushState(null, "", recordHref(location.studentId, tab));
     setLocation({ ...location, tab, manage: false });
     return true;
@@ -287,6 +300,7 @@ export function MemberRecord() {
         <ManageView
           age={profile.header.age}
           fullName={profile.header.fullName}
+          onRatingsDirtyChange={onRatingsDirtyChange}
           recordHref={recordHref(profile.header.studentId)}
           role={role}
           studentId={profile.header.studentId}
@@ -319,7 +333,14 @@ export function MemberRecord() {
   return (
     <section aria-label="Member record" className="admin-module-page member-record">
       <div>
-        <Link className="member-record-link" href="/admin/members/search">
+        <Link
+          className="member-record-link"
+          href="/admin/members/search"
+          onClick={(event) => {
+            // A route change tears every panel down; nothing else on the way out asks.
+            if (!mayLeave()) event.preventDefault();
+          }}
+        >
           Back to member search
         </Link>
       </div>

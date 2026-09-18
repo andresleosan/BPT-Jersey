@@ -54,6 +54,7 @@ function propsFor(overrides: Partial<Props> = {}) {
   return {
     studentId: "student-1",
     definitionKey: "white-belt",
+    definitionName: "WHITE BELT",
     skills,
     minimums: { "warm-up-1-technical-stand-up": 3, "warm-up-2-bridges": 3 },
     initialScores: { "warm-up-1-technical-stand-up": 4 },
@@ -88,7 +89,7 @@ describe("SkillsAssessment", () => {
     renderAssessment();
     const warmUp = screen.getByText("Warm Up").closest("details")!;
     expect(warmUp).not.toHaveAttribute("open");
-    expect(within(warmUp).getByText("1/2 rated · 1/2 minimum met")).toBeInTheDocument();
+    expect(within(warmUp).getByText("1/2 rated · 1/2 saved at minimum")).toBeInTheDocument();
     const fundamentals = screen.getByText("Fundamentals").closest("details")!;
     expect(within(fundamentals).getByText("0/1 rated")).toBeInTheDocument();
   });
@@ -109,7 +110,7 @@ describe("SkillsAssessment", () => {
     expect(screen.getByText(/Rate each skill from 1 to 5/u)).toBeInTheDocument();
     expect(screen.getByText("Warm Up").closest("details")!.textContent).toContain("1/2 rated");
     expect(screen.getByText("Warm Up").closest("details")!.textContent).not.toContain(
-      "minimum met",
+      "saved at minimum",
     );
   });
 
@@ -128,7 +129,61 @@ describe("SkillsAssessment", () => {
         ratings: [{ skillKey: "warm-up-2-bridges", score: 4 }],
       }),
     );
-    expect(props.onSaved).toHaveBeenCalled();
+    // Task 17 review, Major-1: the parent moves its own copy of the ratings by what was SENT, so
+    // the save hands that list back instead of announcing a bare "something was saved".
+    expect(props.onSaved).toHaveBeenCalledWith([{ skillKey: "warm-up-2-bridges", score: 4 }]);
+  });
+
+  /**
+   * Minor-3 of the Task 17 review. The promotion dialog's "Skills n/m at minimum" counts what the
+   * STORE holds, so a counter here that moved on an unsaved click put two numbers about the same
+   * member, disagreeing, on the same screen. Both count the saved ratings now.
+   */
+  it("counts only saved ratings towards the minimums, and says so", async () => {
+    api.recordSkillRatings.mockResolvedValue({ studentId: "student-1", recorded: 1 });
+    renderAssessment();
+    const warmUp = () => screen.getByText("Warm Up").closest("details")!;
+    expect(within(warmUp()).getByText("1/2 rated · 1/2 saved at minimum")).toBeInTheDocument();
+    fireEvent.click(within(group(/Warm Up 2 - Bridges/u)).getByRole("radio", { name: "3" }));
+    expect(within(warmUp()).getByText("2/2 rated · 1/2 saved at minimum")).toBeInTheDocument();
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect(within(warmUp()).getByText("2/2 rated · 2/2 saved at minimum")).toBeInTheDocument(),
+    );
+  });
+
+  /** Minor-4: every "Minimum n" on screen belongs to the TARGET level; this names the held one. */
+  it("names the level the ratings are filed against, and says nothing when it is unknown", () => {
+    renderAssessment();
+    expect(
+      screen.getByText("Ratings are recorded against WHITE BELT, the level currently held."),
+    ).toBeInTheDocument();
+    cleanup();
+    renderAssessment({ definitionName: null });
+    expect(screen.queryByText(/the level currently held/u)).toBeNull();
+  });
+
+  /** Minor-5: a save that says nothing while it runs. */
+  it("announces the save while it is running", async () => {
+    let settle: (value: { studentId: string; recorded: number }) => void = () => {};
+    api.recordSkillRatings.mockReturnValue(
+      new Promise<{ studentId: string; recorded: number }>((resolve) => {
+        settle = resolve;
+      }),
+    );
+    renderAssessment();
+    fireEvent.click(within(group(/Tie The Belt/u)).getByRole("radio", { name: "2" }));
+    expect(saveButton()).toHaveAttribute("aria-busy", "false");
+    fireEvent.click(saveButton());
+    const saving = await screen.findByRole("button", { name: "Saving ratings" });
+    expect(saving).toHaveAttribute("aria-busy", "true");
+    await act(async () => {
+      settle({ studentId: "student-1", recorded: 1 });
+    });
+    expect(screen.getByRole("button", { name: "Save ratings" })).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
   });
 
   /**
@@ -207,7 +262,7 @@ describe("SkillsAssessment", () => {
         .filter((radio) => (radio as HTMLInputElement).checked),
     ).toHaveLength(0);
     expect(screen.getByText("Warm Up").closest("details")!.textContent).toContain(
-      "0/2 rated · 0/2 minimum met",
+      "0/2 rated · 0/2 saved at minimum",
     );
     expect(document.body.textContent).not.toContain("7");
   });

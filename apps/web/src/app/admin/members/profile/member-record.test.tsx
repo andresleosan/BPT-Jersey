@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,15 +45,18 @@ vi.mock("../../admin-gate", () => ({ useAdminOrStaffSession: () => ({ role: gate
 // The Manage view owns its own reads and its own suite; the record only routes `&view=manage` to
 // it and hands it the member and the viewer's role.
 vi.mock("./manage-view", () => ({
+  unsavedRatingsQuestion: "Discard unsaved ratings?",
   ManageView: ({
     age,
     fullName,
+    onRatingsDirtyChange,
     recordHref: href,
     role,
     studentId,
   }: {
     age: number | null;
     fullName: string;
+    onRatingsDirtyChange: (dirty: boolean) => void;
     recordHref: string;
     role: string;
     studentId: string;
@@ -65,7 +68,16 @@ vi.mock("./manage-view", () => ({
       data-record-href={href}
       data-role={role}
       data-student-id={studentId}
-    />
+    >
+      {/* The real panel reports its own dirty state upwards; the record is only asked to act on
+          it, so the double is given the one button that makes it say so. */}
+      <button onClick={() => onRatingsDirtyChange(true)} type="button">
+        Rate a skill
+      </button>
+      <button onClick={() => onRatingsDirtyChange(false)} type="button">
+        Save the ratings
+      </button>
+    </section>
   ),
 }));
 
@@ -360,6 +372,87 @@ describe("member record page", () => {
     open("?id=student-1&tab=details");
     await screen.findByRole("heading", { level: 2, name: "Test Member A" });
     await waitFor(() => expect(window.location.search).toBe("?id=student-1"));
+  });
+
+  /**
+   * Task 17 review, Major-2. The Manage view holds unsaved skill ratings and does NOT own its own
+   * lifetime: these three exits all unmount it, and none of them can see a flag kept inside it.
+   * Each of the three is proved separately, because each consults the guard in a different place.
+   */
+  describe("unsaved ratings in the Manage view", () => {
+    async function dirtyManage() {
+      const user = open("?id=student-1&view=manage");
+      await screen.findByRole("region", { name: "Manage IBJJF" });
+      await user.click(screen.getByRole("button", { name: "Rate a skill" }));
+      return user;
+    }
+
+    it("asks before a tab click leaves the Manage view with unsaved ratings", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      const user = await dirtyManage();
+
+      await user.click(screen.getByRole("tab", { name: "Details" }));
+      expect(confirm).toHaveBeenCalledWith("Discard unsaved ratings?");
+      expect(screen.getByRole("region", { name: "Manage IBJJF" })).toBeTruthy();
+      expect(window.location.search).toBe("?id=student-1&view=manage");
+
+      confirm.mockReturnValue(true);
+      await user.click(screen.getByRole("tab", { name: "Details" }));
+      expect(await screen.findByRole("form", { name: "Member details" })).toBeTruthy();
+      expect(window.location.search).toBe("?id=student-1&tab=details");
+    });
+
+    it("asks before an arrow key leaves the Manage view with unsaved ratings", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      const user = await dirtyManage();
+      screen.getByRole("tab", { name: "Profile" }).focus();
+
+      await user.keyboard("{ArrowRight}");
+      expect(confirm).toHaveBeenCalledWith("Discard unsaved ratings?");
+      expect(screen.getByRole("region", { name: "Manage IBJJF" })).toBeTruthy();
+    });
+
+    /**
+     * `beforeunload` does NOT fire for an in-app history move, so before the fix this was the
+     * likeliest way of all to lose the ratings - the page's own copy invites going back.
+     */
+    it("asks before Back leaves the Manage view, and keeps the URL honest", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      const user = open("?id=student-1");
+      await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
+      window.history.pushState(null, "", "/admin/members/profile?id=student-1&view=manage");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      await screen.findByRole("region", { name: "Manage IBJJF" });
+      await user.click(screen.getByRole("button", { name: "Rate a skill" }));
+
+      window.history.back();
+      await waitFor(() => expect(confirm).toHaveBeenCalledWith("Discard unsaved ratings?"));
+      await waitFor(() => expect(window.location.search).toBe("?id=student-1&view=manage"));
+      expect(screen.getByRole("region", { name: "Manage IBJJF" })).toBeTruthy();
+    });
+
+    it("asks before the member-search link discards unsaved ratings", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      await dirtyManage();
+      const link = screen.getByRole("link", { name: "Back to member search" });
+      expect(fireEvent.click(link)).toBe(false);
+      expect(confirm).toHaveBeenCalledWith("Discard unsaved ratings?");
+      confirm.mockReturnValue(true);
+      expect(fireEvent.click(link)).toBe(true);
+    });
+
+    it("asks nothing once the ratings have been saved", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+      const user = await dirtyManage();
+      await user.click(screen.getByRole("button", { name: "Save the ratings" }));
+
+      expect(fireEvent.click(screen.getByRole("link", { name: "Back to member search" }))).toBe(
+        true,
+      );
+      await user.click(screen.getByRole("tab", { name: "Details" }));
+      expect(confirm).not.toHaveBeenCalled();
+      expect(await screen.findByRole("form", { name: "Member details" })).toBeTruthy();
+    });
   });
 
   it("shows the safe load error and retries", async () => {

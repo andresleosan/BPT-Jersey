@@ -96,11 +96,14 @@ const opening = {
   decidedByRole: null,
 };
 
+const ratingsDirty = vi.fn();
+
 function renderView(role = "owner", age: number | null = 30) {
   return render(
     <ManageView
       age={age}
       fullName="Synthetic Member"
+      onRatingsDirtyChange={ratingsDirty}
       recordHref="/admin/members/profile?id=student-1"
       role={role}
       studentId="student-1"
@@ -121,6 +124,7 @@ beforeEach(() => {
   api.assignLevel.mockReset();
   api.voidPromotion.mockReset();
   api.recordSkillRatings.mockReset();
+  ratingsDirty.mockReset();
   api.getLevelCatalog.mockResolvedValue(catalog);
   api.getStudentLevelCard.mockResolvedValue(card);
   api.getStudentLevelHistory.mockResolvedValue({
@@ -1177,7 +1181,12 @@ describe("ManageView skills assessment", () => {
       }),
     );
     expect(await screen.findByText("Ratings saved.")).toBeInTheDocument();
-    await waitFor(() => expect(api.getStudentSkillScores).toHaveBeenCalledTimes(2));
+    // Task 17 review, Major-1: this used to expect a SECOND read of the ratings. The save no
+    // longer reloads the view, so the one read this view made on open is still the only one, and
+    // the panel that the operator is looking at is the one they were typing into.
+    expect(api.getStudentSkillScores).toHaveBeenCalledTimes(1);
+    expect(within(tie).getByRole("radio", { name: "5" })).toBeChecked();
+    expect(screen.queryByText("You have unsaved ratings.")).toBeNull();
   });
 
   it("lets a coach rate a member they may not decide on", async () => {
@@ -1210,7 +1219,113 @@ describe("ManageView skills assessment", () => {
     confirm.mockReturnValue(true);
     expect(fireEvent.click(back)).toBe(true);
   });
-  it("stops asking about ratings a reload has already thrown away", async () => {
+  /**
+   * Task 17 review, Major-1. Before the fix this exact scenario PASSED with the opposite
+   * assertions: the save called `reload`, the panel was remounted on a refetch that predated the
+   * second click, and "Ratings saved." was shown over a rating that no longer existed.
+   */
+  it("keeps a rating made while the save was in flight, and announces the save", async () => {
+    kidsRecord({ "tie-the-belt": 1 });
+    let release: (value: unknown) => void = () => {};
+    api.recordSkillRatings.mockReturnValue(new Promise((done) => (release = done)));
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    fireEvent.click(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save ratings" }));
+    await waitFor(() => expect(api.recordSkillRatings).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: "Saving ratings" }).getAttribute("aria-busy")).toBe(
+      "true",
+    );
+    // A SECOND skill rated while the first write is still in flight.
+    fireEvent.click(within(skillGroup(/^Warm Up 2 - Bridges/u)).getByRole("radio", { name: "4" }));
+    await act(async () => {
+      release({ studentId: "student-1", recorded: 1 });
+      await Promise.resolve();
+    });
+    expect(await screen.findByText("Ratings saved.")).toBeInTheDocument();
+    // The in-flight edit survives, is still reported as unsaved, and only the SENT one settled.
+    expect(
+      within(skillGroup(/^Warm Up 2 - Bridges/u)).getByRole("radio", { name: "4" }),
+    ).toBeChecked();
+    expect(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" })).toBeChecked();
+    expect(screen.getByText("You have unsaved ratings.")).toBeInTheDocument();
+    expect(ratingsDirty).toHaveBeenLastCalledWith(true);
+    // No refetch: the panel was never thrown away, so there was nothing to rebuild it from.
+    expect(api.getStudentSkillScores).toHaveBeenCalledTimes(1);
+
+    // And the view's own copy of the ratings moved by what was SENT, not by what is on screen:
+    // the promotion dialog counts ONE skill at its minimum, not the in-flight second one.
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Next level"), {
+      target: { value: kidsFirstStripe },
+    });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Skills 1/11 at minimum not met")).toBeInTheDocument();
+  });
+
+  /**
+   * The saved rating must reach the promotion dialog too, which is the one consumer of
+   * `scores.latest` outside the panel. Without the in-place update it would still read the
+   * pre-save map, because there is no longer a refetch to correct it.
+   */
+  it("carries a saved rating into the promotion dialog without a refetch", async () => {
+    api.recordSkillRatings.mockResolvedValue({ studentId: "student-1", recorded: 1 });
+    kidsRecord();
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    const counters = () => screen.getAllByText(/saved at minimum/u).map((node) => node.textContent);
+    // "Tie The Belt" is the only skill in its category, so its counter is the first of the two.
+    expect(counters()).toEqual([
+      "0/1 rated \u00b7 0/1 saved at minimum",
+      "0/10 rated \u00b7 0/10 saved at minimum",
+    ]);
+    fireEvent.click(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" }));
+    // Minor-3: the counter speaks for the STORE, so an unsaved click does not move it.
+    expect(counters()[0]).toBe("1/1 rated \u00b7 0/1 saved at minimum");
+    fireEvent.click(screen.getByRole("button", { name: "Save ratings" }));
+    await screen.findByText("Ratings saved.");
+    expect(counters()[0]).toBe("1/1 rated \u00b7 1/1 saved at minimum");
+
+    // The same saved rating, read by the promotion dialog: 1 of 11, not 0 and not 2.
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Next level"), {
+      target: { value: kidsFirstStripe },
+    });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Skills 1/11 at minimum not met")).toBeInTheDocument();
+    expect(api.getStudentSkillScores).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the level the ratings are filed against", async () => {
+    kidsRecord();
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    expect(
+      screen.getByText(
+        "Ratings are recorded against WHITE BELT KIDS 4-5 and 5-7 YO, the level currently held.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no assessment to an administrator", async () => {
+    kidsRecord();
+    renderView("administrator", 6);
+    await screen.findByRole("table", { name: "Level history" });
+    expect(screen.queryByRole("heading", { level: 3, name: "Skills assessment" })).toBeNull();
+  });
+
+  /**
+   * Task 17 review, Major-2, exit 4. This replaces "stops asking about ratings a reload has
+   * already thrown away", whose contract was that a void silently threw the ratings away and the
+   * record anchor then had nothing to ask about. The ratings are still thrown away - a void
+   * really does replace what is on record - but the operator is now asked BEFORE the write, not
+   * left to find out afterwards.
+   */
+  it("asks before a void throws unsaved ratings away, and stops asking once they are gone", async () => {
     kidsRecord();
     api.voidPromotion.mockResolvedValue({ voidsPromotionId: promotion.entryId });
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
@@ -1218,14 +1333,62 @@ describe("ManageView skills assessment", () => {
     await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
     fireEvent.click(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" }));
     await screen.findByText("You have unsaved ratings.");
+
     fireEvent.click(screen.getAllByRole("button", { name: "Void" })[0]!);
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText(/^Reason/u), {
       target: { value: "Recorded against the wrong member." },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Void promotion" }));
+    expect(confirm).toHaveBeenCalledWith("Discard unsaved ratings?");
+    // Refused: nothing was written and the ratings are still there.
+    expect(api.voidPromotion).not.toHaveBeenCalled();
+    expect(screen.getByText("You have unsaved ratings.")).toBeInTheDocument();
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Void promotion" }));
     await screen.findByText("Promotion voided.");
+    // The reload really did throw them away, so nothing is left to ask about.
+    expect(ratingsDirty).toHaveBeenLastCalledWith(false);
+    confirm.mockClear();
     expect(fireEvent.click(screen.getByRole("link", { name: "Back to record" }))).toBe(true);
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  /** Task 17 review, Major-2, exit 4: the same reload, reached through an assignment. */
+  it("asks before an assignment throws unsaved ratings away", async () => {
+    kidsRecord();
+    api.assignLevel.mockResolvedValue({ promotionId: "p1" });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    fireEvent.click(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" }));
+    await screen.findByText("You have unsaved ratings.");
+
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Next level"), {
+      target: { value: kidsFirstStripe },
+    });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/^Note/u), {
+      target: { value: "Promoted at the grading, minimums checked in person." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm promotion" }));
+    expect(confirm).toHaveBeenCalledWith("Discard unsaved ratings?");
+    expect(api.assignLevel).not.toHaveBeenCalled();
+    expect(screen.getByText("You have unsaved ratings.")).toBeInTheDocument();
+  });
+
+  it("stops guarding ratings once the view itself is gone", async () => {
+    kidsRecord();
+    const view = renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    fireEvent.click(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" }));
+    await screen.findByText("You have unsaved ratings.");
+    expect(ratingsDirty).toHaveBeenLastCalledWith(true);
+    view.unmount();
+    expect(ratingsDirty).toHaveBeenLastCalledWith(false);
   });
 });
