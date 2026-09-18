@@ -1869,3 +1869,366 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
     });
   });
 });
+
+/**
+ * T051V2 Task 11 (plan decision 3): the Manage view has no session, so a batch of ratings is
+ * recorded through its own store method that writes one `assessments` document per rating with
+ * `sessionId: null`, all inside ONE transaction. Coach, head coach and owner may rate (G6);
+ * everybody else is refused, and every refusal here is pinned by MESSAGE because
+ * `assertTransactionalActor` also throws `tenant` and a code-only assertion passes for the wrong
+ * reason (Tasks 8, 9 and 10 each reproduced that).
+ */
+type RatingParams = Parameters<AnyLevelStore["recordSkillRatings"]>[0];
+
+// The cast is deliberate and confined to the INPUT: half of these cases send scores, notes and
+// arrays the contract refuses on purpose, which is the point of the block. Everything outside the
+// input (the actor, the role, the instant) stays type-checked.
+const ratingsInput = (input: Record<string, unknown> = {}) =>
+  ({
+    studentId: "student-1",
+    definitionKey: "white-belt",
+    ratings: [
+      { skillKey: "tie-the-belt", score: 3 },
+      { skillKey: "warm-up-2-bridges", score: 4 },
+    ],
+    ...input,
+  }) as unknown as RatingParams["input"];
+
+const rate = (overrides: Record<string, unknown> = {}, input: Record<string, unknown> = {}) => ({
+  academyId,
+  input: ratingsInput(input),
+  evaluatorId: "coach-user-1",
+  evaluatorStaffId: "staff-coach-1",
+  evaluatorRole: "coach" as const,
+  evaluatedAt: decidedAt,
+  ...overrides,
+});
+
+const ownerRates = {
+  evaluatorId: "owner-user-1",
+  evaluatorStaffId: null,
+  evaluatorRole: "owner" as const,
+};
+const headCoachRates = {
+  evaluatorId: "head-user-1",
+  evaluatorStaffId: "staff-head-1",
+  evaluatorRole: "headCoach" as const,
+};
+
+/** Bad operator free text: empty, whitespace-only, a NUL byte, DEL, and one character too long. */
+const invalidEvidenceNotes: readonly [string, unknown][] = [
+  ["an empty note", ""],
+  ["a whitespace-only note", "   \n  "],
+  ["a note carrying a NUL byte", `Solid guard${String.fromCharCode(0)} work`],
+  ["a note carrying DEL", `Solid guard${String.fromCharCode(127)} work`],
+  ["a 1001-character note", "a".repeat(1001)],
+  ["a non-string note", 42],
+  ["a null note", null],
+];
+
+/** Bad rating arrays: the bounds and the distinctness rule the contract states. */
+const invalidRatings: readonly [string, unknown][] = [
+  ["no ratings at all", []],
+  [
+    "101 ratings",
+    Array.from({ length: 101 }, (_, index) => ({ skillKey: `skill-${index}`, score: 3 })),
+  ],
+  [
+    "the same skill twice",
+    [
+      { skillKey: "tie-the-belt", score: 3 },
+      { skillKey: "tie-the-belt", score: 5 },
+    ],
+  ],
+  ["a score of 6", [{ skillKey: "tie-the-belt", score: 6 }]],
+  ["a score of 0", [{ skillKey: "tie-the-belt", score: 0 }]],
+  ["a fractional score", [{ skillKey: "tie-the-belt", score: 2.5 }]],
+  ["a missing score", [{ skillKey: "tie-the-belt" }]],
+  ["ratings that are not an array", { skillKey: "tie-the-belt", score: 3 }],
+];
+
+describe("recordSkillRatings (T051V2)", () => {
+  it("writes one assessment and one audit per rating without a session", async () => {
+    const { store, writes } = await seededStore();
+    expect(await store.recordSkillRatings(rate())).toEqual({ recorded: 2 });
+
+    const assessments = writes.filter((write) => write.path.includes("/assessments/"));
+    expect(assessments.map((write) => write.data)).toEqual([
+      expect.objectContaining({
+        studentId: "student-1",
+        definitionKey: "white-belt",
+        skillKey: "tie-the-belt",
+        score: 3,
+        sessionId: null,
+        evaluatorId: "coach-user-1",
+        evaluatorRole: "coach",
+        coachStaffId: "staff-coach-1",
+        evidenceNotes: "",
+        evaluatedAt: decidedAt,
+        status: "recorded",
+      }),
+      expect.objectContaining({ skillKey: "warm-up-2-bridges", score: 4, sessionId: null }),
+    ]);
+    expect(assessments.every((write) => write.op === "create")).toBe(true);
+
+    // Task 8's surviving mutant: without pinning `actorId` the STUDENT could be recorded as the
+    // author of their own assessment and every other assertion here would still pass.
+    const audits = writes.filter((write) => write.path.includes("/auditEvents/"));
+    expect(audits).toHaveLength(2);
+    expect(audits.map((write) => write.data)).toEqual([
+      expect.objectContaining({
+        actorId: "coach-user-1",
+        action: "level.assessment.recorded",
+        targetRef: `academies/${academyId}/assessments/eval_student-1_tie-the-belt_${decidedAt}`,
+        purpose: "student-development-assessment",
+      }),
+      expect.objectContaining({
+        actorId: "coach-user-1",
+        action: "level.assessment.recorded",
+        targetRef: `academies/${academyId}/assessments/eval_student-1_warm-up-2-bridges_${decidedAt}`,
+        purpose: "student-development-assessment",
+      }),
+    ]);
+    expect(audits.some((write) => write.data.actorId === "student-1")).toBe(false);
+
+    const summary = await store.getStudentSkillSummary(academyId, "student-1");
+    expect(summary["warm-up-2-bridges"]).toMatchObject({ latestScore: 4, maxScore: 4, count: 1 });
+    expect(summary["tie-the-belt"]).toMatchObject({ latestScore: 3, maxScore: 3, count: 1 });
+  });
+
+  it("stores a trimmed evidence note against every rating in the batch", async () => {
+    const { store, writes } = await seededStore();
+    await store.recordSkillRatings(rate({}, { evidenceNotes: "  Graded in the Tuesday class.  " }));
+    expect(
+      writes
+        .filter((write) => write.path.includes("/assessments/"))
+        .map((write) => write.data.evidenceNotes),
+    ).toEqual(["Graded in the Tuesday class.", "Graded in the Tuesday class."]);
+  });
+
+  it("lets the owner rate with no staff record and the head coach rate with one", async () => {
+    const owner = await seededStore();
+    expect(await owner.store.recordSkillRatings(rate(ownerRates))).toEqual({ recorded: 2 });
+    expect(
+      owner.writes
+        .filter((write) => write.path.includes("/assessments/"))
+        .map((write) => [
+          write.data.evaluatorRole,
+          write.data.coachStaffId,
+          write.data.evaluatorId,
+        ]),
+    ).toEqual([
+      ["owner", null, "owner-user-1"],
+      ["owner", null, "owner-user-1"],
+    ]);
+
+    const headCoach = await seededStore();
+    expect(await headCoach.store.recordSkillRatings(rate(headCoachRates))).toEqual({ recorded: 2 });
+    expect(
+      headCoach.writes
+        .filter((write) => write.path.includes("/assessments/"))
+        .map((write) => write.data.evaluatorRole),
+    ).toEqual(["headCoach", "headCoach"]);
+  });
+
+  it.each(["administrator", "guardian", "student", "owner "])(
+    "refuses the role %s by message and writes nothing",
+    async (role) => {
+      const { store, writes } = await seededStore();
+      await expect(
+        store.recordSkillRatings(rate({ evaluatorRole: role as never })),
+      ).rejects.toMatchObject({ code: "tenant", message: "Assessment actor role is invalid" });
+      expect(writes).toHaveLength(0);
+    },
+  );
+
+  it("refuses a coach carrying somebody else's staff id, and the student themselves", async () => {
+    const { store, writes } = await seededStore();
+    await expect(
+      store.recordSkillRatings(rate({ evaluatorStaffId: "staff-head-1" })),
+    ).rejects.toMatchObject({ code: "tenant", message: "Staff scope is invalid" });
+    await expect(
+      store.recordSkillRatings(rate({ evaluatorId: "student-1", evaluatorStaffId: null })),
+    ).rejects.toMatchObject({ code: "tenant", message: "Actor scope is invalid" });
+    expect(writes).toHaveLength(0);
+  });
+
+  it.each(invalidEvidenceNotes)("refuses %s, and writes nothing", async (_label, evidenceNotes) => {
+    const { store, writes } = await seededStore();
+    await expect(store.recordSkillRatings(rate({}, { evidenceNotes }))).rejects.toMatchObject({
+      code: "invalid",
+      message: "Assessment evidence notes are invalid",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it.each(invalidRatings)("refuses %s, and writes nothing", async (_label, ratings) => {
+    const { store, writes } = await seededStore();
+    await expect(store.recordSkillRatings(rate({}, { ratings }))).rejects.toMatchObject({
+      code: "invalid",
+      message: "Skill ratings are invalid",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a skill that is not in the published catalogue, and writes nothing", async () => {
+    const { store, writes } = await seededStore();
+    await expect(
+      store.recordSkillRatings(
+        rate(
+          {},
+          {
+            ratings: [
+              { skillKey: "tie-the-belt", score: 3 },
+              { skillKey: "not-in-catalogue", score: 2 },
+            ],
+          },
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "conflict", message: "Assessment catalog is not current" });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses an unknown definition key, and writes nothing", async () => {
+    const { store, writes } = await seededStore();
+    await expect(
+      store.recordSkillRatings(rate({}, { definitionKey: "no-such-level" })),
+    ).rejects.toMatchObject({ code: "conflict", message: "Assessment references are not current" });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a system that is no longer published, and writes nothing", async () => {
+    const { store, writes, records } = await seededStore();
+    const path = `academies/${academyId}/levelSystems/ibjjf-v1`;
+    records.set(path, { ...records.get(path)!, status: "draft" });
+    await expect(store.recordSkillRatings(rate())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Assessment catalog is not current",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses an inactive student, and writes nothing", async () => {
+    const { store, writes, records } = await seededStore();
+    const path = `academies/${academyId}/students/student-1`;
+    records.set(path, { ...records.get(path)!, active: false, status: "inactive" });
+    await expect(store.recordSkillRatings(rate())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Student is not active",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  // The batch is atomic: the second rating already exists at this instant, so the FIRST one must
+  // not be written either. Without one transaction the member would end up half assessed.
+  it("writes nothing at all when one rating in the batch is a replay", async () => {
+    const { store, writes } = await seededStore();
+    await store.recordSkillRatings(
+      rate({}, { ratings: [{ skillKey: "warm-up-2-bridges", score: 2 }] }),
+    );
+    writes.length = 0;
+    await expect(store.recordSkillRatings(rate())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Assessment catalog is not current",
+    });
+    expect(writes).toHaveLength(0);
+    const summary = await store.getStudentSkillSummary(academyId, "student-1");
+    expect(summary["tie-the-belt"]).toBeUndefined();
+    expect(summary["warm-up-2-bridges"]).toMatchObject({ latestScore: 2, count: 1 });
+  });
+});
+
+/**
+ * Parity: both stores must refuse the same things for the same reasons. Identity, published-system
+ * and head-state cases are NOT here — the in-memory store has no `assertTransactionalActor`, so
+ * they would pass there for no reason at all (Task 8 carry 4, Task 9 carry 5).
+ */
+describe.each(openParityStores)("skill-ratings parity — %s (T051V2)", (_label, makeStore) => {
+  it("records both ratings against a session-less assessment", async () => {
+    const store = await makeStore();
+    expect(await store.recordSkillRatings(rate())).toEqual({ recorded: 2 });
+    const evaluations = await store.listStudentEvaluations(academyId, "student-1");
+    expect(
+      [...evaluations]
+        .sort((left, right) => left.skillKey.localeCompare(right.skillKey))
+        .map((evaluation) => [evaluation.skillKey, evaluation.score, evaluation.sessionId]),
+    ).toEqual([
+      ["tie-the-belt", 3, null],
+      ["warm-up-2-bridges", 4, null],
+    ]);
+    expect(evaluations.every((evaluation) => evaluation.evaluatorRole === "coach")).toBe(true);
+    const summary = await store.getStudentSkillSummary(academyId, "student-1");
+    expect(summary["tie-the-belt"]).toMatchObject({ latestScore: 3, maxScore: 3 });
+  });
+
+  it("stores the trimmed evidence note on every record", async () => {
+    const store = await makeStore();
+    await store.recordSkillRatings(rate({}, { evidenceNotes: "  Graded in the Tuesday class.  " }));
+    const evaluations = await store.listStudentEvaluations(academyId, "student-1");
+    expect(evaluations.map((evaluation) => evaluation.evidenceNotes)).toEqual([
+      "Graded in the Tuesday class.",
+      "Graded in the Tuesday class.",
+    ]);
+  });
+
+  // A replayed batch is refused whole: the second call must not append a duplicate record, or the
+  // same session-less assessment would count twice in the skill summary.
+  it("refuses a replayed batch and leaves one record per skill", async () => {
+    const store = await makeStore();
+    await store.recordSkillRatings(rate());
+    await expect(store.recordSkillRatings(rate())).rejects.toMatchObject({
+      code: "conflict",
+      message: "Assessment catalog is not current",
+    });
+    expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(2);
+  });
+
+  it("keeps the owner's own role on the record", async () => {
+    const store = await makeStore();
+    await store.recordSkillRatings(rate(ownerRates));
+    const evaluations = await store.listStudentEvaluations(academyId, "student-1");
+    expect(evaluations.every((evaluation) => evaluation.evaluatorRole === "owner")).toBe(true);
+  });
+
+  it("refuses the administrator by message", async () => {
+    const store = await makeStore();
+    await expect(
+      store.recordSkillRatings(rate({ evaluatorRole: "administrator" as never })),
+    ).rejects.toMatchObject({ code: "tenant", message: "Assessment actor role is invalid" });
+    expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
+  });
+
+  it.each(invalidRatings)("refuses %s", async (_ratingLabel, ratings) => {
+    const store = await makeStore();
+    await expect(store.recordSkillRatings(rate({}, { ratings }))).rejects.toMatchObject({
+      code: "invalid",
+      message: "Skill ratings are invalid",
+    });
+    expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
+  });
+
+  it.each(invalidEvidenceNotes)("refuses %s", async (_noteLabel, evidenceNotes) => {
+    const store = await makeStore();
+    await expect(store.recordSkillRatings(rate({}, { evidenceNotes }))).rejects.toMatchObject({
+      code: "invalid",
+      message: "Assessment evidence notes are invalid",
+    });
+    expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
+  });
+
+  it("refuses a skill that is not in the published catalogue", async () => {
+    const store = await makeStore();
+    await expect(
+      store.recordSkillRatings(rate({}, { ratings: [{ skillKey: "not-in-catalogue", score: 2 }] })),
+    ).rejects.toMatchObject({ code: "conflict", message: "Assessment catalog is not current" });
+    expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
+  });
+
+  it("refuses an unknown definition key", async () => {
+    const store = await makeStore();
+    await expect(
+      store.recordSkillRatings(rate({}, { definitionKey: "no-such-level" })),
+    ).rejects.toMatchObject({ code: "conflict", message: "Assessment references are not current" });
+    expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
+  });
+});

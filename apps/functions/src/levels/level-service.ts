@@ -17,6 +17,8 @@ import {
   listPromotionGaps,
   minimumDaysOf,
   promotionNoteSchema,
+  assessmentEvidenceNotesSchema,
+  skillRatingsSchema,
   studentLevelHistorySchema,
   type ImportedBaseline,
   type ApprovePromotionInput,
@@ -37,6 +39,8 @@ import {
   type RecognitionCandidate,
   type RecordEvaluationInput,
   type RecordMedicalLeaveInput,
+  type RecordSkillRatingsInput,
+  type RecordSkillRatingsResult,
   type RejectPromotionInput,
   type StudentProgressSummary,
   evaluateAgeBand,
@@ -113,6 +117,20 @@ export type LevelCatalogStore = Readonly<{
     evaluatorRole: "headCoach" | "coach";
     evaluatedAt?: string;
   }) => Promise<EvaluationRecord>;
+  /**
+   * T051V2 (plan decision 3): the Manage view rates many skills at once and has no session, so a
+   * batch writes one `assessments` document per rating with `sessionId: null`, all in ONE
+   * transaction. Coach, head coach and owner may rate (G6); an owner has no staff record, hence
+   * the nullable `evaluatorStaffId`.
+   */
+  recordSkillRatings: (params: {
+    academyId: string;
+    input: RecordSkillRatingsInput;
+    evaluatorId: string;
+    evaluatorStaffId: string | null;
+    evaluatorRole: "headCoach" | "coach" | "owner";
+    evaluatedAt?: string;
+  }) => Promise<RecordSkillRatingsResult>;
   listStudentEvaluations: (
     academyId: string,
     studentId: string,
@@ -709,6 +727,45 @@ function assignmentNoteOf(note: unknown): string | null {
 function voidReasonOf(reason: unknown): string {
   const parsed = promotionNoteSchema.safeParse(reason);
   if (!parsed.success) throw new LevelStoreError("invalid", "Void reason is invalid");
+  return parsed.data;
+}
+
+/**
+ * Task 11 (plan decision 7 / grill G6 "owner everything"): a coach, a head coach AND the owner may
+ * rate skills; an administrator may see the card and the history but never rates. The message is
+ * distinct from `assertTransactionalActor`'s, because a code-only refusal ("tenant") passes for the
+ * wrong reason — Tasks 8, 9 and 10 each caught that.
+ */
+function assertRatingRole(role: unknown): asserts role is "headCoach" | "coach" | "owner" {
+  if (role !== "headCoach" && role !== "coach" && role !== "owner") {
+    throw new LevelStoreError("tenant", "Assessment actor role is invalid");
+  }
+}
+
+/**
+ * The batch itself is re-checked at the store with the very schema the callable boundary (Task 12)
+ * will parse with, for the reason `assignmentNoteOf` is: these are irreversible audited writes
+ * about a real member, and today no boundary exists at all. Bounds are checked BEFORE any read, so
+ * a 101-rating batch is refused without touching the catalogue.
+ */
+function skillRatingsOf(ratings: unknown): RecordSkillRatingsInput["ratings"] {
+  const parsed = skillRatingsSchema.safeParse(ratings);
+  if (!parsed.success) throw new LevelStoreError("invalid", "Skill ratings are invalid");
+  return parsed.data;
+}
+
+/**
+ * Evidence notes are operator free text on an audited record, so they are validated here as well
+ * as at the boundary. Absent (`undefined`) stores the empty string that `EvaluationRecord` has
+ * always carried; anything else — including `null` and `""` — is a refusal, because "omitted" and
+ * "present but empty" must not become the same thing.
+ */
+function evidenceNotesOf(notes: unknown): string {
+  if (notes === undefined) return "";
+  const parsed = assessmentEvidenceNotesSchema.safeParse(notes);
+  if (!parsed.success) {
+    throw new LevelStoreError("invalid", "Assessment evidence notes are invalid");
+  }
   return parsed.data;
 }
 
@@ -1458,6 +1515,129 @@ export function createLevelCatalogStore({
         });
         appendAuditEventInTransaction(transaction, auditRef, audit);
         return record;
+      });
+    },
+
+    async recordSkillRatings(params): Promise<RecordSkillRatingsResult> {
+      assertValidAcademyId(params.academyId);
+      const { academyId, input, evaluatorId, evaluatorStaffId, evaluatorRole } = params;
+      assertRatingRole(evaluatorRole);
+      const ratings = skillRatingsOf(input.ratings);
+      const evidenceNotes = evidenceNotesOf(input.evidenceNotes);
+      const now = params.evaluatedAt ?? new Date().toISOString();
+      const planned = ratings.map((rating) => {
+        const evaluationId = buildEvaluationId(input.studentId, rating.skillKey, now);
+        const audit = levelAuditDraft({
+          academyId,
+          actorId: evaluatorId,
+          action: "level.assessment.recorded",
+          targetCollection: "assessments",
+          targetId: evaluationId,
+          purpose: "student-development-assessment",
+        });
+        return {
+          rating,
+          evaluationId,
+          ref: firestore.doc(`academies/${academyId}/assessments/${evaluationId}`),
+          audit,
+          auditRef: firestore.doc(`academies/${academyId}/auditEvents/${auditEventId(audit)}`),
+        };
+      });
+      return firestore.runTransaction(async (transaction) => {
+        await assertTransactionalActor(transaction, firestore, {
+          academyId,
+          actorId: evaluatorId,
+          actorRole: evaluatorRole,
+          actorStaffId: evaluatorStaffId,
+        });
+        const student = storedStudent(
+          await transaction.get(
+            firestore.doc(`academies/${academyId}/students/${input.studentId}`),
+          ),
+          academyId,
+          input.studentId,
+        );
+        assertActiveStudent(student);
+        const definition = await transaction.get(
+          firestore.doc(`academies/${academyId}/levelDefinitions/${input.definitionKey}`),
+        );
+        const definitionData = definition.data();
+        if (
+          !definition.exists ||
+          definitionData?.academyId !== academyId ||
+          definitionData.definitionKey !== input.definitionKey ||
+          typeof definitionData.systemId !== "string"
+        ) {
+          throw new LevelStoreError("conflict", "Assessment references are not current");
+        }
+        const system = await transaction.get(
+          firestore.doc(`academies/${academyId}/levelSystems/${definitionData.systemId}`),
+        );
+        const systemData = system.data();
+        const catalogKeys = new Set(
+          Array.isArray(systemData?.skillCatalog)
+            ? systemData.skillCatalog.flatMap((skill) =>
+                typeof skill === "object" &&
+                skill !== null &&
+                !Array.isArray(skill) &&
+                typeof (skill as Record<string, unknown>).key === "string"
+                  ? [(skill as Record<string, unknown>).key as string]
+                  : [],
+              )
+            : [],
+        );
+        // Every existing document is read before anything is written: the whole batch is one
+        // transaction, so a single replayed rating leaves the member neither half assessed nor
+        // half audited.
+        const existing = await Promise.all(planned.map((entry) => transaction.get(entry.ref)));
+        if (
+          !system.exists ||
+          systemData?.academyId !== academyId ||
+          systemData.systemId !== definitionData.systemId ||
+          systemData.status !== "published" ||
+          planned.some((entry) => !catalogKeys.has(entry.rating.skillKey)) ||
+          existing.some((snapshot) => snapshot.exists)
+        ) {
+          throw new LevelStoreError("conflict", "Assessment catalog is not current");
+        }
+        for (const entry of planned) {
+          const record: EvaluationRecord = {
+            evaluationId: entry.evaluationId,
+            academyId,
+            studentId: input.studentId,
+            // Decision 3: the Manage view has no session, and `EvaluationRecord.sessionId` was
+            // widened to `string | null` (Task 6) precisely for this path.
+            sessionId: null,
+            definitionKey: input.definitionKey,
+            skillKey: entry.rating.skillKey,
+            score: entry.rating.score,
+            evidenceNotes,
+            evaluatorId,
+            evaluatorRole,
+            evaluatedAt: now,
+            schemaVersion: "1",
+            createdAt: now,
+            createdBy: evaluatorId,
+            updatedAt: now,
+            updatedBy: evaluatorId,
+          };
+          transaction.create(entry.ref, {
+            ...record,
+            assessmentId: entry.evaluationId,
+            coachStaffId: evaluatorStaffId,
+            observedAt: now,
+            dimensions: [
+              {
+                definitionKey: input.definitionKey,
+                skillKey: entry.rating.skillKey,
+                score: entry.rating.score,
+              },
+            ],
+            status: "recorded",
+          });
+          appendAuditEventInTransaction(transaction, entry.auditRef, entry.audit);
+        }
+        return { recorded: planned.length };
       });
     },
 
@@ -2737,6 +2917,66 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       const key = `${academyId}__${input.studentId}__${evaluationId}`;
       evaluations.set(key, record);
       return record;
+    },
+
+    /**
+     * Task 11, Decision 3 (parity): implemented rather than stubbed. The plan's stub delegated to
+     * `recordEvaluation` with a made-up `sessionId: "manage-view"` and mapped the owner to a head
+     * coach — it would have hidden the two things this method exists for (a session-less record and
+     * the owner's own role) behind green tests. Identity is NOT checked here (this store has no
+     * `assertTransactionalActor`), so every identity case is proved on the Firestore fake instead.
+     */
+    async recordSkillRatings(params): Promise<RecordSkillRatingsResult> {
+      assertValidAcademyId(params.academyId);
+      const { academyId, input, evaluatorId, evaluatorStaffId, evaluatorRole } = params;
+      assertRatingRole(evaluatorRole);
+      const ratings = skillRatingsOf(input.ratings);
+      const evidenceNotes = evidenceNotesOf(input.evidenceNotes);
+      const now = new Date().toISOString();
+      const evaluatedAt = params.evaluatedAt ?? now;
+      const catalog = await this.listPublished(academyId);
+      const catalogKeys = new Set(catalog.skills.map((skill) => skill.key));
+      if (
+        !catalog.definitions.some((definition) => definition.definitionKey === input.definitionKey)
+      ) {
+        throw new LevelStoreError("conflict", "Assessment references are not current");
+      }
+      const planned = ratings.map((rating) => ({
+        rating,
+        key: `${academyId}__${input.studentId}__${buildEvaluationId(input.studentId, rating.skillKey, evaluatedAt)}`,
+        evaluationId: buildEvaluationId(input.studentId, rating.skillKey, evaluatedAt),
+      }));
+      if (
+        planned.some(
+          (entry) => !catalogKeys.has(entry.rating.skillKey) || evaluations.has(entry.key),
+        )
+      ) {
+        throw new LevelStoreError("conflict", "Assessment catalog is not current");
+      }
+      for (const entry of planned) {
+        evaluations.set(entry.key, {
+          evaluationId: entry.evaluationId,
+          academyId,
+          studentId: input.studentId,
+          sessionId: null,
+          definitionKey: input.definitionKey,
+          skillKey: entry.rating.skillKey,
+          score: entry.rating.score,
+          evidenceNotes,
+          evaluatorId,
+          evaluatorRole,
+          evaluatedAt,
+          schemaVersion: "1",
+          createdAt: now,
+          createdBy: evaluatorId,
+          updatedAt: now,
+          updatedBy: evaluatorId,
+        });
+      }
+      // The staff id has no home in this store's record shape; it is named so a reader can see it
+      // is deliberately unused here rather than forgotten.
+      void evaluatorStaffId;
+      return { recorded: planned.length };
     },
 
     async listStudentEvaluations(
