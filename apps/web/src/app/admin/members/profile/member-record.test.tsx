@@ -258,6 +258,30 @@ describe("member record page", () => {
     expect(await screen.findByRole("region", { name: "Manage IBJJF" })).toBeTruthy();
   });
 
+  /**
+   * T051V2 review of Task 16 (surviving mutant R4). The test above asserts the ADDRESS after a tab
+   * switch, which the URL self-heal effect would repair even if `selectTab` pushed `view=manage`
+   * into it — so it proved nothing about `selectTab` itself. This one watches the calls: the entry
+   * `selectTab` PUSHES must already be free of the flag, and no repair may be needed. A pushed
+   * `view=manage` would otherwise live in the browser's history for that tab for ever.
+   */
+  it("pushes a tab address with no Manage flag in it, needing no repair", async () => {
+    const user = open("?id=student-1&view=manage");
+    await screen.findByRole("region", { name: "Manage IBJJF" });
+    const pushed = vi.spyOn(window.history, "pushState");
+    const replaced = vi.spyOn(window.history, "replaceState");
+
+    await user.click(screen.getByRole("tab", { name: "Details" }));
+    expect(pushed).toHaveBeenCalledTimes(1);
+    expect(pushed).toHaveBeenCalledWith(
+      null,
+      "",
+      "/admin/members/profile?id=student-1&tab=details",
+    );
+    expect(replaced).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("?id=student-1&tab=details");
+  });
+
   it("moves between tabs with arrow, Home and End keys and keeps the URL in step", async () => {
     const user = open("?id=student-1");
     const profileTab = await screen.findByRole("tab", { name: "Profile" });

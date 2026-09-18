@@ -53,7 +53,6 @@ const safeListMedicalLeavesError = "Unable to load medical leaves. Please try ag
 const safeListCandidatesError = "Unable to load recognition candidates. Please try again.";
 const safeApprovePromotionError = "Unable to approve promotion. Please try again.";
 const safeRejectPromotionError = "Unable to reject promotion. Please try again.";
-const safeOpenLevelError = "Unable to open the student level. Please try again.";
 const safeListGraduationsError = "Unable to load graduation history. Please try again.";
 const safeProgressReportError = "Unable to load progress report. Please try again.";
 
@@ -384,7 +383,7 @@ function isAgeBand(value: unknown): value is AgeBandEvaluation {
 /** Head coach only: opens a student's level record at the belt they hold. */
 export async function openStudentLevel(input: OpenStudentLevelInput): Promise<OpenedStudentLevel> {
   const parsed = parseOpenStudentLevelInput(input);
-  if (!parsed.ok) throw new Error(safeOpenLevelError);
+  if (!parsed.ok) throw new Error(levelsSafeErrors.open);
   const callable = httpsCallable<
     OpenStudentLevelInput,
     { head: Omit<OpenedStudentLevel, "ageBand">; ageBand: unknown }
@@ -398,11 +397,11 @@ export async function openStudentLevel(input: OpenStudentLevelInput): Promise<Op
       head.state !== "initialized" ||
       !isAgeBand(response.data.ageBand)
     ) {
-      throw new Error(safeOpenLevelError);
+      throw new Error(levelsSafeErrors.open);
     }
     return { ...head, ageBand: response.data.ageBand };
   } catch {
-    throw new Error(safeOpenLevelError);
+    throw new Error(levelsSafeErrors.open);
   }
 }
 
@@ -484,6 +483,12 @@ export const levelsSafeErrors = Object.freeze({
   /** Any assignment refusal that came from the backend: names the action, asks for nothing. */
   assign: "Unable to assign the level. Please try again later.",
   void: "Unable to void the promotion. Please try again.",
+  /**
+   * T051V2 review of Task 16 (Major-2): opening a level had its own module-local string, so the
+   * Manage view could not recognise it and rendered a literal of its own instead. Every refusal
+   * this client raises now lives in this one allowlist, which is what the views check against.
+   */
+  open: "Unable to open the student level. Please try again.",
   ratings: "Unable to save the ratings. Please try again.",
   scores: "Unable to load the skill ratings. Please try again.",
 } as const);
