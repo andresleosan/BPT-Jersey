@@ -1680,6 +1680,10 @@ export function parseRejectPromotionInput(
     decisionNotes.trim().length > 1000
   ) {
     issues.push(issue(["input", "decisionNotes"], "decision_notes_length_3_to_1000"));
+  } else if (decisionNotesControlCharacterPattern.test(decisionNotes)) {
+    // The same rule `parseApprovePromotionInput` applies, for the same reason: a rejection's notes
+    // land in the same audited record and the level history renders them.
+    issues.push(issue(["input", "decisionNotes"], "decision_notes_control_characters"));
   }
 
   if (issues.length > 0) {

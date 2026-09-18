@@ -14,6 +14,7 @@ import {
   jerseyDateOf,
   listPromotionGaps,
   minimumDaysOf,
+  promotionNoteSchema,
   type ImportedBaseline,
   type ApprovePromotionInput,
   type AssignLevelInput,
@@ -657,6 +658,22 @@ export type PromotionAssignment = Readonly<{
   }>;
 }>;
 
+/**
+ * Review of Task 9 (Major-1): the note is the ONLY record of why somebody was promoted below
+ * criteria, on an irreversible audited write, so the store re-checks it for the same reason it
+ * re-checks the promotion date — `""`, `" "`, `null`, `"ok"` and a note carrying a NUL byte all
+ * used to pass the `=== undefined` guard and be stored verbatim. `promotionNoteSchema` is the very
+ * schema the callable boundary (Task 12) parses with, so the two can never drift: 10–500
+ * characters after trimming, no control character other than a line break. A supplied note is
+ * validated whether or not there are gaps; `null` is absent, exactly like `undefined`.
+ */
+function assignmentNoteOf(note: unknown): string | null {
+  if (note === undefined || note === null) return null;
+  const parsed = promotionNoteSchema.safeParse(note);
+  if (!parsed.success) throw new LevelStoreError("invalid", "Promotion note is invalid");
+  return parsed.data;
+}
+
 /** The best score the student has ever been given for each skill. */
 function bestScores(evaluations: readonly EvaluationRecord[]): Record<string, number> {
   const scores: Record<string, number> = {};
@@ -706,12 +723,13 @@ function promotionAssignmentOf(
     ageYears:
       params.dateOfBirth === null ? null : ageInCompletedYears(params.dateOfBirth, promotedAt),
   });
-  if (gaps.length > 0 && params.input.note === undefined) {
+  const note = assignmentNoteOf(params.input.note);
+  if (gaps.length > 0 && note === null) {
     throw new LevelStoreError("invalid", "A note is required when criteria are not met");
   }
   return Object.freeze({
     promotedOn: params.input.promotedOn,
-    note: params.input.note ?? null,
+    note,
     gaps,
     atAssignment: Object.freeze({
       classes: Object.freeze({ done: classes.total, min: params.to.criteria.minClasses }),
@@ -1808,7 +1826,7 @@ export function createLevelCatalogStore({
           fromDefinitionKey: from.definitionKey,
           toDefinitionKey: to.definitionKey,
           status: "approved",
-          decisionNotes: input.note ?? "",
+          decisionNotes: assignment.note ?? "",
           decidedBy,
           decidedByRole,
           decidedAt: now,
@@ -2574,6 +2592,11 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
      * actor identity is only ever proved against the Firestore store, and it keeps no attendance
      * and no student record, so classes count from the baseline alone and an unknown date of birth
      * makes an age band read as not met — an EXTRA gap, never a missing one.
+     *
+     * Three of the reference guards below are kept for parity but cannot be REACHED from this
+     * store's public API, and are therefore proved against the Firestore store only: an in-memory
+     * head is always `state: "initialized"`, always carries the systemId of the one catalogue this
+     * academy can publish (a second `seed` is refused), and never carries an `importedBaseline`.
      */
     async assignLevel(params): Promise<AssignLevelResult> {
       const { academyId, input, decidedBy, decidedByRole } = params;
@@ -2628,7 +2651,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
           fromDefinitionKey: from.definitionKey,
           toDefinitionKey: to.definitionKey,
           status: "approved",
-          decisionNotes: input.note ?? "",
+          decisionNotes: assignment.note ?? "",
           decidedBy,
           decidedByRole,
           decidedAt: now,

@@ -137,6 +137,37 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
+/**
+ * Review of Task 9 (Major-2): a belt or stripe can only be SKIPPED if the student could have held
+ * it. The catalogue lays its age-band ladders end to end on ONE global sequence, so counting every
+ * definition between two keys makes a child ageing out of the 7–10 ladder into the teens white belt
+ * — the ordinary next step — read as "Skips 5 belts, Skips 40 stripes". A child cannot hold the
+ * belts of another age band, so those definitions were never available to skip: counting them is
+ * not conservative, it is wrong.
+ *
+ * The ladder is read off the criteria the catalogue already carries, not off a new field: walking
+ * the definitions in sequence, a definition stays in the ladder it is in until its age window steps
+ * OUTSIDE the window that ladder opened with, which starts a new ladder. On the real IBJJF
+ * catalogue that yields exactly the four ladders the belts are named for: 4–7, 7–10, teens 10–15
+ * and adult 16+ (a narrower window inside a ladder — brown at 18+, black at 19+, the 7–8 belts —
+ * does not open one).
+ */
+function ladderIndexes(definitions: readonly LevelDefinitionRecord[]): ReadonlyMap<string, number> {
+  const indexes = new Map<string, number>();
+  let opening: readonly [number, number] | null = null;
+  let ladder = -1;
+  for (const definition of [...definitions].sort((left, right) => left.sequence - right.sequence)) {
+    const minAge = definition.criteria.minAge ?? Number.NEGATIVE_INFINITY;
+    const maxAge = definition.criteria.maxAge ?? Number.POSITIVE_INFINITY;
+    if (opening === null || minAge < opening[0] || maxAge > opening[1]) {
+      opening = [minAge, maxAge];
+      ladder += 1;
+    }
+    indexes.set(definition.definitionKey, ladder);
+  }
+  return indexes;
+}
+
 /** Grill G7: every reason an assignment is below criteria, in the words the dialog shows. */
 export function listPromotionGaps(
   input: Readonly<{
@@ -159,13 +190,22 @@ export function listPromotionGaps(
   if (from === undefined || to === undefined) throw new Error("Level definition is not available");
 
   const gaps: string[] = [];
-  const skipped = input.definitions.filter(
-    (definition) => definition.sequence > from.sequence && definition.sequence < to.sequence,
-  );
-  const skippedStripes = skipped.filter((definition) => definition.kind === "stripe").length;
-  const skippedBelts = skipped.length - skippedStripes;
-  if (skippedBelts > 0) gaps.push(`Skips ${plural(skippedBelts, "belt")}`);
-  if (skippedStripes > 0) gaps.push(`Skips ${plural(skippedStripes, "stripe")}`);
+  const ladders = ladderIndexes(input.definitions);
+  // A move between two ladders skips no belt and no stripe: the two ladders are not comparable, so
+  // nothing between them was ever available to this student. Every other gap kind — classes, days,
+  // skills, the age band — still applies, and still makes a note mandatory where it genuinely fails.
+  if (ladders.get(from.definitionKey) === ladders.get(to.definitionKey)) {
+    const skipped = input.definitions.filter(
+      (definition) =>
+        definition.sequence > from.sequence &&
+        definition.sequence < to.sequence &&
+        ladders.get(definition.definitionKey) === ladders.get(to.definitionKey),
+    );
+    const skippedStripes = skipped.filter((definition) => definition.kind === "stripe").length;
+    const skippedBelts = skipped.length - skippedStripes;
+    if (skippedBelts > 0) gaps.push(`Skips ${plural(skippedBelts, "belt")}`);
+    if (skippedStripes > 0) gaps.push(`Skips ${plural(skippedStripes, "stripe")}`);
+  }
 
   const minClasses = to.criteria.minClasses;
   if (minClasses !== null && input.classesDone < minClasses) {
