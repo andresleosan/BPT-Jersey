@@ -75,7 +75,7 @@ describe("administrative shell", () => {
       "#admin-main-content",
     );
     expect(screen.getByRole("banner")).toBeVisible();
-    expect(screen.getByRole("complementary", { name: "Administrative navigation" })).toBeVisible();
+    expect(screen.getByRole("complementary", { name: "Admin navigation" })).toBeVisible();
     expect(screen.getByRole("navigation", { name: "Admin navigation" })).toBeVisible();
     expect(screen.getByRole("main")).toHaveAttribute("id", "admin-main-content");
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
@@ -225,12 +225,15 @@ describe("administrative shell", () => {
       </AdminShell>,
     );
 
-    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    const navigation = screen.getByRole("navigation", { name: "Coach navigation" });
     expect(
       within(navigation)
         .queryAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual([
+      "->Dashboard",
+      "->Progression syllabus",
+      "->My sign-in",
       "->Overview",
       "->Attendance",
       "->Enrolment requests",
@@ -238,7 +241,7 @@ describe("administrative shell", () => {
       "->Classes / Services",
       "->Levels",
     ]);
-    expect(screen.getByRole("link", { name: "Coach portal" })).toHaveAttribute("href", "/coach");
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/coach");
     expect(screen.getByText("Coach operational access")).toBeVisible();
   });
 
@@ -255,12 +258,15 @@ describe("administrative shell", () => {
       </AdminShell>,
     );
 
-    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    const navigation = screen.getByRole("navigation", { name: "Coach navigation" });
     expect(
       within(navigation)
         .queryAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual([
+      "->Dashboard",
+      "->Progression syllabus",
+      "->My sign-in",
       "->Overview",
       "->Attendance",
       "->Enrolment requests",

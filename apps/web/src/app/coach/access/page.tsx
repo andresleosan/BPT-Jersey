@@ -66,86 +66,112 @@ export default function CoachAccessPage() {
     }
   }
   return (
-    <section
-      className="admin-section"
-      aria-labelledby="access-title"
-      style={{ maxWidth: "42rem", width: "100%", marginInline: "auto" }}
-    >
-      <p className="account-eyebrow">BPT Jersey / Coach</p>
-      <h1 id="access-title">My sign-in</h1>
-      <p>Keep your coach profile, classes and permissions together.</p>
-      <h2>Google account</h2>
-      <p>
-        {linked
-          ? "Google is linked to this coach profile."
-          : "Link your own Google account after signing in with the staff ID provided by the office."}
-      </p>
-      <button
-        className="button button-secondary"
-        disabled={busy || linked}
-        onClick={() => void linkGoogle()}
-      >
-        {linked ? "Google linked" : busy ? "Please wait…" : "Link Google account"}
-      </button>
-      <h2 style={{ marginTop: "2rem" }}>Change staff password</h2>
-      <p>Your numeric staff ID continues to work after linking Google.</p>
-      <form className="login-form" onSubmit={(event) => void changePassword(event)}>
-        <div className="login-field">
-          <label htmlFor="access-id">Staff ID</label>
-          <input
-            id="access-id"
-            autoComplete="username"
-            inputMode="numeric"
-            maxLength={6}
-            value={staffNumber}
-            onChange={(e) => setStaffNumber(e.target.value)}
-            required
-          />
+    <section className="coach-access" aria-labelledby="access-title">
+      <header className="coach-header-section">
+        <div>
+          <p className="account-eyebrow">BPT Jersey / Coach</p>
+          <h1 id="access-title">My sign-in</h1>
+          <p>Keep your coach profile, classes and permissions together.</p>
         </div>
-        <div className="login-field">
-          <label htmlFor="access-current">Current password</label>
-          <input
-            id="access-current"
-            type="password"
-            autoComplete="current-password"
-            maxLength={128}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <div className="login-field">
-          <label htmlFor="access-new">New password</label>
-          <input
-            id="access-new"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            maxLength={128}
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-            required
-          />
-        </div>
-        <div className="login-field">
-          <label htmlFor="access-confirm">Confirm new password</label>
-          <input
-            id="access-confirm"
-            type="password"
-            autoComplete="new-password"
-            minLength={12}
-            maxLength={128}
-            value={confirmation}
-            onChange={(e) => setConfirmation(e.target.value)}
-            required
-          />
-        </div>
-        <button className="button" disabled={busy}>
-          {busy ? "Please wait…" : "Change password"}
-        </button>
-      </form>
-      {error && <p role="alert">{error}</p>}
-      {message && <p role="status">{message}</p>}
+      </header>
+      {error && (
+        <p className="notification notification-error" role="alert">
+          {error}
+        </p>
+      )}
+      {message && (
+        <p className="notification notification-success" role="status">
+          {message}
+        </p>
+      )}
+      <div className="coach-access-grid">
+        <section className="admin-panel-card coach-card" aria-labelledby="google-title">
+          <h2 id="google-title">Google account</h2>
+          <p>
+            {linked
+              ? "Google is linked to this coach profile."
+              : "Link your own Google account after signing in with the staff ID provided by the office."}
+          </p>
+          <button
+            type="button"
+            className="admin-home-link coach-button"
+            disabled={busy || linked}
+            onClick={() => void linkGoogle()}
+          >
+            {linked ? "Google linked" : busy ? "Please wait…" : "Link Google account"}
+          </button>
+        </section>
+        <section className="admin-panel-card coach-card" aria-labelledby="password-title">
+          <h2 id="password-title">Change staff password</h2>
+          <p>
+            Your numeric staff ID continues to work after linking Google. Use 12 to 128 characters
+            for your new password.
+          </p>
+          <form className="coach-access-form" onSubmit={(event) => void changePassword(event)}>
+            <div className="coach-field">
+              <label htmlFor="access-id">Staff ID</label>
+              <input
+                className="coach-input"
+                disabled={busy}
+                id="access-id"
+                autoComplete="username"
+                inputMode="numeric"
+                maxLength={6}
+                value={staffNumber}
+                onChange={(e) => setStaffNumber(e.target.value)}
+                required
+              />
+            </div>
+            <div className="coach-field">
+              <label htmlFor="access-current">Current password</label>
+              <input
+                className="coach-input"
+                disabled={busy}
+                id="access-current"
+                type="password"
+                autoComplete="current-password"
+                maxLength={128}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="coach-field">
+              <label htmlFor="access-new">New password</label>
+              <input
+                className="coach-input"
+                disabled={busy}
+                id="access-new"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={128}
+                value={next}
+                onChange={(e) => setNext(e.target.value)}
+                required
+              />
+            </div>
+            <div className="coach-field">
+              <label htmlFor="access-confirm">Confirm new password</label>
+              <input
+                className="coach-input"
+                disabled={busy}
+                id="access-confirm"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={128}
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                required
+              />
+            </div>
+            <button className="admin-auth-button coach-button" disabled={busy}>
+              {busy ? "Please wait…" : "Change password"}
+            </button>
+          </form>
+        </section>
+      </div>
     </section>
   );
 }
