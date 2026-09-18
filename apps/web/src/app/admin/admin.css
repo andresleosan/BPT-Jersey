@@ -3754,12 +3754,6 @@ a.admin-birthday-badge:focus-visible,
   color: #765400;
 }
 
-/* A trial is not a failure state, so it reads in the one accent rather than a status colour. */
-.member-record-status-trial {
-  border-left-color: var(--bpt-purple);
-  color: var(--bpt-purple);
-}
-
 .member-record-birthday {
   background: #f0efff;
   border-left: 0.35rem solid var(--bpt-purple);
@@ -3800,9 +3794,17 @@ a.admin-birthday-badge:focus-visible,
   margin: 0.25rem 0;
 }
 
+.member-record-card ul {
+  list-style: none;
+  margin: 0.25rem 0 0.9rem;
+  padding: 0;
+}
+
+/* The 0.35rem left rule is this system's status idiom (DESIGN.md §2), so a non-status panel takes
+   the plain card border instead of diluting it. */
 .member-record-empty {
   background: var(--gi-white);
-  border-left: 0.35rem solid var(--line);
+  border: 1px solid var(--line);
   padding: 1.25rem;
 }
 
@@ -3846,6 +3848,16 @@ a.admin-birthday-badge:focus-visible,
   transform: translateY(-2px);
 }
 
+.member-record-button:hover {
+  background: var(--bpt-purple-dark);
+  border-color: var(--bpt-purple-dark);
+}
+
+.member-record-button:active,
+.member-record-link:active {
+  transform: none;
+}
+
 .member-record-button:disabled {
   border-color: var(--line);
   background: var(--line);
@@ -3859,13 +3871,18 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .member-record-skeleton span {
-  background: #e8e7e3;
+  background: var(--paper-edge);
   display: block;
   height: 7rem;
 }
 
 .member-record-skeleton span:first-child {
   height: 10rem;
+}
+
+/* The name search reserves a one-line row, not a record panel. */
+.member-search-skeleton span:first-child {
+  height: 3.5rem;
 }
 
 .member-record-notice {
@@ -3930,6 +3947,11 @@ a.admin-birthday-badge:focus-visible,
   grid-column: 1 / -1;
 }
 
+.member-record-form .login-field input,
+.member-record-form output {
+  font-variant-numeric: tabular-nums;
+}
+
 .member-record-hint {
   color: var(--muted);
   font-size: 0.85rem;
@@ -3981,6 +4003,8 @@ a.admin-birthday-badge:focus-visible,
 
 .member-record-error {
   color: #721626;
+  display: block;
+  font-size: 1rem;
   font-weight: 700;
 }
 
@@ -3989,12 +4013,24 @@ a.admin-birthday-badge:focus-visible,
   gap: 1rem;
 }
 
+.member-search h2 {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.9rem, 3vw, 2.8rem);
+  line-height: 0.9;
+  margin: 0.35rem 0 0;
+  text-transform: uppercase;
+}
+
 .member-search-form,
 .member-search-filters {
   align-items: end;
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+}
+
+.member-search-form .member-record-button {
+  justify-self: start;
 }
 
 .member-search-results {
@@ -4029,6 +4065,10 @@ a.admin-birthday-badge:focus-visible,
 
 .member-search-archive {
   margin-bottom: 2.5rem;
+}
+
+.member-search-archive .member-record-hint {
+  margin: 1rem 0;
 }
 
 .member-search-empty-cell {

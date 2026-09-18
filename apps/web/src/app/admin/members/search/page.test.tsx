@@ -392,6 +392,22 @@ describe("canonical name search (T051V2)", () => {
     expect(profileClientMocks.searchMemberNames).toHaveBeenCalledWith("test");
   });
 
+  // The reused record skeleton is far taller than a one-line name list (DESIGN.md §4:
+  // a skeleton matches the real dimensions of what it stands in for).
+  it("reserves a one-line row while searching, not a record panel", async () => {
+    const user = userEvent.setup();
+    clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
+    profileClientMocks.searchMemberNames.mockReturnValue(new Promise(() => {}));
+    render(<SearchMembersPage />);
+
+    await user.type(screen.getByLabelText("Member name"), "test");
+    await user.click(screen.getByRole("button", { name: "Search" }));
+
+    expect((await screen.findByRole("status", { name: "Searching members" })).className).toBe(
+      "member-record-skeleton member-search-skeleton",
+    );
+  });
+
   it("asks for two letters and explains an empty or failed search", async () => {
     const user = userEvent.setup();
     clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
@@ -408,6 +424,10 @@ describe("canonical name search (T051V2)", () => {
     await user.type(screen.getByLabelText("Member name"), "e");
     await user.click(screen.getByRole("button", { name: "Search" }));
     expect(await screen.findByRole("heading", { name: "No member found" })).toBeVisible();
+    // DESIGN.md §4: one primary button closes an empty state.
+    expect(screen.getByRole("button", { name: "Clear search" }).className).toBe(
+      "member-record-button",
+    );
 
     await user.click(screen.getByRole("button", { name: "Search" }));
     const alert = await screen.findByText("Unable to search members. Please try again.");

@@ -105,7 +105,11 @@ function NameSearchSection() {
           <p role="alert">Type at least two letters of a name.</p>
         ) : null}
         {search.status === "searching" ? (
-          <div aria-label="Searching members" className="member-record-skeleton" role="status">
+          <div
+            aria-label="Searching members"
+            className="member-record-skeleton member-search-skeleton"
+            role="status"
+          >
             <span />
           </div>
         ) : null}
@@ -118,7 +122,7 @@ function NameSearchSection() {
             <h3>No member found</h3>
             <p>Check the spelling or search for part of the name.</p>
             <button
-              className="member-record-link"
+              className="member-record-button"
               onClick={() => {
                 setQuery("");
                 setSearch({ status: "idle" });

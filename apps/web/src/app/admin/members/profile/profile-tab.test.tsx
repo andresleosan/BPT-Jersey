@@ -97,10 +97,12 @@ describe("PROFILE tab", () => {
   });
 
   it.each([
-    ["trial", "Trial", "member-record-status-trial"],
-    ["active", "Active", "member-record-status-active"],
-    ["paused", "Paused", "member-record-status-attention"],
-    ["overdue", "Overdue", "member-record-status-attention"],
+    // A trial is a normal beginning, so it keeps the base neutral rule: purple is the accent
+    // reserved for emphasis and primary actions (DESIGN.md §2, §4).
+    ["trial", "Trial", "member-record-status"],
+    ["active", "Active", "member-record-status member-record-status-active"],
+    ["paused", "Paused", "member-record-status member-record-status-attention"],
+    ["overdue", "Overdue", "member-record-status member-record-status-attention"],
   ] as const)("shows a %s membership as text plus its own left rule", (status, label, rule) => {
     render(
       <ProfileTab
@@ -119,7 +121,14 @@ describe("PROFILE tab", () => {
       />,
     );
     const plan = screen.getByRole("region", { name: "Plan" });
-    expect(within(plan).getByText(label).className).toBe(`member-record-status ${rule}`);
+    expect(within(plan).getByText(label).className).toBe(rule);
+  });
+
+  // DESIGN.md §3: one eyebrow opens a screen. The record header already carries it, so the
+  // PROFILE cards must not repeat it down the column.
+  it("does not repeat an eyebrow on every card", () => {
+    const { container } = render(<ProfileTab profile={full} />);
+    expect(container.querySelectorAll(".admin-eyebrow")).toHaveLength(0);
   });
 
   it("keeps Families reachable when there is no account manager", () => {
@@ -142,9 +151,9 @@ describe("PROFILE tab", () => {
 
   it("gives a coach without the IBJJF card a way to Levels, and nothing restricted", () => {
     render(<ProfileTab profile={{ view: "coach", header }} />);
-    expect(screen.getByRole("link", { name: "Open Levels" }).getAttribute("href")).toBe(
-      "/admin/levels",
-    );
+    const levels = screen.getByRole("link", { name: "Open Levels" });
+    expect(levels.getAttribute("href")).toBe("/admin/levels");
+    expect(levels.className).toBe("member-record-button");
     expect(screen.queryByRole("region", { name: "Plan" })).toBeNull();
   });
 });
@@ -162,7 +171,10 @@ describe("empty record tabs", () => {
     );
     expect(screen.getAllByRole("heading")).toHaveLength(1);
     expect(screen.getAllByRole("link")).toHaveLength(1);
-    expect(screen.getByRole("link", { name }).getAttribute("href")).toBe(href);
+    const action = screen.getByRole("link", { name });
+    expect(action.getAttribute("href")).toBe(href);
+    // DESIGN.md §4: an empty state offers a single primary button, never a secondary weight.
+    expect(action.className).toBe("member-record-button");
   });
 
   it("sends NOTES to the Details tab", async () => {
@@ -189,8 +201,8 @@ describe("empty record tabs", () => {
       />,
     );
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.getByRole("link", { name: "Open Members" }).getAttribute("href")).toBe(
-      "/admin/members",
-    );
+    const members = screen.getByRole("link", { name: "Open Members" });
+    expect(members.getAttribute("href")).toBe("/admin/members");
+    expect(members.className).toBe("member-record-button");
   });
 });

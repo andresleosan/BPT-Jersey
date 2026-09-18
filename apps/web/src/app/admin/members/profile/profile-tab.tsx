@@ -15,21 +15,21 @@ function membershipStatusLabel(status: MembershipStatus): string {
 
 /**
  * DESIGN.md §2 has three semantic statuses, and a membership status is not binary: `paused` and
- * `overdue` want the office's attention (Attention Amber), while a `trial` is a normal beginning and
- * must never read as a refusal.
+ * `overdue` want the office's attention (Attention Amber), while a `trial` is a normal beginning, so
+ * it keeps the base neutral rule - purple is the accent for emphasis and primary actions, and a
+ * purple rule here would read as "this is the highlighted member".
  */
 const membershipStatusClass: Readonly<Record<MembershipStatus, string>> = {
-  trial: "member-record-status-trial",
-  active: "member-record-status-active",
-  paused: "member-record-status-attention",
-  overdue: "member-record-status-attention",
+  trial: "",
+  active: " member-record-status-active",
+  paused: " member-record-status-attention",
+  overdue: " member-record-status-attention",
 };
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   const id = `member-record-card-${title.toLowerCase().replaceAll(" ", "-")}`;
   return (
     <section aria-labelledby={id} className="member-record-card">
-      <p className="admin-eyebrow">Profile</p>
       <h3 id={id}>{title}</h3>
       {children}
     </section>
@@ -74,7 +74,7 @@ function OfficeCards({ profile }: { profile: FullMemberProfile }) {
               <strong>{cards.currentMembership.planName}</strong>
             </p>
             <p
-              className={`member-record-status ${membershipStatusClass[cards.currentMembership.status]}`}
+              className={`member-record-status${membershipStatusClass[cards.currentMembership.status]}`}
             >
               {membershipStatusLabel(cards.currentMembership.status)}
             </p>
@@ -124,7 +124,7 @@ export function ProfileTab({
           <p className="admin-eyebrow">Jiu-jitsu</p>
           <h3 id="record-empty-levels">Belt and progress</h3>
           <p>Levels shows this member&apos;s belt, stripes and next graduation.</p>
-          <Link className="member-record-link" href="/admin/levels">
+          <Link className="member-record-button" href="/admin/levels">
             Open Levels
           </Link>
         </section>
