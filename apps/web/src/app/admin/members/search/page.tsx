@@ -1,27 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type {
   AdminDirectoryRow,
-  MemberRecordMaintenanceDetail,
   PublicAdminIdentifierLookupKind,
 } from "@bpt-jersey/domain/members/directory";
-import { maskMembershipReference } from "@bpt-jersey/domain/members/directory";
 import type {
   RegyfitMemberDirectoryPage,
   RegyfitMemberDirectoryRow,
   RegyfitMemberRecord,
 } from "@bpt-jersey/domain/members/regyfit-records";
 
+import { searchMemberNames } from "../../../../lib/member-profile-client";
 import {
-  getMemberDetail,
   getRegyfitMemberRecord,
   listRegyfitMemberRecords,
   lookupMemberIdentity,
-  updateMember,
-  type UpdateMemberInput,
 } from "../../../../lib/members-client";
-import { AdminStatusBadge } from "../../admin-ui";
+import { useAdminOrStaffSession } from "../../admin-gate";
+import { recordHref } from "../profile/member-record";
 import { MemberProfilePanel } from "./member-profile-panel";
 
 import "../../admin.css";
@@ -31,12 +29,6 @@ type LookupState =
   | Readonly<{ status: "loading" }>
   | Readonly<{ status: "no-match" }>
   | Readonly<{ status: "match"; row: AdminDirectoryRow }>
-  | Readonly<{ status: "error" }>;
-
-type DetailState =
-  | Readonly<{ status: "idle" }>
-  | Readonly<{ status: "loading" }>
-  | Readonly<{ status: "loaded"; detail: MemberRecordMaintenanceDetail }>
   | Readonly<{ status: "error" }>;
 
 type DirectoryState =
@@ -50,416 +42,110 @@ type RecordState =
   | Readonly<{ status: "loaded"; record: RegyfitMemberRecord }>
   | Readonly<{ status: "error"; recordId: string }>;
 
-function displayOptional(value: string | undefined): string {
-  return value === undefined || value.length === 0 ? "Not provided" : value;
-}
+type NameSearchState =
+  | Readonly<{ status: "idle" }>
+  | Readonly<{ status: "too-short" }>
+  | Readonly<{ status: "searching" }>
+  | Readonly<{ status: "done"; members: readonly { studentId: string; fullName: string }[] }>
+  | Readonly<{ status: "error" }>;
 
-type MemberEditDraft = Readonly<{
-  fullName: string;
-  dateOfBirth: string;
-  phoneNumber: string;
-  email: string;
-  trainingCenter: "Town" | "West";
-  trainingTimePreferences: readonly ("morning" | "afternoon" | "evening")[];
-  membershipNumber: string;
-  idCardNumber: string;
-  vatNumber: string;
-  gender: "male" | "female" | "unknown";
-  frequencyNote: string;
-  emergencyContactFullName: string;
-  emergencyContactRelationship: string;
-  emergencyContactPhoneNumber: string;
-  emergencyContactAlternatePhoneNumber: string;
-  addressLine: string;
-  postCode: string;
-}>;
+function NameSearchSection() {
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState<NameSearchState>({ status: "idle" });
 
-function detailToDraft(detail: MemberRecordMaintenanceDetail): MemberEditDraft {
-  return Object.freeze({
-    fullName: detail.fullName,
-    dateOfBirth: detail.dateOfBirth,
-    phoneNumber: detail.phoneNumber ?? "",
-    email: detail.email ?? "",
-    trainingCenter: detail.trainingCenter,
-    trainingTimePreferences: Object.freeze([...detail.trainingTimePreferences]),
-    membershipNumber: detail.membershipNumber ?? "",
-    idCardNumber: detail.idCardNumber ?? "",
-    vatNumber: detail.vatNumber ?? "",
-    gender: detail.gender,
-    frequencyNote: detail.frequencyNote ?? "",
-    emergencyContactFullName: detail.emergencyContact?.fullName ?? "",
-    emergencyContactRelationship: detail.emergencyContact?.relationship ?? "",
-    emergencyContactPhoneNumber: detail.emergencyContact?.phoneNumber ?? "",
-    emergencyContactAlternatePhoneNumber: detail.emergencyContact?.alternatePhoneNumber ?? "",
-    addressLine: detail.postalAddress?.line ?? "",
-    postCode: detail.postalAddress?.postCode ?? "",
-  });
-}
-
-// Optional blocks from the waiver form: absent when every field is empty, otherwise complete.
-function draftEmergencyContact(draft: MemberEditDraft): UpdateMemberInput["emergencyContact"] {
-  const fullName = optionalTrimmed(draft.emergencyContactFullName);
-  const relationship = optionalTrimmed(draft.emergencyContactRelationship);
-  const phoneNumber = optionalTrimmed(draft.emergencyContactPhoneNumber);
-  const alternatePhoneNumber = optionalTrimmed(draft.emergencyContactAlternatePhoneNumber);
-  if (
-    fullName === undefined &&
-    relationship === undefined &&
-    phoneNumber === undefined &&
-    alternatePhoneNumber === undefined
-  ) {
-    return undefined;
-  }
-  if (fullName === undefined || relationship === undefined || phoneNumber === undefined) {
-    throw new Error("incomplete emergency contact");
-  }
-  return Object.freeze({
-    fullName,
-    relationship,
-    phoneNumber,
-    ...(alternatePhoneNumber === undefined ? {} : { alternatePhoneNumber }),
-  });
-}
-
-function draftPostalAddress(draft: MemberEditDraft): UpdateMemberInput["postalAddress"] {
-  const line = optionalTrimmed(draft.addressLine);
-  const postCode = optionalTrimmed(draft.postCode);
-  if (line === undefined && postCode === undefined) return undefined;
-  if (line === undefined || postCode === undefined) throw new Error("incomplete postal address");
-  return Object.freeze({ line, postCode });
-}
-
-const editFieldMaxLength = Object.freeze({
-  membershipNumber: 64,
-  idCardNumber: 64,
-  vatNumber: 64,
-  frequencyNote: 256,
-  emergencyContactFullName: 160,
-  emergencyContactRelationship: 64,
-  emergencyContactPhoneNumber: 64,
-  emergencyContactAlternatePhoneNumber: 64,
-  addressLine: 240,
-  postCode: 16,
-} as const);
-
-function optionalTrimmed(value: string): string | undefined {
-  const normalized = value.trim();
-  return normalized.length === 0 ? undefined : normalized;
-}
-
-function updatePayload(
-  detail: MemberRecordMaintenanceDetail,
-  draft: MemberEditDraft,
-  requestId: string,
-): UpdateMemberInput {
-  const phoneNumber = optionalTrimmed(draft.phoneNumber);
-  const email = optionalTrimmed(draft.email);
-  const membershipNumber = optionalTrimmed(draft.membershipNumber);
-  const idCardNumber = optionalTrimmed(draft.idCardNumber);
-  const vatNumber = optionalTrimmed(draft.vatNumber);
-  const frequencyNote = optionalTrimmed(draft.frequencyNote);
-  const emergencyContact = draftEmergencyContact(draft);
-  const postalAddress = draftPostalAddress(draft);
-  return Object.freeze({
-    studentId: detail.studentId,
-    requestId,
-    fullName: draft.fullName.trim(),
-    dateOfBirth: draft.dateOfBirth,
-    ...(phoneNumber === undefined ? {} : { phoneNumber }),
-    ...(email === undefined ? {} : { email }),
-    trainingCenter: draft.trainingCenter,
-    trainingTimePreferences: Object.freeze([...draft.trainingTimePreferences]),
-    ...(membershipNumber === undefined ? {} : { membershipNumber }),
-    ...(idCardNumber === undefined ? {} : { idCardNumber }),
-    ...(vatNumber === undefined ? {} : { vatNumber }),
-    gender: draft.gender,
-    ...(frequencyNote === undefined ? {} : { frequencyNote }),
-    ...(emergencyContact === undefined ? {} : { emergencyContact }),
-    ...(postalAddress === undefined ? {} : { postalAddress }),
-  });
-}
-
-function updatedDetail(
-  current: MemberRecordMaintenanceDetail,
-  input: UpdateMemberInput,
-): MemberRecordMaintenanceDetail {
-  return Object.freeze({
-    studentId: current.studentId,
-    fullName: input.fullName,
-    dateOfBirth: input.dateOfBirth,
-    ...(input.phoneNumber === undefined ? {} : { phoneNumber: input.phoneNumber }),
-    ...(input.email === undefined ? {} : { email: input.email }),
-    trainingCenter: input.trainingCenter,
-    trainingTimePreferences: Object.freeze([...input.trainingTimePreferences]),
-    participantType: current.participantType,
-    active: current.active,
-    status: current.status,
-    ...(input.membershipNumber === undefined ? {} : { membershipNumber: input.membershipNumber }),
-    ...(input.idCardNumber === undefined ? {} : { idCardNumber: input.idCardNumber }),
-    ...(input.vatNumber === undefined ? {} : { vatNumber: input.vatNumber }),
-    gender: input.gender,
-    ...(input.frequencyNote === undefined ? {} : { frequencyNote: input.frequencyNote }),
-    ...(input.emergencyContact === undefined
-      ? {}
-      : { emergencyContact: Object.freeze({ ...input.emergencyContact }) }),
-    ...(input.postalAddress === undefined
-      ? {}
-      : { postalAddress: Object.freeze({ ...input.postalAddress }) }),
-  });
-}
-
-function RestrictedDetail({
-  detail,
-  onUpdated,
-}: {
-  detail: MemberRecordMaintenanceDetail;
-  onUpdated: (detail: MemberRecordMaintenanceDetail) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<MemberEditDraft>(() => detailToDraft(detail));
-  const [requestId, setRequestId] = useState<string>();
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "error" | "success">("idle");
-
-  function newRequestId(): string {
-    return globalThis.crypto.randomUUID();
-  }
-
-  function beginEdit(): void {
-    setDraft(detailToDraft(detail));
-    setRequestId(newRequestId());
-    setSaveStatus("idle");
-    setEditing(true);
-  }
-
-  function replaceDraft(next: Partial<MemberEditDraft>): void {
-    setDraft((current) => Object.freeze({ ...current, ...next }));
-    setRequestId(newRequestId());
-    setSaveStatus("idle");
-  }
-
-  function cancelEdit(): void {
-    setEditing(false);
-    setRequestId(undefined);
-    setSaveStatus("idle");
-  }
-
-  async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (requestId === undefined) {
-      setSaveStatus("error");
+    const value = query.trim();
+    if (value.length < 2) {
+      setSearch({ status: "too-short" });
       return;
     }
-    let payload: UpdateMemberInput;
+    setSearch({ status: "searching" });
     try {
-      payload = updatePayload(detail, draft, requestId);
+      setSearch({ status: "done", members: await searchMemberNames(value) });
     } catch {
-      setSaveStatus("error");
-      return;
-    }
-    setSaveStatus("saving");
-    try {
-      await updateMember(payload);
-      onUpdated(updatedDetail(detail, payload));
-      setEditing(false);
-      setRequestId(undefined);
-      setSaveStatus("success");
-    } catch {
-      setSaveStatus("error");
+      setSearch({ status: "error" });
     }
   }
 
   return (
-    <section aria-labelledby="member-restricted-detail-title">
-      <h3 id="member-restricted-detail-title">Restricted member details</h3>
-      <dl>
-        <dt>Date of birth</dt>
-        <dd>{detail.dateOfBirth}</dd>
-        <dt>Phone number</dt>
-        <dd>{displayOptional(detail.phoneNumber)}</dd>
-        <dt>Email</dt>
-        <dd>{displayOptional(detail.email)}</dd>
-        <dt>Training time preferences</dt>
-        <dd>{detail.trainingTimePreferences.join(", ")}</dd>
-        <dt>Membership number</dt>
-        <dd>{displayOptional(detail.membershipNumber)}</dd>
-        <dt>ID card number</dt>
-        <dd>{displayOptional(detail.idCardNumber)}</dd>
-        <dt>VAT number</dt>
-        <dd>{displayOptional(detail.vatNumber)}</dd>
-        <dt>Gender</dt>
-        <dd>{detail.gender}</dd>
-        <dt>Frequency note</dt>
-        <dd>{displayOptional(detail.frequencyNote)}</dd>
-        <dt>Emergency contact</dt>
-        <dd>
-          {detail.emergencyContact === undefined
-            ? "Not provided"
-            : `${detail.emergencyContact.fullName} (${detail.emergencyContact.relationship}) ${detail.emergencyContact.phoneNumber}${
-                detail.emergencyContact.alternatePhoneNumber === undefined
-                  ? ""
-                  : ` / ${detail.emergencyContact.alternatePhoneNumber}`
-              }`}
-        </dd>
-        <dt>Postal address</dt>
-        <dd>
-          {detail.postalAddress === undefined
-            ? "Not provided"
-            : `${detail.postalAddress.line}, ${detail.postalAddress.postCode}`}
-        </dd>
-      </dl>
-      {editing ? (
-        <form aria-label="Edit member" onSubmit={(event) => void save(event)}>
-          <div className="login-field">
-            <label htmlFor="member-edit-full-name">Full name</label>
-            <input
-              id="member-edit-full-name"
-              maxLength={160}
-              onChange={(event) => replaceDraft({ fullName: event.target.value })}
-              required
-              type="text"
-              value={draft.fullName}
-            />
-          </div>
-          <div className="login-field">
-            <label htmlFor="member-edit-date-of-birth">Date of birth</label>
-            <input
-              id="member-edit-date-of-birth"
-              onChange={(event) => replaceDraft({ dateOfBirth: event.target.value })}
-              required
-              type="date"
-              value={draft.dateOfBirth}
-            />
-          </div>
-          <div className="login-field">
-            <label htmlFor="member-edit-phone">Phone number</label>
-            <input
-              id="member-edit-phone"
-              maxLength={64}
-              onChange={(event) => replaceDraft({ phoneNumber: event.target.value })}
-              type="tel"
-              value={draft.phoneNumber}
-            />
-          </div>
-          <div className="login-field">
-            <label htmlFor="member-edit-email">Email</label>
-            <input
-              id="member-edit-email"
-              maxLength={320}
-              onChange={(event) => replaceDraft({ email: event.target.value })}
-              type="email"
-              value={draft.email}
-            />
-          </div>
-          <div className="login-field">
-            <label htmlFor="member-edit-training-center">Training center</label>
-            <select
-              id="member-edit-training-center"
-              onChange={(event) =>
-                replaceDraft({ trainingCenter: event.target.value as "Town" | "West" })
-              }
-              value={draft.trainingCenter}
-            >
-              <option value="Town">Town</option>
-              <option value="West">West</option>
-            </select>
-          </div>
-          <fieldset>
-            <legend>Training time preferences</legend>
-            {(["morning", "afternoon", "evening"] as const).map((preference) => (
-              <label key={preference}>
-                <input
-                  checked={draft.trainingTimePreferences.includes(preference)}
-                  onChange={(event) =>
-                    replaceDraft({
-                      trainingTimePreferences: event.target.checked
-                        ? Object.freeze([...draft.trainingTimePreferences, preference])
-                        : Object.freeze(
-                            draft.trainingTimePreferences.filter(
-                              (current) => current !== preference,
-                            ),
-                          ),
-                    })
-                  }
-                  type="checkbox"
-                />
-                {preference[0]?.toUpperCase()}
-                {preference.slice(1)}
-              </label>
-            ))}
-          </fieldset>
-          {(
-            [
-              ["Membership number", "member-edit-membership", "membershipNumber"],
-              ["ID card number", "member-edit-id-card", "idCardNumber"],
-              ["VAT number", "member-edit-vat", "vatNumber"],
-              ["Frequency note", "member-edit-frequency", "frequencyNote"],
-              ["Emergency contact name", "member-edit-emergency-name", "emergencyContactFullName"],
-              [
-                "Emergency contact relationship",
-                "member-edit-emergency-relationship",
-                "emergencyContactRelationship",
-              ],
-              [
-                "Emergency contact phone",
-                "member-edit-emergency-phone",
-                "emergencyContactPhoneNumber",
-              ],
-              [
-                "Emergency contact alternate phone",
-                "member-edit-emergency-alternate-phone",
-                "emergencyContactAlternatePhoneNumber",
-              ],
-              ["Address", "member-edit-address-line", "addressLine"],
-              ["Post code", "member-edit-post-code", "postCode"],
-            ] as const
-          ).map(([label, id, field]) => (
-            <div className="login-field" key={field}>
-              <label htmlFor={id}>{label}</label>
-              <input
-                id={id}
-                maxLength={editFieldMaxLength[field]}
-                onChange={(event) => replaceDraft({ [field]: event.target.value })}
-                type="text"
-                value={draft[field]}
-              />
-            </div>
-          ))}
-          <div className="login-field">
-            <label htmlFor="member-edit-gender">Gender</label>
-            <select
-              id="member-edit-gender"
-              onChange={(event) =>
-                replaceDraft({ gender: event.target.value as MemberEditDraft["gender"] })
-              }
-              value={draft.gender}
-            >
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-              <option value="unknown">Unknown</option>
-            </select>
-          </div>
-          <button disabled={saveStatus === "saving"} type="submit">
-            {saveStatus === "saving" ? "Saving..." : "Save changes"}
-          </button>
-          <button disabled={saveStatus === "saving"} onClick={cancelEdit} type="button">
-            Cancel
-          </button>
-        </form>
-      ) : (
-        <button className="regyfit-filter-button" onClick={beginEdit} type="button">
-          Edit member
+    <section aria-labelledby="member-name-search-title" className="admin-panel-card member-search">
+      <p className="admin-eyebrow">Members / Search</p>
+      <h2 id="member-name-search-title">Find a member</h2>
+      <form
+        aria-label="Search members by name"
+        className="member-search-form"
+        onSubmit={(event) => void submit(event)}
+        role="search"
+      >
+        <div className="login-field">
+          <label htmlFor="member-name-query">Member name</label>
+          <input
+            autoComplete="off"
+            id="member-name-query"
+            maxLength={80}
+            onChange={(event) => setQuery(event.target.value)}
+            type="search"
+            value={query}
+          />
+        </div>
+        <button
+          className="member-record-button"
+          disabled={search.status === "searching"}
+          type="submit"
+        >
+          Search
         </button>
-      )}
-      {saveStatus === "error" ? (
-        <p aria-live="assertive" role="alert">
-          Unable to update member. Please try again.
-        </p>
-      ) : null}
-      {saveStatus === "success" ? (
-        <p aria-live="polite" role="status">
-          Member updated.
-        </p>
-      ) : null}
+      </form>
+      <div aria-label="Member search results" aria-live="polite" role="region">
+        {search.status === "idle" ? (
+          <p className="member-record-hint">Type at least two letters of a name.</p>
+        ) : null}
+        {search.status === "too-short" ? (
+          <p role="alert">Type at least two letters of a name.</p>
+        ) : null}
+        {search.status === "searching" ? (
+          <div aria-label="Searching members" className="member-record-skeleton" role="status">
+            <span />
+          </div>
+        ) : null}
+        {search.status === "error" ? (
+          <p role="alert">Unable to search members. Please try again.</p>
+        ) : null}
+        {search.status === "done" && search.members.length === 0 ? (
+          <div className="member-record-empty">
+            <p className="admin-eyebrow">Search</p>
+            <h3>No member found</h3>
+            <p>Check the spelling or search for part of the name.</p>
+            <button
+              className="member-record-link"
+              onClick={() => {
+                setQuery("");
+                setSearch({ status: "idle" });
+              }}
+              type="button"
+            >
+              Clear search
+            </button>
+          </div>
+        ) : null}
+        {search.status === "done" && search.members.length > 0 ? (
+          <ul className="member-search-results">
+            {search.members.map((member) => (
+              <li key={member.studentId}>
+                <span>{member.fullName}</span>
+                <Link
+                  aria-label={`Open record for ${member.fullName}`}
+                  className="member-record-link"
+                  href={recordHref(member.studentId)}
+                >
+                  Open record
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -516,41 +202,32 @@ function AcademyMemberDirectorySection({
 
   return (
     <section
-      className="admin-panel-card"
-      style={{ marginBottom: "2.5rem" }}
       aria-labelledby="directory-search-heading"
+      className="admin-panel-card member-search-archive"
     >
       <div className="admin-panel-card-heading">
         <div>
-          <p className="admin-eyebrow">Members / Regyfit academy records</p>
-          <h3 id="directory-search-heading">
-            Academy member directory{rows.length > 0 ? ` (${rows.length} records)` : ""}
-          </h3>
+          <p className="admin-eyebrow">Members / Regyfit archive</p>
+          <h3 id="directory-search-heading">Regyfit archive (read only)</h3>
         </div>
       </div>
 
       {directory.status === "loaded" ? (
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", margin: "1rem 0" }}>
-          <span className="admin-status-badge admin-status-active">Total: {rows.length}</span>
-          <span className="admin-status-badge admin-status-active">Active: {activeCount}</span>
-          <span className="admin-status-badge admin-status-attention">
-            Inactive: {inactiveCount}
-          </span>
-          <span className="admin-status-badge admin-status-active">
-            With member Nº: {numberedCount}
-          </span>
-          <span className="admin-status-badge admin-status-attention">
-            No number: {rows.length - numberedCount}
-          </span>
-        </div>
+        <ul className="member-search-counts">
+          <li>Total: {rows.length}</li>
+          <li>Active: {activeCount}</li>
+          <li>Inactive: {inactiveCount}</li>
+          <li>With member Nº: {numberedCount}</li>
+          <li>No number: {rows.length - numberedCount}</li>
+        </ul>
       ) : null}
 
-      <p style={{ color: "#4b5563", fontSize: "0.95rem", marginBottom: "1.25rem" }}>
-        Search, filter and inspect the member records captured from Regyfit
+      <p className="member-record-hint">
+        Records captured from Regyfit
         {directory.status === "loaded" && directory.page.capturedAt !== undefined
           ? ` on ${directory.page.capturedAt.slice(0, 10)}`
           : ""}
-        . Click any member number to open that student&apos;s full record.
+        . They are not linked to the canonical record and cannot be edited here.
       </p>
 
       {directory.status === "loading" ? <p role="status">Loading academy directory...</p> : null}
@@ -559,7 +236,7 @@ function AcademyMemberDirectorySection({
           <p aria-live="assertive" role="alert">
             Unable to load the academy directory. Please try again.
           </p>
-          <button className="admin-auth-button" onClick={onRetry} type="button">
+          <button className="member-record-button" onClick={onRetry} type="button">
             Retry
           </button>
         </div>
@@ -567,44 +244,44 @@ function AcademyMemberDirectorySection({
 
       {directory.status === "loaded" ? (
         <>
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
-            <div className="login-field" style={{ flex: "1 1 280px" }}>
+          <div className="member-search-filters">
+            <div className="login-field">
               <label htmlFor="member-search-input">Search members</label>
               <input
                 id="member-search-input"
-                type="text"
-                placeholder="Filter by name, member Nº, email, mobile or birthdate..."
-                value={searchQuery}
                 onChange={(event) => {
                   setSearchQuery(event.target.value);
                   setPage(0);
                 }}
+                placeholder="Name, member Nº, email, mobile or birthdate"
+                type="text"
+                value={searchQuery}
               />
             </div>
-            <div className="login-field" style={{ flex: "0 1 180px" }}>
+            <div className="login-field">
               <label htmlFor="member-status-filter">Status filter</label>
               <select
                 id="member-status-filter"
-                value={stateFilter}
                 onChange={(event) => {
                   setStateFilter(event.target.value);
                   setPage(0);
                 }}
+                value={stateFilter}
               >
                 <option value="all">All statuses</option>
                 <option value="active">Active ({activeCount})</option>
                 <option value="inactive">Inactive ({inactiveCount})</option>
               </select>
             </div>
-            <div className="login-field" style={{ flex: "0 1 200px" }}>
+            <div className="login-field">
               <label htmlFor="member-payment-filter">Payment</label>
               <select
                 id="member-payment-filter"
-                value={paymentFilter}
                 onChange={(event) => {
                   setPaymentFilter(event.target.value);
                   setPage(0);
                 }}
+                value={paymentFilter}
               >
                 <option value="all">All payment modes</option>
                 {paymentModes.map((mode) => (
@@ -616,11 +293,11 @@ function AcademyMemberDirectorySection({
             </div>
           </div>
 
-          <div style={{ marginBottom: "0.75rem", fontSize: "0.875rem", color: "#6b7280" }}>
+          <p className="member-record-hint">
             Showing {filteredRows.length === 0 ? 0 : safePage * pageSize + 1} -{" "}
             {Math.min((safePage + 1) * pageSize, filteredRows.length)} of {filteredRows.length}{" "}
             members
-          </div>
+          </p>
 
           <div className="admin-data-table-wrap">
             <table className="admin-data-table">
@@ -639,7 +316,7 @@ function AcademyMemberDirectorySection({
               <tbody>
                 {currentRows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: "center", padding: "2rem" }}>
+                    <td className="member-search-empty-cell" colSpan={8}>
                       No members match your search criteria.
                     </td>
                   </tr>
@@ -648,23 +325,15 @@ function AcademyMemberDirectorySection({
                     <tr
                       key={row.recordId}
                       {...(row.recordId === selectedRecordId
-                        ? { "aria-current": "true" as const, style: { background: "#eef2ff" } }
+                        ? { "aria-current": "true" as const }
                         : {})}
                     >
                       <td>
                         <button
-                          type="button"
                           aria-label={`Open full record for ${row.fullName}`}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: "#4f46e5",
-                            fontWeight: "bold",
-                            cursor: "pointer",
-                            textDecoration: "underline",
-                          }}
+                          className="member-search-number"
                           onClick={() => onSelectRecord(row)}
-                          title="Click to open the full member record"
+                          type="button"
                         >
                           {row.memberNumber ?? `#${row.recordId}`}
                         </button>
@@ -675,17 +344,9 @@ function AcademyMemberDirectorySection({
                       <td>{row.birthDate ?? "—"}</td>
                       <td>{row.email ?? "—"}</td>
                       <td>{row.mobile ?? "—"}</td>
-                      <td>
-                        {row.paymentMode === undefined ? (
-                          "—"
-                        ) : (
-                          <AdminStatusBadge status={row.paymentMode} />
-                        )}
-                      </td>
+                      <td>{row.paymentMode ?? "—"}</td>
                       <td>{row.belt ?? "—"}</td>
-                      <td>
-                        <AdminStatusBadge status={row.membershipState} />
-                      </td>
+                      <td>{row.membershipState === "active" ? "Active" : "Inactive"}</td>
                     </tr>
                   ))
                 )}
@@ -693,56 +354,144 @@ function AcademyMemberDirectorySection({
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div
-              className="admin-filter-bar"
-              style={{
-                marginTop: "1rem",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
+          {totalPages > 1 ? (
+            <div className="member-search-pagination">
               <span>
                 Page {safePage + 1} of {totalPages}
               </span>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div>
                 <button
-                  className="admin-auth-button"
-                  type="button"
+                  className="member-record-link"
                   disabled={safePage === 0}
                   onClick={() => setPage((current) => Math.max(0, current - 1))}
+                  type="button"
                 >
                   Previous
                 </button>
                 <button
-                  className="admin-auth-button"
-                  type="button"
+                  className="member-record-link"
                   disabled={safePage >= totalPages - 1}
                   onClick={() => setPage((current) => Math.min(totalPages - 1, current + 1))}
+                  type="button"
                 >
                   Next
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
         </>
       ) : null}
     </section>
   );
 }
 
+function ExactLookupSection({
+  lookupKind,
+  identifier,
+  lookup,
+  onKindChange,
+  onIdentifierChange,
+  onSubmit,
+}: {
+  lookupKind: PublicAdminIdentifierLookupKind;
+  identifier: string;
+  lookup: LookupState;
+  onKindChange: (kind: PublicAdminIdentifierLookupKind) => void;
+  onIdentifierChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <section aria-labelledby="member-search-title" className="admin-panel-card member-search">
+      <p className="admin-eyebrow">Members / Exact lookup</p>
+      <h3 id="member-search-title">Find by identifier</h3>
+      <p className="member-record-hint">
+        Search by one exact approved identifier. Every lookup is audited.
+      </p>
+      <form className="member-search-form" onSubmit={onSubmit}>
+        <div className="login-field">
+          <label htmlFor="member-lookup-kind">Identifier type</label>
+          <select
+            id="member-lookup-kind"
+            onChange={(event) =>
+              onKindChange(event.target.value as PublicAdminIdentifierLookupKind)
+            }
+            value={lookupKind}
+          >
+            <option value="membership-number">Membership number</option>
+            <option value="id-card-number">ID card number</option>
+            <option value="vat-number">VAT number</option>
+          </select>
+        </div>
+        <div className="login-field">
+          <label htmlFor="member-exact-identifier">Exact identifier</label>
+          <input
+            autoComplete="off"
+            id="member-exact-identifier"
+            onChange={(event) => onIdentifierChange(event.target.value)}
+            required
+            type="text"
+            value={identifier}
+          />
+        </div>
+        <button
+          className="member-record-button"
+          disabled={lookup.status === "loading"}
+          type="submit"
+        >
+          {lookup.status === "loading" ? "Searching..." : "Search exact identifier"}
+        </button>
+      </form>
+
+      <section aria-busy={lookup.status === "loading"} aria-label="Member lookup result">
+        {lookup.status === "idle" ? (
+          <p className="member-record-hint">Search to see a member.</p>
+        ) : null}
+        {lookup.status === "loading" ? <p role="status">Searching...</p> : null}
+        {lookup.status === "no-match" ? (
+          <p aria-live="polite" role="status">
+            No matching student was found.
+          </p>
+        ) : null}
+        {lookup.status === "error" ? (
+          <p aria-live="assertive" role="alert">
+            Unable to find member. Please try again.
+          </p>
+        ) : null}
+        {lookup.status === "match" ? (
+          <ul className="member-search-results">
+            <li>
+              <span>
+                <strong>{lookup.row.fullName}</strong>{" "}
+                <span>{lookup.row.membershipReference ?? "No reference"}</span>
+              </span>
+              <Link
+                aria-label={`Open record for ${lookup.row.fullName}`}
+                className="member-record-link"
+                href={recordHref(lookup.row.studentId)}
+              >
+                Open record
+              </Link>
+            </li>
+          </ul>
+        ) : null}
+      </section>
+    </section>
+  );
+}
+
 function SearchMembersContent() {
+  const session = useAdminOrStaffSession();
+  const office = session.role === "owner" || session.role === "administrator";
   const [lookupKind, setLookupKind] =
     useState<PublicAdminIdentifierLookupKind>("membership-number");
   const [identifier, setIdentifier] = useState("");
   const [lookup, setLookup] = useState<LookupState>({ status: "idle" });
-  const [detail, setDetail] = useState<DetailState>({ status: "idle" });
   const [directory, setDirectory] = useState<DirectoryState>({ status: "loading" });
   const [directoryAttempt, setDirectoryAttempt] = useState(0);
   const [selected, setSelected] = useState<RecordState>({ status: "idle" });
 
   useEffect(() => {
+    if (!office) return undefined;
     let cancelled = false;
     setDirectory({ status: "loading" });
     async function loadDirectory(): Promise<void> {
@@ -758,14 +507,13 @@ function SearchMembersContent() {
     return () => {
       cancelled = true;
     };
-  }, [directoryAttempt]);
+  }, [directoryAttempt, office]);
 
   async function runLookup(
     kind: PublicAdminIdentifierLookupKind,
     rawIdentifier: string,
   ): Promise<void> {
     const value = rawIdentifier.trim();
-    setDetail({ status: "idle" });
     if (value.length === 0) {
       setLookup({ status: "error" });
       return;
@@ -777,11 +525,6 @@ function SearchMembersContent() {
     } catch {
       setLookup({ status: "error" });
     }
-  }
-
-  async function handleSearch(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    await runLookup(lookupKind, identifier);
   }
 
   function handleCanonicalLookup(membershipNumber: string): void {
@@ -812,161 +555,51 @@ function SearchMembersContent() {
     }
   }
 
-  async function handleDetail(studentId: string): Promise<void> {
-    setDetail({ status: "loading" });
-    try {
-      setDetail({ status: "loaded", detail: await getMemberDetail(studentId) });
-    } catch {
-      setDetail({ status: "error" });
-    }
-  }
-
-  function handleUpdatedMember(nextDetail: MemberRecordMaintenanceDetail): void {
-    setDetail({ status: "loaded", detail: nextDetail });
-    setLookup((current) => {
-      if (current.status !== "match" || current.row.studentId !== nextDetail.studentId) {
-        return current;
-      }
-      const membershipReference = maskMembershipReference(nextDetail.membershipNumber);
-      return {
-        status: "match",
-        row: Object.freeze({
-          studentId: current.row.studentId,
-          fullName: nextDetail.fullName,
-          trainingCenter: nextDetail.trainingCenter,
-          participantType: current.row.participantType,
-          active: current.row.active,
-          status: current.row.status,
-          ...(membershipReference === undefined ? {} : { membershipReference }),
-        }),
-      };
-    });
-  }
-
   let selectedRecordId: string | undefined;
   if (selected.status === "loaded") selectedRecordId = selected.record.recordId;
   else if (selected.status !== "idle") selectedRecordId = selected.recordId;
 
   return (
     <>
-      {selected.status === "loading" ? (
+      <NameSearchSection />
+      {office ? (
+        <ExactLookupSection
+          identifier={identifier}
+          lookup={lookup}
+          lookupKind={lookupKind}
+          onIdentifierChange={setIdentifier}
+          onKindChange={setLookupKind}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void runLookup(lookupKind, identifier);
+          }}
+        />
+      ) : null}
+      {office && selected.status === "loading" ? (
         <p className="admin-panel-card" role="status">
           Loading member record...
         </p>
       ) : null}
-      {selected.status === "error" ? (
-        <p className="admin-panel-card" aria-live="assertive" role="alert">
+      {office && selected.status === "error" ? (
+        <p aria-live="assertive" className="admin-panel-card" role="alert">
           Unable to load the member record. Please try again.
         </p>
       ) : null}
-      {selected.status === "loaded" ? (
+      {office && selected.status === "loaded" ? (
         <MemberProfilePanel
-          record={selected.record}
           onCanonicalLookup={handleCanonicalLookup}
           onClose={() => setSelected({ status: "idle" })}
+          record={selected.record}
         />
       ) : null}
-      <AcademyMemberDirectorySection
-        directory={directory}
-        onRetry={() => setDirectoryAttempt((attempt) => attempt + 1)}
-        onSelectRecord={(row) => void openRecord(row)}
-        selectedRecordId={selectedRecordId}
-      />
-      <section className="regyfit-access-panel" aria-labelledby="member-search-title">
-        <header className="regyfit-access-heading">
-          <p className="admin-eyebrow">Members / Exact lookup</p>
-          <h2 id="member-search-title">Find a canonical student record.</h2>
-          <p>Search by one exact approved identifier. Restricted fields load only on request.</p>
-        </header>
-
-        <form className="regyfit-access-controls" onSubmit={(event) => void handleSearch(event)}>
-          <div className="login-field">
-            <label htmlFor="member-lookup-kind">Identifier type</label>
-            <select
-              id="member-lookup-kind"
-              onChange={(event) =>
-                setLookupKind(event.target.value as PublicAdminIdentifierLookupKind)
-              }
-              value={lookupKind}
-            >
-              <option value="membership-number">Membership number</option>
-              <option value="id-card-number">ID card number</option>
-              <option value="vat-number">VAT number</option>
-            </select>
-          </div>
-          <div className="login-field">
-            <label htmlFor="member-exact-identifier">Exact identifier</label>
-            <input
-              autoComplete="off"
-              id="member-exact-identifier"
-              onChange={(event) => setIdentifier(event.target.value)}
-              required
-              type="text"
-              value={identifier}
-            />
-          </div>
-          <button
-            className="admin-auth-button"
-            disabled={lookup.status === "loading"}
-            type="submit"
-          >
-            {lookup.status === "loading" ? "Searching..." : "Search exact identifier"}
-          </button>
-        </form>
-
-        <section
-          aria-busy={lookup.status === "loading"}
-          aria-label="Member lookup result"
-          className="regyfit-access-panel"
-        >
-          {lookup.status === "idle" ? <p>Search to see a student.</p> : null}
-          {lookup.status === "loading" ? <p role="status">Searching...</p> : null}
-          {lookup.status === "no-match" ? (
-            <p aria-live="polite" role="status">
-              No matching student was found.
-            </p>
-          ) : null}
-          {lookup.status === "error" ? (
-            <p aria-live="assertive" role="alert">
-              Unable to find member. Please try again.
-            </p>
-          ) : null}
-          {lookup.status === "match" ? (
-            <>
-              <dl>
-                <dt>Membership reference</dt>
-                <dd>{lookup.row.membershipReference}</dd>
-                <dt>Name</dt>
-                <dd>{lookup.row.fullName}</dd>
-                <dt>Training center</dt>
-                <dd>{lookup.row.trainingCenter}</dd>
-                <dt>Participant type</dt>
-                <dd>{lookup.row.participantType}</dd>
-                <dt>State</dt>
-                <dd>{lookup.row.active ? lookup.row.status : "inactive"}</dd>
-              </dl>
-              <button
-                className="regyfit-filter-button"
-                disabled={detail.status === "loading" || detail.status === "loaded"}
-                onClick={() => void handleDetail(lookup.row.studentId)}
-                type="button"
-              >
-                {detail.status === "loading"
-                  ? "Loading restricted details..."
-                  : "View restricted details"}
-              </button>
-              {detail.status === "error" ? (
-                <p aria-live="assertive" role="alert">
-                  Unable to load member details. Please try again.
-                </p>
-              ) : null}
-              {detail.status === "loaded" ? (
-                <RestrictedDetail detail={detail.detail} onUpdated={handleUpdatedMember} />
-              ) : null}
-            </>
-          ) : null}
-        </section>
-      </section>
+      {office ? (
+        <AcademyMemberDirectorySection
+          directory={directory}
+          onRetry={() => setDirectoryAttempt((attempt) => attempt + 1)}
+          onSelectRecord={(row) => void openRecord(row)}
+          selectedRecordId={selectedRecordId}
+        />
+      ) : null}
     </>
   );
 }
