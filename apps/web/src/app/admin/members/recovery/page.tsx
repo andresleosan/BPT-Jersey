@@ -139,7 +139,10 @@ export default function MemberRecoveryQueuePage() {
       </button>
       {!queue && !error ? <p>Loading recovery requests...</p> : null}
       {queue?.truncated ? (
-        <p>This list is full. Resolve pending requests before assuming all requests are shown.</p>
+        <p>
+          Showing the oldest 50 verified requests awaiting review. Resolve requests, then refresh to
+          see the next ones.
+        </p>
       ) : null}
       {queue?.requests.length === 0 ? <p>No recovery requests awaiting review.</p> : null}
       <ul className="admin-request-list">

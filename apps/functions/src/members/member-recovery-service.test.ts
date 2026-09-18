@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Timestamp, type Firestore } from "firebase-admin/firestore";
 import { createMemberRecoveryService, normalizeRecoveryName } from "./member-recovery-service.js";
@@ -67,21 +68,20 @@ function harness() {
     [`memberDirectoryRestoreGuards/${academyId}`, control.guard],
     [`memberDirectoryRestoreGuards/${academyId}/events/0`, control.event],
   ]);
-  type Ref = {
-    path: string;
-    id: string;
-    limit?: number;
-    order?: string;
-    field?: string;
-    value?: unknown;
+  type QueryOptions = {
+    filters?: readonly { field: string; operator: string; value: unknown }[];
+    orders?: readonly { field: string; direction: "asc" | "desc" }[];
   };
+  type Ref = { path: string; id: string; limit?: number } & QueryOptions;
   const ref = (path: string): Ref => ({ path, id: path.split("/").at(-1)! });
-  const query = (path: string, extra = {}) => ({
+  const query = (path: string, extra: QueryOptions = {}) => ({
     ...ref(path),
     ...extra,
     limit: (count: number) => ({ ...ref(path), ...extra, limit: count }),
-    orderBy: (field: string) => query(path, { ...extra, order: field }),
-    where: (field: string, _op: string, value: unknown) => query(path, { ...extra, field, value }),
+    orderBy: (field: string, direction: "asc" | "desc" = "asc") =>
+      query(path, { ...extra, orders: [...(extra.orders ?? []), { field, direction }] }),
+    where: (field: string, operator: string, value: unknown) =>
+      query(path, { ...extra, filters: [...(extra.filters ?? []), { field, operator, value }] }),
   });
   let chain = Promise.resolve();
   const firestore = {
@@ -106,9 +106,25 @@ function harness() {
                     ([path, data]) =>
                       path.startsWith(target.path + "/") &&
                       path.split("/").length === target.path.split("/").length + 1 &&
-                      (!target.field || data[target.field] === target.value),
+                      (target.filters ?? []).every((filter) =>
+                        filter.operator === "=="
+                          ? data[filter.field] === filter.value
+                          : filter.operator === ">" &&
+                            typeof data[filter.field] === "string" &&
+                            typeof filter.value === "string" &&
+                            String(data[filter.field]) > filter.value,
+                      ) &&
+                      (target.orders ?? []).every((order) => data[order.field] !== undefined),
                   )
-                  .sort(([a], [b]) => a.localeCompare(b))
+                  .sort(([a, left], [b, right]) => {
+                    for (const order of target.orders ?? []) {
+                      const result = String(left[order.field]).localeCompare(
+                        String(right[order.field]),
+                      );
+                      if (result) return order.direction === "desc" ? -result : result;
+                    }
+                    return a.localeCompare(b);
+                  })
                   .slice(0, target.limit)
                   .map(([path]) => snapshot(ref(path))),
               };
@@ -597,5 +613,141 @@ describe("legacy member recovery", () => {
     expect(
       [...h.records.keys()].filter((path) => path.startsWith(prefix + "students/")),
     ).toHaveLength(1);
+  });
+  function queueOffice(h: ReturnType<typeof harness>) {
+    const actor = {
+      actorId: "office-queue",
+      academyId,
+      role: "owner" as const,
+      active: true,
+      appCheckVerified: true,
+    };
+    h.records.set(prefix + "users/office-queue", {
+      userId: actor.actorId,
+      academyId,
+      accountType: "staff",
+      displayName: "Office",
+      email: "office@example.test",
+      authProvider: "google",
+      active: true,
+      adminRole: "owner",
+      lastRoleChangeAuditId: "audit-1",
+      createdAt: Timestamp.now(),
+      createdBy: actor.actorId,
+      updatedAt: Timestamp.now(),
+      updatedBy: actor.actorId,
+      status: "active",
+      schemaVersion: 1,
+    });
+    return actor;
+  }
+  function seedQueue(
+    h: ReturnType<typeof harness>,
+    count: number,
+    offset: number,
+    overrides: Record<string, unknown> = {},
+  ) {
+    const ids: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const recoveryId = (offset + i).toString(16).padStart(64, "0");
+      ids.push(recoveryId);
+      h.records.set(prefix + "memberRecoveryRequests/" + recoveryId, {
+        recoveryId,
+        academyId,
+        fullName: "Synthetic Queue Member",
+        previousEmail: "previous@example.test",
+        createdAt: new Date(Date.parse("2026-09-17T10:00:00.000Z") + i * 1000).toISOString(),
+        updatedAt: now,
+        expiresAt: new Date(Date.parse("2026-10-17T10:00:00.000Z") + i * 1000).toISOString(),
+        candidates: [],
+        userId: "queue-member-" + i,
+        accountEmail: "current@example.test",
+        accountVerified: true,
+        status: "pending-review",
+        ...overrides,
+      });
+    }
+    return ids;
+  }
+  it("keeps verified actionable requests reachable beyond over 50 terminal, expired, unbound and unverified tickets", async () => {
+    const h = harness();
+    const actor = queueOffice(h);
+    const actionable = seedQueue(h, 1, 999);
+    seedQueue(h, 60, 1000, { status: "rejected" });
+    seedQueue(h, 60, 2000, { status: "linked" });
+    seedQueue(h, 60, 3000, { expiresAt: "2026-09-18T09:00:00.000Z" });
+    const unbound = seedQueue(h, 60, 4000, { accountVerified: false });
+    for (const id of unbound) {
+      const value = { ...h.records.get(prefix + "memberRecoveryRequests/" + id) };
+      delete value.userId;
+      delete value.accountEmail;
+      h.records.set(prefix + "memberRecoveryRequests/" + id, value);
+    }
+    seedQueue(h, 60, 5000, { accountVerified: false });
+    seedQueue(h, 60, 6000, { status: "profile-required" });
+    const first = await h.service.list(actor);
+    expect(first.truncated).toBe(false);
+    expect(first.requests.map((value) => value.requestId)).toEqual(actionable);
+    expect(await h.service.list(actor)).toEqual(first);
+  });
+  it("serves more than 50 actionable requests in oldest binding order and reveals the next requests after resolutions", async () => {
+    const h = harness();
+    const actor = queueOffice(h);
+    const ids = seedQueue(h, 65, 1000);
+    const first = await h.service.list(actor);
+    expect(first.truncated).toBe(true);
+    expect(first.requests.map((value) => value.requestId)).toEqual(ids.slice(0, 50));
+    for (let i = 0; i < 50; i++) {
+      if (i % 20 === 0)
+        h.time(new Date(Date.parse(now) + Math.floor(i / 20) * 16 * 60000).toISOString());
+      await h.service.review({ requestId: ids[i], decision: "reject" }, actor);
+    }
+    const next = await h.service.list(actor);
+    expect(next.truncated).toBe(false);
+    expect(next.requests.map((value) => value.requestId)).toEqual(ids.slice(50));
+    // Expiring the oldest still-pending request cannot consume a page slot.
+    h.records.set(prefix + "memberRecoveryRequests/" + ids[50], {
+      ...h.records.get(prefix + "memberRecoveryRequests/" + ids[50]),
+      expiresAt: now,
+    });
+    expect((await h.service.list(actor)).requests.map((value) => value.requestId)).toEqual(
+      ids.slice(51),
+    );
+  });
+  it("queues only a bound account verified by the latest completion and removes resolved requests", async () => {
+    const h = harness();
+    const actor = queueOffice(h);
+    const ticket = await begin(h);
+    expect((await h.service.list(actor)).requests).toEqual([]);
+    h.user({ email: "new@example.test", emailVerified: false });
+    await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
+    expect((await h.service.list(actor)).requests).toEqual([]);
+    h.user({ emailVerified: true });
+    await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
+    expect((await h.service.list(actor)).requests.map((value) => value.requestId)).toEqual([
+      ticket.recoveryId,
+    ]);
+    h.user({ emailVerified: false });
+    await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
+    expect((await h.service.list(actor)).requests).toEqual([]);
+    h.user({ emailVerified: true });
+    await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
+    await h.service.review({ requestId: ticket.recoveryId, decision: "reject" }, actor);
+    expect((await h.service.list(actor)).requests).toEqual([]);
+  });
+  it("declares the deployable index for verified, unexpired pending queue order", () => {
+    const indexes = JSON.parse(
+      readFileSync(new URL("../../../../firestore.indexes.json", import.meta.url), "utf8"),
+    ) as { indexes: unknown[] };
+    expect(indexes.indexes).toContainEqual({
+      collectionGroup: "memberRecoveryRequests",
+      queryScope: "COLLECTION",
+      fields: [
+        { fieldPath: "status", order: "ASCENDING" },
+        { fieldPath: "accountVerified", order: "ASCENDING" },
+        { fieldPath: "expiresAt", order: "ASCENDING" },
+        { fieldPath: "createdAt", order: "ASCENDING" },
+      ],
+    });
   });
 });

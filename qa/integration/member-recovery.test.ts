@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { initializeApp, deleteApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { MemberDirectoryState } from "@bpt-jersey/domain/members/directory";
 import { buildInitialMemberDirectoryControlPlane } from "../../apps/functions/src/members/member-directory-state.js";
@@ -17,6 +17,7 @@ const now = "2026-09-18T10:00:00.000Z";
 suite("member recovery Firestore transaction integration", () => {
   const academyId = "recovery-" + randomUUID();
   const root = `academies/${academyId}/`;
+  const queueAcademyId = academyId + "-queue";
   let app: ReturnType<typeof initializeApp>;
   let database: ReturnType<typeof getFirestore>;
   let service: ReturnType<typeof createMemberRecoveryService>;
@@ -107,6 +108,7 @@ suite("member recovery Firestore transaction integration", () => {
   afterAll(async () => {
     if (database) {
       await database.recursiveDelete(database.doc(`academies/${academyId}`));
+      await database.recursiveDelete(database.doc(`academies/${queueAcademyId}`));
       await database.recursiveDelete(database.doc(`memberDirectoryRestoreGuards/${academyId}`));
     }
     if (app) await deleteApp(app);
@@ -145,5 +147,111 @@ suite("member recovery Firestore transaction integration", () => {
       (await database.doc(root + "regyfitMemberRecords/123").get()).data()?.graduation,
     ).toEqual({ belt: "Historical belt" });
     expect(claims.get(winner.uid)).toMatchObject({ academyId, role: "adultStudent" });
+  });
+  it("queries actionable verified work before its limit and reaches all 65 requests after resolutions", async () => {
+    const queueRoot = `academies/${queueAcademyId}/`;
+    const actor = {
+      actorId: "queue-office",
+      academyId: queueAcademyId,
+      role: "owner" as const,
+      active: true,
+      appCheckVerified: true,
+    };
+    let queueTime = now;
+    const queue = createMemberRecoveryService({
+      firestore: database,
+      academyId: queueAcademyId,
+      projectId,
+      identitySecretMaterial,
+      integritySecretMaterial,
+      identitySecretVersion: "identity-v1",
+      integritySecretVersion: "integrity-v1",
+      now: () => queueTime,
+      auth: {
+        getUser: async (uid) => ({
+          uid,
+          disabled: false,
+          emailVerified: true,
+          email: "member@example.test",
+        }),
+        setCustomUserClaims: async () => {},
+      },
+    });
+    const batch = database.batch();
+    batch.set(database.doc(queueRoot + "users/queue-office"), {
+      userId: actor.actorId,
+      academyId: queueAcademyId,
+      accountType: "staff",
+      displayName: "Office",
+      email: "office@example.test",
+      authProvider: "google",
+      active: true,
+      adminRole: "owner",
+      lastRoleChangeAuditId: "audit-1",
+      createdAt: Timestamp.now(),
+      createdBy: actor.actorId,
+      updatedAt: Timestamp.now(),
+      updatedBy: actor.actorId,
+      status: "active",
+      schemaVersion: 1,
+    });
+    function seed(
+      count: number,
+      offset: number,
+      patch: Record<string, unknown> = {},
+      unbound = false,
+    ) {
+      const ids: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const recoveryId = (offset + i).toString(16).padStart(64, "0");
+        ids.push(recoveryId);
+        const record: Record<string, unknown> = {
+          recoveryId,
+          academyId: queueAcademyId,
+          fullName: "Synthetic Queue Member",
+          previousEmail: "previous@example.test",
+          createdAt: new Date(Date.parse("2026-09-17T10:00:00.000Z") + i * 1000).toISOString(),
+          updatedAt: now,
+          expiresAt: new Date(Date.parse("2026-10-17T10:00:00.000Z") + i * 1000).toISOString(),
+          candidates: [],
+          userId: "member-" + i,
+          accountEmail: "current@example.test",
+          accountVerified: true,
+          status: "pending-review",
+          ...patch,
+        };
+        if (unbound) {
+          delete record.userId;
+          delete record.accountEmail;
+        }
+        batch.set(database.doc(queueRoot + "memberRecoveryRequests/" + recoveryId), record);
+      }
+      return ids;
+    }
+    const actionable = seed(65, 1000);
+    seed(60, 2000, { status: "rejected" });
+    seed(60, 3000, { status: "linked" });
+    seed(60, 4000, { expiresAt: "2026-09-18T09:00:00.000Z" });
+    seed(60, 5000, { accountVerified: false }, true);
+    seed(60, 6000, { accountVerified: false });
+    seed(60, 7000, { status: "profile-required" });
+    await batch.commit();
+    const first = await queue.list(actor);
+    expect(first.truncated).toBe(true);
+    expect(first.requests.map((request) => request.requestId)).toEqual(actionable.slice(0, 50));
+    for (let i = 0; i < 50; i++) {
+      if (i % 20 === 0)
+        queueTime = new Date(Date.parse(now) + Math.floor(i / 20) * 16 * 60000).toISOString();
+      await queue.review({ requestId: actionable[i], decision: "reject" }, actor);
+    }
+    const remaining = await queue.list(actor);
+    expect(remaining.truncated).toBe(false);
+    expect(remaining.requests.map((request) => request.requestId)).toEqual(actionable.slice(50));
+    await database
+      .doc(queueRoot + "memberRecoveryRequests/" + actionable[50])
+      .update({ expiresAt: now });
+    expect((await queue.list(actor)).requests.map((request) => request.requestId)).toEqual(
+      actionable.slice(51),
+    );
   });
 });
