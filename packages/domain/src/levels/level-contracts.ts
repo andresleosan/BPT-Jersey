@@ -1,10 +1,16 @@
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 import { isLevelCatalogVersion, levelCatalogVersionShapes } from "./level-catalog-v2";
-import { computeLevelProgress, minimumDaysOf, type ClassesAtLevel } from "./level-progress";
+import {
+  computeLevelProgress,
+  isLevelCalendarDate,
+  minimumDaysOf,
+  type ClassesAtLevel,
+} from "./level-progress";
 
 export * from "./level-catalog-v2";
 export * from "./level-progress";
+export * from "./level-manage-contracts";
 
 export const levelDefinitionKinds = Object.freeze(["belt", "stripe"] as const);
 export type LevelDefinitionKind = (typeof levelDefinitionKinds)[number];
@@ -550,19 +556,22 @@ export type EvaluationRecord = Readonly<{
   evaluationId: string;
   academyId: string;
   studentId: string;
-  sessionId: string;
+  /** T051V2: `null` for a Manage-view rating, which has no session behind it. */
+  sessionId: string | null;
   definitionKey: string;
   skillKey: string;
   score: EvaluationScore;
   evidenceNotes: string;
   evaluatorId: string;
-  evaluatorRole: "headCoach" | "coach";
+  evaluatorRole: "headCoach" | "coach" | "owner";
   evaluatedAt: string;
   schemaVersion: "1";
   createdAt: string;
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  /** T051V2: set only on records written by the Regyfit import. */
+  source?: "regyfit-import";
 }>;
 
 export type RecordEvaluationInput = Readonly<{
@@ -1478,7 +1487,7 @@ export type GraduationRecord = Readonly<{
   status: PromotionDecisionStatus;
   decisionNotes: string;
   decidedBy: string;
-  decidedByRole: "headCoach";
+  decidedByRole: "headCoach" | "owner";
   decidedAt: string;
   ceremonyDate: string | null;
   schemaVersion: "1";
@@ -1572,6 +1581,8 @@ export type OpenStudentLevelInput = Readonly<{
   studentId: string;
   definitionKey: string;
   decisionNotes: string;
+  /** T051V2: the day the student actually reached this level; absent means "today". */
+  startedOn?: string;
 }>;
 
 export function parseOpenStudentLevelInput(
@@ -1582,7 +1593,7 @@ export function parseOpenStudentLevelInput(
   }
   const record = raw as Record<string, unknown>;
   const issues: ValidationIssue[] = [];
-  const allowed = new Set(["studentId", "definitionKey", "decisionNotes"]);
+  const allowed = new Set(["studentId", "definitionKey", "decisionNotes", "startedOn"]);
   for (const key of Object.keys(record)) {
     if (!allowed.has(key)) issues.push(issue(["input", key], "unexpected_field"));
   }
@@ -1602,12 +1613,20 @@ export function parseOpenStudentLevelInput(
   ) {
     issues.push(issue(["input", "decisionNotes"], "decision_notes_length_3_to_1000"));
   }
+  const startedOn = record["startedOn"];
+  if (
+    startedOn !== undefined &&
+    (typeof startedOn !== "string" || !isLevelCalendarDate(startedOn))
+  ) {
+    issues.push(issue(["input", "startedOn"], "invalid_started_on_date"));
+  }
   if (issues.length > 0) return err(Object.freeze(issues));
   return ok(
     Object.freeze({
       studentId: (studentId as string).trim(),
       definitionKey: (definitionKey as string).trim(),
       decisionNotes: (decisionNotes as string).trim(),
+      ...(startedOn === undefined ? {} : { startedOn: startedOn as string }),
     }),
   );
 }

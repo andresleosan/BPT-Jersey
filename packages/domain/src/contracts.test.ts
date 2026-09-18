@@ -193,6 +193,7 @@ describe("domain contracts", () => {
       "level.promotion.approved",
       "level.promotion.rejected",
       "level.opened",
+      "level.promotion.voided",
       "member.import.confirmed",
       "member.detail.read",
       "member.identity.lookup",
