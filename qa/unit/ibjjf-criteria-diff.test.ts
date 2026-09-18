@@ -15,6 +15,7 @@ const tinyV1Observed = {
   levels: [
     { key: "white-belt", name: "WHITE BELT", observedSkillRequirementSetKey: "set-a" },
     { key: "blue-belt", name: "BLUE BELT", observedSkillRequirementSetKey: null },
+    { key: "purple-belt", name: "PURPLE BELT", observedSkillRequirementSetKey: null },
   ],
 };
 const tinyV1Business = {
@@ -30,6 +31,12 @@ const tinyV1Business = {
       maxAge: null,
       minClasses: 50,
       minimumTime: { years: 0, months: 5, days: 28 },
+    },
+    "purple-belt": {
+      minAge: 16,
+      maxAge: null,
+      minClasses: 100,
+      minimumTime: { years: 1, months: 0, days: 0 },
     },
   },
 };
@@ -50,7 +57,7 @@ const tinyRegyfit = {
       name: "BLUE BELT",
       kind: "belt",
       parentName: null,
-      criteria: { minAge: 16, maxAge: null, minClasses: 50, minDays: 178 },
+      criteria: { minAge: 17, maxAge: null, minClasses: 50, minDays: 178 },
       skillMinimums: [],
     },
     {
@@ -78,16 +85,18 @@ describe("IBJJF criteria diff", () => {
     });
     expect(counts).toEqual({
       regyfitLevels: 3,
-      bptLevels: 2,
+      bptLevels: 3,
       onlyRegyfit: 1,
-      onlyBpt: 0,
-      criteriaDiffLevels: 1,
+      onlyBpt: 1,
+      criteriaDiffLevels: 2,
       regyfitSkills: 2,
       bptSkills: 1,
       onlyRegyfitSkills: 1,
       skillMinimumDiffLevels: 1,
     });
     expect(markdown).toContain("| Black - 1st Degree | stripe | BLUE BELT | 22 | — | 150 | 1095 |");
+    expect(markdown).toContain("| BLUE BELT | Min age | 16 | 17 |");
+    expect(markdown).toContain("\n| PURPLE BELT |\n");
     expect(markdown).toContain("| WHITE BELT | Min classes | 25 | 20 |");
     expect(markdown).toContain("| WHITE BELT | Min days | 90 | 60 |");
     expect(markdown).not.toContain("| BLUE BELT | Min days |");
