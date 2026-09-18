@@ -170,7 +170,7 @@ export default function MemberRecoveryQueuePage() {
           <dl>
             <dt>Previous email supplied</dt>
             <dd>{detail.request.previousEmail}</dd>
-            <dt>Verified account email</dt>
+            <dt>Account email</dt>
             <dd>{detail.request.accountEmail ?? "Not available"}</dd>
           </dl>
           <fieldset disabled={busy}>

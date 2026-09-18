@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from "react";
 import type {
   CompleteMemberRecoveryResult,
   MemberRecoveryProfile,
@@ -46,6 +46,7 @@ function safeError(error: unknown): string {
     return "We could not sign you in. Check your details or reset your password.";
   return genericError;
 }
+type RecoveryOperation = { generation: number; request: number; current: () => boolean };
 export function RecoveryForm() {
   const [ticket, setTicket] = useState<string>();
   const [session, setSession] = useState<RecoverySession | null>(null);
@@ -59,71 +60,155 @@ export function RecoveryForm() {
   const [password, setPassword] = useState("");
   const inFlight = useRef(false);
   const restored = useRef(false);
+  const currentSession = useRef<RecoverySession | null>(null);
+  const identityGeneration = useRef(0);
+  const requestGeneration = useRef(0);
+  const [opening, setOpening] = useState(false);
 
-  async function showOutcome(id: string, fields?: MemberRecoveryProfile) {
+  function acceptSession(current: RecoverySession | null) {
+    if (currentSession.current?.uid !== current?.uid) {
+      identityGeneration.current += 1;
+      inFlight.current = false;
+      setBusy(false);
+      setResult(undefined);
+      setProfile({});
+      setError(undefined);
+      setNotice(undefined);
+      setOpening(false);
+      setEmail("");
+      setPassword("");
+      setMode("create");
+    }
+    currentSession.current = current;
+    setSession(current);
+  }
+  async function finalize(operation: RecoveryOperation) {
+    const refreshed = await refreshRecoverySession(currentSession.current?.uid);
+    if (!operation.current() || refreshed.uid !== currentSession.current?.uid) return;
+    setOpening(true);
+    saveTicket();
+    navigateTo("/account");
+  }
+  async function showOutcome(
+    id: string,
+    operation: RecoveryOperation,
+    fields?: MemberRecoveryProfile,
+  ) {
     const outcome = await completeMemberRecovery({
       recoveryId: id,
       ...(fields ? { profile: fields } : {}),
     });
+    if (!operation.current()) return;
     setResult(outcome);
     if (outcome.status === "profile-required") setProfile(outcome.profile ?? {});
-    if (outcome.status === "linked") {
-      await refreshRecoverySession();
-      saveTicket();
-      navigateTo("/account");
-    }
+    if (outcome.status === "linked") await finalize(operation);
   }
-  async function run(action: () => Promise<void>) {
+  async function run(action: (operation: RecoveryOperation) => Promise<void>) {
     if (inFlight.current) return;
+    const operation: RecoveryOperation = {
+      generation: identityGeneration.current,
+      request: ++requestGeneration.current,
+      current: () =>
+        operation.generation === identityGeneration.current &&
+        operation.request === requestGeneration.current,
+    };
     inFlight.current = true;
     setBusy(true);
     setError(undefined);
     setNotice(undefined);
     try {
-      await action();
+      await action(operation);
     } catch (failure) {
-      setError(safeError(failure));
+      if (operation.current()) setError(safeError(failure));
     } finally {
-      inFlight.current = false;
-      setBusy(false);
+      if (operation.current()) {
+        inFlight.current = false;
+        setBusy(false);
+      }
     }
   }
+  const observeSession = useEffectEvent((current: RecoverySession | null, saved?: string) => {
+    const alreadyContinuing = inFlight.current;
+    acceptSession(current);
+    if (saved && current && !restored.current) {
+      restored.current = true;
+      if (alreadyContinuing) return;
+      void run(async (operation) => {
+        await refreshRecoverySession(current.uid);
+        if (operation.current()) await showOutcome(saved, operation);
+      });
+    }
+  });
   useEffect(() => {
     const saved = readTicket();
     if (saved) setTicket(saved);
-    return subscribeRecoverySession((current) => {
-      setSession(current);
-      if (saved && current && !restored.current) {
-        restored.current = true;
-        void run(async () => {
-          await refreshRecoverySession();
-          await showOutcome(saved);
-        });
-      }
-    });
+    let unsubscribe: (() => void) | undefined;
+    try {
+      unsubscribe = subscribeRecoverySession((current) => observeSession(current, saved));
+    } catch (failure) {
+      setError(safeError(failure));
+    }
+    return () => {
+      identityGeneration.current += 1;
+      inFlight.current = false;
+      restored.current = false;
+      unsubscribe?.();
+    };
     // Restore once; subsequent authentication actions explicitly complete their own request.
   }, []);
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await run(async () => {
+    await run(async (operation) => {
       const begun = await beginMemberRecovery({
         fullName: String(data.get("fullName")).trim(),
         email: String(data.get("previousEmail")).trim(),
       });
+      if (!operation.current()) return;
       setTicket(begun.recoveryId);
       saveTicket(begun.recoveryId);
     });
   }
   async function authenticate(kind: "google" | "create" | "sign-in") {
     if (!ticket) return;
-    await run(async () => {
+    await run(async (operation) => {
+      const initialUid = currentSession.current?.uid;
       try {
         const current = await recoverySignIn(kind, email, password);
-        setSession(current);
+        // Firebase can notify the observer before the sign-in promise resolves.
+        // Permit only this action's initial sign-in transition, never a later switch/logout.
+        if (operation.request !== requestGeneration.current) return;
+        if (
+          !operation.current() &&
+          !(
+            initialUid === undefined &&
+            currentSession.current?.uid === current.uid &&
+            identityGeneration.current === operation.generation + 1
+          )
+        )
+          return;
+        acceptSession(current);
+        operation.generation = identityGeneration.current;
+        inFlight.current = true;
+        setBusy(true);
         setPassword("");
-        await showOutcome(ticket);
+        if (kind === "create") {
+          setResult({ status: "verify-email" });
+          try {
+            await sendRecoveryVerification(current.uid);
+            if (!operation.current()) return;
+            setNotice("Verification email sent. Check your inbox and spam folder.");
+          } catch {
+            if (!operation.current()) return;
+            setError(
+              "Your account was created, but we could not send the verification email. Please use Resend verification email.",
+            );
+            return;
+          }
+        }
+        if (operation.current()) await showOutcome(ticket, operation);
       } catch (failure) {
+        if (!operation.current()) return;
         const code =
           typeof failure === "object" && failure !== null && "code" in failure ? failure.code : "";
         if (
@@ -141,12 +226,16 @@ export function RecoveryForm() {
   }
   function check() {
     if (ticket)
-      void run(async () => {
-        setSession(await refreshRecoverySession());
-        await showOutcome(ticket);
+      void run(async (operation) => {
+        const current = await refreshRecoverySession(currentSession.current?.uid);
+        if (!operation.current() || current.uid !== currentSession.current?.uid) return;
+        acceptSession(current);
+        await showOutcome(ticket, operation);
       });
   }
   function restart() {
+    requestGeneration.current += 1;
+    setOpening(false);
     saveTicket();
     setTicket(undefined);
     setResult(undefined);
@@ -216,9 +305,9 @@ export function RecoveryForm() {
                 className="login-mode-toggle"
                 disabled={busy}
                 onClick={() =>
-                  void run(async () => {
+                  void run(async (operation) => {
                     await signOutRecovery();
-                    setSession(null);
+                    if (operation.current()) acceptSession(null);
                   })
                 }
               >
@@ -285,12 +374,13 @@ export function RecoveryForm() {
                       type="button"
                       className="login-reset"
                       onClick={() =>
-                        void run(async () => {
+                        void run(async (operation) => {
                           if (!email.trim()) {
                             setError("Enter your email address first.");
                             return;
                           }
                           await resetRecoveryPassword(email);
+                          if (!operation.current()) return;
                           setNotice(
                             "If a password account exists for that email, you will receive a reset link. Return here after resetting your password.",
                           );
@@ -310,21 +400,22 @@ export function RecoveryForm() {
         <div>
           <h2>Verify your email</h2>
           <p>
-            Send a verification email to {session?.email ?? "your account address"}, then open its
-            link and return here.
+            Verify {session?.email ?? "your account address"} by opening the link in your
+            verification email, then return here.
           </p>
           <button
             type="button"
             className="button button-secondary"
             disabled={busy}
             onClick={() =>
-              void run(async () => {
-                await sendRecoveryVerification();
+              void run(async (operation) => {
+                await sendRecoveryVerification(currentSession.current?.uid);
+                if (!operation.current()) return;
                 setNotice("Verification email sent. Check your inbox and spam folder.");
               })
             }
           >
-            Send verification email
+            Resend verification email
           </button>
           <button type="button" className="button button-primary" disabled={busy} onClick={check}>
             I have verified my email
@@ -354,12 +445,12 @@ export function RecoveryForm() {
           onSubmit={(event) => {
             event.preventDefault();
             if (ticket)
-              void run(async () => {
+              void run(async (operation) => {
                 if (!profile.trainingTimePreferences?.length) {
                   setError("Choose at least one training time.");
                   return;
                 }
-                await showOutcome(ticket, profile);
+                await showOutcome(ticket, operation, profile);
               });
           }}
         >
@@ -431,7 +522,23 @@ export function RecoveryForm() {
         </form>
       ) : null}
       {result?.status === "linked" ? (
-        <p role="status">Access restored. Opening your account...</p>
+        <div>
+          <p role="status">
+            {opening
+              ? "Access restored. Opening your account..."
+              : "Your membership is linked. Finish opening your account."}
+          </p>
+          {!opening ? (
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={busy}
+              onClick={() => void run(finalize)}
+            >
+              Retry opening your account
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {ticket ? (
         <button type="button" className="login-mode-toggle" disabled={busy} onClick={restart}>

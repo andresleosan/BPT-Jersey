@@ -78,3 +78,23 @@
   border-radius: 0.5rem;
   color: #7d1717;
 }
+.recovery-layout .login-panel {
+  padding: 2rem;
+}
+.recovery-layout .login-home-link {
+  position: static;
+  display: inline-flex;
+  margin-bottom: 1rem;
+}
+.recovery-form .button-primary {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+.recovery-form .button-primary:hover {
+  background: var(--bpt-purple-dark);
+}
+@media (max-width: 32rem) {
+  .recovery-layout .login-panel {
+    padding: 1.5rem;
+  }
+}

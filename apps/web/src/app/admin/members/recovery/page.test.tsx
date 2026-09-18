@@ -89,3 +89,20 @@ it("does not carry identity confirmation into another request", async () => {
   ).not.toBeChecked();
   expect(screen.getByRole("button", { name: "Approve identity" })).toBeDisabled();
 });
+
+it("does not describe an unverified account email as verified", async () => {
+  api.getMemberRecoveryDetail.mockResolvedValue({
+    request: {
+      ...row,
+      status: "verify-email",
+      previousEmail: "old@example.test",
+      accountEmail: "new@example.test",
+    },
+    candidates: [],
+  });
+  const user = userEvent.setup();
+  render(<Page />);
+  await user.click(await screen.findByRole("button", { name: "Review request" }));
+  expect(await screen.findByText("Account email")).toBeVisible();
+  expect(screen.queryByText("Verified account email")).not.toBeInTheDocument();
+});
