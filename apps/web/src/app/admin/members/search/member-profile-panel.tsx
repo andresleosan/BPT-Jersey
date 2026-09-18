@@ -7,6 +7,7 @@ import type {
 } from "@bpt-jersey/domain/members/regyfit-records";
 
 import { AdminStatusBadge } from "../../admin-ui";
+import { ProfileSubscriptionEditor } from "./profile-subscription-editor";
 
 const tabs = [
   "Profile",
@@ -167,28 +168,38 @@ function DetailsTabContent({ record }: { record: RegyfitMemberRecord }) {
 function MembershipTabContent({ record }: { record: RegyfitMemberRecord }) {
   const { plan } = record;
   return (
-    <div className="admin-member-profile-grid">
-      <Card title="Membership plan">
-        <FieldList
-          entries={[
-            ["Plan", displayValue(plan.membershipPlan)],
-            ["Discount", displayValue(plan.discount)],
-            ["State", <AdminStatusBadge key="state" status={record.membershipState} />],
-          ]}
-        />
-      </Card>
-      <Card title="Membership payment details">
-        <FieldList
-          entries={[
-            ["Payment", displayValue(plan.paymentMode)],
-            ["Amount (£)", displayValue(plan.amount)],
-            ["Valid from", displayValue(plan.validFrom)],
-            ["Valid until", displayValue(plan.validUntil)],
-            ["Frequency", displayValue(plan.frequency)],
-          ]}
-        />
-      </Card>
-    </div>
+    <>
+      <ProfileSubscriptionEditor
+        key={`${record.recordId}:${record.memberNumber ?? ""}`}
+        memberNumber={record.memberNumber}
+      />
+      <p className="member-subscription-help">
+        Imported membership details below reflect the Regyfit capture. Changes to the current
+        subscription are saved above.
+      </p>
+      <div className="admin-member-profile-grid">
+        <Card title="Imported membership plan">
+          <FieldList
+            entries={[
+              ["Plan", displayValue(plan.membershipPlan)],
+              ["Discount", displayValue(plan.discount)],
+              ["State", <AdminStatusBadge key="state" status={record.membershipState} />],
+            ]}
+          />
+        </Card>
+        <Card title="Imported membership payment details">
+          <FieldList
+            entries={[
+              ["Payment", displayValue(plan.paymentMode)],
+              ["Amount (£)", displayValue(plan.amount)],
+              ["Valid from", displayValue(plan.validFrom)],
+              ["Valid until", displayValue(plan.validUntil)],
+              ["Frequency", displayValue(plan.frequency)],
+            ]}
+          />
+        </Card>
+      </div>
+    </>
   );
 }
 
