@@ -28,6 +28,8 @@ import {
 import { BeltBar } from "../../../levels/levels-browser";
 import { beltPosition, groupBelts } from "../../../levels/levels-grouping";
 import { formatCriterion } from "./ibjjf-card";
+import { safeMessage } from "./safe-message";
+import { SkillsAssessment } from "./skills-assessment";
 
 type Scores = Awaited<ReturnType<typeof getStudentSkillScores>>;
 type Loaded = Readonly<{
@@ -72,19 +74,6 @@ const roleLabel = (role: "headCoach" | "owner" | null): string | null =>
  * note is mandatory. The contract is now the only judge.
  */
 const noteIsValid = (value: string) => promotionNoteSchema.safeParse(value).success;
-
-/**
- * The clients promise that every rejection carries one of their own fixed strings. This checks it
- * instead of trusting it: a rejection raised anywhere else (a TypeError in this component, a
- * network layer, a future client that forgets) must not reach the operator with its own words in
- * it. Nothing outside `levelsSafeErrors` is ever rendered.
- */
-const safeErrors: readonly string[] = Object.values(levelsSafeErrors);
-function safeMessage(failure: unknown, fallback: string): string {
-  return failure instanceof Error && safeErrors.includes(failure.message)
-    ? failure.message
-    : fallback;
-}
 
 /**
  * The void record degrades one sub-field at a time (Task 10, DECISION 5): a void that exists
@@ -655,6 +644,12 @@ export function ManageView({
   const inFlight = useRef(false);
   // G12: an administrator sees this record and its history, and reaches no decision at all.
   const canDecide = role === "owner" || role === "headCoach";
+  /**
+   * Rating is a wider door than deciding: `ratingRoles` on `recordEvaluation` accepts a coach as
+   * well, who may never open, assign or void. The two must not be collapsed into one flag.
+   */
+  const canRate = canDecide || role === "coach";
+  const [dirtyRatings, setDirtyRatings] = useState(false);
   const today = jerseyDateOf(new Date().toISOString());
 
   /**
@@ -703,6 +698,10 @@ export function ManageView({
   const reload = useCallback((message: string) => {
     setNotice(message);
     setState({ status: "loading" });
+    // The assessment panel is unmounted by the line above and remounted on the fresh data, so any
+    // rating it still held is gone. Leaving the flag set would make "Back to record" ask to
+    // discard edits that no longer exist.
+    setDirtyRatings(false);
     setAttempt((value) => value + 1);
   }, []);
 
@@ -741,6 +740,20 @@ export function ManageView({
       ? null
       : (data.catalog.definitions.find((definition) => definition.definitionKey === currentKey) ??
         null);
+  /**
+   * Skill minimums belong to the level a member is moving INTO (plan decision 5), so they are the
+   * TARGET definition's requirements, never the current one's. With no target recorded, no minimum
+   * is claimed for any skill rather than the current level's being shown as if it were the gate.
+   */
+  const targetKey =
+    card !== null && card.state === "initialized"
+      ? (card.targetDefinition?.definitionKey ?? null)
+      : null;
+  const minimums = Object.fromEntries(
+    (data?.catalog.requirements ?? [])
+      .filter((requirement) => requirement.definitionKey === targetKey)
+      .map((requirement) => [requirement.skillKey, requirement.minimumRating]),
+  );
   const hasLaterLevel =
     data !== null &&
     currentDefinition !== null &&
@@ -796,7 +809,15 @@ export function ManageView({
   return (
     <section aria-labelledby="ibjjf-manage-title" className="ibjjf-manage">
       <div>
-        <a className="member-record-link" href={recordHref}>
+        <a
+          className="member-record-link"
+          href={recordHref}
+          onClick={(event) => {
+            // A full navigation, so React state does not survive it: unsaved ratings are lost
+            // silently unless the operator is asked first.
+            if (dirtyRatings && !window.confirm("Discard unsaved ratings?")) event.preventDefault();
+          }}
+        >
           Back to record
         </a>
       </div>
@@ -840,6 +861,20 @@ export function ManageView({
               setVoiding(entry);
             }}
           />
+          {data.card.state === "initialized" && canRate ? (
+            <SkillsAssessment
+              definitionKey={data.card.currentDefinition.definitionKey}
+              initialScores={data.scores.latest}
+              // A new panel per reload: the ratings it holds are the ones it was handed, and the
+              // reload is what replaces them.
+              key={`skills-${attempt}`}
+              minimums={minimums}
+              onDirtyChange={setDirtyRatings}
+              onSaved={() => reload("Ratings saved.")}
+              skills={data.catalog.skills}
+              studentId={studentId}
+            />
+          ) : null}
         </>
       )}
       {voiding === null || data === null ? null : (
