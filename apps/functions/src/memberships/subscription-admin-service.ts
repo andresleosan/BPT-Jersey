@@ -47,17 +47,10 @@ function membershipRecord(
   return parsed.value;
 }
 
-function eligible(plan: PlanRecord, student: StudentProfile, now: string): boolean {
-  const date = now.slice(0, 10);
-  let age = Number(date.slice(0, 4)) - Number(student.dateOfBirth.slice(0, 4));
-  if (date.slice(5) < student.dateOfBirth.slice(5)) age--;
-  const group = age >= 18 ? "adult" : age >= 12 ? "teens" : "kids";
-  return (
-    plan.academyId === student.academyId &&
-    plan.active &&
-    plan.eligibleParticipantTypes.includes(group) &&
-    plan.classSites.includes(student.trainingCenter)
-  );
+// An office administrator may deliberately assign any active catalogue plan.
+// Class booking still applies the plan's participant and site restrictions.
+function eligible(plan: PlanRecord, student: StudentProfile): boolean {
+  return plan.academyId === student.academyId && plan.active;
 }
 
 function project(record: MembershipRecord) {
@@ -85,13 +78,12 @@ export async function listMemberSubscriptionRecords(
   ]);
   const student = studentRecord(studentDoc.data(), academyId, studentId);
   if (memberships.size > 100) invalid("Too many subscriptions for this member. Contact support.");
-  const now = new Date().toISOString();
   return {
     studentId,
     fullName: student.fullName,
     eligiblePlanIds: plans.docs.flatMap((doc) => {
       const plan = parsePlanRecord(doc.data());
-      return plan.ok && plan.value.planId === doc.id && eligible(plan.value, student, now)
+      return plan.ok && plan.value.planId === doc.id && eligible(plan.value, student)
         ? [plan.value.planId]
         : [];
     }),
@@ -140,8 +132,8 @@ export async function editMemberSubscription(
       (await transaction.get(base.collection("plans").doc(planId))).data(),
     );
     const now = new Date(Math.max(Date.now(), Date.parse(current.updatedAt) + 1)).toISOString();
-    if (!plan.ok || plan.value.planId !== planId || !eligible(plan.value, student, now))
-      invalid("Choose an active plan for this member's age and training centre.");
+    if (!plan.ok || plan.value.planId !== planId || !eligible(plan.value, student))
+      invalid("Choose an active catalogue plan.");
     const endsAt =
       input.operation === "save"
         ? input.endsAt

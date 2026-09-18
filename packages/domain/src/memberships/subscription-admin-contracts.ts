@@ -84,3 +84,101 @@ export function addSubscriptionMonth(value: string): string {
   date.setUTCDate(Math.min(day, lastDay));
   return date.toISOString();
 }
+
+const manualSettlementSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("unchanged") }),
+  z.strictObject({ kind: z.literal("complimentary"), reason: z.string().trim().min(1).max(240) }),
+  z.strictObject({
+    kind: z.literal("unpaid"),
+    amountMinor: z.number().int().positive().max(100_000_000),
+  }),
+  z.strictObject({
+    kind: z.literal("paid"),
+    amountMinor: z.number().int().positive().max(100_000_000),
+    method: z.enum(["cash", "bank_transfer", "other"]),
+    reference: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/u),
+    occurredAt: instant,
+  }),
+]);
+
+export const manualSubscriptionSchema = z
+  .strictObject({
+    studentId: id,
+    membershipId: id.nullable(),
+    expectedUpdatedAt: instant.nullable(),
+    requestId: z.uuid(),
+    operation: z.enum(["assign", "update", "renew"]),
+    planId: z.enum(planIds),
+    startsAt: instant,
+    endsAt: instant.nullable(),
+    settlement: manualSettlementSchema,
+  })
+  .superRefine((value, context) => {
+    if (
+      (value.operation === "assign") !==
+      (value.membershipId === null && value.expectedUpdatedAt === null)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["membershipId"],
+        message: "Existing subscriptions require a version.",
+      });
+    if (value.operation !== "assign" && (!value.membershipId || !value.expectedUpdatedAt))
+      context.addIssue({
+        code: "custom",
+        path: ["expectedUpdatedAt"],
+        message: "Refresh the subscription.",
+      });
+    if (value.endsAt && Date.parse(value.endsAt) <= Date.parse(value.startsAt))
+      context.addIssue({ code: "custom", path: ["endsAt"], message: "End must follow start." });
+    if (value.operation !== "update" && value.settlement.kind === "unchanged")
+      context.addIssue({
+        code: "custom",
+        path: ["settlement"],
+        message: "Choose paid, unpaid or complimentary.",
+      });
+  });
+export type ManualSubscriptionInput = z.infer<typeof manualSubscriptionSchema>;
+
+export const importedSubscriptionQuerySchema = z.strictObject({
+  recordId: z.string().regex(/^[0-9]{1,12}$/u),
+});
+export const importedSubscriptionLinkSchema = z.strictObject({ studentId: id.nullable() });
+export const officeMemberRegistrationSchema = z.strictObject({
+  recordId: z.string().regex(/^[0-9]{1,12}$/u),
+  requestId: z.uuid(),
+  dateOfBirth: z.iso.date(),
+  trainingCenter: z.enum(["Town", "West"]),
+  trainingTimePreferences: z
+    .array(z.enum(["morning", "afternoon", "evening"]))
+    .min(1)
+    .max(3)
+    .refine((values) => new Set(values).size === values.length),
+});
+export type OfficeMemberRegistration = z.infer<typeof officeMemberRegistrationSchema>;
+export const subscriptionBillingSchema = z.strictObject({
+  membershipId: id,
+  complimentary: z.boolean(),
+  currentInvoiceId: id.nullable(),
+  reason: z.string().nullable(),
+  invoices: z.array(
+    z.strictObject({
+      invoiceId: id,
+      status: z.enum(["open", "partially_paid", "paid", "void"]),
+      totalMinor: z.number().int().positive(),
+      paidAt: instant.nullable(),
+      dueAt: instant,
+      description: z.string(),
+      payments: z.array(
+        z.strictObject({
+          paymentId: id,
+          amountMinor: z.number().int().positive(),
+          method: z.enum(["cash", "bank_transfer", "other"]),
+          reference: z.string(),
+          occurredAt: instant,
+        }),
+      ),
+    }),
+  ),
+});
+export type SubscriptionBilling = z.infer<typeof subscriptionBillingSchema>;

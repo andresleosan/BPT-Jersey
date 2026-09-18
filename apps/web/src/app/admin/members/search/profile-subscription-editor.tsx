@@ -1,77 +1,206 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-import { lookupMemberIdentity } from "../../../../lib/members-client";
-import { MemberSubscriptionEditor } from "../member-subscription-editor";
+import { useEffect, useId, useRef, useState } from "react";
+import type { RegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
+import type { OfficeMemberRegistration } from "@bpt-jersey/domain/memberships/admin";
+import {
+  registerImportedMember,
+  resolveImportedSubscription,
+} from "../../../../lib/subscription-admin-client";
+import {
+  MemberSubscriptionEditor,
+  MemberSubscriptionPayments,
+} from "../member-subscription-editor";
 
 type LookupState =
   | { status: "loading" }
   | { status: "matched"; studentId: string }
   | { status: "missing" }
-  | { status: "error" };
+  | { status: "error"; message: string };
 
-/** Resolve the selected profile by its exact member number, never by name. */
-export function ProfileSubscriptionEditor({ memberNumber }: { memberNumber: string | undefined }) {
+function OfficeRegistration({
+  record,
+  onRegistered,
+}: {
+  record: RegyfitMemberRecord;
+  onRegistered: (studentId: string) => void;
+}) {
+  const id = useId();
+  const [birthDate, setBirthDate] = useState(record.birthDate ?? "");
+  const [centre, setCentre] = useState<"Town" | "West" | "">("");
+  const [time, setTime] = useState<"morning" | "afternoon" | "evening" | "">("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const pending = useRef<{ key: string; input: OfficeMemberRegistration } | null>(null);
+  const lock = useRef(false);
+  async function register() {
+    if (lock.current || !centre || !time || !birthDate) return;
+    const fields = {
+      recordId: record.recordId,
+      dateOfBirth: birthDate,
+      trainingCenter: centre,
+      trainingTimePreferences: [time],
+    };
+    const key = JSON.stringify(fields);
+    if (pending.current?.key !== key)
+      pending.current = { key, input: { ...fields, requestId: crypto.randomUUID() } };
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await registerImportedMember(pending.current.input);
+      onRegistered(result.studentId);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unable to register this member.");
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  }
+  return (
+    <form
+      className="member-subscription-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void register();
+      }}
+    >
+      <p>
+        This imported member has no current subscription record. Confirm their details to register
+        them for manual membership and payments.
+      </p>
+      <fieldset disabled={busy}>
+        <label className="member-subscription-field" htmlFor={`${id}-dob`}>
+          Date of birth
+          <input
+            id={`${id}-dob`}
+            type="date"
+            value={birthDate}
+            readOnly={Boolean(record.birthDate)}
+            required
+            onChange={(event) => setBirthDate(event.target.value)}
+          />
+        </label>
+        <div className="member-subscription-grid">
+          <label className="member-subscription-field" htmlFor={`${id}-centre`}>
+            Training centre
+            <select
+              id={`${id}-centre`}
+              value={centre}
+              required
+              onChange={(event) => setCentre(event.target.value as typeof centre)}
+            >
+              <option value="" disabled>
+                Select centre
+              </option>
+              <option>Town</option>
+              <option>West</option>
+            </select>
+          </label>
+          <label className="member-subscription-field" htmlFor={`${id}-time`}>
+            Preferred training time
+            <select
+              id={`${id}-time`}
+              value={time}
+              required
+              onChange={(event) => setTime(event.target.value as typeof time)}
+            >
+              <option value="" disabled>
+                Select time
+              </option>
+              <option value="morning">Morning</option>
+              <option value="afternoon">Afternoon</option>
+              <option value="evening">Evening</option>
+            </select>
+          </label>
+        </div>
+        <div className="member-subscription-actions">
+          <button className="admin-auth-button" type="submit">
+            {busy ? "Registering…" : "Register member and choose subscription"}
+          </button>
+        </div>
+      </fieldset>
+      {error ? <p role="alert">{error}</p> : null}
+    </form>
+  );
+}
+
+/** Resolve by the stored source link or exact member number; never by name. */
+export function ProfileSubscriptionEditor({
+  record,
+  paymentsOnly = false,
+}: {
+  record: RegyfitMemberRecord;
+  paymentsOnly?: boolean;
+}) {
   const [state, setState] = useState<LookupState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
-
   useEffect(() => {
     let active = true;
-    if (!memberNumber?.trim()) return;
-    void lookupMemberIdentity("membership-number", memberNumber).then(
+    void resolveImportedSubscription(record.recordId).then(
       (result) => {
-        if (active) {
+        if (active)
           setState(
-            result.matched
-              ? { status: "matched", studentId: result.row.studentId }
+            result.studentId
+              ? { status: "matched", studentId: result.studentId }
               : { status: "missing" },
           );
-        }
       },
-      () => {
-        if (active) setState({ status: "error" });
+      (failure) => {
+        if (active)
+          setState({
+            status: "error",
+            message:
+              failure instanceof Error
+                ? failure.message
+                : "Unable to load this member's subscription.",
+          });
       },
     );
     return () => {
       active = false;
     };
-  }, [memberNumber, attempt]);
-
-  if (memberNumber?.trim() && state.status === "matched") {
-    return <MemberSubscriptionEditor key={state.studentId} studentId={state.studentId} />;
-  }
-
+  }, [record.recordId, attempt]);
+  if (state.status === "matched")
+    return paymentsOnly ? (
+      <MemberSubscriptionPayments key={state.studentId} studentId={state.studentId} />
+    ) : (
+      <MemberSubscriptionEditor key={state.studentId} studentId={state.studentId} />
+    );
   return (
-    <section className="member-subscription-editor" aria-label="Current subscription">
-      <h3>Current subscription</h3>
-      {!memberNumber?.trim() ? (
-        <p>
-          This profile has no member number. Link it to a member record before editing a
-          subscription.
-        </p>
-      ) : state.status === "loading" ? (
-        <p role="status">Loading this member&apos;s subscription…</p>
+    <section
+      className="member-subscription-editor"
+      aria-label={paymentsOnly ? "Current payment history" : "Current subscription"}
+    >
+      <h3>{paymentsOnly ? "Recorded payments" : "Current subscription"}</h3>
+      {state.status === "loading" ? (
+        <p role="status">Loading member record…</p>
       ) : state.status === "missing" ? (
-        <p>
-          No linked member record was found for this member number. Link this imported profile to
-          the member directory before editing its subscription.
-        </p>
+        paymentsOnly ? (
+          <p>
+            No current billing record. Open Membership to register this member and record a payment.
+          </p>
+        ) : (
+          <OfficeRegistration
+            record={record}
+            onRegistered={(studentId) => setState({ status: "matched", studentId })}
+          />
+        )
       ) : (
-        <p role="alert">Unable to load this member&apos;s subscription. Please try again.</p>
+        <>
+          <p role="alert">{state.message}</p>
+          <button
+            className="admin-auth-button"
+            type="button"
+            onClick={() => {
+              setState({ status: "loading" });
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Retry loading member
+          </button>
+        </>
       )}
-      {memberNumber?.trim() && state.status !== "loading" ? (
-        <button
-          className="admin-auth-button"
-          type="button"
-          onClick={() => {
-            setState({ status: "loading" });
-            setAttempt((value) => value + 1);
-          }}
-        >
-          Retry loading subscription
-        </button>
-      ) : null}
     </section>
   );
 }

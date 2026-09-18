@@ -770,11 +770,83 @@ describe("canonical member directory writer, linked to an account (T122)", () =>
 
     const student = store.records.get("academies/academy-1/students/student-linked-1");
     expect(student).not.toHaveProperty("userId");
-    expect(student).not.toHaveProperty("familyId");
-    expect([...store.records.keys()].some((path) => path.includes("/families/"))).toBe(false);
+    expect(student).toHaveProperty("familyId", "office-student-linked-1");
+    expect(store.records.get("academies/academy-1/families/office-student-linked-1")).toMatchObject(
+      { primaryContactUserId: null, billingContactUserId: null, active: true },
+    );
     expect(store.records.has("academies/academy-1/users/member-uid-1")).toBe(false);
     expect(store.records.get("memberDirectoryRestoreGuards/academy-1/events/1")).toMatchObject({
       transitionKind: "canonical-identity-create",
     });
+  });
+});
+
+describe("office registration of imported members", () => {
+  it.each(["2000-01-02", "2015-01-02"])(
+    "registers birth date %s without inventing online access and replays by source",
+    async (dateOfBirth) => {
+      const h = fakeFirestore();
+      const value = { ...input(), dateOfBirth };
+      h.records.set("academies/academy-1/regyfitMemberRecords/161", {
+        academyId: "academy-1",
+        recordId: "161",
+        memberNumber: value.membershipNumber,
+        fullName: value.fullName,
+        birthDate: dateOfBirth,
+        gender: "unknown",
+        membershipState: "active",
+        appAccess: {},
+        graduation: {},
+        plan: {},
+        attendance: { records: [] },
+        payments: [],
+        capturedAt: now,
+        source: "regyfit-admin-capture",
+        schemaVersion: "1",
+      });
+      const writer = service(h.firestore);
+      const result = await writer.registerImportedMember({
+        actor: actor(),
+        value,
+        now,
+        recordId: "161",
+      });
+      expect(
+        h.records.get("academies/academy-1/students/" + result.studentId)?.userId,
+      ).toBeUndefined();
+      expect(
+        h.records.get("academies/academy-1/students/" + result.studentId)?.participantType,
+      ).toBe(dateOfBirth.startsWith("2015") ? "minor" : "adult");
+      expect(
+        h.records.get("academies/academy-1/families/office-" + result.studentId)
+          ?.primaryContactUserId,
+      ).toBeNull();
+      expect(h.records.get("academies/academy-1/regyfitOfficeLinks/161")?.studentId).toBe(
+        result.studentId,
+      );
+      const before = h.records.size;
+      expect(
+        await writer.registerImportedMember({
+          actor: actor(),
+          value: { ...value, requestId: "different-retry" },
+          now,
+          recordId: "161",
+        }),
+      ).toEqual(result);
+      expect(h.records.size).toBe(before);
+    },
+  );
+  it("rejects tampered source identity before committing any writes", async () => {
+    const h = fakeFirestore();
+    const before = new Map(h.records);
+    await expect(
+      service(h.firestore).registerImportedMember({
+        actor: actor(),
+        value: input(),
+        now,
+        recordId: "161",
+      }),
+    ).rejects.toMatchObject({ code: "invalid" });
+    expect(h.records).toEqual(before);
   });
 });

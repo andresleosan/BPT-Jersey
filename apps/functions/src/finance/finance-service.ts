@@ -1,4 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
+import {
+  parseMembershipRecord,
+  type MembershipRecord,
+} from "@bpt-jersey/domain/memberships/lifecycle";
 
 import {
   calculateAccountBalance,
@@ -62,6 +66,7 @@ export type FinanceAuditAction =
   | "invoice.voided"
   | "payment.recorded"
   | "invoice.status.changed"
+  | "membership.status.changed"
   | "academy.payment_instructions.saved";
 export type FinanceAuditDraft = Readonly<{
   academyId: string;
@@ -769,6 +774,47 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
       if (payment.amountMinor > remaining)
         throw new FinanceStoreError("conflict", "Payment exceeds invoice balance");
       const nextBalance = remaining - payment.amountMinor;
+      let activatedMembership: MembershipRecord | null = null;
+      if (nextBalance === 0 && invoice.chargeKind === "membership" && invoice.membershipId) {
+        const snapshot = documentSnapshot(
+          await transaction.get(
+            dependencies.firestore.doc(membershipPath(input.academyId, invoice.membershipId)),
+          ),
+        );
+        const member = storedData(snapshot, "Membership");
+        if (
+          member.academyId !== input.academyId ||
+          member.familyId !== invoice.familyId ||
+          member.membershipId !== invoice.membershipId
+        )
+          throw new FinanceStoreError("tenant", "Membership scope is invalid");
+        if (member.status === "overdue") {
+          const related = querySnapshot(
+            await transaction.get(
+              dependencies.firestore
+                .collection(invoicesPath(input.academyId))
+                .where("membershipId", "==", invoice.membershipId),
+            ),
+          );
+          const anotherDebt = related.docs
+            .map((doc) => parseScopedStoredInvoice(doc, input.academyId))
+            .some(
+              (other) =>
+                other.invoiceId !== invoice.invoiceId &&
+                (other.status === "open" || other.status === "partially_paid"),
+            );
+          if (!anotherDebt) {
+            const parsed = parseMembershipRecord({
+              ...member,
+              status: "active",
+              updatedAt: current,
+              updatedBy: actorId,
+            });
+            if (!parsed.ok) throw new FinanceStoreError("precondition", "Membership is invalid");
+            activatedMembership = parsed.value;
+          }
+        }
+      }
       const updatedInvoice: InvoiceRecord = {
         ...invoice,
         status: nextBalance === 0 ? "paid" : "partially_paid",
@@ -784,6 +830,26 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         dependencies.firestore.doc(invoicePath(input.academyId, invoice.invoiceId)),
         updatedInvoice,
       );
+      if (activatedMembership) {
+        transaction.set(
+          dependencies.firestore.doc(
+            membershipPath(input.academyId, activatedMembership.membershipId),
+          ),
+          activatedMembership,
+        );
+        dependencies.appendAudit(
+          transaction,
+          dependencies.firestore.doc(auditPath(input.academyId, generateAuditId())),
+          {
+            academyId: input.academyId,
+            actorId,
+            action: "membership.status.changed",
+            targetRef: membershipPath(input.academyId, activatedMembership.membershipId),
+            purpose: "activated subscription after outstanding membership invoices were paid",
+            correlationId: input.manualReference,
+          },
+        );
+      }
       dependencies.appendAudit(
         transaction,
         dependencies.firestore.doc(auditPath(input.academyId, generateAuditId())),

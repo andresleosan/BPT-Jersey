@@ -171,7 +171,7 @@ function MembershipTabContent({ record }: { record: RegyfitMemberRecord }) {
     <>
       <ProfileSubscriptionEditor
         key={`${record.recordId}:${record.memberNumber ?? ""}`}
-        memberNumber={record.memberNumber}
+        record={record}
       />
       <p className="member-subscription-help">
         Imported membership details below reflect the Regyfit capture. Changes to the current
@@ -204,15 +204,27 @@ function MembershipTabContent({ record }: { record: RegyfitMemberRecord }) {
 }
 
 function PaymentsTabContent({ record }: { record: RegyfitMemberRecord }) {
+  return (
+    <>
+      <ProfileSubscriptionEditor key={record.recordId} record={record} paymentsOnly />
+      <ImportedPaymentsHistory record={record} />
+    </>
+  );
+}
+
+function ImportedPaymentsHistory({ record }: { record: RegyfitMemberRecord }) {
   if (record.payments.length === 0) {
     return (
-      <EmptySection title="Payments history" message="Regyfit holds no payments for this member." />
+      <EmptySection
+        title="Imported payment history"
+        message="Regyfit holds no payments for this member."
+      />
     );
   }
   return (
     <div className="admin-data-table-wrap">
       <table className="admin-data-table">
-        <caption className="admin-eyebrow">Payments history</caption>
+        <caption className="admin-eyebrow">Imported payment history</caption>
         <thead>
           <tr>
             <th>Date</th>

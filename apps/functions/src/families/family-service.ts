@@ -1381,6 +1381,12 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           if (students.length >= MAX_FAMILY_STUDENTS) {
             throw new FamilyStoreError("precondition", "Family has too many students");
           }
+          if (family.primaryContactUserId === null) {
+            throw new FamilyStoreError(
+              "precondition",
+              "Link a guardian account before adding family access",
+            );
+          }
           await verifyAuthUser(dependencies.auth, family.primaryContactUserId, academyId);
           const tutor = parseStoredTutor(
             readDocumentSnapshot(
