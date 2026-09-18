@@ -1,5 +1,8 @@
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
+import { isLevelCatalogVersion, levelCatalogVersionShapes } from "./level-catalog-v2";
+
+export * from "./level-catalog-v2";
 
 export const levelDefinitionKinds = Object.freeze(["belt", "stripe"] as const);
 export type LevelDefinitionKind = (typeof levelDefinitionKinds)[number];
@@ -236,6 +239,13 @@ export function parseLevelCatalogSource(
     issues.push(issue(["business", "schemaVersion"], "unsupported_schema_version"));
   }
 
+  const requestedSystemId =
+    observedInput.systemId === undefined ? "ibjjf-v1" : observedInput.systemId;
+  if (!isLevelCatalogVersion(requestedSystemId)) {
+    return err([issue(["observed", "systemId"], "unsupported_level_system")]);
+  }
+  const shape = levelCatalogVersionShapes[requestedSystemId];
+
   const businessLevels = isPlainRecord(businessInput.levels) ? businessInput.levels : null;
   if (!businessLevels) {
     issues.push(issue(["business", "levels"], "missing_business_levels"));
@@ -286,11 +296,11 @@ export function parseLevelCatalogSource(
     );
   }
 
-  if (parsedSkills.length !== 11) {
-    issues.push(issue(["observed", "skillCatalog"], "expected_11_skills"));
+  if (parsedSkills.length !== shape.skills) {
+    issues.push(issue(["observed", "skillCatalog"], `expected_${shape.skills}_skills`));
   }
 
-  const systemId = "ibjjf-v1";
+  const systemId = requestedSystemId;
   const observedLevels = Array.isArray(observedInput.levels) ? observedInput.levels : [];
   const parsedDefinitions: LevelDefinitionRecord[] = [];
   const levelKeys = new Set<string>();
@@ -408,14 +418,17 @@ export function parseLevelCatalogSource(
     }
   }
 
-  if (parsedDefinitions.length !== 171) {
-    issues.push(issue(["observed", "levels"], "expected_171_definitions"));
+  if (parsedDefinitions.length !== shape.definitions) {
+    issues.push(issue(["observed", "levels"], `expected_${shape.definitions}_definitions`));
   }
 
   const belts = parsedDefinitions.filter((d) => d.kind === "belt");
   const stripes = parsedDefinitions.filter((d) => d.kind === "stripe");
-  if (belts.length !== 27) issues.push(issue(["observed", "levels"], "expected_27_belts"));
-  if (stripes.length !== 144) issues.push(issue(["observed", "levels"], "expected_144_stripes"));
+  if (belts.length !== shape.belts)
+    issues.push(issue(["observed", "levels"], `expected_${shape.belts}_belts`));
+  if (stripes.length !== shape.stripes) {
+    issues.push(issue(["observed", "levels"], `expected_${shape.stripes}_stripes`));
+  }
 
   // Build requirements from skillRequirementSets
   const skillRequirementSets = Array.isArray(observedInput.skillRequirementSets)
@@ -460,13 +473,9 @@ export function parseLevelCatalogSource(
 
   const systemRecord: LevelSystemRecord = Object.freeze({
     systemId,
-    displayName: "JIU-JITSU - IBJJF",
+    displayName: shape.displayName,
     schemaVersion: 1,
-    precedence: Object.freeze({
-      businessRules: "BPTJ FUNCTIONS APP.docx and BPT-memberships.docx",
-      hierarchyVisualsAndObservedSkills: "Regyfit",
-      conflicts: "DOCX wins; unresolved Regyfit anomalies remain flagged",
-    }),
+    precedence: shape.precedence,
     counts: Object.freeze({
       definitions: parsedDefinitions.length,
       belts: belts.length,
@@ -496,17 +505,22 @@ export function parseLevelCatalogProjection(
 
   const { system, definitions, skills, requirements, sourceHash } = input;
 
-  if (!isPlainRecord(system)) {
+  const systemId = isPlainRecord(system) ? system.systemId : undefined;
+  if (!isPlainRecord(system) || !isLevelCatalogVersion(systemId)) {
     issues.push(issue(["projection", "system"], "invalid_system"));
+    return err(Object.freeze(issues));
   }
-  if (!Array.isArray(definitions) || definitions.length !== 171) {
-    issues.push(issue(["projection", "definitions"], "expected_171_definitions"));
+  const shape = levelCatalogVersionShapes[systemId];
+  if (!Array.isArray(definitions) || definitions.length !== shape.definitions) {
+    issues.push(issue(["projection", "definitions"], `expected_${shape.definitions}_definitions`));
   }
-  if (!Array.isArray(skills) || skills.length !== 11) {
-    issues.push(issue(["projection", "skills"], "expected_11_skills"));
+  if (!Array.isArray(skills) || skills.length !== shape.skills) {
+    issues.push(issue(["projection", "skills"], `expected_${shape.skills}_skills`));
   }
-  if (!Array.isArray(requirements) || requirements.length !== 165) {
-    issues.push(issue(["projection", "requirements"], "expected_165_requirements"));
+  if (!Array.isArray(requirements) || requirements.length !== shape.requirements) {
+    issues.push(
+      issue(["projection", "requirements"], `expected_${shape.requirements}_requirements`),
+    );
   }
   if (typeof sourceHash !== "string" || sourceHash.length === 0) {
     issues.push(issue(["projection", "sourceHash"], "invalid_source_hash"));
