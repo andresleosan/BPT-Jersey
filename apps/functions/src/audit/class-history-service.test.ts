@@ -314,6 +314,37 @@ describe("readClassHistory", () => {
     expect(store.readSessionCalls).toEqual([[]]);
   });
 
+  it("renders an imported row whose class predates the BPT schedule from its own moment", async () => {
+    const store = createStore();
+    store.events = [
+      {
+        ...importedEvent,
+        class: {
+          studentId: null,
+          studentName: "Ana Lewis",
+          sessionId: null,
+          sessionStartAt: "2026-03-12T18:30:00.000Z",
+          programId: null,
+          locationId: null,
+        },
+      },
+    ];
+
+    const { rows, total } = await readClassHistory(store, input, ownerActor);
+
+    expect(total).toBe(1);
+    expect(rows[0]).toMatchObject({
+      id: "event-3",
+      sessionId: null,
+      sessionStartAt: "2026-03-12T18:30:00.000Z",
+      studentName: "Ana Lewis",
+      programName: null,
+      sentence: "Ana Lewis booked the class of 12 Mar 2026 at 18:30",
+    });
+    // Nothing to resolve, so the null id never reaches the store as a document read.
+    expect(store.readSessionCalls).toEqual([[]]);
+  });
+
   it("returns as many rows as the store answered", async () => {
     const store = createStore();
 

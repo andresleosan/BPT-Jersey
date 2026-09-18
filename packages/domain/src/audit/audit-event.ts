@@ -219,12 +219,15 @@ export type RestrictedMemberReadAuditEventDraft = CommonAuditEventDraft &
 
 /**
  * What the log shows about one class event. The student is an identifier when the row belongs to a
- * student record and a plain name when it was imported from Regyfit without a match.
+ * student record and a plain name when it was imported from Regyfit without a match. The session is
+ * an identifier for anything BPT wrote and may be null for an imported row: the Regyfit history
+ * names its class by date and time, and most of those classes predate the BPT schedule, so no
+ * session document exists to point at. `sessionStartAt` always says when the class ran.
  */
 export type ClassAuditEventClass = Readonly<{
   studentId: string | null;
   studentName: string | null;
-  sessionId: string;
+  sessionId: string | null;
   sessionStartAt: string;
   programId: string | null;
   locationId: string | null;
@@ -835,7 +838,13 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       if (!isPlainRecord(block) || !hasExactFields(block, classBlockFields)) {
         issues.push(issue(["class"], "AUDIT_CLASS_BLOCK_INVALID"));
       } else {
-        if (!isClassIdentifier(block.sessionId)) {
+        // Only an imported row may leave the session unlinked. A BPT writer always holds the
+        // session it just booked or cancelled, so a null there is a bug, not a gap in the history.
+        if (block.sessionId === null) {
+          if (snapshot.source !== "regyfit") {
+            issues.push(issue(["class", "sessionId"], "AUDIT_CLASS_SESSION_ID_REQUIRED"));
+          }
+        } else if (!isClassIdentifier(block.sessionId)) {
           issues.push(issue(["class", "sessionId"], "AUDIT_CLASS_IDENTIFIER_INVALID"));
         }
         for (const key of ["studentId", "programId", "locationId"] as const) {
@@ -1264,7 +1273,7 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           class: Object.freeze({
             studentId: block.studentId as string | null,
             studentName: block.studentName as string | null,
-            sessionId: block.sessionId as string,
+            sessionId: block.sessionId as string | null,
             sessionStartAt: block.sessionStartAt as string,
             programId: block.programId as string | null,
             locationId: block.locationId as string | null,
