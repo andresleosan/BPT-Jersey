@@ -21,6 +21,8 @@ export type Location = {
 };
 
 export type Instructor = {
+  /** Persistent schedule reference; keep it when changing a display name. */
+  id: string;
   name: string;
   credential: string;
 };
@@ -142,13 +144,14 @@ export const academyContent = {
   ] satisfies readonly ProgramItem[],
   instructors: [
     {
+      id: "coach-miro",
       name: 'Professor Vladimiro "Miro" Afonso',
       credential: "4th degree black belt",
     },
-    { name: "Charlie Tromans", credential: "Black belt" },
-    { name: "Amoné Mouton", credential: "Black belt" },
-    { name: "Connor Hoopes", credential: "Black belt" },
-    { name: "Catalina Bruma", credential: "Brown belt" },
+    { id: "coach-charlie", name: "Charlie Tromans", credential: "Black belt" },
+    { id: "coach-amone", name: "Amoné Mouton", credential: "Black belt" },
+    { id: "coach-connor", name: "Connor Hoopes", credential: "Black belt" },
+    { id: "coach-catalina", name: "Catalina Bruma", credential: "Brown belt" },
   ] satisfies readonly Instructor[],
   merchandise: [
     {

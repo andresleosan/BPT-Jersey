@@ -51,13 +51,14 @@ describe("public academy content", () => {
     ]);
     expect(academyContent.instructors).toEqual([
       {
+        id: "coach-miro",
         name: 'Professor Vladimiro "Miro" Afonso',
         credential: "4th degree black belt",
       },
-      { name: "Charlie Tromans", credential: "Black belt" },
-      { name: "Amoné Mouton", credential: "Black belt" },
-      { name: "Connor Hoopes", credential: "Black belt" },
-      { name: "Catalina Bruma", credential: "Brown belt" },
+      { id: "coach-charlie", name: "Charlie Tromans", credential: "Black belt" },
+      { id: "coach-amone", name: "Amoné Mouton", credential: "Black belt" },
+      { id: "coach-connor", name: "Connor Hoopes", credential: "Black belt" },
+      { id: "coach-catalina", name: "Catalina Bruma", credential: "Brown belt" },
     ]);
     expect(academyContent.notes.booking).toBe(
       "Timetables and fees are published information. Confirm eligibility and current term availability when booking.",

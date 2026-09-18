@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 
 import type { LocationRecord, ProgramRecord, SessionStatus } from "@bpt-jersey/domain/schedule";
 
-import type { StaffOption } from "./session-panel";
+import { trainerName, type StaffOption } from "./trainer-options";
 
 export type StatusFilter = "active" | "inactive" | "all";
 
@@ -116,7 +116,7 @@ export function ClassesFilters({
       />
       <FilterDropdown
         label="Staff"
-        options={staff.map((row) => ({ value: row.staffKey, label: row.staffKey }))}
+        options={staff.map((row) => ({ value: row.staffKey, label: trainerName(row.staffKey) }))}
         selected={filters.staff}
         onChange={(values) => patch({ staff: values })}
       />

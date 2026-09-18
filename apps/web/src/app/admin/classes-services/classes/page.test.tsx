@@ -367,18 +367,48 @@ describe("Classes & Services 2.0 page", () => {
     );
   });
 
-  it("withdraws creation but keeps the week when the staff directory is refused", async () => {
+  it("keeps academy trainers available when the staff directory is refused", async () => {
     mocks.listStaffProfiles.mockRejectedValue(new Error("permission-denied"));
     render(<ClassesPage />);
     expect(
       await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText("Trainer list unavailable: creating classes is disabled."),
+      await screen.findByText("Staff profiles unavailable. Academy trainers are still available."),
     ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add a class" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add a class" })).toBeInTheDocument();
     // Editing and the week actions do not need the trainer list.
     expect(screen.getByRole("button", { name: "Copy week" })).toBeInTheDocument();
+  });
+  it("creates a class with landing trainers when no staff profiles exist", async () => {
+    mocks.listStaffProfiles.mockResolvedValue([]);
+    mocks.saveSession.mockResolvedValue(townSession);
+    render(<ClassesPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add a class" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    for (const name of [
+      'Professor Vladimiro "Miro" Afonso',
+      "Charlie Tromans",
+      "Amoné Mouton",
+      "Connor Hoopes",
+      "Catalina Bruma",
+    ]) {
+      expect(dialog.getByRole("checkbox", { name })).toBeInTheDocument();
+    }
+    fireEvent.click(dialog.getByRole("checkbox", { name: "Charlie Tromans" }));
+    fireEvent.click(dialog.getByRole("checkbox", { name: "Catalina Bruma" }));
+    fireEvent.change(dialog.getByLabelText("Maximum capacity"), { target: { value: "21" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(mocks.saveSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          instructorId: "coach-charlie",
+          instructorIds: ["coach-charlie", "coach-catalina"],
+          capacity: 21,
+        }),
+      ),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });
