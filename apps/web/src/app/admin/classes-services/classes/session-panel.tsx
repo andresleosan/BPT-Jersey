@@ -21,17 +21,10 @@ import {
   type ScheduleCatalogResponse,
 } from "../../../../lib/schedule-client";
 import { RegistrationsPanel } from "./registrations-panel";
+import { trainerName, trainerOptions, type StaffOption } from "./trainer-options";
 import { localParts } from "./week-grid";
 
-/** Only what the panel needs from a staff profile, so the tests can hand it plain rows. */
-export type StaffOption = Readonly<{
-  staffKey: string;
-  role: string;
-  active: boolean;
-  status: string;
-  /** Whether the row is the signed-in user's own profile (the "Mine" filter needs its staffKey). */
-  self: boolean;
-}>;
+export type { StaffOption } from "./trainer-options";
 
 export type SessionPanelProps = Readonly<{
   mode: "create" | "edit";
@@ -208,6 +201,9 @@ export function SessionPanel({
     setDraft((previous) => ({ ...previous, ...change }));
   }
 
+  const trainers = trainerOptions(staff).filter((row) => row.active && row.status === "active");
+  const trainerKeys = [...new Set([...trainers.map((row) => row.staffKey), ...draft.trainers])];
+
   function toggleTrainer(staffKey: string): void {
     setDraft((previous) => {
       const wanted = new Set(previous.trainers);
@@ -215,7 +211,7 @@ export function SessionPanel({
       else wanted.add(staffKey);
       return {
         ...previous,
-        trainers: staff.map((row) => row.staffKey).filter((key) => wanted.has(key)),
+        trainers: [...wanted],
       };
     });
   }
@@ -408,16 +404,16 @@ export function SessionPanel({
           ) : null}
           <h3>Trainers</h3>
           <ul className="cs-trainers">
-            {staff.map((row) => (
-              <li key={row.staffKey}>
+            {trainerKeys.map((key) => (
+              <li key={key}>
                 <label className="cs-check">
                   <input
                     type="checkbox"
-                    checked={draft.trainers.includes(row.staffKey)}
+                    checked={draft.trainers.includes(key)}
                     disabled={readOnly}
-                    onChange={() => toggleTrainer(row.staffKey)}
+                    onChange={() => toggleTrainer(key)}
                   />
-                  {row.staffKey}
+                  {trainerName(key)}
                 </label>
               </li>
             ))}

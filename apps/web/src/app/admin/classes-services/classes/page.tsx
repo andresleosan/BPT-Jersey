@@ -22,6 +22,7 @@ import {
 } from "./classes-filters";
 import { ListView, type DateRange } from "./list-view";
 import { SessionPanel, type StaffOption } from "./session-panel";
+import { trainerOptions } from "./trainer-options";
 import { WeekActions, addDays } from "./week-actions";
 import { dayLabel, localParts, mondayOf, type GridSession } from "./week-grid";
 
@@ -172,6 +173,7 @@ export function ClassesPage(): ReactElement {
   const [dateRange, setDateRange] = useState<DateRange | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [loading, setLoading] = useState(true);
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [filters, setFilters] = useState<ClassFilters>(emptyClassFilters);
@@ -197,12 +199,9 @@ export function ClassesPage(): ReactElement {
     };
   }, []);
 
-  // Every callable waits for its own App Check token, so the order of the first reads is the order
-  // the page fills in: the week first, then staff (only needed to create a class or filter by trainer).
-  const staffRequested = useRef(false);
+  // Load staff after the first week. The public academy roster is available immediately.
   useEffect(() => {
-    if (loading || staffRequested.current) return undefined;
-    staffRequested.current = true;
+    if (!scheduleLoaded) return undefined;
     let abandoned = false;
     void (async () => {
       try {
@@ -211,9 +210,6 @@ export function ClassesPage(): ReactElement {
         setStaff(rows);
         setStaffStatus("ready");
       } catch {
-        // Staff profiles are an office-only read. Without them the calendar still works and
-        // existing classes still open, but a new class has no trainer to name, so creation is
-        // withdrawn rather than left as a form that can never be submitted.
         if (abandoned) return;
         setStaff([]);
         setStaffStatus("unavailable");
@@ -222,7 +218,7 @@ export function ClassesPage(): ReactElement {
     return () => {
       abandoned = true;
     };
-  }, [loading]);
+  }, [scheduleLoaded]);
 
   const listRange = view === "list" ? dateRange : null;
 
@@ -241,7 +237,10 @@ export function ClassesPage(): ReactElement {
       } catch (failure) {
         if (!abandoned) setError(messageOf(failure, "Unable to load the classes"));
       } finally {
-        if (!abandoned) setLoading(false);
+        if (!abandoned) {
+          setLoading(false);
+          setScheduleLoaded(true);
+        }
       }
     })();
     return () => {
@@ -269,8 +268,8 @@ export function ClassesPage(): ReactElement {
     };
   }, [catalog, loading, timezone, reload]);
 
-  // A class needs a trainer, and trainers come from an office-only read: no list, no creation.
-  const canCreate = canEdit && staffStatus === "ready";
+  const trainers = trainerOptions(staff);
+  const canCreate = canEdit && trainers.some((row) => row.active && row.status === "active");
   const locations = catalog?.locations ?? [];
   const programs = catalog?.programs ?? [];
   const today = localParts(new Date().toISOString(), timezone).date;
@@ -443,13 +442,13 @@ export function ClassesPage(): ReactElement {
       <ClassesFilters
         locations={locations}
         programs={programs}
-        staff={staff}
+        staff={trainers}
         filters={filters}
         onChange={setFilters}
       />
       {canEdit && staffStatus === "unavailable" ? (
         <p className="cs-notice" data-kind="error" role="status">
-          Trainer list unavailable: creating classes is disabled.
+          Staff profiles unavailable. Academy trainers are still available.
         </p>
       ) : null}
       {error === null ? null : (
@@ -498,7 +497,7 @@ export function ClassesPage(): ReactElement {
           mode={panel.mode}
           session={edited}
           catalog={catalog}
-          staff={staff}
+          staff={trainers}
           timezone={timezone}
           defaults={panel.mode === "create" ? panel.defaults : undefined}
           canEdit={canEdit}
