@@ -201,8 +201,16 @@ function plural(count: number, noun: string): string {
  * catalogue that yields exactly the four ladders the belts are named for: 4–7, 7–10, teens 10–15
  * and adult 16+ (a narrower window inside a ladder — brown at 18+, black at 19+, the 7–8 belts —
  * does not open one).
+ *
+ * T051V2 Task 13: exported for TEST VISIBILITY ONLY (the precedent is
+ * `assertApprovedCatalogShape`). `listPromotionGaps` remains the only production caller. The
+ * partition it derives decides every skip count, and it is derived from the catalogue rather than
+ * declared by it, so the ladders of the catalogue we actually publish — `ibjjf-v2` — have to be
+ * pinned directly, not inferred from v1.
  */
-function ladderIndexes(definitions: readonly LevelDefinitionRecord[]): ReadonlyMap<string, number> {
+export function ladderIndexes(
+  definitions: readonly LevelDefinitionRecord[],
+): ReadonlyMap<string, number> {
   const indexes = new Map<string, number>();
   let opening: readonly [number, number] | null = null;
   let ladder = -1;

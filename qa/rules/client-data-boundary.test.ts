@@ -71,6 +71,10 @@ const academyBackendOnlyCollections = Object.freeze([
   "sessionCapacityStates",
   "bookingQuotaStates",
   "waitlistPositionStates",
+  // T051V2: level heads (with the imported baseline) and promotion/void records reach clients
+  // only through the level callables.
+  "studentLevelProgress",
+  "levelPromotions",
 ] as const);
 const rootBackendOnlyCollections = Object.freeze([
   "memberReportExports",
