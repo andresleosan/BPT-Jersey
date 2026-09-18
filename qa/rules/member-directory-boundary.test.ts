@@ -17,6 +17,7 @@ import {
   query,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 import { afterAll, beforeAll, describe, it } from "vitest";
 
@@ -98,6 +99,37 @@ describe("canonical member-directory direct-access boundary", () => {
         await assertFails(updateDoc(existing, { updated: true }));
         await assertFails(deleteDoc(existing));
       }
+    }
+  }, 60_000);
+
+  it("keeps the DETAILS block of the admin profile out of every client role (T051V2)", async () => {
+    const path = "academies/academy-1/studentAdminProfiles/student-details-1";
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), path), {
+        studentId: "student-details-1",
+        academyId: "academy-1",
+        gender: "unknown",
+        details: {
+          healthNumber: "HN0000",
+          weightKg: 70,
+          heightCm: 175,
+          howHeard: "Website",
+          internalNotes: "Test note",
+        },
+      });
+    });
+
+    for (const [roleIndex, role] of roles.entries()) {
+      const firestore = contextFor(role, roleIndex).firestore();
+      const profiles = collection(firestore, "academies/academy-1/studentAdminProfiles");
+      await assertFails(getDoc(doc(firestore, path)));
+      await assertFails(
+        getDocs(query(profiles, where("details.howHeard", "==", "Website"), limit(1))),
+      );
+      await assertFails(updateDoc(doc(firestore, path), { "details.healthNumber": "HN0001" }));
+      await assertFails(
+        setDoc(doc(firestore, path), { details: { weightKg: 71 } }, { merge: true }),
+      );
     }
   }, 60_000);
 });
