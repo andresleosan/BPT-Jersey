@@ -1,7 +1,7 @@
 # Member recovery: production diagnosis and name-only support
 
 Date: 2026-09-18. Branch: `fix/member-recovery-name-only`.
-Status: implemented and locally verified; production release pending operator confirmation.
+Status: operator authorized the coordinated release; Firebase deployment completed. The frontend is published by pushing this change to main.
 
 ## Observed production failure
 
@@ -85,3 +85,32 @@ If release validation fails, stop before the frontend push. Preserve all records
 requests. Use the captured frontend/rules versions and the runbook's scoped rollback
 procedure; do not delete functions, indexes, tickets or member links as an automatic
 rollback. Name-only support is backward compatible with existing name-and-email requests.
+
+## Authorized production execution
+
+The operator explicitly approved deploying Functions, rules and indexes, then publishing main.
+
+- Deployed the four explicit deny blocks and the recovery compound index. The index is READY.
+  Comparing live and repository configuration confirmed no unrelated rules/index changes.
+- Created all five recovery callables in us-central1, Node.js 22. All are ACTIVE.
+  Comparing function inventories confirmed no existing function was changed or removed.
+- Set ACADEMY_ID to demo-academy and bound the existing identity/integrity secret versions (2).
+  Deployment discovery also required the existing BPT_WAIVER_REGISTRATION=disabled value;
+  no waiver functions were redeployed.
+- Every recovery endpoint now responds to the production website's CORS preflight with 204.
+  Before release the entry endpoint returned 404.
+- The production office-queue Firestore query succeeds with the new index (zero pending requests
+  at validation time). This checks the query, not an authenticated office browser session.
+- Google and email/password authentication are enabled; bptjersey.com is an authorized Auth domain.
+- The reCAPTCHA Enterprise domain allowlist omitted bptjersey.com. Added that exact domain to
+  the existing www and Pages entries. Domain validation remains enabled; other web settings
+  are unchanged. The frontend's actual public site key matches Firebase App Check configuration.
+- An automated browser still received App Check attestation rejection after the domain correction.
+  No App Check enforcement, score threshold or other bot protection was weakened. Full live
+  recovery with a real account remains a user acceptance check. All local synthetic tests passed.
+- No member records, recovery tickets or Auth accounts were created or changed during validation.
+  The browser probe replaced form data with an empty invalid payload before sending it.
+
+Frontend baseline for rollback: Cloudflare deployment
+b8297215-8174-42e9-a5e9-3c100b5edbcc, commit 5e324ec. Publish the tested name-only change through
+the authorized main push, then verify the new Pages deployment and optional email field.

@@ -22,7 +22,7 @@ Implementation and local tests do not deploy the feature. Use the existing relea
 - Use the existing directory identity and integrity secret bindings and version labels. Never copy secret material into source, documentation or browser configuration.
 - The canonical directory state and signed restore guard must already be initialized and ready. Recovery does not initialize or migrate production directory state.
 - Configure Google and email/password providers, authorized domains, verification-email settings and App Check for the existing website using the standard environment procedure.
-- Production callable origins are `https://bptjersey.com`, `https://www.bptjersey.com` and `https://bptjersey.pages.dev`.
+- Keep the reCAPTCHA Enterprise domain allowlist aligned with the actual website, including `bptjersey.com`; confirm the public site key matches the App Check app configuration.\n- Production callable origins are `https://bptjersey.com`, `https://www.bptjersey.com` and `https://bptjersey.pages.dev`.
 - Direct client access to recovery requests, rate-limit records, write receipts and source links is denied by Firestore rules. The office views them only through authorized callables.
 - Source/canonical scans fail closed above 1,000 records. This implementation is sized for the observed aggregate of 249 imported records; larger datasets need indexed matching before raising limits.
 - Expiry checks do not delete stored requests. Apply the academy's approved retention procedure; this change provisions no remote TTL policy.
