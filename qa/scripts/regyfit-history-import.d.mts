@@ -25,6 +25,17 @@ export type ResolvedSession = {
   locationId: string | null;
 };
 
+/** Who the captured row names: a membership number when it carries one, and the printed name. */
+export type CapturedPerson = {
+  membershipNumber: string | null;
+  fullName: string;
+};
+
+export type MemberIndex = {
+  byName: ReadonlyMap<string, string | "ambiguous">;
+  byMembershipNumber: ReadonlyMap<string, string | "ambiguous">;
+};
+
 export type MapOptions = {
   academyId: string;
   /** "class-mismatch" when the class the sentence names picks out no single session at that time. */
@@ -32,11 +43,12 @@ export type MapOptions = {
     sessionStartAt: string,
     programName: string | null,
   ) => ResolvedSession | "class-mismatch" | null;
-  resolveStudent: (studentName: string) => string | "ambiguous" | null;
+  resolveMember: (person: CapturedPerson) => string | "ambiguous" | null;
 };
 
 export type MappedEventClass = {
   studentId: string | null;
+  memberId: string | null;
   studentName: string | null;
   sessionId: string | null;
   sessionStartAt: string;
@@ -89,6 +101,11 @@ export function parseLogTimestamp(value: string): string | null;
 export function normaliseName(value: string): string;
 export function historyEventId(row: HistoryRow): string;
 export function groupStudentName(groupName: string | null): string | null;
+export function rowMembershipNumber(row: HistoryRow): string | null;
+export function resolveMemberFrom(
+  index: MemberIndex,
+  person: CapturedPerson,
+): string | "ambiguous" | null;
 export function mapHistoryRow(row: HistoryRow, options: MapOptions): MappedEvent | RejectedRow;
 export function historyEventDocument<Stamp>(
   mapped: MappedEvent,

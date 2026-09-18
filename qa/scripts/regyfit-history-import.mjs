@@ -283,8 +283,17 @@ export function groupStudentName(groupName) {
 }
 
 /**
+ * The athlete reference Regyfit keeps beside the log line. The September 2026 capture leaves that
+ * column empty on every row, but when it does carry one it names the person exactly, so it is tried
+ * before the name.
+ */
+export function rowMembershipNumber(row) {
+  return emptyToNull(String(row[3] ?? ""));
+}
+
+/**
  * One captured row as an audit event, or the reason it cannot be one. `resolveSession` and
- * `resolveStudent` are the target's own lookups, so the pure mapping is testable without Firestore.
+ * `resolveMember` are the target's own lookups, so the pure mapping is testable without Firestore.
  */
 export function mapHistoryRow(row, options) {
   const sentence = String(row[4] ?? "").trim();
@@ -304,7 +313,7 @@ export function mapHistoryRow(row, options) {
   const resolved = options.resolveSession(sessionStartAt, parsed.programName) ?? null;
   const session = resolved === "class-mismatch" ? null : resolved;
   const notes = [];
-  let studentId = null;
+  let memberId = null;
   let studentName = parsed.studentName;
 
   if (parsed.family === "group-booking") {
@@ -315,10 +324,16 @@ export function mapHistoryRow(row, options) {
   } else if (parsed.studentName === null) {
     notes.push("student-not-named");
   } else {
-    const student = options.resolveStudent(parsed.studentName);
-    if (student === null) notes.push("student-unmatched");
-    else if (student === "ambiguous") notes.push("student-ambiguous");
-    else studentId = student;
+    // The person is resolved against the member directory - the roster the operator actually sees -
+    // and never guessed at: a first name Regyfit prints alone can belong to two people, and a wrong
+    // link is a quiet lie where an unmatched row is merely a gap the review file names.
+    const member = options.resolveMember({
+      membershipNumber: rowMembershipNumber(row),
+      fullName: parsed.studentName,
+    });
+    if (member === null) notes.push("member-unmatched");
+    else if (member === "ambiguous") notes.push("member-ambiguous");
+    else memberId = member;
   }
   // Every unlinked row is noted, attendance included: a null session id is honest, but one nobody
   // can see in the review file is invisible, and the operator cannot audit what they cannot see.
@@ -336,10 +351,14 @@ export function mapHistoryRow(row, options) {
     purpose: importPurpose,
     correlationId: eventId,
     class: {
-      studentId,
-      // A resolved student is named by their own record, so the imported name is kept only when
-      // nothing was matched - and never for a group, where it is the team's name with its prefix.
-      studentName: studentId === null ? studentName : null,
+      // An imported row never belongs to a student record: `students` is the operational identity
+      // created on enrolment, and the history predates it. The person is the member directory's.
+      studentId: null,
+      memberId,
+      // A resolved member is named by their own directory record, read at display time, so the
+      // imported name is kept only when nothing was matched - and never for a group, where it is
+      // the team's name with its prefix.
+      studentName: memberId === null ? studentName : null,
       sessionId: session === null ? null : session.sessionId,
       sessionStartAt,
       programId: session === null ? null : session.programId,
@@ -461,17 +480,40 @@ function sessionIndex(snapshot) {
   return byStart;
 }
 
-function studentIndex(snapshot) {
+/**
+ * The member directory, indexed twice: by membership number, which names one person exactly, and by
+ * normalised full name. A name two members share is marked "ambiguous" and resolves to nobody.
+ */
+function memberIndex(snapshot) {
   const byName = new Map();
+  const byMembershipNumber = new Map();
   for (const document of snapshot.docs) {
     const data = document.data();
+    const memberId = data.memberId ?? document.id;
+    const membershipNumber =
+      typeof data.membershipNumber === "string" ? normaliseName(data.membershipNumber) : "";
+    if (membershipNumber !== "") {
+      byMembershipNumber.set(
+        membershipNumber,
+        byMembershipNumber.has(membershipNumber) ? "ambiguous" : memberId,
+      );
+    }
     const fullName = typeof data.fullName === "string" ? data.fullName : null;
     if (fullName === null) continue;
     const key = normaliseName(fullName);
     if (key === "") continue;
-    byName.set(key, byName.has(key) ? "ambiguous" : (data.studentId ?? document.id));
+    byName.set(key, byName.has(key) ? "ambiguous" : memberId);
   }
-  return byName;
+  return { byName, byMembershipNumber };
+}
+
+/** The membership number decides when the row carries one; only then does the name get a turn. */
+export function resolveMemberFrom(index, person) {
+  if (person.membershipNumber !== null) {
+    const byNumber = index.byMembershipNumber.get(normaliseName(person.membershipNumber));
+    if (byNumber !== undefined) return byNumber;
+  }
+  return index.byName.get(normaliseName(person.fullName)) ?? null;
 }
 
 function summarise(results) {
@@ -480,7 +522,7 @@ function summarise(results) {
   const notes = new Map();
   let mapped = 0;
   let withSession = 0;
-  let withStudent = 0;
+  let withMember = 0;
   for (const result of results) {
     if (!result.ok) {
       reasons.set(result.reason, (reasons.get(result.reason) ?? 0) + 1);
@@ -489,13 +531,13 @@ function summarise(results) {
     mapped += 1;
     byFamily.set(result.family, (byFamily.get(result.family) ?? 0) + 1);
     if (result.draft.class.sessionId !== null) withSession += 1;
-    if (result.draft.class.studentId !== null) withStudent += 1;
+    if (result.draft.class.memberId !== null) withMember += 1;
     for (const note of result.notes) notes.set(note, (notes.get(note) ?? 0) + 1);
   }
   return {
     mapped,
     withSession,
-    withStudent,
+    withMember,
     byFamily: Object.fromEntries([...byFamily].sort()),
     reasons: Object.fromEntries([...reasons].sort()),
     notes: Object.fromEntries([...notes].sort()),
@@ -516,8 +558,8 @@ async function main() {
     getApps()[0] ?? initializeApp({ projectId: options.projectId ?? "demo-bpt-jersey" }),
   );
   const academy = `academies/${options.academyId}`;
-  const [sessions, students, programs] = await Promise.all(
-    ["sessions", "students", "programs"].map((name) =>
+  const [sessions, members, programs] = await Promise.all(
+    ["sessions", "members", "programs"].map((name) =>
       firestore.collection(`${academy}/${name}`).get(),
     ),
   );
@@ -525,7 +567,7 @@ async function main() {
     programs.docs.map((doc) => [doc.get("programId") ?? doc.id, doc.get("name")]),
   );
   const sessionsByStart = sessionIndex(sessions);
-  const studentsByName = studentIndex(students);
+  const membersIndex = memberIndex(members);
 
   const resolveSession = (startAt, programName) =>
     chooseSession(
@@ -533,10 +575,10 @@ async function main() {
       programName,
       programNames,
     );
-  const resolveStudent = (name) => studentsByName.get(normaliseName(name)) ?? null;
+  const resolveMember = (person) => resolveMemberFrom(membersIndex, person);
 
   const results = rows.map((row) =>
-    mapHistoryRow(row, { academyId: options.academyId, resolveSession, resolveStudent }),
+    mapHistoryRow(row, { academyId: options.academyId, resolveSession, resolveMember }),
   );
   const summary = summarise(results);
 
@@ -615,7 +657,7 @@ async function main() {
             occurredAt: result.occurredAt,
             sessionStartAt: result.draft.class.sessionStartAt,
             sessionId: result.draft.class.sessionId,
-            studentResolved: result.draft.class.studentId !== null,
+            memberResolved: result.draft.class.memberId !== null,
             notes: result.notes,
           })),
         },
