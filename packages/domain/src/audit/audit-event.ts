@@ -868,6 +868,14 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       }
       if (!classActorRoles.includes(snapshot.actorRole as ClassActorRole)) {
         issues.push(issue(["actorRole"], "AUDIT_CLASS_ACTOR_ROLE_INVALID"));
+      } else if (snapshot.actorRole === "regyfit") {
+        // An imported row names no BPT user, so the role cannot say who acted - only the Regyfit
+        // sentence can. An athlete's own booking is a member's work while Regyfit's "ADMIN" rows
+        // are the office's, so the importer states the group and both are accepted. "system" is
+        // not: a row nobody wrote is a BPT automation, never an import.
+        if (snapshot.actorGroup !== "member" && snapshot.actorGroup !== "staff") {
+          issues.push(issue(["actorGroup"], "AUDIT_CLASS_ACTOR_GROUP_INVALID"));
+        }
       } else if (snapshot.actorGroup !== classActorGroup(snapshot.actorRole as ClassActorRole)) {
         issues.push(issue(["actorGroup"], "AUDIT_CLASS_ACTOR_GROUP_INVALID"));
       }
