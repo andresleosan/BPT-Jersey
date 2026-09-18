@@ -192,6 +192,20 @@ describe("ManageView history", () => {
     expect(rows[2]).not.toHaveTextContent("Void the most recently recorded promotion first");
   });
 
+  it("names every history value on a phone, where the column headings are off screen", async () => {
+    renderView();
+    const table = await screen.findByRole("table", { name: "Level history" });
+    const rows = within(table).getAllByRole("row");
+    // Under 700px `admin.css` stacks each row and prints `data-label` in front of every value.
+    // Without the attribute the operator reads "9 Aug 2026 / 30/25 / 90/75 / Owner / Current" with
+    // nothing saying which number is which.
+    expect(
+      within(rows[1]!)
+        .getAllByRole("cell")
+        .map((cell) => cell.getAttribute("data-label")),
+    ).toEqual(["Level", "Assigned on", "Classes", "Days", "Promoted by", "Status", "Actions"]);
+  });
+
   it("offers the one recoverable step on an older promotion instead of explaining a refusal", async () => {
     const later = { ...promotion, entryId: "grad_later", definitionKey: firstStripe };
     api.getStudentLevelHistory.mockResolvedValue({

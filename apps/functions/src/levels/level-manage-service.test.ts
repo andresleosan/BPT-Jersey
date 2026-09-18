@@ -1849,6 +1849,30 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
   });
 
   /**
+   * T051V2 Task 19, closing Task 13's Minor-1. The `kind !== "void"` half of the row filter
+   * survived removal: the `void_<id>` document the shipped `voidPromotion` writes carries no
+   * `status`, so `status === "approved"` already excluded it and the clause the code credited was
+   * doing nothing. A void document that ALSO carries the voided promotion's own fields — the
+   * shape a future writer that snapshots the promotion onto its void would produce, exactly as
+   * `restore` already snapshots one — would otherwise parse cleanly and show the member standing
+   * at the belt that was just cancelled, a second time.
+   */
+  it("keeps a void record out of the rows even when it looks like an approved promotion", async () => {
+    const { store, records, promotionId } = await assigned();
+    const promotion = records.get(promotionPath(promotionId))!;
+    records.set(promotionPath(`void_${promotionId}`), {
+      ...promotion,
+      ...storedVoid(promotionId),
+      status: "approved",
+    });
+    const history = await store.getStudentLevelHistory(academyId, "student-1");
+    expect(history.entries.map((entry) => entry.entryId)).toEqual([
+      promotionId,
+      "opening_student-1",
+    ]);
+  });
+
+  /**
    * Review Major-4: `rejectPromotion` writes `status: "rejected"` into this very collection. The
    * `status === "approved"` filter is what keeps a REFUSED promotion out of the member's history;
    * without it the member would be shown standing at a belt they were refused.

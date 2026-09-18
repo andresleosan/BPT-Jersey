@@ -307,10 +307,18 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     suffix = randomUUID().replace(/-/gu, "").slice(0, 8).toUpperCase();
 
     // Birthday in three days, thirty years ago, so the header chip reads "Birthday in 3 days".
-    const birthday = new Date(Date.now() + 3 * dayMs);
-    const adultDateOfBirth = `${birthday.getUTCFullYear() - 30}-${String(
-      birthday.getUTCMonth() + 1,
-    ).padStart(2, "0")}-${String(birthday.getUTCDate()).padStart(2, "0")}`;
+    // T051V2 Task 19: the badge counts from the ACADEMY day (Europe/Jersey), so the seed must too.
+    // Reading the UTC day instead made this read "Birthday in 2 days" between 23:00 and midnight
+    // UTC under BST, when the Jersey day has already turned over and the UTC one has not.
+    const [birthYear, birthMonth, birthDay] = new Intl.DateTimeFormat("en-CA", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone: "Europe/Jersey",
+      year: "numeric",
+    })
+      .format(new Date(Date.now() + 3 * dayMs))
+      .split("-");
+    const adultDateOfBirth = `${Number(birthYear) - 30}-${birthMonth}-${birthDay}`;
 
     async function createMember(label: string, dateOfBirth: string): Promise<Member> {
       const localSuffix = `${suffix}${label.toUpperCase()}`;

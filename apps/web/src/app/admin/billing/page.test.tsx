@@ -143,7 +143,10 @@ describe("billing page", () => {
     render(<BillingPage />);
     expect(await screen.findByRole("heading", { name: "Billing" })).toBeInTheDocument();
     expect(screen.getByRole("article", { name: /Collected this month/u })).toBeInTheDocument();
-    const latest = screen.getByRole("region", { name: "Latest payments" });
+    // The section and the table share the name "Latest payments", and the table's scroll wrapper
+    // is now a named region too, so scope to the table itself rather than to a role+name pair
+    // that matches more than one element.
+    const latest = screen.getByRole("table", { name: "Latest payments" });
     expect(within(latest).getAllByRole("row")).toHaveLength(21); // header + 20
     expect(within(latest).getByText("Ana Coelho")).toBeInTheDocument();
     expect(within(latest).getAllByText("Cash").length).toBeGreaterThan(0);

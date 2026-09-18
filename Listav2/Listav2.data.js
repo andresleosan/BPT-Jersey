@@ -798,6 +798,24 @@ const RESOLUTION_REQUIREMENTS = {
     ),
     requirement("7) No revertir functions tras editar planes sin restaurar antes los planes."),
   ],
+  T051V2: [
+    requirement(
+      "1) Desplegar functions y web en la misma ventana. `studentLevelHistorySchema` es estricto y exige `lastApprovedPromotionId`, que las functions desplegadas hoy no devuelven: una web publicada sola deja toda la vista Manage en su estado de error. Un push a `main` publica web sola por Cloudflare Pages.",
+    ),
+    requirement(
+      "2) Redesplegar `recordEvaluation` antes de que un coach pueda evaluar habilidades en producción.",
+    ),
+    requirement(
+      "3) Sembrar `ibjjf-v2` fuera del emulador, solo con confirmación del operador en chat. `seed-levels.mjs` rechaza producción, y pasar de v1 a v2 es rollback y luego siembra, nunca siembra directa: hay una ventana sin catálogo.",
+    ),
+    requirement("4) Poner `NEXT_PUBLIC_LEVELS_BACKEND=true` en Pages después de la siembra."),
+    requirement(
+      "5) Cerrar la política de datos de salud t011/DPIA antes de fusionar a `main`.",
+    ),
+    requirement(
+      "6) Devolver el foco al disparador cuando se cierra el diálogo de anulación: hoy la recarga lo desmonta y el foco cae en `<body>`. Propiedad 5 del modal, única de las cinco sin aseverar.",
+    ),
+  ],
 };
 
 /**
@@ -1591,6 +1609,16 @@ const TASK_SURFACES = {
     "apps/web/src/lib/calendar",
     "qa/tests/schedule-auth-emulator.spec.ts",
   ],
+  T051V2: [
+    "packages/domain/src/levels",
+    "apps/functions/src/levels",
+    "apps/web/src/lib/levels-client.ts",
+    "apps/web/src/app/levels",
+    "apps/web/src/app/admin/members/profile",
+    "apps/web/src/app/admin/members/search",
+    "docs/data",
+    "qa/tests/member-profile.spec.ts",
+  ],
   T029V2: ["apps/web/src/app/admin/members/requests/page.tsx"],
   T030V2: ["apps/functions/src/health", "apps/web/src/app/admin/members/medical"],
   T031V2: ["apps/web/src/app/admin/admin-routes.ts", "apps/web/src/app/admin/admin-shell.tsx"],
@@ -1839,6 +1867,20 @@ const classesServicesItems = [
       REF_TASKS,
       "docs/superpowers/specs/2026-09-17-plans-pricing-capacity-design.md",
       "docs/superpowers/plans/2026-09-17-plans-pricing-capacity.md",
+    ],
+    "funcion",
+  ),
+  task(
+    "T051V2",
+    "Ficha de miembro E0-E2: seguridad, registro canónico con cumpleaños y JIU-JITSU IBJJF",
+    "revision",
+    "Registro canónico en students con PROFILE y DETAILS, cumpleaños, y tarjeta + Manage de IBJJF (historial, asignar con huecos, anular, evaluación de habilidades) sobre el catálogo ibjjf-v2.",
+    "T037V2",
+    "Rama feature/member-profile-e0-e2. Evidencia en tasksv2.md. Despliegue, importación y siembra de ibjjf-v2 fuera del emulador solo con confirmación del operador en chat; web y functions se despliegan en la misma ventana.",
+    [
+      REF_TASKS,
+      "docs/superpowers/specs/2026-09-17-member-profile-e0-e2-design.md",
+      "docs/superpowers/plans/2026-09-17-member-profile-c-e2-ibjjf.md",
     ],
     "funcion",
   ),

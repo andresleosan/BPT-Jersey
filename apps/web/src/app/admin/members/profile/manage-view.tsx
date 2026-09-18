@@ -27,6 +27,7 @@ import {
 } from "../../../../lib/levels-client";
 import { BeltBar } from "../../../levels/levels-browser";
 import { beltPosition, groupBelts } from "../../../levels/levels-grouping";
+import { AdminDataTableWrap } from "../../admin-data-table";
 import { formatCriterion } from "./ibjjf-card";
 import { safeMessage } from "./safe-message";
 import { SkillsAssessment, type SkillRating } from "./skills-assessment";
@@ -532,7 +533,7 @@ function HistoryTable({
       {history.entries.length === 0 ? (
         <p className="ibjjf-muted">No level history yet.</p>
       ) : (
-        <div className="admin-data-table-wrap">
+        <AdminDataTableWrap label="Level history">
           <table aria-labelledby="ibjjf-history-title" className="admin-data-table ibjjf-history">
             <thead>
               <tr>
@@ -554,7 +555,7 @@ function HistoryTable({
                     className={entry.voided === null ? undefined : "ibjjf-voided"}
                     key={entry.entryId}
                   >
-                    <td>
+                    <td data-label="Level">
                       {position === null ? null : (
                         <span aria-hidden="true" className="ibjjf-belt-mini">
                           <BeltBar
@@ -572,23 +573,23 @@ function HistoryTable({
                         <span className="ibjjf-entry-aside">{entry.note}</span>
                       )}
                     </td>
-                    <td className="ibjjf-number">
+                    <td className="ibjjf-number" data-label="Assigned on">
                       {formatDay(entry.assignedOn) ?? `Date ${notRecorded}`}
                     </td>
-                    <td className="ibjjf-number">
+                    <td className="ibjjf-number" data-label="Classes">
                       {entry.classes === null
                         ? "—"
                         : formatCriterion(entry.classes.done, entry.classes.min)}
                     </td>
-                    <td className="ibjjf-number">
+                    <td className="ibjjf-number" data-label="Days">
                       {entry.days === null ? "—" : formatCriterion(entry.days.done, entry.days.min)}
                     </td>
-                    <td>
+                    <td data-label="Promoted by">
                       {entry.source === "regyfit-import"
                         ? "Regyfit import"
                         : (roleLabel(entry.decidedByRole) ?? "—")}
                     </td>
-                    <td>
+                    <td data-label="Status">
                       {entry.voided !== null ? (
                         <span className="ibjjf-status-voided">{voidedStatus(entry.voided)}</span>
                       ) : current !== undefined ? (
@@ -605,7 +606,7 @@ function HistoryTable({
                         "—"
                       )}
                     </td>
-                    <td>
+                    <td data-label="Actions">
                       {!isVoidable || voidable === undefined ? null : voidable.entryId ===
                         entry.entryId ? (
                         <button
@@ -626,7 +627,7 @@ function HistoryTable({
               })}
             </tbody>
           </table>
-        </div>
+        </AdminDataTableWrap>
       )}
     </section>
   );

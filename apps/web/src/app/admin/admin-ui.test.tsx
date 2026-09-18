@@ -15,6 +15,30 @@ describe("admin operational UI primitives", () => {
     );
   });
 
+  it("lets a keyboard-only operator reach the columns that scroll off a phone", () => {
+    const columns = [
+      { key: "name", label: "Name", render: (row: { name: string }) => row.name },
+    ] as const;
+
+    render(
+      <AdminDataTable
+        caption="Scrollable test table"
+        columns={columns}
+        rowKey={(row) => row.name}
+        rows={[{ name: "Alpha" }]}
+      />,
+    );
+
+    // The wrapper scrolls horizontally, so axe requires it to be focusable AND named
+    // (scrollable-region-focusable, serious). The name is the table's own caption, not a second one.
+    const region = screen.getByRole("region", { name: "Scrollable test table" });
+    expect(region).toHaveClass("admin-data-table-wrap");
+    expect(region).toHaveAttribute("tabindex", "0");
+    region.focus();
+    expect(region).toHaveFocus();
+    expect(within(region).getByRole("table", { name: "Scrollable test table" })).toBeVisible();
+  });
+
   it("sorts every column by clicking its header and exposes the direction", async () => {
     const user = userEvent.setup();
     const columns = [

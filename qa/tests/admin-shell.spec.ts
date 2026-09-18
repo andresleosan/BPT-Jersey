@@ -107,7 +107,7 @@ test.describe("admin shell @smoke", () => {
     expect(dimensions.bodyWidth).toBeLessThanOrEqual(dimensions.bodyClientWidth);
   });
 
-  test("shows a coach the six modules and nothing else", async ({ page }, testInfo) => {
+  test("shows a coach the seven modules and nothing else", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop-chromium");
 
     const calls: CallableCall[] = [];
@@ -118,6 +118,10 @@ test.describe("admin shell @smoke", () => {
     await expect(navigation.getByRole("link")).toHaveText([
       "->Overview",
       "->Attendance",
+      // Operator decision 2026-09-17 (grill G6, T051V2 Plan B): the mat reads the member record
+      // through name search. The OFFICE directory at /admin/members stays office-only, asserted
+      // below. This spec still said six after that shipped, so @smoke has been red since.
+      "->Member search",
       "->Enrolment requests",
       "->Medical conditions",
       "->Classes / Services",

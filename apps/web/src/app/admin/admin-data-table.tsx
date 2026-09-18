@@ -45,6 +45,20 @@ function sortableValue(value: string): {
   return { kind: "text", value: normalized.toLocaleLowerCase("en-US") };
 }
 
+/**
+ * The one horizontal-scroll wrapper for every admin table. It is focusable and named so a
+ * keyboard-only operator can reach the columns that sit off-screen on a phone (axe
+ * `scrollable-region-focusable`, serious). `label` must be the table's own accessible name —
+ * its caption or its `aria-labelledby` heading — never a second, different name.
+ */
+export function AdminDataTableWrap({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <div aria-label={label} className="admin-data-table-wrap" role="region" tabIndex={0}>
+      {children}
+    </div>
+  );
+}
+
 export function AdminDataTable<T extends object>({
   caption,
   columns,
@@ -93,7 +107,7 @@ export function AdminDataTable<T extends object>({
   }
 
   return (
-    <div className="admin-data-table-wrap">
+    <AdminDataTableWrap label={caption}>
       <table className="admin-data-table">
         <caption className="visually-hidden">{caption}</caption>
         <thead>
@@ -135,6 +149,6 @@ export function AdminDataTable<T extends object>({
           ))}
         </tbody>
       </table>
-    </div>
+    </AdminDataTableWrap>
   );
 }

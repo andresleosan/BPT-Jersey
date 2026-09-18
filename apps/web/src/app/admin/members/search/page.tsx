@@ -21,6 +21,7 @@ import {
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { recordHref } from "../profile/member-record";
 import { MemberProfilePanel } from "./member-profile-panel";
+import { AdminDataTableWrap } from "../../admin-data-table";
 
 import "../../admin.css";
 
@@ -303,8 +304,9 @@ function AcademyMemberDirectorySection({
             members
           </p>
 
-          <div className="admin-data-table-wrap">
+          <AdminDataTableWrap label="Member directory">
             <table className="admin-data-table">
+              <caption className="visually-hidden">Member directory</caption>
               <thead>
                 <tr>
                   <th>Member Nº</th>
@@ -332,7 +334,7 @@ function AcademyMemberDirectorySection({
                         ? { "aria-current": "true" as const }
                         : {})}
                     >
-                      <td>
+                      <td data-label="Member Nº">
                         <button
                           aria-label={`Open full record for ${row.fullName}`}
                           className="member-search-number"
@@ -342,21 +344,23 @@ function AcademyMemberDirectorySection({
                           {row.memberNumber ?? `#${row.recordId}`}
                         </button>
                       </td>
-                      <td>
+                      <td data-label="Name">
                         <strong>{row.fullName}</strong>
                       </td>
-                      <td>{row.birthDate ?? "—"}</td>
-                      <td>{row.email ?? "—"}</td>
-                      <td>{row.mobile ?? "—"}</td>
-                      <td>{row.paymentMode ?? "—"}</td>
-                      <td>{row.belt ?? "—"}</td>
-                      <td>{row.membershipState === "active" ? "Active" : "Inactive"}</td>
+                      <td data-label="Birthdate">{row.birthDate ?? "—"}</td>
+                      <td data-label="E-mail">{row.email ?? "—"}</td>
+                      <td data-label="Mobile Nº">{row.mobile ?? "—"}</td>
+                      <td data-label="Payment">{row.paymentMode ?? "—"}</td>
+                      <td data-label="Belt">{row.belt ?? "—"}</td>
+                      <td data-label="Membership">
+                        {row.membershipState === "active" ? "Active" : "Inactive"}
+                      </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
-          </div>
+          </AdminDataTableWrap>
 
           {totalPages > 1 ? (
             <div className="member-search-pagination">
