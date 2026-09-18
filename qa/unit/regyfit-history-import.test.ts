@@ -8,18 +8,26 @@ import {
   importActorId,
   mapHistoryRow,
   normaliseName,
+  resolveMemberFrom,
+  rowMembershipNumber,
   parseHistorySentence,
   parseLogTimestamp,
   type HistoryRow,
   type MapOptions,
+  type MemberIndex,
   type MappedEvent,
   type RejectedRow,
 } from "../scripts/regyfit-history-import.mjs";
 
 // Every name, address and class below is invented for this test: the real capture never enters the
 // repository.
-function row(sentence: string, loggedAt = "16-09-2026 11:59", user = "Synthetic User"): HistoryRow {
-  return [loggedAt, user, "203.0.113.10", "", sentence];
+function row(
+  sentence: string,
+  loggedAt = "16-09-2026 11:59",
+  user = "Synthetic User",
+  membershipNumber = "",
+): HistoryRow {
+  return [loggedAt, user, "203.0.113.10", membershipNumber, sentence];
 }
 
 const session = { sessionId: "session-1", programId: "program-1", locationId: "town" };
@@ -28,7 +36,7 @@ function options(overrides: Partial<MapOptions> = {}): MapOptions {
   return {
     academyId: "demo-academy",
     resolveSession: () => null,
-    resolveStudent: () => null,
+    resolveMember: () => null,
     ...overrides,
   };
 }
@@ -245,7 +253,66 @@ describe("normaliseName", () => {
   });
 });
 
+describe("resolveMemberFrom", () => {
+  const index: MemberIndex = {
+    byMembershipNumber: new Map([["bpt 0007", "member-by-number"]]),
+    byName: new Map([["synthetic athlete", "member-by-name"]]),
+  };
+
+  it("lets the membership number decide when the row carries one", () => {
+    expect(
+      resolveMemberFrom(index, {
+        membershipNumber: "BPT 0007",
+        fullName: "Synthetic Athlete",
+      }),
+    ).toBe("member-by-number");
+  });
+
+  it("falls back to the name only when the row carries no membership number", () => {
+    expect(
+      resolveMemberFrom(index, { membershipNumber: null, fullName: "Synthetic Athlete" }),
+    ).toBe("member-by-name");
+  });
+
+  it("falls back to the name when the membership number matches nobody", () => {
+    expect(
+      resolveMemberFrom(index, { membershipNumber: "BPT 9999", fullName: "Synthetic Athlete" }),
+    ).toBe("member-by-name");
+  });
+
+  it("answers with nobody when neither key matches", () => {
+    expect(resolveMemberFrom(index, { membershipNumber: null, fullName: "Ayesha" })).toBeNull();
+  });
+});
+
 describe("mapHistoryRow", () => {
+  it("hands the resolver the membership number the row carries, ahead of the name", () => {
+    const seen: { membershipNumber: string | null; fullName: string }[] = [];
+    const result = mapped(
+      mapHistoryRow(
+        row(
+          "O atleta Synthetic Athlete Inscreveu-se na aula do dia 23 Sep 2026 pelas 07:00",
+          "16-09-2026 11:59",
+          "Synthetic User",
+          "BPT 0007",
+        ),
+        options({
+          resolveMember: (person) => {
+            seen.push(person);
+            return person.membershipNumber === "BPT 0007" ? "member-by-number" : "member-by-name";
+          },
+        }),
+      ),
+    );
+
+    expect(seen).toEqual([{ membershipNumber: "BPT 0007", fullName: "Synthetic Athlete" }]);
+    expect(result.draft.class.memberId).toBe("member-by-number");
+  });
+
+  it("reads an empty reference column as no membership number at all", () => {
+    expect(rowMembershipNumber(row("anything"))).toBeNull();
+  });
+
   it("maps a member booking onto an imported audit event with the class moment in UTC", () => {
     const result = mapped(
       mapHistoryRow(
@@ -264,6 +331,7 @@ describe("mapHistoryRow", () => {
       correlationId: result.eventId,
       class: {
         studentId: null,
+        memberId: null,
         studentName: "Synthetic Athlete",
         sessionId: null,
         // 07:00 on a Jersey September morning is 06:00 UTC, not 07:00.
@@ -277,23 +345,25 @@ describe("mapHistoryRow", () => {
       actorName: "Synthetic User",
       source: "regyfit",
     });
-    expect(result.notes).toEqual(["student-unmatched", "session-unmatched"]);
+    expect(result.notes).toEqual(["member-unmatched", "session-unmatched"]);
   });
 
-  it("links the student and the session the target already holds", () => {
+  it("links the member and the session the target already holds", () => {
     const result = mapped(
       mapHistoryRow(
         row("O atleta Synthetic Athlete Inscreveu-se na aula do dia 23 Sep 2026 pelas 07:00"),
         options({
           resolveSession: (startAt) => (startAt === "2026-09-23T06:00:00Z" ? session : null),
-          resolveStudent: (name) => (name === "Synthetic Athlete" ? "student-7" : null),
+          resolveMember: (person) => (person.fullName === "Synthetic Athlete" ? "member-7" : null),
         }),
       ),
     );
 
     expect(result.draft.class).toEqual({
-      studentId: "student-7",
-      // The record names the student from now on; the imported spelling is not kept beside it.
+      // An imported row belongs to the member directory, never to a student record.
+      studentId: null,
+      memberId: "member-7",
+      // The directory names the member from now on; the imported spelling is not kept beside it.
       studentName: null,
       sessionId: "session-1",
       sessionStartAt: "2026-09-23T06:00:00Z",
@@ -303,28 +373,44 @@ describe("mapHistoryRow", () => {
     expect(result.notes).toEqual([]);
   });
 
-  it("never invents a student when two records answer to the same name", () => {
+  it("never invents a member when two records answer to the same name", () => {
     const result = mapped(
       mapHistoryRow(
         row("O atleta Synthetic Athlete Inscreveu-se na aula do dia 23 Sep 2026 pelas 07:00"),
-        options({ resolveStudent: () => "ambiguous" }),
+        options({ resolveMember: () => "ambiguous" }),
       ),
     );
 
-    expect(result.draft.class.studentId).toBeNull();
+    expect(result.draft.class.memberId).toBeNull();
     expect(result.draft.class.studentName).toBe("Synthetic Athlete");
-    expect(result.notes).toContain("student-ambiguous");
+    expect(result.notes).toContain("member-ambiguous");
+  });
+
+  it("keeps an unmatched person unmatched, with the captured name and a review note", () => {
+    const result = mapped(
+      mapHistoryRow(
+        row("O atleta Ayesha Inscreveu-se na aula do dia 23 Sep 2026 pelas 07:00"),
+        // "Ayesha" is a first name Regyfit prints alone: the directory holds no such full name, and
+        // guessing at one of the members whose first name it is would fabricate the link.
+        options({ resolveMember: (person) => (person.fullName === "Ayesha" ? null : "member-7") }),
+      ),
+    );
+
+    expect(result.draft.class.memberId).toBeNull();
+    expect(result.draft.class.studentId).toBeNull();
+    expect(result.draft.class.studentName).toBe("Ayesha");
+    expect(result.notes).toContain("member-unmatched");
   });
 
   it("marks a group booking as a group and leaves it without a student", () => {
     const result = mapped(
       mapHistoryRow(
         row("O grupo/equipa Competition Team foi inscrito na aula do dia 2 Mar 2026 pelas 18:30"),
-        options({ resolveStudent: () => "student-7" }),
+        options({ resolveMember: () => "member-7" }),
       ),
     );
 
-    expect(result.draft.class.studentId).toBeNull();
+    expect(result.draft.class.memberId).toBeNull();
     expect(result.draft.class.studentName).toBe("Group: Competition Team");
     expect(result.draft.actorGroup).toBe("staff");
   });
@@ -345,13 +431,13 @@ describe("mapHistoryRow", () => {
     const result = mapped(
       mapHistoryRow(
         row("Foram marcadas presenças e faltas da aula: 1234 | 16-09-2026 | 18:30"),
-        options({ resolveStudent: () => "student-7" }),
+        options({ resolveMember: () => "member-7" }),
       ),
     );
 
     expect(result.draft.action).toBe("attendance.checked_in");
     expect(result.draft.actorGroup).toBe("staff");
-    expect(result.draft.class.studentId).toBeNull();
+    expect(result.draft.class.memberId).toBeNull();
     expect(result.draft.class.studentName).toBeNull();
     expect(result.draft.class.sessionStartAt).toBe("2026-09-16T17:30:00Z");
     // An unlinked attendance row is noted like any other: a null session the operator cannot see
