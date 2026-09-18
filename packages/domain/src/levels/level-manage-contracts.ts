@@ -107,6 +107,15 @@ const criterionAtAssignmentSchema = z.strictObject({
   min: countSchema.nullable(),
 });
 
+/**
+ * Stored free text as the HISTORY reads it. A read schema over rows written by earlier code and by
+ * the Regyfit import, so it is deliberately wider than the write-side `promotionNoteSchema`
+ * (10-500). Exported because the store must normalise with the very schema the row is parsed with:
+ * review of Task 10 (Major-2) — a sub-field the read schema cannot take degrades to "not
+ * recorded", it never drops the promotion it belongs to.
+ */
+export const historyFreeTextSchema = boundedFreeText(0, 1000);
+
 export const levelHistoryEntrySchema = z.strictObject({
   entryId: recordIdSchema,
   kind: z.enum(["opening", "promotion"]),
@@ -119,13 +128,21 @@ export const levelHistoryEntrySchema = z.strictObject({
   source: z.enum(["bpt", "regyfit-import"]),
   // A read schema over stored data: a stored note that is empty, or that trims to empty, must not
   // fail the whole history. Task 10 maps such a note to `null`. Write-side notes stay at min 10.
-  note: boundedFreeText(0, 1000).nullable(),
+  note: historyFreeTextSchema.nullable(),
   gaps: gapsSchema,
+  /**
+   * Review of Task 10 (Major-2), RULING: a void record that exists always marks its promotion
+   * voided. Showing a cancelled promotion as still standing is a lie the operator can see and
+   * challenge; omitting the promotion is a lie the operator cannot see at all, and it destroys the
+   * very evidence the append-only design exists to preserve. So every sub-field degrades to `null`
+   * — "not recorded" — exactly the way `decidedByRole` already does, and the row survives. No
+   * fallback ever FABRICATES an author or a date on an audited record.
+   */
   voided: z
     .strictObject({
-      reason: promotionNoteSchema,
-      voidedByRole: decisionRoleSchema,
-      voidedOn: dateOnlySchema,
+      reason: historyFreeTextSchema.nullable(),
+      voidedByRole: decisionRoleSchema.nullable(),
+      voidedOn: dateOnlySchema.nullable(),
     })
     .nullable(),
 });

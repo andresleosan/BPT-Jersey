@@ -1,5 +1,5 @@
 import { Timestamp } from "firebase-admin/firestore";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
@@ -882,6 +882,43 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     expect(await fixture.currentDefinitionKey()).toBe("white-2nd-stripe");
   });
 
+  /**
+   * Review of Task 10 (Major-1): the reason is the ONLY record of why a real, audited promotion was
+   * cancelled, so the store re-checks it with the same schema the boundary parses with. Every one
+   * of these five used to be accepted and written verbatim, and each then made the promotion
+   * disappear from the history at read time.
+   */
+  it.each([
+    ["empty", ""],
+    ["whitespace only", "   "],
+    ["too short", "oops"],
+    ["carrying a control character", `Wrong member${String.fromCharCode(0)} entirely.`],
+    ["longer than 500 characters", "w".repeat(501)],
+  ])("refuses a void reason that is %s, and voids nothing", async (_label, reason) => {
+    const fixture = await makeFixture();
+    const assigned = await fixture.assign({ note: assignmentNote });
+    await expect(
+      fixture.voidPromotion(assigned.promotionId, {
+        input: { studentId: "student-1", promotionId: assigned.promotionId, reason },
+      }),
+    ).rejects.toMatchObject({ code: "invalid", message: "Void reason is invalid" });
+    expect(await fixture.currentDefinitionKey()).toBe("white-2nd-stripe");
+    expect((await fixture.history()).entries[0]?.voided).toBeNull();
+  });
+
+  it("stores the void reason trimmed, exactly as an assignment note is", async () => {
+    const fixture = await makeFixture();
+    const assigned = await fixture.assign({ note: assignmentNote });
+    await fixture.voidPromotion(assigned.promotionId, {
+      input: {
+        studentId: "student-1",
+        promotionId: assigned.promotionId,
+        reason: `  ${voidReason}  `,
+      },
+    });
+    expect((await fixture.history()).entries[0]?.voided).toMatchObject({ reason: voidReason });
+  });
+
   it("lists the opening on its own before any promotion", async () => {
     const fixture = await makeFixture();
     expect(await fixture.history()).toEqual({
@@ -1496,6 +1533,113 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
     expect(writes).toHaveLength(0);
   });
 
+  /**
+   * Review Major-5: the four refusals are ONE user-facing string on purpose — a caller must not
+   * learn which promotions exist — which left support with nothing when an operator reports "it
+   * will not let me undo this". `console.error` is the logging facility this repo already uses
+   * inside Cloud Functions (`schedule-callables.ts`). Nothing restricted (ADR-009 rule 14) is
+   * named, and the reason the operator typed is NOT logged.
+   */
+  describe("refusal causes (T051V2)", () => {
+    afterEach(() => void vi.restoreAllMocks());
+
+    async function refusal(
+      prepare: (records: Stored, promotionId: string) => void,
+      promotionIdOf: (promotionId: string) => string = (promotionId) => promotionId,
+    ) {
+      const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const { store, records, writes, promotionId } = await assigned();
+      prepare(records, promotionId);
+      logged.mockClear();
+      await expect(
+        store.voidPromotion(voidInput(promotionIdOf(promotionId))),
+      ).rejects.toMatchObject({ code: "conflict", message: "Promotion cannot be voided" });
+      expect(writes).toHaveLength(0);
+      expect(logged).toHaveBeenCalledTimes(1);
+      return logged.mock.calls[0];
+    }
+
+    const line = (cause: string, promotionId: string) => [
+      "level.promotion.void refused",
+      { cause, academyId, studentId: "student-1", promotionId },
+    ];
+
+    it("logs no-such-promotion for a promotion this student does not have", async () => {
+      const unknownId = "grad_student-1_white-1st-stripe_2026-08-01T00:00:00.000Z";
+      expect(
+        await refusal(
+          () => undefined,
+          () => unknownId,
+        ),
+      ).toEqual(line("no-such-promotion", unknownId));
+    });
+
+    /**
+     * M21: a void is a record in the same collection, so "a void cannot itself be voided" is a
+     * real clause. It is only reachable through a corrupted row — a void row carrying
+     * `status: "approved"` that the head names — because a void this code writes has no status at
+     * all and is refused one clause earlier.
+     */
+    it("logs no-such-promotion for a record that is itself a void", async () => {
+      expect(
+        await refusal((records, promotionId) => {
+          records.set(promotionPath(promotionId), {
+            ...records.get(promotionPath(promotionId))!,
+            kind: "void",
+          });
+        }),
+      ).toEqual(
+        line("no-such-promotion", "grad_student-1_white-2nd-stripe_2026-09-10T12:00:00.000Z"),
+      );
+    });
+
+    /**
+     * The already-voided clause is unreachable by the normal path — once a void lands the head no
+     * longer names that promotion — so it takes a head that still names an already-voided
+     * promotion to reach it. Without the clause this would append a SECOND void over the first.
+     */
+    it("logs already-voided for a head that still names a voided promotion", async () => {
+      expect(
+        await refusal((records, promotionId) => {
+          records.set(promotionPath(`void_${promotionId}`), storedVoid(promotionId));
+        }),
+      ).toEqual(line("already-voided", "grad_student-1_white-2nd-stripe_2026-09-10T12:00:00.000Z"));
+    });
+
+    it("logs not-latest for a promotion the head no longer names", async () => {
+      expect(
+        await refusal((records) => {
+          records.set(headPath, {
+            ...records.get(headPath)!,
+            lastApprovedPromotionId: "some-later-promotion",
+          });
+        }),
+      ).toEqual(line("not-latest", "grad_student-1_white-2nd-stripe_2026-09-10T12:00:00.000Z"));
+    });
+
+    /**
+     * M3d and M22: every field of the restore snapshot is load-bearing. A promotion written before
+     * `5b67c1b` carries no `restore` at all and is deliberately NOT voidable; so is one whose
+     * snapshot cannot be read, because restoring it would mean GUESSING a real person's belt, the
+     * instant that level started, or which promotion came before it.
+     */
+    it.each([
+      ["with no restore snapshot at all", undefined],
+      ["whose restored level key is not a string", { currentDefinitionKey: 7 }],
+      ["whose restored level start is not a string", { currentLevelStartedAt: 7 }],
+      ["whose restored previous promotion id is not a string", { lastApprovedPromotionId: 7 }],
+    ])("logs no-restore for a promotion %s", async (_label, corruption) => {
+      expect(
+        await refusal((records, promotionId) => {
+          const stored = { ...records.get(promotionPath(promotionId))! };
+          if (corruption === undefined) delete stored.restore;
+          else stored.restore = { ...(stored.restore as Record<string, unknown>), ...corruption };
+          records.set(promotionPath(promotionId), stored);
+        }),
+      ).toEqual(line("no-restore", "grad_student-1_white-2nd-stripe_2026-09-10T12:00:00.000Z"));
+    });
+  });
+
   it("lists the promotion and the opening newest first, and hides voids from listGraduations", async () => {
     const { store, promotionId } = await assigned();
     await store.voidPromotion(voidInput(promotionId));
@@ -1545,6 +1689,9 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
     ["absent", {}],
     ["empty", { decisionNotes: "" }],
     ["whitespace only", { decisionNotes: "   \n\t  " }],
+    // Major-2 again, on the note: a stored note the read schema cannot take degrades to "no
+    // note"; it never deletes the promotion it belongs to.
+    ["longer than the read schema takes", { decisionNotes: "w".repeat(1001) }],
   ])("reads a %s note as null", async (_label, overrides) => {
     const { store, records, promotionId } = await assigned();
     const stored = { ...records.get(promotionPath(promotionId))! };
@@ -1555,27 +1702,154 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
     expect(history.entries[0]).toMatchObject({ entryId: promotionId, note: null });
   });
 
+  /** A void row written straight into the store, so each of its fields can be corrupted on its own. */
+  const storedVoid = (promotionId: string, overrides: Record<string, unknown> = {}) => ({
+    promotionId: `void_${promotionId}`,
+    kind: "void",
+    academyId,
+    studentId: "student-1",
+    voidsPromotionId: promotionId,
+    reason: voidReason,
+    decidedBy: "head-user-1",
+    decidedByRole: "headCoach",
+    decidedByStaffId: "staff-head-1",
+    decidedAt: voidAt,
+    createdAt: voidAt,
+    ...overrides,
+  });
+
   /**
    * `levelHistoryEntrySchema` is a read schema over stored data. One unreadable row must not take
    * the whole history down, so a row that cannot be parsed is left out and everything else is
-   * still shown. A void whose role is unreadable drops the promotion it voids rather than showing
-   * that promotion as if it were still standing.
+   * still shown.
+   *
+   * Review Major-3: these three fields used to be coerced with `String(...)` INSIDE the per-row
+   * parse, so a promotion with no `toDefinitionKey` became the string `"undefined"` —
+   * `identifierSchema` accepts it — and the member was shown promoted to a belt called `undefined`,
+   * row present and standing. The row must fail instead.
    */
-  it("drops a single unreadable row and still returns the rest", async () => {
+  it.each([["toDefinitionKey"], ["fromDefinitionKey"]])(
+    "drops a promotion row with no %s instead of showing a belt called `undefined`",
+    async (field) => {
+      const { store, records, promotionId } = await assigned();
+      const stored = { ...records.get(promotionPath(promotionId))! };
+      delete stored[field];
+      records.set(promotionPath(promotionId), stored);
+      const history = await store.getStudentLevelHistory(academyId, "student-1");
+      expect(history.entries.map((entry) => entry.entryId)).toEqual(["opening_student-1"]);
+      expect(history.entries.map((entry) => entry.definitionKey)).not.toContain("undefined");
+    },
+  );
+
+  /**
+   * Review Major-2, RULING: a void record that EXISTS always marks its promotion voided.
+   * Unreadable sub-fields of the void degrade to `null` — "not recorded" — and the row survives.
+   * Every one of these five corruptions used to delete the promotion from the history: showing a
+   * cancelled promotion as if it still stood is a lie the operator can see and challenge; omitting
+   * it is a lie the operator cannot see at all, and it destroys the evidence the append-only
+   * design exists to preserve. Nothing is ever fabricated to fill a gap.
+   */
+  it.each([
+    ["an unreadable author role", { decidedByRole: "coach" }, { voidedByRole: null }],
+    // A row written BEFORE Major-1's guard existed: shorter than the write-side minimum of 10.
+    // The guard stops new ones; it cannot un-write the ones already stored, and those must render.
+    ["a reason shorter than the write-side minimum", { reason: "oops" }, { reason: "oops" }],
+    ["a reason that is not a string", { reason: 42 }, { reason: null }],
+    ["a reason longer than the read schema takes", { reason: "w".repeat(1001) }, { reason: null }],
+    [
+      "a reason carrying a control character",
+      { reason: `Wrong member${String.fromCharCode(7)} entirely.` },
+      { reason: null },
+    ],
+    ["no readable decidedAt (falls back to createdAt)", { decidedAt: null }, {}],
+    [
+      "no readable decidedAt and no readable createdAt",
+      { decidedAt: null, createdAt: null },
+      { voidedOn: null },
+    ],
+  ])("still marks the promotion voided when the void has %s", async (_label, corruption, shown) => {
     const { store, records, promotionId } = await assigned();
-    records.set(promotionPath(`void_${promotionId}`), {
-      promotionId: `void_${promotionId}`,
-      kind: "void",
-      academyId,
-      studentId: "student-1",
-      voidsPromotionId: promotionId,
+    records.set(promotionPath(`void_${promotionId}`), storedVoid(promotionId, corruption));
+    const history = await store.getStudentLevelHistory(academyId, "student-1");
+    expect(history.entries.map((entry) => entry.entryId)).toEqual([
+      promotionId,
+      "opening_student-1",
+    ]);
+    expect(history.entries[0]?.voided).toEqual({
       reason: voidReason,
-      decidedBy: "coach-user-1",
-      decidedByRole: "coach",
-      decidedAt: voidAt,
+      voidedByRole: "headCoach",
+      voidedOn: "2026-09-11",
+      ...shown,
+    });
+  });
+
+  /**
+   * Review Major-4: `rejectPromotion` writes `status: "rejected"` into this very collection. The
+   * `status === "approved"` filter is what keeps a REFUSED promotion out of the member's history;
+   * without it the member would be shown standing at a belt they were refused.
+   */
+  it("never shows a rejected promotion as a standing one", async () => {
+    const { store, promotionId } = await assigned();
+    await store.rejectPromotion({
+      academyId,
+      input: {
+        studentId: "student-1",
+        targetDefinitionKey: "white-3rd-stripe",
+        decisionNotes: "Not ready for the third stripe yet.",
+      },
+      decidedBy: "head-user-1",
+      decidedByStaffId: "staff-head-1",
+      decidedByRole: "headCoach",
+      decidedAt: "2026-09-12T12:00:00.000Z",
     });
     const history = await store.getStudentLevelHistory(academyId, "student-1");
-    expect(history.entries.map((entry) => entry.entryId)).toEqual(["opening_student-1"]);
+    expect(history.entries.map((entry) => [entry.entryId, entry.definitionKey])).toEqual([
+      [promotionId, "white-2nd-stripe"],
+      ["opening_student-1", "white-belt"],
+    ]);
+  });
+
+  /** M12: the sort itself, not only its direction — unsorted, these come back oldest first. */
+  it("orders three entries newest first, the opening last on a shared day", async () => {
+    const promotion = (promotionId: string, toDefinitionKey: string, promotedOn: string) => [
+      promotionPath(promotionId),
+      {
+        promotionId,
+        academyId,
+        studentId: "student-1",
+        systemId: "ibjjf-v1",
+        status: "approved",
+        fromDefinitionKey: "white-belt",
+        toDefinitionKey,
+        promotedOn,
+        decidedBy: "owner-user-1",
+        decidedByRole: "owner",
+        decidedAt: `${promotedOn}T12:00:00.000Z`,
+        gaps: [],
+      },
+    ];
+    const { store } = await seededStore([
+      [headPath, head()],
+      promotion("older-promotion", "white-1st-stripe", "2026-07-01") as never,
+      promotion("newer-promotion", "white-2nd-stripe", "2026-09-10") as never,
+    ]);
+    const history = await store.getStudentLevelHistory(academyId, "student-1");
+    expect(history.entries.map((entry) => entry.entryId)).toEqual([
+      "newer-promotion",
+      "older-promotion",
+      "opening_student-1",
+    ]);
+  });
+
+  /** M29: an imported opening names no author and says where it came from. */
+  it("reads an imported opening as imported, with no author role", async () => {
+    const { store } = await seededStore([[headPath, head({ source: "regyfit-import" })]]);
+    const history = await store.getStudentLevelHistory(academyId, "student-1");
+    expect(history.entries[0]).toMatchObject({
+      entryId: "opening_student-1",
+      source: "regyfit-import",
+      decidedByRole: null,
+    });
   });
 
   it("returns an empty history for a student without a level", async () => {
