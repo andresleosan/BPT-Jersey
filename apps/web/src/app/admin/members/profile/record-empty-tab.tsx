@@ -76,7 +76,7 @@ export function RecordEmptyTab({
           </button>
         ) : (
           /* Never a dead end (DESIGN.md §4): a viewer without DETAILS still gets one way out. */
-          <Link className="member-record-link" href="/admin/members">
+          <Link className="member-record-button" href="/admin/members">
             Open Members
           </Link>
         )}
@@ -89,7 +89,7 @@ export function RecordEmptyTab({
       <p className="admin-eyebrow">{content.eyebrow}</p>
       <h3 id={`record-empty-${tab}`}>{content.headline}</h3>
       <p>{content.sentence}</p>
-      <Link className="member-record-link" href={content.href(studentId)}>
+      <Link className="member-record-button" href={content.href(studentId)}>
         {content.action}
       </Link>
     </section>
