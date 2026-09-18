@@ -11,7 +11,8 @@ const auth = vi.hoisted(() => ({
   resetRecoveryPassword: vi.fn(),
 }));
 const navigation = vi.hoisted(() => ({ navigateTo: vi.fn() }));
-vi.mock("../../../lib/member-recovery-client", () => api);
+const loader = vi.hoisted(() => ({ loadRecoveryClient: vi.fn() }));
+vi.mock("../../../lib/member-recovery-loader", () => loader);
 vi.mock("../../../lib/member-recovery-auth", () => auth);
 vi.mock("../../../lib/login-flow", () => navigation);
 import { RecoveryForm } from "./recovery-form";
@@ -19,6 +20,7 @@ const recoveryId = "a".repeat(64);
 beforeEach(() => {
   vi.resetAllMocks();
   sessionStorage.clear();
+  loader.loadRecoveryClient.mockResolvedValue(api);
   auth.subscribeRecoverySession.mockImplementation((callback) => {
     callback(null);
     return () => {};
@@ -309,4 +311,60 @@ it("sends initial verification when registration resumes a stored signed-out tic
   await user.click(screen.getByRole("button", { name: "Create account and continue" }));
   await waitFor(() => expect(auth.sendRecoveryVerification).toHaveBeenCalledWith("member-a"));
   expect(api.completeMemberRecovery).toHaveBeenCalledTimes(1);
+});
+
+it("announces a pending search and prevents duplicate requests", async () => {
+  const pending = deferred<{ recoveryId: string; expiresAt: string }>();
+  api.beginMemberRecovery.mockReturnValue(pending.promise);
+  const user = userEvent.setup();
+  render(<RecoveryForm />);
+  await user.type(screen.getByLabelText("Full name"), "Alex Member");
+  await user.click(screen.getByRole("button", { name: "Find my membership" }));
+  const searching = screen.getByRole("button", { name: "Finding your membership..." });
+  expect(searching).toBeDisabled();
+  expect(screen.getByRole("status")).toHaveTextContent("Finding your membership");
+  await user.click(searching);
+  expect(api.beginMemberRecovery).toHaveBeenCalledTimes(1);
+  await act(async () => pending.resolve({ recoveryId, expiresAt: "2026-09-20T00:00:00.000Z" }));
+  expect(await screen.findByRole("heading", { name: "Choose how to sign in" })).toHaveFocus();
+});
+
+it.each([
+  ["functions/unavailable", "Check your connection"],
+  ["auth/network-request-failed", "Check your connection"],
+  ["auth/popup-blocked", "Allow pop-ups"],
+  ["auth/popup-closed-by-user", "Google sign-in window was closed"],
+])("gives actionable feedback for %s without losing the recovery ticket", async (code, message) => {
+  auth.recoverySignIn.mockRejectedValueOnce({ code });
+  const user = await begin();
+  await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  expect(sessionStorage.getItem("bpt-member-recovery")).toBe(recoveryId);
+  expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
+});
+
+it("warms the client on focus without searching or creating a request", async () => {
+  const user = userEvent.setup();
+  render(<RecoveryForm />);
+  expect(loader.loadRecoveryClient).not.toHaveBeenCalled();
+  await user.click(screen.getByLabelText("Full name"));
+  expect(loader.loadRecoveryClient).toHaveBeenCalled();
+  expect(api.beginMemberRecovery).not.toHaveBeenCalled();
+  expect(api.completeMemberRecovery).not.toHaveBeenCalled();
+});
+
+it("retries a failed client download and preserves the entered name", async () => {
+  loader.loadRecoveryClient.mockRejectedValue(new Error("Synthetic chunk download failure"));
+  const user = userEvent.setup();
+  render(<RecoveryForm />);
+  await user.type(screen.getByLabelText("Full name"), "Alex Member");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Find my membership" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Unable to continue");
+  expect(screen.getByLabelText("Full name")).toHaveValue("Alex Member");
+  expect(api.beginMemberRecovery).not.toHaveBeenCalled();
+  loader.loadRecoveryClient.mockResolvedValue(api);
+  await user.click(screen.getByRole("button", { name: "Find my membership" }));
+  expect(await screen.findByRole("button", { name: "Continue with Google" })).toBeVisible();
+  expect(api.beginMemberRecovery).toHaveBeenCalledTimes(1);
 });

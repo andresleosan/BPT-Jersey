@@ -4,7 +4,6 @@ import type {
   CompleteMemberRecoveryResult,
   MemberRecoveryProfile,
 } from "@bpt-jersey/domain/members/recovery";
-import { beginMemberRecovery, completeMemberRecovery } from "../../../lib/member-recovery-client";
 import {
   recoverySignIn,
   refreshRecoverySession,
@@ -15,6 +14,15 @@ import {
   type RecoverySession,
 } from "../../../lib/member-recovery-auth";
 import { navigateTo } from "../../../lib/login-flow";
+import { loadRecoveryClient } from "../../../lib/member-recovery-loader";
+
+// Keep validation and callable code out of the initial form bundle. Focusing the
+// form warms the chunk without sending a request or creating a recovery ticket.
+function prepareRecoveryClient() {
+  void loadRecoveryClient().catch(() => {
+    // Submission retries the import and reports a safe error if it still fails.
+  });
+}
 
 const ticketKey = "bpt-member-recovery";
 const genericError = "Unable to continue. Please try again or contact the BPT Jersey office.";
@@ -41,6 +49,12 @@ function safeError(error: unknown): string {
     return "Too many attempts. Please wait a few minutes and try again.";
   if (code.endsWith("not-found") || code.endsWith("deadline-exceeded"))
     return "This recovery request has expired. Please start again.";
+  if (code === "auth/network-request-failed" || code === "functions/unavailable")
+    return "We could not connect. Check your connection and try again. Your details are still here.";
+  if (code === "auth/popup-blocked")
+    return "Allow pop-ups to continue with Google, or use email and password below.";
+  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request")
+    return "The Google sign-in window was closed. Try again or use email and password below.";
   if (code === "auth/weak-password") return "Choose a stronger password and try again.";
   if (code === "auth/invalid-credential")
     return "We could not sign you in. Check your details or reset your password.";
@@ -58,6 +72,7 @@ export function RecoveryForm() {
   const [notice, setNotice] = useState<string>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const formRegion = useRef<HTMLElement>(null);
   const inFlight = useRef(false);
   const restored = useRef(false);
   const currentSession = useRef<RecoverySession | null>(null);
@@ -94,6 +109,8 @@ export function RecoveryForm() {
     operation: RecoveryOperation,
     fields?: MemberRecoveryProfile,
   ) {
+    const { completeMemberRecovery } = await loadRecoveryClient();
+    if (!operation.current()) return;
     const outcome = await completeMemberRecovery({
       recoveryId: id,
       ...(fields ? { profile: fields } : {}),
@@ -161,6 +178,8 @@ export function RecoveryForm() {
     const data = new FormData(event.currentTarget);
     const previousEmail = String(data.get("previousEmail") ?? "").trim();
     await run(async (operation) => {
+      const { beginMemberRecovery } = await loadRecoveryClient();
+      if (!operation.current()) return;
       const begun = await beginMemberRecovery({
         fullName: String(data.get("fullName")).trim(),
         ...(previousEmail ? { email: previousEmail } : {}),
@@ -245,9 +264,18 @@ export function RecoveryForm() {
     setNotice(undefined);
     setPassword("");
   }
+  useEffect(() => {
+    if (!ticket) return;
+    formRegion.current?.querySelector<HTMLElement>("h2")?.focus();
+  }, [ticket, result?.status]);
   const choices = ticket && !result;
   return (
-    <section className="login-form recovery-form" aria-labelledby="recovery-title" aria-busy={busy}>
+    <section
+      ref={formRegion}
+      className="login-form recovery-form"
+      aria-labelledby="recovery-title"
+      onFocusCapture={prepareRecoveryClient}
+    >
       <p className="login-eyebrow">Existing members</p>
       <h1 id="recovery-title">Recover your access</h1>
       <p>Reconnect your account with your BPT Jersey membership.</p>
@@ -256,9 +284,15 @@ export function RecoveryForm() {
           {error}
         </p>
       ) : null}
-      {notice ? <p role="status">{notice}</p> : null}
+      <p className="recovery-feedback" role="status" aria-live="polite" aria-atomic="true">
+        {busy
+          ? ticket
+            ? "Please wait while we update your recovery request..."
+            : "Finding your membership..."
+          : notice}
+      </p>
       {!ticket ? (
-        <form onSubmit={(event) => void start(event)}>
+        <form aria-busy={busy} onSubmit={(event) => void start(event)}>
           <fieldset disabled={busy} className="recovery-fields">
             <label>
               Full name
@@ -280,13 +314,14 @@ export function RecoveryForm() {
               step. The office will check your identity before linking a new address.
             </p>
             <button className="button button-primary" type="submit">
-              Find my membership
+              {busy ? "Finding your membership..." : "Find my membership"}
             </button>
           </fieldset>
         </form>
       ) : null}
       {choices ? (
         <>
+          <h2 tabIndex={-1}>Choose how to sign in</h2>
           <p>
             Continue to verify your email and request access. If your details need checking, the
             office will review your request.
@@ -327,6 +362,7 @@ export function RecoveryForm() {
                 Continue with Google
               </button>
               <form
+                aria-busy={busy}
                 onSubmit={(event) => {
                   event.preventDefault();
                   void authenticate(mode);
@@ -400,7 +436,7 @@ export function RecoveryForm() {
       ) : null}
       {result?.status === "verify-email" ? (
         <div>
-          <h2>Verify your email</h2>
+          <h2 tabIndex={-1}>Verify your email</h2>
           <p>
             Verify {session?.email ?? "your account address"} by opening the link in your
             verification email, then return here.
@@ -426,7 +462,7 @@ export function RecoveryForm() {
       ) : null}
       {result?.status === "pending-review" ? (
         <div>
-          <h2>Request awaiting review</h2>
+          <h2 tabIndex={-1}>Request awaiting review</h2>
           <p>
             The office will check your identity before restoring access. Contact BPT Jersey if you
             need help or no longer know your previous email. Requests for children need the guardian
@@ -444,6 +480,7 @@ export function RecoveryForm() {
       ) : null}
       {result?.status === "profile-required" ? (
         <form
+          aria-busy={busy}
           onSubmit={(event) => {
             event.preventDefault();
             if (ticket)
@@ -456,7 +493,7 @@ export function RecoveryForm() {
               });
           }}
         >
-          <h2>Complete your details</h2>
+          <h2 tabIndex={-1}>Complete your details</h2>
           <p>Please confirm the details needed for your member account.</p>
           <fieldset className="recovery-fields" disabled={busy}>
             <label>
