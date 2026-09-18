@@ -98,3 +98,12 @@
     padding: 1.5rem;
   }
 }
+.recovery-form .button-secondary {
+  background: transparent;
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple);
+}
+.recovery-form .button-secondary:hover {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
