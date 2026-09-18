@@ -813,6 +813,13 @@ const RESOLUTION_REQUIREMENTS = {
       "Despues, y solo con el apex probado, retirar pages.dev de la lista y volver a desplegar.",
     ),
   ],
+  T054V2: [
+    requirement("Mergear el PR y comprobar en bptjersey.com/account con un alumno sin membresia activa."),
+  ],
+  T055V2: [
+    requirement("Desplegar los 4 callables de perfiles con --only explicito y comprobar 401 y CORS."),
+    requirement("Niveles tras integrar T051V2; salud y export agregado siguen cerrados sin piloto."),
+  ],
 };
 
 /**
@@ -1432,6 +1439,8 @@ const TASK_SURFACES = {
     "apps/functions/src/birthdays/upcoming-birthday-callables.ts",
     "apps/functions/src/penalties/no-show-penalty-callables.ts",
   ],
+  T054V2: ["apps/web/src/app/account/calendar/member-calendar.tsx"],
+  T055V2: [],
   T001V2: ["apps/web/src/app/enrol/page.tsx"],
   T002V2: ["apps/web/src/app/enrol/page.tsx"],
   T003V2: ["apps/web/src/app/enrol/page.tsx", "apps/web/src/app/enrol/enrol.css"],
@@ -1893,6 +1902,26 @@ const classesServicesItems = [
     "T052V2",
     "Causa medida con preflights OPTIONS reales contra produccion, no supuesta. browserOrigins vive ahora en un solo sitio y los cuatro bloques lo comparten. Pendiente: desplegar las functions afectadas.",
     [REF_TASKS, "apps/functions/src/auth/callable-options.ts"],
+    "funcion",
+  ),
+  task(
+    "T054V2",
+    "La vista de cliente /account se quedaba cargando si el alumno no tiene membresia activa",
+    "revision",
+    "Con cero participantes el efecto de la semana nunca corria y weekState se quedaba en loading: esqueleto infinito. Ahora se muestra un aviso para contactar con la academia.",
+    "-",
+    "Test nuevo que falla con el codigo anterior; 92/92 en /account, lint y typecheck limpios. Login verificado con Playwright en .com, www y pages.dev.",
+    [REF_TASKS, "apps/web/src/app/account/calendar/member-calendar.tsx"],
+    "funcion",
+  ),
+  task(
+    "T055V2",
+    "25 callables que la web publicada usa no existen en produccion (404)",
+    "pendiente",
+    "Perfil de cliente, perfil de tutor, niveles, salud, facturas, membresias, planes de clase, importacion PDF y export agregado responden 404. Varios se dejaron fuera a proposito porque fallan cerrados sin piloto.",
+    "-",
+    "Medido 2026-09-18 con POST sin sesion: desplegada responde 401, estas 404. Triage por grupo en tasksv2.md.",
+    [REF_TASKS],
     "funcion",
   ),
 ];
