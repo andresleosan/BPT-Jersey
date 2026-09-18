@@ -2,6 +2,8 @@ import { initializeApp } from "firebase-admin/app";
 
 initializeApp();
 
+export { signInStaffWithId, changeStaffIdPassword } from "./staff/staff-login-callables.js";
+
 export {
   assertAcademyScope,
   getRegyfitProjectionScope,

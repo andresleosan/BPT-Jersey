@@ -10,6 +10,11 @@ const authOperations = vi.hoisted(() => ({
   signInWithGoogle: vi.fn(),
   signOutFromAuth: vi.fn(),
 }));
+const staffLogin = vi.hoisted(() => ({ signInWithStaffId: vi.fn() }));
+vi.mock("../../lib/staff-login-client", () => ({
+  ...staffLogin,
+  isStaffNumber: (value: string) => /^[1-9]\d{5}$/u.test(value.trim()),
+}));
 const navigation = vi.hoisted(() => ({ navigateTo: vi.fn() }));
 
 vi.mock("../../lib/auth-client", () => authOperations);
@@ -26,12 +31,23 @@ const signedInUser = { uid: "user-1", email: "person@example.test" };
 
 async function signInWithEmailAs(email: string): Promise<void> {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("Email address"), email);
+  await user.type(screen.getByLabelText(/email address/i), email);
   await user.type(screen.getByLabelText("Password"), "password");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
 describe("LoginForm", () => {
+  it("signs coaches in with a numeric ID using the shared staff form", async () => {
+    staffLogin.signInWithStaffId.mockResolvedValue({ user: signedInUser });
+    authOperations.refreshAuthToken.mockResolvedValue({
+      claims: { academyId: "demo-academy", role: "coach" },
+    });
+    render(<LoginForm audience="staff" />);
+    await signInWithEmailAs("100001");
+    await waitFor(() => expect(navigation.navigateTo).toHaveBeenCalledWith("/coach"));
+    expect(staffLogin.signInWithStaffId).toHaveBeenCalledWith("100001", "password");
+    expect(authOperations.signInWithEmail).not.toHaveBeenCalled();
+  });
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -45,7 +61,7 @@ describe("LoginForm", () => {
     expect(screen.getByRole("button", { name: "Create client account" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Forgot password?" })).toBeVisible();
-    expect(screen.getByLabelText("Email address")).toBeVisible();
+    expect(screen.getByLabelText(/email address/i)).toBeVisible();
     expect(screen.getByLabelText("Password")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Administrator" })).not.toBeInTheDocument();
     expect(screen.queryByText(/staff|administrator|coach/i)).not.toBeInTheDocument();
@@ -74,7 +90,7 @@ describe("LoginForm", () => {
 
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(screen.getByLabelText("Email address")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText(/email address/i)).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("alert")).toHaveTextContent(
       /enter a valid email|password is required/i,
@@ -172,7 +188,7 @@ describe("LoginForm", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/not a staff account/i);
     expect(screen.getByRole("alert")).not.toHaveTextContent(/guardian|demo-academy|user-1/);
     expect(navigation.navigateTo).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Email address")).toBeVisible();
+    expect(screen.getByLabelText(/email address/i)).toBeVisible();
   });
 
   it("keeps an MFA-required email failure inside the MFA-free staff flow", async () => {
@@ -186,7 +202,7 @@ describe("LoginForm", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/couldn't complete/i));
     expect(screen.getByRole("heading", { name: "Staff sign-in" })).toBeVisible();
-    expect(screen.getByLabelText("Email address")).toBeVisible();
+    expect(screen.getByLabelText(/email address/i)).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: /verify your authenticator/i }),
     ).not.toBeInTheDocument();
@@ -207,7 +223,7 @@ describe("LoginForm", () => {
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/couldn't complete/i));
     expect(screen.getByRole("heading", { name: "Staff sign-in" })).toBeVisible();
-    expect(screen.getByLabelText("Email address")).toBeVisible();
+    expect(screen.getByLabelText(/email address/i)).toBeVisible();
     expect(
       screen.queryByRole("heading", { name: /verify your authenticator/i }),
     ).not.toBeInTheDocument();
