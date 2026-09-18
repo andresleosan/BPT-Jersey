@@ -25,6 +25,8 @@ vi.mock("../../../../lib/membership-admin-client", () => ({
   listMemberships: mocks.listMemberships,
 }));
 
+import { parseCreateSessionInput, parseUpdateSessionInput } from "@bpt-jersey/domain/schedule";
+
 import { SessionPanel } from "./session-panel";
 
 const academyId = "academy-test";
@@ -149,6 +151,7 @@ describe("SessionPanel", () => {
           instructorId: "coach-a",
           instructorIds: ["coach-a", "coach-b"],
           capacity: 20,
+          minParticipants: 4,
           startAt: "2026-09-14T16:30:00.000Z",
           endAt: "2026-09-14T17:30:00.000Z",
           bookingRules: expect.objectContaining({ bookUntilMinutesBefore: 30 }),
@@ -156,6 +159,139 @@ describe("SessionPanel", () => {
       ),
     );
     expect(onSaved).toHaveBeenCalled();
+  });
+
+  function renderCapacityPanel(mode: "create" | "edit", minimum = 4, maximum = 20) {
+    return render(
+      <SessionPanel
+        mode={mode}
+        session={
+          mode === "edit"
+            ? { ...sessionFixture, minParticipants: minimum, capacity: maximum }
+            : undefined
+        }
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        defaults={{ date: "2026-09-14", startTime: "17:30" }}
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+  }
+
+  it("blocks a maximum below the default minimum before sending a create request", () => {
+    renderCapacityPanel("create");
+    fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "3" } });
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(screen.getByLabelText("Minimum participants")).toHaveValue(4);
+  });
+
+  it("blocks reducing the maximum below an existing minimum", () => {
+    renderCapacityPanel("edit", 8);
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "6" } });
+    expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+    expect(screen.getByLabelText("Minimum participants")).toHaveValue(8);
+    expect(screen.getByLabelText("Minimum participants")).toHaveAccessibleDescription(
+      /Minimum participants cannot exceed maximum capacity/,
+    );
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "8" } });
+    expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+    expect(screen.getByLabelText("Minimum participants")).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it.each(["create", "edit"] as const)(
+    "validates both capacity fields together in %s mode",
+    (mode) => {
+      renderCapacityPanel(mode);
+      if (mode === "create") fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
+      const minimum = screen.getByLabelText("Minimum participants");
+      const maximum = screen.getByLabelText("Maximum capacity");
+      const save = screen.getByRole("button", { name: mode === "edit" ? "Edit" : "Create" });
+      for (const [min, max, valid] of [
+        ["", "20", false],
+        ["-1", "20", false],
+        ["1.5", "20", false],
+        ["301", "300", false],
+        ["4", "", false],
+        ["0", "0", false],
+        ["4", "301", false],
+        ["4", "20.5", false],
+        ["5", "4", false],
+        ["4", "4", true],
+        ["0", "1", true],
+        ["300", "300", true],
+      ] as const) {
+        fireEvent.change(minimum, { target: { value: min } });
+        fireEvent.change(maximum, { target: { value: max } });
+        if (valid) expect(save).toBeEnabled();
+        else {
+          expect(save).toBeDisabled();
+          fireEvent.click(save);
+        }
+      }
+      expect(mocks.saveSession).not.toHaveBeenCalled();
+      expect(mocks.updateSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it("creates a small session with an explicit minimum accepted by the server contract", async () => {
+    mocks.saveSession.mockResolvedValue({ ...sessionFixture, capacity: 2, minParticipants: 1 });
+    renderCapacityPanel("create");
+    fireEvent.click(screen.getByRole("checkbox", { name: "coach-a" }));
+    fireEvent.change(screen.getByLabelText("Minimum participants"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(mocks.saveSession).toHaveBeenCalledOnce());
+    const input = mocks.saveSession.mock.calls[0]![0];
+    expect(input).toMatchObject({ minParticipants: 1, capacity: 2 });
+    expect(parseCreateSessionInput(input).ok).toBe(true);
+  });
+
+  it("updates both limits together and restores them when reopened", async () => {
+    const saved = { ...sessionFixture, minParticipants: 2, capacity: 3 };
+    mocks.updateSession.mockResolvedValue(saved);
+    const view = renderCapacityPanel("edit", 8);
+    fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Minimum participants"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await waitFor(() => expect(mocks.updateSession).toHaveBeenCalledOnce());
+    const input = mocks.updateSession.mock.calls[0]![0];
+    expect(input).toEqual({ sessionId: "s1", minParticipants: 2, capacity: 3 });
+    expect(parseUpdateSessionInput(input).ok).toBe(true);
+    view.unmount();
+    renderCapacityPanel("edit", saved.minParticipants, saved.capacity);
+    expect(screen.getByLabelText("Minimum participants")).toHaveValue(2);
+    expect(screen.getByLabelText("Maximum capacity")).toHaveValue(3);
+    expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+  });
+
+  it("saves a minimum of zero without changing the maximum", async () => {
+    mocks.updateSession.mockResolvedValue({ ...sessionFixture, minParticipants: 0 });
+    renderCapacityPanel("edit", 4);
+    fireEvent.change(screen.getByLabelText("Minimum participants"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith({ sessionId: "s1", minParticipants: 0 }),
+    );
+  });
+
+  it("preserves both limits when copying a session", async () => {
+    mocks.saveSession.mockResolvedValue(sessionFixture);
+    renderCapacityPanel("edit", 7, 15);
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    expect(screen.getByLabelText("Minimum participants")).toHaveValue(7);
+    expect(screen.getByLabelText("Maximum capacity")).toHaveValue(15);
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(mocks.saveSession).toHaveBeenCalledWith(
+        expect.objectContaining({ minParticipants: 7, capacity: 15 }),
+      ),
+    );
   });
 
   it("cancels a session with a reason", async () => {
@@ -241,6 +377,7 @@ describe("SessionPanel", () => {
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Maximum capacity")).toBeDisabled();
+    expect(screen.getByLabelText("Minimum participants")).toBeDisabled();
   });
 
   it("lets a coach leave a read-only panel with Escape", () => {
@@ -310,13 +447,15 @@ describe("SessionPanel", () => {
     const create = screen.getByRole("button", { name: "Create" });
     const capacity = screen.getByLabelText("Maximum capacity");
     expect(capacity).toBeRequired();
-    expect(screen.getByText("Enter a capacity between 1 and 300")).toBeInTheDocument();
+    expect(screen.getByText("Enter a maximum capacity between 1 and 300")).toBeInTheDocument();
     expect(create).toBeDisabled();
     fireEvent.change(capacity, { target: { value: "301" } });
     expect(create).toBeDisabled();
     fireEvent.change(capacity, { target: { value: "12" } });
     expect(create).toBeEnabled();
-    expect(screen.queryByText("Enter a capacity between 1 and 300")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Enter a maximum capacity between 1 and 300"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps a legacy session without a capacity unsaveable until one is entered", async () => {
@@ -337,7 +476,7 @@ describe("SessionPanel", () => {
     );
     const save = screen.getByRole("button", { name: "Edit" });
     expect(screen.getByLabelText("Maximum capacity")).toHaveValue(null);
-    expect(screen.getByText("Enter a capacity between 1 and 300")).toBeInTheDocument();
+    expect(screen.getByText("Enter a maximum capacity between 1 and 300")).toBeInTheDocument();
     expect(save).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Maximum capacity"), { target: { value: "12" } });
     expect(save).toBeEnabled();
