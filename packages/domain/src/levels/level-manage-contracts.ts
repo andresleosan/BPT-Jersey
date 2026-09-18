@@ -154,11 +154,15 @@ export const studentLevelHistorySchema = z.strictObject({
   /**
    * T051V2 review of Task 16 (Critical-1): the promotion the progress head records as the last
    * one approved — the ONLY promotion `voidPromotion` will accept. The Manage view used to guess
-   * it as the newest `assignedOn` in `entries`, which is a different thing: the assign form
-   * backdates deliberately, so a promotion recorded today for a date in the past is the last
-   * approved while another row is the newest by date. The head already holds this id, so it is
-   * carried here and the UI names what the server names, by construction. `null` when no approved
-   * promotion stands (an opening only, or every promotion voided).
+   * it as the newest `assignedOn` in `entries`, which is a different thing in two reachable
+   * shapes: two promotions on the SAME DAY, where the history's sort comparator is inconsistent
+   * for a tie and picks a row arbitrarily; and Plan D's Regyfit import, which writes promotions
+   * straight into the collection with whatever dates the source carries. (`assignLevel` on its
+   * own cannot diverge further: it refuses a date before the current level start and then starts
+   * the new level on the promotion's own day, so `assignedOn` never decreases along the standing
+   * chain.) The head already holds this id, so it is carried here and the UI names what the server
+   * names, by construction. `null` when no approved promotion stands (an opening only, or every
+   * promotion voided).
    */
   lastApprovedPromotionId: recordIdSchema.nullable(),
   entries: z.array(levelHistoryEntrySchema).max(400),

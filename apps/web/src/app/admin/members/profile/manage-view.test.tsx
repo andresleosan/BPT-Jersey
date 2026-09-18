@@ -183,7 +183,7 @@ describe("ManageView history", () => {
     expect(within(rows[2]!).queryByRole("button", { name: "Void" })).toBeNull();
     // An opening is not a promotion: it is offered neither the action nor the instruction, which
     // would be a step towards something the server refuses under every one of its four causes.
-    expect(rows[2]).not.toHaveTextContent("Void the latest promotion first");
+    expect(rows[2]).not.toHaveTextContent("Void the most recently recorded promotion first");
   });
 
   it("offers the one recoverable step on an older promotion instead of explaining a refusal", async () => {
@@ -199,7 +199,7 @@ describe("ManageView history", () => {
     const rows = within(table).getAllByRole("row");
     expect(within(rows[1]!).getByRole("button", { name: "Void" })).toBeInTheDocument();
     expect(within(rows[2]!).queryByRole("button", { name: "Void" })).toBeNull();
-    expect(rows[2]).toHaveTextContent("Void the latest promotion first");
+    expect(rows[2]).toHaveTextContent("Void the most recently recorded promotion first");
   });
 
   it("strikes a voided row through and says which parts of the void were never recorded", async () => {
@@ -239,7 +239,7 @@ describe("ManageView history", () => {
     // A cancelled promotion can never be voided again, whatever is missing from the void record,
     // and it is not waiting on anything either.
     expect(within(table).queryByRole("button", { name: "Void" })).toBeNull();
-    expect(table).not.toHaveTextContent("Void the latest promotion first");
+    expect(table).not.toHaveTextContent("Void the most recently recorded promotion first");
   });
 
   it("moves the Void action to the promotion that stands once a later one is voided", async () => {
@@ -264,10 +264,12 @@ describe("ManageView history", () => {
   });
 
   /**
-   * T051V2 review of Task 16 (Critical-1). The assign form backdates deliberately, so the
-   * promotion RECORDED last — the only one `voidPromotion` accepts — is not always the newest row
-   * by `assignedOn`. The view used to pick the newest by date, which put the Void button on a row
-   * the server refuses and told the row labelled "Current" to "Void the latest promotion first".
+   * T051V2 review of Task 16 (Critical-1). The promotion RECORDED last — the only one
+   * `voidPromotion` accepts — is not always the newest row by `assignedOn`: two promotions can
+   * share a day, where the history's sort comparator is inconsistent and orders them arbitrarily,
+   * and Plan D's Regyfit import writes promotions straight in with whatever dates the source
+   * carries. The view used to pick the newest by date, which put the Void button on a row the
+   * server refuses and told the row labelled "Current" to void something else first.
    */
   it("offers Void on the promotion the head recorded last, not the newest one by date", async () => {
     const backdated = {
@@ -294,10 +296,10 @@ describe("ManageView history", () => {
     // Newest by date, and NOT the one the server would accept.
     expect(rows[1]).toHaveTextContent(uiDay(dayBack(5)));
     expect(within(rows[1]!).queryByRole("button", { name: "Void" })).toBeNull();
-    expect(rows[1]).toHaveTextContent("Void the latest promotion first");
+    expect(rows[1]).toHaveTextContent("Void the most recently recorded promotion first");
     // The row the head names is both "Current" and the one that carries the action.
     expect(rows[2]).toHaveTextContent("Current");
-    expect(rows[2]).not.toHaveTextContent("Void the latest promotion first");
+    expect(rows[2]).not.toHaveTextContent("Void the most recently recorded promotion first");
     fireEvent.click(within(rows[2]!).getByRole("button", { name: "Void" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(dialog.querySelector("textarea")!, {
@@ -325,7 +327,7 @@ describe("ManageView history", () => {
     renderView("headCoach");
     const table = await screen.findByRole("table", { name: "Level history" });
     expect(within(table).queryByRole("button", { name: "Void" })).toBeNull();
-    expect(table).not.toHaveTextContent("Void the latest promotion first");
+    expect(table).not.toHaveTextContent("Void the most recently recorded promotion first");
   });
 
   it("says nothing about voiding when the head names no promotion at all", async () => {
@@ -339,7 +341,7 @@ describe("ManageView history", () => {
     renderView("headCoach");
     const table = await screen.findByRole("table", { name: "Level history" });
     expect(within(table).queryByRole("button", { name: "Void" })).toBeNull();
-    expect(table).not.toHaveTextContent("Void the latest promotion first");
+    expect(table).not.toHaveTextContent("Void the most recently recorded promotion first");
   });
 
   /**
@@ -469,6 +471,32 @@ describe("ManageView assignment", () => {
     );
     expect((await screen.findByRole("status")).textContent).toBe("Level assigned.");
     expect(api.getStudentLevelHistory).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * T051V2 re-review of Task 16 (m2). The refusal was rendered and read by a sighted operator, but
+   * nothing tied it to the control it is about: with `aria-describedby` deleted the whole suite
+   * stayed green and a screen-reader user heard the label and no reason. The tie is asserted
+   * through the accessible description, which is what assistive technology actually resolves.
+   */
+  it("names the note's refusal as the textarea's own description", async () => {
+    renderView();
+    const form = await assignForm();
+    fireEvent.change(within(form).getByLabelText("Next level"), {
+      target: { value: firstStripe },
+    });
+    fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+    fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+    const dialog = await screen.findByRole("dialog");
+    const note = within(dialog).getByLabelText("Note (required, 10 to 500 characters)");
+    expect(note).toHaveAccessibleDescription("");
+    // Nine characters: typed, and shorter than the contract's minimum of ten.
+    fireEvent.change(note, { target: { value: "too short" } });
+    expect(within(dialog).getByText(api.levelsSafeErrors.assignInput)).toHaveAttribute(
+      "id",
+      "ibjjf-assign-note-problem",
+    );
+    expect(note).toHaveAccessibleDescription(api.levelsSafeErrors.assignInput);
   });
 
   it("keeps at most one assignment in flight when the operator double-clicks", async () => {

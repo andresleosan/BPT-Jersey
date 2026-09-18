@@ -1058,8 +1058,13 @@ function buildLevelHistory(
   /**
    * T051V2 review of Task 16 (Critical-1): the head's `lastApprovedPromotionId` is the ONLY
    * promotion `voidPromotion` accepts (`return "not-latest"` above), and it is NOT the newest row
-   * by `assignedOn` — the assign form backdates deliberately. It is carried to the reader so the
-   * Void affordance is placed by the server's own rule. It is passed through only when it names a
+   * by `assignedOn`. Two shapes reach that: two promotions on the SAME DAY, where the sort above
+   * is inconsistent for a tie and orders them arbitrarily; and Plan D's Regyfit import, which
+   * writes promotions straight into the collection with whatever dates the source carries.
+   * `assignLevel` alone cannot diverge further — `assertPromotionNotBeforeLevelStart` refuses a
+   * date before the current level start and the promotion then starts the new level on its own
+   * day, so `assignedOn` never decreases along the standing chain. The id is carried to the
+   * reader so the Void affordance is placed by the server's own rule. It is passed through only when it names a
    * row that survived its own parse: a head naming a record that is not on screen can offer the
    * operator nothing, and an id that no longer parses must not take the whole history down.
    */
