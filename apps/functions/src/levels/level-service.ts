@@ -13,6 +13,7 @@ import {
   importedBaselineSchema,
   isLevelCalendarDate,
   jerseyDateOf,
+  latestSkillRatings,
   levelHistoryEntrySchema,
   listPromotionGaps,
   minimumDaysOf,
@@ -873,12 +874,42 @@ function refuseVoid(
   throw new LevelStoreError("conflict", "Promotion cannot be voided");
 }
 
-/** The best score the student has ever been given for each skill. */
-function bestScores(evaluations: readonly EvaluationRecord[]): Record<string, number> {
-  const scores: Record<string, number> = {};
+/**
+ * The per-skill summary both stores return. `latestScore` — the authoritative one after operator
+ * DECISION 6 — and its tie rule come from the domain, so the Manage view and the readiness formula
+ * can never name a different rating as the latest. `maxScore` stays as history: informative, and
+ * read by nothing that decides readiness.
+ */
+function summariseStudentSkills(evaluations: readonly EvaluationRecord[]): StudentSkillSummary {
+  const latest = latestSkillRatings(evaluations);
+  const summary: Record<
+    string,
+    { count: number; maxScore: number; latestScore: number; lastEvaluatedAt: string }
+  > = {};
   for (const evaluation of evaluations) {
-    scores[evaluation.skillKey] = Math.max(scores[evaluation.skillKey] ?? 0, evaluation.score);
+    const existing = summary[evaluation.skillKey];
+    if (!existing) {
+      const rating = latest.get(evaluation.skillKey)!;
+      summary[evaluation.skillKey] = {
+        count: rating.count,
+        maxScore: evaluation.score,
+        latestScore: rating.score,
+        lastEvaluatedAt: rating.evaluatedAt,
+      };
+      continue;
+    }
+    existing.maxScore = Math.max(existing.maxScore, evaluation.score);
   }
+  return summary;
+}
+
+/**
+ * Operator DECISION 6: the LATEST rating the student holds for each skill, never the best ever
+ * given, so a correction downward re-opens the skills gap on an assignment.
+ */
+function currentScores(evaluations: readonly EvaluationRecord[]): Record<string, number> {
+  const scores: Record<string, number> = {};
+  for (const [skillKey, rating] of latestSkillRatings(evaluations)) scores[skillKey] = rating.score;
   return scores;
 }
 
@@ -1070,7 +1101,7 @@ function promotionAssignmentOf(
     toDefinitionKey: params.to.definitionKey,
     classesDone: classes.total,
     daysDone,
-    skillScores: bestScores(params.evaluations),
+    skillScores: currentScores(params.evaluations),
     ageYears:
       params.dateOfBirth === null ? null : ageInCompletedYears(params.dateOfBirth, promotedAt),
   });
@@ -1691,33 +1722,7 @@ export function createLevelCatalogStore({
       studentId: string,
     ): Promise<StudentSkillSummary> {
       const evaluations = await this.listStudentEvaluations(academyId, studentId);
-      const summary: StudentSkillSummary = {};
-      for (const evaluation of evaluations) {
-        const existing = summary[evaluation.skillKey];
-        if (!existing) {
-          summary[evaluation.skillKey] = {
-            count: 1,
-            maxScore: evaluation.score,
-            latestScore: evaluation.score,
-            lastEvaluatedAt: evaluation.evaluatedAt,
-          };
-          continue;
-        }
-        summary[evaluation.skillKey] = {
-          count: existing.count + 1,
-          maxScore: Math.max(existing.maxScore, evaluation.score),
-          latestScore:
-            evaluation.evaluatedAt > existing.lastEvaluatedAt
-              ? evaluation.score
-              : existing.latestScore,
-          lastEvaluatedAt:
-            evaluation.evaluatedAt > existing.lastEvaluatedAt
-              ? evaluation.evaluatedAt
-              : existing.lastEvaluatedAt,
-        };
-      }
-
-      return summary;
+      return summariseStudentSkills(evaluations);
     },
 
     async getStudentProgressSummary(
@@ -3012,33 +3017,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       studentId: string,
     ): Promise<StudentSkillSummary> {
       const studentEvals = await this.listStudentEvaluations(academyId, studentId);
-      const summary: Record<
-        string,
-        { count: number; maxScore: number; latestScore: number; lastEvaluatedAt: string }
-      > = {};
-
-      for (const ev of studentEvals) {
-        const existing = summary[ev.skillKey];
-        if (!existing) {
-          summary[ev.skillKey] = {
-            count: 1,
-            maxScore: ev.score,
-            latestScore: ev.score,
-            lastEvaluatedAt: ev.evaluatedAt,
-          };
-        } else {
-          existing.count += 1;
-          if (ev.score > existing.maxScore) {
-            existing.maxScore = ev.score;
-          }
-          if (ev.evaluatedAt > existing.lastEvaluatedAt) {
-            existing.lastEvaluatedAt = ev.evaluatedAt;
-            existing.latestScore = ev.score;
-          }
-        }
-      }
-
-      return summary;
+      return summariseStudentSkills(studentEvals);
     },
 
     async getStudentProgressSummary(

@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import { academyDateOf } from "../members/member-profile-contracts";
-import { buildStudentProgressSummary, parseLevelCatalogSource } from "./level-contracts";
+import {
+  buildStudentProgressSummary,
+  parseLevelCatalogSource,
+  type EvaluationRecord,
+} from "./level-contracts";
 import {
   computeLevelProgress,
   countClassesAtLevel,
@@ -623,5 +627,255 @@ describe("buildStudentProgressSummary with the single formula", () => {
         skills: [],
       }),
     );
+  });
+});
+
+describe("DECISION 6: the latest rating for a skill is the one that counts", () => {
+  const current = catalog.definitions[0]!.definitionKey;
+  const target = catalog.definitions[1]!.definitionKey;
+  const requirements = catalog.requirements.filter((r) => r.definitionKey === target);
+  const beltSkill = "tie-the-belt";
+
+  function rating(
+    over: Readonly<{
+      evaluationId: string;
+      skillKey: string;
+      score: number;
+      evaluatedAt: string;
+      studentId?: string;
+    }>,
+  ): EvaluationRecord {
+    return {
+      evaluationId: over.evaluationId,
+      academyId: "acad-1",
+      studentId: over.studentId ?? "student-1",
+      sessionId: null,
+      definitionKey: current,
+      skillKey: over.skillKey,
+      score: over.score as EvaluationRecord["score"],
+      evidenceNotes: "Rated in the Manage view.",
+      evaluatorId: "coach-1",
+      evaluatorRole: "coach",
+      evaluatedAt: over.evaluatedAt,
+      schemaVersion: "1",
+      createdAt: over.evaluatedAt,
+      createdBy: "coach-1",
+      updatedAt: over.evaluatedAt,
+      updatedBy: "coach-1",
+    };
+  }
+
+  /** The operator's own scenario: every required skill at 5, classes met, the level just started. */
+  function summaryOf(evaluations: readonly EvaluationRecord[], definitionKey = current) {
+    return buildStudentProgressSummary({
+      catalog,
+      studentId: "student-1",
+      currentDefinitionKey: definitionKey,
+      evaluations,
+      classesAtLevel: { imported: 0, bpt: 4, total: 4 },
+      currentLevelStartedAt: "2026-09-18T00:00:00.000Z",
+      dateOfBirth: "2020-01-01",
+      now: "2026-09-18T00:00:00.000Z",
+    });
+  }
+
+  const allFive = requirements.map((requirement, index) =>
+    rating({
+      evaluationId: `eval-${index}`,
+      skillKey: requirement.skillKey,
+      score: 5,
+      evaluatedAt: "2026-09-18T10:00:00.000Z",
+    }),
+  );
+
+  it("lowers readiness when a coach corrects a rating downward (the operator's scenario)", () => {
+    const before = summaryOf(allFive);
+    expect(before.progressPercent).toBe(66);
+    expect(before.criteria.skills).toEqual({
+      total: 11,
+      completed: 11,
+      met: true,
+      percentage: 100,
+    });
+
+    const corrected = summaryOf([
+      ...allFive,
+      rating({
+        evaluationId: "eval-correction",
+        skillKey: beltSkill,
+        score: 1,
+        evaluatedAt: "2026-09-18T10:00:01.000Z",
+      }),
+    ]);
+    expect(corrected.progressPercent).toBe(65);
+    expect(corrected.criteria.skills).toEqual({
+      total: 11,
+      completed: 10,
+      met: false,
+      percentage: 91,
+    });
+    expect(corrected.criteria.overallEligible).toBe(false);
+    expect(corrected.skillChecklist.find((item) => item.skillKey === beltSkill)).toMatchObject({
+      requiredScore: 2,
+      currentScore: 1,
+      latestScore: 1,
+      isCompleted: false,
+      evaluationCount: 2,
+      lastEvaluatedAt: "2026-09-18T10:00:01.000Z",
+    });
+  });
+
+  it("reads a single rating, and both directions of a re-rating, off the latest evaluatedAt", () => {
+    const single = summaryOf([
+      rating({
+        evaluationId: "eval-a",
+        skillKey: beltSkill,
+        score: 3,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+      }),
+    ]).skillChecklist.find((item) => item.skillKey === beltSkill);
+    expect(single).toMatchObject({ currentScore: 3, isCompleted: true, evaluationCount: 1 });
+
+    const ascending = summaryOf([
+      rating({
+        evaluationId: "eval-a",
+        skillKey: beltSkill,
+        score: 1,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+      }),
+      rating({
+        evaluationId: "eval-b",
+        skillKey: beltSkill,
+        score: 4,
+        evaluatedAt: "2026-09-18T11:00:00.000Z",
+      }),
+    ]).skillChecklist.find((item) => item.skillKey === beltSkill);
+    expect(ascending).toMatchObject({ currentScore: 4, isCompleted: true, evaluationCount: 2 });
+
+    const descending = summaryOf([
+      rating({
+        evaluationId: "eval-a",
+        skillKey: beltSkill,
+        score: 4,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+      }),
+      rating({
+        evaluationId: "eval-b",
+        skillKey: beltSkill,
+        score: 1,
+        evaluatedAt: "2026-09-18T11:00:00.000Z",
+      }),
+    ]).skillChecklist.find((item) => item.skillKey === beltSkill);
+    expect(descending).toMatchObject({
+      currentScore: 1,
+      latestScore: 1,
+      isCompleted: false,
+      evaluationCount: 2,
+    });
+  });
+
+  it("breaks a tie on evaluatedAt by evaluationId, whatever order the store returned", () => {
+    const tied = [
+      rating({
+        evaluationId: "eval-a",
+        skillKey: beltSkill,
+        score: 5,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+      }),
+      rating({
+        evaluationId: "eval-b",
+        skillKey: beltSkill,
+        score: 1,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+      }),
+    ];
+    const forwards = summaryOf(tied).skillChecklist.find((item) => item.skillKey === beltSkill);
+    const backwards = summaryOf([...tied].reverse()).skillChecklist.find(
+      (item) => item.skillKey === beltSkill,
+    );
+    expect(forwards).toEqual(backwards);
+    expect(forwards).toMatchObject({ currentScore: 1, isCompleted: false, evaluationCount: 2 });
+  });
+
+  it("leaves a skill that was never rated at zero, and another student's ratings out", () => {
+    const summary = summaryOf([
+      rating({
+        evaluationId: "eval-other",
+        skillKey: beltSkill,
+        score: 5,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+        studentId: "student-2",
+      }),
+    ]);
+    expect(summary.skillChecklist.find((item) => item.skillKey === beltSkill)).toMatchObject({
+      currentScore: 0,
+      latestScore: 0,
+      isCompleted: false,
+      evaluationCount: 0,
+      lastEvaluatedAt: null,
+    });
+    expect(summary.criteria.skills).toEqual({ total: 11, completed: 0, met: false, percentage: 0 });
+  });
+
+  it("counts only the required skills that are rated, and ignores ratings of other skills", () => {
+    const summary = summaryOf([
+      rating({
+        evaluationId: "eval-a",
+        skillKey: requirements[0]!.skillKey,
+        score: 5,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+      }),
+      rating({
+        evaluationId: "eval-b",
+        skillKey: requirements[1]!.skillKey,
+        score: 5,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+      }),
+      rating({
+        evaluationId: "eval-c",
+        skillKey: "a-skill-the-next-rank-does-not-require",
+        score: 5,
+        evaluatedAt: "2026-09-18T10:00:00.000Z",
+      }),
+    ]);
+    expect(summary.criteria.skills).toEqual({
+      total: 11,
+      completed: 2,
+      met: false,
+      percentage: 18,
+    });
+  });
+
+  it("is unaffected by a re-rating at a level whose next rank defines no skill minimums", () => {
+    const withoutMinimums = catalog.definitions.find((definition) => {
+      const next = catalog.definitions.find((d) => d.sequence === definition.sequence + 1);
+      return (
+        next !== undefined &&
+        !catalog.requirements.some((r) => r.definitionKey === next.definitionKey)
+      );
+    });
+    expect(withoutMinimums).toBeDefined();
+    const bare = summaryOf([], withoutMinimums!.definitionKey);
+    const rerated = summaryOf(
+      [
+        rating({
+          evaluationId: "eval-a",
+          skillKey: beltSkill,
+          score: 5,
+          evaluatedAt: "2026-09-18T10:00:00.000Z",
+        }),
+        rating({
+          evaluationId: "eval-b",
+          skillKey: beltSkill,
+          score: 1,
+          evaluatedAt: "2026-09-18T11:00:00.000Z",
+        }),
+      ],
+      withoutMinimums!.definitionKey,
+    );
+    expect(bare.skillChecklist).toHaveLength(0);
+    expect(bare.criteria.skills).toEqual({ total: 0, completed: 0, met: true, percentage: 100 });
+    expect(rerated.progressPercent).toBe(bare.progressPercent);
+    expect(rerated.criteria.skills).toEqual(bare.criteria.skills);
   });
 });

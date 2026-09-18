@@ -203,6 +203,12 @@ minimums; a criterion with no minimum is excluded from the mean; result floored 
 no next level (top of the catalogue, `targetDefinition === null`), and consumers must render the "no next
 level" state rather than a progress bar.
 Card and Manage call the same function (fixes Regyfit's 100% vs 67% mismatch).
+**The latest rating for a skill is the one that counts, not the highest ever given: a correction
+downward lowers readiness** (operator DECISION 6, 2026-09-18). `score_i` in the formula, and the
+checklist's `currentScore`, `isCompleted` and `criteria.skills`, all read the rating with the most
+recent `evaluatedAt`; `maxScore` survives in the per-skill summary as history and decides nothing.
+Two ratings sharing an `evaluatedAt` are tied on `evaluationId`, so the answer never depends on the
+order the store returned the rows in.
 `classes = importedBaseline + BPT attended/late attendance with date ≥ max(currentLevelStartedAt,
 baselineCutoff)` (grill G10). `importedBaseline`/`baselineCutoff` exist only on a level head created by the
 Regyfit import (§6.5) and disappear on the next promotion. Without a baseline, `classes` counts attendance

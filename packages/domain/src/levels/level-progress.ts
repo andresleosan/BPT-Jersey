@@ -1,4 +1,5 @@
 import type {
+  EvaluationRecord,
   LevelCriteria,
   LevelDefinitionRecord,
   LevelRequirementRecord,
@@ -85,6 +86,55 @@ export function countClassesAtLevel(
   }).length;
   const imported = input.importedBaseline?.classes ?? 0;
   return Object.freeze({ imported, bpt, total: imported + bpt });
+}
+
+/** The latest rating a student holds for one skill, and how many times it has been rated. */
+export type LatestSkillRating = Readonly<{ score: number; evaluatedAt: string; count: number }>;
+
+/**
+ * Spec §6.2 / operator DECISION 6 (2026-09-18): the LATEST rating for a skill is the one that
+ * counts, never the highest ever given, so a coach who corrects a rating downward lowers the
+ * member's readiness.
+ *
+ * Two ratings carrying the identical `evaluatedAt` are indistinguishable in time, so the tie is
+ * broken by `evaluationId`, which is unique: the answer is then the same whatever order the store
+ * returned the rows in, instead of depending on a stable sort over equal keys.
+ */
+export function latestSkillRatings(
+  evaluations: readonly EvaluationRecord[],
+): ReadonlyMap<string, LatestSkillRating> {
+  const held = new Map<
+    string,
+    { score: number; evaluatedAt: string; evaluationId: string; count: number }
+  >();
+  for (const evaluation of evaluations) {
+    const current = held.get(evaluation.skillKey);
+    if (current === undefined) {
+      held.set(evaluation.skillKey, {
+        score: evaluation.score,
+        evaluatedAt: evaluation.evaluatedAt,
+        evaluationId: evaluation.evaluationId,
+        count: 1,
+      });
+      continue;
+    }
+    current.count += 1;
+    if (
+      evaluation.evaluatedAt > current.evaluatedAt ||
+      (evaluation.evaluatedAt === current.evaluatedAt &&
+        evaluation.evaluationId > current.evaluationId)
+    ) {
+      current.score = evaluation.score;
+      current.evaluatedAt = evaluation.evaluatedAt;
+      current.evaluationId = evaluation.evaluationId;
+    }
+  }
+  return new Map(
+    Array.from(held, ([skillKey, rating]) => [
+      skillKey,
+      Object.freeze({ score: rating.score, evaluatedAt: rating.evaluatedAt, count: rating.count }),
+    ]),
+  );
 }
 
 export function daysAtLevel(currentLevelStartedAt: string | null, onIso: string): number {

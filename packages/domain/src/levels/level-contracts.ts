@@ -4,6 +4,7 @@ import { isLevelCatalogVersion, levelCatalogVersionShapes } from "./level-catalo
 import {
   computeLevelProgress,
   isLevelCalendarDate,
+  latestSkillRatings,
   minimumDaysOf,
   type ClassesAtLevel,
 } from "./level-progress";
@@ -1007,38 +1008,26 @@ export function buildStudentProgressSummary(options: {
 
   const skillsMap = new Map(catalog.skills.map((s) => [s.key, s]));
 
+  // Spec §6.2 / operator DECISION 6: readiness reads the LATEST rating for each skill, never the
+  // highest ever given, so a coach's correction downward lowers it.
+  const latestBySkill = latestSkillRatings(evaluations.filter((e) => e.studentId === studentId));
+
   const skillChecklist: SkillChecklistItem[] = targetReqs.map((req) => {
     const skillDef = skillsMap.get(req.skillKey);
     const label = skillDef ? skillDef.displayLabel : req.skillKey;
 
-    const studentSkillEvals = evaluations
-      .filter((e) => e.studentId === studentId && e.skillKey === req.skillKey)
-      .sort((a, b) => b.evaluatedAt.localeCompare(a.evaluatedAt));
-
-    const count = studentSkillEvals.length;
-    let maxScore = 0;
-    let latestScore = 0;
-    let lastEvaluatedAt: string | null = null;
-
-    if (count > 0) {
-      latestScore = studentSkillEvals[0]!.score;
-      lastEvaluatedAt = studentSkillEvals[0]!.evaluatedAt;
-      for (const ev of studentSkillEvals) {
-        if (ev.score > maxScore) maxScore = ev.score;
-      }
-    }
-
-    const isCompleted = maxScore >= req.minimumRating;
+    const rating = latestBySkill.get(req.skillKey) ?? null;
+    const latestScore = rating?.score ?? 0;
 
     return Object.freeze({
       skillKey: req.skillKey,
       displayLabel: label,
       requiredScore: req.minimumRating,
-      currentScore: maxScore,
+      currentScore: latestScore,
       latestScore,
-      isCompleted,
-      lastEvaluatedAt,
-      evaluationCount: count,
+      isCompleted: latestScore >= req.minimumRating,
+      lastEvaluatedAt: rating?.evaluatedAt ?? null,
+      evaluationCount: rating?.count ?? 0,
     });
   });
 
