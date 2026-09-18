@@ -56,7 +56,12 @@ function propsFor(overrides: Partial<Props> = {}) {
     definitionKey: "white-belt",
     definitionName: "WHITE BELT",
     skills,
-    minimums: { "warm-up-1-technical-stand-up": 3, "warm-up-2-bridges": 3 },
+    hasTarget: true,
+    minimums: {
+      "tie-the-belt": 2,
+      "warm-up-1-technical-stand-up": 3,
+      "warm-up-2-bridges": 3,
+    },
     initialScores: { "warm-up-1-technical-stand-up": 4 },
     onDirtyChange: vi.fn(),
     onSaved: vi.fn(),
@@ -91,7 +96,7 @@ describe("SkillsAssessment", () => {
     expect(warmUp).not.toHaveAttribute("open");
     expect(within(warmUp).getByText("1/2 rated · 1/2 saved at minimum")).toBeInTheDocument();
     const fundamentals = screen.getByText("Fundamentals").closest("details")!;
-    expect(within(fundamentals).getByText("0/1 rated")).toBeInTheDocument();
+    expect(within(fundamentals).getByText("0/1 rated · 0/1 saved at minimum")).toBeInTheDocument();
   });
 
   it("marks the minimum with text and an outlined option", () => {
@@ -104,14 +109,107 @@ describe("SkillsAssessment", () => {
     expect(within(bridges).getAllByRole("radio")).toHaveLength(5);
   });
 
-  it("says nothing about minimums when this level carries none", () => {
-    renderAssessment({ minimums: {} });
-    expect(screen.queryByText(/Minimums apply to the next level/u)).toBeNull();
-    expect(screen.getByText(/Rate each skill from 1 to 5/u)).toBeInTheDocument();
-    expect(screen.getByText("Warm Up").closest("details")!.textContent).toContain("1/2 rated");
-    expect(screen.getByText("Warm Up").closest("details")!.textContent).not.toContain(
-      "saved at minimum",
+  /**
+   * OPERATOR DECISION 9, case 1. Replaces "says nothing about minimums when this level carries
+   * none", whose contract was that a skill the next level does not require was still listed and
+   * counted. Only the target's requirement set is rateable now, so a skill with no minimum is not
+   * on screen at all and no counter includes it.
+   */
+  it("lists only the skills the next level requires", () => {
+    renderAssessment({ minimums: { "warm-up-2-bridges": 3 } });
+    expect(screen.getByRole("group", { name: /Warm Up 2 - Bridges/u })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /Tie The Belt/u })).toBeNull();
+    expect(screen.queryByRole("group", { name: /Technical Stand Up/u })).toBeNull();
+    expect(screen.queryByText("Fundamentals")).toBeNull();
+    expect(screen.getByText("Warm Up").closest("details")!.textContent).toContain(
+      "0/1 rated · 0/1 saved at minimum",
     );
+  });
+
+  /** Case 2: the common one today - 156 of 171 levels carry no requirement at all. */
+  it("states plainly that a next level with no requirements has nothing to rate", () => {
+    renderAssessment({ minimums: {} });
+    expect(screen.getByText("This level requires no rated skills.")).toBeInTheDocument();
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Save ratings" })).toBeNull();
+    expect(screen.queryByText(/Rate each skill from 1 to 5/u)).toBeNull();
+    expect(screen.queryByText(/the level currently held/u)).toBeNull();
+  });
+
+  /**
+   * Case 3: no target at all. The minimums map is empty for the same reason as case 2, but the
+   * cause is different and the card on the same member's screen already says which: it is the top
+   * of what BPT tracks. The vocabulary is OPERATOR DECISION 7's, deliberately not "the catalogue".
+   */
+  it("says why there is nothing to rate when there is no next level", () => {
+    renderAssessment({ hasTarget: false, minimums: {} });
+    expect(
+      screen.getByText("This is the highest level BPT tracks, so there are no skills to rate."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("This level requires no rated skills.")).toBeNull();
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+  });
+
+  /**
+   * Case 4: a rating on record for a skill the next level does not require. It is neither sent nor
+   * overwritten - `changed` is built from the listed skills - but "not shown" must not read as
+   * "lost", so the panel says the ratings are there and untouched.
+   */
+  it("says that ratings outside the requirement set are on record and untouched", async () => {
+    api.recordSkillRatings.mockResolvedValue({ studentId: "student-1", recorded: 1 });
+    renderAssessment({
+      initialScores: { "tie-the-belt": 5, "warm-up-1-technical-stand-up": 4 },
+      minimums: { "warm-up-2-bridges": 3 },
+    });
+    expect(
+      screen.getByText("Ratings for 2 other skills are on record. Nothing here changes them."),
+    ).toBeInTheDocument();
+    fireEvent.click(within(group(/Warm Up 2 - Bridges/u)).getByRole("radio", { name: "5" }));
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect(api.recordSkillRatings).toHaveBeenCalledWith({
+        studentId: "student-1",
+        definitionKey: "white-belt",
+        ratings: [{ skillKey: "warm-up-2-bridges", score: 5 }],
+      }),
+    );
+  });
+
+  it("counts one such rating in the singular, and says nothing when there are none", () => {
+    renderAssessment({
+      initialScores: { "tie-the-belt": 5 },
+      minimums: { "warm-up-2-bridges": 3 },
+    });
+    expect(
+      screen.getByText("A rating for 1 other skill is on record. Nothing here changes it."),
+    ).toBeInTheDocument();
+    cleanup();
+    renderAssessment();
+    expect(screen.queryByText(/other skill/u)).toBeNull();
+  });
+
+  /**
+   * Case 5: the requirement set changes identity and contents while the panel is mounted.
+   * `initialScores` is read in a lazy `useState` initialiser and must stay put; the minimums are
+   * read during render and must move. Neither may re-render the parent in a loop.
+   */
+  it("follows a changed requirement set without looping or losing the ratings on screen", () => {
+    const reported: boolean[] = [];
+    const props = propsFor({ onDirtyChange: (dirty: boolean) => reported.push(dirty) });
+    const { rerender } = render(<SkillsAssessment {...props} />);
+    fireEvent.click(within(group(/Warm Up 2 - Bridges/u)).getByRole("radio", { name: "5" }));
+    expect(reported).toEqual([false, true]);
+    rerender(
+      <SkillsAssessment
+        {...props}
+        initialScores={{ "tie-the-belt": 1 }}
+        minimums={{ "warm-up-2-bridges": 4 }}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: /Tie The Belt/u })).toBeNull();
+    expect(within(group(/Warm Up 2 - Bridges/u)).getByText("Minimum 4")).toBeInTheDocument();
+    expect(within(group(/Warm Up 2 - Bridges/u)).getByRole("radio", { name: "5" })).toBeChecked();
+    expect(reported).toEqual([false, true]);
   });
 
   it("saves only changed ratings explicitly and reports dirty state", async () => {
