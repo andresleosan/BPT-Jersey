@@ -34,6 +34,7 @@ import {
 import { listMembers } from "../../../lib/members-client";
 import { formatPlanPrice } from "../../../lib/plan-copy";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminDataTableWrap } from "../admin-data-table";
 
 import "../admin.css";
 
@@ -168,7 +169,7 @@ function PlanCatalog({ plans }: { plans: readonly ManagedMembershipPlan[] }) {
   const records = new Map(plans.map((plan) => [plan.planId, plan]));
 
   return (
-    <div className="admin-data-table-wrap">
+    <AdminDataTableWrap label="Membership plan catalog">
       <table className="admin-data-table">
         <caption className="visually-hidden">Membership plan catalog</caption>
         <thead>
@@ -207,7 +208,7 @@ function PlanCatalog({ plans }: { plans: readonly ManagedMembershipPlan[] }) {
           })}
         </tbody>
       </table>
-    </div>
+    </AdminDataTableWrap>
   );
 }
 
@@ -819,7 +820,7 @@ export function MembershipsAdminPage() {
                 No memberships available.
               </p>
             ) : (
-              <div className="admin-data-table-wrap">
+              <AdminDataTableWrap label="Memberships">
                 <table className="admin-data-table">
                   <caption className="visually-hidden">Memberships</caption>
                   <thead>
@@ -894,7 +895,7 @@ export function MembershipsAdminPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+              </AdminDataTableWrap>
             )}
           </section>
         </>

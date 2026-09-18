@@ -23,6 +23,7 @@ import {
   updateShopOrder,
 } from "../../../lib/shop-client";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
+import { AdminDataTableWrap } from "../admin-data-table";
 
 import "../admin.css";
 
@@ -360,7 +361,7 @@ export function ShopAdminPage() {
                   <p>Create the first product with the editor.</p>
                 </div>
               ) : (
-                <div className="admin-data-table-wrap">
+                <AdminDataTableWrap label="Club shop products">
                   <table className="admin-data-table">
                     <caption className="visually-hidden">Club shop products</caption>
                     <thead>
@@ -418,7 +419,7 @@ export function ShopAdminPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </AdminDataTableWrap>
               )}
             </section>
 
@@ -613,7 +614,7 @@ export function ShopAdminPage() {
                 <p>Client requests appear here as soon as they are placed.</p>
               </div>
             ) : (
-              <div className="admin-data-table-wrap">
+              <AdminDataTableWrap label="Club shop orders">
                 <table className="admin-data-table">
                   <caption className="visually-hidden">Club shop orders</caption>
                   <thead>
@@ -687,7 +688,7 @@ export function ShopAdminPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </AdminDataTableWrap>
             )}
           </section>
         </>

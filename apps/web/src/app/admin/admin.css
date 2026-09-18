@@ -4435,10 +4435,26 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .ibjjf-card .admin-auth-button,
-.ibjjf-form .admin-auth-button {
+.ibjjf-dialog .admin-auth-button,
+.ibjjf-form .admin-auth-button,
+.ibjjf-skills .admin-auth-button {
   justify-self: start;
   margin-top: 0;
   min-height: 3.15rem;
+}
+
+/* A disabled primary button must READ disabled. `.admin-auth-button` carries no disabled state of
+   its own, so "Confirm promotion" and "Save ratings" rendered in full primary purple while
+   refusing every click (T051V2 Task 18, defect 4). Paper Edge fill + Muted text keeps the label
+   legible (about 5:1) while removing the purple that means "this will act". */
+.ibjjf-card .admin-auth-button:disabled,
+.ibjjf-dialog .admin-auth-button:disabled,
+.ibjjf-form .admin-auth-button:disabled,
+.ibjjf-skills .admin-auth-button:disabled {
+  background: var(--paper-edge);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .ibjjf-skeleton {

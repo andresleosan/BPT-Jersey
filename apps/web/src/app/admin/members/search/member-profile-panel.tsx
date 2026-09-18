@@ -9,6 +9,7 @@ import type {
 
 import { revealRegyfitRecordField } from "../../../../lib/members-client";
 import { AdminStatusBadge } from "../../admin-ui";
+import { AdminDataTableWrap } from "../../admin-data-table";
 
 const tabs = [
   "Profile",
@@ -151,7 +152,10 @@ function ProfileTabContent({ record }: { record: RegyfitMemberRecord }) {
           ]}
         />
       </Card>
-      <Card title={graduation.modality ?? "Graduation"}>
+      {/* T051V2 Task 19: these five rows are Regyfit's own imported numbers. The IBJJF card on the
+          member record now shows BPT's progress for the same member, so the provenance has to be on
+          screen or the two percentages read as one figure contradicting itself. */}
+      <Card title={`${graduation.modality ?? "Graduation"} (imported from Regyfit)`}>
         <FieldList
           entries={[
             ["Belt", displayValue(graduation.belt)],
@@ -282,7 +286,7 @@ function PaymentsTabContent({ record }: { record: RegyfitMemberRecord }) {
     );
   }
   return (
-    <div className="admin-data-table-wrap">
+    <AdminDataTableWrap label="Payments history">
       <table className="admin-data-table">
         <caption className="admin-eyebrow">Payments history</caption>
         <thead>
@@ -302,7 +306,7 @@ function PaymentsTabContent({ record }: { record: RegyfitMemberRecord }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </AdminDataTableWrap>
   );
 }
 
@@ -328,7 +332,7 @@ function ClassesTabContent({ record }: { record: RegyfitMemberRecord }) {
           message="Regyfit holds no class registrations for this member."
         />
       ) : (
-        <div className="admin-data-table-wrap">
+        <AdminDataTableWrap label={`Last ${attendance.records.length} records`}>
           <table className="admin-data-table">
             <caption className="admin-eyebrow">Last {attendance.records.length} records</caption>
             <thead>
@@ -352,7 +356,7 @@ function ClassesTabContent({ record }: { record: RegyfitMemberRecord }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </AdminDataTableWrap>
       )}
     </>
   );
