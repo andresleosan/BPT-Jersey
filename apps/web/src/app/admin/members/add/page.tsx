@@ -27,10 +27,7 @@ type FieldErrors = Readonly<{
 
 type FormValues = Readonly<{
   fullName: string;
-  membershipNumber: string;
   email: string;
-  idCardNumber: string;
-  vatNumber: string;
   dateOfBirth: string;
   phoneNumber: string;
   frequencyNote: string;
@@ -48,10 +45,7 @@ type FormValues = Readonly<{
 
 const initialValues: FormValues = {
   fullName: "",
-  membershipNumber: "",
   email: "",
-  idCardNumber: "",
-  vatNumber: "",
   dateOfBirth: "",
   phoneNumber: "",
   frequencyNote: "",
@@ -117,16 +111,7 @@ function inputFromValues(values: FormValues, requestId: string): CreateMemberInp
     dateOfBirth: values.dateOfBirth,
     trainingCenter: values.trainingCenter as TrainingCenter,
     trainingTimePreferences: values.trainingTimePreferences,
-    ...(optionalText(values.membershipNumber) === undefined
-      ? {}
-      : { membershipNumber: optionalText(values.membershipNumber) }),
     ...(optionalText(values.email) === undefined ? {} : { email: optionalText(values.email) }),
-    ...(optionalText(values.idCardNumber) === undefined
-      ? {}
-      : { idCardNumber: optionalText(values.idCardNumber) }),
-    ...(optionalText(values.vatNumber) === undefined
-      ? {}
-      : { vatNumber: optionalText(values.vatNumber) }),
     ...(optionalText(values.phoneNumber) === undefined
       ? {}
       : { phoneNumber: optionalText(values.phoneNumber) }),
@@ -370,9 +355,6 @@ export function AddMemberPage() {
         </fieldset>
 
         {[
-          ["membershipNumber", "Membership number", "text"],
-          ["idCardNumber", "ID card number", "text"],
-          ["vatNumber", "VAT number", "text"],
           ["email", "Email address", "email"],
           ["phoneNumber", "Mobile number", "tel"],
           ["frequencyNote", "Frequency note", "text"],
