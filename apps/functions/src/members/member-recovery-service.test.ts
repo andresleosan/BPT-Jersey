@@ -450,4 +450,152 @@ describe("legacy member recovery", () => {
       h.service.complete({ recoveryId: unbound.recoveryId }, "user-1"),
     ).rejects.toMatchObject({ code: "deadline-exceeded" });
   });
+  it.each(["2030-01-01", "1990-01-01"])(
+    "requires review for recorded minor age with conflicting DOB %s",
+    async (birthDate) => {
+      const h = harness();
+      const imported = { ...source, age: 12, birthDate };
+      h.records.set(prefix + "regyfitMemberRecords/123", imported);
+      const ticket = await begin(h);
+      expect(
+        await h.service.complete(
+          { recoveryId: ticket.recoveryId, profile: { ...profile, dateOfBirth: "1990-01-01" } },
+          "user-1",
+        ),
+      ).toEqual({ status: "pending-review" });
+      expect(
+        [...h.records.keys()].filter(
+          (path) =>
+            path.startsWith(prefix + "students/") ||
+            path.startsWith(prefix + "regyfitMemberLinks/"),
+        ),
+      ).toEqual([]);
+      expect((await h.auth.getUser("user-1")).customClaims).toEqual({});
+      expect(h.records.get(prefix + "regyfitMemberRecords/123")).toEqual(imported);
+      expect(h.records.get(prefix + "memberDirectoryStates/current")?.stateRevision).toBe(0);
+    },
+  );
+  it("requires review for any future imported birth date instead of replacing it with supplied adult data", async () => {
+    const h = harness();
+    h.records.set(prefix + "regyfitMemberRecords/123", {
+      ...source,
+      age: 36,
+      birthDate: "2030-01-01",
+    });
+    const ticket = await begin(h);
+    expect(
+      await h.service.complete(
+        { recoveryId: ticket.recoveryId, profile: { ...profile, dateOfBirth: "1990-01-01" } },
+        "user-1",
+      ),
+    ).toEqual({ status: "pending-review" });
+    expect([...h.records.keys()].filter((path) => path.startsWith(prefix + "students/"))).toEqual(
+      [],
+    );
+  });
+  it.each([undefined, "1990-01-01"])(
+    "does not merge another person with a shared email and DOB %s, even after office approval",
+    async (birthDate) => {
+      const h = harness();
+      const first: Record<string, unknown> = { ...source };
+      delete first.memberNumber;
+      h.records.set(prefix + "regyfitMemberRecords/123", first);
+      const initial = await begin(h);
+      expect(
+        await h.service.complete({ recoveryId: initial.recoveryId, profile }, "user-1"),
+      ).toEqual({ status: "linked" });
+      const studentBefore = [...h.records.entries()].find(([path]) =>
+        path.startsWith(prefix + "students/"),
+      )!;
+      const second: Record<string, unknown> = {
+        ...first,
+        recordId: "124",
+        fullName: "Maria Silva",
+      };
+      if (birthDate) second.birthDate = birthDate;
+      else delete second.birthDate;
+      h.records.set(prefix + "regyfitMemberRecords/124", second);
+      const ticket = await begin(h, "old@example.test", "Maria Silva");
+      expect(
+        await h.service.complete({ recoveryId: ticket.recoveryId, profile }, "user-1"),
+      ).toEqual({ status: "pending-review" });
+      const actor = {
+        actorId: "office-1",
+        academyId,
+        role: "owner" as const,
+        active: true,
+        appCheckVerified: true,
+      };
+      h.records.set(prefix + "users/office-1", {
+        userId: "office-1",
+        academyId,
+        accountType: "staff",
+        displayName: "Office",
+        email: "office@example.test",
+        authProvider: "google",
+        active: true,
+        adminRole: "owner",
+        lastRoleChangeAuditId: "audit-1",
+        createdAt: Timestamp.now(),
+        createdBy: "office-1",
+        updatedAt: Timestamp.now(),
+        updatedBy: "office-1",
+        status: "active",
+        schemaVersion: 1,
+      });
+      const detail = await h.service.detail({ requestId: ticket.recoveryId }, actor);
+      const candidateId = detail.candidates.find(
+        (candidate) => candidate.fullName === "Maria Silva",
+      )!.candidateId;
+      expect(
+        await h.service.review(
+          {
+            requestId: ticket.recoveryId,
+            decision: "approve",
+            candidateId,
+            identityConfirmed: true,
+          },
+          actor,
+        ),
+      ).toEqual({ status: "pending-review" });
+      expect(h.records.has(prefix + "regyfitMemberLinks/124")).toBe(false);
+      expect(h.records.get(studentBefore[0])).toEqual(studentBefore[1]);
+      expect(
+        [...h.records.keys()].filter((path) => path.startsWith(prefix + "students/")),
+      ).toHaveLength(1);
+      expect(h.records.get(prefix + "memberDirectoryStates/current")?.stateRevision).toBe(1);
+    },
+  );
+  it("requires review when an adult source age contradicts DOB at capture time", async () => {
+    const h = harness();
+    h.records.set(prefix + "regyfitMemberRecords/123", { ...source, age: 30 });
+    const ticket = await begin(h);
+    expect(await h.service.complete({ recoveryId: ticket.recoveryId, profile }, "user-1")).toEqual({
+      status: "pending-review",
+    });
+  });
+  it("accepts consistent captured age and reuses a matching person with name and source DOB", async () => {
+    const h = harness();
+    const imported: Record<string, unknown> = { ...source, age: 36 };
+    delete imported.memberNumber;
+    h.records.set(prefix + "regyfitMemberRecords/123", imported);
+    const initial = await begin(h);
+    expect(await h.service.complete({ recoveryId: initial.recoveryId, profile }, "user-1")).toEqual(
+      { status: "linked" },
+    );
+    h.records.set(prefix + "regyfitMemberRecords/124", {
+      ...imported,
+      recordId: "124",
+      fullName: "JOSE SILVA",
+      email: "new@example.test",
+    });
+    h.user({ email: "new@example.test" });
+    const duplicate = await begin(h, "new@example.test");
+    expect(await h.service.complete({ recoveryId: duplicate.recoveryId }, "user-1")).toEqual({
+      status: "linked",
+    });
+    expect(
+      [...h.records.keys()].filter((path) => path.startsWith(prefix + "students/")),
+    ).toHaveLength(1);
+  });
 });

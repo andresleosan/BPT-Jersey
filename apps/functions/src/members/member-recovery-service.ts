@@ -27,6 +27,7 @@ import {
   type StudentProfile,
 } from "@bpt-jersey/domain/profiles";
 import { parseFamilyRecord } from "@bpt-jersey/domain/families";
+import { memberAgeOn } from "@bpt-jersey/domain/members/profile";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import {
@@ -238,6 +239,27 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
   ): Promise<CompleteMemberRecoveryResult> {
     const uid = user.uid;
     const accountEmail = email(user.email ?? "");
+    // Imported evidence of a minor or an impossible birth date cannot be corrected by
+    // self-service input or by approving account ownership. Office must reconcile the source.
+    if (
+      (record.age !== undefined && record.age < 18) ||
+      (record.age !== undefined &&
+        record.birthDate !== undefined &&
+        memberAgeOn(record.birthDate, record.capturedAt.slice(0, 10)) !== record.age) ||
+      (record.birthDate !== undefined &&
+        (!validDate(record.birthDate) || record.birthDate > time.slice(0, 10)))
+    )
+      return { status: "pending-review" };
+    const sourceBirthDate = record.birthDate;
+    if (
+      sourceBirthDate !== undefined &&
+      deriveParticipantType(sourceBirthDate, time.slice(0, 10)) !== "adult"
+    )
+      return { status: "pending-review" };
+    const samePersonByProfile = (student: StudentProfile): boolean =>
+      normalizeRecoveryName(student.fullName) === normalizeRecoveryName(record.fullName) &&
+      sourceBirthDate !== undefined &&
+      student.dateOfBirth === sourceBirthDate;
     const stateRef = ref("memberDirectoryStates", "current");
     const guardRef = d.firestore.doc(`memberDirectoryRestoreGuards/${academyId}`);
     const authKeyId = deriveStudentIdentityKeyId({
@@ -328,6 +350,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       keys.map((key) => t.get(ref("studentIdentityKeys", key.keyId))),
     );
     const targets = new Set<string>();
+    const administrativeOwners = new Set<string>();
     const existingLink = linkSnap.exists ? parse(linkSchema, linkSnap.data()) : undefined;
     if (existingLink) {
       if (
@@ -354,6 +377,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       )
         conflict();
       targets.add(stored.ownerStudentId);
+      administrativeOwners.add(stored.ownerStudentId);
     }
     if (authKeySnap.exists) {
       const key = parse(studentIdentityKeySchema, authKeySnap.data());
@@ -386,7 +410,8 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
         ticket.approvedCandidateId &&
         ticket.reviewedBy &&
         similar.length === 1 &&
-        similar[0]?.dateOfBirth === record.birthDate
+        similar[0] !== undefined &&
+        samePersonByProfile(similar[0])
       )
         existing = similar[0];
       else return { status: "pending-review" };
@@ -394,8 +419,8 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     if (
       existing &&
       !existingLink &&
-      !similar.some((candidate) => candidate.studentId === existing.studentId) &&
-      !keys.some((_, index) => keySnaps[index]?.exists)
+      !administrativeOwners.has(existing.studentId) &&
+      !samePersonByProfile(existing)
     )
       return { status: "pending-review" };
     if (existing && existing.userId !== undefined && existing.userId !== uid)
@@ -406,12 +431,6 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     )
       return { status: "pending-review" };
     if (record.membershipState !== "active") return { status: "pending-review" };
-    if (!record.birthDate && record.age !== undefined && record.age < 18)
-      return { status: "pending-review" };
-    const sourceBirthDate =
-      validDate(record.birthDate) && record.birthDate <= time.slice(0, 10)
-        ? record.birthDate
-        : undefined;
     if (existing && sourceBirthDate && existing.dateOfBirth !== sourceBirthDate)
       return { status: "pending-review" };
     const profile: MemberRecoveryProfile = {
