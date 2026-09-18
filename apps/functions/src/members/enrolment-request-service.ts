@@ -452,6 +452,7 @@ export function createEnrolmentRequestStore(
           applicantIsStudent: input.submission.applicantIsStudent,
           applicant: input.submission.applicant,
           minors: input.submission.minors,
+          planSelections: input.submission.planSelections,
           submittedBy: actorId,
           submittedAt: now,
           // The client sends only the version it displayed. The hash and the timestamp are the

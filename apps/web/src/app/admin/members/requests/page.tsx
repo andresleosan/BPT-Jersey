@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PLAN_CATALOG, type PlanId } from "@bpt-jersey/domain/memberships";
+import { formatPlanPrice } from "../../../../lib/plan-copy";
 
 import {
   isReturnableEnrolmentRequest,
@@ -38,6 +40,16 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleDateString("en-GB");
 }
 
+function PlanPreference({ planId }: Readonly<{ planId: PlanId | undefined }>) {
+  const plan = PLAN_CATALOG.find((item) => item.planId === planId);
+  return (
+    <p className="admin-request-meta">
+      <strong>Requested plan:</strong>{" "}
+      {plan ? `${plan.displayName} · ${formatPlanPrice(plan)}` : "Not recorded on this request"}
+    </p>
+  );
+}
+
 function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
   const { applicant } = detail;
   return (
@@ -63,12 +75,16 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
           <strong>No emergency contact given.</strong>
         </p>
       )}
+      {detail.applicantIsStudent ? (
+        <PlanPreference planId={detail.planSelections?.applicant} />
+      ) : null}
       {detail.minors.length > 0 ? (
         <ul className="admin-request-minors" aria-label="Children in their care">
-          {detail.minors.map((minor) => (
+          {detail.minors.map((minor, index) => (
             <li key={`${minor.fullName}-${minor.dateOfBirth}`}>
               {minor.fullName} · born {minor.dateOfBirth} · {minor.trainingCenter}
               {minor.frequencyNote ? ` · ${minor.frequencyNote}` : ""}
+              <PlanPreference planId={detail.planSelections?.minors[index]} />
             </li>
           ))}
         </ul>

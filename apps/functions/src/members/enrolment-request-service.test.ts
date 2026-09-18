@@ -35,6 +35,7 @@ const submission = {
   applicantIsStudent: true,
   applicant,
   minors: [],
+  planSelections: { applicant: "town-adult", minors: [] },
   waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
 } as const;
 
@@ -164,7 +165,10 @@ describe("enrolment request store", () => {
       submittedBy: "visitor-1",
       submittedAt: now,
     });
-    expect(documents.get(requestPath)).toMatchObject({ academyId: "academy-1" });
+    expect(documents.get(requestPath)).toMatchObject({
+      academyId: "academy-1",
+      planSelections: submission.planSelections,
+    });
     expect(audits).toEqual([
       expect.objectContaining({
         action: "enrolment.request.submitted",
