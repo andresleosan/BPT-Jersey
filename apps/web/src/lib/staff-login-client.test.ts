@@ -7,6 +7,7 @@ vi.mock("./firebase-client", () => ({ getFirebaseAuth: () => mocks.auth, getFire
 vi.mock("firebase/functions", () => ({ httpsCallable: () => mocks.call }));
 vi.mock("firebase/auth", () => ({
   GoogleAuthProvider: class { setCustomParameters = mocks.params; },
+  browserPopupRedirectResolver: "popup-resolver",
   linkWithPopup: mocks.link, signInWithCustomToken: mocks.token,
 }));
 import { currentStaffAccess, linkStaffGoogle, signInWithStaffId, staffAccessError } from "./staff-login-client";
@@ -22,7 +23,7 @@ describe("coach sign-in client", () => {
   it("links Google to the current user and refreshes that user's token", async () => {
     mocks.link.mockResolvedValue({ user: { getIdToken: mocks.refresh } });
     await linkStaffGoogle();
-    expect(mocks.link).toHaveBeenCalledWith(mocks.auth.currentUser, expect.anything());
+    expect(mocks.link).toHaveBeenCalledWith(mocks.auth.currentUser, expect.anything(), "popup-resolver");
     expect(mocks.params).toHaveBeenCalledWith({ prompt: "select_account" });
     expect(mocks.refresh).toHaveBeenCalledWith(true);
   });

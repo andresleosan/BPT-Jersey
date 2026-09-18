@@ -17,3 +17,11 @@ After building functions, run `node scripts/provision-landing-coaches.mjs` for a
 ## Verification
 
 Unit tests cover numeric sign-in, wrong credentials, disabled accounts, wrong roles and academies, rate limits, password changes and Google account collisions. The Firebase emulator integration test verifies that numeric sign-in, Google linking and subsequent sign-in through both methods preserve one UID and the coach claim. Production Google linking must be performed by each coach with their own Google account.
+
+## Release verification (2026-09-18)
+
+- Created and independently verified the five production coach profiles and distinct salted credentials. Private handoff files are outside the repository with directory mode 0700 and file mode 0600.
+- Deployed both callable functions. After explicit operator approval, added a custom IAM role containing only `iam.serviceAccounts.signBlob`, bound to the runtime service account on that same service account.
+- Passed 58 selected unit tests, the Firebase Auth/Firestore linking integration test, type checks, ESLint and the final production build.
+- Full production browser sign-in remains unverified: reCAPTCHA/App Check rejected the automated browser, as already documented for member recovery. An administrative smoke-test alternative could not sign an App Check token with the operator identity; no additional IAM permissions were granted. App Check enforcement and thresholds remain unchanged.
+- Each coach must link their own Google account from My sign-in after logging in. No Google accounts were linked on their behalf.
