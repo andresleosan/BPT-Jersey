@@ -886,14 +886,22 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
   });
 
   /**
-   * T051V2 review of Task 16 (Critical-1). The Manage view used to place the Void affordance on
-   * the first non-voided promotion in `entries`, which is ordered NEWEST FIRST BY `assignedOn` — a
-   * calendar date the operator chooses. The server's rule is the head's `lastApprovedPromotionId`,
-   * the promotion RECORDED last. Two promotions recorded on the same day carry the same
-   * `assignedOn`, so the date ordering tells the reader nothing at all and only the head can name
-   * the one a void would be accepted for. It travels with the history for exactly that reason.
+   * T051V2 re-review of Task 16 (m1). This test is NAMED for what it actually proves, because an
+   * earlier name claimed more than it held. Through `assignLevel` alone the head and the row order
+   * CANNOT be made to disagree: `assertPromotionNotBeforeLevelStart` refuses a date before the
+   * current level start and the promotion then starts the new level on its own day, so
+   * `assignedOn` never decreases along the standing chain; a void walks the head back one step and
+   * marks every later promotion voided. So the standing promotions always come back in reverse
+   * order of recording, and the first of them is always the head. Replacing
+   * `lastApprovedPromotionId` with `entries.find((entry) => entry.kind === "promotion" &&
+   * entry.voided === null)` leaves this test GREEN under both stores, by construction and not by
+   * accident. The rule that the head beats the row order is pinned where the two can genuinely
+   * disagree — seeded rows, which is the Plan D import shape — by "carries the id the head names
+   * even when an older row is the one it names" below, and that test DOES die under that mutation.
+   * What this one is worth: both stores agree, step for step, on which promotion the head names
+   * while two promotions share a day and the dates can separate nothing.
    */
-  it("names the promotion recorded last, which the row dates cannot identify", async () => {
+  it("agrees across both stores on the head it walks back, on a day two promotions share", async () => {
     const fixture = await makeFixture();
     const first = await fixture.assign(
       { note: assignmentNote, toDefinitionKey: "white-1st-stripe", promotedOn: "2026-09-09" },
@@ -1884,8 +1892,11 @@ describe("voidPromotion and getStudentLevelHistory (T051V2)", () => {
   /**
    * T051V2 review of Task 16 (Critical-1). The reader must carry the head's OWN id, never a guess
    * derived from the row order. Here the promotion the head names is the OLDER one by date, which
-   * is exactly the shape a backdated correction leaves behind — and exactly the shape that put the
-   * Manage view's Void button on a row the server refuses.
+   * is the shape Plan D's Regyfit import leaves behind — it writes promotions straight into the
+   * collection with whatever dates the source carries — and exactly the shape that put the Manage
+   * view's Void button on a row the server refuses. It is reachable only by seeding rows, because
+   * `assignLevel` keeps `assignedOn` non-decreasing along the standing chain; that is why this,
+   * and not the parity test above, is the test that dies when the head is replaced by a guess.
    */
   it("carries the id the head names even when an older row is the one it names", async () => {
     const seed = (lastApprovedPromotionId: unknown) =>

@@ -504,12 +504,17 @@ function HistoryTable({
         );
   /**
    * T051V2 review of Task 16 (Critical-1). Only ONE promotion can be voided, and it is the one the
-   * progress head recorded last — NOT the newest row by `assignedOn`, which is a calendar date the
-   * assign form deliberately lets the operator backdate. The two diverge under ordinary use, and
-   * when they did, the row labelled "Current" was told to "Void the latest promotion first" while
-   * the Void button sat on a row the server refuses. The head's own id now travels with the
-   * history, so this names exactly what `voidPromotion` accepts. The refusal itself stays opaque:
-   * nothing here tries to say which of its four causes fired.
+   * progress head recorded last — NOT the newest row by `assignedOn`. The two are a different
+   * thing in two reachable shapes: TWO PROMOTIONS ON THE SAME DAY, where the history's sort
+   * comparator is inconsistent for a tie and the row it puts first is arbitrary; and PLAN D's
+   * REGYFIT IMPORT, which writes promotions straight into the collection with whatever dates the
+   * source carries. (Through `assignLevel` alone they cannot diverge by more than a tie:
+   * `assertPromotionNotBeforeLevelStart` refuses a date before the current level start and the
+   * promotion then starts the new level on its own day, so `assignedOn` never decreases along the
+   * standing chain.) When they did diverge, the row labelled "Current" was told to void something
+   * else first while the Void button sat on a row the server refuses. The head's own id now
+   * travels with the history, so this names exactly what `voidPromotion` accepts. The refusal
+   * itself stays opaque: nothing here tries to say which of its four causes fired.
    */
   const voidable =
     history.lastApprovedPromotionId === null
@@ -611,7 +616,9 @@ function HistoryTable({
                           Void
                         </button>
                       ) : (
-                        <span className="ibjjf-muted">Void the latest promotion first</span>
+                        <span className="ibjjf-muted">
+                          Void the most recently recorded promotion first
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -651,8 +658,11 @@ export function ManageView({
   const today = jerseyDateOf(new Date().toISOString());
 
   /**
-   * FOUR calls per open, one of them the catalogue: `getLevelCatalog` has no client-side cache,
-   * so it is a call like the other three. None is spare: the card carries the classes and the
+   * THREE network reads per open, plus one local catalogue resolve: under the shipped default
+   * (`NEXT_PUBLIC_LEVELS_BACKEND=false`) `getLevelCatalog` returns `getBundledLevelCatalog()` and
+   * makes no network call at all. It is a fourth network read only when the connected levels
+   * backend is enabled, which is when it calls `listLevelCatalog`. None of the four is spare: the
+   * card carries the classes and the
    * level start, the history is the table and the one honest source of which promotion may be
    * voided, and the ratings decide the `Skills n/m at minimum` gap that would otherwise let the
    * dialog claim every criterion is met for a child whose minimums are not.
