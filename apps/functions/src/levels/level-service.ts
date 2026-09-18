@@ -1687,7 +1687,7 @@ export function createLevelCatalogStore({
           });
           appendAuditEventInTransaction(transaction, entry.auditRef, entry.audit);
         }
-        return { recorded: planned.length };
+        return { studentId, recorded: planned.length };
       });
     },
 
@@ -2999,7 +2999,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       // The staff id has no home in this store's record shape; it is named so a reader can see it
       // is deliberately unused here rather than forgotten.
       void evaluatorStaffId;
-      return { recorded: planned.length };
+      return { studentId, recorded: planned.length };
     },
 
     async listStudentEvaluations(

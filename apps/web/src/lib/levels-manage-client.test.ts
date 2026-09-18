@@ -85,6 +85,32 @@ beforeEach(() => {
   result = undefined;
 });
 
+describe("levels manage client — the safe strings", () => {
+  // Pinned by text: a UI copy change is a deliberate act, not a silent one. And they must stay
+  // distinct, or a caller switching on the literal would tell two different failures apart wrongly.
+  it("is exactly these seven strings", () => {
+    expect(levelsSafeErrors).toEqual({
+      card: "Levels are unavailable right now. Please try again later.",
+      history: "Unable to load the level history. Please try again.",
+      assignInput: "Unable to assign the level. Check the date and the note, then try again.",
+      assign: "Unable to assign the level. Please try again later.",
+      void: "Unable to void the promotion. Please try again.",
+      ratings: "Unable to save the ratings. Please try again.",
+      scores: "Unable to load the skill ratings. Please try again.",
+    });
+  });
+
+  it("has no two keys sharing a string", () => {
+    const values = Object.values(levelsSafeErrors);
+    expect(values).toHaveLength(7);
+    expect(new Set(values).size).toBe(7);
+  });
+
+  it("never hints at the cause of a void refusal", () => {
+    expect(levelsSafeErrors.void).not.toMatch(/latest|voided|restore|snapshot|permission|role/iu);
+  });
+});
+
 describe("levels manage client — student id validation", () => {
   it.each([
     ["../students", "card"],
@@ -97,6 +123,34 @@ describe("levels manage client — student id validation", () => {
     expect(calls).toHaveLength(0);
   });
 
+  // `RegExp.prototype.test` COERCES its argument, so every one of these passed the old guard and
+  // reached a callable. `undefined` was the dangerous one: the payload became `{}`, the backend's
+  // "my own progress" shape, so the signed-in coach's own data would come back for the member.
+  it.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["a number", 123],
+    ["a boolean", true],
+    ["a one-element array", ["student-1"]],
+    ["an object", {}],
+    ["an object with a toString", { toString: () => "student-1" }],
+  ])("refuses %s on all three read calls, with zero callable invocations", async (_label, id) => {
+    const studentId = id as unknown as string;
+    await expect(getStudentLevelCard(studentId)).rejects.toThrow(levelsSafeErrors.card);
+    await expect(getStudentLevelHistory(studentId)).rejects.toThrow(levelsSafeErrors.history);
+    await expect(getStudentSkillScores(studentId)).rejects.toThrow(levelsSafeErrors.scores);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("accepts a 128-character id and refuses a 129-character one", async () => {
+    const longest = "a".repeat(128);
+    result = { progress: { ...initializedCard, studentId: longest } };
+    await expect(getStudentLevelCard(longest)).resolves.toMatchObject({ studentId: longest });
+    expect(calls).toHaveLength(1);
+    await expect(getStudentLevelCard("a".repeat(129))).rejects.toThrow(levelsSafeErrors.card);
+    expect(calls).toHaveLength(1);
+  });
+
   it("refuses a bad student id on the history call too", async () => {
     await expect(getStudentLevelHistory("../students")).rejects.toThrow(levelsSafeErrors.history);
     expect(calls).toHaveLength(0);
@@ -104,6 +158,45 @@ describe("levels manage client — student id validation", () => {
 
   it("refuses a bad student id on the skill scores call too", async () => {
     await expect(getStudentSkillScores("../students")).rejects.toThrow(levelsSafeErrors.scores);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+/**
+ * A getter that throws while zod reads the field: `safeParse` does not catch it, so an input built
+ * from anything but a plain literal could carry a raw message out to the operator.
+ */
+describe("levels manage client — a throwing getter on the input", () => {
+  const withThrowingGetter = <T extends object>(base: T, field: string, secret: string): T =>
+    Object.defineProperty({ ...base }, field, {
+      get() {
+        throw new Error(secret);
+      },
+      enumerable: true,
+    });
+
+  it("gives the safe assignment message, not the getter's own", async () => {
+    const input = withThrowingGetter(assignInput, "promotedOn", "SECRET academies/acad-1 leak");
+    await expect(assignLevel(input)).rejects.toThrow(levelsSafeErrors.assignInput);
+    await expect(assignLevel(input)).rejects.not.toThrow(/SECRET|academies/u);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("gives the safe void message, not the getter's own", async () => {
+    const input = withThrowingGetter(
+      { studentId: "student-1", promotionId: "grad_1", reason: "Assigned to the wrong member." },
+      "reason",
+      "SECRET staff-9182 leak",
+    );
+    await expect(voidPromotion(input)).rejects.toThrow(levelsSafeErrors.void);
+    await expect(voidPromotion(input)).rejects.not.toThrow(/SECRET|staff-/u);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("gives the safe ratings message, not the getter's own", async () => {
+    const input = withThrowingGetter(ratingsInput, "ratings", "SECRET uid-abc leak");
+    await expect(recordSkillRatings(input)).rejects.toThrow(levelsSafeErrors.ratings);
+    await expect(recordSkillRatings(input)).rejects.not.toThrow(/SECRET|uid-/u);
     expect(calls).toHaveLength(0);
   });
 });
@@ -243,13 +336,36 @@ describe("levels manage client — assignment", () => {
     expect(Object.hasOwn(sent, "ratings")).toBe(false);
   });
 
+  // A form that writes `note: noteText || undefined` sends an OWN `note` key with an undefined
+  // value, and zod keeps that key in its output. Forwarding the parse result whole would put it on
+  // the wire; spelling the four fields out is what drops it. This pins the exact wire shape.
+  it("drops an explicitly undefined note and sends exactly the four assignment keys", async () => {
+    result = assignResult;
+    await assignLevel({
+      studentId: assignInput.studentId,
+      fromDefinitionKey: assignInput.fromDefinitionKey,
+      toDefinitionKey: assignInput.toDefinitionKey,
+      promotedOn: assignInput.promotedOn,
+      note: undefined,
+    });
+    const sent = calls.at(-1)?.data as Record<string, unknown>;
+    expect(Object.keys(sent)).toEqual([
+      "studentId",
+      "fromDefinitionKey",
+      "toDefinitionKey",
+      "promotedOn",
+    ]);
+    expect(Object.hasOwn(sent, "note")).toBe(false);
+  });
+
   it.each([
     ["a note under ten characters", { ...assignInput, note: "short" }],
     ["a note carrying a control character", { ...assignInput, note: `Wrong belt${NUL} recorded` }],
     ["a date that is not a calendar date", { ...assignInput, promotedOn: "2026-13-45" }],
     ["a student id with a slash", { ...assignInput, studentId: "a/b" }],
   ])("refuses %s without calling the backend", async (_label, input) => {
-    await expect(assignLevel(input)).rejects.toThrow(levelsSafeErrors.assign);
+    // The client refused this one itself, so the date-and-note advice is true here and only here.
+    await expect(assignLevel(input)).rejects.toThrow(levelsSafeErrors.assignInput);
     expect(calls).toHaveLength(0);
   });
 
@@ -268,10 +384,17 @@ describe("levels manage client — assignment", () => {
     await expect(assignLevel(assignInput)).rejects.toThrow(levelsSafeErrors.assign);
   });
 
-  it("turns a backend refusal into the safe message", async () => {
+  // G12: an administrator is SUPPOSED to be refused here. Telling them to check the date and the
+  // note would send them round a loop they can never leave, so a backend refusal never says it.
+  it.each([
+    ["a role refusal", "Promotion decision role is invalid"],
+    ["a collapsed invalid-request refusal", "Levels request is invalid"],
+    ["a level-start conflict", "Levels state conflicts"],
+  ])("gives the neutral assignment message for %s", async (_label, message) => {
     result = assignResult;
-    failure = new Error("Levels request is invalid");
+    failure = new Error(message);
     await expect(assignLevel(assignInput)).rejects.toThrow(levelsSafeErrors.assign);
+    await expect(assignLevel(assignInput)).rejects.not.toThrow(/Check the date/u);
   });
 });
 
@@ -322,8 +445,11 @@ describe("levels manage client — void", () => {
 
 describe("levels manage client — ratings", () => {
   it("sends the batch payload through recordEvaluation", async () => {
-    result = { recorded: 2 };
-    await expect(recordSkillRatings(ratingsInput)).resolves.toEqual({ recorded: 2 });
+    result = { studentId: "student-1", recorded: 2 };
+    await expect(recordSkillRatings(ratingsInput)).resolves.toEqual({
+      studentId: "student-1",
+      recorded: 2,
+    });
     const call = calls.at(-1);
     expect(call?.name).toBe("recordEvaluation");
     const sent = call?.data as Record<string, unknown>;
@@ -334,10 +460,19 @@ describe("levels manage client — ratings", () => {
   });
 
   it("sends evidence notes only when there are some", async () => {
-    result = { recorded: 2 };
+    result = { studentId: "student-1", recorded: 2 };
     await recordSkillRatings({ ...ratingsInput, evidenceNotes: "  Graded in class.  " });
     const sent = calls.at(-1)?.data as Record<string, unknown>;
     expect(sent.evidenceNotes).toBe("Graded in class.");
+  });
+
+  // Same trap as the assignment note: an explicit `undefined` survives the parse as an own key.
+  it("drops an explicitly undefined evidence note and sends exactly the three batch keys", async () => {
+    result = { studentId: "student-1", recorded: 2 };
+    await recordSkillRatings({ ...ratingsInput, evidenceNotes: undefined });
+    const sent = calls.at(-1)?.data as Record<string, unknown>;
+    expect(Object.keys(sent)).toEqual(["studentId", "definitionKey", "ratings"]);
+    expect(Object.hasOwn(sent, "evidenceNotes")).toBe(false);
   });
 
   it.each([
@@ -357,12 +492,23 @@ describe("levels manage client — ratings", () => {
   });
 
   it("refuses a result that recorded a different number of ratings", async () => {
-    result = { recorded: 1 };
+    result = { studentId: "student-1", recorded: 1 };
     await expect(recordSkillRatings(ratingsInput)).rejects.toThrow(levelsSafeErrors.ratings);
   });
 
   it("refuses a malformed result", async () => {
-    result = { recorded: "2" };
+    result = { studentId: "student-1", recorded: "2" };
+    await expect(recordSkillRatings(ratingsInput)).rejects.toThrow(levelsSafeErrors.ratings);
+  });
+
+  // A confirmation about another member is a confirmation about the wrong promotion decision.
+  it("refuses a result that names a different student", async () => {
+    result = { studentId: "student-2", recorded: 2 };
+    await expect(recordSkillRatings(ratingsInput)).rejects.toThrow(levelsSafeErrors.ratings);
+  });
+
+  it("refuses a result that names no student at all", async () => {
+    result = { recorded: 2 };
     await expect(recordSkillRatings(ratingsInput)).rejects.toThrow(levelsSafeErrors.ratings);
   });
 
@@ -387,6 +533,7 @@ describe("levels manage client — ratings", () => {
 describe("levels manage client — skill scores", () => {
   it("reads the latest and the best score per skill", async () => {
     result = {
+      studentId: "student-1",
       evaluations: [{ evidenceNotes: "not needed by the view" }],
       summary: {
         "tie-the-belt": {
@@ -408,12 +555,24 @@ describe("levels manage client — skill scores", () => {
   });
 
   it("returns empty maps when nothing has been rated", async () => {
-    result = { evaluations: [], summary: {} };
+    result = { studentId: "student-1", evaluations: [], summary: {} };
     await expect(getStudentSkillScores("student-1")).resolves.toEqual({ latest: {}, best: {} });
   });
 
   it("turns a malformed summary into the safe message", async () => {
-    result = { summary: { "tie-the-belt": { count: 2 } } };
+    result = { studentId: "student-1", summary: { "tie-the-belt": { count: 2 } } };
+    await expect(getStudentSkillScores("student-1")).rejects.toThrow(levelsSafeErrors.scores);
+  });
+
+  // Ratings decide a promotion about a named member: a summary that belongs to anyone else — the
+  // signed-in coach included — must never be rendered under that member's name.
+  it("refuses a summary that names a different student", async () => {
+    result = { studentId: "student-2", evaluations: [], summary: {} };
+    await expect(getStudentSkillScores("student-1")).rejects.toThrow(levelsSafeErrors.scores);
+  });
+
+  it("refuses a summary that names no student at all", async () => {
+    result = { evaluations: [], summary: {} };
     await expect(getStudentSkillScores("student-1")).rejects.toThrow(levelsSafeErrors.scores);
   });
 

@@ -311,7 +311,7 @@ describe("getStudentLevelHistory callable", () => {
 
 describe("recordSkillRatings callable", () => {
   it("lets coaches, head coaches and the owner rate, nobody else", async () => {
-    const recordSkillRatings = vi.fn(async () => ({ recorded: 1 }));
+    const recordSkillRatings = vi.fn(async () => ({ studentId: "student-1", recorded: 1 }));
     const handler = createRecordSkillRatingsHandler({
       store: storeWith({ recordSkillRatings }),
       authorization,
@@ -388,7 +388,7 @@ describe("recordSkillRatings callable", () => {
   });
 
   it("parses the batch with the store's own schema", async () => {
-    const recordSkillRatings = vi.fn(async () => ({ recorded: 1 }));
+    const recordSkillRatings = vi.fn(async () => ({ studentId: "student-1", recorded: 1 }));
     const handler = createRecordSkillRatingsHandler({
       store: storeWith({ recordSkillRatings }),
       authorization,
@@ -416,7 +416,7 @@ describe("recordSkillRatings callable", () => {
 
 describe("recordEvaluation dispatch", () => {
   it("sends a payload carrying ratings to the batch handler and everything else to the legacy one", async () => {
-    const recordSkillRatings = vi.fn(async () => ({ recorded: 1 }));
+    const recordSkillRatings = vi.fn(async () => ({ studentId: "student-1", recorded: 1 }));
     const recordEvaluation = vi.fn(async () => ({ evaluationId: "eval-1" }));
     const handler = createRecordEvaluationDispatchHandler({
       store: storeWith({ recordSkillRatings, recordEvaluation }),
