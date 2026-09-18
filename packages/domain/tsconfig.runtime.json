@@ -62,6 +62,7 @@
     "src/penalties/no-show-penalty-contracts.ts",
     "src/birthdays/upcoming-birthday-contracts.ts",
     "src/staff/permission-grant-contracts.ts",
-    "src/consents/disclaimer-contracts.ts"
+    "src/consents/disclaimer-contracts.ts",
+    "src/memberships/subscription-admin-contracts.ts"
   ]
 }

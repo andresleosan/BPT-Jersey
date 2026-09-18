@@ -1,5 +1,7 @@
 "use client";
 
+import { MemberSubscriptionAction } from "../member-subscription-editor";
+
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type {
   AdminDirectoryRow,
@@ -933,6 +935,10 @@ function SearchMembersContent() {
           ) : null}
           {lookup.status === "match" ? (
             <>
+              <MemberSubscriptionAction
+                key={lookup.row.studentId}
+                studentId={lookup.row.studentId}
+              />
               <dl>
                 <dt>Membership reference</dt>
                 <dd>{lookup.row.membershipReference}</dd>

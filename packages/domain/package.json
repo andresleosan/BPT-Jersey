@@ -259,6 +259,11 @@
       "types": "./src/members/member-recovery-contracts.ts",
       "import": "./src/members/member-recovery-contracts.ts",
       "default": "./lib/members/member-recovery-contracts.js"
+    },
+    "./memberships/admin": {
+      "types": "./src/memberships/subscription-admin-contracts.ts",
+      "import": "./src/memberships/subscription-admin-contracts.ts",
+      "default": "./lib/memberships/subscription-admin-contracts.js"
     }
   },
   "scripts": {
