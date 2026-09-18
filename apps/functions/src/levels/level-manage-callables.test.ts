@@ -9,6 +9,7 @@ import {
   createRecordSkillRatingsHandler,
   createVoidPromotionHandler,
   hasSkillRatings,
+  levelCallableOptions,
 } from "./level-callables";
 import { LevelStoreError, type LevelCatalogStore } from "./level-service";
 
@@ -82,6 +83,12 @@ const openPayload = {
 const decisionRefusal = /The head coach or the owner is required/u;
 const staffRefusal = /A current staff role is required/u;
 const coachRefusal = /A current coach role is required/u;
+
+describe("level callable transport", () => {
+  it("requires App Check on every level callable wrapper", () => {
+    expect(levelCallableOptions).toEqual({ enforceAppCheck: true });
+  });
+});
 
 describe("assignLevel and voidPromotion callables", () => {
   it("pass the owner without a staff id and the head coach with one", async () => {
@@ -342,6 +349,38 @@ describe("recordSkillRatings callable", () => {
       authorization: authorizationWith(null),
     });
     await expect(handler(request(ratingsPayload, "headCoach"))).rejects.toMatchObject({
+      code: "permission-denied",
+      message: expect.stringMatching(coachRefusal),
+    });
+    expect(recordSkillRatings).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The role half of the rating guard, pinned on its own. Today `activeActor` only ever hands back
+   * a non-null `staffId` for an active head coach or coach, so the staff-id half alone would refuse
+   * this actor too and the role half is mutation-equivalent. `ratingRoles` is the only thing that
+   * would still refuse an administrator if a future change ever gave administrators a staff record,
+   * so it gets an actor the staff-id half cannot refuse (LECCIONES §5).
+   */
+  it("refuses an administrator who does have a staff record", async () => {
+    const recordSkillRatings = vi.fn();
+    const administratorWithStaffRecord: LevelAuthorizationService = {
+      requireActor: async () =>
+        ({
+          kind: "user",
+          userId: "administrator-user",
+          academyId: "academy-1",
+          role: "administrator",
+          staffId: "staff-1",
+        }) as never,
+      resolveStudent: async (_actor, studentId) => ({ studentId }) as never,
+    };
+    const handler = createRecordSkillRatingsHandler({
+      store: storeWith({ recordSkillRatings }),
+      authorization: administratorWithStaffRecord,
+    });
+
+    await expect(handler(request(ratingsPayload, "administrator"))).rejects.toMatchObject({
       code: "permission-denied",
       message: expect.stringMatching(coachRefusal),
     });
