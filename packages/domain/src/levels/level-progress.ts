@@ -17,6 +17,10 @@ export type ClassesAtLevel = Readonly<{ imported: number; bpt: number; total: nu
  * Spec §6.2: the mean of the capped class ratio, the capped day ratio and, when the level defines
  * skill minimums, Σmin(score, required) / Σrequired. A criterion without a minimum is left out of
  * the mean. The card and Manage call this one function, so they can never disagree.
+ *
+ * The caller owns the validity of the minimums: a `min` that is not a positive number (0, negative,
+ * NaN) is treated as "no minimum" and excluded from the mean. No catalogue definition can produce
+ * one, so this is documented rather than asserted.
  */
 export function computeLevelProgress(
   input: Readonly<{
@@ -39,6 +43,9 @@ export function computeLevelProgress(
   }
   if (ratios.length === 0) return 100;
   const mean = ratios.reduce((total, ratio) => total + ratio, 0) / ratios.length;
+  // A non-finite input (NaN done or min) would otherwise return NaN and break the documented
+  // "integer 0-100" return; it degrades to 0 instead.
+  if (!Number.isFinite(mean)) return 0;
   // The epsilon keeps binary rounding (0.29 * 100 = 28.999…) from dropping a whole point.
   // `Math.min(100, …)` is unreachable while every ratio is capped at 1 — it is the written promise
   // of the return type (an integer 0-100), kept so a future criterion cannot break it silently.
@@ -65,6 +72,7 @@ export function countClassesAtLevel(
   const bpt = input.attendedAt.filter((attendedAt) => {
     const attendedMs = Date.parse(attendedAt);
     if (Number.isNaN(attendedMs) || attendedMs < startMs) return false;
+    // Plan D contract: days are compared as UTC prefixes, not Jersey days.
     const day = attendedAt.slice(0, 10);
     if (input.importedBaseline !== null && day < input.importedBaseline.cutoff) return false;
     return input.until === undefined || day <= input.until;
