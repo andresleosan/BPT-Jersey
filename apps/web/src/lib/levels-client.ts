@@ -1,8 +1,11 @@
 import { httpsCallable } from "firebase/functions";
+import { z } from "zod";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import {
+  assignLevelInputSchema,
+  assignLevelResultSchema,
   parseApprovePromotionInput,
   parseLevelCatalogProjection,
   parseOpenStudentLevelInput,
@@ -10,6 +13,15 @@ import {
   parseRecordEvaluationInput,
   parseRecordMedicalLeaveInput,
   parseRejectPromotionInput,
+  recordSkillRatingsInputSchema,
+  recordSkillRatingsResultSchema,
+  studentLevelCardSchema,
+  studentLevelHistorySchema,
+  studentSkillSummaryResponseSchema,
+  voidPromotionInputSchema,
+  voidPromotionResultSchema,
+  type AssignLevelInput,
+  type AssignLevelResult,
   type ApprovePromotionInput,
   type EvaluationRecord,
   type GraduationRecord,
@@ -20,8 +32,14 @@ import {
   type RecognitionCandidate,
   type RecordEvaluationInput,
   type RecordMedicalLeaveInput,
+  type RecordSkillRatingsInput,
+  type RecordSkillRatingsResult,
   type RejectPromotionInput,
+  type StudentLevelCard,
+  type StudentLevelHistory,
   type StudentProgressSummary,
+  type VoidPromotionInput,
+  type VoidPromotionResult,
   type AgeBandEvaluation,
 } from "@bpt-jersey/domain/levels";
 import { getFirebaseFunctions } from "./firebase-client";
@@ -434,3 +452,165 @@ export async function listGraduations(
 }
 
 
+
+/* T051V2 IBJJF — the Manage view's clients: card, history, assignment, void, ratings, scores. */
+
+export type { StudentLevelCard, StudentLevelHistory };
+
+/**
+ * The only level-management wording the browser ever shows. Sixteen distinct store refusals reach
+ * the callable boundary as one of four collapsed strings (`Levels request is invalid`,
+ * `Levels state conflicts`, `Levels access is not permitted`, `Levels record is not available`),
+ * so a message here names the action that failed, never the cause. In particular a void refusal
+ * covers four causes (not the latest promotion, already voided, no restore snapshot, no such
+ * promotion) and the UI must not guess which one fired.
+ */
+export const levelsSafeErrors = Object.freeze({
+  card: "Levels are unavailable right now. Please try again later.",
+  history: "Unable to load the level history. Please try again.",
+  assign: "Unable to assign the level. Check the date and the note, then try again.",
+  void: "Unable to void the promotion. Please try again.",
+  ratings: "Unable to save the ratings. Please try again.",
+  scores: "Unable to load the skill ratings. Please try again.",
+});
+
+const opaqueStudentIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+
+/** Calls one callable and returns only what the schema accepts; every failure becomes `safeError`. */
+async function callValidated<Output>(
+  name: string,
+  data: unknown,
+  schema: z.ZodType<Output>,
+  safeError: string,
+): Promise<Output> {
+  try {
+    const response = await httpsCallable<unknown, unknown>(getFirebaseFunctions(), name)(data);
+    const parsed = schema.safeParse(response.data);
+    if (!parsed.success) throw new Error(safeError);
+    return parsed.data;
+  } catch {
+    throw new Error(safeError);
+  }
+}
+
+function requireStudentId(studentId: string, safeError: string): void {
+  if (!opaqueStudentIdPattern.test(studentId)) throw new Error(safeError);
+}
+
+export async function getStudentLevelCard(studentId: string): Promise<StudentLevelCard> {
+  requireStudentId(studentId, levelsSafeErrors.card);
+  const response = await callValidated(
+    "getStudentProgressSummary",
+    { studentId },
+    z.object({ progress: studentLevelCardSchema }),
+    levelsSafeErrors.card,
+  );
+  if (response.progress.studentId !== studentId) throw new Error(levelsSafeErrors.card);
+  return response.progress;
+}
+
+export async function getStudentLevelHistory(studentId: string): Promise<StudentLevelHistory> {
+  requireStudentId(studentId, levelsSafeErrors.history);
+  const history = await callValidated(
+    "getStudentLevelHistory",
+    { studentId },
+    studentLevelHistorySchema,
+    levelsSafeErrors.history,
+  );
+  if (history.studentId !== studentId) throw new Error(levelsSafeErrors.history);
+  return history;
+}
+
+export async function assignLevel(input: AssignLevelInput): Promise<AssignLevelResult> {
+  const parsed = assignLevelInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error(levelsSafeErrors.assign);
+  // Built field by field rather than forwarded whole: an absent note must be an ABSENT KEY on the
+  // wire (a `note: undefined` does not survive callable serialisation intact), and spelling the
+  // four assignment fields out is what keeps this payload from ever carrying a `ratings` key.
+  const payload = {
+    studentId: parsed.data.studentId,
+    fromDefinitionKey: parsed.data.fromDefinitionKey,
+    toDefinitionKey: parsed.data.toDefinitionKey,
+    promotedOn: parsed.data.promotedOn,
+    ...(parsed.data.note === undefined ? {} : { note: parsed.data.note }),
+  };
+  const result = await callValidated(
+    "assignLevel",
+    payload,
+    assignLevelResultSchema,
+    levelsSafeErrors.assign,
+  );
+  if (result.toDefinitionKey !== payload.toDefinitionKey || result.promotedOn !== payload.promotedOn) {
+    throw new Error(levelsSafeErrors.assign);
+  }
+  return result;
+}
+
+export async function voidPromotion(input: VoidPromotionInput): Promise<VoidPromotionResult> {
+  const parsed = voidPromotionInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error(levelsSafeErrors.void);
+  const payload = {
+    studentId: parsed.data.studentId,
+    promotionId: parsed.data.promotionId,
+    reason: parsed.data.reason,
+  };
+  const result = await callValidated(
+    "voidPromotion",
+    payload,
+    voidPromotionResultSchema,
+    levelsSafeErrors.void,
+  );
+  if (result.voidsPromotionId !== payload.promotionId) throw new Error(levelsSafeErrors.void);
+  return result;
+}
+
+/**
+ * The batch half of the overloaded `recordEvaluation` callable. The dispatch is taken on an OWN
+ * `ratings` key, so this payload is built separately from the legacy single-rating one above: a
+ * legacy payload that picked up a stray `ratings` key would route here and die on a strict parse.
+ */
+export async function recordSkillRatings(
+  input: RecordSkillRatingsInput,
+): Promise<RecordSkillRatingsResult> {
+  const parsed = recordSkillRatingsInputSchema.safeParse(input);
+  if (!parsed.success) throw new Error(levelsSafeErrors.ratings);
+  // `evidenceNotes` is `min(1)` at both the contract and the store, so an absent note must be an
+  // absent key — never an empty string, and never an `undefined` value.
+  const payload = {
+    studentId: parsed.data.studentId,
+    definitionKey: parsed.data.definitionKey,
+    ratings: parsed.data.ratings,
+    ...(parsed.data.evidenceNotes === undefined
+      ? {}
+      : { evidenceNotes: parsed.data.evidenceNotes }),
+  };
+  const result = await callValidated(
+    "recordEvaluation",
+    payload,
+    recordSkillRatingsResultSchema,
+    levelsSafeErrors.ratings,
+  );
+  if (result.recorded !== payload.ratings.length) throw new Error(levelsSafeErrors.ratings);
+  return result;
+}
+
+export async function getStudentSkillScores(
+  studentId: string,
+): Promise<
+  Readonly<{ latest: Readonly<Record<string, number>>; best: Readonly<Record<string, number>> }>
+> {
+  requireStudentId(studentId, levelsSafeErrors.scores);
+  const { summary } = await callValidated(
+    "listStudentEvaluations",
+    { studentId },
+    studentSkillSummaryResponseSchema,
+    levelsSafeErrors.scores,
+  );
+  const latest: Record<string, number> = {};
+  const best: Record<string, number> = {};
+  for (const [skillKey, item] of Object.entries(summary)) {
+    latest[skillKey] = item.latestScore;
+    best[skillKey] = item.maxScore;
+  }
+  return { latest, best };
+}
