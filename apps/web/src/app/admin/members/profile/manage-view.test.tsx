@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   openStudentLevel: vi.fn(),
   assignLevel: vi.fn(),
   voidPromotion: vi.fn(),
+  recordSkillRatings: vi.fn(),
   levelsSafeErrors: Object.freeze({
     card: "Levels are unavailable right now. Please try again later.",
     history: "Unable to load the level history. Please try again.",
@@ -119,6 +120,7 @@ beforeEach(() => {
   api.openStudentLevel.mockReset();
   api.assignLevel.mockReset();
   api.voidPromotion.mockReset();
+  api.recordSkillRatings.mockReset();
   api.getLevelCatalog.mockResolvedValue(catalog);
   api.getStudentLevelCard.mockResolvedValue(card);
   api.getStudentLevelHistory.mockResolvedValue({
@@ -1121,5 +1123,109 @@ describe("ManageView frame", () => {
     renderView("owner", null);
     await screen.findByRole("table", { name: "Level history" });
     expect(screen.getByText(/^Age unknown/u)).toBeInTheDocument();
+  });
+});
+
+describe("ManageView skills assessment", () => {
+  /** The 4-5/5-7 kids ladder is the only one that carries skill minimums (11 per level). */
+  function kidsRecord(latest: Record<string, number> = {}, targetKey = kidsFirstStripe) {
+    api.getStudentSkillScores.mockResolvedValue({ latest, best: {} });
+    api.getStudentLevelCard.mockResolvedValue({
+      ...card,
+      currentDefinition: { definitionKey: kidsBelt },
+      targetDefinition: { definitionKey: targetKey },
+    });
+    api.getStudentLevelHistory.mockResolvedValue({
+      studentId: "student-1",
+      currentDefinitionKey: kidsBelt,
+      lastApprovedPromotionId: promotion.entryId,
+      entries: [{ ...promotion, definitionKey: kidsBelt }],
+    });
+  }
+
+  const skillGroup = (name: RegExp) => screen.getByRole("group", { name });
+
+  it("marks the minimums of the level being moved INTO, not the one held", async () => {
+    kidsRecord();
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    expect(within(skillGroup(/^Tie The Belt/u)).getByText("Minimum 2")).toBeInTheDocument();
+    expect(within(skillGroup(/^Warm Up 2 - Bridges/u)).getByText("Minimum 3")).toBeInTheDocument();
+    cleanup();
+    // The same held level, whose own 11 requirements are still in the catalogue, moving into an
+    // adult stripe that carries none: nothing may be claimed as a minimum.
+    kidsRecord({}, firstStripe);
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    expect(screen.queryByText(/Minimum \d/u)).toBeNull();
+  });
+
+  it("shows the rating already on record and records against the level held", async () => {
+    api.recordSkillRatings.mockResolvedValue({ studentId: "student-1", recorded: 1 });
+    kidsRecord({ "tie-the-belt": 4 });
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    const tie = skillGroup(/^Tie The Belt/u);
+    expect(within(tie).getByRole("radio", { name: "4" })).toBeChecked();
+    fireEvent.click(within(tie).getByRole("radio", { name: "5" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save ratings" }));
+    await waitFor(() =>
+      expect(api.recordSkillRatings).toHaveBeenCalledWith({
+        studentId: "student-1",
+        definitionKey: kidsBelt,
+        ratings: [{ skillKey: "tie-the-belt", score: 5 }],
+      }),
+    );
+    expect(await screen.findByText("Ratings saved.")).toBeInTheDocument();
+    await waitFor(() => expect(api.getStudentSkillScores).toHaveBeenCalledTimes(2));
+  });
+
+  it("lets a coach rate a member they may not decide on", async () => {
+    kidsRecord();
+    renderView("coach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
+  });
+
+  it("offers no assessment for a member with no level open", async () => {
+    api.getStudentLevelCard.mockResolvedValue({ state: "uninitialized", studentId: "student-1" });
+    renderView("headCoach");
+    await screen.findByRole("form", { name: "Open level" });
+    expect(screen.queryByRole("heading", { level: 3, name: "Skills assessment" })).toBeNull();
+  });
+
+  it("asks before a full navigation discards unsaved ratings", async () => {
+    kidsRecord();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    const back = screen.getByRole("link", { name: "Back to record" });
+    expect(fireEvent.click(back)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    fireEvent.click(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" }));
+    await screen.findByText("You have unsaved ratings.");
+    expect(fireEvent.click(back)).toBe(false);
+    expect(confirm).toHaveBeenCalledWith("Discard unsaved ratings?");
+    confirm.mockReturnValue(true);
+    expect(fireEvent.click(back)).toBe(true);
+  });
+  it("stops asking about ratings a reload has already thrown away", async () => {
+    kidsRecord();
+    api.voidPromotion.mockResolvedValue({ voidsPromotionId: promotion.entryId });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderView("headCoach", 6);
+    await screen.findByRole("heading", { level: 3, name: "Skills assessment" });
+    fireEvent.click(within(skillGroup(/^Tie The Belt/u)).getByRole("radio", { name: "5" }));
+    await screen.findByText("You have unsaved ratings.");
+    fireEvent.click(screen.getAllByRole("button", { name: "Void" })[0]!);
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/^Reason/u), {
+      target: { value: "Recorded against the wrong member." },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Void promotion" }));
+    await screen.findByText("Promotion voided.");
+    expect(fireEvent.click(screen.getByRole("link", { name: "Back to record" }))).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
   });
 });
