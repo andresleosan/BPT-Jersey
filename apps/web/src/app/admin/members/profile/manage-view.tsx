@@ -29,7 +29,7 @@ import { BeltBar } from "../../../levels/levels-browser";
 import { beltPosition, groupBelts } from "../../../levels/levels-grouping";
 import { formatCriterion } from "./ibjjf-card";
 import { safeMessage } from "./safe-message";
-import { SkillsAssessment } from "./skills-assessment";
+import { SkillsAssessment, type SkillRating } from "./skills-assessment";
 
 type Scores = Awaited<ReturnType<typeof getStudentSkillScores>>;
 type Loaded = Readonly<{
@@ -44,6 +44,13 @@ type ViewState =
   | Readonly<{ status: "ready"; data: Loaded }>;
 
 const notRecorded = "not recorded";
+
+/**
+ * One question for every exit that would throw unsaved ratings away. `MemberRecord` asks it too:
+ * the tab strip, the browser's own Back and the member-search link all unmount this view, and
+ * none of them can see a flag that lives only in here.
+ */
+export const unsavedRatingsQuestion = "Discard unsaved ratings?";
 
 const dayLabel = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
@@ -274,6 +281,7 @@ function AssignLevelForm({
   data,
   current,
   today,
+  mayDiscardRatings,
   onDone,
 }: Readonly<{
   studentId: string;
@@ -282,6 +290,7 @@ function AssignLevelForm({
   data: Loaded;
   current: LevelDefinitionRecord;
   today: string;
+  mayDiscardRatings: () => boolean;
   onDone: (notice: string) => void;
 }>) {
   const { catalog, card, scores } = data;
@@ -351,6 +360,8 @@ function AssignLevelForm({
     // second promotion would be a second audited record on a real member, and the callable does
     // not deduplicate (Task 12, carried).
     if (target === undefined || inFlight.current) return;
+    // `onDone` reloads, which unmounts the assessment panel with whatever it still holds.
+    if (!mayDiscardRatings()) return;
     inFlight.current = true;
     setBusy(true);
     setDialogError(null);
@@ -627,12 +638,14 @@ export function ManageView({
   age,
   role,
   recordHref,
+  onRatingsDirtyChange,
 }: Readonly<{
   studentId: string;
   fullName: string;
   age: number | null;
   role: string;
   recordHref: string;
+  onRatingsDirtyChange: (dirty: boolean) => void;
 }>) {
   const [state, setState] = useState<ViewState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -649,7 +662,24 @@ export function ManageView({
    * well, who may never open, assign or void. The two must not be collapsed into one flag.
    */
   const canRate = canDecide || role === "coach";
+  /**
+   * Task 17 review, Major-2: this panel does not own its own lifetime. Four of the five ways out
+   * of it are owned by `MemberRecord` (tab click, arrow key, browser Back/Forward, the member
+   * search link), so the flag is reported UPWARDS as well as kept here for the two exits this
+   * view does own (the record anchor and an operator-initiated reload).
+   */
   const [dirtyRatings, setDirtyRatings] = useState(false);
+  const reportRatingsDirty = useRef(onRatingsDirtyChange);
+  useEffect(() => {
+    reportRatingsDirty.current = onRatingsDirtyChange;
+  });
+  const setRatingsDirty = useCallback((dirty: boolean) => {
+    setDirtyRatings(dirty);
+    reportRatingsDirty.current(dirty);
+  }, []);
+  // Unmounting is not saving: whatever took this view off the screen, the record must stop
+  // guarding ratings that no longer exist.
+  useEffect(() => () => reportRatingsDirty.current(false), []);
   const today = jerseyDateOf(new Date().toISOString());
 
   /**
@@ -695,20 +725,69 @@ export function ManageView({
    * SECOND identical `assignLevel` from a second operator click. Going back to `loading` unmounts
    * the forms and the table until the new data lands, so there is nothing stale to act on.
    */
-  const reload = useCallback((message: string) => {
-    setNotice(message);
-    setState({ status: "loading" });
-    // The assessment panel is unmounted by the line above and remounted on the fresh data, so any
-    // rating it still held is gone. Leaving the flag set would make "Back to record" ask to
-    // discard edits that no longer exist.
-    setDirtyRatings(false);
-    setAttempt((value) => value + 1);
+  const reload = useCallback(
+    (message: string) => {
+      setNotice(message);
+      setState({ status: "loading" });
+      // The assessment panel is unmounted by the line above and remounted on the fresh data, so any
+      // rating it still held is gone. Leaving the flag set would make "Back to record" ask to
+      // discard edits that no longer exist.
+      setRatingsDirty(false);
+      setAttempt((value) => value + 1);
+    },
+    [setRatingsDirty],
+  );
+
+  /**
+   * Task 17 review, Major-1: a ratings save used to call `reload`, which unmounted the panel and
+   * remounted it on a refetch that could not contain a rating made while the write was in flight.
+   * The operator read "Ratings saved." and their last click was gone.
+   *
+   * Nothing else on this screen moves when a rating is saved: the card's criteria used here are
+   * the CLASS count, and the history is untouched. The one thing that does move is
+   * `scores.latest`, which the server now holds at exactly what was sent (latest-wins, operator
+   * DECISION 6). So the save moves that map in place and leaves the panel mounted, which is also
+   * three network reads fewer per save.
+   * // ponytail: `scores.best` is left alone. No consumer in this view reads it; the next real
+   * // reload refetches both.
+   */
+  const applySavedRatings = useCallback((saved: readonly SkillRating[]) => {
+    setNotice("Ratings saved.");
+    setState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            status: "ready",
+            data: {
+              ...current.data,
+              scores: {
+                ...current.data.scores,
+                latest: {
+                  ...current.data.scores.latest,
+                  ...Object.fromEntries(saved.map((rating) => [rating.skillKey, rating.score])),
+                },
+              },
+            },
+          },
+    );
   }, []);
+
+  /**
+   * Asked immediately before a write whose `reload` will unmount the assessment panel, never on
+   * merely opening a dialog: a question that costs the operator nothing to answer wrongly is not
+   * a guard. `OpenLevelForm` needs no such call — it only renders while the card is
+   * `uninitialized`, which is exactly when the panel is not on screen at all.
+   */
+  const mayDiscardRatings = useCallback(
+    () => !dirtyRatings || window.confirm(unsavedRatingsQuestion),
+    [dirtyRatings],
+  );
 
   async function confirmVoid(): Promise<void> {
     // One request in flight, held in a ref (see `OpenLevelForm`): the callable does not
     // deduplicate (Task 12, carried), and a second void is a second audited record.
     if (voiding === null || inFlight.current) return;
+    if (!mayDiscardRatings()) return;
     inFlight.current = true;
     setBusy(true);
     setVoidError(null);
@@ -799,6 +878,7 @@ export function ManageView({
         current={currentDefinition}
         data={loaded}
         fullName={fullName}
+        mayDiscardRatings={mayDiscardRatings}
         onDone={reload}
         studentId={studentId}
         today={today}
@@ -815,7 +895,7 @@ export function ManageView({
           onClick={(event) => {
             // A full navigation, so React state does not survive it: unsaved ratings are lost
             // silently unless the operator is asked first.
-            if (dirtyRatings && !window.confirm("Discard unsaved ratings?")) event.preventDefault();
+            if (!mayDiscardRatings()) event.preventDefault();
           }}
         >
           Back to record
@@ -864,13 +944,18 @@ export function ManageView({
           {data.card.state === "initialized" && canRate ? (
             <SkillsAssessment
               definitionKey={data.card.currentDefinition.definitionKey}
+              definitionName={currentDefinition?.name ?? null}
               initialScores={data.scores.latest}
-              // A new panel per reload: the ratings it holds are the ones it was handed, and the
-              // reload is what replaces them.
+              /*
+               * A new panel per SERVER reload — an open, an assignment or a void, each of which
+               * really does replace the ratings on record. Saving ratings is no longer such a
+               * reload (Major-1), so `attempt` does not move and the panel is never thrown away
+               * under an operator who is still typing into it.
+               */
               key={`skills-${attempt}`}
               minimums={minimums}
-              onDirtyChange={setDirtyRatings}
-              onSaved={() => reload("Ratings saved.")}
+              onDirtyChange={setRatingsDirty}
+              onSaved={applySavedRatings}
               skills={data.catalog.skills}
               studentId={studentId}
             />

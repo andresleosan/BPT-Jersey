@@ -10,6 +10,9 @@ const scoreValues = [1, 2, 3, 4, 5] as const;
 type Score = (typeof scoreValues)[number];
 type Ratings = Record<string, Score>;
 
+/** What a save really sent, handed back so the parent can move its own copy of the ratings. */
+export type SkillRating = Readonly<{ skillKey: string; score: number }>;
+
 function isScore(value: number): value is Score {
   return (scoreValues as readonly number[]).includes(value);
 }
@@ -36,6 +39,7 @@ function acceptedScores(source: Readonly<Record<string, number>>): Ratings {
 export function SkillsAssessment({
   studentId,
   definitionKey,
+  definitionName,
   skills,
   minimums,
   initialScores,
@@ -44,11 +48,12 @@ export function SkillsAssessment({
 }: Readonly<{
   studentId: string;
   definitionKey: string;
+  definitionName: string | null;
   skills: readonly SkillDefinition[];
   minimums: Readonly<Record<string, number>>;
   initialScores: Readonly<Record<string, number>>;
   onDirtyChange: (dirty: boolean) => void;
-  onSaved: () => void;
+  onSaved: (saved: readonly SkillRating[]) => void;
 }>) {
   /**
    * Two maps, not one: `baseline` is what the store holds, `scores` is what the operator sees.
@@ -119,7 +124,9 @@ export function SkillsAssessment({
         ...current,
         ...Object.fromEntries(sent.map((rating) => [rating.skillKey, rating.score])),
       }));
-      onSaved();
+      // What was SENT, not what is on screen: the parent moves its own copy of the ratings by
+      // exactly this, and a rating made while the write was in flight stays unsaved in both.
+      onSaved(sent);
     } catch (failure) {
       setError(safeMessage(failure, levelsSafeErrors.ratings));
     } finally {
@@ -136,18 +143,32 @@ export function SkillsAssessment({
           ? "Rate each skill from 1 to 5. Minimums apply to the next level."
           : "Rate each skill from 1 to 5."}
       </p>
+      {/*
+       * Minimum-1 of the Task 17 review: every "Minimum n" above comes from the TARGET level while
+       * the rating itself is filed against the level HELD (plan decision 5). Only one of those two
+       * was named on screen, so the screen never said what was being recorded.
+       */}
+      {definitionName === null ? null : (
+        <p className="ibjjf-muted">{`Ratings are recorded against ${definitionName}, the level currently held.`}</p>
+      )}
       {groups.map(([category, groupSkills]) => {
         const rated = groupSkills.filter((skill) => scores[skill.key] !== undefined).length;
         const withMinimum = groupSkills.filter((skill) => minimums[skill.key] !== undefined);
+        /*
+         * Counted from the BASELINE, never from `scores`. The promotion dialog's
+         * "Skills n/m at minimum" is computed from what the store holds, so a counter here that
+         * moved on an unsaved click made two numbers about the same member disagree on the same
+         * screen. Both now count the saved ratings, and the label says so.
+         */
         const met = withMinimum.filter(
-          (skill) => (scores[skill.key] ?? 0) >= minimums[skill.key]!,
+          (skill) => (baseline[skill.key] ?? 0) >= minimums[skill.key]!,
         ).length;
         return (
           <details className="ibjjf-skill-group" key={category}>
             <summary>
               <span>{category}</span>
               <span className="ibjjf-number">
-                {`${rated}/${groupSkills.length} rated${withMinimum.length > 0 ? ` · ${met}/${withMinimum.length} minimum met` : ""}`}
+                {`${rated}/${groupSkills.length} rated${withMinimum.length > 0 ? ` · ${met}/${withMinimum.length} saved at minimum` : ""}`}
               </span>
             </summary>
             {groupSkills.map((skill) => {
@@ -198,12 +219,13 @@ export function SkillsAssessment({
         </p>
       )}
       <button
+        aria-busy={busy}
         className="admin-auth-button"
         disabled={!dirty || busy}
         onClick={() => void save()}
         type="button"
       >
-        Save ratings
+        {busy ? "Saving ratings" : "Save ratings"}
       </button>
     </section>
   );
