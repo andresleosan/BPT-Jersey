@@ -26,6 +26,7 @@ import {
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { DetailsTab } from "./details-tab";
 import { IbjjfCard } from "./ibjjf-card";
+import { ManageView } from "./manage-view";
 import { ProfileTab } from "./profile-tab";
 import { RecordEmptyTab } from "./record-empty-tab";
 import { participantTypeLabel, statusLabel } from "./record-format";
@@ -269,8 +270,6 @@ export function MemberRecord() {
     }
   }
 
-  // Plan C (E2) insertion points: `ibjjfCardSlot` becomes <IbjjfCard studentId={…} />, and the
-  // `location.manage` branch below renders <ManageView … /> in place of the PROFILE cards.
   const ibjjfCardSlot: ReactNode =
     readyStudentId === undefined ? undefined : (
       <IbjjfCard
@@ -282,7 +281,19 @@ export function MemberRecord() {
 
   function panel(profile: MemberProfile): ReactNode {
     if (activeTab === "profile") {
-      return <ProfileTab profile={profile} ibjjfCardSlot={ibjjfCardSlot} />;
+      // Manage is a MODE of the PROFILE panel, not a tab: `selectTab` drops `view=manage` on every
+      // tab change and every arrow key, so leaving the panel leaves the mode (Task 16 decision).
+      return location?.manage === true ? (
+        <ManageView
+          age={profile.header.age}
+          fullName={profile.header.fullName}
+          recordHref={recordHref(profile.header.studentId)}
+          role={role}
+          studentId={profile.header.studentId}
+        />
+      ) : (
+        <ProfileTab profile={profile} ibjjfCardSlot={ibjjfCardSlot} />
+      );
     }
     if (activeTab === "details") {
       return profile.view === "full" ? (
