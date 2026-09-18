@@ -451,6 +451,8 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
   const weekColumns = days.map((day) => (day.isToday ? "1.6fr" : "1fr")).join(" ");
   const weekStyle = { "--week-columns": weekColumns } as React.CSSProperties;
   const failed = memberState === "error" || weekState === "error";
+  // No active/trial membership on a known plan: the week effect never runs, so say so plainly.
+  const noParticipants = memberState === "ready" && (member?.participants.length ?? 0) === 0;
   const loading = memberState === "loading" || weekState === "loading";
   const siblingHint =
     siblingReady.studentId === selectedStudentId && siblingReady.names.length > 0
@@ -498,6 +500,13 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
             >
               Try again
             </button>
+          </div>
+        ) : noParticipants ? (
+          <div className="calendar-error" role="status">
+            <p>
+              You have no active membership to book classes with yet. Please contact the academy and
+              they will set it up for you.
+            </p>
           </div>
         ) : (
           <div className="member-week" style={weekStyle}>
