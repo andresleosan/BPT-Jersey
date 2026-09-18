@@ -610,7 +610,9 @@ describe("canonical Levels security boundary", () => {
       studentId: "student-opaque-1",
       systemId: "system-1",
       currentDefinitionKey: "white-0",
-      currentLevelStartedAt: timestamp,
+      // T051V2: without a startedOn the level starts at midnight on the Jersey day of the
+      // opening, so it can never disagree with the openedOn recorded beside it.
+      currentLevelStartedAt: "2026-09-03T00:00:00.000Z",
       lastApprovedPromotionId: null,
       state: "initialized",
     });
