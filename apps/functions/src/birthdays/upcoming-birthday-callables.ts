@@ -3,6 +3,7 @@ import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/
 
 import { parseUpcomingBirthdayQuery } from "@bpt-jersey/domain/birthdays";
 
+import { browserOrigins } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   UpcomingBirthdayError,
@@ -18,7 +19,7 @@ import {
 const staffRoles = ["owner", "administrator", "headCoach", "coach"] as const;
 
 export const upcomingBirthdayCallableOptions = {
-  cors: ["https://bptjersey.pages.dev"],
+  cors: browserOrigins,
   invoker: "public" as const,
   enforceAppCheck: true,
   consumeAppCheckToken: true,

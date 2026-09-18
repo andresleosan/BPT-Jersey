@@ -804,6 +804,24 @@ const RESOLUTION_REQUIREMENTS = {
     ),
     requirement("7) No revertir functions tras editar planes sin restaurar antes los planes."),
   ],
+  T051V2: [
+    requirement(
+      "Fusionar feature/member-profile-e0-e2 y sustituir esta fila por la real, con su evidencia.",
+    ),
+  ],
+  T052V2: [
+    requirement("Hecho 2026-09-18: canonical, robots.txt y sitemap.xml en produccion."),
+    requirement("Hecho 2026-09-18: Redirect Rule de zona, www responde 301 al apex."),
+    requirement("Subir el sitemap a Google Search Console para acelerar la consolidacion."),
+  ],
+  T053V2: [
+    requirement(
+      "Desplegar las functions afectadas y comprobar con un preflight OPTIONS que el apex recibe su propio origen.",
+    ),
+    requirement(
+      "Despues, y solo con el apex probado, retirar pages.dev de la lista y volver a desplegar.",
+    ),
+  ],
 };
 
 /**
@@ -1415,6 +1433,14 @@ const operatorDataItems = [
  * cuelga de ella.
  */
 const TASK_SURFACES = {
+  T051V2: [],
+  T052V2: [],
+  T053V2: [
+    "apps/functions/src/auth/callable-options.ts",
+    "apps/functions/src/staff/permission-grant-callables.ts",
+    "apps/functions/src/birthdays/upcoming-birthday-callables.ts",
+    "apps/functions/src/penalties/no-show-penalty-callables.ts",
+  ],
   T001V2: ["apps/web/src/app/enrol/page.tsx"],
   T002V2: ["apps/web/src/app/enrol/page.tsx"],
   T003V2: ["apps/web/src/app/enrol/page.tsx", "apps/web/src/app/enrol/enrol.css"],
@@ -1846,6 +1872,36 @@ const classesServicesItems = [
       "docs/superpowers/specs/2026-09-17-plans-pricing-capacity-design.md",
       "docs/superpowers/plans/2026-09-17-plans-pricing-capacity.md",
     ],
+    "funcion",
+  ),
+  task(
+    "T051V2",
+    "Niveles: asignar y anular promociones, historial y valoraciones por lotes",
+    "pendiente",
+    "Fila reservada: el numero lo usa la rama feature/member-profile-e0-e2, que aun no se ha fusionado. Quien la fusione sustituye esta fila por la real.",
+    "-",
+    "Seis commits en esa rama citan T051V2. Sin evidencia propia todavia.",
+    [REF_TASKS],
+    "funcion",
+  ),
+  task(
+    "T052V2",
+    "Un unico host canonico para el sitio publico, mas robots.txt y sitemap.xml",
+    "desplegada",
+    "Cloudflare servia el mismo sitio en el apex, en www y en pages.dev: tres copias de cada pagina para los buscadores. Ahora cada pagina publica declara su canonical en bptjersey.com, www responde 301 al apex, y hay robots.txt y sitemap.xml.",
+    "-",
+    "Gate 2026-09-18 sobre b91a276: 340 ficheros / 3270 pruebas verdes, con falsacion. Verificado sobre el HTML generado y despues en vivo con curl. Un _redirects NO sirve para esto y se revirtio en b0908e6; detalle en tasksv2.md.",
+    [REF_TASKS, "apps/web/src/app/site-metadata.ts"],
+    "funcion",
+  ),
+  task(
+    "T053V2",
+    "El dominio propio no podia hablar con el backend: anadir el apex a la lista CORS",
+    "revision",
+    "Desde pages.dev se veia la base de datos y el panel; desde bptjersey.com no. Las callables aceptaban un unico origen, pages.dev, asi que en el apex las paginas cargaban y toda llamada fallaba por CORS.",
+    "T052V2",
+    "Causa medida con preflights OPTIONS reales contra produccion, no supuesta. browserOrigins vive ahora en un solo sitio y los cuatro bloques lo comparten. Pendiente: desplegar las functions afectadas.",
+    [REF_TASKS, "apps/functions/src/auth/callable-options.ts"],
     "funcion",
   ),
 ];
