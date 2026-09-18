@@ -106,3 +106,11 @@ it("does not describe an unverified account email as verified", async () => {
   expect(await screen.findByText("Account email")).toBeVisible();
   expect(screen.queryByText("Verified account email")).not.toBeInTheDocument();
 });
+
+it("explains how resolving the oldest verified requests reveals the next queue page", async () => {
+  api.listMemberRecoveryRequests.mockResolvedValue({ requests: [row], truncated: true });
+  render(<Page />);
+  expect(await screen.findByText(/oldest 50 verified requests awaiting review/)).toHaveTextContent(
+    /Resolve requests, then refresh/,
+  );
+});

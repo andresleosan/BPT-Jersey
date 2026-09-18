@@ -81,6 +81,7 @@ const ticketSchema = z.strictObject({
     .max(20),
   userId: z.string().optional(),
   accountEmail: z.string().optional(),
+  accountVerified: z.boolean().optional(),
   status: z.enum(["verify-email", "pending-review", "profile-required", "linked", "rejected"]),
   approvedCandidateId: id.optional(),
   approvedEmail: z.string().optional(),
@@ -727,6 +728,10 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
           ? ticket.expiresAt
           : new Date(Date.parse(time) + 30 * 24 * 3600000).toISOString(),
         ...(user.email ? { accountEmail: email(user.email) } : {}),
+        accountVerified:
+          user.emailVerified &&
+          typeof user.email === "string" &&
+          z.email().safeParse(user.email).success,
         status: result.status,
         updatedAt: time,
       });
@@ -802,6 +807,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
           updatedAt: time,
           expiresAt,
           candidates: candidates.length <= 20 ? candidates : [],
+          accountVerified: false,
           status: "pending-review",
         });
       });
@@ -811,11 +817,19 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     async list(actor: CanonicalMemberDirectoryActor) {
       return d.firestore.runTransaction(async (t) => {
         await admin(t, actor);
-        const spend = await quota(t, "office:" + actor.actorId, 60, now());
+        const time = now();
+        const spend = await quota(t, "office:" + actor.actorId, 60, time);
+        // Filtering must happen in Firestore before limit: terminal, unbound or expired
+        // requests must never displace work the office can resolve. Account-bound expiry
+        // is fixed at binding + 30 days, so ascending expiry serves oldest bindings first.
         const snapshot = await t.get(
           d.firestore
             .collection(root + "memberRecoveryRequests")
-            .orderBy("updatedAt", "desc")
+            .where("status", "==", "pending-review")
+            .where("accountVerified", "==", true)
+            .where("expiresAt", ">", time)
+            .orderBy("expiresAt", "asc")
+            .orderBy("createdAt", "asc")
             .limit(51),
         );
         const requests = snapshot.docs
