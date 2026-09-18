@@ -1,17 +1,23 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import {
+  ageInCompletedYears,
   buildEvaluationId,
   buildGraduationId,
   buildStudentProgressSummary,
   buildUninitializedStudentProgressSummary,
   countClassesAtLevel,
+  daysAtLevel,
   generateRecognitionCandidates,
   importedBaselineSchema,
   isLevelCalendarDate,
   jerseyDateOf,
+  listPromotionGaps,
+  minimumDaysOf,
   type ImportedBaseline,
   type ApprovePromotionInput,
+  type AssignLevelInput,
+  type AssignLevelResult,
   type OpenStudentLevelInput,
   type EvaluationRecord,
   type GraduationRecord,
@@ -150,6 +156,19 @@ export type LevelCatalogStore = Readonly<{
     openedByRole: "headCoach" | "owner";
     openedAt?: string;
   }) => Promise<OpenedStudentLevel>;
+  /**
+   * T051V2 (plan decision 1): assignment is its own operation, not a change to `approvePromotion`.
+   * It may skip levels, it is dated by the operator, the owner may use it, and the gaps it records
+   * are computed by the server — never sent by the caller.
+   */
+  assignLevel: (params: {
+    academyId: string;
+    input: AssignLevelInput;
+    decidedBy: string;
+    decidedByStaffId: string | null;
+    decidedByRole: "headCoach" | "owner";
+    decidedAt?: string;
+  }) => Promise<AssignLevelResult>;
 }>;
 
 /**
@@ -214,21 +233,52 @@ function assertLevelOpeningRole(openedByRole: string): void {
 }
 
 /**
- * T051V2: `startedOn` is the day the student actually reached the level, so it can never be later
- * than today. "Today" is the ACADEMY's day (Europe/Jersey), not UTC: between midnight and 01:00
- * Jersey time in BST the two disagree, and a head coach opening a level just after midnight must
- * still be able to say "today".
+ * T051V2: an operator-supplied day — the day a level was reached or a promotion was given — can
+ * never be later than today. "Today" is the ACADEMY's day (Europe/Jersey), not UTC: between
+ * midnight and 01:00 Jersey time in BST the two disagree, and a head coach acting just after
+ * midnight must still be able to say "today". One rule serves both fields so they cannot drift.
  */
-function assertLevelStartNotInTheFuture(startedOn: string | undefined, now: string): void {
-  if (startedOn === undefined) return;
+function assertOperatorDayNotInTheFuture(
+  label: "Level start date" | "Promotion date",
+  day: string | undefined,
+  now: string,
+): void {
+  if (day === undefined) return;
   // Defence in depth: the comparison below is lexical, so a malformed value sorting below today
   // would otherwise be accepted and concatenated into an instant. The callable boundary already
   // parses the shape; the store refuses it again, and for its real reason.
-  if (!isLevelCalendarDate(startedOn)) {
-    throw new LevelStoreError("invalid", "Level start date is not a calendar date");
+  if (!isLevelCalendarDate(day)) {
+    throw new LevelStoreError("invalid", `${label} is not a calendar date`);
   }
-  if (startedOn > jerseyDateOf(now)) {
-    throw new LevelStoreError("invalid", "Level start date is in the future");
+  if (day > jerseyDateOf(now)) {
+    throw new LevelStoreError("invalid", `${label} is in the future`);
+  }
+}
+
+function assertLevelStartNotInTheFuture(startedOn: string | undefined, now: string): void {
+  assertOperatorDayNotInTheFuture("Level start date", startedOn, now);
+}
+
+/**
+ * T051V2 (G6 narrowed by G12): only the head coach and the owner assign a level. A coach or an
+ * administrator is refused before anything is read or written, in BOTH stores.
+ */
+function assertPromotionDecisionRole(decidedByRole: string): void {
+  if (decidedByRole !== "headCoach" && decidedByRole !== "owner") {
+    throw new LevelStoreError("tenant", "Promotion decision role is invalid");
+  }
+}
+
+/**
+ * Spec §6.3: a promotion cannot predate the level it promotes from — the class and day counts at
+ * assignment are measured from the level start, so an earlier date would record negative time.
+ */
+function assertPromotionNotBeforeLevelStart(
+  promotedOn: string,
+  currentLevelStartedAt: string,
+): void {
+  if (promotedOn < currentLevelStartedAt.slice(0, 10)) {
+    throw new LevelStoreError("invalid", "Promotion date is before the current level start");
   }
 }
 
@@ -590,6 +640,83 @@ function promotionRestoreOf(headData: Readonly<Record<string, unknown>>): Promot
     currentLevelStartedAt: (headData.currentLevelStartedAt as string | null) ?? null,
     lastApprovedPromotionId: (headData.lastApprovedPromotionId as string | null) ?? null,
     importedBaseline: storedImportedBaseline(headData.importedBaseline),
+  });
+}
+
+/**
+ * Task 9: what an assignment records on top of a promotion — the gaps the operator was shown and
+ * the criteria as they stood that day, so the history can be read back without recomputing it.
+ */
+export type PromotionAssignment = Readonly<{
+  promotedOn: string;
+  note: string | null;
+  gaps: readonly string[];
+  atAssignment: Readonly<{
+    classes: Readonly<{ done: number; min: number | null }>;
+    days: Readonly<{ done: number; min: number | null }>;
+  }>;
+}>;
+
+/** The best score the student has ever been given for each skill. */
+function bestScores(evaluations: readonly EvaluationRecord[]): Record<string, number> {
+  const scores: Record<string, number> = {};
+  for (const evaluation of evaluations) {
+    scores[evaluation.skillKey] = Math.max(scores[evaluation.skillKey] ?? 0, evaluation.score);
+  }
+  return scores;
+}
+
+/**
+ * Grill G7: the server, never the caller, decides what is missing, and a below-criteria assignment
+ * without a note is refused. Shared by both stores so the gap list and the stored snapshot can
+ * never diverge between them.
+ */
+function promotionAssignmentOf(
+  params: Readonly<{
+    catalog: LevelCatalogProjection;
+    from: LevelDefinitionRecord;
+    to: LevelDefinitionRecord;
+    input: AssignLevelInput;
+    currentLevelStartedAt: string;
+    importedBaseline: ImportedBaseline | null;
+    attendedAt: readonly string[];
+    evaluations: readonly EvaluationRecord[];
+    dateOfBirth: string | null;
+  }>,
+): PromotionAssignment {
+  const promotedAt = `${params.input.promotedOn}T00:00:00.000Z`;
+  const classes = countClassesAtLevel({
+    attendedAt: params.attendedAt,
+    currentLevelStartedAt: params.currentLevelStartedAt,
+    importedBaseline: params.importedBaseline,
+    until: params.input.promotedOn,
+  });
+  const daysDone = daysAtLevel(params.currentLevelStartedAt, promotedAt);
+  // `listPromotionGaps` THROWS a plain Error on a key it cannot find. Both keys here are the
+  // definition records the caller already resolved against the published catalogue, so the throw
+  // is unreachable; an unknown key is refused as a conflict before this helper is called.
+  const gaps = listPromotionGaps({
+    definitions: params.catalog.definitions,
+    requirements: params.catalog.requirements,
+    fromDefinitionKey: params.from.definitionKey,
+    toDefinitionKey: params.to.definitionKey,
+    classesDone: classes.total,
+    daysDone,
+    skillScores: bestScores(params.evaluations),
+    ageYears:
+      params.dateOfBirth === null ? null : ageInCompletedYears(params.dateOfBirth, promotedAt),
+  });
+  if (gaps.length > 0 && params.input.note === undefined) {
+    throw new LevelStoreError("invalid", "A note is required when criteria are not met");
+  }
+  return Object.freeze({
+    promotedOn: params.input.promotedOn,
+    note: params.input.note ?? null,
+    gaps,
+    atAssignment: Object.freeze({
+      classes: Object.freeze({ done: classes.total, min: params.to.criteria.minClasses }),
+      days: Object.freeze({ done: daysDone, min: minimumDaysOf(params.to.criteria.minimumTime) }),
+    }),
   });
 }
 
@@ -1589,6 +1716,143 @@ export function createLevelCatalogStore({
       });
     },
 
+    async assignLevel(params): Promise<AssignLevelResult> {
+      const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
+      assertValidAcademyId(academyId);
+      assertPromotionDecisionRole(decidedByRole);
+      const now = params.decidedAt ?? new Date().toISOString();
+      assertOperatorDayNotInTheFuture("Promotion date", input.promotedOn, now);
+      const promotionId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
+      const promotionRef = firestore.doc(`academies/${academyId}/levelPromotions/${promotionId}`);
+      const headRef = firestore.doc(
+        `academies/${academyId}/studentLevelProgress/${input.studentId}`,
+      );
+      const audit = levelAuditDraft({
+        academyId,
+        actorId: decidedBy,
+        action: "level.promotion.approved",
+        targetCollection: "levelPromotions",
+        targetId: promotionId,
+        purpose: "student-level-promotion",
+      });
+      const auditRef = firestore.doc(`academies/${academyId}/auditEvents/${auditEventId(audit)}`);
+      // The catalogue, the assessments and the attendance are read before the transaction, exactly
+      // as getStudentProgressSummary reads them; the head, the student and the promotion id are
+      // re-read inside it, where the write decisions are made.
+      const [catalog, evaluations, attendanceSnapshot] = await Promise.all([
+        this.listPublished(academyId),
+        this.listStudentEvaluations(academyId, input.studentId),
+        firestore.collection(`academies/${academyId}/attendance`).get(),
+      ]);
+      const attendedAt = countedAttendance(attendanceSnapshot, academyId, input.studentId).map(
+        (record) => record.occurredAt as string,
+      );
+      return firestore.runTransaction(async (transaction) => {
+        await assertTransactionalActor(transaction, firestore, {
+          academyId,
+          actorId: decidedBy,
+          actorRole: decidedByRole,
+          actorStaffId: decidedByStaffId,
+        });
+        const student = storedStudent(
+          await transaction.get(
+            firestore.doc(`academies/${academyId}/students/${input.studentId}`),
+          ),
+          academyId,
+          input.studentId,
+        );
+        assertActiveStudent(student);
+        const [head, existing] = await Promise.all([
+          transaction.get(headRef),
+          transaction.get(promotionRef),
+        ]);
+        const headData = head.data();
+        const definitionOf = (definitionKey: string) =>
+          catalog.definitions.find((definition) => definition.definitionKey === definitionKey);
+        const from = definitionOf(input.fromDefinitionKey);
+        const to = definitionOf(input.toDefinitionKey);
+        if (
+          !head.exists ||
+          headData?.academyId !== academyId ||
+          headData.studentId !== input.studentId ||
+          headData.state !== "initialized" ||
+          headData.systemId !== catalog.system.systemId ||
+          headData.currentDefinitionKey !== input.fromDefinitionKey ||
+          typeof headData.currentLevelStartedAt !== "string" ||
+          from === undefined ||
+          to === undefined ||
+          // `assignLevelInputSchema` does not compare the two keys, so a self-promotion parses;
+          // `<=` refuses it together with every backwards move.
+          to.sequence <= from.sequence ||
+          existing.exists
+        ) {
+          throw new LevelStoreError("conflict", "Promotion references are not current");
+        }
+        const startedAt = headData.currentLevelStartedAt;
+        assertPromotionNotBeforeLevelStart(input.promotedOn, startedAt);
+        const assignment = promotionAssignmentOf({
+          catalog,
+          from,
+          to,
+          input,
+          currentLevelStartedAt: startedAt,
+          importedBaseline: storedImportedBaseline(headData.importedBaseline),
+          attendedAt,
+          evaluations,
+          dateOfBirth: student.dateOfBirth,
+        });
+        const record: GraduationRecord = Object.freeze({
+          graduationId: promotionId,
+          academyId,
+          studentId: input.studentId,
+          fromDefinitionKey: from.definitionKey,
+          toDefinitionKey: to.definitionKey,
+          status: "approved",
+          decisionNotes: input.note ?? "",
+          decidedBy,
+          decidedByRole,
+          decidedAt: now,
+          ceremonyDate: null,
+          schemaVersion: "1",
+          createdAt: now,
+          createdBy: decidedBy,
+          updatedAt: now,
+          updatedBy: decidedBy,
+        });
+        transaction.create(promotionRef, {
+          ...record,
+          ...assignment,
+          gaps: [...assignment.gaps],
+          promotionId,
+          systemId: headData.systemId,
+          decisionStatus: "approved",
+          proposedBy: decidedByStaffId ?? decidedBy,
+          decidedByStaffId,
+          restore: promotionRestoreOf(headData),
+        });
+        const nextHead: Record<string, unknown> = {
+          ...headData,
+          currentDefinitionKey: to.definitionKey,
+          // The head starts at midnight on the promotion day, so the day the promotion names and
+          // the day the new level counts from are one and the same.
+          currentLevelStartedAt: `${input.promotedOn}T00:00:00.000Z`,
+          lastApprovedPromotionId: promotionId,
+          updatedAt: now,
+          updatedBy: decidedBy,
+        };
+        // Grill G10: the imported baseline belongs to the level it was imported at.
+        delete nextHead.importedBaseline;
+        transaction.set(headRef, nextHead);
+        appendAuditEventInTransaction(transaction, auditRef, audit);
+        return Object.freeze({
+          promotionId,
+          toDefinitionKey: to.definitionKey,
+          promotedOn: input.promotedOn,
+          gaps: [...assignment.gaps],
+        });
+      });
+    },
+
     async rejectPromotion(params): Promise<GraduationRecord> {
       const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
       assertValidAcademyId(academyId);
@@ -1719,7 +1983,10 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
   const medicalLeaves = new Map<string, MedicalLeaveRecord>();
   // Like the Firestore promotion document, an approved promotion carries its `restore`; `rejected`
   // promotions never move a head, so they carry none.
-  const graduations = new Map<string, GraduationRecord & { readonly restore?: PromotionRestore }>();
+  const graduations = new Map<
+    string,
+    GraduationRecord & { readonly restore?: PromotionRestore } & Partial<PromotionAssignment>
+  >();
   const heads = new Map<string, StudentLevelHead>();
 
   return {
@@ -2298,6 +2565,103 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
       // The in-memory store keeps no student records, so the band is evaluated without a birth
       // date and reads as not met whenever the belt has one: fail closed, never open.
       return { head: record, ageBand: openingAgeBand(definition, null, now) };
+    },
+
+    /**
+     * Parity with the Firestore store: the same role, date and reference guards, the same shared
+     * gap computation, the same restore snapshot and the same dropped baseline. Two things this
+     * store cannot do are documented rather than faked: it has no `assertTransactionalActor`, so
+     * actor identity is only ever proved against the Firestore store, and it keeps no attendance
+     * and no student record, so classes count from the baseline alone and an unknown date of birth
+     * makes an age band read as not met — an EXTRA gap, never a missing one.
+     */
+    async assignLevel(params): Promise<AssignLevelResult> {
+      const { academyId, input, decidedBy, decidedByRole } = params;
+      assertValidAcademyId(academyId);
+      assertPromotionDecisionRole(decidedByRole);
+      const now = params.decidedAt ?? new Date().toISOString();
+      assertOperatorDayNotInTheFuture("Promotion date", input.promotedOn, now);
+      const promotionId = buildGraduationId(input.studentId, input.toDefinitionKey, now);
+      const graduationKey = `${academyId}_${input.studentId}_${promotionId}`;
+      const headKey = `${academyId}_${input.studentId}`;
+      const head = heads.get(headKey);
+      const [catalog, studentEvaluations] = await Promise.all([
+        this.listPublished(academyId),
+        this.listStudentEvaluations(academyId, input.studentId),
+      ]);
+      const definitionOf = (definitionKey: string) =>
+        catalog.definitions.find((definition) => definition.definitionKey === definitionKey);
+      const from = definitionOf(input.fromDefinitionKey);
+      const to = definitionOf(input.toDefinitionKey);
+      if (
+        head === undefined ||
+        head.academyId !== academyId ||
+        head.studentId !== input.studentId ||
+        head.state !== "initialized" ||
+        head.systemId !== catalog.system.systemId ||
+        head.currentDefinitionKey !== input.fromDefinitionKey ||
+        from === undefined ||
+        to === undefined ||
+        to.sequence <= from.sequence ||
+        graduations.has(graduationKey)
+      ) {
+        throw new LevelStoreError("conflict", "Promotion references are not current");
+      }
+      assertPromotionNotBeforeLevelStart(input.promotedOn, head.currentLevelStartedAt);
+      const assignment = promotionAssignmentOf({
+        catalog,
+        from,
+        to,
+        input,
+        currentLevelStartedAt: head.currentLevelStartedAt,
+        importedBaseline: storedImportedBaseline(head.importedBaseline),
+        attendedAt: [],
+        evaluations: studentEvaluations,
+        dateOfBirth: null,
+      });
+      graduations.set(
+        graduationKey,
+        Object.freeze({
+          graduationId: promotionId,
+          academyId,
+          studentId: input.studentId,
+          fromDefinitionKey: from.definitionKey,
+          toDefinitionKey: to.definitionKey,
+          status: "approved",
+          decisionNotes: input.note ?? "",
+          decidedBy,
+          decidedByRole,
+          decidedAt: now,
+          ceremonyDate: null,
+          schemaVersion: "1",
+          createdAt: now,
+          createdBy: decidedBy,
+          updatedAt: now,
+          updatedBy: decidedBy,
+          ...assignment,
+          restore: promotionRestoreOf(head),
+        }),
+      );
+      const nextHead: Record<string, unknown> = { ...head };
+      // Grill G10: the imported baseline belongs to the level it was imported at.
+      delete nextHead.importedBaseline;
+      heads.set(
+        headKey,
+        Object.freeze({
+          ...(nextHead as StudentLevelHead),
+          currentDefinitionKey: to.definitionKey,
+          currentLevelStartedAt: `${input.promotedOn}T00:00:00.000Z`,
+          lastApprovedPromotionId: promotionId,
+          updatedAt: now,
+          updatedBy: decidedBy,
+        }),
+      );
+      return Object.freeze({
+        promotionId,
+        toDefinitionKey: to.definitionKey,
+        promotedOn: input.promotedOn,
+        gaps: [...assignment.gaps],
+      });
     },
 
     async rejectPromotion(params): Promise<GraduationRecord> {

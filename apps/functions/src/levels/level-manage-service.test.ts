@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
-import { computeLevelProgress } from "@bpt-jersey/domain/levels";
+import { computeLevelProgress, type AssignLevelResult } from "@bpt-jersey/domain/levels";
 import { createInMemoryLevelStore, createLevelCatalogStore } from "./level-service";
 import { normalizeLevelCatalogSource } from "./level-source";
 
@@ -341,6 +341,10 @@ type ParityFixture = Readonly<{
     fromDefinitionKey: string;
     toDefinitionKey: string;
   }) => Promise<string>;
+  assign: (
+    input?: Record<string, unknown>,
+    overrides?: Record<string, unknown>,
+  ) => Promise<AssignLevelResult>;
   progressOf: (studentId: string) => Promise<ParitySummary>;
   currentDefinitionKey: () => Promise<string | null>;
   readRestore: (graduationId: string) => Promise<unknown>;
@@ -357,6 +361,29 @@ async function paritySummary(store: AnyLevelStore, studentId: string): Promise<P
         imported: summary.criteria.classes.imported,
       }
     : { state: summary.state, currentDefinitionKey: null, imported: null };
+}
+
+/**
+ * Task 9: the same assignment call against either store. The owner is the default actor because
+ * the owner has no staff record, which is the path the Manage view uses.
+ */
+function assignThrough(store: AnyLevelStore): ParityFixture["assign"] {
+  return async (input = {}, overrides = {}) =>
+    store.assignLevel({
+      academyId,
+      input: {
+        studentId: "student-1",
+        fromDefinitionKey: "white-belt",
+        toDefinitionKey: "white-2nd-stripe",
+        promotedOn: "2026-09-10",
+        ...input,
+      } as never,
+      decidedBy: "owner-user-1",
+      decidedByStaffId: null,
+      decidedByRole: "owner",
+      decidedAt,
+      ...overrides,
+    });
 }
 
 function approveThrough(store: AnyLevelStore): ParityFixture["approve"] {
@@ -403,6 +430,7 @@ const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
       ]);
       return {
         approve: approveThrough(store as unknown as AnyLevelStore),
+        assign: assignThrough(store as unknown as AnyLevelStore),
         progressOf: async (studentId) =>
           paritySummary(store as unknown as AnyLevelStore, studentId),
         currentDefinitionKey: async () =>
@@ -432,6 +460,7 @@ const parityFixtures: readonly [string, () => Promise<ParityFixture>][] = [
       });
       return {
         approve: approveThrough(store),
+        assign: assignThrough(store),
         progressOf: async (studentId) => paritySummary(store, studentId),
         currentDefinitionKey: async () =>
           (await paritySummary(store, "student-1")).currentDefinitionKey,
@@ -508,6 +537,121 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     await fixture.approve(promotion);
     await expect(fixture.approve(promotion)).rejects.toMatchObject(conflict);
   });
+
+  // Task 9. The in-memory store keeps no attendance and no student record, so its gap list can
+  // carry MORE entries than the Firestore one (no date of birth means the age band reads as not
+  // met): it fails closed, never open. The two class/day gaps below are identical in both.
+  it("assigns a skipped stripe with a note, moves the head to the promotion day and drops the baseline", async () => {
+    const fixture = await makeFixture();
+    const result = await fixture.assign({ note: "Competition result justifies it." });
+    expect(result).toMatchObject({
+      promotionId: `grad_student-1_white-2nd-stripe_${decidedAt}`,
+      toDefinitionKey: "white-2nd-stripe",
+      promotedOn: "2026-09-10",
+    });
+    expect(result.gaps).toEqual(
+      expect.arrayContaining(["Skips 1 stripe", "Classes 0/25 not met", "Days 71/75 not met"]),
+    );
+    expect(await fixture.currentDefinitionKey()).toBe("white-2nd-stripe");
+    expect(await fixture.readRestore(result.promotionId)).toEqual({
+      currentDefinitionKey: "white-belt",
+      currentLevelStartedAt: levelStartedAt,
+      lastApprovedPromotionId: null,
+      importedBaseline: null,
+    });
+    expect(await fixture.progressOf("student-1")).toEqual({
+      state: "initialized",
+      currentDefinitionKey: "white-2nd-stripe",
+      imported: 0,
+    });
+  });
+
+  it("refuses an assignment below criteria with no note", async () => {
+    const fixture = await makeFixture();
+    await expect(fixture.assign()).rejects.toMatchObject({
+      code: "invalid",
+      message: "A note is required when criteria are not met",
+    });
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+  });
+
+  // The bound is the ACADEMY's day (Europe/Jersey), exactly as `startedOn`: at 23:30Z on the 10th
+  // it is already the 11th in Jersey, so the 11th is today and must be accepted. A UTC
+  // implementation refuses it and fails here.
+  it("bounds promotedOn by the Jersey day, not the UTC day", async () => {
+    const lateEvening = "2026-09-10T23:30:00.000Z";
+    const onJerseyToday = await makeFixture();
+    const assigned = await onJerseyToday.assign(
+      { note: "Competition result justifies it.", promotedOn: "2026-09-11" },
+      { decidedAt: lateEvening },
+    );
+    expect(assigned.promotedOn).toBe("2026-09-11");
+
+    const tomorrow = await makeFixture();
+    await expect(
+      tomorrow.assign(
+        { note: "Competition result justifies it.", promotedOn: "2026-09-12" },
+        { decidedAt: lateEvening },
+      ),
+    ).rejects.toMatchObject({ code: "invalid", message: "Promotion date is in the future" });
+  });
+
+  it("refuses a promotion date before the current level start", async () => {
+    const fixture = await makeFixture();
+    await expect(
+      fixture.assign({ note: "Competition result justifies it.", promotedOn: "2026-06-30" }),
+    ).rejects.toMatchObject({
+      code: "invalid",
+      message: "Promotion date is before the current level start",
+    });
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+  });
+
+  // The comparison is lexical, so a malformed value sorting below today would otherwise be
+  // accepted and concatenated into the head's instant.
+  it.each(["1026-13-45", "2026-13-45"])("refuses the malformed promotion date %s", async (date) => {
+    const fixture = await makeFixture();
+    await expect(
+      fixture.assign({ note: "Competition result justifies it.", promotedOn: date }),
+    ).rejects.toMatchObject({
+      code: "invalid",
+      message: "Promotion date is not a calendar date",
+    });
+  });
+
+  // G12 narrows G6: an administrator sees the card and the history but never assigns a level. The
+  // message is pinned because `assertTransactionalActor` also throws `tenant`, so a code-only
+  // assertion would pass for the wrong reason.
+  it.each(["coach", "administrator"])("refuses %s", async (role) => {
+    const fixture = await makeFixture();
+    await expect(
+      fixture.assign(
+        { note: "Competition result justifies it." },
+        {
+          decidedBy: "coach-user-1",
+          decidedByStaffId: "staff-coach-1",
+          decidedByRole: role,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "tenant", message: "Promotion decision role is invalid" });
+    expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+  });
+
+  // A self-promotion parses (`assignLevelInputSchema` does not compare the two keys), so the
+  // server has to refuse it, along with every backwards move.
+  it.each(["white-belt", "white-belt-kids-4-5-and-5-7-yo"])(
+    "refuses an assignment to %s, which is not forwards",
+    async (toDefinitionKey) => {
+      const fixture = await makeFixture();
+      await expect(
+        fixture.assign({ note: "Competition result justifies it.", toDefinitionKey }),
+      ).rejects.toMatchObject({
+        code: "conflict",
+        message: "Promotion references are not current",
+      });
+      expect(await fixture.currentDefinitionKey()).toBe("white-belt");
+    },
+  );
 });
 
 /**
@@ -749,5 +893,157 @@ describe.each(openParityStores)("open-a-level parity — %s (T051V2)", (_label, 
       code: "conflict",
       message: "Student level is already open",
     });
+  });
+});
+
+/**
+ * T051V2 Task 9 (grill G7): the owner or head coach assigns a level at an explicit date, the
+ * server computes the gaps, and a note is mandatory whenever there is one. The audit row, the
+ * promotion document and the "no write at all" guarantees are Firestore concerns and are asserted
+ * here; every behavioural rule is asserted against BOTH stores in the parity block above.
+ */
+describe("assignLevel (T051V2, grill G7)", () => {
+  const assign = (
+    input: Record<string, unknown> = {},
+    overrides: Record<string, unknown> = {},
+  ) => ({
+    academyId,
+    input: {
+      studentId: "student-1",
+      fromDefinitionKey: "white-belt",
+      toDefinitionKey: "white-2nd-stripe",
+      promotedOn: "2026-09-10",
+      ...input,
+    },
+    decidedBy: "owner-user-1",
+    decidedByStaffId: null,
+    decidedByRole: "owner" as const,
+    decidedAt,
+    ...overrides,
+  });
+  const withHead = () =>
+    seededStore([
+      [
+        `academies/${academyId}/studentLevelProgress/student-1`,
+        head({ importedBaseline: baseline }),
+      ],
+      ...baselineAttendance,
+    ]);
+
+  it("requires a note when the server finds gaps, and writes nothing", async () => {
+    const { store, writes } = await withHead();
+    await expect(store.assignLevel(assign())).rejects.toMatchObject({
+      code: "invalid",
+      message: "A note is required when criteria are not met",
+    });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("stores gaps, the note, the criteria at assignment and a restore snapshot", async () => {
+    const { store, records, writes } = await withHead();
+    const result = await store.assignLevel(assign({ note: "Competition result justifies it." }));
+    expect(result).toEqual({
+      promotionId: `grad_student-1_white-2nd-stripe_${decidedAt}`,
+      toDefinitionKey: "white-2nd-stripe",
+      promotedOn: "2026-09-10",
+      gaps: ["Skips 1 stripe", "Classes 11/25 not met", "Days 71/75 not met"],
+    });
+    const promotion = records.get(`academies/${academyId}/levelPromotions/${result.promotionId}`)!;
+    expect(promotion).toMatchObject({
+      status: "approved",
+      decisionStatus: "approved",
+      fromDefinitionKey: "white-belt",
+      toDefinitionKey: "white-2nd-stripe",
+      decidedByRole: "owner",
+      decidedByStaffId: null,
+      promotedOn: "2026-09-10",
+      note: "Competition result justifies it.",
+      gaps: ["Skips 1 stripe", "Classes 11/25 not met", "Days 71/75 not met"],
+      atAssignment: { classes: { done: 11, min: 25 }, days: { done: 71, min: 75 } },
+      restore: {
+        currentDefinitionKey: "white-belt",
+        currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
+        lastApprovedPromotionId: null,
+        importedBaseline: baseline,
+      },
+    });
+    const stored = records.get(`academies/${academyId}/studentLevelProgress/student-1`)!;
+    expect(stored).toMatchObject({
+      currentDefinitionKey: "white-2nd-stripe",
+      currentLevelStartedAt: "2026-09-10T00:00:00.000Z",
+      lastApprovedPromotionId: result.promotionId,
+    });
+    expect(stored).not.toHaveProperty("importedBaseline");
+    // Task 8's surviving mutant: without this the STUDENT could be recorded as the author of
+    // their own promotion and every other assertion here would still pass.
+    expect(writes.find((write) => write.path.includes("/auditEvents/"))?.data).toMatchObject({
+      actorId: "owner-user-1",
+      action: "level.promotion.approved",
+      targetRef: `academies/${academyId}/levelPromotions/${result.promotionId}`,
+      purpose: "student-level-promotion",
+    });
+  });
+
+  it("assigns the next level without a note when criteria are met", async () => {
+    const { store } = await seededStore([
+      [
+        `academies/${academyId}/studentLevelProgress/student-1`,
+        head({
+          currentLevelStartedAt: "2026-06-01T00:00:00.000Z",
+          importedBaseline: { ...baseline, classes: 30 },
+        }),
+      ],
+    ]);
+    const result = await store.assignLevel(
+      assign({ toDefinitionKey: "white-1st-stripe", promotedOn: "2026-09-10" }),
+    );
+    expect(result.gaps).toEqual([]);
+  });
+
+  it("refuses a head coach with a foreign staff id, and writes nothing", async () => {
+    const { store, writes } = await withHead();
+    await expect(
+      store.assignLevel(
+        assign(
+          { note: "Competition result justifies it." },
+          { decidedBy: "head-user-1", decidedByStaffId: "staff-other", decidedByRole: "headCoach" },
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "tenant", message: "Staff scope is invalid" });
+    expect(writes).toHaveLength(0);
+  });
+
+  // `listPromotionGaps` THROWS a plain Error on a key it cannot find, which would surface as an
+  // internal error instead of a refusal. Both keys are resolved against the published catalogue
+  // first, so an unknown one is a conflict long before the gap list is built.
+  it("refuses an unknown level key as a conflict, never as a raw error", async () => {
+    const { store, writes } = await withHead();
+    for (const input of [
+      { toDefinitionKey: "no-such-level" },
+      { fromDefinitionKey: "no-such-level" },
+    ]) {
+      const rejection = await store
+        .assignLevel(assign({ note: "Competition result justifies it.", ...input }))
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+      expect(rejection).toMatchObject({
+        name: "LevelStoreError",
+        code: "conflict",
+        message: "Promotion references are not current",
+      });
+    }
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses an inactive student, and writes nothing", async () => {
+    const { store, writes, records } = await withHead();
+    const path = `academies/${academyId}/students/student-1`;
+    records.set(path, { ...records.get(path)!, active: false });
+    await expect(
+      store.assignLevel(assign({ note: "Competition result justifies it." })),
+    ).rejects.toMatchObject({ code: "conflict", message: "Student is not active" });
+    expect(writes).toHaveLength(0);
   });
 });

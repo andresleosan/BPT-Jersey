@@ -1505,6 +1505,10 @@ export function buildGraduationId(
   return `grad_${studentId}_${toDefinitionKey}_${decidedAt}`;
 }
 
+// Tab (0x09) and line feed (0x0a) are allowed in operator free text; every other C0 control and
+// DEL is not. Same control-character rule as the T051V2 manage contracts.
+const decisionNotesControlCharacterPattern = /[\u0000-\u0008\u000b-\u001f\u007f]/u;
+
 export type ApprovePromotionInput = Readonly<{
   studentId: string;
   fromDefinitionKey: string;
@@ -1547,6 +1551,10 @@ export function parseApprovePromotionInput(
     decisionNotes.trim().length > 1000
   ) {
     issues.push(issue(["input", "decisionNotes"], "decision_notes_length_3_to_1000"));
+  } else if (decisionNotesControlCharacterPattern.test(decisionNotes)) {
+    // Operator free text into an audited record: tab and line feed are how a textarea wraps a
+    // note, every other C0 control and DEL is refused rather than stored and rendered.
+    issues.push(issue(["input", "decisionNotes"], "decision_notes_control_characters"));
   }
 
   let parsedCeremonyDate: string | null = null;
@@ -1589,10 +1597,6 @@ export type OpenStudentLevelInput = Readonly<{
    */
   startedOn?: string;
 }>;
-
-// Tab (0x09) and line feed (0x0a) are allowed in operator free text; every other C0 control and
-// DEL is not. Same control-character rule as the T051V2 manage contracts.
-const decisionNotesControlCharacterPattern = /[\u0000-\u0008\u000b-\u001f\u007f]/u;
 
 export function parseOpenStudentLevelInput(
   raw: unknown,
