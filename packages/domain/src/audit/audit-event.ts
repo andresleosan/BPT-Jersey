@@ -86,6 +86,7 @@ export const auditActions = Object.freeze([
   "dropin.created",
   "dropin.cancelled",
   "class.history.read",
+  "member.migration.skipped",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
@@ -269,6 +270,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "admin.role.revoked"
           | "member.created"
           | "member.updated"
+          | "member.migration.skipped"
           | "member.recovery.reviewed"
           | "member.recovery.detail.read"
           | "guardian.profile.created"
@@ -442,6 +444,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "admin.role.revoked": commonFields,
   "member.created": commonFields,
   "member.updated": commonFields,
+  "member.migration.skipped": commonFields,
   "member.recovery.reviewed": commonFields,
   "member.recovery.detail.read": commonFields,
   "guardian.profile.created": commonFields,
@@ -754,6 +757,20 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       }
     }
 
+    if (parsedAction === "member.migration.skipped") {
+      const prefix = `academies/${snapshot.academyId as string}/memberMigrationDecisions/`;
+      const memberId =
+        typeof snapshot.targetRef === "string" && snapshot.targetRef.startsWith(prefix)
+          ? snapshot.targetRef.slice(prefix.length)
+          : "";
+      if (
+        memberId.length === 0 ||
+        memberId.includes("/") ||
+        snapshot.purpose !== "member-record-maintenance"
+      ) {
+        issues.push(issue([], "AUDIT_MEMBER_MIGRATION_SCOPE_INVALID"));
+      }
+    }
     if (parsedAction === "member.created" || parsedAction === "member.updated") {
       const expectedStudentPrefix = `academies/${snapshot.academyId as string}/students/`;
       const studentId =

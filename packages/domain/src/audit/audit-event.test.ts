@@ -199,6 +199,23 @@ const restrictedMemberReadDrafts = [
   },
 ] as const;
 describe("audit event draft contract", () => {
+  it("accepts a member migration skip scoped to its decision document", () => {
+    const draft = {
+      academyId: "academy-1",
+      actorId: "user-1",
+      action: "member.migration.skipped",
+      targetRef: "academies/academy-1/memberMigrationDecisions/m1",
+      purpose: "member-record-maintenance",
+      correlationId: "correlation-1",
+    };
+    expect(parseAuditEventDraft(draft).ok).toBe(true);
+    const wrong = parseAuditEventDraft({
+      ...draft,
+      targetRef: "academies/academy-2/memberMigrationDecisions/m1",
+    });
+    expect(wrong.ok).toBe(false);
+  });
+
   it("accepts both minimal administrative role actions", () => {
     for (const action of ["admin.role.granted", "admin.role.revoked"] as const) {
       const result = parseAuditEventDraft({ ...common, action });
