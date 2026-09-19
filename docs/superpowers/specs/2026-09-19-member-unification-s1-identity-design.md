@@ -25,7 +25,8 @@ miembro real un `student` y lo enlaza con su registro del archivo cuando existe.
 | --- | --- |
 | P1 | La unificación se parte en S1-S4; esta spec cubre solo S1. |
 | P2 | Emparejamiento automático **solo** por identificador fuerte idéntico (número de socio o documento de identidad). Lo demás va a una cola de revisión con decisión explícita y auditada (ADR-009 regla 9). Antes de escribir nada, un informe de solo lectura en producción. |
-| P3 | Los menores pasan por la cola con un paso de tutor que usa el flujo de familia existente (ADR-009 regla 10). Sin datos de tutor, el menor queda pendiente y visible. |
+| P3 | Los menores pasan por la cola con un paso de tutor que usa el flujo de familia existente (ADR-009 regla 10). Sin datos de tutor, el menor queda pendiente y visible. **Enmendada por P5.** |
+| P5 | S1 cubre solo adultos. Los menores, y quien no tiene fecha de nacimiento, se ven en la cola como "pendiente de tutor" sin poder decidirse; su camino (cuenta del tutor + flujo de familia + enlace del legado) es el subproyecto S1b. Motivo: `createFamily` exige el `tutorUserId` de un tutor con cuenta y no sabe enlazar legado. |
 | P4 | No hay migración masiva: cada `student` nace de una decisión de la cola por el camino canónico de alta. Se enmienda la ADR-009. |
 
 ## Componentes
@@ -47,7 +48,8 @@ fecha de referencia. Salida: una fila por miembro legacy sin decisión, con una 
 
 Cada fila lleva además `isMinor`: menor de 18 años en la fecha de referencia, según la fecha de
 nacimiento del miembro legacy o, si falta, la del registro emparejado. Sin fecha de nacimiento,
-`isMinor: "unknown"`, que la cola trata como menor (conservador). Los registros del archivo que no
+`isMinor: "unknown"`, que la cola trata como menor (conservador). En S1 las filas con `isMinor !== false`
+no se pueden decidir (P5): aparecen en la pestaña Menores como pendientes de S1b. Los registros del archivo que no
 casan con ningún miembro se listan aparte como `archive-only`: se ven, no se deciden en S1.
 
 La misma función la usan el callable y el script de informe: el informe muestra exactamente lo que
@@ -58,7 +60,7 @@ verá la cola.
 Callable `listMemberMigrationCandidates` (owner/administrator, App Check, `requireAdminActor` +
 `assertAcademyScope`, las mismas guardas que los demás callables de oficina; el MFA obligatorio,
 T017, está cancelado). Lee `members`, `regyfitMemberRecords`,
-`memberMigrationDecisions` y `regyfitMemberLinks`, y devuelve el resultado de la función de
+`memberMigrationDecisions`, `regyfitOfficeLinks` y `regyfitMemberLinks`, y devuelve el resultado de la función de
 emparejamiento más contadores por categoría. No guarda la cola: se recalcula en cada llamada (243 ×
 249 filas).
 
@@ -69,22 +71,30 @@ ni dirección.
 ### 3. Decisión (única escritura)
 
 Callable `decideMemberMigration` (mismos permisos). Entrada, validada con zod: lista de 1-50
-decisiones `{ legacyMemberId, kind: "link" | "create-unlinked" | "skip", recordId?, reason?, guardian? }`.
+decisiones `{ legacyMemberId, kind: "link" | "create-unlinked" | "skip", recordId?, reason?, trainingCenter?, trainingTimePreferences? }`.
 
 - `link` exige `recordId`. `skip` exige `reason` (texto de 3-200 caracteres).
-- Si el servidor calcula `isMinor !== false`, `link` y `create-unlinked` exigen `guardian` (los
-  campos del flujo de familia existente).
+- Si el servidor calcula `isMinor !== false`, `link` y `create-unlinked` se rechazan con
+  `minor-deferred` (P5). `skip` sí se admite.
+- `link` y `create-unlinked` exigen `trainingCenter` (`Town` | `West`) y `trainingTimePreferences`
+  (1-3 de `morning`, `afternoon`, `evening`), porque el alta canónica los exige y el legado no los
+  tiene. En la aprobación en lote el admin los elige una vez para todo el lote: es su decisión y
+  queda registrada en cada decisión.
 - **El servidor recalcula el emparejamiento.** Una decisión `link` cuyo `recordId` no aparece como
   candidato (`strong`, `suggested` o `ambiguous`) de ese miembro se rechaza.
 
 Cada decisión es **una transacción** que:
 
 1. crea `memberMigrationDecisions/{legacyMemberId}` (create-only: la segunda decisión falla);
-2. para `link` y `create-unlinked`: crea el `student` por el camino canónico existente
-   (`canonical-member-directory-service`) con `source: "legacy-member-migration"`,
-   `legacyMemberId` y `migrationId`, y reserva sus `studentIdentityKeys`; si es menor, crea también
-   familia, tutor y relationship con el flujo de familia existente;
-3. para `link`: crea `regyfitMemberLinks/{recordId}` (si ya existe, la transacción entera falla);
+2. para `link` y `create-unlinked`: crea el `student` ampliando el alta canónica existente
+   (`createAdult` de `canonical-member-directory-service`, el mismo camino que
+   `registerImportedMemberForOffice`) con `source: "legacy-member-migration"`, `legacyMemberId` y
+   `migrationId`, y reserva sus `studentIdentityKeys` más una clave `legacy-member-id`. Comprueba en
+   el servidor que es adulto (`deriveParticipantType`), porque el camino de oficina no lo hace;
+3. para `link`: crea `regyfitOfficeLinks/{recordId}` (el enlace del camino de oficina; si ya existe
+   uno en `regyfitOfficeLinks` o `regyfitMemberLinks`, la decisión se rechaza con
+   `record-already-linked`). Los datos del `student` salen del registro del archivo (nombre, fecha,
+   número de socio), igual que en el camino de oficina, que verifica que coinciden;
 4. añade un `auditEvent` con actor, tipo, `legacyMemberId`, `recordId`, `migrationId`, sin datos
    personales en claro.
 
@@ -106,14 +116,16 @@ owner/administrator.
 ### 5. Scripts de operación
 
 `qa/scripts/member-unification-s1-report.mjs`: solo lectura. Ejecuta la función de emparejamiento
-contra el proyecto indicado e imprime contadores por categoría, número de menores y el
-`readerVersion` actual. No imprime datos personales. Exige `GCLOUD_PROJECT` y, contra emuladores,
+contra el proyecto indicado e imprime contadores por categoría, número de menores, filas sin fecha
+de nacimiento, `legacyMemberId` que no cumplen el patrón de identificador administrativo, el
+`readerVersion`, `rollbackEligibleStudentCount` y `rollbackCapacityLimit` actuales. No imprime datos personales. Exige `GCLOUD_PROJECT` y, contra emuladores,
 host loopback.
 
 `qa/scripts/member-unification-s1-revert.mjs`: dry-run por defecto; lista y, con `--apply` más
 `MEMBER_UNIFICATION_CONFIRMATION=member-unification-s1-revert-v1` en producción, borra solo los
 documentos con `migrationId: member-unification-s1-2026-09` (students, admin profiles, identity keys,
-links, decisiones, familias y relationships creadas por la migración). Nunca toca `members` ni
+enlaces en `regyfitOfficeLinks`, decisiones y las familias de oficina `office-{studentId}` creadas
+por la migración). Nunca toca `members` ni
 `regyfitMemberRecords`. Mismo patrón de guardas que `purge-regyfit-record-passwords.mjs`.
 
 ## Puesta en marcha
@@ -121,15 +133,22 @@ links, decisiones, familias y relationships creadas por la migración). Nunca to
 1. Informe de solo lectura en producción. El operador lo revisa.
 2. Deploy de los dos callables y de la web. ⚠️ Con confirmación explícita del operador.
 3. Decisiones en la cola. La app sigue leyendo `members` hasta el paso 4.
-4. Corte: `readerVersion` → `canonical-v1` con la transición auditada existente, cuando no quedan
-   pendientes salvo menores sin tutor. ⚠️ Con confirmación explícita del operador.
+4. Corte: el directorio canónico está inicializado en producción desde T025V2 y el alta canónica
+   solo escribe con el lector en `canonical-v1`, así que se espera que no haga falta. El informe del
+   paso 1 lo confirma. Si `readerVersion` no es `canonical-v1`, se para y se vuelve a diseñar este
+   paso. ⚠️ Cualquier cambio de `readerVersion` requiere confirmación explícita del operador.
 5. Verificación: conteo de solo lectura. `students` = 2 + decisiones `link`/`create-unlinked`;
-   `regyfitMemberLinks` = 1 + decisiones `link`; ningún `legacyMemberId` repetido.
+   `regyfitOfficeLinks` = previos + decisiones `link`; `memberMigrationDecisions` = decisiones;
+   ningún `legacyMemberId` repetido; `rollbackEligibleStudentCount` por debajo de su tope (400).
 
 ## Vuelta atrás
 
-- Lectura: `readerVersion` → `legacy-rollback-v1` (transición existente). Inmediata; `members` nunca
-  se modificó.
+- Lectura: no aplica si el corte no hizo falta (paso 4). `members` nunca se modificó.
+- Límite conocido: el script inverso no toca `memberDirectoryStates` (su cadena de integridad firmada
+  solo la avanza el alta canónica), así que `rollbackEligibleStudentCount` no baja al revertir. Con
+  tope 400, revertir unas 245 altas deja sitio para unas 155 más: una segunda pasada completa exigiría
+  antes una transición del plano de control que S1 no construye. El script inverso es para
+  emergencias, no para repetir la migración.
 - Datos: `member-unification-s1-revert.mjs`. Los 2 `students` previos no llevan el `migrationId` y no
   se tocan.
 
