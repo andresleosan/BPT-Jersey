@@ -1,0 +1,128 @@
+// Read-only S1 migration report; output contains counters and the reader version only.
+// Build first: corepack pnpm --filter @bpt-jersey/domain build:runtime
+// usage:
+//   S1_ACADEMY_ID=<academyId> S1_TARGET=emulator|production \
+//   node qa/scripts/member-unification-s1-report.mjs
+// Emulator requires FIRESTORE_EMULATOR_HOST on loopback.
+// Production requires GCLOUD_PROJECT=bptjersey-f5a25 and no emulator host.
+// Production execution is reserved for the operator after explicit authorization.
+
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+import { buildMemberMigrationQueue } from "../../packages/domain/lib/members/member-migration-contracts.js";
+import { parseMemberRecord } from "../../packages/domain/lib/members/member-contracts.js";
+import { parseStoredRegyfitMemberRecord } from "../../packages/domain/lib/members/regyfit-member-record-contracts.js";
+
+const productionProjectId = "bptjersey-f5a25";
+
+export function resolveTarget(env) {
+  const target = env.S1_TARGET?.trim();
+  if (target === "emulator") {
+    if (!/^(?:127\.0\.0\.1|localhost|\[::1\]):[0-9]+$/i.test(env.FIRESTORE_EMULATOR_HOST ?? "")) {
+      throw new Error("Emulator reports require FIRESTORE_EMULATOR_HOST on a loopback host");
+    }
+    return { target, projectId: env.GCLOUD_PROJECT?.trim() || "demo-bpt-jersey" };
+  }
+  if (target === "production") {
+    if (env.FIRESTORE_EMULATOR_HOST !== undefined) {
+      throw new Error("Production reports must not run with FIRESTORE_EMULATOR_HOST set");
+    }
+    if (env.GCLOUD_PROJECT?.trim() !== productionProjectId) {
+      throw new Error("Production reports require the exact GCLOUD_PROJECT");
+    }
+    return { target, projectId: productionProjectId };
+  }
+  throw new Error("S1_TARGET must be emulator or production");
+}
+
+export function reportCounters(data, today) {
+  const queue = buildMemberMigrationQueue({ ...data, today });
+  const normalizedIds = data.members.map((member) =>
+    member.memberId.normalize("NFKC").trim().toUpperCase(),
+  );
+  const memberById = new Map(data.members.map((member) => [member.memberId, member]));
+  const state = data.state;
+  if (
+    !state ||
+    !["legacy-v1", "canonical-v1", "legacy-rollback-v1"].includes(state.readerVersion) ||
+    !Number.isSafeInteger(state.rollbackEligibleStudentCount) ||
+    state.rollbackEligibleStudentCount < 0 ||
+    state.rollbackEligibleStudentCount > 400 ||
+    state.rollbackCapacityLimit !== 400
+  ) {
+    throw new Error("Missing or invalid directory state");
+  }
+  return {
+    members: data.members.length,
+    archiveRecords: data.records.length,
+    decided: data.decidedMemberIds.size,
+    ...Object.fromEntries(
+      ["strong", "suggested", "ambiguous", "none"].map((category) => [
+        category,
+        queue.rows.filter((row) => row.category === category).length,
+      ]),
+    ),
+    minorOrUndated: queue.rows.filter((row) => row.isMinor !== false).length,
+    archiveOnly: queue.archiveOnly.length,
+    invalidLegacyIds: normalizedIds.filter((id) => !/^[A-Z0-9][A-Z0-9 ./-]{0,63}$/.test(id)).length,
+    legacyIdCaseCollisions: normalizedIds.length - new Set(normalizedIds).size,
+    strongWithoutCentre: queue.rows.filter(
+      (row) =>
+        row.category === "strong" &&
+        !["Town", "West"].includes(memberById.get(row.legacyMemberId)?.trainingCenter),
+    ).length,
+    readerVersion: state.readerVersion,
+    rollbackEligibleStudentCount: state.rollbackEligibleStudentCount,
+    rollbackCapacityLimit: state.rollbackCapacityLimit,
+  };
+}
+
+async function main() {
+  const academyId = process.env.S1_ACADEMY_ID?.trim();
+  if (!academyId || academyId.includes("/")) throw new Error("Invalid S1_ACADEMY_ID");
+  const { projectId } = resolveTarget(process.env);
+  const requireFromFunctions = createRequire(
+    new URL("../../apps/functions/package.json", import.meta.url),
+  );
+  const { initializeApp } = requireFromFunctions("firebase-admin/app");
+  const { getFirestore } = requireFromFunctions("firebase-admin/firestore");
+  const firestore = getFirestore(initializeApp({ projectId }));
+  const root = `academies/${academyId}`;
+  const [members, records, decisions, officeLinks, memberLinks, state] = await Promise.all([
+    ...[
+      "members",
+      "regyfitMemberRecords",
+      "memberMigrationDecisions",
+      "regyfitOfficeLinks",
+      "regyfitMemberLinks",
+    ].map((name) => firestore.collection(`${root}/${name}`).get()),
+    firestore.doc(`${root}/memberDirectoryStates/current`).get(),
+  ]);
+  const parseDocuments = (snapshot, parse) =>
+    snapshot.docs.map((document) => {
+      const parsed = parse(document.data());
+      if (!parsed.ok) throw new Error("Invalid migration input");
+      return parsed.value;
+    });
+  const counters = reportCounters(
+    {
+      members: parseDocuments(members, parseMemberRecord),
+      records: parseDocuments(records, parseStoredRegyfitMemberRecord),
+      decidedMemberIds: new Set(decisions.docs.map((document) => document.id)),
+      linkedRecordIds: new Set(
+        [...officeLinks.docs, ...memberLinks.docs].map((document) => document.id),
+      ),
+      state: state.data(),
+    },
+    new Date().toISOString().slice(0, 10),
+  );
+  for (const [key, value] of Object.entries(counters)) console.log(`${key}: ${value}`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(() => {
+    // SDK and validation errors can contain document paths or personal data.
+    console.error("errors: 1");
+    process.exitCode = 1;
+  });
+}
