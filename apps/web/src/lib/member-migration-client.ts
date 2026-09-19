@@ -32,6 +32,7 @@ const messages: Readonly<Record<MemberMigrationRejectionCode, string>> = {
   "minor-deferred": "Members under 18 or without a date of birth wait for the guardian step.",
   "record-already-linked": "That record already belongs to another member.",
   "identifier-reserved": "Another member already holds this membership or ID number.",
+  "invalid-member-data": "This member's ID or member number is not in a format the directory accepts. Correct the legacy record or skip.",
   "identity-changed": "The archive record changed. Refresh before linking.",
   "write-failed": "Could not save this decision. Try again.",
 };

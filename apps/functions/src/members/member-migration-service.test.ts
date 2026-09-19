@@ -254,6 +254,39 @@ describe("member migration service", () => {
     });
   });
 
+  it.each([
+    [
+      new CanonicalMemberDirectoryError("invalid", "Invalid admin student input"),
+      "invalid-member-data",
+    ],
+    [new CanonicalMemberDirectoryError("conflict", "Invalid admin student input"), "write-failed"],
+    [new CanonicalMemberDirectoryError("invalid", "Other validation error"), "write-failed"],
+    [new Error("Invalid admin student input"), "write-failed"],
+  ])(
+    "maps only the canonical invalid member input error to a correctable rejection (%s)",
+    async (error, code) => {
+      const { service, writer } = harness({
+        members: [{ ...adult, idCardNumber: "ID_42" }],
+        records: [],
+      });
+      writer.registerLegacyMember.mockRejectedValueOnce(error);
+      const result = await service.decide(actor, {
+        decisions: [
+          {
+            kind: "create-unlinked",
+            legacyMemberId: "m1",
+            requestId: crypto.randomUUID(),
+            ...training,
+          },
+        ],
+      });
+      expect(writer.registerLegacyMember).toHaveBeenCalledWith(
+        expect.objectContaining({ value: expect.objectContaining({ idCardNumber: "ID_42" }) }),
+      );
+      expect(result.results).toEqual([{ legacyMemberId: "m1", status: "rejected", code }]);
+    },
+  );
+
   it("rejects a skip without a reason before writing", async () => {
     const { service, writer } = harness();
     await expect(
