@@ -490,3 +490,33 @@ it("treats a missing canonical student as unavailable without asserting migratio
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.queryByRole("tablist")).toBeNull();
 });
+
+it("edits the office note in Details with focus and the unsaved guard, then shows the saved note", async () => {
+  client.saveMemberDetails.mockResolvedValue(undefined);
+  const user = open("?id=student-1&tab=notes");
+  await user.click(await screen.findByRole("button", { name: "Edit in Details" }));
+  expect(document.activeElement).toBe(screen.getByLabelText("Internal notes"));
+  await user.type(screen.getByLabelText("Internal notes"), "Office follow-up");
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  await user.click(screen.getByRole("tab", { name: "Notes" }));
+  expect(confirm).toHaveBeenCalledWith(
+    "You have unsaved changes in Details. Leave without saving?",
+  );
+  expect(window.location.search).toBe("?id=student-1&tab=details");
+  client.getMemberProfile.mockResolvedValue({
+    ...full,
+    details: { ...full.details, details: { internalNotes: "Office follow-up" } },
+  });
+  await user.click(screen.getByRole("button", { name: "Save details" }));
+  await waitFor(() =>
+    expect(client.saveMemberDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        studentId: "student-1",
+        details: expect.objectContaining({ internalNotes: "Office follow-up" }),
+      }),
+    ),
+  );
+  await waitFor(() => expect(client.getMemberProfile).toHaveBeenCalledTimes(2));
+  await user.click(screen.getByRole("tab", { name: "Notes" }));
+  expect((await screen.findByText("Office follow-up")).textContent).toBe("Office follow-up");
+});
