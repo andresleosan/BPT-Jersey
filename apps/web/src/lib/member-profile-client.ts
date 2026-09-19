@@ -36,7 +36,10 @@ const saveRateLimitedError =
 const searchError = "Unable to search members. Please try again.";
 
 export class MemberRecordLoadError extends Error {
-  public constructor(message: string, public readonly kind: "error" | "missing" = "error") {
+  public constructor(
+    message: string,
+    public readonly kind: "error" | "missing" = "error",
+  ) {
     super(message);
     this.name = "MemberRecordLoadError";
   }

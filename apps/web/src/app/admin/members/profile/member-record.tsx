@@ -142,6 +142,14 @@ function RecordHeader({
 
 export function MemberRecord() {
   const { role } = useAdminOrStaffSession();
+  return <MemberRecordSession key={role} role={role} />;
+}
+
+function MemberRecordSession({
+  role,
+}: {
+  role: ReturnType<typeof useAdminOrStaffSession>["role"];
+}) {
   // The office searches from Members; the mat from Member search (operator 2026-09-19).
   const office = role === "owner" || role === "administrator";
   const [location, setLocation] = useState<RecordLocation | null>(null);
@@ -198,7 +206,9 @@ export function MemberRecord() {
   useEffect(() => {
     if (studentId === undefined) return undefined;
     if (studentId === null) {
-      setLoad({ status: "invalid" });
+      setLoad({
+        status: new URLSearchParams(window.location.search).has("id") ? "invalid" : "missing",
+      });
       return undefined;
     }
     let active = true;

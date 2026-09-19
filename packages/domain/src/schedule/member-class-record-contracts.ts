@@ -6,7 +6,7 @@ import {
   type AttendanceRecord,
   type BookingRecord,
   type SessionRecord,
-} from "./schedule-contracts.js";
+} from "./schedule-contracts";
 
 const studentId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 // Booking IDs encode both identifiers and can exceed the individual 128-character limit.

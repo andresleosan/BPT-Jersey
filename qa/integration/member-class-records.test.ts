@@ -4,6 +4,10 @@ import { getFirestore } from "firebase-admin/firestore";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createMemberClassFirestoreStore } from "../../apps/functions/src/schedule/member-class-records-firestore.js";
 import { listMemberClassRecordsPage } from "../../apps/functions/src/schedule/member-class-records-service.js";
+import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
+import { listSubscriptionBilling } from "../../apps/functions/src/memberships/manual-subscription-service.js";
+import { listMemberSubscriptionRecords } from "../../apps/functions/src/memberships/subscription-admin-service.js";
+import { createMemberProfileFirestoreStore } from "../../apps/functions/src/members/member-profile-firestore.js";
 const enabled =
   process.env.BPT_TEST_INTEGRATION === "true" && Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 const at = "2026-09-20T10:00:00.000Z";
@@ -141,5 +145,118 @@ describe.skipIf(!enabled)("member class Firestore pages", () => {
         }),
       ).rejects.toMatchObject({ code: "aborted" });
     }
+  });
+  it("keeps imported membership, invoice and receipt documents out of real live readers", async () => {
+    const envelope = {
+      academyId,
+      schemaVersion: "1",
+      createdAt: at,
+      updatedAt: at,
+      createdBy: "u",
+      updatedBy: "u",
+    };
+    expect(await listSubscriptionBilling(db, academyId, "s")).toEqual([]);
+    await expect(listSubscriptionBilling(db, academyId, "missing")).rejects.toMatchObject({
+      code: "not-found",
+    });
+    await base.collection("students").doc("s").update({ familyId: "f" });
+    const batch = db.batch();
+    batch.set(base.collection("memberships").doc("m"), {
+      ...envelope,
+      membershipId: "m",
+      studentId: "s",
+      familyId: "f",
+      planId: PLAN_CATALOG[0]!.planId,
+      status: "active",
+      startsAt: at,
+      endsAt: null,
+      nextBillingAt: null,
+    });
+    batch.set(base.collection("memberships").doc("import"), {
+      studentId: "s",
+      source: "legacy-import",
+    });
+    batch.set(base.collection("invoices").doc("i"), {
+      ...envelope,
+      schemaVersion: 1,
+      invoiceId: "i",
+      membershipId: "m",
+      familyId: "f",
+      status: "partially_paid",
+      totalMinor: 6000,
+      currency: "GBP",
+      dueAt: at,
+      paidAt: null,
+      chargeKind: "membership",
+      sourceRef: null,
+      invoiceReference: "SYNTHETIC",
+      description: "Synthetic period",
+    });
+    batch.set(base.collection("invoices").doc("historical"), {
+      membershipId: "m",
+      source: "legacy-import",
+    });
+    batch.set(base.collection("invoices").doc("sibling"), {
+      membershipId: "sibling",
+      familyId: "f",
+      status: "open",
+    });
+    batch.set(base.collection("payments").doc("p"), {
+      ...envelope,
+      schemaVersion: 1,
+      paymentId: "p",
+      familyId: "f",
+      invoiceId: "i",
+      status: "recorded",
+      amountMinor: 2000,
+      currency: "GBP",
+      method: "cash",
+      manualReference: "SYNTHETIC",
+      providerReference: null,
+      occurredAt: at,
+    });
+    batch.set(base.collection("payments").doc("historical"), {
+      invoiceId: "i",
+      source: "legacy-import",
+    });
+    await batch.commit();
+    const billing = await listSubscriptionBilling(db, academyId, "s");
+    expect(billing).toEqual([
+      {
+        membershipId: "m",
+        complimentary: false,
+        currentInvoiceId: "i",
+        reason: null,
+        invoices: [
+          {
+            invoiceId: "i",
+            status: "partially_paid",
+            totalMinor: 6000,
+            dueAt: at,
+            paidAt: null,
+            description: "Synthetic period",
+            payments: [
+              {
+                paymentId: "p",
+                amountMinor: 2000,
+                method: "cash",
+                reference: "SYNTHETIC",
+                occurredAt: at,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(
+      (await listMemberSubscriptionRecords(db, academyId, "s")).memberships.map(
+        (m) => m.membershipId,
+      ),
+    ).toEqual(["m"]);
+    expect(
+      (await createMemberProfileFirestoreStore(db).listStudentMemberships(academyId, "s")).map(
+        (m) => m.membershipId,
+      ),
+    ).toEqual(["m"]);
   });
 });

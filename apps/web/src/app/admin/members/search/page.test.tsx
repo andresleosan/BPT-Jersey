@@ -13,6 +13,8 @@ const clientMocks = vi.hoisted(() => ({
   updateMember: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 vi.mock("../../../../lib/members-client", () => clientMocks);
 vi.mock("../../../../lib/subscription-admin-client", () => ({
   resolveImportedSubscription: vi.fn(async () => ({ studentId: null })),

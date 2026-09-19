@@ -29,6 +29,18 @@ vi.mock("../../../../lib/member-profile-client", () => client);
 
 // The card owns its own reads and has its own suite; MemberRecord is only asked to place it and
 // to hand it the one decision it cannot make for itself: whether this viewer may open a level.
+const live = vi.hoisted(() => ({
+  getMemberSubscriptions: vi.fn(),
+  getMemberSubscriptionBilling: vi.fn(),
+  getMemberClassRecords: vi.fn(),
+  listManagedPlans: vi.fn(),
+}));
+vi.mock("../../../../lib/subscription-admin-client", () => live);
+vi.mock("../../../../lib/membership-admin-client", () => live);
+vi.mock("../../../../lib/member-class-records-client", () => ({
+  ...live,
+  MemberClassLoadError: class extends Error {},
+}));
 const gate = vi.hoisted(() => ({ role: "owner" as string }));
 vi.mock("./ibjjf-card", () => ({
   IbjjfCard: ({
@@ -130,6 +142,9 @@ function open(search: string) {
 
 beforeEach(() => {
   gate.role = "owner";
+  live.getMemberSubscriptions.mockResolvedValue({ studentId: "student-1", memberships: [] });
+  live.listManagedPlans.mockResolvedValue([]);
+  live.getMemberSubscriptionBilling.mockResolvedValue([]);
   client.getMemberProfile.mockResolvedValue(full);
 });
 
@@ -519,4 +534,68 @@ it("edits the office note in Details with focus and the unsaved guard, then show
   await waitFor(() => expect(client.getMemberProfile).toHaveBeenCalledTimes(2));
   await user.click(screen.getByRole("tab", { name: "Notes" }));
   expect((await screen.findByText("Office follow-up")).textContent).toBe("Office follow-up");
+});
+
+it("clears the office note immediately when the role changes while the replacement profile is loading", async () => {
+  client.getMemberProfile.mockResolvedValue({
+    ...full,
+    details: { ...full.details, details: { internalNotes: "Office private note" } },
+  });
+  window.history.replaceState(null, "", "/admin/members/profile?id=student-1&tab=notes");
+  const view = render(<MemberRecord />);
+  await screen.findByText("Office private note");
+  gate.role = "coach";
+  client.getMemberProfile.mockReturnValue(new Promise(() => {}));
+  view.rerender(<MemberRecord />);
+  expect(screen.queryByText("Office private note")).toBeNull();
+  expect(screen.queryByRole("tab", { name: "Notes" })).toBeNull();
+  expect(live.getMemberSubscriptionBilling).not.toHaveBeenCalled();
+});
+
+it.each(["plan", "payments", "classes", "notes"])(
+  "a coach's forged %s tab makes no live office requests",
+  async (tab) => {
+    gate.role = "coach";
+    client.getMemberProfile.mockResolvedValue({ view: "coach", header });
+    open(`?id=student-1&tab=${tab}`);
+    await screen.findByRole("tab", { name: "Profile" });
+    expect(screen.getAllByRole("tab").map((element) => element.textContent)).toEqual(["Profile"]);
+    expect(live.getMemberSubscriptions).not.toHaveBeenCalled();
+    expect(live.getMemberSubscriptionBilling).not.toHaveBeenCalled();
+    expect(live.getMemberClassRecords).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("?id=student-1");
+  },
+);
+it("discards a late profile response after rapid student navigation", async () => {
+  let resolve: (value: MemberProfile) => void = () => {};
+  client.getMemberProfile.mockReturnValueOnce(
+    new Promise<MemberProfile>((done) => {
+      resolve = done;
+    }),
+  );
+  open("?id=student-1&tab=notes");
+  client.getMemberProfile.mockResolvedValue({
+    ...full,
+    header: { ...full.header, studentId: "student-2", fullName: "New fixture" },
+    details: { ...full.details, studentId: "student-2" },
+  });
+  window.history.pushState(null, "", "/admin/members/profile?id=student-2&tab=notes");
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  await screen.findByRole("heading", { name: "New fixture" });
+  resolve(full);
+  await waitFor(() =>
+    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe("New fixture"),
+  );
+  expect(client.getMemberProfile.mock.calls).toEqual([["student-1"], ["student-2"]]);
+});
+
+it("shows neutral navigation for a missing canonical ID without making any reads", async () => {
+  open("");
+  await waitFor(() =>
+    expect(screen.getByRole("status").textContent).toBe(
+      "Live member record unavailable. It may not have been created yet.",
+    ),
+  );
+  expect(client.getMemberProfile).not.toHaveBeenCalled();
+  expect(screen.queryByRole("alert")).toBeNull();
 });

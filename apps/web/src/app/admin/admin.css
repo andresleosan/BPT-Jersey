@@ -4850,3 +4850,19 @@ a.admin-birthday-badge:focus-visible,
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.member-live-records {
+  list-style: none;
+  margin: 1.25rem 0;
+  padding: 0;
+}
+.member-live-records > li {
+  border-bottom: 1px solid var(--line);
+  padding-block: 1rem;
+}
+.member-live-records h4 {
+  margin: 0 0 0.5rem;
+}
+.member-live-records p {
+  margin-block: 0.4rem;
+}
