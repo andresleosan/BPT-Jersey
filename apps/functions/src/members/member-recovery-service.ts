@@ -520,11 +520,13 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       oldFamily.value.primaryContactUserId === null &&
       oldFamily.value.billingContactUserId === null &&
       (officeLink?.studentId === studentId || familyId === `office-${studentId}`);
+    const onlineFamily = claimOfficeFamily ? { ...oldFamily.value } : undefined;
+    if (onlineFamily) delete onlineFamily.guardianContact;
     const family = familySnap.exists
       ? parseFamilyRecord(
           claimOfficeFamily
             ? {
-                ...oldFamily.value,
+                ...onlineFamily,
                 primaryContactUserId: uid,
                 billingContactUserId: uid,
                 updatedAt: time,

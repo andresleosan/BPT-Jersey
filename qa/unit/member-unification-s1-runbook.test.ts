@@ -41,14 +41,62 @@ describe("S1 operator runbook safety contract", () => {
     }
   });
 
-  it("deploys exactly the four callables before publishing main, without force", () => {
+  it("deploys exactly the 40 functions in batches before publishing main, without force", () => {
     const shell = commands()
       .join("\n")
       .replace(/[ \t]*\\\n\s*/g, " ");
     const deploys = shell.split("\n").filter((line) => line.includes("firebase deploy"));
-    expect(deploys).toEqual([
-      "corepack pnpm exec firebase deploy --project bptjersey-f5a25 --only functions:listMemberMigrationQueue,functions:decideMemberMigration,functions:assignMemberGuardian,functions:setMemberDateOfBirth",
-    ]);
+    const expected = [
+      "listMemberMigrationQueue",
+      "decideMemberMigration",
+      "assignMemberGuardian",
+      "setMemberDateOfBirth",
+      "listMembers",
+      "getMemberDetail",
+      "getMemberProfile",
+      "lookupMemberIdentity",
+      "updateMember",
+      "resolveMemberSubscriptionProfile",
+      "registerImportedMemberForOffice",
+      "getFamily",
+      "updateFamily",
+      "createMembership",
+      "listMemberSubscriptions",
+      "updateMemberSubscription",
+      "manageMemberSubscription",
+      "getStudentProgressSummary",
+      "getStudentLevelHistory",
+      "listStudentEvaluations",
+      "recordEvaluation",
+      "listMedicalLeaves",
+      "recordMedicalLeave",
+      "listRecognitionCandidates",
+      "approvePromotion",
+      "openStudentLevel",
+      "rejectPromotion",
+      "listGraduations",
+      "assignLevel",
+      "voidPromotion",
+      "getProgressReport",
+      "requestBooking",
+      "checkIn",
+      "correctAttendance",
+      "recordCheckout",
+      "issueNextWaitlistOffer",
+      "completeMemberRecovery",
+      "reviewMemberRecovery",
+      "subscriptionExpiryNoticeWritten",
+      "subscriptionExpiryNoticesSchedule",
+    ].map((name) => `functions:${name}`);
+    expect(deploys).toHaveLength(4);
+    const deployed = deploys.flatMap((command) => {
+      expect(command).toMatch(
+        /^corepack pnpm exec firebase deploy --project bptjersey-f5a25 --only functions:\w+(?:,functions:\w+){9}$/,
+      );
+      expect(shell.indexOf(command)).toBeLessThan(shell.indexOf("push origin HEAD:main"));
+      return command.split("--only ")[1]!.split(",");
+    });
+    expect(deployed.sort()).toEqual(expected.sort());
     expect(shell).toContain("git merge-base --is-ancestor origin/main HEAD");
     expect(shell).toContain("push origin HEAD:main");
     expect(shell.indexOf("firebase deploy")).toBeLessThan(shell.indexOf("push origin HEAD:main"));
