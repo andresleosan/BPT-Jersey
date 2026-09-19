@@ -16,7 +16,11 @@
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { MEMBER_MIGRATION_ID } from "../../packages/domain/lib/members/member-migration-contracts.js";
-import { resolveTarget as resolveReportTarget } from "./member-unification-s1-report.mjs";
+import {
+  SafeScriptError,
+  reportScriptError,
+  resolveTarget as resolveReportTarget,
+} from "./member-unification-s1-report.mjs";
 
 export const revertConfirmation = "member-unification-s1-revert-v1";
 
@@ -28,7 +32,7 @@ export function resolveTarget(env) {
     apply &&
     env.MEMBER_UNIFICATION_CONFIRMATION !== revertConfirmation
   ) {
-    throw new Error("Applying in production requires the operator confirmation value");
+    throw new SafeScriptError("Applying in production requires the operator confirmation value");
   }
   return { ...resolved, apply };
 }
@@ -37,7 +41,7 @@ export function revertPlan({ decisions, identityKeys, officeLinks }) {
   const paths = new Set();
   const add = (collection, id) => {
     if (typeof id !== "string" || !id || id.includes("/") || id === "." || id === "..") {
-      throw new Error("Invalid rollback document segment");
+      throw new SafeScriptError("Invalid rollback document segment");
     }
     paths.add(`${collection}/${id}`);
   };
@@ -104,7 +108,7 @@ export async function runRevert(firestore, root, apply) {
 
 async function main() {
   const academyId = process.env.S1_ACADEMY_ID?.trim();
-  if (!academyId || academyId.includes("/")) throw new Error("Invalid S1_ACADEMY_ID");
+  if (!academyId || academyId.includes("/")) throw new SafeScriptError("Invalid S1_ACADEMY_ID");
   const { projectId, apply } = resolveTarget(process.env);
   const requireFromFunctions = createRequire(
     new URL("../../apps/functions/package.json", import.meta.url),
@@ -116,9 +120,5 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(() => {
-    // Never echo SDK errors: they may contain document paths or personal data.
-    console.error("errors: 1");
-    process.exitCode = 1;
-  });
+  main().catch(reportScriptError);
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   reportCounters,
+  reportScriptError,
+  SafeScriptError,
   resolveTarget as reportTarget,
 } from "../scripts/member-unification-s1-report.mjs";
 import {
@@ -11,6 +13,34 @@ import {
 } from "../scripts/member-unification-s1-revert.mjs";
 
 describe("member unification S1 scripts", () => {
+  it.each([reportTarget, revertTarget])(
+    "prints safe guard messages but redacts SDK errors",
+    (resolve) => {
+      const output = vi.spyOn(console, "error").mockImplementation(() => {});
+      const exitCode = process.exitCode;
+      try {
+        let guard: unknown;
+        try {
+          resolve({});
+        } catch (error) {
+          guard = error;
+        }
+        expect(guard).toBeInstanceOf(SafeScriptError);
+        reportScriptError(guard);
+        expect(output).toHaveBeenLastCalledWith(
+          "errors: 1 — S1_TARGET must be emulator or production",
+        );
+        expect(process.exitCode).toBe(1);
+        output.mockClear();
+        reportScriptError(new Error("SDK failed at academies/synthetic/students/private-person"));
+        expect(output.mock.calls).toEqual([["errors: 1"]]);
+      } finally {
+        process.exitCode = exitCode;
+        output.mockRestore();
+      }
+    },
+  );
+
   it("enforces both scripts' target guards and literal opt-in without initializing Firebase", () => {
     for (const resolve of [reportTarget, revertTarget]) {
       expect(() => resolve({})).toThrow();

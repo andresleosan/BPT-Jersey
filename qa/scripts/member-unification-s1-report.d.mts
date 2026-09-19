@@ -20,3 +20,6 @@ export declare function reportCounters(
   },
   today: string,
 ): Record<string, number | string>;
+
+export declare class SafeScriptError extends Error {}
+export declare function reportScriptError(error: unknown): void;
