@@ -116,6 +116,10 @@ test.describe("admin shell @smoke", () => {
 
     const navigation = page.locator(".admin-desktop-navigation");
     await expect(navigation.getByRole("link")).toHaveText([
+      // The coach workspace group leads the menu since d3be699 / 8b9ddff.
+      "->Dashboard",
+      "->Progression syllabus",
+      "->My sign-in",
       "->Overview",
       "->Attendance",
       // Operator decision 2026-09-17 (grill G6, T051V2 Plan B): the mat reads the member record
@@ -127,7 +131,10 @@ test.describe("admin shell @smoke", () => {
       "->Classes / Services",
       "->Levels",
     ]);
-    await expect(page.getByRole("link", { name: "Coach portal" })).toBeVisible();
+    await expect(navigation.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+      "href",
+      "/coach",
+    );
     await expect(
       page.getByRole("heading", { name: "Today's academy view", level: 2 }),
     ).toBeVisible();

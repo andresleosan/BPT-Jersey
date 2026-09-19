@@ -71,6 +71,11 @@ test.describe("member and staff sign-in surfaces", () => {
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Forgot password?" })).toBeFocused();
     await page.keyboard.press("Tab");
+    // Legacy member recovery (5e324ec) sits between the form and the account toggle.
+    await expect(
+      page.getByRole("link", { name: "Already a member? Recover your access" }),
+    ).toBeFocused();
+    await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Create client account" })).toBeFocused();
 
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
@@ -140,6 +145,10 @@ test.describe("member and staff sign-in surfaces", () => {
   test("opens the club shop to a visitor with no account", async ({ page }) => {
     const errors = trackBrowserHealth(page);
     await installStaticRoute(page, "/shop");
+    // No emulator runs here: answer the public catalogue call with an empty catalogue.
+    await page.route("**/listPublicShopCatalog", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ data: [] }) }),
+    );
     await page.goto("/shop");
 
     await expect(page.getByRole("heading", { name: "Club shop", level: 1 })).toBeVisible();
