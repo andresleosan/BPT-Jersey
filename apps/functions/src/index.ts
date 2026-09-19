@@ -2,6 +2,8 @@ import { initializeApp } from "firebase-admin/app";
 
 initializeApp();
 
+export { sweepSessionQuorumsSchedule } from "./schedule/quorum-sweep-schedule.js";
+
 export { signInStaffWithId, changeStaffIdPassword } from "./staff/staff-login-callables.js";
 
 export {
