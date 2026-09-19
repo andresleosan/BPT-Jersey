@@ -81,6 +81,7 @@ export function recordHref(
 type LoadState =
   | Readonly<{ status: "loading" }>
   | Readonly<{ status: "invalid" }>
+  | Readonly<{ status: "missing" }>
   | Readonly<{ status: "error"; message: string }>
   | Readonly<{ status: "ready"; profile: MemberProfile }>;
 
@@ -207,6 +208,10 @@ export function MemberRecord() {
       },
       (error: unknown) => {
         if (!active) return;
+        if (error instanceof MemberRecordLoadError && error.kind === "missing") {
+          setLoad({ status: "missing" });
+          return;
+        }
         setLoad({
           status: "error",
           message: error instanceof MemberRecordLoadError ? error.message : genericLoadError,
@@ -216,7 +221,7 @@ export function MemberRecord() {
     return () => {
       active = false;
     };
-  }, [studentId, attempt]);
+  }, [studentId, attempt, role]);
 
   const readyStudentId = load.status === "ready" ? load.profile.header.studentId : undefined;
   useEffect(() => {
@@ -370,6 +375,19 @@ export function MemberRecord() {
         <div className="member-record-notice" role="alert">
           <p className="admin-eyebrow">Members / Record</p>
           <p>This member record link is not valid.</p>
+        </div>
+      ) : null}
+
+      {load.status === "missing" ? (
+        <div className="member-record-notice">
+          <p role="status">Live member record unavailable. It may not have been created yet.</p>
+          {office ? (
+            <>
+              <Link href="/admin/members/migration">Review member migration</Link>
+              {" · "}
+              <Link href="/admin/members/search">Imported archive</Link>
+            </>
+          ) : null}
         </div>
       ) : null}
 

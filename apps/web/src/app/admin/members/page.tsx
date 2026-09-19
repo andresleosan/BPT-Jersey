@@ -229,6 +229,12 @@ export function MembersPage() {
         eyebrow="Members / Canonical directory"
         title="Members"
       />
+      <p className="member-record-notice">
+        This directory shows live member records. Members awaiting migration remain in the imported
+        archive. <Link href="/admin/members/migration">Review member migration</Link>
+        {" · "}
+        <Link href="/admin/members/search">Imported archive</Link>
+      </p>
       <MemberNameSearch />
       <section className="admin-panel-card" aria-labelledby="member-directory-title">
         <div className="admin-panel-card-heading">
