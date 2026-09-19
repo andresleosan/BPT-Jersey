@@ -34,7 +34,8 @@ if (!parsed.ok) throw new Error("catalogue must parse");
 const catalog = { ...parsed.value, sourceHash: "test" };
 
 const jerseyDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Jersey" });
-const today = jerseyDay.format(new Date());
+const now = new Date("2026-09-16T08:00:00.000Z");
+const today = jerseyDay.format(now);
 const dayBack = (days: number) =>
   new Date(Date.parse(`${today}T00:00:00.000Z`) - days * 86_400_000).toISOString().slice(0, 10);
 const uiDay = (day: string) =>
@@ -116,6 +117,8 @@ async function assignForm() {
 }
 
 beforeEach(() => {
+  // Keep module-level history dates and the form's current day on the same clock.
+  vi.useFakeTimers({ shouldAdvanceTime: true, now });
   api.getLevelCatalog.mockReset();
   api.getStudentLevelCard.mockReset();
   api.getStudentLevelHistory.mockReset();
@@ -138,6 +141,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 

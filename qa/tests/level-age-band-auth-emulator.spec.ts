@@ -156,7 +156,7 @@ function beltWithBoundedNextBand(
 /** A date of birth that makes a child exactly `years` old today. */
 function bornForAge(years: number): string {
   const today = new Date();
-  return `${today.getUTCFullYear() - years}-01-05`;
+  return `${today.getUTCFullYear() - years}-01-01`;
 }
 
 test.describe("T113 level age bands with Firebase Emulators", () => {
