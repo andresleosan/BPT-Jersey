@@ -41,13 +41,13 @@ describe("S1 operator runbook safety contract", () => {
     }
   });
 
-  it("deploys exactly the two callables before publishing main, without force", () => {
+  it("deploys exactly the four callables before publishing main, without force", () => {
     const shell = commands()
       .join("\n")
       .replace(/[ \t]*\\\n\s*/g, " ");
     const deploys = shell.split("\n").filter((line) => line.includes("firebase deploy"));
     expect(deploys).toEqual([
-      "corepack pnpm exec firebase deploy --project bptjersey-f5a25 --only functions:listMemberMigrationQueue,functions:decideMemberMigration",
+      "corepack pnpm exec firebase deploy --project bptjersey-f5a25 --only functions:listMemberMigrationQueue,functions:decideMemberMigration,functions:assignMemberGuardian,functions:setMemberDateOfBirth",
     ]);
     expect(shell).toContain("git merge-base --is-ancestor origin/main HEAD");
     expect(shell).toContain("push origin HEAD:main");
@@ -71,7 +71,10 @@ describe("S1 operator runbook safety contract", () => {
       "rollbackCapacityLimit",
       "400",
       "no baja",
-      "S1b",
+      "Guardian required",
+      "Check age",
+      "pendingGuardian",
+      "pendingDateOfBirth",
       "selfCheckIn",
     ]) {
       expect(runbook).toContain(condition);

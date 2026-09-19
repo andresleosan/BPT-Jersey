@@ -161,6 +161,9 @@ describe("member unification S1 scripts", () => {
           "academies/synthetic/studentIdentityKeys",
           "academies/synthetic/studentAdminProfiles",
           "academies/synthetic/regyfitOfficeLinks",
+          "academies/synthetic/students",
+          "academies/synthetic/families",
+          "academies/synthetic/relationships",
         ]),
       );
     } finally {
@@ -351,6 +354,11 @@ describe("member unification S1 scripts", () => {
             { recordId: "7", fullName: "Synthetic Linked", memberNumber: "4" },
             { recordId: "8", fullName: "Synthetic Linked Two", memberNumber: "5" },
           ],
+          createdStudents: [
+            { guardianStatus: "pending" },
+            { reviewReason: "date-of-birth-missing" },
+            { guardianStatus: "assigned" },
+          ],
           decidedMemberIds: new Set(["decided"]),
           linkedRecordIds: new Set(["7", "8"]),
           state: {
@@ -370,6 +378,8 @@ describe("member unification S1 scripts", () => {
       ambiguous: 1,
       none: 3,
       minorOrUndated: 3,
+      pendingGuardian: 1,
+      pendingDateOfBirth: 1,
       undated: 2,
       invalidIdentifiers: 0,
       archiveOnly: 1,
@@ -552,4 +562,53 @@ describe("member unification S1 scripts", () => {
     ).toMatchObject({ apply: true });
     expect(revertConfirmation).toBe("member-unification-s1-revert-v1");
   });
+});
+
+it("reverts assigned S1 office families, preserves others and refuses shared family links", () => {
+  const data = {
+    decisions: [
+      {
+        id: "m1",
+        studentId: "s1",
+        kind: "create-unlinked",
+        migrationId: "member-unification-s1-2026-09",
+      },
+    ],
+    profiles: [
+      {
+        id: "s1",
+        source: "legacy-member-migration",
+        migrationId: "member-unification-s1-2026-09",
+        legacyMemberId: "M1",
+      },
+    ],
+    identityKeys: [],
+    officeLinks: [],
+    students: [
+      { id: "s1", familyId: "office-s1" },
+      { id: "untouched", familyId: "other" },
+    ],
+    families: [
+      {
+        id: "office-s1",
+        familyId: "office-s1",
+        primaryContactUserId: null,
+        billingContactUserId: null,
+        guardianContact: { fullName: "Synthetic Guardian", email: "guardian@example.test" },
+      },
+      { id: "other" },
+    ],
+  };
+  expect(revertPlan(data)).toContain("families/office-s1");
+  expect(revertPlan(data)).not.toContain("families/other");
+  expect(() =>
+    revertPlan({
+      ...data,
+      students: [...data.students, { id: "external", familyId: "office-s1" }],
+    }),
+  ).toThrow("manual review");
+  expect(() =>
+    revertPlan({ ...data, relationships: [{ studentId: "s1", familyId: "office-s1" }] }),
+  ).toThrow("manual review");
+  expect(revertPlan({ ...data, students: [], profiles: [] })).toContain("families/office-s1");
 });

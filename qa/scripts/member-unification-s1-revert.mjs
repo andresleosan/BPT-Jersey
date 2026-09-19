@@ -37,7 +37,15 @@ export function resolveTarget(env) {
   return { ...resolved, apply };
 }
 
-export function revertPlan({ decisions, identityKeys, officeLinks, profiles }) {
+export function revertPlan({
+  decisions,
+  identityKeys,
+  officeLinks,
+  profiles,
+  students = [],
+  families,
+  relationships = [],
+}) {
   const paths = new Set();
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
   const add = (collection, id) => {
@@ -62,7 +70,27 @@ export function revertPlan({ decisions, identityKeys, officeLinks, profiles }) {
       }
       add("students", studentId);
       add("studentAdminProfiles", studentId);
-      add("families", `office-${studentId}`);
+      const familyId = `office-${studentId}`;
+      const student = students.find((record) => record.id === studentId);
+      const family = families?.find((record) => record.id === familyId);
+      if (
+        (student?.familyId !== undefined && student.familyId !== familyId) ||
+        students.some((record) => record.id !== studentId && record.familyId === familyId) ||
+        relationships.some(
+          (record) => record.familyId === familyId || record.studentId === studentId,
+        ) ||
+        (family &&
+          (family.familyId !== familyId ||
+            family.primaryContactUserId !== null ||
+            family.billingContactUserId !== null))
+      ) {
+        throw new SafeScriptError(
+          "S1 family was linked outside the migration; manual review is required",
+        );
+      }
+      // Guardian assignment uses this same office family ID and the student.familyId link.
+      // There is no relationship or Auth user to delete. Keep the S1 decision until the end.
+      if (families === undefined || family) add("families", familyId);
       for (const key of identityKeys) {
         if (key.ownerStudentId === studentId) add("studentIdentityKeys", key.id);
       }
@@ -77,18 +105,30 @@ export function revertPlan({ decisions, identityKeys, officeLinks, profiles }) {
 
 export async function runRevert(firestore, root, apply) {
   const loadPlan = async () => {
-    const [decisions, identityKeys, officeLinks, profiles] = await Promise.all(
-      [
-        "memberMigrationDecisions",
-        "studentIdentityKeys",
-        "regyfitOfficeLinks",
-        "studentAdminProfiles",
-      ].map(async (name) => {
-        const snapshot = await firestore.collection(`${root}/${name}`).get();
-        return snapshot.docs.map((document) => ({ ...document.data(), id: document.id }));
-      }),
-    );
-    return revertPlan({ decisions, identityKeys, officeLinks, profiles });
+    const [decisions, identityKeys, officeLinks, profiles, students, families, relationships] =
+      await Promise.all(
+        [
+          "memberMigrationDecisions",
+          "studentIdentityKeys",
+          "regyfitOfficeLinks",
+          "studentAdminProfiles",
+          "students",
+          "families",
+          "relationships",
+        ].map(async (name) => {
+          const snapshot = await firestore.collection(`${root}/${name}`).get();
+          return snapshot.docs.map((document) => ({ ...document.data(), id: document.id }));
+        }),
+      );
+    return revertPlan({
+      decisions,
+      identityKeys,
+      officeLinks,
+      profiles,
+      students,
+      families,
+      relationships,
+    });
   };
   const printCounts = (paths, prefix = "") => {
     for (const name of [
