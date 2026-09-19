@@ -43,8 +43,11 @@ academies/{academyId}/students/{studentId} es la unica identidad operativa de ca
 8. No existe dual-write permanente. El cambio de reader es explicito, versionado y reversible.
 9. Ninguna coincidencia automatica usa nombre, email o fecha de nacimiento. Vincular un legado o
    una cuenta Auth requiere una decision administrativa explicita, tenant-scoped y auditada.
-10. Un menor solo se crea mediante el flujo de familia/tutor; el alta administrativa individual no
-    inventa tutor, cuenta Auth, familia, relationship ni membership.
+10. Un menor se crea mediante el flujo de familia/tutor, salvo los menores legacy migrados por S1,
+    que pueden existir con `guardianStatus: pending`. La asignación de tutor es una acción explícita
+    de owner/administrator, tenant-scoped y auditada. Nunca se inventan tutor, cuenta Auth, familia,
+    relationship ni membership: S1 crea solo el estudiante; la familia de oficina nace después de
+    recibir un contacto real del administrador.
 11. La evidencia de desarrollo usa colecciones directas tenant-scoped: assessments para evidencia,
     studentLevelProgress/{studentId} para el estado actual, levelPromotions para decisiones formales
     y recognitions para reconocimientos no equivalentes a belts/stripes.
@@ -424,9 +427,23 @@ Para `demo-academy`, los `students` que vienen de `members` se crean mediante de
 `/admin/members/migration`, con los callables `listMemberMigrationQueue` y `decideMemberMigration`,
 sobre el alta canónica `createAdult`, en lugar del forward executor por lotes.
 
-Las reglas 9 y 10 se mantienen: el emparejamiento automático solo admite un identificador fuerte
+La regla 9 se mantiene y la regla 10 admite la excepción legacy: el emparejamiento automático solo admite un identificador fuerte
 idéntico y su aplicación sigue siendo una decisión explícita del administrador, incluso en lote.
-Los menores y las filas sin fecha suficiente para acreditar mayoría de edad quedan para S1b.
+Los menores se crean con `students.guardianStatus: pending`. Sin fecha propia ni recuperada de una
+coincidencia fuerte se omite `dateOfBirth`, se guarda `reviewReason: date-of-birth-missing` y se usa
+`participantType: minor` como restricción conservadora, no como edad verificada. Los flags tienen
+esquema zod en dominio y se proyectan solo a lista/detalle de oficina; el coach conserva su proyección.
+La fecha introducida por admin recalcula el tipo: si es menor pasa a guardian pending; si es adulto
+limpia el aviso. Las operaciones que exigen edad comprobada fallan cerradas sin fecha.
+
+`assignMemberGuardian` crea `families/office-{studentId}` con contactos de usuario nulos y
+`guardianContact: { fullName, phoneNumber?, email? }`, enlaza `student.familyId` y marca `assigned` en
+una transacción con auditoría y recibo idempotente. No crea Auth ni relationship porque ésta exige
+`adultUserId`. Es un contacto de oficina, no acceso online ni prueba de tutela legal. No se reutiliza
+una familia existente ni se inventa una relación. `setMemberDateOfBirth` comparte autorización,
+validación, auditoría y protección de replay. El detalle general también conserva/recalcula los
+avisos al editar la fecha. Los avisos son la excepción explícita a la allowlist mínima anterior;
+el contacto del tutor no se expone en listados ni en la proyección de coach.
 
 Cada alta lleva `source: legacy-member-migration`, `migrationId: member-unification-s1-2026-09`,
 una clave de identidad `legacy-member-id` y un registro `memberMigrationDecisions/{memberId}`

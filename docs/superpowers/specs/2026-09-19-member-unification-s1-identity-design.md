@@ -26,7 +26,7 @@ miembro real un `student` y lo enlaza con su registro del archivo cuando existe.
 | P1 | La unificación se parte en S1-S4; esta spec cubre solo S1. |
 | P2 | Emparejamiento automático **solo** por identificador fuerte idéntico (número de socio o documento de identidad). Lo demás va a una cola de revisión con decisión explícita y auditada (ADR-009 regla 9). Antes de escribir nada, un informe de solo lectura en producción. |
 | P3 | Los menores pasan por la cola con un paso de tutor que usa el flujo de familia existente (ADR-009 regla 10). Sin datos de tutor, el menor queda pendiente y visible. **Enmendada por P5.** |
-| P5 | S1 cubre solo adultos. Los menores, y quien no tiene fecha de nacimiento, se ven en la cola como "pendiente de tutor" sin poder decidirse; su camino (cuenta del tutor + flujo de familia + enlace del legado) es el subproyecto S1b. Motivo: `createFamily` exige el `tutorUserId` de un tutor con cuenta y no sabe enlazar legado. |
+| P5 (enmendada) | S1 migra todos los miembros: menores con `guardianStatus: pending`; sin fecha con `reviewReason: date-of-birth-missing`. Tutor y fecha se revisan después desde admin. No se crea Auth, familia, relationship ni membership al migrar un menor o una persona sin fecha. El censo comunicado es 243: 143 menores y 20 sin fecha. |
 | P4 | No hay migración masiva: cada `student` nace de una decisión de la cola por el camino canónico de alta. Se enmienda la ADR-009. |
 
 ## Componentes
@@ -48,8 +48,8 @@ fecha de referencia. Salida: una fila por miembro legacy sin decisión, con una 
 
 Cada fila lleva además `isMinor`: menor de 18 años en la fecha de referencia, según la fecha de
 nacimiento del miembro legacy o, si falta, la del registro emparejado. Sin fecha de nacimiento,
-`isMinor: "unknown"`, que la cola trata como menor (conservador). En S1 las filas con `isMinor !== false`
-no se pueden decidir (P5): aparecen en la pestaña Menores como pendientes de S1b. Los registros del archivo que no
+`isMinor: "unknown"`. Todas las filas pueden decidirse; la pestaña "Under 18 / no date" muestra
+"Guardian required" o "Check age", el aviso que se aplicará. Solo se recupera fecha de un candidato fuerte único. Los registros del archivo que no
 casan con ningún miembro se listan aparte como `archive-only`: se ven, no se deciden en S1.
 
 La misma función la usan el callable y el script de informe: el informe muestra exactamente lo que
@@ -74,8 +74,9 @@ Callable `decideMemberMigration` (mismos permisos). Entrada, validada con zod: l
 decisiones `{ legacyMemberId, kind: "link" | "create-unlinked" | "skip", recordId?, reason?, trainingCenter?, trainingTimePreferences? }`.
 
 - `link` exige `recordId`. `skip` exige `reason` (texto de 3-200 caracteres).
-- Si el servidor calcula `isMinor !== false`, `link` y `create-unlinked` se rechazan con
-  `minor-deferred` (P5). `skip` sí se admite.
+- Menores y filas sin fecha admiten `link`, `create-unlinked` y `skip`, con las mismas validaciones
+  de candidato y entrenamiento que los adultos. La fecha propia tiene prioridad; si falta se recupera
+  del candidato fuerte único, incluso con `create-unlinked`. Nunca se inventa fecha.
 - `link` y `create-unlinked` exigen `trainingCenter` (`Town` | `West`) y `trainingTimePreferences`
   (1-3 de `morning`, `afternoon`, `evening`), porque el alta canónica los exige y el legado no los
   tiene. En la aprobación en lote el admin los elige una vez para todo el lote: es su decisión y
@@ -89,12 +90,15 @@ Cada decisión es **una transacción** que:
 2. para `link` y `create-unlinked`: crea el `student` ampliando el alta canónica existente
    (`createAdult` de `canonical-member-directory-service`, el mismo camino que
    `registerImportedMemberForOffice`) con `source: "legacy-member-migration"`, `legacyMemberId` y
-   `migrationId`, y reserva sus `studentIdentityKeys` más una clave `legacy-member-id`. Comprueba en
-   el servidor que es adulto (`deriveParticipantType`), porque el camino de oficina no lo hace;
+   `migrationId`, y reserva sus `studentIdentityKeys` más una clave `legacy-member-id`. Deriva la edad
+   en servidor. Para menores marca `guardianStatus: pending`; sin fecha omite `dateOfBirth`, marca
+   `reviewReason: date-of-birth-missing` y mantiene `participantType: minor` como restricción
+   conservadora. No crea familia para estos casos. El alta normal de adultos conserva su contrato;
 3. para `link`: crea `regyfitOfficeLinks/{recordId}` (el enlace del camino de oficina; si ya existe
    uno en `regyfitOfficeLinks` o `regyfitMemberLinks`, la decisión se rechaza con
    `record-already-linked`). Los datos del `student` salen del registro del archivo (nombre, fecha,
-   número de socio), igual que en el camino de oficina, que verifica que coinciden;
+   número de socio), excepto la fecha, que conserva la propia o recupera solo la fuerte. El
+   camino canónico verifica nombre y número contra el archivo;
 4. añade un `auditEvent` con actor, tipo, `legacyMemberId`, `recordId`, `migrationId`, sin datos
    personales en claro.
 
@@ -113,11 +117,33 @@ muestra nombre, fecha de nacimiento e identificadores enmascarados de los dos la
 Reutiliza el shell y los controles de admin existentes (`DESIGN.md`). Solo visible para
 owner/administrator.
 
-### 5. Scripts de operación
+### 5. Revisión posterior de oficina
+
+Los avisos viven en `students`, con zod en `profiles`. Lista y detalle admin muestran un punto rojo
+con "Guardian required" / "Check age" y el directorio cuenta revisiones pendientes en la página
+actual. La proyección coach no añade avisos ni contacto ni acciones.
+
+`assignMemberGuardian` (owner/administrator activo, Auth + App Check) recibe `studentId`, UUID de
+petición y contacto con nombre obligatorio y teléfono y/o email usando validadores existentes.
+Crea una familia de oficina `office-{studentId}` con `primaryContactUserId` y `billingContactUserId`
+nulos y `guardianContact`. Enlaza `student.familyId` y marca `guardianStatus: assigned`; no crea
+relationship porque requiere un `adultUserId` real. El contacto no habilita acceso online.
+
+`setMemberDateOfBirth` recibe `studentId`, UUID y fecha válida no futura. Recalcula edad, elimina
+`date-of-birth-missing` y marca guardian pending si es menor; si es adulto limpia el aviso. El editor
+normal de detalles también recalcula los avisos. Sin fecha, los procesos que necesitan comprobar
+edad (reserva/plan) fallan cerrados.
+
+Ambas acciones validan tenant/rol y estado canónico dentro de una transacción, avanzan el control
+canónico y guardan auditoría sin contacto/fecha y recibo con MAC de petición. Replay idéntico no
+reescribe; uno divergente se rechaza. Ninguna colección nueva ni permisos cliente nuevos.
+
+### 6. Scripts de operación
 
 `qa/scripts/member-unification-s1-report.mjs`: solo lectura. Ejecuta la función de emparejamiento
 contra el proyecto indicado e imprime contadores por categoría, número de menores, filas sin fecha
 de nacimiento, `legacyMemberId` que no cumplen el patrón de identificador administrativo, el
+`pendingGuardian` y `pendingDateOfBirth` de estudiantes creados por S1, el
 `readerVersion`, `rollbackEligibleStudentCount` y `rollbackCapacityLimit` actuales. No imprime datos personales. Exige `GCLOUD_PROJECT` y, contra emuladores,
 host loopback.
 
@@ -128,14 +154,17 @@ Para decisiones `link` o `create-unlinked`, comprueba en el perfil admin la marc
 `source: legacy-member-migration`, el mismo `migrationId` y el `legacyMemberId` normalizado de la
 decisión. Si el perfil ya se borró en un revert parcial, permite reintentar los documentos restantes.
 Borra los students, perfiles admin, claves de identidad, enlaces en `regyfitOfficeLinks`, decisiones
-y familias de oficina `office-{studentId}` de esa cadena; un `skip` solo borra su decisión.
+y familias de oficina `office-{studentId}` de esa cadena, incluidas las de Assign guardian;
+al borrar el estudiante se elimina su enlace `familyId`. No hay relationships creadas por S1. Si la
+familia pasó a online, se comparte con un estudiante externo o existe una relación, aborta para
+revisión manual. Un `skip` solo borra su decisión.
 Nunca toca `members` ni `regyfitMemberRecords`. Mismo patrón de guardas que
 `purge-regyfit-record-passwords.mjs`.
 
 ## Puesta en marcha
 
 1. Informe de solo lectura en producción. El operador lo revisa.
-2. Deploy de los dos callables y de la web. ⚠️ Con confirmación explícita del operador.
+2. Deploy de los cuatro callables y de la web. ⚠️ Con confirmación explícita del operador.
 3. Decisiones en la cola. La app sigue leyendo `members` hasta el paso 4.
 4. Corte: el directorio canónico está inicializado en producción desde T025V2 y el alta canónica
    solo escribe con el lector en `canonical-v1`, así que se espera que no haga falta. El informe del
@@ -174,8 +203,9 @@ Nunca toca `members` ni `regyfitMemberRecords`. Mismo patrón de guardas que
 - Dominio: emparejamiento (fuerte por número, fuerte por documento, número repetido → `ambiguous`,
   sugerencia por nombre y fecha, `none`, `archive-only`, menor el día anterior y el día del 18
   cumpleaños, fecha ausente → `unknown`); esquemas zod de decisión.
-- Servicio con fakes: cada tipo de decisión; rechazos (`already-decided`, registro ya enlazado,
-  `link` a un `recordId` que no es candidato, menor sin tutor, `skip` sin motivo); lote con fallos
+- Servicio con fakes: creación de menores y sin fecha, asignación de contacto, fecha a menor/adulto,
+  replay idéntico/divergente, permisos, tenant y auditoría sin PII; cada tipo de decisión; rechazos (`already-decided`, registro ya enlazado,
+  `link` a un `recordId` que no es candidato, datos inválidos, `skip` sin motivo); lote con fallos
   parciales.
 - Reglas: `memberMigrationDecisions` inaccesible desde el cliente para todos los roles; se desactiva
   la guardia y se confirma que el test cae (`LECCIONES.md` §4).
@@ -186,8 +216,7 @@ Nunca toca `members` ni `regyfitMemberRecords`. Mismo patrón de guardas que
 ## ADR-009
 
 Enmienda "Migración dirigida por decisiones": para esta academia, la creación de `students` desde
-`members` se hace por decisiones de la cola en lugar del forward executor por lotes. Se mantienen las
-reglas 9 y 10, las claves de identidad y el interruptor de `readerVersion`. Los ejecutores bootstrap y
+`members` se hace por decisiones de la cola en lugar del forward executor por lotes. Se mantiene la regla 9 y se enmienda la regla 10 con la excepción de menores legacy pendientes; se conservan las claves de identidad y el interruptor de `readerVersion`. Los ejecutores bootstrap y
 forward ya construidos quedan sin uso y no se borran en S1. T108 se cierra como "sustituida por S1"
 tras el corte.
 

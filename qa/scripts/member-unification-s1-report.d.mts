@@ -12,6 +12,10 @@ export declare function resolveTarget(env: Record<string, string | undefined>): 
 export declare function reportCounters(
   data: Omit<BuildMemberMigrationQueueInput, "today" | "members"> & {
     members: readonly (LegacyMemberInput & { trainingCenter?: string; vatNumber?: string })[];
+    createdStudents?: readonly {
+      guardianStatus?: "pending" | "assigned";
+      reviewReason?: "date-of-birth-missing";
+    }[];
     state: {
       readerVersion: string;
       rollbackEligibleStudentCount: number;

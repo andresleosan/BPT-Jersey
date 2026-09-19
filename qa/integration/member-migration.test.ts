@@ -35,6 +35,7 @@ suite("member migration Firestore transaction integration", () => {
   let app: ReturnType<typeof initializeApp>;
   let database: ReturnType<typeof getFirestore>;
   let service: ReturnType<typeof createMemberMigrationService>;
+  let writer: ReturnType<typeof createCanonicalMemberDirectoryService>;
 
   const memberBase = {
     academyId,
@@ -63,6 +64,7 @@ suite("member migration Firestore transaction integration", () => {
       birthDate: "1991-02-02",
     },
     { ...memberBase, memberId: "m3", fullName: "Synthetic Minor", birthDate: "2015-03-03" },
+    { ...memberBase, memberId: "m4", fullName: "Synthetic Undated" },
   ];
   const recordBase = {
     gender: "unknown",
@@ -181,16 +183,17 @@ suite("member migration Firestore transaction integration", () => {
     for (const record of records)
       batch.set(database.doc(`${root}/regyfitMemberRecords/${record.recordId}`), record);
     await batch.commit();
+    writer = createCanonicalMemberDirectoryService({
+      firestore: createMemberDirectoryFirestoreAdapters(database).writer,
+      projectId,
+      identitySecretMaterial,
+      integritySecretMaterial,
+      identitySecretVersion: "identity-v1",
+      integritySecretVersion: "integrity-v1",
+    });
     service = createMemberMigrationService({
       store: createFirestoreMemberMigrationStore(database),
-      writer: createCanonicalMemberDirectoryService({
-        firestore: createMemberDirectoryFirestoreAdapters(database).writer,
-        projectId,
-        identitySecretMaterial,
-        integritySecretMaterial,
-        identitySecretVersion: "identity-v1",
-        integritySecretVersion: "integrity-v1",
-      }),
+      writer,
       now: () => now,
     });
   });
@@ -203,9 +206,9 @@ suite("member migration Firestore transaction integration", () => {
     if (app) await deleteApp(app);
   });
 
-  it("lists, applies, rejects replay and minors, preserves sources and reverts persisted migration records", async () => {
+  it("creates minors and undated members, assigns guardian, rejects replay and reverts only S1 records", async () => {
     const queue = await service.listQueue(actor);
-    expect(queue.rows).toHaveLength(3);
+    expect(queue.rows).toHaveLength(4);
     expect(queue.rows.find((row) => row.legacyMemberId === "m1")).toMatchObject({
       category: "strong",
       isMinor: false,
@@ -297,16 +300,10 @@ suite("member migration Firestore transaction integration", () => {
     );
     expect(
       await service.decide(actor, {
-        decisions: [
-          link,
-          { kind: "create-unlinked", legacyMemberId: "m3", requestId: randomUUID(), ...training },
-        ],
+        decisions: [link],
       }),
     ).toEqual({
-      results: [
-        { legacyMemberId: "m1", status: "rejected", code: "already-decided" },
-        { legacyMemberId: "m3", status: "rejected", code: "minor-deferred" },
-      ],
+      results: [{ legacyMemberId: "m1", status: "rejected", code: "already-decided" }],
     });
     expect(
       bytes(
@@ -321,14 +318,91 @@ suite("member migration Firestore transaction integration", () => {
     ).toEqual(persistedBeforeRejections);
     await expectSourcesUnchanged();
 
+    const minors = await service.decide(actor, {
+      decisions: [
+        { kind: "create-unlinked", legacyMemberId: "m3", requestId: randomUUID(), ...training },
+        { kind: "create-unlinked", legacyMemberId: "m4", requestId: randomUUID(), ...training },
+      ],
+    });
+    const minor = minors.results[0];
+    const undated = minors.results[1];
+    if (
+      minor?.status !== "applied" ||
+      !minor.studentId ||
+      undated?.status !== "applied" ||
+      !undated.studentId
+    )
+      throw new Error("Expected reviewable students");
+    expect((await database.doc(`${root}/students/${minor.studentId}`).get()).data()).toMatchObject({
+      guardianStatus: "pending",
+      participantType: "minor",
+    });
+    expect(
+      (await database.doc(`${root}/students/${minor.studentId}`).get()).data(),
+    ).not.toHaveProperty("familyId");
+    expect(
+      (await database.doc(`${root}/students/${undated.studentId}`).get()).data(),
+    ).toMatchObject({ reviewReason: "date-of-birth-missing" });
+    expect(
+      (await database.doc(`${root}/students/${undated.studentId}`).get()).data(),
+    ).not.toHaveProperty("dateOfBirth");
+    const review = {
+      actor,
+      now,
+      value: {
+        kind: "assign-guardian",
+        studentId: minor.studentId,
+        requestId: randomUUID(),
+        guardianContact: { fullName: "Synthetic Guardian", phoneNumber: "+441534000099" },
+      },
+    };
+    await Promise.all([writer.reviewMember(review), writer.reviewMember(review)]);
+    expect((await database.doc(`${root}/students/${minor.studentId}`).get()).data()).toMatchObject({
+      guardianStatus: "assigned",
+      familyId: `office-${minor.studentId}`,
+    });
+    expect(
+      (await database.doc(`${root}/families/office-${minor.studentId}`).get()).data(),
+    ).toMatchObject({
+      primaryContactUserId: null,
+      billingContactUserId: null,
+      guardianContact: review.value.guardianContact,
+    });
+    expect(
+      (await documents("auditEvents")).filter(
+        (event) => event.action === "member.guardian.assigned",
+      ),
+    ).toHaveLength(1);
+    expect(await documents("relationships")).toEqual([]);
+    expect(await documents("memberships")).toEqual([]);
+    await writer.reviewMember({
+      actor,
+      now,
+      value: {
+        kind: "set-date-of-birth",
+        studentId: undated.studentId,
+        requestId: randomUUID(),
+        dateOfBirth: "2014-02-02",
+      },
+    });
+    expect(
+      (await database.doc(`${root}/students/${undated.studentId}`).get()).data(),
+    ).toMatchObject({ guardianStatus: "pending", dateOfBirth: "2014-02-02" });
+    expect(
+      (await database.doc(`${root}/students/${undated.studentId}`).get()).data(),
+    ).not.toHaveProperty("reviewReason");
+    await expectSourcesUnchanged();
     const paths = revertPlan({
+      students: await documents("students"),
+      families: await documents("families"),
+      relationships: await documents("relationships"),
       profiles: await documents("studentAdminProfiles"),
       decisions: await documents("memberMigrationDecisions"),
       identityKeys: await documents("studentIdentityKeys"),
       officeLinks: await documents("regyfitOfficeLinks"),
     });
-    expect(paths.filter((path) => path.startsWith("students/"))).toHaveLength(2);
-    expect(paths.filter((path) => path.startsWith("memberMigrationDecisions/"))).toHaveLength(2);
+    expect(paths.filter((path) => path.startsWith("students/"))).toHaveLength(4);
+    expect(paths.filter((path) => path.startsWith("memberMigrationDecisions/"))).toHaveLength(4);
     const batch = database.batch();
     for (const path of paths) batch.delete(database.doc(`${root}/${path}`));
     await batch.commit();

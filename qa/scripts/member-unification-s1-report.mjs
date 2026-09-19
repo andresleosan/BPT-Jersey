@@ -66,6 +66,12 @@ export function reportCounters(data, today) {
     members: data.members.length,
     archiveRecords: data.records.length,
     decided: data.decidedMemberIds.size,
+    pendingGuardian: (data.createdStudents ?? []).filter(
+      (student) => student.guardianStatus === "pending",
+    ).length,
+    pendingDateOfBirth: (data.createdStudents ?? []).filter(
+      (student) => student.reviewReason === "date-of-birth-missing",
+    ).length,
     ...Object.fromEntries(
       ["strong", "suggested", "ambiguous", "none"].map((category) => [
         category,
@@ -96,16 +102,18 @@ export function reportCounters(data, today) {
 }
 
 export async function runReport(firestore, root, today) {
-  const [members, records, decisions, officeLinks, memberLinks, state] = await Promise.all([
-    ...[
-      "members",
-      "regyfitMemberRecords",
-      "memberMigrationDecisions",
-      "regyfitOfficeLinks",
-      "regyfitMemberLinks",
-    ].map((name) => firestore.collection(`${root}/${name}`).get()),
-    firestore.doc(`${root}/memberDirectoryStates/current`).get(),
-  ]);
+  const [members, records, decisions, officeLinks, memberLinks, students, state] =
+    await Promise.all([
+      ...[
+        "members",
+        "regyfitMemberRecords",
+        "memberMigrationDecisions",
+        "regyfitOfficeLinks",
+        "regyfitMemberLinks",
+        "students",
+      ].map((name) => firestore.collection(`${root}/${name}`).get()),
+      firestore.doc(`${root}/memberDirectoryStates/current`).get(),
+    ]);
   const parseDocuments = (snapshot, parse) => {
     const values = [];
     let unparsable = 0;
@@ -126,6 +134,15 @@ export async function runReport(firestore, root, today) {
       linkedRecordIds: new Set(
         [...officeLinks.docs, ...memberLinks.docs].map((document) => document.id),
       ),
+      createdStudents: students.docs
+        .filter((student) =>
+          decisions.docs.some(
+            (decision) =>
+              decision.data().studentId === student.id &&
+              decision.data().migrationId === "member-unification-s1-2026-09",
+          ),
+        )
+        .map((student) => student.data()),
       state: state.data(),
     },
     today,

@@ -19,6 +19,15 @@ export declare function revertPlan(docs: {
     migrationId?: string;
     legacyMemberId?: string;
   }[];
+  students?: readonly { id: string; familyId?: string }[];
+  families?: readonly {
+    id: string;
+    familyId?: string;
+    primaryContactUserId?: string | null;
+    billingContactUserId?: string | null;
+    guardianContact?: unknown;
+  }[];
+  relationships?: readonly { studentId?: string; familyId?: string }[];
   identityKeys: readonly { id: string; ownerStudentId?: string }[];
   officeLinks: readonly { id: string; studentId?: string }[];
 }): string[];

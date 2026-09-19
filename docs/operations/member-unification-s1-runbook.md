@@ -1,10 +1,12 @@
-# Unificación de miembros S1: operación de identidad para adultos
+# Unificación de miembros S1: operación de identidad con revisiones de tutor y edad
 
-Luis: esta guía prepara el informe, publica las dos funciones y la web, y verifica las decisiones de adultos de `demo-academy` en `bptjersey-f5a25`.
+Luis: esta guía prepara el informe, publica las cuatro funciones y la web, y verifica las decisiones de todos los miembros de `demo-academy` en `bptjersey-f5a25`.
 Son 27 pasos de operación y 8 de vuelta atrás opcional. Necesitas una terminal SSH del VPS como `root`, acceso de administrador, el gate local aprobado y tu PAT para publicar `main`.
 Los comandos de producción los ejecuta únicamente el operador después de su confirmación explícita en el chat. Esta guía no acredita que ya se hayan ejecutado.
 
-Estado del gate local (19-09-2026): **aprobado**. Tras la ronda final de correcciones y el merge local en `main`, la suite completa pasa (379 archivos, 4128 tests), igual que las reglas en Docker, la integración con emuladores, el E2E y la build web.
+Gate anterior a la enmienda de menores (19-09-2026): **aprobado**. Tras la ronda final de correcciones y el merge local en `main`, la suite completa pasa (379 archivos, 4128 tests), igual que las reglas en Docker, la integración con emuladores, el E2E y la build web.
+
+Gate local de esta enmienda (19-09-2026, `feature/member-unification-s1-minors`): **aprobado**. Build runtime del dominio, formato, lint, TypeScript y 4156 tests en 380 archivos; build web con configuración sintética; 96 pruebas de reglas, 1 integración de migración y 4 E2E en Chromium móvil/escritorio, dentro de `bpt-emu:local` con `--network none`. El E2E usa respuestas sintéticas de callables; la integración ejecuta los servicios contra Firestore emulado. La imagen necesitó las bibliotecas de Chromium del host montadas en solo lectura. No se desplegó, publicó ni accedió a producción.
 
 ## Preparación e informe de solo lectura
 
@@ -86,7 +88,7 @@ Deben cumplirse todas:
 
 Salida esperada: todas las condiciones satisfechas. Si no, detente. No cambies `readerVersion`: exige otro diseño y autorización explícita. El presupuesto también debe reservar capacidad para cualquier ambiguo que se decida crear y para otras altas concurrentes; repite el informe antes de continuar si hay cambios. No cuentes dos veces `minorOrUndated`: esas filas ya están incluidas en las categorías.
 
-`invalidIdentifiers` > 0 indica miembros que serán rechazados con `invalid-member-data`: corrige sus identificadores en el registro legacy o decide omitirlos (`skip`). Por sí solo no es un motivo para detener la operación. `undated` cuenta filas sin fecha de nacimiento propia ni recuperada de una coincidencia fuerte; siguen pendientes de S1b. Si hay documentos no parseables, el informe imprime todos los contadores y termina con `errors: 1 — Queue would fail: unparsable documents` y código de salida 1.
+`invalidIdentifiers` > 0 indica miembros que serán rechazados con `invalid-member-data`: corrige sus identificadores en el registro legacy o decide omitirlos (`skip`). Por sí solo no es un motivo para detener la operación. `undated` cuenta filas sin fecha de nacimiento propia ni recuperada de una coincidencia fuerte; se crean con el aviso "Check age". `pendingGuardian` y `pendingDateOfBirth` cuentan estudiantes S1 ya creados que siguen pendientes de revisión. Si hay documentos no parseables, el informe imprime todos los contadores y termina con `errors: 1 — Queue would fail: unparsable documents` y código de salida 1.
 
 ### 8. Define el comando de conteos de solo lectura
 
@@ -153,7 +155,7 @@ Salida esperada: totales de las seis colecciones, decisiones S1 por tipo y `dupl
 
 📍 Chat con el agente, sin comandos.
 
-⚠️ Los siguientes pasos publican código en producción. Confirma explícitamente el despliegue de `listMemberMigrationQueue`, `decideMemberMigration` y la web después de revisar los informes y el gate completo. Sin confirmación, detente aquí.
+⚠️ Los siguientes pasos publican código en producción. Confirma explícitamente el despliegue de `listMemberMigrationQueue`, `decideMemberMigration`, `assignMemberGuardian`, `setMemberDateOfBirth` y la web después de revisar los informes y el gate completo. Sin confirmación, detente aquí.
 
 Salida esperada: confirmación de Luis registrada. La alternativa es conservar los informes y posponer la publicación. Nunca hagas un deploy total: `selfCheckIn` sigue sin desplegar a propósito. No ejecutes bootstrap ni forward.
 
@@ -191,9 +193,9 @@ test -f apps/functions/.env && test ! -L apps/functions/.env && echo 'OK: archiv
 
 Salida esperada: `OK: archivo real`. Si no aparece, detente.
 
-Hacer merge/push a `main` publica la web, incluida la nueva entrada de navegación «Member migration»; despliega los dos callables inmediatamente antes/después para evitar que la página muestre «queue unavailable». Este procedimiento los despliega antes del push.
+Hacer merge/push a `main` publica la web, incluida la nueva entrada de navegación «Member migration»; despliega los cuatro callables inmediatamente antes/después para evitar que la página muestre «queue unavailable». Este procedimiento los despliega antes del push.
 
-### 14. Despliega únicamente las dos funciones S1
+### 14. Despliega las funciones S1 y revisión
 
 📍 Terminal del VPS · root · `/root/BPT-Jersey`.
 
@@ -201,10 +203,10 @@ Hacer merge/push a `main` publica la web, incluida la nueva entrada de navegaci�
 
 ```bash
 corepack pnpm exec firebase deploy --project bptjersey-f5a25 \
-  --only functions:listMemberMigrationQueue,functions:decideMemberMigration
+  --only functions:listMemberMigrationQueue,functions:decideMemberMigration,functions:assignMemberGuardian,functions:setMemberDateOfBirth
 ```
 
-Salida esperada: ambas funciones creadas o actualizadas correctamente y `Deploy complete!`. Si falla alguna, detente antes del push de la web. No aceptes propuestas de borrar otras funciones.
+Salida esperada: las cuatro funciones creadas o actualizadas correctamente y `Deploy complete!`. Si falla alguna, detente antes del push de la web. No aceptes propuestas de borrar otras funciones.
 
 ### 15. Actualiza la referencia remota de main
 
@@ -270,7 +272,7 @@ Salida esperada: cola con pestañas Strong, Suggested, Ambiguous, No match y Und
 
 📍 Navegador · cola de migración.
 
-Selecciona el centro `Town` o `West` y de una a tres preferencias `morning`, `afternoon`, `evening` según lo confirmado para los adultos que vas a aprobar.
+Selecciona el centro `Town` o `West` y de una a tres preferencias `morning`, `afternoon`, `evening` según lo confirmado para los miembros que vas a aprobar.
 
 Salida esperada: centro y preferencias seleccionados. La selección se aplica a cada alta del lote; no deduzcas estos datos del legado ni apruebes un lote con necesidades distintas.
 
@@ -290,13 +292,24 @@ Salida esperada: resumen de aplicadas/rechazadas y cola recalculada. Revisa cada
 
 Salida esperada: cada decisión tiene resultado aplicado o rechazo seguro. Un enlace ya ocupado se rechaza como `record-already-linked`; un candidato ajeno no es válido. No inventes identificadores, tutores ni datos de entrenamiento para desbloquear un rechazo.
 
-### 24. Revisa los pendientes que quedan fuera de S1
+### 24. Crea menores y miembros sin fecha; revisa tutor y edad
 
 📍 Navegador · cola de migración · Under 18 / no date y contador Only in the archive.
 
-Conserva menores y filas sin fecha suficiente como pendientes de tutor para S1b. Los registros solo presentes en el archivo se reflejan en un contador de lectura, sin decisiones en esta pantalla. El servicio permite `skip` de un menor con motivo, pero no permite su alta en S1; esta operación no exige descartarlos.
+En "Under 18 / no date", elige centro y horarios y decide `link`, `create-unlinked` o `skip` con
+motivo. Los menores se crean con "Guardian required"; sin fecha propia ni recuperable de una
+coincidencia fuerte se crean con "Check age". No se inventan fechas ni tutores y no se crea familia,
+Auth, relationship ni membership en estas altas. Los registros solo presentes en archivo siguen
+siendo un contador de lectura.
 
-Salida esperada: pendientes visibles y ninguna alta de menor. No exijas que toda la cola quede vacía para verificar adultos; registra las categorías pendientes y los motivos de los descartes.
+Abre la ficha canónica: "Assign guardian" pide nombre completo y teléfono y/o email; crea una familia
+de oficina con ese contacto, enlaza el estudiante y marca el tutor asignado. No crea cuenta online.
+"Set date of birth" permite resolver "Check age": una fecha de menor pasa a "Guardian required" y una
+fecha de adulto limpia el aviso. Ambas acciones son auditadas y seguras ante reintentos.
+
+Salida esperada: menores y miembros sin fecha presentes en `students`, con sus avisos pendientes
+hasta revisión. El directorio muestra el número de pendientes en la página actual. Registra los
+`skip` y cualquier rechazo; no declares migrados todos los miembros mientras queden filas por decidir.
 
 ### 25. Repite el informe de solo lectura
 
@@ -324,17 +337,21 @@ Salida esperada: contadores finales sin datos personales y `duplicateLegacyMembe
 
 Compara los incrementos desde el paso 9, contando solo decisiones aplicadas:
 
-- `students` final = inicial + incremento de `link` + incremento de `create-unlinked` (si el inicial sigue siendo 2, es 2 + altas nuevas).
+- `students` final = inicial + incremento de `link` + incremento de `create-unlinked` (incluye menores y miembros sin fecha; si el inicial sigue siendo 2 y se crean los 243 sin skips, son 245).
 - `regyfitOfficeLinks` final = inicial + incremento de `link`.
 - `memberMigrationDecisions` final = inicial + incrementos de `link`, `create-unlinked` y `skip`; `decided` del informe coincide con el total de decisiones.
 - `members`, `regyfitMemberRecords` y `regyfitMemberLinks` no cambian por S1; `duplicateLegacyMemberIds` sigue en cero.
+- `pendingGuardian` y `pendingDateOfBirth` cuentan las revisiones restantes sobre estudiantes S1 creados; no restan altas. El censo comunicado de 143 menores y 20 sin fecha es una referencia previa, no un resultado garantizado tras recuperar fechas fuertes.
+- `families` aumenta con las altas adultas de oficina y con cada Assign guardian; el menor o miembro sin fecha no crea familia al migrar.
 - El lector continúa en `canonical-v1` y el contador de capacidad queda por debajo de 400.
 
-Salida esperada: todas las igualdades satisfechas y los pendientes S1b/archivo identificados. Coordina una ventana sin otras altas/decisiones para comparar; si hubo actividad concurrente, concíliala antes de cerrar. Solo después de verificar el conteo final registra T108 como **«sustituida por S1»**. C1 sigue `en-progreso`: S1b menores, S2 histórico, S3 ficha viva y S4 retirar visor están pendientes.
+Salida esperada: todas las igualdades satisfechas y los revisiones de tutor/edad y archivo identificadas. Coordina una ventana sin otras altas/decisiones para comparar; si hubo actividad concurrente, concíliala antes de cerrar. Solo después de verificar el conteo final registra T108 como **«sustituida por S1»**. C1 sigue `en-progreso`: S1 incluye menores; quedan S2 histórico, S3 ficha viva y S4 retirar visor están pendientes.
 
 ## Vuelta atrás de emergencia (opcional)
 
-⚠️ No es un reinicio de migración. El revert sigue las decisiones con `migrationId: member-unification-s1-2026-09` y borra sus `students`, `studentAdminProfiles`, claves de identidad, enlaces `regyfitOfficeLinks`, familias de oficina `office-{studentId}` y decisiones. No toca `members`, `regyfitMemberRecords`, `auditEvents` ni `memberDirectoryStates`; los dos estudiantes previos sin esta migración no son objetivos.
+⚠️ No es un reinicio de migración. El revert sigue las decisiones con `migrationId: member-unification-s1-2026-09` y borra sus `students`, `studentAdminProfiles`, claves de identidad, enlaces `regyfitOfficeLinks`, familias de oficina `office-{studentId}` (también las creadas por Assign guardian), su enlace al borrar el estudiante, y decisiones. No toca `members`, `regyfitMemberRecords`, `auditEvents` ni `memberDirectoryStates`; los dos estudiantes previos sin esta migración no son objetivos.
+
+Si una familia S1 tiene contactos online, estudiantes externos o relationships, el script aborta antes de borrar y exige revisión manual. Ejecuta el revert en una ventana sin escrituras concurrentes; sus lotes no bloquean nuevas acciones de oficina.
 
 El `rollbackEligibleStudentCount` **no baja**: su cadena firmada solo avanza mediante el alta canónica. El límite es 400; tras unas 245 altas revertidas quedan unas 155 plazas, no otra migración completa. Una segunda pasada requiere una transición del plano de control fuera de S1. No edites ese contador ni cambies `readerVersion` como parte del revert.
 
