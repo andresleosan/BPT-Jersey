@@ -19,7 +19,7 @@ import {
   type NormalizedLevelCatalog,
 } from "./level-source.js";
 
-export type LevelSeedTarget = "emulator" | "staging";
+export type LevelSeedTarget = "emulator" | "staging" | "production";
 
 export type LevelSeedTargetEnvironment = Readonly<{
   gcloudProjectId?: string;
@@ -120,6 +120,11 @@ const knownProductionProjectIds: ReadonlySet<string> = new Set(["bptjersey-f5a25
 // T099 must add an operator-approved, isolated project ID before staging can ever pass this guard.
 const approvedStagingProjectIds: ReadonlySet<string> = new Set();
 const firebaseProjectIdPattern = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/u;
+// Operator decision 2026-09-19 (T051V2): production is seeded only in the one production project,
+// with no emulator host and behind its own confirmation string. Nothing else about it is inferred.
+const productionProjectId = "bptjersey-f5a25";
+export const productionSeedConfirmation = "T051V2-LEVELS-PRODUCTION-SEED";
+export const productionRollbackConfirmation = "T051V2-LEVELS-PRODUCTION-ROLLBACK";
 
 function unsafeTarget(): never {
   throw new Error("Level seed target is not safe.");
@@ -157,12 +162,21 @@ function isKnownProductionProject(projectId: string): boolean {
   );
 }
 
-function assertNonProduction(target: string): void {
-  if (target === "production") {
-    throw new Error("Production seed is strictly prohibited.");
-  }
-  if (target !== "emulator" && target !== "staging") {
+function assertSupportedTarget(target: string): void {
+  if (target !== "emulator" && target !== "staging" && target !== "production") {
     throw new Error(`Unsupported seed target: ${target}`);
+  }
+}
+
+function assertConfirmation(target: string, confirmation: string | undefined, rollback: boolean) {
+  let expected: string | undefined;
+  if (target === "production") {
+    expected = rollback ? productionRollbackConfirmation : productionSeedConfirmation;
+  } else if (target === "staging") {
+    expected = rollback ? "T083-LEVELS-ROLLBACK" : "T083-LEVELS-SEED";
+  }
+  if (expected !== undefined && confirmation !== expected) {
+    throw new Error(`Confirmation required for ${target}: ${expected}`);
   }
 }
 
@@ -170,7 +184,7 @@ export function assertLevelSeedTargetEnvironment(
   target: string,
   environment: LevelSeedTargetEnvironment,
 ): LevelSeedTargetBinding {
-  assertNonProduction(target);
+  assertSupportedTarget(target);
   if (environment.nodeEnvironment?.trim().toLowerCase() === "production") unsafeTarget();
   if (environment.existingAppPresent === true && environment.existingAppProjectId === undefined) {
     unsafeTarget();
@@ -183,9 +197,16 @@ export function assertLevelSeedTargetEnvironment(
   ].filter((projectId): projectId is string => projectId !== undefined);
 
   const [projectId] = projectIds;
-  if (projectId === undefined || projectIds.some(isKnownProductionProject)) unsafeTarget();
+  if (projectId === undefined) unsafeTarget();
   const distinctProjectIds = new Set(projectIds);
   if (distinctProjectIds.size !== 1) unsafeTarget();
+  if (target === "production") {
+    if (projectId !== productionProjectId || environment.firestoreEmulatorHost !== undefined) {
+      unsafeTarget();
+    }
+    return { target, projectId };
+  }
+  if (isKnownProductionProject(projectId)) unsafeTarget();
 
   if (
     target === "emulator" &&
@@ -205,10 +226,8 @@ export function assertLevelSeedTargetEnvironment(
 }
 
 export async function seedLevelCatalog(input: SeedLevelCatalogInput): Promise<LevelSeedResult> {
-  assertNonProduction(input.target);
-  if (input.target === "staging" && input.confirmation !== "T083-LEVELS-SEED") {
-    throw new Error("Confirmation required for staging: T083-LEVELS-SEED");
-  }
+  assertSupportedTarget(input.target);
+  assertConfirmation(input.target, input.confirmation, false);
   assertLevelSeedTargetEnvironment(input.target, input.environment);
   if (input.systemId !== undefined && !isLevelCatalogVersion(input.systemId)) {
     throw new Error("Unsupported level system seed target.");
@@ -224,10 +243,8 @@ export async function seedLevelCatalog(input: SeedLevelCatalogInput): Promise<Le
 export async function rollbackLevelCatalog(
   input: RollbackLevelCatalogInput,
 ): Promise<LevelRollbackResult> {
-  assertNonProduction(input.target);
-  if (input.target === "staging" && input.confirmation !== "T083-LEVELS-ROLLBACK") {
-    throw new Error("Confirmation required for staging: T083-LEVELS-ROLLBACK");
-  }
+  assertSupportedTarget(input.target);
+  assertConfirmation(input.target, input.confirmation, true);
   assertLevelSeedTargetEnvironment(input.target, input.environment);
   if (!isLevelCatalogVersion(input.systemId)) {
     throw new Error("Unsupported level system rollback target.");

@@ -26,17 +26,80 @@ const emulatorEnvironment = (): LevelSeedTargetEnvironment => ({
 });
 
 describe("Level Seed Guard and Execution", () => {
-  it("refuses production target", async () => {
-    const store = createInMemoryLevelStore();
+  const productionEnvironment = (): LevelSeedTargetEnvironment => ({
+    gcloudProjectId: "bptjersey-f5a25",
+    firebaseConfig: JSON.stringify({ projectId: "bptjersey-f5a25" }),
+  });
 
+  it("refuses production without its own confirmation, before touching the store", async () => {
+    const seed = vi.fn();
+    const rollback = vi.fn();
+    const store = { seed, rollback } as unknown as LevelCatalogStore;
+
+    for (const confirmation of [
+      undefined,
+      "T083-LEVELS-SEED",
+      "T051V2-LEVELS-PRODUCTION-ROLLBACK",
+    ]) {
+      await expect(
+        seedLevelCatalog({
+          target: "production",
+          academyId: "demo-academy",
+          ...(confirmation === undefined ? {} : { confirmation }),
+          environment: productionEnvironment(),
+          store,
+        }),
+      ).rejects.toThrow(/Confirmation required for production: T051V2-LEVELS-PRODUCTION-SEED/);
+    }
     await expect(
-      seedLevelCatalog({
-        target: "production" as unknown as "emulator",
+      rollbackLevelCatalog({
+        target: "production",
         academyId: "demo-academy",
-        environment: emulatorEnvironment(),
+        systemId: "ibjjf-v2",
+        confirmation: "T051V2-LEVELS-PRODUCTION-SEED",
+        environment: productionEnvironment(),
         store,
       }),
-    ).rejects.toThrow(/Production seed is strictly prohibited/);
+    ).rejects.toThrow(/Confirmation required for production: T051V2-LEVELS-PRODUCTION-ROLLBACK/);
+    expect(seed).not.toHaveBeenCalled();
+    expect(rollback).not.toHaveBeenCalled();
+  });
+
+  it("binds production to the one production project with no emulator host", () => {
+    expect(assertLevelSeedTargetEnvironment("production", productionEnvironment())).toEqual({
+      target: "production",
+      projectId: "bptjersey-f5a25",
+    });
+    const unsafe: readonly LevelSeedTargetEnvironment[] = [
+      { ...productionEnvironment(), firestoreEmulatorHost: "127.0.0.1:8080" },
+      { ...productionEnvironment(), gcloudProjectId: "demo-bpt-jersey" },
+      {
+        gcloudProjectId: "another-project",
+        firebaseConfig: JSON.stringify({ projectId: "another-project" }),
+      },
+      { ...productionEnvironment(), existingAppProjectId: "another-project" },
+      { ...productionEnvironment(), nodeEnvironment: "production" },
+      {},
+    ];
+    for (const environment of unsafe) {
+      expect(() => assertLevelSeedTargetEnvironment("production", environment)).toThrow(
+        /Level seed target is not safe/,
+      );
+    }
+  });
+
+  it("seeds production with the confirmation in the production project", async () => {
+    const store = createInMemoryLevelStore();
+    await expect(
+      seedLevelCatalog({
+        target: "production",
+        academyId: "demo-academy",
+        confirmation: "T051V2-LEVELS-PRODUCTION-SEED",
+        environment: productionEnvironment(),
+        store,
+        systemId: "ibjjf-v2",
+      }),
+    ).resolves.toBeDefined();
   });
 
   it("keeps staging closed while no exact project is allowlisted", async () => {
@@ -197,6 +260,15 @@ describe("Level Seed Guard and Execution", () => {
     expect(cliGuard("emulator", emulatorEnvironment())).toEqual(
       assertLevelSeedTargetEnvironment("emulator", emulatorEnvironment()),
     );
+    expect(cliGuard("production", productionEnvironment())).toEqual(
+      assertLevelSeedTargetEnvironment("production", productionEnvironment()),
+    );
+    expect(() =>
+      cliGuard("production", {
+        ...productionEnvironment(),
+        firestoreEmulatorHost: "127.0.0.1:8080",
+      }),
+    ).toThrow(/Level seed target is not safe/);
 
     const unsafeEnvironments: readonly LevelSeedTargetEnvironment[] = [
       { ...emulatorEnvironment(), gcloudProjectId: "bptjersey-f5a25" },
