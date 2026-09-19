@@ -204,6 +204,7 @@ describe("domain contracts", () => {
       "report.export.prepared",
       "family.achievements.generated",
       "lesson.plan.approved",
+      "membership.subscription.updated",
       "membership.created",
       "membership.status.changed",
       "invoice.created",

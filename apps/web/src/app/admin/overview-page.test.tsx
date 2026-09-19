@@ -59,8 +59,10 @@ describe("admin overview", () => {
     render(<OverviewPage />);
 
     expect(screen.getByRole("heading", { name: "Today's academy view" })).toBeVisible();
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unable to load today's connected dashboard",
+    // The notification panel may raise its own alert here; this one is the dashboard's.
+    expect(await screen.findByText(/Unable to load today's connected dashboard/u)).toHaveAttribute(
+      "role",
+      "alert",
     );
     expect(screen.queryByText("126")).not.toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Today's classes" })).not.toBeInTheDocument();
