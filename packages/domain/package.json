@@ -274,6 +274,11 @@
       "types": "./src/memberships/subscription-admin-contracts.ts",
       "import": "./src/memberships/subscription-admin-contracts.ts",
       "default": "./lib/memberships/subscription-admin-contracts.js"
+    },
+    "./schedule/member-class-records": {
+      "types": "./src/schedule/member-class-record-contracts.ts",
+      "import": "./src/schedule/member-class-record-contracts.ts",
+      "default": "./lib/schedule/member-class-record-contracts.js"
     }
   },
   "scripts": {
