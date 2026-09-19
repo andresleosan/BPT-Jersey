@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
+  MEMBER_MIGRATION_ID,
+  memberMigrationDecisionRecordSchema,
+} from "@bpt-jersey/domain/members/migration";
+import {
   parseAdminCreateStudentInput,
   adminCreateStudentInputSchema,
   normalizeAdministrativeIdentifier,
@@ -80,11 +84,34 @@ export type CreateAdminAdultCommand = Readonly<{
 }>;
 
 export type OfficeImportedMemberCommand = CreateAdminAdultCommand & Readonly<{ recordId: string }>;
+export type LegacyMemberRegistrationCommand = CreateAdminAdultCommand &
+  Readonly<{
+    legacyMemberId: string;
+    recordId?: string;
+    trainingCenter: "Town" | "West";
+    trainingTimePreferences: readonly ("morning" | "afternoon" | "evening")[];
+  }>;
+export type LegacyMemberSkipCommand = Readonly<{
+  actor: CanonicalMemberDirectoryActor;
+  legacyMemberId: string;
+  reason: string;
+  now: string;
+}>;
+export const legacyMigrationErrorMessages = Object.freeze({
+  alreadyDecided: "Legacy member already decided",
+  recordLinked: "Imported record is already linked",
+  adultsOnly: "Legacy migration is for adults only",
+} as const);
+
 export type OfficeMemberDirectoryService = CanonicalMemberDirectoryService &
   Readonly<{
     registerImportedMember: (
       command: OfficeImportedMemberCommand,
     ) => Promise<CreateAdminAdultResult>;
+    registerLegacyMember: (
+      command: LegacyMemberRegistrationCommand,
+    ) => Promise<CreateAdminAdultResult>;
+    skipLegacyMember: (command: LegacyMemberSkipCommand) => Promise<void>;
   }>;
 
 export type CreateAdminAdultResult = Readonly<{ memberId: string; studentId: string }>;
@@ -370,6 +397,7 @@ function buildAdminProfile(
   studentId: string,
   actorId: string,
   now: string,
+  legacy?: Readonly<{ legacyMemberId: string }>,
 ): StudentAdminProfile {
   const parsed = studentAdminProfileSchema.safeParse({
     studentId,
@@ -383,7 +411,13 @@ function buildAdminProfile(
       ? {}
       : { emergencyContact: { ...input.emergencyContact } }),
     ...(input.postalAddress === undefined ? {} : { postalAddress: { ...input.postalAddress } }),
-    source: "admin",
+    ...(legacy === undefined
+      ? { source: "admin" }
+      : {
+          source: "legacy-member-migration",
+          migrationId: MEMBER_MIGRATION_ID,
+          legacyMemberId: normalizeAdministrativeIdentifier(legacy.legacyMemberId),
+        }),
     schemaVersion: "1",
     createdAt: now,
     createdBy: actorId,
@@ -408,6 +442,10 @@ function buildKeys(
     ["membership-number", profile.membershipNumber],
     ["id-card-number", profile.idCardNumber],
     ["vat-number", profile.vatNumber],
+    [
+      "legacy-member-id",
+      profile.source === "legacy-member-migration" ? profile.legacyMemberId : undefined,
+    ],
   ] as const;
   return Object.freeze(
     values.flatMap(([kind, value]) =>
@@ -766,6 +804,11 @@ export function createCanonicalMemberDirectoryService(
     command: CreateAdminAdultCommand,
     account?: MemberAccountLink,
     sourceRecordId?: string,
+    legacy?: Readonly<{
+      legacyMemberId: string;
+      trainingCenter: string;
+      trainingTimePreferences: readonly string[];
+    }>,
   ): Promise<CreateAdminAdultResult> {
     requireAuthorizedActor(command.actor);
     const now = requiredTimestamp(command.now);
@@ -779,6 +822,12 @@ export function createCanonicalMemberDirectoryService(
       : parseAdminCreateStudentInput(command.value, now.slice(0, 10));
     if (!parsedInput.ok) {
       throw new CanonicalMemberDirectoryError("invalid", "Invalid admin student input");
+    }
+    if (
+      legacy !== undefined &&
+      deriveParticipantType(parsedInput.value.dateOfBirth, now.slice(0, 10)) !== "adult"
+    ) {
+      throw new CanonicalMemberDirectoryError("invalid", legacyMigrationErrorMessages.adultsOnly);
     }
     const academyId = command.actor.academyId;
     const actorId = command.actor.actorId;
@@ -824,6 +873,17 @@ export function createCanonicalMemberDirectoryService(
       const officeLinkRef = sourceRecordId
         ? dependencies.firestore.doc(`academies/${academyId}/regyfitOfficeLinks/${sourceRecordId}`)
         : undefined;
+      const decisionRef = legacy
+        ? dependencies.firestore.doc(
+            `academies/${academyId}/memberMigrationDecisions/${legacy.legacyMemberId}`,
+          )
+        : undefined;
+      if (decisionRef && (await transaction.get(decisionRef)).exists) {
+        throw new CanonicalMemberDirectoryError(
+          "conflict",
+          legacyMigrationErrorMessages.alreadyDecided,
+        );
+      }
       if (officeLinkRef) {
         const [sourceSnapshot, linkSnapshot, recoveredSnapshot] = await Promise.all([
           transaction.get(
@@ -873,6 +933,12 @@ export function createCanonicalMemberDirectoryService(
             typeof link.studentId !== "string"
           )
             throw new CanonicalMemberDirectoryError("conflict", "Invalid imported member link");
+        }
+        if (legacy && (linkSnapshot.exists || recoveredSnapshot.exists)) {
+          throw new CanonicalMemberDirectoryError(
+            "conflict",
+            legacyMigrationErrorMessages.recordLinked,
+          );
         }
         const linked = linkSnapshot.exists ? linkSnapshot.data() : recoveredSnapshot.data();
         if (linked) {
@@ -965,7 +1031,14 @@ export function createCanonicalMemberDirectoryService(
           ? { familyId: `office-${studentId}` }
           : { userId: accountLink.userId, familyId: accountLink.familyId },
       );
-      const profile = buildAdminProfile(parsedInput.value, academyId, studentId, actorId, now);
+      const profile = buildAdminProfile(
+        parsedInput.value,
+        academyId,
+        studentId,
+        actorId,
+        now,
+        legacy,
+      );
       const administrativeKeys = buildKeys(profile, dependencies);
       // The reservation the self-service profile looks for. Without it that path finds nothing
       // and mints a second student for the same person.
@@ -1131,6 +1204,22 @@ export function createCanonicalMemberDirectoryService(
       }
       transaction.create(studentRef, student);
       transaction.create(profileRef, profile);
+      if (decisionRef && legacy) {
+        const decision = memberMigrationDecisionRecordSchema.parse({
+          legacyMemberId: legacy.legacyMemberId,
+          academyId,
+          migrationId: MEMBER_MIGRATION_ID,
+          kind: sourceRecordId ? "link" : "create-unlinked",
+          ...(sourceRecordId ? { recordId: sourceRecordId } : {}),
+          studentId,
+          trainingCenter: legacy.trainingCenter,
+          trainingTimePreferences: [...legacy.trainingTimePreferences],
+          decidedAt: now,
+          decidedBy: actorId,
+          schemaVersion: "1",
+        });
+        transaction.create(decisionRef, decision);
+      }
       keys.forEach((key, index) => {
         const reference = keyReferences[index];
         if (reference === undefined) {
@@ -1159,6 +1248,55 @@ export function createCanonicalMemberDirectoryService(
   }
 
   return Object.freeze({
+    async registerLegacyMember(command: LegacyMemberRegistrationCommand) {
+      if (command.recordId !== undefined && !/^[0-9]{1,12}$/u.test(command.recordId))
+        throw new CanonicalMemberDirectoryError("invalid", "Invalid imported record ID");
+      return createAdult(command, undefined, command.recordId, {
+        legacyMemberId: command.legacyMemberId,
+        trainingCenter: command.trainingCenter,
+        trainingTimePreferences: command.trainingTimePreferences,
+      });
+    },
+    async skipLegacyMember(command: LegacyMemberSkipCommand) {
+      requireAuthorizedActor(command.actor);
+      const now = requiredTimestamp(command.now);
+      const academyId = command.actor.academyId;
+      const decisionRef = dependencies.firestore.doc(
+        `academies/${academyId}/memberMigrationDecisions/${command.legacyMemberId}`,
+      );
+      const auditRef = dependencies.firestore.doc(
+        auditPath(academyId, requiredIdentifier(generateAuditId(), "generated audit ID")),
+      );
+      await dependencies.firestore.runTransaction(async (transaction) => {
+        await assertProvisionedActor(transaction, dependencies, command.actor);
+        if ((await transaction.get(decisionRef)).exists)
+          throw new CanonicalMemberDirectoryError(
+            "conflict",
+            legacyMigrationErrorMessages.alreadyDecided,
+          );
+        transaction.create(
+          decisionRef,
+          memberMigrationDecisionRecordSchema.parse({
+            legacyMemberId: command.legacyMemberId,
+            academyId,
+            migrationId: MEMBER_MIGRATION_ID,
+            kind: "skip",
+            reason: command.reason.trim(),
+            decidedAt: now,
+            decidedBy: command.actor.actorId,
+            schemaVersion: "1",
+          }),
+        );
+        appendAuditEventInTransaction(transaction, auditRef, {
+          academyId,
+          actorId: command.actor.actorId,
+          action: "member.migration.skipped",
+          targetRef: decisionRef.path,
+          purpose: "member-record-maintenance",
+          correlationId: `${MEMBER_MIGRATION_ID}:${command.legacyMemberId}`,
+        } as unknown as AuditEventDraft);
+      });
+    },
     async registerImportedMember(command: OfficeImportedMemberCommand) {
       if (!/^[0-9]{1,12}$/u.test(command.recordId))
         throw new CanonicalMemberDirectoryError("invalid", "Invalid imported record ID");
