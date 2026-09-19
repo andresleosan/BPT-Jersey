@@ -393,4 +393,84 @@ describe("SessionPanel", () => {
     expect(opener).toHaveFocus();
     opener.remove();
   });
+  it("preserves an existing trainer missing from the staff directory when adding another", async () => {
+    mocks.updateSession.mockResolvedValue(sessionFixture);
+    render(
+      <SessionPanel
+        mode="edit"
+        session={{
+          ...sessionFixture,
+          instructorId: "legacy-coach",
+          instructorIds: ["legacy-coach"],
+        }}
+        catalog={catalog}
+        staff={staff}
+        timezone="Europe/Jersey"
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: "legacy-coach" })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "coach-b" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith({
+        sessionId: "s1",
+        instructorIds: ["legacy-coach", "coach-b"],
+      }),
+    );
+  });
+  it("reopens saved academy trainers and allows replacing them by name", async () => {
+    mocks.updateSession.mockResolvedValue(sessionFixture);
+    render(
+      <SessionPanel
+        mode="edit"
+        session={{
+          ...sessionFixture,
+          instructorId: "coach-charlie",
+          instructorIds: ["coach-charlie", "coach-catalina"],
+        }}
+        catalog={catalog}
+        staff={[]}
+        timezone="Europe/Jersey"
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: "Charlie Tromans" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Catalina Bruma" })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Charlie Tromans" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith({
+        sessionId: "s1",
+        instructorId: "coach-catalina",
+        instructorIds: ["coach-catalina"],
+      }),
+    );
+  });
+
+  it("does not offer inactive staff for new assignments", () => {
+    render(
+      <SessionPanel
+        mode="create"
+        catalog={catalog}
+        staff={[{ ...staff[0], active: false, status: "inactive" }]}
+        timezone="Europe/Jersey"
+        canEdit
+        canReadMemberships
+        onSaved={vi.fn()}
+        onCancelled={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("checkbox", { name: "coach-a" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Charlie Tromans" })).toBeEnabled();
+  });
 });

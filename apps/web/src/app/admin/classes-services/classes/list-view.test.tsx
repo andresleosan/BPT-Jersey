@@ -107,4 +107,19 @@ describe("ListView", () => {
     const text = await blob.text();
     expect(text.trim().split("\n")).toHaveLength(13); // header + 12
   });
+  it("shows, searches, filters and exports academy trainers by name", async () => {
+    renderList([
+      { ...sessionAt(0, "Morning"), instructorIds: ["coach-charlie"] },
+      sessionAt(1, "Evening"),
+    ]);
+    expect(screen.getByRole("option", { name: "Charlie Tromans" })).toHaveValue("coach-charlie");
+    fireEvent.change(screen.getByLabelText("Trainers"), { target: { value: "coach-charlie" } });
+    expect(screen.getAllByRole("row")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Search"), { target: { value: "Catalina" } });
+    expect(screen.getAllByRole("row")).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Search"), { target: { value: "Charlie" } });
+    expect(screen.getAllByRole("row")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Excel" }));
+    expect(await createObjectURL.mock.calls[0]![0].text()).toContain("Charlie Tromans");
+  });
 });
