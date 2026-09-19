@@ -9,6 +9,8 @@ export const auditActions = Object.freeze([
   "admin.role.revoked",
   "member.created",
   "member.updated",
+  "member.guardian.assigned",
+  "member.date-of-birth.set",
   "member.recovery.reviewed",
   "member.recovery.detail.read",
   "guardian.profile.created",
@@ -270,6 +272,8 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "admin.role.revoked"
           | "member.created"
           | "member.updated"
+          | "member.guardian.assigned"
+          | "member.date-of-birth.set"
           | "member.migration.skipped"
           | "member.recovery.reviewed"
           | "member.recovery.detail.read"
@@ -444,6 +448,8 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "admin.role.revoked": commonFields,
   "member.created": commonFields,
   "member.updated": commonFields,
+  "member.guardian.assigned": commonFields,
+  "member.date-of-birth.set": commonFields,
   "member.migration.skipped": commonFields,
   "member.recovery.reviewed": commonFields,
   "member.recovery.detail.read": commonFields,
@@ -771,7 +777,12 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         issues.push(issue([], "AUDIT_MEMBER_MIGRATION_SCOPE_INVALID"));
       }
     }
-    if (parsedAction === "member.created" || parsedAction === "member.updated") {
+    if (
+      parsedAction === "member.created" ||
+      parsedAction === "member.updated" ||
+      parsedAction === "member.guardian.assigned" ||
+      parsedAction === "member.date-of-birth.set"
+    ) {
       const expectedStudentPrefix = `academies/${snapshot.academyId as string}/students/`;
       const studentId =
         typeof snapshot.targetRef === "string" &&

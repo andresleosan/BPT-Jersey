@@ -112,6 +112,7 @@ export function createCanonicalClientStudentScopeResolver(
           parsed.value.participantType === "minor" &&
           parsed.value.active &&
           parsed.value.status === "active" &&
+          parsed.value.dateOfBirth !== undefined &&
           ageInYears(parsed.value.dateOfBirth, todayKey) >= teenAccountMinimumAge
         );
       }

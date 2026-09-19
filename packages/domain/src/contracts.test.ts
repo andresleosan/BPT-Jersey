@@ -182,6 +182,8 @@ describe("domain contracts", () => {
       "admin.role.revoked",
       "member.created",
       "member.updated",
+      "member.guardian.assigned",
+      "member.date-of-birth.set",
       "member.recovery.reviewed",
       "member.recovery.detail.read",
       "guardian.profile.created",

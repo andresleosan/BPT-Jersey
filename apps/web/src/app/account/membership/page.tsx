@@ -52,13 +52,18 @@ function MembershipContent() {
               family === undefined
                 ? []
                 : family.students
-                    .filter((student) => student.active && student.status === "active")
+                    .filter(
+                      (student) =>
+                        student.active &&
+                        student.status === "active" &&
+                        student.dateOfBirth !== undefined,
+                    )
                     .map((student) => ({
                       studentId: student.studentId,
                       familyId: family.family.familyId,
                       displayName: student.fullName,
                       trainingCenter: student.trainingCenter,
-                      participantType: participantBand(student.dateOfBirth),
+                      participantType: participantBand(student.dateOfBirth!),
                     })),
             )
           : getClientProfile().then((profile) =>

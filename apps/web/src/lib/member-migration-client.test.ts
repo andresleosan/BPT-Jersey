@@ -6,6 +6,8 @@ vi.mock("firebase/functions", () => ({ httpsCallable: mocks.httpsCallable }));
 vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
 import {
+  assignMemberGuardian,
+  setMemberDateOfBirth,
   decideMemberMigration,
   listMemberMigrationQueue,
   memberMigrationErrorMessage,
@@ -61,4 +63,15 @@ it("explains how to resolve invalid member identifiers", async () => {
   mocks.callable.mockResolvedValueOnce({ data: result });
   await expect(decideMemberMigration([{ kind: "skip", legacyMemberId: "m1", reason: "Duplicate" }])).resolves.toEqual(result);
   expect(memberMigrationErrorMessage("invalid-member-data")).toBe("This member's ID or member number is not in a format the directory accepts. Correct the legacy record or skip.");
+});
+
+
+it("validates review responses and sanitizes SDK and validation failures", async () => {
+  const input = { studentId: "s1", requestId: "71cbb1aa-7020-4bb5-88a4-dbc73c5f0123", guardianContact: { fullName: "Synthetic Guardian", email: "guardian@example.test" } };
+  mocks.callable.mockResolvedValueOnce({ data: { studentId: "s1" } }).mockRejectedValueOnce(new Error("Private SDK contact"));
+  await expect(assignMemberGuardian(input)).resolves.toEqual({ studentId: "s1" });
+  expect(mocks.httpsCallable).toHaveBeenCalledWith({}, "assignMemberGuardian");
+  await expect(assignMemberGuardian(input)).rejects.toThrow("Could not assign the guardian. Please try again.");
+  mocks.callable.mockResolvedValue({ data: { unexpected: true } });
+  await expect(setMemberDateOfBirth({ studentId: "s1", requestId: input.requestId, dateOfBirth: "2014-01-01" })).rejects.toThrow("Could not set the date of birth. Please try again.");
 });

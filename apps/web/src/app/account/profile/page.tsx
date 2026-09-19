@@ -30,14 +30,14 @@ type ProfileErrors = Partial<Record<keyof ProfileFormInput, string>>;
 
 function formFromStudent(student: {
   fullName: string;
-  dateOfBirth: string;
+  dateOfBirth?: string;
   phoneNumber?: string;
   trainingCenter: ProfileFormInput["trainingCenter"];
   trainingTimePreferences: readonly ProfileFormInput["trainingTimePreferences"][number][];
 }): ProfileFormInput {
   return {
     fullName: student.fullName,
-    dateOfBirth: student.dateOfBirth,
+    dateOfBirth: student.dateOfBirth ?? "",
     phoneNumber: student.phoneNumber ?? "",
     trainingCenter: student.trainingCenter,
     trainingTimePreferences: [...student.trainingTimePreferences],

@@ -77,7 +77,7 @@ export function createFirebaseCalendarRepository(session: {
         const family = await getFamily();
         for (const student of family?.students ?? []) {
           names.set(student.studentId, student.fullName);
-          births.set(student.studentId, student.dateOfBirth);
+          if (student.dateOfBirth !== undefined) births.set(student.studentId, student.dateOfBirth);
         }
       }
       const participants: CalendarParticipant[] = [];

@@ -334,3 +334,26 @@ describe("member profile service (T051V2)", () => {
     expect(profile.header.birthdayBadge).toBeNull();
   });
 });
+
+it("projects age review to the office while keeping coach headers restricted", async () => {
+  const base = { ...adult() };
+  delete base.dateOfBirth;
+  delete base.familyId;
+  delete base.userId;
+  const student: StudentProfile = {
+    ...base,
+    participantType: "minor",
+    reviewReason: "date-of-birth-missing",
+  };
+  const service = createMemberProfileService({ store: store() });
+  const profile = await service.fullProfile({ academyId: "academy-1", record: { student }, now });
+  expect(profile.header).toMatchObject({
+    age: null,
+    birthdayBadge: null,
+    reviewReason: "date-of-birth-missing",
+  });
+  expect(profile.details).not.toHaveProperty("dateOfBirth");
+  expect(profile.details.reviewReason).toBe("date-of-birth-missing");
+  const coach = service.coachProfile({ student, now });
+  expect(coach.header).not.toHaveProperty("reviewReason");
+});

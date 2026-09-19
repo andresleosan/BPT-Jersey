@@ -666,7 +666,7 @@ function guardianProjection(
         Object.freeze({
           studentId: student.studentId,
           fullName: student.fullName,
-          dateOfBirth: student.dateOfBirth,
+          ...(student.dateOfBirth === undefined ? {} : { dateOfBirth: student.dateOfBirth }),
           trainingCenter: student.trainingCenter,
           trainingTimePreferences: Object.freeze([...student.trainingTimePreferences]),
           active: student.active,

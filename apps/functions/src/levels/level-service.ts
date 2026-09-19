@@ -1831,7 +1831,7 @@ export function createLevelCatalogStore({
           currentLevelStartedAt: (headData.currentLevelStartedAt as string | null) ?? null,
           importedBaseline: storedImportedBaseline(headData.importedBaseline),
         }),
-        dateOfBirth: student.dateOfBirth,
+        dateOfBirth: student.dateOfBirth ?? null,
       });
     },
 
@@ -2318,7 +2318,7 @@ export function createLevelCatalogStore({
           importedBaseline: storedImportedBaseline(headData.importedBaseline),
           attendedAt,
           evaluations,
-          dateOfBirth: student.dateOfBirth,
+          dateOfBirth: student.dateOfBirth ?? null,
         });
         const record: GraduationRecord = Object.freeze({
           graduationId: promotionId,

@@ -56,7 +56,6 @@ function rejectionFor(error: unknown): MemberMigrationRejectionCode {
     return "invalid-member-data";
   if (error.message === legacyMigrationErrorMessages.alreadyDecided) return "already-decided";
   if (error.message === legacyMigrationErrorMessages.recordLinked) return "record-already-linked";
-  if (error.message === legacyMigrationErrorMessages.adultsOnly) return "minor-deferred";
   if (error.message === "Administrative identifier is already reserved")
     return "identifier-reserved";
   if (error.message === "Imported identity changed. Refresh before registering.")
@@ -127,12 +126,16 @@ export function createMemberMigrationService(
             });
             results.push({ legacyMemberId: member.memberId, status: "applied" });
           } else {
-            if (row.isMinor !== false) {
-              reject("minor-deferred");
-              continue;
-            }
             const created = await deps.writer.registerLegacyMember(
-              registrationFor(actor, member, decision, row.candidates, records, deps.now()),
+              registrationFor(
+                actor,
+                member,
+                decision,
+                row.candidates,
+                records,
+                deps.now(),
+                row.category === "strong",
+              ),
             );
             results.push({
               legacyMemberId: member.memberId,
@@ -161,7 +164,11 @@ function registrationFor(
   candidates: readonly Readonly<{ recordId: string }>[],
   records: ReadonlyMap<string, RegyfitMemberRecord>,
   now: string,
+  strongMatch: boolean,
 ) {
+  const recoveredDate = strongMatch
+    ? records.get(candidates[0]?.recordId ?? "")?.birthDate
+    : undefined;
   const training = {
     trainingCenter: decision.trainingCenter,
     trainingTimePreferences: [...decision.trainingTimePreferences],
@@ -174,7 +181,7 @@ function registrationFor(
     ) {
       throw new MemberMigrationInputError("not-a-candidate");
     }
-    const dateOfBirth = record.birthDate ?? member.birthDate;
+    const dateOfBirth = member.birthDate ?? recoveredDate;
     return {
       actor,
       now,
@@ -205,7 +212,7 @@ function registrationFor(
     value: {
       requestId: decision.requestId,
       fullName: member.fullName,
-      dateOfBirth: member.birthDate,
+      dateOfBirth: member.birthDate ?? recoveredDate,
       ...training,
       ...(member.membershipNumber ? { membershipNumber: member.membershipNumber } : {}),
       ...(member.idCardNumber ? { idCardNumber: member.idCardNumber } : {}),

@@ -1,6 +1,9 @@
 import { httpsCallable } from "firebase/functions";
 import type { z } from "zod";
 import {
+  assignMemberGuardianInputSchema,
+  setMemberDateOfBirthInputSchema,
+  memberReviewResultSchema,
   decideMemberMigrationInputSchema,
   decideMemberMigrationResultSchema,
   memberMigrationQueueResponseSchema,
@@ -29,7 +32,6 @@ const messages: Readonly<Record<MemberMigrationRejectionCode, string>> = {
   "unknown-member": "This member is no longer in the legacy list. Refresh the queue.",
   "already-decided": "Someone already decided this member. Refresh the queue.",
   "not-a-candidate": "That record is not a match for this member any more. Refresh the queue.",
-  "minor-deferred": "Members under 18 or without a date of birth wait for the guardian step.",
   "record-already-linked": "That record already belongs to another member.",
   "identifier-reserved": "Another member already holds this membership or ID number.",
   "invalid-member-data": "This member's ID or member number is not in a format the directory accepts. Correct the legacy record or skip.",
@@ -37,3 +39,13 @@ const messages: Readonly<Record<MemberMigrationRejectionCode, string>> = {
   "write-failed": "Could not save this decision. Try again.",
 };
 export const memberMigrationErrorMessage = (code: MemberMigrationRejectionCode) => messages[code];
+
+
+export async function assignMemberGuardian(input: z.input<typeof assignMemberGuardianInputSchema>) {
+  try { return await call("assignMemberGuardian", assignMemberGuardianInputSchema.parse(input), memberReviewResultSchema); }
+  catch { throw new Error("Could not assign the guardian. Please try again."); }
+}
+export async function setMemberDateOfBirth(input: z.input<typeof setMemberDateOfBirthInputSchema>) {
+  try { return await call("setMemberDateOfBirth", setMemberDateOfBirthInputSchema.parse(input), memberReviewResultSchema); }
+  catch { throw new Error("Could not set the date of birth. Please try again."); }
+}
