@@ -13,6 +13,12 @@ export declare function revertPlan(docs: {
     kind?: string;
     studentId?: string;
   }[];
+  profiles: readonly {
+    id: string;
+    source?: string;
+    migrationId?: string;
+    legacyMemberId?: string;
+  }[];
   identityKeys: readonly { id: string; ownerStudentId?: string }[];
   officeLinks: readonly { id: string; studentId?: string }[];
 }): string[];

@@ -322,6 +322,7 @@ suite("member migration Firestore transaction integration", () => {
     await expectSourcesUnchanged();
 
     const paths = revertPlan({
+      profiles: await documents("studentAdminProfiles"),
       decisions: await documents("memberMigrationDecisions"),
       identityKeys: await documents("studentIdentityKeys"),
       officeLinks: await documents("regyfitOfficeLinks"),
