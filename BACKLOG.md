@@ -4,6 +4,7 @@
 `docs/archive/tasksv2.md`, archivados sin cambios junto con sus tableros.
 
 **Reglas**
+
 - Cada trabajo tiene una fila aquí antes de empezar.
 - Una fila se cierra solo con evidencia real (test, commit, deploy medido). Al cerrarla se borra de
   aquí y su evidencia va en el mensaje del commit y en una línea de "Cerradas".
@@ -13,64 +14,64 @@
 
 ## Críticos (en este orden)
 
-| ID | Tarea | Depende de | Estado | Criterio de salida |
-| -- | ----- | ---------- | ------ | ------------------ |
-| C1 | Unificación de miembros: `members` (243) → `students`; enlazar los 249 `regyfitMemberRecords` (hoy 1 enlazado); reapuntar 2.607 `auditEvents` de `class.memberId` a `studentId`; pagos, clases y notas históricas a colecciones canónicas con `source: "legacy-import"`; ficha canónica (Plan, Payments, Classes, Notes) con datos vivos; retirar el visor del archivo. Absorbe T108 y T049V2. S1 (identidad de todos los miembros, incluidos menores y sin fecha; revisión admin de tutor/edad) en `docs/superpowers/specs/2026-09-19-member-unification-s1-identity-design.md`; S1b absorbido por la enmienda de S1; S2 histórico; S3 ficha viva; S4 retirar visor. | — | en-progreso | Spec y plan propios (entrega 2b); dry-run en emuladores; conteo en producción: `students` = miembros reales, 0 `auditEvents` de clase sin `studentId` enlazable; las lecturas financieras excluyen `legacy-import`. |
-| C3 | Desplegar `selfCheckIn` (T040V2) y cargar los pines de los centros. | C2 satisfecha (ver Cerradas) | pendiente | Deploy confirmado por el operador; `selfCheckIn` responde 401 sin sesión; pines cargados y el check-in de prueba pasa la puerta de 50 m. |
-| C4 | T024V2: programar el barrido de quorum, que hoy no se ejecuta nunca. | — | pendiente | Función programada desplegada; una ejecución registrada en los logs de producción. |
-| C5 | T021V2: datos que solo tiene el operador. | operador | bloqueada | Datos entregados y aplicados en las filas que los esperan. |
-| C6 | T127: renovación digital del waiver y gate de producción de `consent-callables`. | credenciales R2 | bloqueada | Credenciales R2 creadas por el operador; decisión de producto tomada; flujo probado en emuladores. |
+| ID  | Tarea                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Depende de                   | Estado      | Criterio de salida                                                                                                                                                                                                                                                                                           |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| C1  | Unificación de miembros: `members` (243) → `students`; enlazar los 249 `regyfitMemberRecords` (hoy 1 enlazado); reapuntar 2.607 `auditEvents` de `class.memberId` a `studentId`; pagos, clases y notas históricas a colecciones canónicas con `source: "legacy-import"`; ficha canónica (Plan, Payments, Classes, Notes) con datos vivos; retirar el visor del archivo. Absorbe T108 y T049V2. S1 (identidad de todos los miembros, incluidos menores y sin fecha; revisión admin de tutor/edad) en `docs/superpowers/specs/2026-09-19-member-unification-s1-identity-design.md`; S1b absorbido por la enmienda de S1; S2 histórico; S3 ficha viva; S4 retirar visor. | —                            | en-progreso | Spec y plan propios (entrega 2b); dry-run en emuladores; conteo en producción: `students` = miembros reales, 0 `auditEvents` de clase sin `studentId` enlazable; las lecturas financieras excluyen `legacy-import`.                                                                                          |
+| C3  | Desplegar `selfCheckIn` (T040V2) y cargar los pines de los centros.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | C2 satisfecha (ver Cerradas) | pendiente   | Deploy confirmado por el operador; `selfCheckIn` responde 401 sin sesión; pines cargados y el check-in de prueba pasa la puerta de 50 m.                                                                                                                                                                     |
+| C4  | T024V2: programar el barrido de quorum, que hoy no se ejecuta nunca.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | —                            | en-progreso | Implementado `sweepSessionQuorumsSchedule`, con pruebas locales y [runbook](docs/operations/quorum-sweep-runbook.md). Pendiente del operador: desplegar el índice y solo esta función con confirmación explícita, y registrar una ejecución en logs de producción. `selfCheckIn` queda fuera del despliegue. |
+| C5  | T021V2: datos que solo tiene el operador.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | operador                     | bloqueada   | Datos entregados y aplicados en las filas que los esperan.                                                                                                                                                                                                                                                   |
+| C6  | T127: renovación digital del waiver y gate de producción de `consent-callables`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | credenciales R2              | bloqueada   | Credenciales R2 creadas por el operador; decisión de producto tomada; flujo probado en emuladores.                                                                                                                                                                                                           |
 
 ## Normales
 
-| ID | Tarea | Estado |
-| -- | ----- | ------ |
-| T002V2 | Formulario de inscripción como asistente por pasos de 1 a 3 campos con barra de progreso | pendiente |
-| T003V2 | Impedir el zoom automático de iOS al enfocar un campo | pendiente |
-| T004V2 | Unificar "Ask for a place" y "Book a free class" en el mismo formulario | pendiente |
-| T006V2 | Reservar la primera clase antes de la aprobación y notificar al administrador | pendiente |
-| T007V2 | Cancelación gratuita hasta 12 h antes; después, propuesta de fee de inasistencia | pendiente |
-| T008V2 | El representante marca la asistencia de sus hijos al llevarlos | pendiente |
-| T009V2 | Cuenta propia del menor, con alcance recortado | pendiente |
-| T010V2 | Actualizar la sección de instructores | pendiente |
-| T011V2 | Publicar las dos direcciones de los centros | pendiente |
-| T013V2 | Sesiones del día como primer bloque del panel de administración | pendiente |
-| T014V2 | Priorizar el botón de asistencia 15 minutos antes de cada sesión | pendiente |
-| T015V2 | Contador de 20 minutos: quien no marca asistencia pierde la clase | pendiente |
-| T016V2 | Calendario semanal por días y franjas en el panel de administración | pendiente |
-| T017V2 | Siguiente clase con los confirmados y aviso de condiciones médicas | pendiente |
+| ID     | Tarea                                                                                               | Estado    |
+| ------ | --------------------------------------------------------------------------------------------------- | --------- |
+| T002V2 | Formulario de inscripción como asistente por pasos de 1 a 3 campos con barra de progreso            | pendiente |
+| T003V2 | Impedir el zoom automático de iOS al enfocar un campo                                               | pendiente |
+| T004V2 | Unificar "Ask for a place" y "Book a free class" en el mismo formulario                             | pendiente |
+| T006V2 | Reservar la primera clase antes de la aprobación y notificar al administrador                       | pendiente |
+| T007V2 | Cancelación gratuita hasta 12 h antes; después, propuesta de fee de inasistencia                    | pendiente |
+| T008V2 | El representante marca la asistencia de sus hijos al llevarlos                                      | pendiente |
+| T009V2 | Cuenta propia del menor, con alcance recortado                                                      | pendiente |
+| T010V2 | Actualizar la sección de instructores                                                               | pendiente |
+| T011V2 | Publicar las dos direcciones de los centros                                                         | pendiente |
+| T013V2 | Sesiones del día como primer bloque del panel de administración                                     | pendiente |
+| T014V2 | Priorizar el botón de asistencia 15 minutos antes de cada sesión                                    | pendiente |
+| T015V2 | Contador de 20 minutos: quien no marca asistencia pierde la clase                                   | pendiente |
+| T016V2 | Calendario semanal por días y franjas en el panel de administración                                 | pendiente |
+| T017V2 | Siguiente clase con los confirmados y aviso de condiciones médicas                                  | pendiente |
 | T018V2 | Bloquear la reserva a quien no se le cobró la mensualidad (depende de C1: hoy no hay `memberships`) | pendiente |
-| T019V2 | Etiquetar cada pago con su centro y elegir centro de retirada del merchandising | pendiente |
-| T023V2 | Un único conversor canónico de centro, sin migrar datos | pendiente |
-| T042V2 | Racha y progreso en lo alto de `/account` | pendiente |
-| T043V2 | Competidores en `/account/competitors` | pendiente |
-| T044V2 | Ajustes de cuenta en `/account/settings` | pendiente |
-| T047V2 | Classes / Services Plan 2: Memberships and Vouchers, Drop-ins, Bulk Operations | pendiente |
-| T048V2 | Classes / Services Plan 3: Listings & Reports, Options | pendiente |
+| T019V2 | Etiquetar cada pago con su centro y elegir centro de retirada del merchandising                     | pendiente |
+| T023V2 | Un único conversor canónico de centro, sin migrar datos                                             | pendiente |
+| T042V2 | Racha y progreso en lo alto de `/account`                                                           | pendiente |
+| T043V2 | Competidores en `/account/competitors`                                                              | pendiente |
+| T044V2 | Ajustes de cuenta en `/account/settings`                                                            | pendiente |
+| T047V2 | Classes / Services Plan 2: Memberships and Vouchers, Drop-ins, Bulk Operations                      | pendiente |
+| T048V2 | Classes / Services Plan 3: Listings & Reports, Options                                              | pendiente |
 
 ## Consolidación del 2026-09-19
 
-| ID | Veredicto | Evidencia |
-| -- | --------- | --------- |
-| T026V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin-shell.tsx`) |
-| T027V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`overview-page.tsx`) |
-| T028V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin/attendance`) |
-| T029V2 | Cerrada | main `9d83d22`/`6988316`; solo web (`members/requests/page.tsx`) |
-| T030V2 | Cerrada | main `be977e6`; deploy en el lote del 2026-09-15 registrado en la fila T039V2 de docs/archive/tasksv2.md (39 callables, incl. referencias médicas) |
-| T031V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin-routes.ts`, `admin-shell.tsx`) |
-| T032V2 | Cerrada | main `92d68ae`; deploy de `apps/functions/src/schedule` registrado en docs/archive/tasksv2.md (T039V2, 39 callables 2026-09-15, catálogo/clases/reservas) |
-| T033V2 | Cerrada | main `92d68ae`; deploy de `updateSession`/`removeClass` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15) |
-| T034V2 | Cerrada | main `f477ed5`; solo web (`admin/levels`, `DESIGN.md`) |
-| T035V2 | Cerrada | main `be977e6`; deploy de `listRecentPayments`/`getFamilyFinancialAccount`/`listMemberNames` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, billing) |
-| T036V2 | Cerrada | main `be977e6`; deploy de `apps/functions/src/finance` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, billing) |
-| T037V2 | Cerrada | main `6e35434` (ADR-010) y `312b0d4`; solo web (`admin-routes.ts`) |
-| T038V2 | Cerrada | main `312b0d4`; deploy de `listSessionBookedCounts` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, calendario de miembros) |
-| T039V2 | Cerrada | main `c29a783`/`312b0d4`/`05020d6`; solo `qa/tests`, sin funciones propias |
-| T046V2 | Cerrada | merge `6bc9f71`; 42 funciones de Plan 1 desplegadas según la fila T050V2 de docs/archive/tasksv2.md |
-| T050V2 | Cerrada | 6c3eb42, 0d3fd10; deploy de 48 funciones registrado en la fila T050V2 de docs/archive/tasksv2.md |
-| T051V2 | Cerrada | main `95d2778`; funciones de niveles desplegadas y `NEXT_PUBLIC_LEVELS_BACKEND=true` en Pages, 2026-09-19 |
-| T053V2 | Cerrada | main `09ea4ce`/`949d15c`; 101 funciones actualizadas y verificadas en producción, 2026-09-18 |
-| T055V2 | Abierta → C2 | main `a00007b`; solo 4 de 21 callables desplegados y verificados 2026-09-18, resto sigue en 404 |
+| ID     | Veredicto    | Evidencia                                                                                                                                                        |
+| ------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T026V2 | Cerrada      | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin-shell.tsx`)                                                                                                 |
+| T027V2 | Cerrada      | main `6e35434`/`6988316`/`312b0d4`; solo web (`overview-page.tsx`)                                                                                               |
+| T028V2 | Cerrada      | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin/attendance`)                                                                                                |
+| T029V2 | Cerrada      | main `9d83d22`/`6988316`; solo web (`members/requests/page.tsx`)                                                                                                 |
+| T030V2 | Cerrada      | main `be977e6`; deploy en el lote del 2026-09-15 registrado en la fila T039V2 de docs/archive/tasksv2.md (39 callables, incl. referencias médicas)               |
+| T031V2 | Cerrada      | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin-routes.ts`, `admin-shell.tsx`)                                                                              |
+| T032V2 | Cerrada      | main `92d68ae`; deploy de `apps/functions/src/schedule` registrado en docs/archive/tasksv2.md (T039V2, 39 callables 2026-09-15, catálogo/clases/reservas)        |
+| T033V2 | Cerrada      | main `92d68ae`; deploy de `updateSession`/`removeClass` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15)                                               |
+| T034V2 | Cerrada      | main `f477ed5`; solo web (`admin/levels`, `DESIGN.md`)                                                                                                           |
+| T035V2 | Cerrada      | main `be977e6`; deploy de `listRecentPayments`/`getFamilyFinancialAccount`/`listMemberNames` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, billing) |
+| T036V2 | Cerrada      | main `be977e6`; deploy de `apps/functions/src/finance` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, billing)                                       |
+| T037V2 | Cerrada      | main `6e35434` (ADR-010) y `312b0d4`; solo web (`admin-routes.ts`)                                                                                               |
+| T038V2 | Cerrada      | main `312b0d4`; deploy de `listSessionBookedCounts` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, calendario de miembros)                           |
+| T039V2 | Cerrada      | main `c29a783`/`312b0d4`/`05020d6`; solo `qa/tests`, sin funciones propias                                                                                       |
+| T046V2 | Cerrada      | merge `6bc9f71`; 42 funciones de Plan 1 desplegadas según la fila T050V2 de docs/archive/tasksv2.md                                                              |
+| T050V2 | Cerrada      | 6c3eb42, 0d3fd10; deploy de 48 funciones registrado en la fila T050V2 de docs/archive/tasksv2.md                                                                 |
+| T051V2 | Cerrada      | main `95d2778`; funciones de niveles desplegadas y `NEXT_PUBLIC_LEVELS_BACKEND=true` en Pages, 2026-09-19                                                        |
+| T053V2 | Cerrada      | main `09ea4ce`/`949d15c`; 101 funciones actualizadas y verificadas en producción, 2026-09-18                                                                     |
+| T055V2 | Abierta → C2 | main `a00007b`; solo 4 de 21 callables desplegados y verificados 2026-09-18, resto sigue en 404                                                                  |
 
 Descartadas: T017, T036, T061, T068, T069, T070, T071 (canceladas en v1); T049V2 (absorbida por C1);
 T005V2 y T020V2 (verificación de algo ya construido: quedan por comprobar; si la comprobación falla, se reabren como Normales).
@@ -78,4 +79,5 @@ T005V2 y T020V2 (verificación de algo ya construido: quedan por comprobar; si l
 ## Cerradas
 
 <!-- una línea por fila cerrada: fecha · ID · commit/evidencia -->
+
 - 2026-09-19 · C2 / T055V2 · Cerrada: tras el deploy comunicado por el operador, re-medición en `bptjersey-f5a25` (`us-central1`) el 2026-09-19 22:06:17–22:06:23 UTC: `approveLessonPlan`, `confirmMemberPdfImport`, `createMemberPdfImportSession`, `getLessonPlan`, `prepareAggregateReportExport`, `previewMemberPdfImport`, `reviewMemberPdfImportMatches`, `transitionMembership`, `voidManualInvoice` = HTTP 401 cada una (9/9 desplegadas, 0 HTTP 404 en este lote). Un único POST sin sesión por URL, cuerpo `{"data":{}}`, secuencial, pausa de 0,5 s entre peticiones, sin reintentos; evidencia local: `.tmp/c2-measurement/post-deploy-nine-results.jsonl`, mismo método que `.tmp/c2-measurement/probe.py`. `selfCheckIn` sigue sin desplegar a propósito y queda en C3; `deactivateHealthProfile` y `reviewHealthProfileChangeRequest` siguen sin desplegar a propósito, sin uso desde páginas montadas; estas tres exclusiones no se re-midieron en este lote.

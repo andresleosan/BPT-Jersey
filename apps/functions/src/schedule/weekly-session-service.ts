@@ -205,24 +205,41 @@ export function createWeeklySessionStore(firestore: Firestore) {
         return reviseWeeklySession(next, current, current.sessionId, updated);
       });
     },
-    async materialise(academy: string, query: ListSessionsQuery): Promise<void> {
+    async materialise(
+      academy: string,
+      query: ListSessionsQuery,
+      onSeriesError?: (error: unknown) => void,
+    ): Promise<void> {
+      const occurrences = (series: WeeklySeries) => {
+        try {
+          return weeklyOccurrences(series, query);
+        } catch {
+          // Only pure occurrence calculation is bad data; SDK/transaction errors keep their code.
+          throw Object.assign(new Error("Invalid weekly series"), { code: "malformed-series" });
+        }
+      };
       const series = await seriesCollection(academy).get();
       for (const document of series.docs) {
-        const initial = document.data() as WeeklySeries;
-        if (weeklyOccurrences(initial, query).length === 0) continue;
-        await firestore.runTransaction(async (tx) => {
-          // Re-read inside the transaction: a concurrent series edit must invalidate this plan.
-          const snapshot = await tx.get(document.ref);
-          if (!snapshot.exists) return;
-          const current = snapshot.data() as WeeklySeries;
-          const candidates = weeklyOccurrences(current, query);
-          if (candidates.length === 0) return;
-          const refs = candidates.map((row) => sessionsCollection(academy).doc(row.sessionId));
-          const existing = await tx.getAll(...refs);
-          for (const [index, row] of candidates.entries()) {
-            if (!existing[index]!.exists) tx.create(refs[index]!, row);
-          }
-        });
+        try {
+          const initial = document.data() as WeeklySeries;
+          if (occurrences(initial).length === 0) continue;
+          await firestore.runTransaction(async (tx) => {
+            // Re-read inside the transaction: a concurrent series edit must invalidate this plan.
+            const snapshot = await tx.get(document.ref);
+            if (!snapshot.exists) return;
+            const current = snapshot.data() as WeeklySeries;
+            const candidates = occurrences(current);
+            if (candidates.length === 0) return;
+            const refs = candidates.map((row) => sessionsCollection(academy).doc(row.sessionId));
+            const existing = await tx.getAll(...refs);
+            for (const [index, row] of candidates.entries()) {
+              if (!existing[index]!.exists) tx.create(refs[index]!, row);
+            }
+          });
+        } catch (error) {
+          if (!onSeriesError) throw error;
+          onSeriesError(error);
+        }
       }
     },
   };
