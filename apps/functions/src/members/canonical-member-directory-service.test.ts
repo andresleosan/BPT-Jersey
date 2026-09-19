@@ -992,6 +992,133 @@ describe("DETAILS block on the canonical update (T051V2)", () => {
   });
 });
 
+describe("legacy member migration", () => {
+  const migrationNow = "2026-09-19T10:00:00.000Z";
+  const decisionPath = "academies/academy-1/memberMigrationDecisions/legacyAbc1";
+  const legacy = {
+    legacyMemberId: "legacyAbc1",
+    trainingCenter: "Town" as const,
+    trainingTimePreferences: ["evening" as const],
+  };
+
+  it("creates the student with a legacy-member-migration profile, a legacy key and the decision", async () => {
+    const harness = fakeFirestore(controlPlaneSeed());
+    const result = await service(harness.firestore).registerLegacyMember({
+      actor: actor(),
+      value: input(),
+      now: migrationNow,
+      ...legacy,
+    });
+    expect(
+      harness.records.get(`academies/academy-1/studentAdminProfiles/${result.studentId}`),
+    ).toMatchObject({
+      source: "legacy-member-migration",
+      migrationId: "member-unification-s1-2026-09",
+      legacyMemberId: "LEGACYABC1",
+    });
+    expect(harness.records.get(decisionPath)).toEqual({
+      legacyMemberId: "legacyAbc1",
+      academyId: "academy-1",
+      kind: "create-unlinked",
+      studentId: result.studentId,
+      migrationId: "member-unification-s1-2026-09",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+      decidedAt: migrationNow,
+      decidedBy: "owner-1",
+      schemaVersion: "1",
+    });
+    const legacyKeys = [...harness.records.entries()].filter(([path]) =>
+      path.includes("/studentIdentityKeys/legacy-member-id:"),
+    );
+    expect(legacyKeys).toHaveLength(1);
+    expect(legacyKeys[0]?.[1]).toMatchObject({
+      kind: "legacy-member-id",
+      ownerStudentId: result.studentId,
+    });
+    expect(harness.records.get(`academies/academy-1/students/${result.studentId}`)).toMatchObject({
+      participantType: "adult",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+    });
+  });
+
+  it("refuses a second decision for the same legacy member", async () => {
+    const harness = fakeFirestore(controlPlaneSeed());
+    const writer = service(harness.firestore);
+    const command = { actor: actor(), value: input("request-1"), now: migrationNow, ...legacy };
+    await writer.registerLegacyMember(command);
+    const before = new Map(harness.records);
+    await expect(
+      writer.skipLegacyMember({
+        actor: actor(),
+        legacyMemberId: "legacyAbc1",
+        reason: "Duplicate",
+        now: "2026-09-19T10:01:00.000Z",
+      }),
+    ).rejects.toThrow("Legacy member already decided");
+    await expect(writer.registerLegacyMember(command)).rejects.toThrow(
+      "Legacy member already decided",
+    );
+    expect(harness.records).toEqual(before);
+  });
+
+  it.each([undefined, "161"])("refuses a minor with recordId %s", async (recordId) => {
+    const harness = fakeFirestore(controlPlaneSeed());
+    await expect(
+      service(harness.firestore).registerLegacyMember({
+        actor: actor(),
+        value: { ...input(), dateOfBirth: "2012-01-01" },
+        now: migrationNow,
+        ...legacy,
+        ...(recordId === undefined ? {} : { recordId }),
+      }),
+    ).rejects.toMatchObject({
+      code: "invalid",
+      message:
+        recordId === undefined
+          ? "Invalid admin student input"
+          : "Legacy migration is for adults only",
+    });
+    expect(harness.records.get(decisionPath)).toBeUndefined();
+    expect(harness.committedWritePaths).toEqual([]);
+  });
+
+  it("skips with a decision and an audit event, and writes no student", async () => {
+    const harness = fakeFirestore(controlPlaneSeed());
+    await service(harness.firestore).skipLegacyMember({
+      actor: actor(),
+      legacyMemberId: "legacyAbc1",
+      reason: "  Left in 2024  ",
+      now: migrationNow,
+    });
+    expect(harness.records.get(decisionPath)).toEqual({
+      legacyMemberId: "legacyAbc1",
+      academyId: "academy-1",
+      migrationId: "member-unification-s1-2026-09",
+      kind: "skip",
+      reason: "Left in 2024",
+      decidedAt: migrationNow,
+      decidedBy: "owner-1",
+      schemaVersion: "1",
+    });
+    const auditEvents = [...harness.records.entries()].filter(([path]) =>
+      path.includes("/auditEvents/"),
+    );
+    expect(auditEvents).toHaveLength(1);
+    expect(auditEvents[0]?.[1]).toMatchObject({
+      academyId: "academy-1",
+      actorId: "owner-1",
+      action: "member.migration.skipped",
+      targetRef: decisionPath,
+      purpose: "member-record-maintenance",
+      correlationId: "member-unification-s1-2026-09:legacyAbc1",
+    });
+    expect(harness.committedWritePaths).toHaveLength(2);
+    expect([...harness.records.keys()].some((path) => path.includes("/students/"))).toBe(false);
+  });
+});
+
 describe("office registration of imported members", () => {
   it.each(["2000-01-02", "2015-01-02"])(
     "registers birth date %s without inventing online access and replays by source",
