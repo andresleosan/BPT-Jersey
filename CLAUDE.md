@@ -9,10 +9,11 @@ Brazilian jiu-jitsu academy. pnpm monorepo, TypeScript strict, Spanish-language 
 operator in Spanish; code, identifiers and contracts are in English.
 
 Read `PRODUCT.md` (product), `DESIGN.md` (brand and interface rules), `LECCIONES.md` (hard-won
-lessons) and the ADRs in `docs/adr/` before non-trivial work. `tasks.md` / `tasksv2.md` are the task ledger: every piece of work has a task
-entry, and a task is only "done" with real test evidence recorded there. Design specs and
-implementation plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/` (one dated
-file per feature); ADRs in `docs/adr/`.
+lessons) and the ADRs in `docs/adr/` before non-trivial work. `BACKLOG.md` is the task ledger:
+every piece of work has a row there, and a row is only closed with real evidence (test, commit or
+measured deploy). The pre-2026-09-19 ledgers and boards are archived verbatim in `docs/archive/`.
+Design specs and implementation plans live in `docs/superpowers/specs/` and
+`docs/superpowers/plans/` (one dated file per feature); ADRs in `docs/adr/`.
 
 Never deploy to production, run a destructive migration, or add paid-API spend without the operator
 confirming explicitly in chat.

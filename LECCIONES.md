@@ -2,7 +2,7 @@
 
 Registro de cierre de BPT Jersey Academy Platform. Cada lección se escribe **con el caso que la
 produjo**, porque una lección sin su caso es una frase que suena bien y no cambia nada. Todas
-ocurrieron en este proyecto y están trazadas al ledger (`tasks.md`) o al runbook
+ocurrieron en este proyecto y están trazadas al ledger archivado (`docs/archive/tasks.md`) o al runbook
 (`docs/operations/t058-release-rollback-runbook.md`).
 
 El orden es por cuánto costaron.
