@@ -33,8 +33,9 @@ type FamilyAuditFields = Readonly<{
 export type FamilyRecord = Readonly<{
   familyId: string;
   academyId: string;
-  primaryContactUserId: string;
-  billingContactUserId: string;
+  /** Null contacts identify an office-managed billing account without online access. */
+  primaryContactUserId: string | null;
+  billingContactUserId: string | null;
 }> &
   FamilyAuditFields;
 
@@ -291,11 +292,10 @@ export function parseFamilyRecord(
   const issues: ValidationIssue[] = [];
   if (!isPlainRecord(value)) return err([issue([], "invalid_type")]);
   if (!hasExactFields(value, familyFields)) issues.push(issue([], "unexpected_property"));
-  validateIds(
-    value,
-    ["familyId", "academyId", "primaryContactUserId", "billingContactUserId"],
-    issues,
-  );
+  validateIds(value, ["familyId", "academyId"], issues);
+  if (value.primaryContactUserId !== null || value.billingContactUserId !== null) {
+    validateIds(value, ["primaryContactUserId", "billingContactUserId"], issues);
+  }
   validateAuditFields(value, issues, familyStatuses);
   if (value.primaryContactUserId !== value.billingContactUserId) {
     issues.push(issue(["billingContactUserId"], "must_match_primary_contact"));

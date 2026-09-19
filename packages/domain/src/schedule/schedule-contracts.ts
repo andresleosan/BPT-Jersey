@@ -210,6 +210,11 @@ export type SessionRecord = Readonly<{
   instructorIds?: readonly string[];
   bookingRules?: SessionBookingRules;
   waitingList?: WaitingListMode;
+  /** Server-owned identity; stable across edits so bookings keep their session. */
+  weeklySeriesId?: string;
+  weeklyIndex?: number;
+  weeklyOverride?: boolean;
+  repeatWeekly?: boolean;
 }>;
 
 export type CreateClassInput = Readonly<{
@@ -255,9 +260,11 @@ export type CreateSessionInput = Readonly<{
   instructorIds?: readonly string[];
   bookingRules?: SessionBookingRules;
   waitingList?: WaitingListMode;
+  repeatWeekly?: boolean;
 }>;
 
 export type UpdateSessionInput = Readonly<{
+  repeatScope?: "single" | "following";
   sessionId: string;
   title?: string;
   instructorId?: string;
@@ -269,6 +276,7 @@ export type UpdateSessionInput = Readonly<{
   instructorIds?: readonly string[];
   bookingRules?: SessionBookingRules;
   waitingList?: WaitingListMode;
+  repeatWeekly?: boolean;
 }>;
 
 export const classRemovalReasonMinLength = 2;
@@ -719,6 +727,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     instructorIds,
     bookingRules,
     waitingList,
+    repeatWeekly,
   } = input;
 
   if (
@@ -790,6 +799,9 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
     parsedLevelRange = result.value;
   }
 
+  if (repeatWeekly !== undefined && typeof repeatWeekly !== "boolean") {
+    return err("repeatWeekly must be a boolean");
+  }
   const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
   if (!extras.ok) return err(extras.error);
 
@@ -811,6 +823,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
       ...(ageRange !== undefined ? { ageRange: parsedAgeRange } : {}),
       ...(levelRange !== undefined ? { levelRange: parsedLevelRange } : {}),
       ...extras.value,
+      ...(typeof repeatWeekly === "boolean" ? { repeatWeekly } : {}),
     }),
   );
 }
@@ -818,6 +831,7 @@ export function parseCreateSessionInput(input: unknown): Result<CreateSessionInp
 export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInput, string> {
   if (!isRecord(input)) return err("Session update input must be an object");
   const {
+    repeatScope,
     sessionId,
     title,
     instructorId,
@@ -829,7 +843,11 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
     instructorIds,
     bookingRules,
     waitingList,
+    repeatWeekly,
   } = input;
+  if (repeatScope !== undefined && repeatScope !== "single" && repeatScope !== "following") {
+    return err("repeatScope must be single or following");
+  }
   if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
     return err("sessionId is required");
   }
@@ -845,6 +863,7 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
       instructorIds,
       bookingRules,
       waitingList,
+      repeatWeekly,
     ].every((value) => value === undefined)
   ) {
     return err("At least one session field must be updated");
@@ -898,6 +917,9 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   const descriptionResult =
     description === undefined ? undefined : parseClassDescription(description);
   if (descriptionResult && !descriptionResult.ok) return err(descriptionResult.error);
+  if (repeatWeekly !== undefined && typeof repeatWeekly !== "boolean") {
+    return err("repeatWeekly must be a boolean");
+  }
   const extras = parseSessionExtras(instructorIds, bookingRules, waitingList);
   if (!extras.ok) return err(extras.error);
   const result: { -readonly [K in keyof UpdateSessionInput]: UpdateSessionInput[K] } = {
@@ -913,6 +935,8 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (extras.value.instructorIds !== undefined) result.instructorIds = extras.value.instructorIds;
   if (extras.value.bookingRules !== undefined) result.bookingRules = extras.value.bookingRules;
   if (extras.value.waitingList !== undefined) result.waitingList = extras.value.waitingList;
+  if (typeof repeatWeekly === "boolean") result.repeatWeekly = repeatWeekly;
+  if (repeatScope !== undefined) result.repeatScope = repeatScope;
   return ok(Object.freeze(result));
 }
 

@@ -965,9 +965,9 @@ describe("ManageView void", () => {
   /**
    * T051V2 review of Task 16 (Major-4, mutants M21-M23). No keyboard or focus behaviour of this
    * dialog had a test. It is now opened with `showModal()`, which is what gives it the focus trap,
-   * the inert background, the backdrop and native Escape in a browser. jsdom 30 implements neither
-   * `showModal` nor `close`, so THESE tests exercise the fallback path — the trap and the native
-   * Escape still owe a manual check in front of a real browser, which an axe pass cannot give.
+   * the inert background, the backdrop and native Escape in a browser. `qa/setup/vitest.setup.ts`
+   * stubs `showModal`/`close` for jsdom, so this runs the browser path, where Escape reaches the
+   * dialog as a `cancel` event. The trap itself still owes a check in front of a real browser.
    */
   it("moves focus into the dialog, restores it on close and closes on Escape", async () => {
     renderView("headCoach");
@@ -978,7 +978,7 @@ describe("ManageView void", () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
     expect(document.activeElement).toBe(dialog.querySelector("textarea"));
 
-    fireEvent.keyDown(dialog, { key: "Escape" });
+    fireEvent(dialog, new Event("cancel", { cancelable: true }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(api.voidPromotion).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Void" }));

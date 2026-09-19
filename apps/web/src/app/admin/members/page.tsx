@@ -15,6 +15,8 @@ import {
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
 
+import { MemberSubscriptionEditor } from "./member-subscription-editor";
+
 import "../admin.css";
 
 type MembersState =
@@ -70,8 +72,29 @@ function MembersDirectory({
   result: MemberDirectoryPage;
   onNextPage: () => void;
 }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const columns = [
+    ...memberColumns,
+    {
+      key: "subscription",
+      label: "Subscription",
+      render: (member: AdminDirectoryRow) => (
+        <button
+          type="button"
+          className="admin-auth-button"
+          aria-expanded={selected === member.studentId}
+          onClick={() =>
+            setSelected((current) => (current === member.studentId ? null : member.studentId))
+          }
+        >
+          Edit subscription
+        </button>
+      ),
+    },
+  ];
   return (
     <>
+      {selected ? <MemberSubscriptionEditor key={selected} studentId={selected} /> : null}
       {result.rows.length === 0 ? (
         <p aria-live="polite" className="admin-no-results" role="status">
           No members available.
@@ -79,7 +102,7 @@ function MembersDirectory({
       ) : (
         <AdminDataTable
           caption="Member directory"
-          columns={memberColumns}
+          columns={columns}
           rowKey={(member) => member.studentId}
           rows={result.rows}
         />
@@ -173,6 +196,9 @@ export function MembersPage() {
             </Link>
             <Link className="admin-home-link" href="/admin/members/search">
               Search members
+            </Link>
+            <Link className="admin-home-link" href="/admin/members/recovery">
+              Recover member access
             </Link>
             <Link className="admin-home-link" href="/admin/families">
               Families and minors

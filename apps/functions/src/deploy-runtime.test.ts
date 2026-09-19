@@ -218,7 +218,13 @@ describe("deploy runtime import preparation", () => {
     expect(callableSource).toContain('defineSecret("MEMBER_DIRECTORY_IDENTITY_KEY_SECRET")');
     expect(callableSource).toContain('defineSecret("MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET")');
     expect(callableSource).toContain('defineSecret("MEMBER_DIRECTORY_CURSOR_SECRET")');
+    await expect(
+      readFile(join(domainRoot, "members", "member-recovery-contracts.js"), "utf8"),
+    ).resolves.toContain("completeMemberRecoveryResultSchema");
     const deployedFunctions = await import(pathToFileURL(indexPath).href);
+    expect(deployedFunctions["beginMemberRecovery"]).toBeTypeOf("function");
+    expect(deployedFunctions["completeMemberRecovery"]).toBeTypeOf("function");
+    expect(deployedFunctions["reviewMemberRecovery"]).toBeTypeOf("function");
     expect(deployedFunctions["createMember"]).toBeTypeOf("function");
     expect(deployedFunctions["listMembers"]).toBeTypeOf("function");
     expect(deployedFunctions["getMemberDetail"]).toBeTypeOf("function");
@@ -235,6 +241,8 @@ describe("deploy runtime import preparation", () => {
     expect(deployedFunctions["getOperationalReport"]).toBeTypeOf("function");
     expect(deployedFunctions["prepareAggregateReportExport"]).toBeTypeOf("function");
     expect(deployedFunctions["recordCheckout"]).toBeTypeOf("function");
+    expect(deployedFunctions["listClassHistory"]).toBeTypeOf("function");
+    expect(deployedFunctions["exportClassHistoryPdf"]).toBeTypeOf("function");
     expect(getApps()).toHaveLength(1);
   }, 60_000);
 });

@@ -13,6 +13,7 @@ import {
 export const studentAdminProfileSources = Object.freeze([
   "admin",
   "member-pdf-import",
+  "regyfit-account-recovery",
   "legacy-member-migration",
 ] as const);
 
@@ -250,6 +251,11 @@ export const studentAdminProfileSchema = z.discriminatedUnion("source", [
   adminStudentProfileSchema,
   pdfImportStudentProfileSchema,
   legacyMigrationStudentProfileSchema,
+  z.strictObject({
+    ...studentAdminProfileBaseShape,
+    source: z.literal("regyfit-account-recovery"),
+    recoveryId: opaqueIdentifierSchema,
+  }),
 ]);
 
 export type StudentAdminProfile = Readonly<z.infer<typeof studentAdminProfileSchema>>;

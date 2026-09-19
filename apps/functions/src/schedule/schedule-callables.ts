@@ -27,6 +27,7 @@ import {
   weekRangeFor,
 } from "@bpt-jersey/domain/schedule/classes-services";
 
+import { clientIpFromRequest } from "../audit/client-ip.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { BookingTransactionError } from "./booking-transaction-service.js";
 import { SessionQuorumSweepError } from "./quorum-sweep-service.js";
@@ -185,7 +186,11 @@ function mapScheduleMutationError(
   if (/does not exist/u.test(message)) {
     throw new HttpsError("not-found", `${resource} not found`);
   }
-  if (/Only scheduled sessions|must end after|cannot exceed capacity/u.test(message)) {
+  if (
+    /Only scheduled sessions|must end after|cannot exceed capacity|Choose this and following sessions|Too many saved occurrences/u.test(
+      message,
+    )
+  ) {
     throw new HttpsError("failed-precondition", message);
   }
   console.error(`schedule ${resource.toLowerCase()} mutation failed`, error);
@@ -671,7 +676,10 @@ export function createRequestBookingHandler(options: StudentScopeOptions) {
     await requireStudentScope(request, parsed.value.studentId, options);
 
     try {
-      const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId);
+      const booking = await store.requestBooking(actor.academyId, parsed.value, actor.userId, {
+        ip: clientIpFromRequest(request),
+        role: actor.role,
+      });
       return {
         booking,
       };
@@ -695,7 +703,13 @@ export function createCancelBookingHandler(options: StudentScopeOptions) {
 
     await requireStudentScope(request, parsed.value.studentId, options);
 
-    const booking = await store.cancelBooking(actor.academyId, parsed.value, actor.userId, isStaff);
+    const booking = await store.cancelBooking(
+      actor.academyId,
+      parsed.value,
+      actor.userId,
+      isStaff,
+      { ip: clientIpFromRequest(request), role: actor.role },
+    );
 
     return {
       booking,
@@ -794,6 +808,7 @@ export function createCheckInHandler(options: { store: ScheduleStore }) {
         actor.userId,
         undefined,
         actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
       );
     } catch (error) {
       return mapAttendanceError(error);
@@ -830,6 +845,7 @@ export function createSelfCheckInHandler(options: StudentScopeOptions) {
         actor.userId,
         undefined,
         actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
       );
       return { attendance };
     } catch (error) {
@@ -957,6 +973,7 @@ export function createCorrectAttendanceHandler(options: { store: ScheduleStore }
         actor.userId,
         undefined,
         actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
       );
     } catch (error) {
       return mapAttendanceError(error);
@@ -1071,6 +1088,7 @@ export function createRecordCheckoutHandler(options: StudentScopeOptions) {
         actor.userId,
         undefined,
         actor.role as ScheduleMutationActorRole,
+        clientIpFromRequest(request),
       );
     } catch (error) {
       return mapAttendanceError(error);

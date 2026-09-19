@@ -7,6 +7,7 @@ import {
   type DelegablePermission,
 } from "@bpt-jersey/domain/staff/permission-grants";
 
+import { browserOrigins } from "../auth/callable-options.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   PermissionGrantError,
@@ -22,7 +23,7 @@ import {
 const officeRoles = ["owner", "administrator"] as const;
 
 export const permissionGrantCallableOptions = {
-  cors: ["https://bptjersey.pages.dev"],
+  cors: browserOrigins,
   invoker: "public" as const,
   enforceAppCheck: true,
   consumeAppCheckToken: true,

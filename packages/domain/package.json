@@ -10,6 +10,11 @@
       "import": "./src/audit/audit-event.ts",
       "default": "./lib/audit/audit-event.js"
     },
+    "./audit/class-history": {
+      "types": "./src/audit/class-history-contracts.ts",
+      "import": "./src/audit/class-history-contracts.ts",
+      "default": "./lib/audit/class-history-contracts.js"
+    },
     "./migration/regyfit-access": {
       "types": "./src/migration/regyfit-access.ts",
       "import": "./src/migration/regyfit-access.ts",
@@ -254,6 +259,16 @@
       "types": "./src/birthdays/upcoming-birthday-contracts.ts",
       "import": "./src/birthdays/upcoming-birthday-contracts.ts",
       "default": "./lib/birthdays/upcoming-birthday-contracts.js"
+    },
+    "./members/recovery": {
+      "types": "./src/members/member-recovery-contracts.ts",
+      "import": "./src/members/member-recovery-contracts.ts",
+      "default": "./lib/members/member-recovery-contracts.js"
+    },
+    "./memberships/admin": {
+      "types": "./src/memberships/subscription-admin-contracts.ts",
+      "import": "./src/memberships/subscription-admin-contracts.ts",
+      "default": "./lib/memberships/subscription-admin-contracts.js"
     }
   },
   "scripts": {

@@ -2,6 +2,8 @@ import { initializeApp } from "firebase-admin/app";
 
 initializeApp();
 
+export { signInStaffWithId, changeStaffIdPassword } from "./staff/staff-login-callables.js";
+
 export {
   assertAcademyScope,
   getRegyfitProjectionScope,
@@ -40,6 +42,8 @@ export {
 } from "./members/member-directory-callables.js";
 export { listMemberNames } from "./members/member-names-callables.js";
 export { getMemberProfile, searchMemberNames } from "./members/member-profile-callables.js";
+export { exportClassHistoryPdf, listClassHistory } from "./audit/class-history-callables.js";
+export { sweepClassIpRetentionSchedule } from "./audit/class-ip-retention-sweep.js";
 export { getClientProfile, saveClientProfile } from "./profiles/profile-callables.js";
 export { getGuardianProfile, saveGuardianProfile } from "./profiles/guardian-profile-callables.js";
 export { createFamily, getFamily, updateFamily } from "./families/family-callables.js";
@@ -237,3 +241,33 @@ export {
 export * from "./streak/streak-callables.js";
 export * from "./competitors/competitors-callables.js";
 export * from "./account-settings/account-settings-callables.js";
+export {
+  beginMemberRecovery,
+  completeMemberRecovery,
+  listMemberRecoveryRequests,
+  getMemberRecoveryDetail,
+  reviewMemberRecovery,
+} from "./members/member-recovery-callables.js";
+
+export {
+  listMemberSubscriptions,
+  updateMemberSubscription,
+} from "./memberships/subscription-admin-callables.js";
+export {
+  listAdminNotifications,
+  updateAdminNotification,
+} from "./notifications/admin-notification-callables.js";
+export {
+  subscriptionExpiryNoticeWritten,
+  subscriptionExpiryNoticesSchedule,
+  adminOperationalNotificationCreated,
+} from "./notifications/admin-notification-triggers.js";
+
+export {
+  resolveMemberSubscriptionProfile,
+  registerImportedMemberForOffice,
+} from "./members/member-directory-callables.js";
+export {
+  manageMemberSubscription,
+  listMemberSubscriptionBilling,
+} from "./memberships/subscription-admin-callables.js";

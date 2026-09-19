@@ -3563,6 +3563,7 @@ a.admin-birthday-badge:focus-visible,
 }
 
 .admin-member-profile-tab {
+  min-height: 2.75rem;
   background: transparent;
   border: 0;
   border-bottom: 0.2rem solid transparent;

@@ -283,11 +283,11 @@ describe("Classes & Services 2.0 page", () => {
     }));
     render(<ClassesPage />);
     fireEvent.click(await screen.findByRole("button", { name: /GI All Levels Evenings/ }));
-    const dialog = await screen.findByRole("dialog", { name: /Create classes\/services/i });
+    const dialog = await screen.findByRole("dialog", { name: /Edit session/i });
     fireEvent.change(within(dialog).getByLabelText("Maximum capacity"), {
       target: { value: "12" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await waitFor(() =>
       expect(mocks.updateSession).toHaveBeenCalledWith(
         expect.objectContaining({ sessionId: "s1", capacity: 12 }),
@@ -316,7 +316,7 @@ describe("Classes & Services 2.0 page", () => {
     await screen.findByRole("button", { name: /GI All Levels Evenings/ });
     // Creation needs the trainer list, which is read right after the week.
     fireEvent.click(await screen.findByRole("button", { name: "Add a class" }));
-    const dialog = await screen.findByRole("dialog", { name: /Create classes\/services/i });
+    const dialog = await screen.findByRole("dialog", { name: /Create session/i });
     expect(within(dialog).getByLabelText("Date")).toHaveValue("2026-09-14");
     expect(within(dialog).getByLabelText("Start time")).toHaveValue("17:00");
   });
@@ -399,7 +399,7 @@ describe("Classes & Services 2.0 page", () => {
     fireEvent.click(dialog.getByRole("checkbox", { name: "Charlie Tromans" }));
     fireEvent.click(dialog.getByRole("checkbox", { name: "Catalina Bruma" }));
     fireEvent.change(dialog.getByLabelText("Maximum capacity"), { target: { value: "21" } });
-    fireEvent.click(dialog.getByRole("button", { name: "Create" }));
+    fireEvent.click(dialog.getByRole("button", { name: "Create session" }));
     await waitFor(() =>
       expect(mocks.saveSession).toHaveBeenCalledWith(
         expect.objectContaining({

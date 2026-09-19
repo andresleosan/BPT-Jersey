@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 export const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze({
   "@bpt-jersey/domain/audit": "../../domain/audit/audit-event.js",
+  "@bpt-jersey/domain/audit/class-history": "../../domain/audit/class-history-contracts.js",
   "@bpt-jersey/domain/consents": "../../domain/consents/consent-contracts.js",
   "@bpt-jersey/domain/consents/enrolment-waiver": "../../domain/consents/enrolment-waiver-terms.js",
   "@bpt-jersey/domain/crm": "../../domain/crm/crm-contracts.js",
@@ -19,11 +20,14 @@ export const domainImportReplacements: Readonly<Record<string, string>> = Object
     "../../domain/members/member-directory-transitions.js",
   "@bpt-jersey/domain/members/enrolment-requests":
     "../../domain/members/enrolment-request-contracts.js",
+  "@bpt-jersey/domain/members/recovery": "../../domain/members/member-recovery-contracts.js",
   "@bpt-jersey/domain/members/regyfit-records":
     "../../domain/members/regyfit-member-record-contracts.js",
   "@bpt-jersey/domain/members/engagement": "../../domain/members/member-engagement-contracts.js",
   "@bpt-jersey/domain/members/profile": "../../domain/members/member-profile-contracts.js",
   "@bpt-jersey/domain/memberships/lifecycle": "../../domain/memberships/membership-contracts.js",
+  "@bpt-jersey/domain/memberships/admin":
+    "../../domain/memberships/subscription-admin-contracts.js",
   "@bpt-jersey/domain/memberships": "../../domain/memberships/plan-contracts.js",
   "@bpt-jersey/domain/profiles": "../../domain/profiles/profile-contracts.js",
   "@bpt-jersey/domain/auth/admin-contracts": "../../domain/auth/admin-contracts.js",

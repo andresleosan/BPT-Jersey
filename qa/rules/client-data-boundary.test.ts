@@ -87,6 +87,29 @@ const familyRelationshipCollections = Object.freeze(["families", "relationships"
 const planCollections = Object.freeze(["plans"] as const);
 const membershipCollections = Object.freeze(["memberships"] as const);
 const financeCollections = Object.freeze(["invoices", "payments"] as const);
+// T048V2-H: a real class-history row (schedule/schedule-service.ts writes this shape via the
+// Admin SDK), used to prove the log stays unreachable from any client even with realistic payload.
+const classAuditEventFixture = Object.freeze({
+  academyId,
+  actorId: "guardian-1",
+  action: "booking.created",
+  targetRef: `${academyRoot}/bookings/booking-1`,
+  purpose: "class-registration",
+  correlationId: "correlation-1",
+  class: Object.freeze({
+    studentId: "student-1",
+    studentName: null,
+    sessionId: "session-1",
+    sessionStartAt: "2026-09-17T10:00:00.000Z",
+    programId: null,
+    locationId: null,
+  }),
+  actorIp: "203.0.113.5",
+  actorRole: "guardian",
+  actorGroup: "member",
+  actorName: "Jane Doe",
+  source: "bpt",
+});
 const academyCollections = Object.freeze([
   ...canonicalCollections,
   ...academyBackendOnlyCollections,
@@ -255,6 +278,26 @@ describe("client Firebase data boundary", () => {
     },
     120_000,
   );
+
+  it("denies every client read and write of a class registration event, administrator and member alike", async () => {
+    // The class registrations log (auditEvents) is served exclusively through callables: no
+    // client, admin included, can read or write it directly - it falls to the catch-all deny.
+    const administrator = testEnvironment
+      .authenticatedContext("administrator-1", { academyId, role: "administrator" })
+      .firestore();
+    const member = testEnvironment
+      .authenticatedContext("guardian-1", { academyId, role: "guardian" })
+      .firestore();
+    const existing = doc(administrator, `${academyRoot}/auditEvents/synthetic-1`);
+    const classEventCandidate = doc(administrator, `${academyRoot}/auditEvents/class-event-1`);
+
+    await Promise.all([
+      assertFails(getDoc(doc(administrator, `${academyRoot}/auditEvents/synthetic-1`))),
+      assertFails(getDoc(doc(member, `${academyRoot}/auditEvents/synthetic-1`))),
+      assertFails(setDoc(classEventCandidate, classAuditEventFixture)),
+      assertFails(updateDoc(existing, { actorName: "New Name" })),
+    ]);
+  });
 
   it.each(actorCases)(
     "denies every direct Firestore and RTDB operation for $name",

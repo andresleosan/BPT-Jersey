@@ -36,6 +36,15 @@ type MemberDirectoryActivityDocument = Readonly<{
 }>;
 
 export type MemberDirectoryActorActivityDependencies = Readonly<{
+  onDenied?: (
+    reason:
+      | "account-inactive"
+      | "staff-missing"
+      | "role-locked"
+      | "provisioning-invalid"
+      | "claims-mismatch"
+      | "dependency-unavailable",
+  ) => void;
   getAuthUser: (uid: string) => Promise<MemberDirectoryActivityAuthUser>;
   getDocument: (path: string) => Promise<MemberDirectoryActivityDocument>;
 }>;
@@ -52,28 +61,35 @@ export function createMemberDirectoryActorActivityCheck(
   dependencies: MemberDirectoryActorActivityDependencies,
 ): MemberDirectoryActorActivityCheck {
   return async ({ uid, academyId, role }) => {
+    const denied = (
+      reason: Parameters<NonNullable<MemberDirectoryActorActivityDependencies["onDenied"]>>[0],
+    ) => {
+      dependencies.onDenied?.(reason);
+      return false;
+    };
     try {
       const [authUser, adminDocument, roleLock] = await Promise.all([
         dependencies.getAuthUser(uid),
         dependencies.getDocument(`academies/${academyId}/users/${uid}`),
         dependencies.getDocument(`academies/${academyId}/adminRoleLocks/${uid}`),
       ]);
-      if (authUser.uid !== uid || authUser.disabled || !adminDocument.exists || roleLock.exists) {
-        return false;
-      }
-      const claims = authUser.customClaims;
-      return (
-        matchesProvisionedMemberDirectoryActor(adminDocument.data(), {
+      if (authUser.uid !== uid || authUser.disabled) return denied("account-inactive");
+      if (!adminDocument.exists) return denied("staff-missing");
+      if (roleLock.exists) return denied("role-locked");
+      if (
+        !matchesProvisionedMemberDirectoryActor(adminDocument.data(), {
           actorId: uid,
           academyId,
           role,
-        }) &&
-        isRecord(claims) &&
-        claims.academyId === academyId &&
-        claims.role === role
-      );
+        })
+      )
+        return denied("provisioning-invalid");
+      const claims = authUser.customClaims;
+      if (!isRecord(claims) || claims.academyId !== academyId || claims.role !== role)
+        return denied("claims-mismatch");
+      return true;
     } catch {
-      return false;
+      return denied("dependency-unavailable");
     }
   };
 }

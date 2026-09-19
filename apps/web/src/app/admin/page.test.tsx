@@ -25,6 +25,7 @@ const pilotNavigation = [
   "Attendance",
   "Members",
   "Member search",
+  "Memberships",
   "Enrolment requests",
   "Medical conditions",
   "Classes / Services",
@@ -75,7 +76,7 @@ describe("administrative shell", () => {
       "#admin-main-content",
     );
     expect(screen.getByRole("banner")).toBeVisible();
-    expect(screen.getByRole("complementary", { name: "Administrative navigation" })).toBeVisible();
+    expect(screen.getByRole("complementary", { name: "Admin navigation" })).toBeVisible();
     expect(screen.getByRole("navigation", { name: "Admin navigation" })).toBeVisible();
     expect(screen.getByRole("main")).toHaveAttribute("id", "admin-main-content");
     expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
@@ -225,12 +226,15 @@ describe("administrative shell", () => {
       </AdminShell>,
     );
 
-    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    const navigation = screen.getByRole("navigation", { name: "Coach navigation" });
     expect(
       within(navigation)
         .queryAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual([
+      "->Dashboard",
+      "->Progression syllabus",
+      "->My sign-in",
       "->Overview",
       "->Attendance",
       "->Member search",
@@ -239,7 +243,7 @@ describe("administrative shell", () => {
       "->Classes / Services",
       "->Levels",
     ]);
-    expect(screen.getByRole("link", { name: "Coach portal" })).toHaveAttribute("href", "/coach");
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/coach");
     expect(screen.getByText("Coach operational access")).toBeVisible();
   });
 
@@ -256,12 +260,15 @@ describe("administrative shell", () => {
       </AdminShell>,
     );
 
-    const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
+    const navigation = screen.getByRole("navigation", { name: "Coach navigation" });
     expect(
       within(navigation)
         .queryAllByRole("link")
         .map((link) => link.textContent),
     ).toEqual([
+      "->Dashboard",
+      "->Progression syllabus",
+      "->My sign-in",
       "->Overview",
       "->Attendance",
       "->Member search",
@@ -272,14 +279,17 @@ describe("administrative shell", () => {
     ]);
   });
 
-  it("no longer lists memberships or waivers, though their routes still exist", () => {
+  it("lists memberships but not waivers, whose route still exists", () => {
     render(
       <AdminShell session={syntheticSession}>
         <p>Content</p>
       </AdminShell>,
     );
     const navigation = screen.getByRole("navigation", { name: "Admin navigation" });
-    expect(within(navigation).queryByRole("link", { name: "Memberships" })).toBeNull();
+    expect(within(navigation).getByRole("link", { name: "Memberships" })).toHaveAttribute(
+      "href",
+      "/admin/memberships",
+    );
     expect(within(navigation).queryByRole("link", { name: "Waivers" })).toBeNull();
     expect(within(navigation).getByRole("link", { name: "Medical conditions" })).toHaveAttribute(
       "href",

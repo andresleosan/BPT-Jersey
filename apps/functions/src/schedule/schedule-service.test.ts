@@ -1650,6 +1650,8 @@ describe("classes-services Firestore store", () => {
     });
     const firestore = {
       collection: (path: string) => {
+        if (path === `academies/${academyId}/sessionSeries`)
+          return { get: async () => ({ docs: [] }) };
         if (path !== `academies/${academyId}/sessions`) throw new Error(`unexpected ${path}`);
         return {
           ...query([]),

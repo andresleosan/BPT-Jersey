@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
+
 import { academyContent } from "../content/academy";
 import Image from "next/image";
 
 import { PlanPriceList } from "./plan-price-list";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default function HomePage() {
   return (

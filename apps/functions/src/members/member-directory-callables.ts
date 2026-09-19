@@ -4,6 +4,7 @@ import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
+import { warn } from "firebase-functions/logger";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
 import {
@@ -27,8 +28,16 @@ import {
   CanonicalMemberDirectoryError,
   createCanonicalMemberDirectoryService,
   type CanonicalMemberDirectoryService,
+  type OfficeMemberDirectoryService,
 } from "./canonical-member-directory-service.js";
 import { createMemberDirectoryFirestoreAdapters } from "./member-directory-firestore.js";
+
+import {
+  importedSubscriptionQuerySchema,
+  officeMemberRegistrationSchema,
+} from "@bpt-jersey/domain/memberships/admin";
+import { parseRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
+import { browserAdminCallableOptions } from "../auth/callable-options.js";
 
 const identityKeySecret = defineSecret("MEMBER_DIRECTORY_IDENTITY_KEY_SECRET");
 const migrationIntegritySecret = defineSecret("MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET");
@@ -65,6 +74,8 @@ export function mapMemberDirectoryError(error: unknown): never {
     }
   }
   if (error instanceof CanonicalMemberDirectoryReadError) {
+    if (error.code === "unauthorized")
+      warn("member-directory-access-denied", { stage: "directory-read" });
     switch (error.code) {
       case "unauthorized":
         throw new HttpsError("permission-denied", "Member read is not permitted");
@@ -241,6 +252,8 @@ export function defaultMemberDirectoryCallableServices(): MemberDirectoryCallabl
   const auth = getAuth();
   const adapters = createMemberDirectoryFirestoreAdapters(firestore);
   const isActorActive = createMemberDirectoryActorActivityCheck({
+    onDenied: (reason) =>
+      warn("member-directory-access-denied", { stage: "actor-activity", reason }),
     getAuthUser: (uid) => auth.getUser(uid),
     getDocument: (path) => firestore.doc(path).get(),
   });
@@ -326,4 +339,117 @@ export const lookupMemberIdentity = onCall(memberDirectoryCallableOptions, async
 
 export const revealRegyfitRecordField = onCall(memberDirectoryCallableOptions, async (request) =>
   revealRegyfitRecordFieldHandler(request, defaultMemberDirectoryCallableServices()),
+);
+
+async function importedMemberRecord(academyId: string, recordId: string) {
+  const snapshot = await getFirestore()
+    .doc(`academies/${academyId}/regyfitMemberRecords/${recordId}`)
+    .get();
+  const data = snapshot.data();
+  const parsed = parseRegyfitMemberRecord(
+    Object.fromEntries(Object.entries(data ?? {}).filter(([key]) => key !== "academyId")),
+  );
+  if (
+    !parsed.ok ||
+    parsed.value.recordId !== recordId ||
+    (data?.academyId !== undefined && data.academyId !== academyId)
+  )
+    throw new HttpsError("not-found", "Imported member is unavailable.");
+  return parsed.value;
+}
+
+export const resolveMemberSubscriptionProfile = onCall(
+  {
+    ...browserAdminCallableOptions,
+    secrets: [identityKeySecret, migrationIntegritySecret, directoryCursorSecret],
+  },
+  async (request) => {
+    const services = defaultMemberDirectoryCallableServices();
+    const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
+    const input = importedSubscriptionQuerySchema.safeParse(request.data);
+    if (!input.success) throw new HttpsError("invalid-argument", "Invalid member profile.");
+    try {
+      const source = await importedMemberRecord(actor.academyId, input.data.recordId);
+      const links = await Promise.all(
+        ["regyfitMemberLinks", "regyfitOfficeLinks"].map((collection) =>
+          getFirestore().doc(`academies/${actor.academyId}/${collection}/${source.recordId}`).get(),
+        ),
+      );
+      const targets = new Set<string>();
+      for (const snapshot of links) {
+        if (!snapshot.exists) continue;
+        const link = snapshot.data()!;
+        if (
+          link.academyId !== actor.academyId ||
+          link.recordId !== source.recordId ||
+          typeof link.studentId !== "string" ||
+          !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(link.studentId)
+        )
+          throw new HttpsError("failed-precondition", "Invalid member link.");
+        targets.add(link.studentId);
+      }
+      if (targets.size > 1)
+        throw new HttpsError(
+          "failed-precondition",
+          "Conflicting member links require office review.",
+        );
+      const linked = [...targets][0];
+      if (linked) {
+        await services.reader.detail({
+          actor,
+          value: { studentId: linked, purpose: "member-record-maintenance" },
+          now: services.now(),
+        });
+        return { studentId: linked };
+      }
+      if (!source.memberNumber) return { studentId: null };
+      const result = await services.reader.lookup({
+        actor,
+        value: {
+          lookupKind: "membership-number",
+          value: source.memberNumber,
+          purpose: "member-identity-lookup",
+        },
+        now: services.now(),
+      });
+      return { studentId: result.matched ? result.row.studentId : null };
+    } catch (error) {
+      return mapMemberDirectoryError(error);
+    }
+  },
+);
+
+export const registerImportedMemberForOffice = onCall(
+  {
+    ...browserAdminCallableOptions,
+    secrets: [identityKeySecret, migrationIntegritySecret, directoryCursorSecret],
+  },
+  async (request) => {
+    const services = defaultMemberDirectoryCallableServices();
+    const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
+    const input = officeMemberRegistrationSchema.safeParse(request.data);
+    if (!input.success)
+      throw new HttpsError("invalid-argument", "Choose the member's date of birth and centre.");
+    try {
+      const source = await importedMemberRecord(actor.academyId, input.data.recordId);
+      const value = {
+        requestId: input.data.requestId,
+        fullName: source.fullName,
+        dateOfBirth: source.birthDate ?? input.data.dateOfBirth,
+        trainingCenter: input.data.trainingCenter,
+        trainingTimePreferences: input.data.trainingTimePreferences,
+        ...(source.memberNumber ? { membershipNumber: source.memberNumber } : {}),
+        ...(source.mobile ? { phoneNumber: source.mobile } : {}),
+        gender: source.gender,
+      };
+      return (services.writer as OfficeMemberDirectoryService).registerImportedMember({
+        actor,
+        value,
+        recordId: source.recordId,
+        now: services.now(),
+      });
+    } catch (error) {
+      return mapMemberDirectoryError(error);
+    }
+  },
 );

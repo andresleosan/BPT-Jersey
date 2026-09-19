@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { browserOrigins } from "../auth/callable-options.js";
+
 import {
   createCancelBookingHandler,
   createCancelSessionHandler,
@@ -65,7 +67,7 @@ const ownStudentScope = async ({
 describe("Schedule Callables", () => {
   it("requires and consumes App Check for every shared schedule callable", () => {
     expect(scheduleCallableOptions).toEqual({
-      cors: ["https://bptjersey.pages.dev"],
+      cors: browserOrigins,
       invoker: "public",
       enforceAppCheck: true,
       consumeAppCheckToken: true,
@@ -1127,6 +1129,7 @@ describe("Self check-in callable", () => {
         "student-1",
         undefined,
         role,
+        null,
       );
       expect(JSON.stringify(result)).not.toMatch(/49\.18|-2\.107|latitude|longitude/u);
     },
@@ -1882,5 +1885,98 @@ describe("classes-services callables", () => {
       message: "Every session in the source week needs a capacity before it can be copied",
       details: { reason: "capacity-not-set" },
     });
+  });
+  it("hands the caller address to the store for a check-in, a booking and a cancellation", async () => {
+    const store = createInMemoryScheduleStore();
+    const checkIn = vi.spyOn(store, "recordCheckIn").mockResolvedValue({} as never);
+    const book = vi.spyOn(store, "requestBooking").mockResolvedValue({} as never);
+    const cancel = vi.spyOn(store, "cancelBooking").mockResolvedValue({} as never);
+    const forwarded = (data: unknown, role: string, uid: string) => {
+      const request = fakeRequest(data, role, uid) as unknown as Record<string, unknown>;
+      request.rawRequest = { headers: { "x-forwarded-for": "82.112.144.10, 10.0.0.1" } };
+      return request as never;
+    };
+
+    await createCheckInHandler({ store })(
+      forwarded(
+        { sessionId: "session-1", studentId: "student-1", method: "manual" },
+        "coach",
+        "coach-1",
+      ),
+    );
+    await createRequestBookingHandler({ store, resolveClientStudentScope: ownStudentScope })(
+      forwarded(
+        { sessionId: "session-1", studentId: "student-1", membershipId: "membership-1" },
+        "adultStudent",
+        "student-1",
+      ),
+    );
+    await createCancelBookingHandler({ store, resolveClientStudentScope: ownStudentScope })(
+      forwarded(
+        { sessionId: "session-1", studentId: "student-1", reason: "Cannot make it" },
+        "adultStudent",
+        "student-1",
+      ),
+    );
+
+    expect(checkIn.mock.calls[0]).toEqual([
+      "demo-academy",
+      { sessionId: "session-1", studentId: "student-1", method: "manual" },
+      "coach-1",
+      undefined,
+      "coach",
+      "82.112.144.10",
+    ]);
+    expect(book.mock.calls[0]?.[3]).toEqual({ ip: "82.112.144.10", role: "adultStudent" });
+    expect(cancel.mock.calls[0]?.[4]).toEqual({ ip: "82.112.144.10", role: "adultStudent" });
+  });
+});
+
+describe("weekly repetition callable boundaries", () => {
+  const input = {
+    programId: "adult-fundamentals",
+    locationId: "town",
+    instructorId: "coach-1",
+    title: "Weekly class",
+    startAt: "2026-10-19T17:00:00.000Z",
+    endAt: "2026-10-19T18:00:00.000Z",
+    capacity: 12,
+    minParticipants: 2,
+    repeatWeekly: true,
+  };
+  it("persists the requested recurrence and scope through the existing callables", async () => {
+    const store = createInMemoryScheduleStore();
+    const { session } = await createSaveSessionHandler({ store })(fakeRequest(input));
+    expect(session.repeatWeekly).toBe(true);
+    const { session: stopped } = await createUpdateSessionHandler({ store })(
+      fakeRequest({ sessionId: session.sessionId, repeatWeekly: false, repeatScope: "following" }),
+    );
+    expect(stopped.repeatWeekly).toBe(false);
+    expect(stopped.status).toBe("scheduled");
+  });
+  it("keeps recurrence writes manager-only and rejects invalid scope", async () => {
+    const store = createInMemoryScheduleStore();
+    await expect(
+      createSaveSessionHandler({ store })(fakeRequest(input, "member")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    const { session } = await createSaveSessionHandler({ store })(fakeRequest(input));
+    await expect(
+      createUpdateSessionHandler({ store })(
+        fakeRequest(
+          { sessionId: session.sessionId, repeatWeekly: false, repeatScope: "following" },
+          "coach",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      createUpdateSessionHandler({ store })(
+        fakeRequest({ sessionId: session.sessionId, repeatWeekly: false, repeatScope: "all" }),
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    await expect(
+      createUpdateSessionHandler({ store })(
+        fakeRequest({ sessionId: session.sessionId, repeatWeekly: false }),
+      ),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 });

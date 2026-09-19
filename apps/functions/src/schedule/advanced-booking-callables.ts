@@ -7,6 +7,7 @@ import {
   parseRespondToWaitlistOfferInput,
   type WaitlistEntryRecord,
 } from "@bpt-jersey/domain/schedule/advanced-booking";
+import { clientIpFromRequest } from "../audit/client-ip.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createFirestoreWaitlistStore,
@@ -256,6 +257,7 @@ function createRespondToWaitlistOfferHandler(
         studentId: parsed.value.studentId,
         response,
         actorId: actor.userId,
+        auditActor: { ip: clientIpFromRequest(request), role: actor.role },
       });
       return { entry: studentItem(entry) };
     } catch (error) {

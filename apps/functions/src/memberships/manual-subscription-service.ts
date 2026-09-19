@@ -1,0 +1,447 @@
+import { createHash } from "node:crypto";
+import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
+import { HttpsError } from "firebase-functions/v2/https";
+import type { UserActorContext } from "@bpt-jersey/domain";
+import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
+import { parseFamilyRecord } from "@bpt-jersey/domain/families";
+import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
+import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
+import {
+  parseInvoiceRecord,
+  parseManualPaymentRecord,
+  type InvoiceRecord,
+} from "@bpt-jersey/domain/finance";
+import {
+  editableSubscriptionSchema,
+  manualSubscriptionSchema,
+  subscriptionBillingSchema,
+  type ManualSubscriptionInput,
+} from "@bpt-jersey/domain/memberships/admin";
+import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
+import { expiryNotificationId } from "../notifications/notification-identifiers.js";
+
+function fail(message: string): never {
+  throw new HttpsError("failed-precondition", message);
+}
+
+function memberInvoices(
+  documents: readonly DocumentSnapshot[],
+  academyId: string,
+  membershipId: string,
+  familyId: string,
+): InvoiceRecord[] {
+  if (documents.length > 100) fail("Full billing history is available in Billing.");
+  return documents
+    .map((document) => {
+      const parsed = parseInvoiceRecord(document.data());
+      if (
+        !parsed.ok ||
+        parsed.value.invoiceId !== document.id ||
+        parsed.value.academyId !== academyId ||
+        parsed.value.membershipId !== membershipId ||
+        parsed.value.familyId !== familyId
+      )
+        fail("Invalid invoice record.");
+      return parsed.value;
+    })
+    .sort((a, b) => Date.parse(b.dueAt) - Date.parse(a.dueAt));
+}
+
+function currentInvoiceFor(invoices: readonly InvoiceRecord[], administration: DocumentSnapshot) {
+  if (administration.exists) {
+    const id: unknown = administration.get("invoiceId");
+    if (id === null && administration.get("complimentary") === true) return null;
+    const linked = invoices.find((invoice) => invoice.invoiceId === id);
+    if (!linked) fail("Billing link is invalid.");
+    return linked;
+  }
+  // Older subscriptions were created through Billing, before the office link existed.
+  return (
+    invoices.find((invoice) => invoice.status === "open" || invoice.status === "partially_paid") ??
+    invoices.find((invoice) => invoice.status !== "void") ??
+    null
+  );
+}
+
+/** Membership and its office settlement commit together. No payment provider is called. */
+export async function saveManualSubscription(
+  db: Firestore,
+  actor: UserActorContext,
+  raw: ManualSubscriptionInput,
+) {
+  if (actor.role !== "owner" && actor.role !== "administrator")
+    throw new HttpsError("permission-denied", "Office access is required.");
+  const input = manualSubscriptionSchema.parse(raw);
+  const base = db.doc(`academies/${actor.academyId}`);
+  const ref = (collection: string, id: string) => base.collection(collection).doc(id);
+  const membershipId = input.membershipId ?? `manual-${input.requestId}`;
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify({ actorId: actor.userId, input }))
+    .digest("hex");
+  return db.runTransaction(async (tx) => {
+    const receiptRef = ref("membershipChanges", input.requestId);
+    const receipt = await tx.get(receiptRef);
+    if (receipt.exists) {
+      if (receipt.get("fingerprint") !== fingerprint)
+        throw new HttpsError("already-exists", "Request ID is already used.");
+      return editableSubscriptionSchema.parse(receipt.get("result"));
+    }
+    const membershipRef = ref("memberships", membershipId);
+    const administrationRef = ref("membershipAdministration", membershipId);
+    const [studentDoc, planDoc, currentDoc, administrationDoc, existing] = await Promise.all([
+      tx.get(ref("students", input.studentId)),
+      tx.get(ref("plans", input.planId)),
+      tx.get(membershipRef),
+      tx.get(administrationRef),
+      tx.get(base.collection("memberships").where("studentId", "==", input.studentId).limit(101)),
+    ]);
+    const student = parseStudentProfile(studentDoc.data());
+    const plan = parsePlanRecord(planDoc.data());
+    if (
+      !student.ok ||
+      student.value.academyId !== actor.academyId ||
+      student.value.studentId !== input.studentId ||
+      !student.value.active ||
+      student.value.status !== "active"
+    )
+      fail("An active member is required.");
+    if (!student.value.familyId) fail("Register the member's billing account first.");
+    const family = parseFamilyRecord(
+      (await tx.get(ref("families", student.value.familyId))).data(),
+    );
+    if (
+      !family.ok ||
+      family.value.academyId !== actor.academyId ||
+      family.value.familyId !== student.value.familyId ||
+      !family.value.active ||
+      family.value.status !== "active"
+    )
+      fail("An active billing account is required.");
+    if (
+      !plan.ok ||
+      plan.value.academyId !== actor.academyId ||
+      plan.value.planId !== input.planId ||
+      !plan.value.active
+    )
+      fail("Choose an active catalogue plan.");
+    // Office may intentionally grant any active plan. Booking/consent checks remain independent.
+    const parsedCurrent = currentDoc.exists ? parseMembershipRecord(currentDoc.data()) : null;
+    const current = parsedCurrent?.ok ? parsedCurrent.value : null;
+    if (input.operation === "assign") {
+      if (
+        existing.size > 100 ||
+        currentDoc.exists ||
+        existing.docs.some((doc) => doc.get("status") !== "cancelled")
+      )
+        fail("A subscription already exists. Refresh and edit it.");
+    } else if (
+      !current ||
+      current.academyId !== actor.academyId ||
+      current.studentId !== input.studentId ||
+      current.familyId !== student.value.familyId ||
+      current.status === "cancelled"
+    ) {
+      fail("Subscription is unavailable.");
+    } else if (new Date(current.updatedAt).toISOString() !== input.expectedUpdatedAt) {
+      throw new HttpsError("aborted", "Subscription changed. Refresh before saving.");
+    }
+    const now = new Date(
+      Math.max(Date.now(), current ? Date.parse(current.updatedAt) + 1 : 0),
+    ).toISOString();
+    if (input.settlement.kind === "paid" && Date.parse(input.settlement.occurredAt) > Date.now())
+      fail("Payment date cannot be in the future.");
+    const invoiceDocuments = await tx.get(
+      base.collection("invoices").where("membershipId", "==", membershipId).limit(101),
+    );
+    const invoices = memberInvoices(
+      invoiceDocuments.docs,
+      actor.academyId,
+      membershipId,
+      student.value.familyId,
+    );
+    const oldInvoice = currentInvoiceFor(invoices, administrationDoc);
+    const settlement = input.settlement;
+    if (
+      input.operation === "update" &&
+      settlement.kind !== "unchanged" &&
+      (oldInvoice?.status === "paid" || oldInvoice?.status === "partially_paid")
+    )
+      fail("Recorded payments are preserved. Renew for a new billing period.");
+    if (
+      input.operation === "renew" &&
+      invoices.some((invoice) => ["open", "partially_paid"].includes(invoice.status))
+    )
+      fail("Settle the current amount due before renewing.");
+    if (
+      settlement.kind !== "unchanged" &&
+      invoices.some(
+        (invoice) =>
+          invoice.invoiceId !== oldInvoice?.invoiceId &&
+          ["open", "partially_paid"].includes(invoice.status),
+      )
+    )
+      fail("Settle other outstanding invoices in Billing first.");
+    const reuseInvoice = input.operation === "update" && oldInvoice?.status === "open";
+    const invoiceId = reuseInvoice ? oldInvoice.invoiceId : `manual-${input.requestId}`;
+    const paymentId =
+      settlement.kind === "paid"
+        ? `payment-${createHash("sha256").update(`${actor.academyId}:${settlement.reference}`).digest("hex").slice(0, 40)}`
+        : null;
+    if (paymentId && (await tx.get(ref("payments", paymentId))).exists)
+      throw new HttpsError("already-exists", "Payment reference already recorded.");
+    const oldNoticeRef = current?.endsAt
+      ? ref("adminNotifications", expiryNotificationId(membershipId, current.endsAt))
+      : null;
+    const oldNotice = oldNoticeRef ? await tx.get(oldNoticeRef) : null;
+    const record = {
+      ...(current ?? {
+        membershipId,
+        academyId: actor.academyId,
+        studentId: input.studentId,
+        familyId: student.value.familyId,
+        schemaVersion: "1",
+        createdAt: now,
+        createdBy: actor.userId,
+      }),
+      planId: input.planId,
+      // Renewal must preserve access through the remainder of the current paid period.
+      startsAt:
+        input.operation === "renew" &&
+        current &&
+        Date.parse(current.startsAt) < Date.parse(input.startsAt)
+          ? current.startsAt
+          : input.startsAt,
+      endsAt: input.endsAt,
+      nextBillingAt: input.endsAt,
+      status:
+        settlement.kind === "unchanged"
+          ? current!.status
+          : settlement.kind === "unpaid"
+            ? "overdue"
+            : "active",
+      updatedAt: now,
+      updatedBy: actor.userId,
+    };
+    if (!parseMembershipRecord(record).ok) fail("Subscription dates are invalid.");
+    const audit = (action: AuditEventDraft["action"], targetRef: string, purpose: string) =>
+      appendAuditEventInTransaction(tx, base.collection("auditEvents").doc(), {
+        academyId: actor.academyId,
+        actorId: actor.userId,
+        action,
+        targetRef,
+        purpose,
+        correlationId: input.requestId,
+        ...(action.startsWith("invoice.") || action === "payment.recorded"
+          ? {
+              amountMinor:
+                settlement.kind === "paid" || settlement.kind === "unpaid"
+                  ? settlement.amountMinor
+                  : oldInvoice!.totalMinor,
+              currency: "GBP",
+            }
+          : {}),
+        ...(action === "payment.recorded" && settlement.kind === "paid"
+          ? { method: settlement.method }
+          : {}),
+      } as AuditEventDraft);
+    if (settlement.kind === "paid" || settlement.kind === "unpaid") {
+      if (reuseInvoice && oldInvoice.totalMinor !== settlement.amountMinor)
+        fail("The amount must match the existing unpaid invoice.");
+      const invoice = {
+        ...(reuseInvoice ? oldInvoice : {}),
+        invoiceId,
+        academyId: actor.academyId,
+        familyId: student.value.familyId,
+        membershipId,
+        status: settlement.kind === "paid" ? "paid" : "open",
+        totalMinor: settlement.amountMinor,
+        currency: "GBP",
+        dueAt: input.startsAt,
+        paidAt: settlement.kind === "paid" ? settlement.occurredAt : null,
+        schemaVersion: 1,
+        createdAt: reuseInvoice ? oldInvoice.createdAt : now,
+        createdBy: reuseInvoice ? oldInvoice.createdBy : actor.userId,
+        updatedAt: now,
+        updatedBy: actor.userId,
+        chargeKind: "membership",
+        sourceRef: null,
+        invoiceReference: reuseInvoice ? oldInvoice.invoiceReference : `MANUAL-${input.requestId}`,
+        description:
+          `${plan.value.displayName}: ${input.startsAt.slice(0, 10)} to ${input.endsAt?.slice(0, 10) ?? "no end date"}`.slice(
+            0,
+            200,
+          ),
+      };
+      if (!parseInvoiceRecord(invoice).ok) fail("Invoice is invalid.");
+      tx.set(ref("invoices", invoiceId), invoice);
+      audit(
+        reuseInvoice ? "invoice.status.changed" : "invoice.created",
+        ref("invoices", invoiceId).path,
+        "office subscription settlement",
+      );
+      if (settlement.kind === "paid" && paymentId) {
+        const payment = {
+          paymentId,
+          academyId: actor.academyId,
+          familyId: student.value.familyId,
+          invoiceId,
+          status: "recorded",
+          amountMinor: settlement.amountMinor,
+          currency: "GBP",
+          method: settlement.method,
+          manualReference: settlement.reference,
+          providerReference: null,
+          occurredAt: settlement.occurredAt,
+          schemaVersion: 1,
+          createdAt: now,
+          createdBy: actor.userId,
+          updatedAt: now,
+          updatedBy: actor.userId,
+        };
+        if (!parseManualPaymentRecord(payment).ok) fail("Payment is invalid.");
+        tx.create(ref("payments", paymentId), payment);
+        audit(
+          "payment.recorded",
+          ref("payments", paymentId).path,
+          "office received subscription payment",
+        );
+      }
+      tx.set(administrationRef, {
+        invoiceId,
+        complimentary: false,
+        updatedAt: now,
+        updatedBy: actor.userId,
+      });
+    } else if (settlement.kind === "complimentary") {
+      if (reuseInvoice) {
+        tx.set(ref("invoices", oldInvoice.invoiceId), {
+          ...oldInvoice,
+          status: "void",
+          updatedAt: now,
+          updatedBy: actor.userId,
+        });
+        audit(
+          "invoice.voided",
+          ref("invoices", oldInvoice.invoiceId).path,
+          "office waived unpaid subscription charge",
+        );
+      }
+      tx.set(administrationRef, {
+        invoiceId: null,
+        complimentary: true,
+        reason: settlement.reason,
+        updatedAt: now,
+        updatedBy: actor.userId,
+      });
+    }
+    tx.set(membershipRef, record);
+    if (oldNoticeRef && oldNotice?.exists && input.endsAt !== current?.endsAt)
+      tx.set(oldNoticeRef, { ...oldNotice.data(), resolvedAt: now, readAt: now });
+    const result = editableSubscriptionSchema.parse({
+      membershipId,
+      studentId: input.studentId,
+      planId: record.planId,
+      status: record.status,
+      startsAt: record.startsAt,
+      endsAt: record.endsAt,
+      updatedAt: now,
+    });
+    tx.create(receiptRef, { fingerprint, result, createdAt: now });
+    audit(
+      current ? "membership.subscription.updated" : "membership.created",
+      membershipRef.path,
+      settlement.kind === "complimentary"
+        ? `complimentary: ${settlement.reason}`
+        : `manual subscription ${input.operation}`,
+    );
+    return result;
+  });
+}
+
+export async function listSubscriptionBilling(db: Firestore, academyId: string, studentId: string) {
+  const base = db.doc(`academies/${academyId}`);
+  const memberships = await base
+    .collection("memberships")
+    .where("studentId", "==", studentId)
+    .limit(101)
+    .get();
+  if (memberships.size > 100) fail("Too many subscriptions. Contact the office.");
+  return Promise.all(
+    memberships.docs.map(async (document) => {
+      const parsed = parseMembershipRecord(document.data());
+      if (
+        !parsed.ok ||
+        parsed.value.academyId !== academyId ||
+        parsed.value.studentId !== studentId ||
+        parsed.value.membershipId !== document.id
+      )
+        fail("Invalid membership record.");
+      const [invoices, administration] = await Promise.all([
+        base.collection("invoices").where("membershipId", "==", document.id).limit(101).get(),
+        base.collection("membershipAdministration").doc(document.id).get(),
+      ]);
+      const validatedInvoices = memberInvoices(
+        invoices.docs,
+        academyId,
+        document.id,
+        parsed.value.familyId,
+      );
+      const currentInvoice = currentInvoiceFor(validatedInvoices, administration);
+      // Firestore supports up to 30 operands in an `in` query. Read receipts in bounded batches.
+      const invoiceIds = invoices.docs.map((doc) => doc.id);
+      const chunks = Array.from({ length: Math.ceil(invoiceIds.length / 30) }, (_, index) =>
+        invoiceIds.slice(index * 30, index * 30 + 30),
+      );
+      const receiptPages = await Promise.all(
+        chunks.map((ids) =>
+          base.collection("payments").where("invoiceId", "in", ids).limit(1001).get(),
+        ),
+      );
+      const receipts = receiptPages.flatMap((page) => {
+        if (page.size > 1000) fail("Full payment history is available in Billing.");
+        return page.docs.map((doc) => {
+          const payment = parseManualPaymentRecord(doc.data());
+          if (
+            !payment.ok ||
+            payment.value.paymentId !== doc.id ||
+            payment.value.academyId !== academyId ||
+            payment.value.familyId !== parsed.value.familyId
+          )
+            fail("Invalid payment record.");
+          return payment.value;
+        });
+      });
+      return subscriptionBillingSchema.parse({
+        membershipId: document.id,
+        complimentary: administration.get("complimentary") === true,
+        currentInvoiceId: currentInvoice?.invoiceId ?? null,
+        reason: administration.get("reason") ?? null,
+        invoices: validatedInvoices
+          .map((invoice) => {
+            const { invoiceId, status, totalMinor, paidAt, dueAt, description } = invoice;
+            const payments = receipts
+              .filter((payment) => payment.invoiceId === invoiceId)
+              .map(({ paymentId, amountMinor, method, manualReference, occurredAt }) => ({
+                paymentId,
+                amountMinor,
+                method,
+                reference: manualReference,
+                occurredAt: new Date(occurredAt).toISOString(),
+              }))
+              .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+            return {
+              invoiceId,
+              status,
+              totalMinor,
+              paidAt: paidAt ? new Date(paidAt).toISOString() : null,
+              dueAt: new Date(dueAt).toISOString(),
+              description,
+              payments,
+            };
+          })
+          .sort((a, b) => b.dueAt.localeCompare(a.dueAt)),
+      });
+    }),
+  );
+}

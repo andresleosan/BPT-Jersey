@@ -1,0 +1,46 @@
+.admin-notifications {
+  margin-block: 1.25rem;
+}
+.admin-notification-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+.admin-notification-list > li {
+  padding: 1rem;
+  border: 1px solid #d8dce2;
+  border-left: 4px solid #d8dce2;
+  border-radius: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.admin-notification-list > .admin-notification-unread {
+  border-left-color: #a94b17;
+  background: #fffaf4;
+}
+.admin-notification-heading,
+.admin-notification-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.admin-notification-heading {
+  justify-content: space-between;
+}
+.admin-notification-heading time,
+.admin-notification-help {
+  color: #4d5865;
+  font-size: 0.9rem;
+}
+.admin-notification-actions {
+  margin-block: 0.75rem;
+}
+.admin-notifications select {
+  padding: 0.65rem;
+  border: 1px solid #8b949e;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #17202a;
+  font: inherit;
+}
