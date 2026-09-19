@@ -160,7 +160,7 @@ export function IbjjfCard({
               completed would print a negative BPT count. Say nothing rather than something false. */}
           {classes.imported > 0 && inBpt >= 0 ? (
             <dd className="ibjjf-muted ibjjf-number">
-              {`${classes.imported} from Regyfit + ${inBpt} in BPT`}
+              {`${classes.imported} imported + ${inBpt} in BPT`}
             </dd>
           ) : null}
         </div>

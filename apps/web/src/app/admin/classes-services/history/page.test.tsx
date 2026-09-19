@@ -213,7 +213,7 @@ describe("Class registrations log", () => {
       .getAllByRole("option")
       .map((option) => option.textContent);
 
-    expect(labels).toEqual(["Anyone", "Olivia Lewis", "Regyfit (imported)"]);
+    expect(labels).toEqual(["Anyone", "Imported history", "Olivia Lewis"]);
     expect(labels).not.toContain("ADMIN");
     expect(labels).not.toContain("Prof. Charles Tromans");
     // The row itself still says who did it; only the filter option is collapsed.

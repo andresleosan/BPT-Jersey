@@ -183,7 +183,7 @@ describe("ManageView history", () => {
     expect(rows[1]).toHaveTextContent("Current");
     expect(within(rows[1]!).getByRole("button", { name: "Void" })).toBeInTheDocument();
     // The Regyfit opening has no criteria of its own and was decided by nobody at BPT.
-    expect(rows[2]).toHaveTextContent("Regyfit import");
+    expect(rows[2]).toHaveTextContent("Imported");
     expect(rows[2]).toHaveTextContent("Previous");
     expect(within(rows[2]!).getAllByText("—").length).toBe(2);
     expect(within(rows[2]!).queryByRole("button", { name: "Void" })).toBeNull();

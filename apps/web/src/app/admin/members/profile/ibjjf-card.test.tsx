@@ -71,7 +71,7 @@ describe("IbjjfCard", () => {
     expect(classes).toHaveClass("ibjjf-unmet");
     expect(within(classes).getByText("12/25")).toBeInTheDocument();
     expect(within(classes).getByText("Not met")).toBeInTheDocument();
-    expect(within(classes).getByText("9 from Regyfit + 3 in BPT")).toBeInTheDocument();
+    expect(within(classes).getByText("9 imported + 3 in BPT")).toBeInTheDocument();
     const days = within(region).getByText("Days at this level").closest("div")!;
     expect(days).toHaveClass("ibjjf-met");
     expect(within(days).getByText("80/75")).toBeInTheDocument();

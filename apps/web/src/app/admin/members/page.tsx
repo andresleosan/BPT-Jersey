@@ -201,7 +201,7 @@ export function MembersPage() {
               Add new member
             </Link>
             <Link className="admin-home-link" href="/admin/members/search">
-              Regyfit archive
+              Imported archive
             </Link>
             <Link className="admin-home-link" href="/admin/members/recovery">
               Recover member access

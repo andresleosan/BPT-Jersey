@@ -586,7 +586,7 @@ function HistoryTable({
                     </td>
                     <td data-label="Promoted by">
                       {entry.source === "regyfit-import"
-                        ? "Regyfit import"
+                        ? "Imported"
                         : (roleLabel(entry.decidedByRole) ?? "—")}
                     </td>
                     <td data-label="Status">

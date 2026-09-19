@@ -156,7 +156,7 @@ function ProfileTabContent({ record }: { record: RegyfitMemberRecord }) {
       {/* T051V2 Task 19: these five rows are Regyfit's own imported numbers. The IBJJF card on the
           member record now shows BPT's progress for the same member, so the provenance has to be on
           screen or the two percentages read as one figure contradicting itself. */}
-      <Card title={`${graduation.modality ?? "Graduation"} (imported from Regyfit)`}>
+      <Card title={`${graduation.modality ?? "Graduation"} (imported)`}>
         <FieldList
           entries={[
             ["Belt", displayValue(graduation.belt)],
@@ -261,7 +261,7 @@ function MembershipTabContent({ record }: { record: RegyfitMemberRecord }) {
         record={record}
       />
       <p className="member-subscription-help">
-        Imported membership details below reflect the Regyfit capture. Changes to the current
+        Imported membership details below reflect the imported record. Changes to the current
         subscription are saved above.
       </p>
       <div className="admin-member-profile-grid">
@@ -304,7 +304,7 @@ function ImportedPaymentsHistory({ record }: { record: RegyfitMemberRecord }) {
     return (
       <EmptySection
         title="Imported payment history"
-        message="Regyfit holds no payments for this member."
+        message="The imported record holds no payments for this member."
       />
     );
   }
@@ -352,7 +352,7 @@ function ClassesTabContent({ record }: { record: RegyfitMemberRecord }) {
       {attendance.records.length === 0 ? (
         <EmptySection
           title="Last records"
-          message="Regyfit holds no class registrations for this member."
+          message="The imported record holds no class registrations for this member."
         />
       ) : (
         <AdminDataTableWrap label={`Last ${attendance.records.length} records`}>
@@ -393,7 +393,7 @@ function TabContent({ tab, record }: { tab: ProfileTab; record: RegyfitMemberRec
   if (tab === "Classes") return <ClassesTabContent record={record} />;
   if (tab === "Notes") {
     return record.notes === undefined ? (
-      <EmptySection title="Notes" message="Regyfit holds no notes for this member." />
+      <EmptySection title="Notes" message="The imported record holds no notes for this member." />
     ) : (
       <Card title="Notes">
         <p className="admin-member-profile-note">{record.notes}</p>
@@ -403,7 +403,7 @@ function TabContent({ tab, record }: { tab: ProfileTab; record: RegyfitMemberRec
   return (
     <EmptySection
       title="Communication"
-      message="Communication logs are not part of the captured Regyfit record."
+      message="Communication logs are not part of the imported record."
     />
   );
 }
@@ -454,7 +454,7 @@ export function MemberProfilePanel({
               <AdminStatusBadge status={record.plan.paymentMode} />
             )}
             <span className="admin-member-profile-meta">
-              Captured {record.capturedAt.slice(0, 10)} from Regyfit
+              Imported {record.capturedAt.slice(0, 10)}
             </span>
           </div>
         </div>
