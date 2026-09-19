@@ -11,7 +11,7 @@ export declare function resolveTarget(env: Record<string, string | undefined>): 
 
 export declare function reportCounters(
   data: Omit<BuildMemberMigrationQueueInput, "today" | "members"> & {
-    members: readonly (LegacyMemberInput & { trainingCenter?: string })[];
+    members: readonly (LegacyMemberInput & { trainingCenter?: string; vatNumber?: string })[];
     state: {
       readerVersion: string;
       rollbackEligibleStudentCount: number;
@@ -23,3 +23,14 @@ export declare function reportCounters(
 
 export declare class SafeScriptError extends Error {}
 export declare function reportScriptError(error: unknown): void;
+
+export declare function runReport(
+  firestore: {
+    collection(path: string): {
+      get(): Promise<{ docs: { id: string; data(): unknown }[] }>;
+    };
+    doc(path: string): { get(): Promise<{ data(): unknown }> };
+  },
+  root: string,
+  today: string,
+): Promise<void>;
