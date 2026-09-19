@@ -259,6 +259,7 @@ describe("domain contracts", () => {
       "dropin.created",
       "dropin.cancelled",
       "class.history.read",
+      "member.migration.skipped",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

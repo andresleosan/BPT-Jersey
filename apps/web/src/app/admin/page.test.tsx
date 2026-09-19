@@ -25,6 +25,7 @@ const pilotNavigation = [
   "Attendance",
   "Members",
   "Member search",
+  "Member migration",
   "Memberships",
   "Enrolment requests",
   "Medical conditions",
