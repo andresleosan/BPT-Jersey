@@ -794,16 +794,13 @@ const RESOLUTION_REQUIREMENTS = {
   ],
   T050V2: [
     requirement(
-      "1) Asignar aforo a las sesiones importadas con capacity null (bloqueo): 298 de 389, 82 futuras.",
+      "1-3) Hecho 2026-09-17: aforo 40 en las 82 sesiones futuras sin aforo, ninguna sesión sin programId y 48 functions desplegadas desde origin/main e61031c.",
     ),
-    requirement("2) Confirmar que ningún documento de sesión en producción carece de programId."),
     requirement(
-      "3) Desplegar las functions, solo con confirmación del operador en chat. La web ya está en producción: el push de 20ed898 a main la publicó automáticamente en Cloudflare Pages el 2026-09-17; las functions siguen con el despliegue manual anterior. No editar planes hasta desplegar las functions.",
+      "4-5) Hecho: town-teens desactivado y west-teens-payg creado y activo (£7.50, teens, West).",
     ),
-    requirement('4) Desactivar town-teens con "Deactivate plan".'),
-    requirement("5) Crear west-teens-payg: elegirlo en el editor y guardar."),
     requirement(
-      '6) Revisar quién tiene payg, west-adult y west-teens (guardar el catálogo les reduce acceso); después "Load catalogue values" + guardar en cada plan marcado "Differs from catalogue". Hasta entonces el calendario del socio (lee PLAN_CATALOG) y el servidor (lee el plan guardado) pueden discrepar.',
+      "6) Hecho 2026-09-18: los 9 planes que faltaban creados y activados desde el catálogo; producción tiene 11 planes, 10 activos y town-teens inactivo.",
     ),
     requirement("7) No revertir functions tras editar planes sin restaurar antes los planes."),
   ],
@@ -823,6 +820,33 @@ const RESOLUTION_REQUIREMENTS = {
     ),
     requirement(
       "6) Devolver el foco al disparador cuando se cierra el diálogo de anulación: hoy la recarga lo desmonta y el foco cae en `<body>`. Propiedad 5 del modal, única de las cinco sin aseverar.",
+    ),
+  ],
+  T052V2: [
+    requirement("Hecho 2026-09-18: canonical, robots.txt y sitemap.xml en produccion."),
+    requirement("Hecho 2026-09-18: Redirect Rule de zona, www responde 301 al apex."),
+    requirement("Subir el sitemap a Google Search Console para acelerar la consolidacion."),
+  ],
+  T053V2: [
+    requirement(
+      "Desplegar las functions afectadas y comprobar con un preflight OPTIONS que el apex recibe su propio origen.",
+    ),
+    requirement(
+      "Despues, y solo con el apex probado, retirar pages.dev de la lista y volver a desplegar.",
+    ),
+  ],
+  T054V2: [
+    requirement(
+      "Hecho 2026-09-18: PR #4 mergeado y publicado; el mensaje se sirve en bptjersey.com.",
+    ),
+    requirement("Comprobar en produccion con un alumno real sin membresia activa."),
+  ],
+  T055V2: [
+    requirement(
+      "Hecho 2026-09-18: 4 callables de perfiles desplegados, 401 sin sesion y CORS comprobados.",
+    ),
+    requirement(
+      "Niveles tras integrar T051V2; salud y export agregado siguen cerrados sin piloto.",
     ),
   ],
 };
@@ -1436,6 +1460,16 @@ const operatorDataItems = [
  * cuelga de ella.
  */
 const TASK_SURFACES = {
+  T051V2: [],
+  T052V2: [],
+  T053V2: [
+    "apps/functions/src/auth/callable-options.ts",
+    "apps/functions/src/staff/permission-grant-callables.ts",
+    "apps/functions/src/birthdays/upcoming-birthday-callables.ts",
+    "apps/functions/src/penalties/no-show-penalty-callables.ts",
+  ],
+  T054V2: ["apps/web/src/app/account/calendar/member-calendar.tsx"],
+  T055V2: [],
   T001V2: ["apps/web/src/app/enrol/page.tsx"],
   T002V2: ["apps/web/src/app/enrol/page.tsx"],
   T003V2: ["apps/web/src/app/enrol/page.tsx", "apps/web/src/app/enrol/enrol.css"],
@@ -1871,7 +1905,7 @@ const classesServicesItems = [
     "revision",
     "11 planes (trimestre, 3x, town-teens retirado, west-teens-payg), aforo obligatorio en sesiones y copy week, open mats fuera del límite semanal, precios públicos desde el catálogo.",
     "T046V2",
-    "Rama feature/plans-pricing-capacity. Gate 2026-09-17 y capturas qa/screenshots/t050-*; detalle en tasksv2.md. Bloqueo de despliegue: 298 sesiones importadas sin aforo.",
+    "Rama feature/plans-pricing-capacity. Gate 2026-09-17 y capturas qa/screenshots/t050-*; detalle en tasksv2.md. En producción desde 2026-09-17: aforos asignados, 48 functions desplegadas y los 11 planes en Firestore (10 activos).",
     [
       REF_TASKS,
       "docs/superpowers/specs/2026-09-17-plans-pricing-capacity-design.md",
@@ -1891,6 +1925,46 @@ const classesServicesItems = [
       "docs/superpowers/specs/2026-09-17-member-profile-e0-e2-design.md",
       "docs/superpowers/plans/2026-09-17-member-profile-c-e2-ibjjf.md",
     ],
+    "funcion",
+  ),
+  task(
+    "T052V2",
+    "Un unico host canonico para el sitio publico, mas robots.txt y sitemap.xml",
+    "desplegada",
+    "Cloudflare servia el mismo sitio en el apex, en www y en pages.dev: tres copias de cada pagina para los buscadores. Ahora cada pagina publica declara su canonical en bptjersey.com, www responde 301 al apex, y hay robots.txt y sitemap.xml.",
+    "-",
+    "Gate 2026-09-18 sobre b91a276: 340 ficheros / 3270 pruebas verdes, con falsacion. Verificado sobre el HTML generado y despues en vivo con curl. Un _redirects NO sirve para esto y se revirtio en b0908e6; detalle en tasksv2.md.",
+    [REF_TASKS, "apps/web/src/app/site-metadata.ts"],
+    "funcion",
+  ),
+  task(
+    "T053V2",
+    "El dominio propio no podia hablar con el backend: anadir el apex a la lista CORS",
+    "revision",
+    "Desde pages.dev se veia la base de datos y el panel; desde bptjersey.com no. Las callables aceptaban un unico origen, pages.dev, asi que en el apex las paginas cargaban y toda llamada fallaba por CORS.",
+    "T052V2",
+    "Causa medida con preflights OPTIONS reales contra produccion, no supuesta. browserOrigins vive ahora en un solo sitio y los cuatro bloques lo comparten. Pendiente: desplegar las functions afectadas.",
+    [REF_TASKS, "apps/functions/src/auth/callable-options.ts"],
+    "funcion",
+  ),
+  task(
+    "T054V2",
+    "La vista de cliente /account se quedaba cargando si el alumno no tiene membresia activa",
+    "desplegada",
+    "Con cero participantes el efecto de la semana nunca corria y weekState se quedaba en loading: esqueleto infinito. Ahora se muestra un aviso para contactar con la academia.",
+    "-",
+    "Test nuevo que falla con el codigo anterior; 92/92 en /account, lint y typecheck limpios. Login verificado con Playwright en .com, www y pages.dev.",
+    [REF_TASKS, "apps/web/src/app/account/calendar/member-calendar.tsx"],
+    "funcion",
+  ),
+  task(
+    "T055V2",
+    "25 callables que la web publicada usa no existen en produccion (404); quedan 21",
+    "revision",
+    "Perfil de cliente, perfil de tutor, niveles, salud, facturas, membresias, planes de clase, importacion PDF y export agregado responden 404. Varios se dejaron fuera a proposito porque fallan cerrados sin piloto.",
+    "-",
+    "Medido 2026-09-18 con POST sin sesion: desplegada responde 401, estas 404. Triage por grupo en tasksv2.md.",
+    [REF_TASKS],
     "funcion",
   ),
 ];

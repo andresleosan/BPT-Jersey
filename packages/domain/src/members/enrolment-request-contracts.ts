@@ -4,6 +4,13 @@ import { enrolmentWaiverTermsVersion } from "../consents/enrolment-waiver-terms"
 
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
+import {
+  PLAN_CATALOG,
+  planIds,
+  retiredPlanIds,
+  type PlanDraft,
+  type Site,
+} from "../memberships/plan-contracts";
 import { deriveParticipantType } from "../profiles/profile-contracts";
 import { adminCreateStudentInputShape } from "./member-directory-contracts";
 
@@ -83,6 +90,8 @@ export const enrolmentApplicantSchema = z
   .strictObject({
     ...applicantShape,
     phoneNumber: applicantShape.phoneNumber.unwrap(),
+    // A guardian who is not training has no training time preference.
+    trainingTimePreferences: z.union([applicantShape.trainingTimePreferences, z.tuple([])]),
   })
   .readonly();
 export type EnrolmentApplicant = Readonly<z.infer<typeof enrolmentApplicantSchema>>;
@@ -118,13 +127,30 @@ export const enrolmentWaiverAcceptanceSchema = z
   .readonly();
 export type EnrolmentWaiverAcceptance = Readonly<z.infer<typeof enrolmentWaiverAcceptanceSchema>>;
 
+const enrolmentDetailsShape = {
+  requestId: z.string().regex(uuidV4Pattern),
+  applicantIsStudent: z.boolean(),
+  applicant: enrolmentApplicantSchema,
+  minors: z.array(enrolmentMinorSchema).max(maximumEnrolmentRequestMinors).readonly(),
+  waiverAcceptance: enrolmentWaiverAcceptanceSchema,
+};
+
+export const enrolmentRequestDetailsSchema = z.strictObject(enrolmentDetailsShape).readonly();
+export type EnrolmentRequestDetails = Readonly<z.infer<typeof enrolmentRequestDetailsSchema>>;
+
+// Choices are indexed in the same order as the minors; the guardian has no plan of their own.
+export const enrolmentPlanSelectionsSchema = z
+  .strictObject({
+    applicant: z.enum(planIds).optional(),
+    minors: z.array(z.enum(planIds)).max(maximumEnrolmentRequestMinors).readonly(),
+  })
+  .readonly();
+export type EnrolmentPlanSelections = Readonly<z.infer<typeof enrolmentPlanSelectionsSchema>>;
+
 export const enrolmentRequestSubmissionSchema = z
   .strictObject({
-    requestId: z.string().regex(uuidV4Pattern),
-    applicantIsStudent: z.boolean(),
-    applicant: enrolmentApplicantSchema,
-    minors: z.array(enrolmentMinorSchema).max(maximumEnrolmentRequestMinors).readonly(),
-    waiverAcceptance: enrolmentWaiverAcceptanceSchema,
+    ...enrolmentDetailsShape,
+    planSelections: enrolmentPlanSelectionsSchema,
   })
   .readonly();
 export type EnrolmentRequestSubmission = Readonly<z.infer<typeof enrolmentRequestSubmissionSchema>>;
@@ -138,6 +164,8 @@ export const enrolmentRequestRecordSchema = z
     applicantIsStudent: z.boolean(),
     applicant: enrolmentApplicantSchema,
     minors: z.array(enrolmentMinorSchema).max(maximumEnrolmentRequestMinors).readonly(),
+    // Older requests remain reviewable without a plan preference.
+    planSelections: enrolmentPlanSelectionsSchema.optional(),
     submittedBy: opaqueIdentifierSchema,
     submittedAt: auditDateTimeSchema,
     /**
@@ -246,6 +274,7 @@ export type EnrolmentRequestDetail = Readonly<{
   applicantIsStudent: boolean;
   applicant: EnrolmentApplicant;
   minors: readonly EnrolmentMinor[];
+  planSelections?: EnrolmentPlanSelections;
   submittedBy: string;
   submittedAt: string;
   reviewedBy?: string;
@@ -308,12 +337,12 @@ function isPlainData(value: unknown, depth = 0): boolean {
  * are a student must be an adult, and everybody listed as a minor in their care must actually be
  * one.
  */
-export function parseEnrolmentRequestSubmission(
+export function parseEnrolmentRequestDetails(
   value: unknown,
   effectiveDate: string,
-): Result<EnrolmentRequestSubmission, readonly ValidationIssue[]> {
+): Result<EnrolmentRequestDetails, readonly ValidationIssue[]> {
   if (!isPlainData(value)) return err(issue([], "invalid_plain_data"));
-  const parsed = enrolmentRequestSubmissionSchema.safeParse(value);
+  const parsed = enrolmentRequestDetailsSchema.safeParse(value);
   if (!parsed.success) return err(issues(parsed.error));
 
   const { applicantIsStudent, applicant, minors } = parsed.data;
@@ -325,6 +354,10 @@ export function parseEnrolmentRequestSubmission(
   // produce. Rejecting it here is honest; accepting it would build a request nobody can approve.
   if (applicantIsStudent && minors.length > 0) {
     return err(issue(["minors"], "adult_and_minors_not_supported"));
+  }
+
+  if (applicantIsStudent && applicant.trainingTimePreferences.length === 0) {
+    return err(issue(["applicant", "trainingTimePreferences"], "training_time_required"));
   }
 
   let applicantType: string;
@@ -349,6 +382,71 @@ export function parseEnrolmentRequestSubmission(
     }
   }
 
+  return ok(parsed.data);
+}
+
+/** Plans offered at the student's centre, using the same 12/18 age bands as memberships. */
+export function getEnrolmentPlans(
+  dateOfBirth: string,
+  trainingCenter: Site,
+  effectiveDate: string,
+): readonly PlanDraft[] {
+  let participantType: "adult" | "kids" | "teens";
+  try {
+    if (deriveParticipantType(dateOfBirth, effectiveDate) === "adult") {
+      participantType = "adult";
+    } else {
+      const age =
+        Number(effectiveDate.slice(0, 4)) -
+        Number(dateOfBirth.slice(0, 4)) -
+        (effectiveDate.slice(5) < dateOfBirth.slice(5) ? 1 : 0);
+      participantType = age >= 12 ? "teens" : "kids";
+    }
+  } catch {
+    return [];
+  }
+  return PLAN_CATALOG.filter(
+    (plan) =>
+      !retiredPlanIds.includes(plan.planId) &&
+      plan.classSites.includes(trainingCenter) &&
+      plan.eligibleParticipantTypes.includes(participantType),
+  );
+}
+
+export function parseEnrolmentRequestSubmission(
+  value: unknown,
+  effectiveDate: string,
+): Result<EnrolmentRequestSubmission, readonly ValidationIssue[]> {
+  if (!isPlainData(value)) return err(issue([], "invalid_plain_data"));
+  const parsed = enrolmentRequestSubmissionSchema.safeParse(value);
+  if (!parsed.success) return err(issues(parsed.error));
+  const { planSelections, ...details } = parsed.data;
+  const checkedDetails = parseEnrolmentRequestDetails(details, effectiveDate);
+  if (!checkedDetails.ok) return checkedDetails;
+  const { applicantIsStudent, applicant, minors } = details;
+  if (applicantIsStudent !== (planSelections.applicant !== undefined)) {
+    return err(issue(["planSelections", "applicant"], "plan_selection_required_for_student_only"));
+  }
+  if (planSelections.minors.length !== minors.length) {
+    return err(issue(["planSelections", "minors"], "plan_required_for_every_child"));
+  }
+  if (
+    applicantIsStudent &&
+    !getEnrolmentPlans(applicant.dateOfBirth, applicant.trainingCenter, effectiveDate).some(
+      (plan) => plan.planId === planSelections.applicant,
+    )
+  ) {
+    return err(issue(["planSelections", "applicant"], "plan_not_available"));
+  }
+  for (const [index, minor] of minors.entries()) {
+    if (
+      !getEnrolmentPlans(minor.dateOfBirth, minor.trainingCenter, effectiveDate).some(
+        (plan) => plan.planId === planSelections.minors[index],
+      )
+    ) {
+      return err(issue(["planSelections", "minors", index], "plan_not_available"));
+    }
+  }
   return ok(parsed.data);
 }
 
@@ -398,6 +496,7 @@ export function toEnrolmentRequestDetail(record: EnrolmentRequestRecord): Enrolm
     applicantIsStudent: record.applicantIsStudent,
     applicant: record.applicant,
     minors: Object.freeze([...record.minors]),
+    ...(record.planSelections === undefined ? {} : { planSelections: record.planSelections }),
     submittedBy: record.submittedBy,
     submittedAt: record.submittedAt,
     ...(record.reviewedBy === undefined ? {} : { reviewedBy: record.reviewedBy }),

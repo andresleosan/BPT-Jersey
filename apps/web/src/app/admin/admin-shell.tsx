@@ -20,11 +20,12 @@ type NavigationGroup = Readonly<{ label: string; items: readonly NavigationItem[
  * The pilot navigation: what the office and the coaches use in a normal day, grouped by job.
  * Working modules outside the pilot scope (class waitlists, CRM, retention, lesson plans) keep
  * their routes, callables and tests but are not listed here; Families is reached from Members and
- * the finance dashboard from Billing. Memberships and waivers keep their routes
- * (`/admin/memberships`, `/admin/waivers`) and tests but left the menu on 2026-09-12 at the
- * operator's request. Classes and Levels were added to the coach menu on 2026-09-14 (ADR-010
- * amendment); see Classes read-only and Levels powers in ADR-010. Member search was added for
- * office and coaches on 2026-09-17 (ADR-010 amendment, member record).
+ * the finance dashboard from Billing. Waivers keeps its route (`/admin/waivers`) and tests but
+ * left the menu on 2026-09-12 at the operator's request; Memberships left with it and came back
+ * on 2026-09-17, when the operator had no way to reach the plan catalogue. Classes and Levels
+ * were added to the coach menu on 2026-09-14 (ADR-010 amendment); see Classes read-only and
+ * Levels powers in ADR-010. Member search was added for office and coaches on 2026-09-17
+ * (ADR-010 amendment, member record).
  */
 const navigationGroups: readonly NavigationGroup[] = [
   {
@@ -39,6 +40,7 @@ const navigationGroups: readonly NavigationGroup[] = [
     items: [
       { label: "Members", href: "/admin/members" },
       { label: "Member search", href: "/admin/members/search" },
+      { label: "Memberships", href: "/admin/memberships" },
       { label: "Enrolment requests", href: "/admin/members/requests" },
       { label: "Medical conditions", href: "/admin/members/medical" },
     ],
@@ -82,6 +84,7 @@ export function AdminShell({
   session: AdminSession | StaffSession;
 }) {
   const pathname = usePathname() ?? "";
+  const coachWorkspace = isStaffRole(session.role);
   const roleLabel =
     session.role === "owner"
       ? "Owner access"
@@ -106,6 +109,17 @@ export function AdminShell({
         : group.items,
     }))
     .filter((group) => group.items.length > 0);
+  if (coachWorkspace) {
+    visibleGroups.unshift({
+      label: "Coach",
+      items: [
+        { label: "Dashboard", href: "/coach" },
+        { label: "Progression syllabus", href: "/coach/levels" },
+        { label: "My sign-in", href: "/coach/access" },
+      ],
+    });
+  }
+  const navigationLabel = coachWorkspace ? "Coach navigation" : "Admin navigation";
   const visibleNavigationItems = visibleGroups.flatMap((group) => group.items);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -114,7 +128,7 @@ export function AdminShell({
   const navigationInitializedRef = useRef(false);
 
   function isCurrentRoute(href: string): boolean {
-    return href === "/admin"
+    return href === "/admin" || href === "/coach"
       ? pathname === href
       : pathname === href || pathname.startsWith(`${href}/`);
   }
@@ -185,7 +199,7 @@ export function AdminShell({
 
   function renderNavigation(className: string) {
     return (
-      <nav aria-label="Admin navigation" className={className}>
+      <nav aria-label={navigationLabel} className={className}>
         {visibleGroups.map((group) => (
           <div className="admin-nav-group" key={group.label}>
             <p aria-hidden="true" className="admin-nav-group-label">
@@ -218,7 +232,7 @@ export function AdminShell({
       </a>
 
       <div className="admin-shell" data-testid="admin-shell">
-        <aside className="admin-sidebar" aria-label="Administrative navigation">
+        <aside className="admin-sidebar" aria-label={navigationLabel}>
           <Link className="admin-brand" href="/" aria-label="BPT Jersey home">
             <Image
               alt="BPT Jersey logo"
@@ -252,7 +266,7 @@ export function AdminShell({
             <button
               aria-controls="admin-mobile-navigation"
               aria-expanded={navigationOpen}
-              aria-label={navigationOpen ? "Close admin navigation" : "Open admin navigation"}
+              aria-label={`${navigationOpen ? "Close" : "Open"} ${coachWorkspace ? "coach" : "admin"} navigation`}
               className="admin-mobile-menu-button"
               onClick={() => setNavigationOpen((open) => !open)}
               ref={menuButtonRef}
@@ -265,24 +279,23 @@ export function AdminShell({
               />
             </button>
             <div className="admin-header-title">
-              <p className="admin-header-kicker">BPT Jersey / Admin</p>
-              <h1>Academy control room</h1>
+              <p className="admin-header-kicker">
+                BPT Jersey / {coachWorkspace ? "Coach" : "Admin"}
+              </p>
+              <h1>{coachWorkspace ? "Coach workspace" : "Academy control room"}</h1>
             </div>
             <div className="admin-header-actions">
               <p className="admin-header-status">
                 <span className="admin-status-dot" aria-hidden="true" />
                 <span className="admin-identity" data-testid="admin-identity">
-                  <span className="admin-identity-name">{personName || session.email}</span>
+                  <span className="admin-identity-name">
+                    {personName || session.email || "Coach"}
+                  </span>
                   <span className="admin-identity-meta">
-                    {personName ? `${roleLabel} - ${session.email}` : roleLabel}
+                    {personName && session.email ? `${roleLabel} - ${session.email}` : roleLabel}
                   </span>
                 </span>
               </p>
-              {allowedRoutes ? (
-                <Link className="admin-home-link" href="/coach">
-                  Coach portal
-                </Link>
-              ) : null}
               <Link className="admin-home-link" href="/">
                 Home
               </Link>
@@ -297,13 +310,13 @@ export function AdminShell({
           {navigationOpen ? (
             <>
               <button
-                aria-label="Dismiss admin navigation"
+                aria-label={`Dismiss ${coachWorkspace ? "coach" : "admin"} navigation`}
                 className="admin-mobile-backdrop"
                 onClick={closeNavigation}
                 type="button"
               />
               <div
-                aria-label="Admin navigation"
+                aria-label={navigationLabel}
                 aria-modal="true"
                 className="admin-mobile-navigation"
                 id="admin-mobile-navigation"
@@ -326,7 +339,7 @@ export function AdminShell({
                   </div>
                   <button
                     aria-expanded="true"
-                    aria-label="Close admin navigation"
+                    aria-label={`Close ${coachWorkspace ? "coach" : "admin"} navigation`}
                     className="admin-mobile-close-button"
                     onClick={closeNavigation}
                     ref={closeButtonRef}

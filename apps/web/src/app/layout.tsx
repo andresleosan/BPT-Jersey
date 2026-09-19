@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Source_Sans_3 } from "next/font/google";
 
 import "./globals.css";
+import { rootMetadata } from "./site-metadata";
 
 const displayFont = Barlow_Condensed({
   subsets: ["latin"],
@@ -14,19 +15,7 @@ const bodyFont = Source_Sans_3({
   variable: "--font-body",
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "BPT Jersey | Brazilian Jiu-Jitsu Academy",
-    template: "%s | BPT Jersey",
-  },
-  description:
-    "Train Brazilian Jiu-Jitsu with Brazilian Power Team Jersey and manage every academy touchpoint in one clear place.",
-  icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
-  },
-};
+export const metadata: Metadata = rootMetadata;
 
 export const viewport: Viewport = {
   colorScheme: "light",

@@ -182,6 +182,8 @@ describe("domain contracts", () => {
       "admin.role.revoked",
       "member.created",
       "member.updated",
+      "member.recovery.reviewed",
+      "member.recovery.detail.read",
       "guardian.profile.created",
       "guardian.profile.updated",
       "family.created",
@@ -251,6 +253,11 @@ describe("domain contracts", () => {
       "enrolment.request.detail.read",
       "member.directory.initialized",
       "regyfit.record.field.read",
+      "booking.created",
+      "booking.cancelled",
+      "dropin.created",
+      "dropin.cancelled",
+      "class.history.read",
     ]);
     expect(Object.isFrozen(auditActions)).toBe(true);
     expect(parseAuditEventDraft).toBeTypeOf("function");

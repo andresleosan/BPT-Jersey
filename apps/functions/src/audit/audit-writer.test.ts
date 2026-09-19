@@ -76,6 +76,31 @@ const regyfitRevealDraft = {
   correlationId: "restricted-audit-reveal-1",
   result: "not-found",
 } as unknown as AuditEventDraft;
+function checkedInDraft(overrides: Readonly<Record<string, unknown>> = {}): AuditEventDraft {
+  return {
+    academyId: "academy-1",
+    actorId: "coach-1",
+    action: "attendance.checked_in",
+    targetRef: "academies/academy-1/attendance/attendance-1",
+    purpose: "schedule-attendance-operation",
+    correlationId: "attendance-1",
+    class: {
+      studentId: "student-1",
+      memberId: null,
+      studentName: null,
+      sessionId: "session-1",
+      sessionStartAt: "2026-09-18T18:00:00.000Z",
+      programId: "adult-fundamentals",
+      locationId: "town",
+    },
+    actorIp: null,
+    actorRole: "coach",
+    actorGroup: "staff",
+    actorName: null,
+    source: "bpt",
+    ...overrides,
+  } as unknown as AuditEventDraft;
+}
 
 function modernEvent(overrides: Readonly<Record<string, unknown>> = {}) {
   return {
@@ -232,6 +257,84 @@ describe("audit writer", () => {
         }),
       ).toBe(false);
     }
+  });
+
+  it("replays a check-in audited before the class block existed", () => {
+    const legacyStored = {
+      academyId: "academy-1",
+      actorId: "coach-1",
+      action: "attendance.checked_in",
+      targetRef: "academies/academy-1/attendance/attendance-1",
+      purpose: "schedule-attendance-operation",
+      correlationId: "attendance-1",
+      auditEventId: "attendance-check-in-attendance-1",
+      occurredAt: { seconds: 1, nanoseconds: 0 },
+      result: "completed",
+      schemaVersion: 1,
+    };
+
+    expect(
+      matchesAuditEventReplay(legacyStored, "attendance-check-in-attendance-1", checkedInDraft()),
+    ).toBe(true);
+    expect(
+      matchesAuditEventReplay(
+        { ...legacyStored, actorId: "coach-2" },
+        "attendance-check-in-attendance-1",
+        checkedInDraft(),
+      ),
+    ).toBe(false);
+  });
+
+  it("replays a class row stored before the class block named a member", () => {
+    const block = (checkedInDraft() as unknown as { class: Record<string, unknown> }).class;
+    // The class block exactly as it was stored before `memberId` existed: every key but that one.
+    const legacyBlock = Object.fromEntries(
+      Object.entries(block).filter(([key]) => key !== "memberId"),
+    );
+    const stored = {
+      ...(checkedInDraft() as unknown as Record<string, unknown>),
+      class: legacyBlock,
+      auditEventId: "attendance-check-in-attendance-1",
+      occurredAt: { seconds: 1, nanoseconds: 0 },
+      result: "completed",
+      schemaVersion: 1,
+    };
+
+    expect(
+      matchesAuditEventReplay(stored, "attendance-check-in-attendance-1", checkedInDraft()),
+    ).toBe(true);
+    expect(
+      matchesAuditEventReplay(
+        stored,
+        "attendance-check-in-attendance-1",
+        checkedInDraft({ class: { ...legacyBlock, memberId: null, studentId: "student-2" } }),
+      ),
+    ).toBe(false);
+  });
+
+  it("replays a class event whose caller reaches it from another address", () => {
+    const stored = {
+      ...(checkedInDraft({ actorIp: "82.112.144.10" }) as unknown as Record<string, unknown>),
+      auditEventId: "attendance-check-in-attendance-1",
+      occurredAt: { seconds: 1, nanoseconds: 0 },
+      result: "completed",
+      schemaVersion: 1,
+    };
+
+    expect(
+      matchesAuditEventReplay(
+        stored,
+        "attendance-check-in-attendance-1",
+        checkedInDraft({ actorIp: "82.112.144.11" }),
+      ),
+    ).toBe(true);
+    expect(
+      matchesAuditEventReplay(
+        stored,
+        "attendance-check-in-attendance-1",
+        checkedInDraft({ actorRole: "administrator", actorGroup: "staff" }),
+      ),
+    ).toBe(false);
   });
 
   it("requires no mutation API other than create", () => {

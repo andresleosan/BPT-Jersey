@@ -120,6 +120,7 @@ function adultSubmission(requestId: string) {
       postalAddress,
     },
     minors: [],
+    planSelections: { applicant: "town-adult", minors: [] },
     waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
   };
 }
@@ -325,6 +326,7 @@ test.describe("T121 enrolment approval with Firebase Emulators", () => {
             emergencyContact,
           },
         ],
+        planSelections: { minors: ["west-kids-2x"] },
         waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
       },
       { idToken: applicantToken },

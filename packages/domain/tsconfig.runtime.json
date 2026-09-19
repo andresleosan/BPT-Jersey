@@ -17,6 +17,7 @@
     "src/actor-context.ts",
     "src/auth/admin-contracts.ts",
     "src/audit/audit-event.ts",
+    "src/audit/class-history-contracts.ts",
     "src/authorization/access-policy.ts",
     "src/members/member-contracts.ts",
     "src/members/member-directory-contracts.ts",
@@ -26,6 +27,7 @@
     "src/members/member-directory-transitions.ts",
     "src/members/enrolment-request-contracts.ts",
     "src/members/regyfit-member-record-contracts.ts",
+    "src/members/member-recovery-contracts.ts",
     "src/members/member-engagement-contracts.ts",
     "src/members/member-profile-contracts.ts",
     "src/profiles/profile-contracts.ts",
@@ -61,6 +63,7 @@
     "src/penalties/no-show-penalty-contracts.ts",
     "src/birthdays/upcoming-birthday-contracts.ts",
     "src/staff/permission-grant-contracts.ts",
-    "src/consents/disclaimer-contracts.ts"
+    "src/consents/disclaimer-contracts.ts",
+    "src/memberships/subscription-admin-contracts.ts"
   ]
 }

@@ -84,17 +84,17 @@ export function OpenLevelPanel({ studentIds, onOpened }: PanelProps) {
   }
 
   return (
-    <section className="coach-payg-box" aria-labelledby="open-level-title">
+    <section className="coach-attendance-box" aria-labelledby="open-level-title">
       <h3 id="open-level-title">Open a student level record</h3>
       <p className="text-sm">
         Head coach only. Sets the belt the student holds today; stripes and promotions are still
         approved one by one.
       </p>
-      <form className="coach-payg-form" onSubmit={(event) => void handleSubmit(event)}>
+      <form className="coach-inline-form" onSubmit={(event) => void handleSubmit(event)}>
         <label htmlFor="open-level-student">
           Student
           <select
-            className="coach-payg-input"
+            className="coach-input"
             disabled={busy || studentIds.length === 0}
             id="open-level-student"
             onChange={(event) => setStudentId(event.target.value)}
@@ -114,7 +114,7 @@ export function OpenLevelPanel({ studentIds, onOpened }: PanelProps) {
         <label htmlFor="open-level-belt">
           Belt
           <select
-            className="coach-payg-input"
+            className="coach-input"
             disabled={busy || catalog.status !== "ready"}
             id="open-level-belt"
             onChange={(event) => setDefinitionKey(event.target.value)}
@@ -140,7 +140,7 @@ export function OpenLevelPanel({ studentIds, onOpened }: PanelProps) {
         <label htmlFor="open-level-notes">
           Notes
           <input
-            className="coach-payg-input"
+            className="coach-input"
             disabled={busy}
             id="open-level-notes"
             maxLength={1000}
@@ -150,7 +150,7 @@ export function OpenLevelPanel({ studentIds, onOpened }: PanelProps) {
           />
         </label>
         <button
-          className="button button-primary text-sm"
+          className="admin-auth-button coach-button"
           disabled={busy || catalog.status !== "ready" || studentIds.length === 0}
           type="submit"
         >

@@ -139,7 +139,12 @@ export function createMemberProfileService(
       }
     } else if (student.familyId !== undefined) {
       const family = await store.getFamily(academyId, student.familyId);
-      if (family !== undefined && family.active && family.primaryContactUserId !== student.userId) {
+      if (
+        family !== undefined &&
+        family.active &&
+        family.primaryContactUserId !== null &&
+        family.primaryContactUserId !== student.userId
+      ) {
         candidates.push({ userId: family.primaryContactUserId, familyId: family.familyId });
       }
     }

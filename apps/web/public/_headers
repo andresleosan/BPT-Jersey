@@ -10,3 +10,6 @@
   X-Robots-Tag: noindex, nofollow
 /coach/*
   X-Robots-Tag: noindex, nofollow
+# The legacy-site kill switch must never be cached, so every returning browser gets it at once.
+/sw.js
+  Cache-Control: no-store

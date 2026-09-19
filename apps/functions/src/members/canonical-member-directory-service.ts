@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
   parseAdminCreateStudentInput,
+  adminCreateStudentInputSchema,
+  normalizeAdministrativeIdentifier,
   parseAdminUpdateStudentInput,
   studentAdminProfileSchema,
   type AdminCreateStudentInput,
@@ -10,6 +12,7 @@ import {
   type StudentAdminProfile,
 } from "@bpt-jersey/domain/members/directory";
 import {
+  deriveParticipantType,
   parseStudentProfileAt,
   parseUserProfile,
   type StudentProfile,
@@ -17,6 +20,7 @@ import {
 } from "@bpt-jersey/domain/profiles";
 import { parseFamilyRecord, type FamilyRecord } from "@bpt-jersey/domain/families";
 import { z } from "zod";
+import { parseRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 import {
@@ -74,6 +78,14 @@ export type CreateAdminAdultCommand = Readonly<{
   value: unknown;
   now: string;
 }>;
+
+export type OfficeImportedMemberCommand = CreateAdminAdultCommand & Readonly<{ recordId: string }>;
+export type OfficeMemberDirectoryService = CanonicalMemberDirectoryService &
+  Readonly<{
+    registerImportedMember: (
+      command: OfficeImportedMemberCommand,
+    ) => Promise<CreateAdminAdultResult>;
+  }>;
 
 export type CreateAdminAdultResult = Readonly<{ memberId: string; studentId: string }>;
 
@@ -276,10 +288,16 @@ function requestMac(
   actorId: string,
   input: AdminCreateStudentInput,
   secretMaterial: string,
+  recordId?: string,
 ): string {
   return createMemberDirectoryIntegrityMac({
     domain: "bpt-member-directory-write-request-v1",
-    values: [academyId, actorId, canonicalizeMemberDirectoryValue(input)],
+    values: [
+      academyId,
+      actorId,
+      canonicalizeMemberDirectoryValue(input),
+      ...(recordId ? [recordId] : []),
+    ],
     secretMaterial,
   });
 }
@@ -318,19 +336,21 @@ function buildStudent(
   actorId: string,
   now: string,
   /** Present only when office is enrolling somebody whose account is already known. */
-  link?: Readonly<{ userId: string; familyId: string }>,
+  link?: Readonly<{ userId?: string; familyId: string }>,
 ): StudentProfile {
   const record = {
     studentId,
     academyId,
-    ...(link === undefined ? {} : { userId: link.userId, familyId: link.familyId }),
+    ...(link === undefined
+      ? {}
+      : { ...(link.userId ? { userId: link.userId } : {}), familyId: link.familyId }),
     fullName: input.fullName,
     dateOfBirth: input.dateOfBirth,
     ...(input.phoneNumber === undefined ? {} : { phoneNumber: input.phoneNumber }),
     ...(input.email === undefined ? {} : { email: input.email }),
     trainingCenter: input.trainingCenter,
     trainingTimePreferences: input.trainingTimePreferences,
-    participantType: "adult" as const,
+    participantType: deriveParticipantType(input.dateOfBirth, now.slice(0, 10)),
     active: true,
     status: "active" as const,
     schemaVersion: "1" as const,
@@ -448,6 +468,8 @@ function profileProvenance(profile: StudentAdminProfile): Readonly<Record<string
   switch (profile.source) {
     case "admin":
       return Object.freeze({ source: profile.source });
+    case "regyfit-account-recovery":
+      return Object.freeze({ source: profile.source, recoveryId: profile.recoveryId });
     case "member-pdf-import":
       return Object.freeze({ source: profile.source, importRunId: profile.importRunId });
     case "legacy-member-migration":
@@ -703,7 +725,7 @@ async function resolveReplay(
 
 export function createCanonicalMemberDirectoryService(
   dependencies: CanonicalMemberDirectoryDependencies,
-): CanonicalMemberDirectoryService {
+): OfficeMemberDirectoryService {
   requiredIdentifier(dependencies.projectId, "project ID");
   requiredIdentifier(dependencies.identitySecretVersion, "identity secret version");
   requiredIdentifier(dependencies.integritySecretVersion, "integrity secret version");
@@ -743,10 +765,18 @@ export function createCanonicalMemberDirectoryService(
   async function createAdult(
     command: CreateAdminAdultCommand,
     account?: MemberAccountLink,
+    sourceRecordId?: string,
   ): Promise<CreateAdminAdultResult> {
     requireAuthorizedActor(command.actor);
     const now = requiredTimestamp(command.now);
-    const parsedInput = parseAdminCreateStudentInput(command.value, now.slice(0, 10));
+    const officeInput = sourceRecordId
+      ? adminCreateStudentInputSchema.safeParse(command.value)
+      : null;
+    const parsedInput = sourceRecordId
+      ? officeInput?.success
+        ? { ok: true as const, value: officeInput.data }
+        : { ok: false as const }
+      : parseAdminCreateStudentInput(command.value, now.slice(0, 10));
     if (!parsedInput.ok) {
       throw new CanonicalMemberDirectoryError("invalid", "Invalid admin student input");
     }
@@ -777,6 +807,7 @@ export function createCanonicalMemberDirectoryService(
       actorId,
       parsedInput.value,
       dependencies.integritySecretMaterial,
+      sourceRecordId,
     );
     const receiptId = requestReceiptId(
       academyId,
@@ -790,6 +821,80 @@ export function createCanonicalMemberDirectoryService(
 
     return dependencies.firestore.runTransaction(async (transaction) => {
       await assertProvisionedActor(transaction, dependencies, command.actor);
+      const officeLinkRef = sourceRecordId
+        ? dependencies.firestore.doc(`academies/${academyId}/regyfitOfficeLinks/${sourceRecordId}`)
+        : undefined;
+      if (officeLinkRef) {
+        const [sourceSnapshot, linkSnapshot, recoveredSnapshot] = await Promise.all([
+          transaction.get(
+            dependencies.firestore.doc(
+              `academies/${academyId}/regyfitMemberRecords/${sourceRecordId}`,
+            ),
+          ),
+          transaction.get(officeLinkRef),
+          transaction.get(
+            dependencies.firestore.doc(
+              `academies/${academyId}/regyfitMemberLinks/${sourceRecordId}`,
+            ),
+          ),
+        ]);
+        const storedSource = sourceSnapshot.data();
+        const source = parseRegyfitMemberRecord(
+          Object.fromEntries(
+            Object.entries(storedSource ?? {}).filter(([key]) => key !== "academyId"),
+          ),
+        );
+        if (
+          !source.ok ||
+          source.value.recordId !== sourceRecordId ||
+          (storedSource?.academyId !== undefined && storedSource.academyId !== academyId) ||
+          source.value.fullName !== parsedInput.value.fullName ||
+          (source.value.birthDate && source.value.birthDate !== parsedInput.value.dateOfBirth) ||
+          (source.value.memberNumber
+            ? normalizeAdministrativeIdentifier(source.value.memberNumber)
+            : undefined) !== parsedInput.value.membershipNumber
+        )
+          throw new CanonicalMemberDirectoryError(
+            "invalid",
+            "Imported identity changed. Refresh before registering.",
+          );
+        if (
+          linkSnapshot.exists &&
+          recoveredSnapshot.exists &&
+          linkSnapshot.data()?.studentId !== recoveredSnapshot.data()?.studentId
+        )
+          throw new CanonicalMemberDirectoryError("conflict", "Conflicting imported member links");
+        for (const snapshot of [linkSnapshot, recoveredSnapshot]) {
+          if (!snapshot.exists) continue;
+          const link = snapshot.data();
+          if (
+            link?.academyId !== academyId ||
+            link.recordId !== sourceRecordId ||
+            typeof link.studentId !== "string"
+          )
+            throw new CanonicalMemberDirectoryError("conflict", "Invalid imported member link");
+        }
+        const linked = linkSnapshot.exists ? linkSnapshot.data() : recoveredSnapshot.data();
+        if (linked) {
+          if (
+            linked.academyId !== academyId ||
+            linked.recordId !== sourceRecordId ||
+            typeof linked.studentId !== "string"
+          )
+            throw new CanonicalMemberDirectoryError("conflict", "Invalid imported member link");
+          const target = await transaction.get(
+            dependencies.firestore.doc(studentPath(academyId, linked.studentId)),
+          );
+          const parsed = parseStudentProfileAt(target.data(), now.slice(0, 10));
+          if (
+            !parsed.ok ||
+            parsed.value.academyId !== academyId ||
+            parsed.value.studentId !== linked.studentId
+          )
+            throw new CanonicalMemberDirectoryError("conflict", "Linked member is unavailable");
+          return { memberId: linked.studentId, studentId: linked.studentId };
+        }
+      }
       const receiptSnapshot = await transaction.get(receiptRef);
       if (receiptSnapshot.exists) {
         return resolveReplay(
@@ -857,7 +962,7 @@ export function createCanonicalMemberDirectoryService(
         actorId,
         now,
         accountLink === undefined
-          ? undefined
+          ? { familyId: `office-${studentId}` }
           : { userId: accountLink.userId, familyId: accountLink.familyId },
       );
       const profile = buildAdminProfile(parsedInput.value, academyId, studentId, actorId, now);
@@ -947,6 +1052,29 @@ export function createCanonicalMemberDirectoryService(
         linkedRecords = { family: family.value, user: user.value };
       }
 
+      const officeFamily =
+        accountLink === undefined
+          ? parseFamilyRecord({
+              familyId: student.familyId,
+              academyId,
+              primaryContactUserId: null,
+              billingContactUserId: null,
+              active: true,
+              status: "active",
+              schemaVersion: "1",
+              createdAt: now,
+              createdBy: actorId,
+              updatedAt: now,
+              updatedBy: actorId,
+            })
+          : null;
+      if (officeFamily && !officeFamily.ok)
+        throw new CanonicalMemberDirectoryError("invalid", "Invalid office billing account");
+      const officeFamilyRef = officeFamily?.ok
+        ? dependencies.firestore.doc(familyPath(academyId, officeFamily.value.familyId))
+        : undefined;
+      if (officeFamilyRef && (await transaction.get(officeFamilyRef)).exists)
+        throw new CanonicalMemberDirectoryError("conflict", "Billing account already exists");
       const nextState = {
         ...state,
         stateRevision: state.stateRevision + 1,
@@ -989,6 +1117,18 @@ export function createCanonicalMemberDirectoryService(
         schemaVersion: "1",
       });
 
+      if (officeFamilyRef && officeFamily?.ok)
+        transaction.create(officeFamilyRef, officeFamily.value);
+      if (officeLinkRef) {
+        transaction.create(officeLinkRef, {
+          academyId,
+          recordId: sourceRecordId,
+          studentId,
+          createdAt: now,
+          createdBy: actorId,
+          schemaVersion: "1",
+        });
+      }
       transaction.create(studentRef, student);
       transaction.create(profileRef, profile);
       keys.forEach((key, index) => {
@@ -1019,6 +1159,11 @@ export function createCanonicalMemberDirectoryService(
   }
 
   return Object.freeze({
+    async registerImportedMember(command: OfficeImportedMemberCommand) {
+      if (!/^[0-9]{1,12}$/u.test(command.recordId))
+        throw new CanonicalMemberDirectoryError("invalid", "Invalid imported record ID");
+      return createAdult(command, undefined, command.recordId);
+    },
     async createAdminAdult(command) {
       return createAdult(command);
     },

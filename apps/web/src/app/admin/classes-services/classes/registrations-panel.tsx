@@ -82,6 +82,7 @@ export function RegistrationsPanel({
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<readonly string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const sessionId = session.sessionId;
@@ -98,6 +99,7 @@ export function RegistrationsPanel({
         canReadMemberships ? listMemberships() : Promise.resolve([] as readonly AdminMembership[]),
       ]);
       if (abandoned) return;
+      setLoading(false);
       if (bookingRows.status === "fulfilled") setBookings(bookingRows.value);
       else setError(messageOf(bookingRows.reason, "Unable to load the registrations"));
       if (memberRows.status === "fulfilled") setMembers(memberRows.value);
@@ -116,7 +118,7 @@ export function RegistrationsPanel({
     return (studentId: string) => byStudent.get(studentId) ?? studentId;
   }, [members]);
 
-  const canEnrol = canReadMemberships && membershipsReady;
+  const canEnrol = canReadMemberships && membershipsReady && !loading;
   const registered = bookings.filter((booking) => booking.status !== "cancelled");
 
   const matches =
@@ -195,7 +197,11 @@ export function RegistrationsPanel({
           {error}
         </p>
       )}
-      {registered.length === 0 ? (
+      {loading ? (
+        <p className="cs-placeholder" role="status">
+          Loading registrations…
+        </p>
+      ) : registered.length === 0 ? (
         <p className="cs-placeholder">No one is registered yet.</p>
       ) : (
         <ul className="cs-registered">

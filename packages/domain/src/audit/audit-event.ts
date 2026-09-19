@@ -1,3 +1,4 @@
+import { userRoles, type UserRole } from "../actor-context";
 import type { ValidationIssue } from "../errors";
 import type { AcademyId, CorrelationId, SystemActorId, UserId } from "../identifiers";
 import { memberReportKeys, type MemberReportKey } from "../members/member-contracts";
@@ -8,6 +9,8 @@ export const auditActions = Object.freeze([
   "admin.role.revoked",
   "member.created",
   "member.updated",
+  "member.recovery.reviewed",
+  "member.recovery.detail.read",
   "guardian.profile.created",
   "guardian.profile.updated",
   "family.created",
@@ -28,6 +31,7 @@ export const auditActions = Object.freeze([
   "report.export.prepared",
   "family.achievements.generated",
   "lesson.plan.approved",
+  "membership.subscription.updated",
   "membership.created",
   "membership.status.changed",
   "invoice.created",
@@ -77,9 +81,81 @@ export const auditActions = Object.freeze([
   "enrolment.request.detail.read",
   "member.directory.initialized",
   "regyfit.record.field.read",
+  "booking.created",
+  "booking.cancelled",
+  "dropin.created",
+  "dropin.cancelled",
+  "class.history.read",
 ] as const);
 
 export type AuditAction = (typeof auditActions)[number];
+
+/** The four booking and drop-in actions the class registrations log is built around. */
+export const classEventActions = Object.freeze([
+  "booking.created",
+  "booking.cancelled",
+  "dropin.created",
+  "dropin.cancelled",
+] as const);
+
+/** Every action the class registrations log reads, and every action that carries the class block. */
+export const classAuditActions = Object.freeze([
+  ...classEventActions,
+  "attendance.checked_in",
+  "attendance.corrected",
+  "attendance.proximity_override",
+  "student.checked_out",
+] as const);
+
+export type ClassEventAction = (typeof classEventActions)[number];
+export type ClassAuditAction = (typeof classAuditActions)[number];
+
+export const classActorGroups = Object.freeze(["member", "staff", "system"] as const);
+export type ClassActorGroup = (typeof classActorGroups)[number];
+export type ClassActorRole = UserRole | "system" | "regyfit";
+
+export const classAuditSources = Object.freeze(["bpt", "regyfit"] as const);
+export type ClassAuditSource = (typeof classAuditSources)[number];
+
+const staffRoles = Object.freeze(["owner", "administrator", "headCoach", "coach"] as const);
+
+/** Regyfit rows were written by athletes, so an imported actor counts as a member. */
+export function classActorGroup(role: ClassActorRole): ClassActorGroup {
+  if (role === "system") return "system";
+  if (staffRoles.includes(role as (typeof staffRoles)[number])) return "staff";
+  return "member";
+}
+
+const ipv4Octet = "(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
+const ipv4Address = `(?:${ipv4Octet}\\.){3}${ipv4Octet}`;
+const ipv4Pattern = new RegExp(`^${ipv4Address}$`, "u");
+const hextet = "[0-9a-fA-F]{1,4}";
+/**
+ * Real IPv6, not merely "hex digits and colons": a character class accepts "ab" and "::::" while
+ * rejecting the IPv4-mapped `::ffff:1.2.3.4` that Node's socket address yields behind a proxy, so
+ * the address would be silently dropped. Every group count of the compressed `::` forms is spelled
+ * out, and the last two alternatives carry the IPv4-mapped and IPv4-embedded shapes.
+ */
+const ipv6Pattern = new RegExp(
+  "^(?:" +
+    `(?:${hextet}:){7}${hextet}|` +
+    `(?:${hextet}:){1,7}:|` +
+    `(?:${hextet}:){1,6}:${hextet}|` +
+    `(?:${hextet}:){1,5}(?::${hextet}){1,2}|` +
+    `(?:${hextet}:){1,4}(?::${hextet}){1,3}|` +
+    `(?:${hextet}:){1,3}(?::${hextet}){1,4}|` +
+    `(?:${hextet}:){1,2}(?::${hextet}){1,5}|` +
+    `${hextet}:(?::${hextet}){1,6}|` +
+    `:(?:(?::${hextet}){1,7}|:)|` +
+    `::(?:ffff(?::0{1,4})?:)?${ipv4Address}|` +
+    `(?:${hextet}:){1,4}:${ipv4Address}` +
+    ")$",
+  "u",
+);
+
+export function isAuditIpAddress(value: unknown): value is string {
+  return typeof value === "string" && (ipv4Pattern.test(value) || ipv6Pattern.test(value));
+}
 
 type CommonAuditEventDraft = Readonly<{
   academyId: AcademyId;
@@ -109,10 +185,21 @@ export const memberIdentityLookupAuditResults = Object.freeze([
  */
 export const enrolmentRequestDetailReadAuditResults = memberDetailReadAuditResults;
 
+/**
+ * Reading the class registrations log hands the reader every booking, cancellation and check-in of
+ * the period, with the member names and - for the roles allowed to see it - the recorded address.
+ * That is the same Confidential material a member record holds, so the read reports its outcome
+ * with the same vocabulary and is anchored on the same per-actor budget document. Only the
+ * vocabulary is shared: the class history read is not counted against that budget, so its
+ * `rate-limited` result is never written.
+ */
+export const classHistoryReadAuditResults = memberDetailReadAuditResults;
+
 export type MemberDetailReadAuditResult = (typeof memberDetailReadAuditResults)[number];
 export type EnrolmentRequestDetailReadAuditResult =
   (typeof enrolmentRequestDetailReadAuditResults)[number];
 export type MemberIdentityLookupAuditResult = (typeof memberIdentityLookupAuditResults)[number];
+export type ClassHistoryReadAuditResult = (typeof classHistoryReadAuditResults)[number];
 
 type RestrictedMemberReadAuditVariant =
   | Readonly<{
@@ -130,20 +217,60 @@ type RestrictedMemberReadAuditVariant =
   | Readonly<{
       action: "regyfit.record.field.read";
       result: MemberDetailReadAuditResult;
+    }>
+  | Readonly<{
+      action: "class.history.read";
+      result: ClassHistoryReadAuditResult;
     }>;
 
 export type RestrictedMemberReadAuditEventDraft = CommonAuditEventDraft &
   RestrictedMemberReadAuditVariant;
 
+/**
+ * What the log shows about one class event. The student is an identifier when the row belongs to a
+ * student record and a plain name when it was imported from Regyfit without a match. `memberId`
+ * points at the member directory instead, and only an imported row may carry one: a BPT booking
+ * identifies its participant by `studentId`, so a member link there would name somebody the writer
+ * never saw. Storing the identifier rather than the name is what makes erasing a member erase their
+ * name from the log too, since the log resolves the name at read time. The session is
+ * an identifier for anything BPT wrote and may be null for an imported row: the Regyfit history
+ * names its class by date and time, and most of those classes predate the BPT schedule, so no
+ * session document exists to point at. `sessionStartAt` always says when the class ran.
+ */
+export type ClassAuditEventClass = Readonly<{
+  studentId: string | null;
+  memberId: string | null;
+  studentName: string | null;
+  sessionId: string | null;
+  sessionStartAt: string;
+  programId: string | null;
+  locationId: string | null;
+}>;
+
+type ClassAuditVariant = Readonly<{
+  action: ClassAuditAction;
+  class: ClassAuditEventClass;
+  actorIp: string | null;
+  actorRole: ClassActorRole;
+  actorGroup: ClassActorGroup;
+  actorName: string | null;
+  source: ClassAuditSource;
+}>;
+
+export type ClassAuditEventDraft = CommonAuditEventDraft & ClassAuditVariant;
+
 export type AuditEventDraft = CommonAuditEventDraft &
   (
     | RestrictedMemberReadAuditVariant
+    | ClassAuditVariant
     | Readonly<{
         action:
           | "admin.role.granted"
           | "admin.role.revoked"
           | "member.created"
           | "member.updated"
+          | "member.recovery.reviewed"
+          | "member.recovery.detail.read"
           | "guardian.profile.created"
           | "guardian.profile.updated"
           | "family.created"
@@ -156,6 +283,7 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "level.promotion.rejected"
           | "level.opened"
           | "level.promotion.voided"
+          | "membership.subscription.updated"
           | "membership.created"
           | "membership.status.changed"
           | "staff.created"
@@ -172,9 +300,6 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "waitlist.offer.accepted"
           | "waitlist.offer.declined"
           | "waitlist.offer.expired"
-          | "attendance.checked_in"
-          | "attendance.corrected"
-          | "attendance.proximity_override"
           | "session.quorum.cancelled"
           | "penalty.no_show.proposed"
           | "penalty.no_show.resolved"
@@ -184,7 +309,6 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "disclaimer.withdrawn"
           | "disclaimer.accepted"
           | "disclaimer.acceptance.withdrawn"
-          | "student.checked_out"
           | "location.geofence.saved"
           | "academy.payment_instructions.saved"
           | "notification.preference.updated"
@@ -274,6 +398,33 @@ const commonFields = Object.freeze([
   "correlationId",
 ] as const);
 const restrictedMemberReadFields = Object.freeze([...commonFields, "result"]);
+const classEventFields = Object.freeze([
+  ...commonFields,
+  "class",
+  "actorIp",
+  "actorRole",
+  "actorGroup",
+  "actorName",
+  "source",
+]);
+const classBlockFields = Object.freeze([
+  "studentId",
+  "memberId",
+  "studentName",
+  "sessionId",
+  "sessionStartAt",
+  "programId",
+  "locationId",
+] as const);
+/**
+ * Rows stored before the member link existed carry every class field but `memberId`. They are still
+ * the same fact, so they parse - and replay - with the key simply read as null. Today's writers all
+ * pass the key, because `ClassAuditEventClass` requires it.
+ */
+const legacyClassBlockFields = Object.freeze(
+  classBlockFields.filter((field) => field !== "memberId"),
+);
+const classActorRoles = Object.freeze([...userRoles, "system", "regyfit"] as const);
 /**
  * Every restricted read is bound to one declared purpose. The target is the reader's own rate
  * limit document rather than what was read: the ledger records that somebody spent a restricted
@@ -284,12 +435,15 @@ const restrictedReadPurposes = Object.freeze({
   "member.identity.lookup": "member-identity-lookup",
   "enrolment.request.detail.read": "enrolment-request-review",
   "regyfit.record.field.read": "regyfit-record-review",
+  "class.history.read": "class-history-read",
 } as const);
 const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.freeze({
   "admin.role.granted": commonFields,
   "admin.role.revoked": commonFields,
   "member.created": commonFields,
   "member.updated": commonFields,
+  "member.recovery.reviewed": commonFields,
+  "member.recovery.detail.read": commonFields,
   "guardian.profile.created": commonFields,
   "guardian.profile.updated": commonFields,
   "family.created": commonFields,
@@ -304,6 +458,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "level.promotion.voided": commonFields,
   "member.detail.read": restrictedMemberReadFields,
   "member.identity.lookup": restrictedMemberReadFields,
+  "membership.subscription.updated": commonFields,
   "membership.created": commonFields,
   "membership.status.changed": commonFields,
   "invoice.created": Object.freeze([...commonFields, "amountMinor", "currency"]),
@@ -324,9 +479,9 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "waitlist.offer.accepted": commonFields,
   "waitlist.offer.declined": commonFields,
   "waitlist.offer.expired": commonFields,
-  "attendance.checked_in": commonFields,
-  "attendance.corrected": commonFields,
-  "attendance.proximity_override": commonFields,
+  "attendance.checked_in": classEventFields,
+  "attendance.corrected": classEventFields,
+  "attendance.proximity_override": classEventFields,
   "session.quorum.cancelled": commonFields,
   "penalty.no_show.proposed": commonFields,
   "penalty.no_show.resolved": commonFields,
@@ -336,7 +491,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "disclaimer.withdrawn": commonFields,
   "disclaimer.accepted": commonFields,
   "disclaimer.acceptance.withdrawn": commonFields,
-  "student.checked_out": commonFields,
+  "student.checked_out": classEventFields,
   "location.geofence.saved": commonFields,
   "academy.payment_instructions.saved": commonFields,
   "notification.preference.updated": commonFields,
@@ -352,7 +507,12 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "enrolment.request.approval.failed": commonFields,
   "enrolment.request.detail.read": restrictedMemberReadFields,
   "regyfit.record.field.read": restrictedMemberReadFields,
+  "class.history.read": restrictedMemberReadFields,
   "member.directory.initialized": commonFields,
+  "booking.created": classEventFields,
+  "booking.cancelled": classEventFields,
+  "dropin.created": classEventFields,
+  "dropin.cancelled": classEventFields,
   "member.import.confirmed": Object.freeze([
     ...commonFields,
     "imported",
@@ -511,6 +671,14 @@ function validSourceRoute(value: unknown): value is string {
   return !value.includes("//") && !segments.includes(".") && !segments.includes("..");
 }
 
+function isClassAuditAction(action: AuditAction): action is ClassAuditAction {
+  return classAuditActions.includes(action as ClassAuditAction);
+}
+
+function isClassIdentifier(value: unknown): value is string {
+  return typeof value === "string" && safeAuditIdentifierPattern.test(value);
+}
+
 function validCalendarDate(value: unknown): value is string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
   const timestamp = Date.parse(value + "T00:00:00.000Z");
@@ -558,7 +726,8 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       parsedAction === "member.detail.read" ||
       parsedAction === "member.identity.lookup" ||
       parsedAction === "enrolment.request.detail.read" ||
-      parsedAction === "regyfit.record.field.read"
+      parsedAction === "regyfit.record.field.read" ||
+      parsedAction === "class.history.read"
     ) {
       const expectedPurpose = restrictedReadPurposes[parsedAction];
       const allowedResults: readonly string[] =
@@ -697,6 +866,72 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         !/^level-write-[a-f0-9]{64}$/u.test(snapshot.correlationId)
       ) {
         issues.push(issue([], "AUDIT_LEVEL_WRITE_SCOPE_INVALID"));
+      }
+    }
+
+    if (isClassAuditAction(parsedAction)) {
+      const block = snapshot.class;
+      if (
+        !isPlainRecord(block) ||
+        !(hasExactFields(block, classBlockFields) || hasExactFields(block, legacyClassBlockFields))
+      ) {
+        issues.push(issue(["class"], "AUDIT_CLASS_BLOCK_INVALID"));
+      } else {
+        // Only an imported row may leave the session unlinked. A BPT writer always holds the
+        // session it just booked or cancelled, so a null there is a bug, not a gap in the history.
+        if (block.sessionId === null) {
+          if (snapshot.source !== "regyfit") {
+            issues.push(issue(["class", "sessionId"], "AUDIT_CLASS_SESSION_ID_REQUIRED"));
+          }
+        } else if (!isClassIdentifier(block.sessionId)) {
+          issues.push(issue(["class", "sessionId"], "AUDIT_CLASS_IDENTIFIER_INVALID"));
+        }
+        for (const key of ["studentId", "programId", "locationId"] as const) {
+          if (block[key] !== null && !isClassIdentifier(block[key])) {
+            issues.push(issue(["class", key], "AUDIT_CLASS_IDENTIFIER_INVALID"));
+          }
+        }
+        // A legacy block names no member at all, so an absent key reads as "no member", never as a
+        // broken row. Only an imported row may name one: BPT writes the participant's studentId,
+        // and a member link on a row BPT wrote would be a name nobody recorded.
+        const memberId = block.memberId ?? null;
+        if (memberId !== null && !isClassIdentifier(memberId)) {
+          issues.push(issue(["class", "memberId"], "AUDIT_CLASS_IDENTIFIER_INVALID"));
+        } else if (memberId !== null && snapshot.source !== "regyfit") {
+          issues.push(issue(["class", "memberId"], "AUDIT_CLASS_MEMBER_ID_FORBIDDEN"));
+        }
+        if (block.studentName !== null && !isBoundedString(block.studentName, 128)) {
+          issues.push(issue(["class", "studentName"], "AUDIT_CLASS_STUDENT_NAME_INVALID"));
+        }
+        if (
+          typeof block.sessionStartAt !== "string" ||
+          !dateTimePattern.test(block.sessionStartAt) ||
+          Number.isNaN(Date.parse(block.sessionStartAt))
+        ) {
+          issues.push(issue(["class", "sessionStartAt"], "AUDIT_CLASS_SESSION_START_INVALID"));
+        }
+      }
+      if (snapshot.actorIp !== null && !isAuditIpAddress(snapshot.actorIp)) {
+        issues.push(issue(["actorIp"], "AUDIT_CLASS_ACTOR_IP_INVALID"));
+      }
+      if (!classActorRoles.includes(snapshot.actorRole as ClassActorRole)) {
+        issues.push(issue(["actorRole"], "AUDIT_CLASS_ACTOR_ROLE_INVALID"));
+      } else if (snapshot.actorRole === "regyfit") {
+        // An imported row names no BPT user, so the role cannot say who acted - only the Regyfit
+        // sentence can. An athlete's own booking is a member's work while Regyfit's "ADMIN" rows
+        // are the office's, so the importer states the group and both are accepted. "system" is
+        // not: a row nobody wrote is a BPT automation, never an import.
+        if (snapshot.actorGroup !== "member" && snapshot.actorGroup !== "staff") {
+          issues.push(issue(["actorGroup"], "AUDIT_CLASS_ACTOR_GROUP_INVALID"));
+        }
+      } else if (snapshot.actorGroup !== classActorGroup(snapshot.actorRole as ClassActorRole)) {
+        issues.push(issue(["actorGroup"], "AUDIT_CLASS_ACTOR_GROUP_INVALID"));
+      }
+      if (snapshot.actorName !== null && !isBoundedString(snapshot.actorName, 128)) {
+        issues.push(issue(["actorName"], "AUDIT_CLASS_ACTOR_NAME_INVALID"));
+      }
+      if (!classAuditSources.includes(snapshot.source as ClassAuditSource)) {
+        issues.push(issue(["source"], "AUDIT_CLASS_SOURCE_INVALID"));
       }
     }
 
@@ -946,6 +1181,15 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
         }),
       );
     }
+    if (parsedAction === "class.history.read") {
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          result: snapshot.result as ClassHistoryReadAuditResult,
+        }),
+      );
+    }
     if (
       parsedAction === "invoice.created" ||
       parsedAction === "invoice.voided" ||
@@ -1082,6 +1326,29 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
           expiresAt: snapshot.expiresAt as string,
           contentSha256: snapshot.contentSha256 as string,
           byteLength: snapshot.byteLength as number,
+        }),
+      );
+    }
+    if (isClassAuditAction(parsedAction)) {
+      const block = snapshot.class as Record<string, unknown>;
+      return ok(
+        Object.freeze({
+          ...base,
+          action: parsedAction,
+          class: Object.freeze({
+            studentId: block.studentId as string | null,
+            memberId: (block.memberId ?? null) as string | null,
+            studentName: block.studentName as string | null,
+            sessionId: block.sessionId as string | null,
+            sessionStartAt: block.sessionStartAt as string,
+            programId: block.programId as string | null,
+            locationId: block.locationId as string | null,
+          }),
+          actorIp: snapshot.actorIp as string | null,
+          actorRole: snapshot.actorRole as ClassActorRole,
+          actorGroup: snapshot.actorGroup as ClassActorGroup,
+          actorName: snapshot.actorName as string | null,
+          source: snapshot.source as ClassAuditSource,
         }),
       );
     }

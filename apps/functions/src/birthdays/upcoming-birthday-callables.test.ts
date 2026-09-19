@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { browserOrigins } from "../auth/callable-options.js";
+
 import {
   createListUpcomingBirthdaysHandler,
   upcomingBirthdayCallableOptions,
@@ -17,7 +19,7 @@ function service(overrides: Partial<UpcomingBirthdayService> = {}): UpcomingBirt
 describe("upcoming birthday callable (T112)", () => {
   it("requires and consumes App Check", () => {
     expect(upcomingBirthdayCallableOptions).toEqual({
-      cors: ["https://bptjersey.pages.dev"],
+      cors: browserOrigins,
       invoker: "public",
       enforceAppCheck: true,
       consumeAppCheckToken: true,

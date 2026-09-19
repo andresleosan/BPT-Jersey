@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   upcomingBirthdayDefaultWindowDays,
   type UpcomingBirthday,
@@ -29,8 +29,9 @@ import {
   recordCheckIn,
 } from "../../lib/schedule-client";
 import { useStaffSession } from "../../lib/staff-auth";
-import { OpenLevelPanel } from "./open-level-panel";
-import "./coach.css";
+const OpenLevelPanel = lazy(() =>
+  import("./open-level-panel").then((module) => ({ default: module.OpenLevelPanel })),
+);
 
 type PremisesChoice = "town" | "west";
 
@@ -104,6 +105,7 @@ export default function CoachDashboardPage() {
   // Bumped on every premises change so a measurement still in flight for the previous site is
   // discarded instead of being attributed to the new one.
   const measurementEpoch = useRef(0);
+  const selectedSessionRef = useRef<string | null>(null);
   // Render-time clock for the freshness of the last reading; ticking here keeps render pure.
   const [clockMs, setClockMs] = useState(0);
 
@@ -113,9 +115,9 @@ export default function CoachDashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Cash PAYG Form state
-  const [paygStudentId, setPaygStudentId] = useState("");
-  const [paygBusy, setPaygBusy] = useState(false);
+  // Manual attendance for a member who is not on the booking list.
+  const [walkInStudentId, setWalkInStudentId] = useState("");
+  const [walkInBusy, setWalkInBusy] = useState(false);
 
   function handlePremisesChange(choice: PremisesChoice) {
     setPremises(choice);
@@ -156,11 +158,17 @@ export default function CoachDashboardPage() {
 
   const effectiveSessionId = selectedSessionId ?? filteredSessions[0]?.sessionId ?? null;
 
+  useEffect(() => {
+    selectedSessionRef.current = effectiveSessionId;
+    setNotice(null);
+    setError(null);
+  }, [effectiveSessionId]);
+
   // Load operational view for selected session
   useEffect(() => {
-    if (!effectiveSessionId) {
-      return;
-    }
+    setOperationalView(null);
+    setLoadingRoster(Boolean(effectiveSessionId));
+    if (!effectiveSessionId) return;
 
     let active = true;
 
@@ -315,22 +323,25 @@ export default function CoachDashboardPage() {
         ...proximityPayload(),
       });
       const updatedView = await getSessionOperationalView(effectiveSessionId);
+      if (selectedSessionRef.current !== effectiveSessionId) return;
       setOperationalView(updatedView);
       setNotice(`Manual check-in confirmed for student ${studentId}.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record check-in.");
+      if (selectedSessionRef.current === effectiveSessionId) {
+        setError(err instanceof Error ? err.message : "Failed to record check-in.");
+      }
     } finally {
       setBusyStudentId(null);
     }
   }
 
-  async function handleCashPaygSubmit(e: FormEvent) {
+  async function handleWalkInSubmit(e: FormEvent) {
     e.preventDefault();
-    const studentId = paygStudentId.trim();
+    const studentId = walkInStudentId.trim();
     if (!studentId || !effectiveSessionId) return;
     if (!requireOverrideReason()) return;
 
-    setPaygBusy(true);
+    setWalkInBusy(true);
     setError(null);
     setNotice(null);
 
@@ -342,15 +353,16 @@ export default function CoachDashboardPage() {
         ...proximityPayload(),
       });
       const updatedView = await getSessionOperationalView(effectiveSessionId);
+      if (selectedSessionRef.current !== effectiveSessionId) return;
       setOperationalView(updatedView);
-      setNotice(
-        `Manual check-in recorded for student ${studentId}. Record the cash payment in Billing to issue the receipt.`,
-      );
-      setPaygStudentId("");
+      setNotice(`Manual check-in recorded for student ${studentId}.`);
+      setWalkInStudentId("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record cash PAYG check-in.");
+      if (selectedSessionRef.current === effectiveSessionId) {
+        setError(err instanceof Error ? err.message : "Failed to record check-in.");
+      }
     } finally {
-      setPaygBusy(false);
+      setWalkInBusy(false);
     }
   }
 
@@ -362,25 +374,23 @@ export default function CoachDashboardPage() {
     <div className="coach-dashboard">
       <div className="coach-header-section">
         <div>
-          <h1 className="coach-title">Coach Operations Dashboard</h1>
+          <h1 className="coach-title">Today on the mat</h1>
           <p className="coach-subtitle">
-            Welcome, {session?.displayName || "Coach"} ({session?.role}). Manage attendance,
-            rosters, and daily classes.
+            Review today’s classes and check members in at your site.
           </p>
         </div>
 
         {/* Premises Selector */}
         <div
           className="coach-premises-selector"
-          role="radiogroup"
+          role="group"
           aria-label="Premises location selector"
         >
           <span className="coach-premises-label">Premises:</span>
           <button
             type="button"
             className={`coach-premises-btn ${premises === "town" ? "active" : ""}`}
-            role="radio"
-            aria-checked={premises === "town"}
+            aria-pressed={premises === "town"}
             onClick={() => handlePremisesChange("town")}
           >
             Town (St Helier)
@@ -388,8 +398,7 @@ export default function CoachDashboardPage() {
           <button
             type="button"
             className={`coach-premises-btn ${premises === "west" ? "active" : ""}`}
-            role="radio"
-            aria-checked={premises === "west"}
+            aria-pressed={premises === "west"}
             onClick={() => handlePremisesChange("west")}
           >
             West (St Peter)
@@ -413,22 +422,20 @@ export default function CoachDashboardPage() {
         {/* Main Panel: Classes & Roster */}
         <div className="coach-main-panel">
           {/* Upcoming Classes Section */}
-          <div className="coach-card">
-            <div className="coach-card-title">
+          <section className="admin-panel-card coach-card">
+            <h2 className="coach-card-title">
               <span>Today&apos;s Classes ({locationLabel(premises)})</span>
-              <span style={{ fontSize: "0.85rem", fontWeight: "normal", color: "#6b7280" }}>
-                Date: {date}
-              </span>
-            </div>
+              <span>Date: {date}</span>
+            </h2>
 
             {loadingSessions ? (
-              <p>Loading schedule...</p>
-            ) : filteredSessions.length === 0 ? (
-              <p style={{ color: "#6b7280", fontStyle: "italic" }}>
-                No scheduled classes found for {locationLabel(premises)} today.
+              <p className="coach-loading" role="status">
+                Loading schedule...
               </p>
+            ) : filteredSessions.length === 0 ? (
+              <p>No scheduled classes found for {locationLabel(premises)} today.</p>
             ) : (
-              <div className="coach-session-list" role="list">
+              <div className="coach-session-list">
                 {filteredSessions.map((s) => {
                   const isSelected = s.sessionId === effectiveSessionId;
                   const startHour = s.startAt.slice(11, 16);
@@ -439,26 +446,20 @@ export default function CoachDashboardPage() {
                   const minRequired = s.minParticipants ?? 4;
 
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={s.sessionId}
-                      role="button"
-                      tabIndex={0}
                       className={`coach-session-item ${isSelected ? "selected" : ""}`}
                       onClick={() => setSelectedSessionId(s.sessionId)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          setSelectedSessionId(s.sessionId);
-                        }
-                      }}
                       aria-pressed={isSelected}
                     >
-                      <div className="coach-session-header">
+                      <span className="coach-session-header">
                         <span className="coach-session-title">{s.title}</span>
                         <span className="coach-session-time">
                           {startHour} - {endHour}
                         </span>
-                      </div>
-                      <div className="coach-session-meta">
+                      </span>
+                      <span className="coach-session-meta">
                         {isLoaded && bookedCount !== null && quorumMet !== null ? (
                           <>
                             <span>
@@ -472,8 +473,8 @@ export default function CoachDashboardPage() {
                               }`}
                             >
                               {quorumMet
-                                ? "✓ Quorum Met (>=4)"
-                                : `⚠ Quorum Warning (${bookedCount}/${minRequired})`}
+                                ? `Minimum met (${minRequired})`
+                                : `Below minimum (${bookedCount}/${minRequired})`}
                             </span>
                           </>
                         ) : (
@@ -484,21 +485,21 @@ export default function CoachDashboardPage() {
                                 : `Capacity: ${s.capacity} max`}
                             </span>
                             <span className="coach-quorum-badge coach-quorum-warning">
-                              Min quorum: {minRequired}
+                              Minimum: {minRequired}
                             </span>
                           </>
                         )}
-                      </div>
-                    </div>
+                      </span>
+                    </button>
                   );
                 })}
               </div>
             )}
-          </div>
+          </section>
 
           {/* Pre-Class Roster (5-minute Operational Interface) */}
-          <div className="coach-card">
-            <div className="coach-card-title">
+          <section className="admin-panel-card coach-card">
+            <h2 className="coach-card-title">
               <span>
                 Pre-Class Roster: {selectedSession ? selectedSession.title : "Select a class"}
               </span>
@@ -507,55 +508,39 @@ export default function CoachDashboardPage() {
                   Starts: {selectedSession.startAt.slice(11, 16)}
                 </span>
               )}
-            </div>
+            </h2>
 
             {!selectedSession ? (
-              <p style={{ color: "#6b7280" }}>
-                Select a class above to review attendance and check in members.
+              <p>Select a class above to review attendance and check in members.</p>
+            ) : loadingRoster ||
+              (operationalView && operationalView.session.sessionId !== effectiveSessionId) ? (
+              <p className="coach-loading" role="status">
+                Loading roster...
               </p>
-            ) : loadingRoster ? (
-              <p>Loading roster...</p>
             ) : !operationalView ? (
-              <p style={{ color: "#6b7280" }}>No roster data available.</p>
+              <p>No roster data available.</p>
             ) : (
               <div>
-                <p style={{ fontSize: "0.875rem", color: "#4b5563", marginBottom: "0.75rem" }}>
+                <p>
                   Double-check clocked-in students 5 minutes before start. Manual check-ins update
                   the live register immediately.
                 </p>
 
-                <section
-                  aria-labelledby="coach-proximity-title"
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                    padding: "0.75rem",
-                    marginBottom: "0.75rem",
-                  }}
-                >
-                  <p
-                    id="coach-proximity-title"
-                    style={{ fontWeight: 600, fontSize: "0.9rem", margin: 0 }}
-                  >
-                    Check-in location signal
-                  </p>
-                  <p style={{ fontSize: "0.85rem", color: "#4b5563", margin: "0.25rem 0 0.5rem" }}>
+                <section className="coach-proximity" aria-labelledby="coach-proximity-title">
+                  <p id="coach-proximity-title">Check-in location signal</p>
+                  <p>
                     A measurement inside {checkInProximityRadiusMeters} m of this site is a signal,
                     never proof. Coordinates are never stored: only the distance is recorded.
                   </p>
                   <button
-                    className="button button-secondary text-sm"
+                    className="admin-home-link coach-button"
                     disabled={measuring || siteGeofence.status !== "ready"}
                     onClick={() => void handleMeasureProximity()}
                     type="button"
                   >
                     {measuring ? "Measuring..." : "Measure this device"}
                   </button>
-                  <p
-                    aria-live="polite"
-                    data-testid="coach-proximity-status"
-                    style={{ fontSize: "0.85rem", color: "#4b5563", margin: "0.5rem 0 0" }}
-                  >
+                  <p aria-live="polite" data-testid="coach-proximity-status">
                     {siteGeofence.status === "loading"
                       ? "Loading this site's coordinates..."
                       : siteGeofence.status === "error"
@@ -573,15 +558,7 @@ export default function CoachDashboardPage() {
                                 : `Measured ${proximity.measurement.distanceMeters} m from this site, outside the ${checkInProximityRadiusMeters} m radius.`}
                   </p>
                   {overrideRequired ? (
-                    <label
-                      htmlFor="coach-proximity-override"
-                      style={{
-                        display: "block",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        marginTop: "0.5rem",
-                      }}
-                    >
+                    <label htmlFor="coach-proximity-override">
                       Why are you checking students in from outside the radius?
                       <textarea
                         aria-describedby="coach-proximity-override-help"
@@ -591,13 +568,10 @@ export default function CoachDashboardPage() {
                         onChange={(event) => setOverrideReason(event.target.value)}
                         required
                         rows={2}
-                        style={{ display: "block", width: "100%", marginTop: "0.25rem" }}
+
                         value={overrideReason}
                       />
-                      <span
-                        id="coach-proximity-override-help"
-                        style={{ fontWeight: 400, color: "#4b5563" }}
-                      >
+                      <span id="coach-proximity-override-help">
                         {`At least ${checkInOverrideReasonMinLength} characters. The reason is kept with the attendance and audited.`}
                       </span>
                     </label>
@@ -605,16 +579,14 @@ export default function CoachDashboardPage() {
                 </section>
 
                 {operationalView.roster.length === 0 ? (
-                  <p style={{ color: "#6b7280", fontStyle: "italic", margin: "1rem 0" }}>
-                    No members booked for this session yet.
-                  </p>
+                  <p>No members booked for this session yet.</p>
                 ) : (
                   <table className="coach-roster-table" aria-label="Class attendees roster">
                     <thead>
                       <tr>
-                        <th>Student ID</th>
-                        <th>Status</th>
-                        <th>Action</th>
+                        <th scope="col">Member</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Attendance</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -627,35 +599,20 @@ export default function CoachDashboardPage() {
 
                         return (
                           <tr key={student.studentId}>
-                            <td>
+                            <td data-label="Member">
                               <strong>{student.studentId}</strong>
                             </td>
-                            <td>
-                              <span
-                                style={{
-                                  padding: "0.2rem 0.5rem",
-                                  borderRadius: "4px",
-                                  fontSize: "0.8rem",
-                                  fontWeight: 600,
-                                  background: isAttended ? "#dcfce7" : "#fef3c7",
-                                  color: isAttended ? "#166534" : "#92400e",
-                                }}
-                              >
-                                {student.computedStatus.replace(/_/g, " ")}
-                              </span>
+                            <td data-label="Status">
+                              <span>{student.computedStatus.replace(/_/g, " ")}</span>
                             </td>
-                            <td>
+                            <td data-label="Attendance">
                               {isAttended ? (
-                                <span
-                                  style={{ color: "#166534", fontSize: "0.85rem", fontWeight: 600 }}
-                                >
-                                  ✓ Checked In
-                                </span>
+                                <span>Checked in</span>
                               ) : (
                                 <button
                                   type="button"
-                                  className="button button-primary text-sm"
-                                  disabled={isBusy}
+                                  className="admin-auth-button coach-button"
+                                  disabled={busyStudentId !== null || walkInBusy}
                                   onClick={() => handleCheckIn(student.studentId)}
                                 >
                                   {isBusy ? "Checking in..." : "Check In"}
@@ -670,49 +627,51 @@ export default function CoachDashboardPage() {
                 )}
 
                 {session?.role === "headCoach" && operationalView ? (
-                  <OpenLevelPanel
-                    studentIds={operationalView.roster.map((student) => student.studentId)}
-                  />
+                  <Suspense fallback={<p role="status">Loading level tools…</p>}>
+                    <OpenLevelPanel
+                      key={effectiveSessionId}
+                      studentIds={operationalView.roster.map((student) => student.studentId)}
+                    />
+                  </Suspense>
                 ) : null}
 
-                {/* Cash PAYG Registration & Clock-in */}
-                <div className="coach-payg-box">
-                  <strong style={{ fontSize: "0.9rem", color: "#854d0e" }}>
-                    Walk-in / Cash PAYG Registration (£10)
-                  </strong>
-                  <p style={{ fontSize: "0.825rem", color: "#713f12", margin: "0.25rem 0 0.5rem" }}>
-                    Collect £10 cash for a pay-as-you-go attendee and check them directly into this
-                    class roster.
-                  </p>
-                  <form onSubmit={handleCashPaygSubmit} className="coach-payg-form">
-                    <input
-                      type="text"
-                      className="coach-payg-input"
-                      placeholder="Student or Member ID (e.g. stu_walkin_01)"
-                      value={paygStudentId}
-                      onChange={(e) => setPaygStudentId(e.target.value)}
-                      disabled={paygBusy}
-                      required
-                    />
+                {/* Manual walk-in attendance */}
+                <div className="coach-attendance-box">
+                  <strong>Check in another member</strong>
+                  <p>Use the member ID to record attendance for someone not listed above.</p>
+                  <form onSubmit={handleWalkInSubmit} className="coach-inline-form">
+                    <label htmlFor="coach-walk-in-id">
+                      Member ID
+                      <input
+                        id="coach-walk-in-id"
+                        type="text"
+                        className="coach-input"
+                        autoComplete="off"
+                        value={walkInStudentId}
+                        onChange={(e) => setWalkInStudentId(e.target.value)}
+                        disabled={walkInBusy || busyStudentId !== null}
+                        required
+                      />
+                    </label>
                     <button
                       type="submit"
-                      className="button button-secondary text-sm"
-                      disabled={paygBusy || !paygStudentId.trim()}
+                      className="admin-home-link coach-button"
+                      disabled={walkInBusy || busyStudentId !== null || !walkInStudentId.trim()}
                     >
-                      {paygBusy ? "Recording..." : "Record Cash PAYG & Check In"}
+                      {walkInBusy ? "Recording..." : "Check in member"}
                     </button>
                   </form>
                 </div>
               </div>
             )}
-          </div>
+          </section>
         </div>
 
         {/* Side Panel: Birthdays & Quick Links */}
         <div className="coach-side-panel">
           {/* T114: who to expect before the class starts */}
-          <div className="coach-card">
-            <h2 className="coach-card-title" style={{ fontSize: "1.05rem" }}>
+          <section className="admin-panel-card coach-card">
+            <h2 className="coach-card-title">
               <span>Before class</span>
               {preClass.status === "ready" && (
                 <span className="coach-birthday-badge">
@@ -721,32 +680,20 @@ export default function CoachDashboardPage() {
                 </span>
               )}
             </h2>
-            {preClass.status === "idle" && (
-              <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
-                Pick a class to prepare it.
-              </p>
-            )}
-            {preClass.status === "loading" && (
-              <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
-                Preparing this class…
-              </p>
-            )}
+            {preClass.status === "idle" && <p>Pick a class to prepare it.</p>}
+            {preClass.status === "loading" && <p>Preparing this class…</p>}
             {preClass.status === "error" && (
-              <p role="status" style={{ fontSize: "0.825rem", color: "#b91c1c", margin: 0 }}>
-                Unable to prepare this class. Please try again.
-              </p>
+              <p role="status">Unable to prepare this class. Please try again.</p>
             )}
             {preClass.status === "ready" && (
               <>
-                <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: "0 0 0.75rem" }}>
+                <p>
                   {preClass.view.evidence.open
                     ? `Booked members, plus regulars of the last ${preClass.view.evidence.windowDays} days who have not booked. Nobody is checked in until you record it.`
                     : "This class is closed, so only the booked members are listed."}
                 </p>
                 {preClass.view.attendees.length === 0 ? (
-                  <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
-                    Nobody is booked and nobody trains this class regularly yet.
-                  </p>
+                  <p>Nobody is booked and nobody trains this class regularly yet.</p>
                 ) : (
                   <div role="list">
                     {preClass.view.attendees.map((attendee) => (
@@ -768,33 +715,23 @@ export default function CoachDashboardPage() {
                 )}
               </>
             )}
-          </div>
+          </section>
 
           {/* Member Upcoming Birthdays Widget */}
-          <div className="coach-card">
-            <h2 className="coach-card-title" style={{ fontSize: "1.05rem" }}>
-              <span>🎂 Upcoming Birthdays</span>
+          <section className="admin-panel-card coach-card">
+            <h2 className="coach-card-title">
+              <span>Upcoming birthdays</span>
               {birthdays.status === "ready" && (
                 <span className="coach-birthday-badge">{birthdays.entries.length} this week</span>
               )}
             </h2>
-            <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: "0 0 0.75rem" }}>
-              Greet members and celebrate their birthday milestones on the mat!
-            </p>
-            {birthdays.status === "loading" && (
-              <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
-                Loading birthdays…
-              </p>
-            )}
+            <p>Greet members and celebrate their birthday milestones on the mat!</p>
+            {birthdays.status === "loading" && <p>Loading birthdays…</p>}
             {birthdays.status === "error" && (
-              <p role="status" style={{ fontSize: "0.825rem", color: "#b91c1c", margin: 0 }}>
-                Unable to load upcoming birthdays. Please try again.
-              </p>
+              <p role="status">Unable to load upcoming birthdays. Please try again.</p>
             )}
             {birthdays.status === "ready" && birthdays.entries.length === 0 && (
-              <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: 0 }}>
-                No birthdays at {locationLabel(premises)} this week.
-              </p>
+              <p>No birthdays at {locationLabel(premises)} this week.</p>
             )}
             {birthdays.status === "ready" && birthdays.entries.length > 0 && (
               <div role="list">
@@ -814,23 +751,17 @@ export default function CoachDashboardPage() {
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
           {/* Quick Links Card */}
-          <div className="coach-card">
-            <h2 className="coach-card-title" style={{ fontSize: "1.05rem" }}>
-              Coach Tools
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <Link
-                href="/coach/levels"
-                className="button button-secondary text-sm"
-                style={{ textAlign: "center" }}
-              >
+          <section className="admin-panel-card coach-card">
+            <h2 className="coach-card-title">Coach Tools</h2>
+            <div>
+              <Link href="/coach/levels" className="admin-home-link coach-button">
                 Browse IBJJF Progression Syllabus
               </Link>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>

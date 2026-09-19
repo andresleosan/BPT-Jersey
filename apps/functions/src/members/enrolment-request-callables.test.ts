@@ -33,6 +33,7 @@ const submission = {
   applicantIsStudent: true,
   applicant,
   minors: [],
+  planSelections: { applicant: "town-adult", minors: [] },
   waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
 } as const;
 
@@ -113,6 +114,8 @@ describe("enrolment request callables", () => {
     for (const payload of [
       null,
       { ...submission, extra: true },
+      { ...submission, planSelections: { applicant: "west-adult", minors: [] } },
+      { ...submission, planSelections: { minors: [] } },
       { ...submission, requestId: "not-a-uuid" },
       { ...submission, applicant: { ...applicant, membershipNumber: "BPT-0001" } },
       { ...submission, applicant: { ...applicant, dateOfBirth: "2015-01-01" } },

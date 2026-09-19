@@ -8251,3 +8251,51 @@ por la segunda version devolvera nada o algo viejo. **Para el ledger, leer el fi
 lo unico seguro.**
 
 `graphify-out/` sigue fuera de git, asi que este corte no lo lleva; lo que se versiona es esta nota.
+
+## Legacy member access recovery — 2026-09-18
+
+Status: implemented and locally verified; ready for integration. Branch: `feature/legacy-member-recovery`, isolated from pre-existing local edits.
+
+Scope authorized by the operator: add recovery for legacy members using full name and previous email, followed by Google or email/password authentication. All new application text is English. Changed-email ownership requires office review; existing login remains available. No production deployment or production data changes are included in this implementation.
+
+Design: `docs/superpowers/specs/2026-09-18-legacy-member-recovery-design.md`.
+Plan and validation: `docs/superpowers/plans/2026-09-18-legacy-member-recovery.md`.
+Operational guide: `docs/legacy-member-recovery.md`.
+
+Final unit suite: 354 files, 3,705 tests passed. Build, typecheck, lint, focused format, Firestore emulator integration/rules and browser smoke passed. Independent reviews are closed with no open findings. The production release must include the documented recovery queue index.
+
+## Member recovery: name-only support and production diagnosis — 2026-09-18
+
+Status: implemented and locally verified on `fix/member-recovery-name-only`. The operator
+approved production release; the Firebase phase is complete and the frontend release is prepared.
+
+The reported generic error is explained by the missing recovery Functions deployment
+(HTTP 404). Read-only production checks also found the missing queue index and 124 of
+249 imported members without email. Previous email is now optional; name-only recovery
+requires a verified account and independent office approval before linking original data.
+All new application text is English.
+
+Validation: 78 focused tests and 4 Firestore integration/rules tests passed; typecheck,
+lint, deployment artifact, static build and desktop/mobile browser smoke passed.
+No production records were changed. Release evidence and exact deployment scope:
+`docs/operations/2026-09-18-member-recovery-release.md`.
+
+Production execution: the five recovery functions are ACTIVE, rules are deployed and the index
+is READY. Existing functions are unchanged. Corrected the reCAPTCHA allowlist to include the
+production apex domain while keeping App Check enforced. The automated production browser is
+still rejected by attestation; real-account acceptance remains a user check. No member data was
+changed by release verification. See the release note for evidence and validation limits.
+
+
+## Member recovery performance and usability — 2026-09-18
+
+Implemented on `perf/member-recovery`: defer recovery callable code, remove unused admin CSS,
+announce pending work, focus step headings, improve connection/popup feedback and touch targets.
+All app text is English. Initial source payload is 21.2% smaller for JavaScript and 50.1% smaller
+for CSS. Three isolated mobile runs had median LCP 1,916ms and CLS 0; timing variance prevents
+a reliable rendering-speed percentage claim.
+
+Validation: 44 focused tests, typecheck, lint, static build, focused formatting and compiled
+browser checks at 390/1280px passed. Real-account production recovery remains unverified due
+to the previously documented automated App Check limitation. Evidence and measurement limits:
+`docs/operations/2026-09-18-member-recovery-performance.md`.

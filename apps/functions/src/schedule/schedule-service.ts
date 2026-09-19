@@ -1,3 +1,13 @@
+import type { Firestore } from "firebase-admin/firestore";
+import {
+  createWeeklySessionStore,
+  newWeeklySeries,
+  weeklyOccurrence,
+  weeklyOccurrences,
+  reviseWeeklySeries,
+  reviseWeeklySession,
+  type WeeklySeries,
+} from "./weekly-session-service.js";
 import {
   buildDailyOperationsDashboard,
   buildAttendanceId,
@@ -58,6 +68,7 @@ import {
 import {
   BookingTransactionError,
   createBookingTransactionService,
+  type BookingAuditActor,
   type BookingFirestore,
 } from "./booking-transaction-service.js";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
@@ -273,12 +284,14 @@ export type ScheduleStore = Readonly<{
     academyId: string,
     input: RequestBookingInput,
     actorId: string,
+    auditActor?: BookingAuditActor,
   ) => Promise<BookingRecord>;
   cancelBooking: (
     academyId: string,
     input: CancelBookingInput,
     actorId: string,
     isStaffOverride?: boolean,
+    auditActor?: BookingAuditActor,
   ) => Promise<BookingRecord>;
   listSessionBookings: (academyId: string, sessionId: string) => Promise<readonly BookingRecord[]>;
   listStudentBookings: (academyId: string, studentId: string) => Promise<readonly BookingRecord[]>;
@@ -292,6 +305,7 @@ export type ScheduleStore = Readonly<{
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
+    actorIp?: string | null,
   ) => Promise<AttendanceRecord>;
   recordSelfCheckIn: (
     academyId: string,
@@ -299,6 +313,7 @@ export type ScheduleStore = Readonly<{
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
+    actorIp?: string | null,
   ) => Promise<AttendanceRecord>;
   listSessionAttendance: (
     academyId: string,
@@ -314,6 +329,7 @@ export type ScheduleStore = Readonly<{
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
+    actorIp?: string | null,
   ) => Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }>;
   reconcileSessionNoShows: (
     academyId: string,
@@ -332,6 +348,7 @@ export type ScheduleStore = Readonly<{
     actorId: string,
     occurredAt?: string,
     actorRole?: ScheduleMutationActorRole,
+    actorIp?: string | null,
   ) => Promise<CheckoutRecord>;
   listSessionCheckouts: (
     academyId: string,
@@ -736,6 +753,7 @@ export function createFirestoreScheduleStore(options: {
   firestore: GenericFirestore;
 }): ScheduleStore {
   const { firestore } = options;
+  const weekly = createWeeklySessionStore(firestore as unknown as Firestore);
   const bookingTransactions = createBookingTransactionService({
     firestore: firestore as unknown as BookingFirestore,
   });
@@ -1147,9 +1165,10 @@ export function createFirestoreScheduleStore(options: {
       if (!existing.exists) throw new Error(`Session ${input.sessionId} does not exist`);
       const current = existing.data() as SessionRecord;
       if (current.status !== "scheduled") throw new Error("Only scheduled sessions can be edited");
-      const updated = mergeSessionUpdate(current, input, actorId, new Date().toISOString());
-      await docRef.set(updated);
-      return updated;
+      const timezone =
+        (await this.listLocations(academyId)).find((row) => row.locationId === current.locationId)
+          ?.timezone ?? "Europe/Jersey";
+      return weekly.update(academyId, input, actorId, timezone, mergeSessionUpdate);
     },
 
     async removeClass(
@@ -1222,6 +1241,7 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       query: ListSessionsQuery,
     ): Promise<readonly SessionRecord[]> {
+      await weekly.materialise(academyId, query);
       // A range on the single field startAt needs no composite index; location and program stay
       // in memory so any combination of filters keeps working without one.
       const snapshot = await firestore
@@ -1313,6 +1333,12 @@ export function createFirestoreScheduleStore(options: {
         ...(input.waitingList !== undefined ? { waitingList: input.waitingList } : {}),
       });
 
+      if (input.repeatWeekly) {
+        const timezone =
+          (await this.listLocations(academyId)).find((row) => row.locationId === input.locationId)
+            ?.timezone ?? "Europe/Jersey";
+        return weekly.create(record, timezone);
+      }
       await docRef.set(record);
       return record;
     },
@@ -1349,8 +1375,9 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       input: RequestBookingInput,
       actorId: string,
+      auditActor?: BookingAuditActor,
     ): Promise<BookingRecord> {
-      return bookingTransactions.requestBooking(academyId, input, actorId);
+      return bookingTransactions.requestBooking(academyId, input, actorId, auditActor);
     },
 
     async cancelBooking(
@@ -1358,8 +1385,15 @@ export function createFirestoreScheduleStore(options: {
       input: CancelBookingInput,
       actorId: string,
       isStaffOverride = false,
+      auditActor?: BookingAuditActor,
     ): Promise<BookingRecord> {
-      return bookingTransactions.cancelBooking(academyId, input, actorId, isStaffOverride);
+      return bookingTransactions.cancelBooking(
+        academyId,
+        input,
+        actorId,
+        isStaffOverride,
+        auditActor,
+      );
     },
 
     async listSessionBookings(
@@ -1426,12 +1460,14 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       occurredAt?: string,
       actorRole?: ScheduleMutationActorRole,
+      actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
       return attendanceTransactions.recordCheckIn({
         academyId,
         input,
         actorId,
         actorRole: requireAttendanceActorRole(actorRole),
+        actorIp,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       });
     },
@@ -1442,12 +1478,14 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       occurredAt?: string,
       actorRole?: ScheduleMutationActorRole,
+      actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
       return attendanceTransactions.recordSelfCheckIn({
         academyId,
         input,
         actorId,
         actorRole: requireAttendanceActorRole(actorRole),
+        actorIp,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       });
     },
@@ -1486,12 +1524,14 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       occurredAt?: string,
       actorRole?: ScheduleMutationActorRole,
+      actorIp: string | null = null,
     ): Promise<{ correction: AttendanceRecord; canonical: AttendanceRecord }> {
       return attendanceTransactions.correctAttendance({
         academyId,
         input,
         actorId,
         actorRole: requireAttendanceActorRole(actorRole),
+        actorIp,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       });
     },
@@ -1586,12 +1626,14 @@ export function createFirestoreScheduleStore(options: {
       actorId: string,
       occurredAt?: string,
       actorRole?: ScheduleMutationActorRole,
+      actorIp: string | null = null,
     ): Promise<CheckoutRecord> {
       return attendanceTransactions.recordCheckout({
         academyId,
         input,
         actorId,
         actorRole: requireAttendanceActorRole(actorRole),
+        actorIp,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       });
     },
@@ -1691,6 +1733,7 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
   const programsMap = new Map<string, ProgramRecord[]>();
   const classesMap = new Map<string, Map<string, ClassRecord>>();
   const sessionsMap = new Map<string, Map<string, SessionRecord>>();
+  const weeklyMap = new Map<string, Map<string, WeeklySeries>>();
   const bookingsMap = new Map<string, Map<string, BookingRecord>>();
   const attendanceMap = new Map<string, Map<string, AttendanceRecord>>();
   const checkoutsMap = new Map<string, Map<string, CheckoutRecord>>();
@@ -2056,6 +2099,46 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       if (!current) throw new Error(`Session ${input.sessionId} does not exist`);
       if (current.status !== "scheduled") throw new Error("Only scheduled sessions can be edited");
       const updated = mergeSessionUpdate(current, input, actorId, new Date().toISOString());
+      if (!current.weeklySeriesId && input.repeatWeekly) {
+        const timezone =
+          (await this.listLocations(academyId)).find((row) => row.locationId === current.locationId)
+            ?.timezone ?? "Europe/Jersey";
+        const series = newWeeklySeries(updated, timezone);
+        if (!weeklyMap.has(academyId)) weeklyMap.set(academyId, new Map());
+        weeklyMap.get(academyId)!.set(series.seriesId, series);
+        const first = weeklyOccurrence(series, 0)!;
+        map!.set(first.sessionId, first);
+        return first;
+      }
+      if (current.weeklySeriesId) {
+        if (input.repeatScope !== "following") {
+          if (input.repeatWeekly !== undefined && input.repeatWeekly !== current.repeatWeekly) {
+            throw new Error("Choose this and following sessions to change weekly repetition");
+          }
+          const single = { ...updated, weeklyOverride: true };
+          map!.set(single.sessionId, single);
+          return single;
+        }
+        const series = weeklyMap.get(academyId)!.get(current.weeklySeriesId)!;
+        const next = reviseWeeklySeries(
+          series,
+          current,
+          updated,
+          input.repeatWeekly ?? current.repeatWeekly ?? true,
+        );
+        const future = [...map!.values()].filter(
+          (row) =>
+            row.weeklySeriesId === series.seriesId &&
+            (row.weeklyIndex ?? 0) >= (current.weeklyIndex ?? 0),
+        );
+        if (future.length > 400) {
+          throw new Error("Too many saved occurrences to edit together; contact the office");
+        }
+        weeklyMap.get(academyId)!.set(series.seriesId, next);
+        for (const row of future)
+          map!.set(row.sessionId, reviseWeeklySession(next, row, current.sessionId, updated));
+        return reviseWeeklySession(next, current, current.sessionId, updated);
+      }
       map!.set(input.sessionId, updated);
       return updated;
     },
@@ -2129,6 +2212,12 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       academyId: string,
       query: ListSessionsQuery,
     ): Promise<readonly SessionRecord[]> {
+      for (const series of weeklyMap.get(academyId)?.values() ?? []) {
+        for (const occurrence of weeklyOccurrences(series, query)) {
+          const stored = sessionsMap.get(academyId)!;
+          if (!stored.has(occurrence.sessionId)) stored.set(occurrence.sessionId, occurrence);
+        }
+      }
       const map = sessionsMap.get(academyId);
       if (!map) return [];
 
@@ -2214,6 +2303,17 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         sessionsMap.set(academyId, new Map());
       }
       sessionsMap.get(academyId)!.set(sessionId, record);
+      if (input.repeatWeekly) {
+        const timezone =
+          (await this.listLocations(academyId)).find((row) => row.locationId === input.locationId)
+            ?.timezone ?? "Europe/Jersey";
+        const series = newWeeklySeries(record, timezone);
+        if (!weeklyMap.has(academyId)) weeklyMap.set(academyId, new Map());
+        weeklyMap.get(academyId)!.set(series.seriesId, series);
+        const first = weeklyOccurrence(series, 0)!;
+        sessionsMap.get(academyId)!.set(first.sessionId, first);
+        return first;
+      }
       return record;
     },
 

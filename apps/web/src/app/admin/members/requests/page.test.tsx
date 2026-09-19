@@ -277,3 +277,62 @@ describe("enrolment request queue", () => {
     );
   });
 });
+
+describe("requested enrolment plans", () => {
+  it("keeps requests submitted before plan selection reviewable", async () => {
+    const user = userEvent.setup();
+    render(<EnrolmentRequestQueuePage />);
+    await user.click(
+      (await screen.findAllByRole("button", { name: /read the full request/i }))[0]!,
+    );
+    expect(await screen.findByText("Not recorded on this request")).toBeVisible();
+    expect(firstButton(/approve and enrol/i)).toBeEnabled();
+  });
+
+  it("shows the adult preference before approval", async () => {
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce({
+      ...detail,
+      planSelections: { applicant: "town-adult", minors: [] },
+    });
+    const user = userEvent.setup();
+    render(<EnrolmentRequestQueuePage />);
+    await user.click(
+      (await screen.findAllByRole("button", { name: /read the full request/i }))[0]!,
+    );
+    expect(await screen.findByText(/Town Adult · £85 per month/)).toBeVisible();
+    expect(enrolmentApi.approveEnrolmentRequest).not.toHaveBeenCalled();
+  });
+
+  it("shows each child's selected plan alongside that child", async () => {
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce({
+      ...detail,
+      applicantIsStudent: false,
+      minors: [
+        {
+          fullName: "Town Child",
+          dateOfBirth: "2018-05-10",
+          trainingCenter: "Town",
+          trainingTimePreferences: ["afternoon"],
+        },
+        {
+          fullName: "West Teen",
+          dateOfBirth: "2011-05-10",
+          trainingCenter: "West",
+          trainingTimePreferences: ["evening"],
+        },
+      ],
+      planSelections: { minors: ["town-kids-1x", "west-teens"] },
+    });
+    const user = userEvent.setup();
+    render(<EnrolmentRequestQueuePage />);
+    await user.click(
+      (await screen.findAllByRole("button", { name: /read the full request/i }))[0]!,
+    );
+    expect((await screen.findByText(/Town Child · born/)).closest("li")).toHaveTextContent(
+      "Town Kids & Teens 1x · £95 per term",
+    );
+    expect(screen.getByText(/West Teen · born/).closest("li")).toHaveTextContent(
+      "West Teens · £45 per month",
+    );
+  });
+});
