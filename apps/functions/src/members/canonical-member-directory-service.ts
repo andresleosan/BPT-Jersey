@@ -963,6 +963,9 @@ export function createCanonicalMemberDirectoryService(
       }
       const receiptSnapshot = await transaction.get(receiptRef);
       if (receiptSnapshot.exists) {
+        if (legacy !== undefined) {
+          throw new CanonicalMemberDirectoryError("replay", "Divergent member write replay");
+        }
         return resolveReplay(
           transaction,
           dependencies,

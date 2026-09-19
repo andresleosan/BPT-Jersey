@@ -1043,6 +1043,26 @@ describe("legacy member migration", () => {
     });
   });
 
+  it("refuses receipt replay for a different legacy member", async () => {
+    const harness = fakeFirestore(controlPlaneSeed());
+    const writer = service(harness.firestore);
+    const command = { actor: actor(), value: input("request-1"), now: migrationNow, ...legacy };
+    await writer.registerLegacyMember(command);
+    const before = new Map(harness.records);
+
+    await expect(
+      writer.registerLegacyMember({
+        ...command,
+        legacyMemberId: "legacyXyz",
+        value: input("request-1"),
+      }),
+    ).rejects.toMatchObject({ code: "replay", message: "Divergent member write replay" });
+    expect(harness.records.has("academies/academy-1/memberMigrationDecisions/legacyXyz")).toBe(
+      false,
+    );
+    expect(harness.records).toEqual(before);
+  });
+
   it("refuses a second decision for the same legacy member", async () => {
     const harness = fakeFirestore(controlPlaneSeed());
     const writer = service(harness.firestore);
