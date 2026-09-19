@@ -26,6 +26,7 @@ import {
   isMemberRecordId,
 } from "../../../../lib/member-profile-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
+import { ClassesTab } from "./classes-tab";
 import { DetailsTab } from "./details-tab";
 import { IbjjfCard } from "./ibjjf-card";
 import { ManageView, unsavedRatingsQuestion } from "./manage-view";
@@ -353,6 +354,8 @@ export function MemberRecord() {
       );
     if (activeTab === "payments" && profile.view === "full")
       return <PaymentsTab key={profile.header.studentId} studentId={profile.header.studentId} />;
+    if (activeTab === "classes" && profile.view === "full")
+      return <ClassesTab key={profile.header.studentId} studentId={profile.header.studentId} />;
     if (activeTab === "details") {
       return profile.view === "full" ? (
         <DetailsTab
