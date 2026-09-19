@@ -6,7 +6,7 @@ segunda generacion en el backend, Firestore como base de datos y Cloudflare R2 p
 privado.
 
 Este documento es lo que hace falta para levantar el proyecto en una maquina nueva. Lo que hay que
-construir esta en `tasks.md` y `tasksv2.md`; las decisiones de arquitectura, en `docs/adr/`.
+construir esta en `BACKLOG.md`; las decisiones de arquitectura, en `docs/adr/`.
 
 ---
 
@@ -111,9 +111,7 @@ packages/
   ui/           Componentes compartidos.
   config/       Configuracion compartida.
 qa/             Pruebas de reglas, integracion y E2E de Playwright.
-docs/           ADRs, operaciones, seguridad y desarrollo.
-Lista/          Tablero HTML de la primera version del proyecto.
-Listav2/        Tablero HTML de la segunda version.
+docs/           ADRs, operaciones, seguridad, desarrollo y archivo historico (docs/archive/).
 scripts/        Utilidades de release e inventario.
 ```
 
@@ -357,9 +355,6 @@ corepack pnpm test
 
 Los cuatro tienen que pasar. Un par de avisos previos:
 
-- `qa/unit/listav2-*.test.ts` falla si tocas `tasksv2.md` sin sincronizar `Listav2/Listav2.data.js`,
-  o al reves. Los dos suben en el mismo cambio, y despues se reensambla el tablero con
-  `node Listav2/build.mjs` (`Listav2.js` es generado: editarlo a mano se pierde).
 - Ejecuta siempre los scripts que define `package.json`, no `tsc` o `vitest` sueltos: con otra
   configuracion producen fallos que no son regresiones reales.
 
@@ -369,8 +364,7 @@ Los cuatro tienen que pasar. Un par de avisos previos:
 
 | Archivo                   | Que contiene                                                                     |
 | ------------------------- | -------------------------------------------------------------------------------- |
-| `tasks.md` + `Lista/`     | Ledger y tablero de la primera version. Fuente de verdad de todo lo anterior.    |
-| `tasksv2.md` + `Listav2/` | Ledger y tablero de la segunda version (bugs y funciones nuevas del 2026-09-09). |
+| `BACKLOG.md`              | Trabajo pendiente y criterio de cierre. Lo anterior, en `docs/archive/`.         |
 | `PRODUCT.md`              | Producto: usuarios, proposito y principios de diseno.                            |
 | `DESIGN.md`               | Identidad visual y reglas de interfaz.                                           |
 | `LECCIONES.md`            | Lo aprendido a base de equivocarse. Vale la pena leerlo antes de repetirlo.      |
