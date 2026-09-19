@@ -11,6 +11,11 @@ import {
   getMemberClassRecords,
   MemberClassLoadError,
 } from "../../../../lib/member-class-records-client";
+import type { MemberRecordLoadError } from "../../../../lib/member-profile-client";
+type RecordProps = {
+  studentId: string;
+  onUnavailable: (error: MemberRecordLoadError) => void;
+};
 type Row = MemberClassPage["rows"][number];
 type State = {
   rows: Row[];
@@ -35,7 +40,11 @@ const methods = {
 };
 const label = (value: string) =>
   value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
-function ClassSection({ studentId, kind }: { studentId: string; kind: MemberClassQuery["kind"] }) {
+function ClassSection({
+  studentId,
+  kind,
+  onUnavailable,
+}: RecordProps & { kind: MemberClassQuery["kind"] }) {
   const title = kind === "bookings" ? "Booking activity" : "Attendance";
   const [state, setState] = useState<State>(initial);
   const [request, setRequest] = useState<{ cursor?: MemberClassCursor; attempt: number }>({
@@ -69,21 +78,26 @@ function ClassSection({ studentId, kind }: { studentId: string; kind: MemberClas
         }));
       },
       (error: unknown) => {
-        if (active)
-          setState((previous) => ({
-            ...previous,
-            pending: false,
-            error:
-              error instanceof MemberClassLoadError
-                ? error.message
-                : "Unable to load class history. Refresh to try again.",
-          }));
+        if (!active) return;
+        if (error instanceof MemberClassLoadError && error.kind !== "error") {
+          setState({ ...initial, pending: false, error: error.message });
+          onUnavailable(error);
+          return;
+        }
+        setState((previous) => ({
+          ...previous,
+          pending: false,
+          error:
+            error instanceof MemberClassLoadError
+              ? error.message
+              : "Unable to load class history. Refresh to try again.",
+        }));
       },
     );
     return () => {
       active = false;
     };
-  }, [studentId, kind, request]);
+  }, [studentId, kind, request, onUnavailable]);
   return (
     <section aria-label={title}>
       <div className="member-subscription-actions">
@@ -170,7 +184,7 @@ function ClassSection({ studentId, kind }: { studentId: string; kind: MemberClas
     </section>
   );
 }
-export function ClassesTab({ studentId }: { studentId: string }) {
+export function ClassesTab({ studentId, onUnavailable }: RecordProps) {
   return (
     <div>
       <p>
@@ -180,8 +194,18 @@ export function ClassesTab({ studentId }: { studentId: string }) {
       <Link className="member-record-link" href="/admin/attendance">
         Open Attendance
       </Link>
-      <ClassSection key={`${studentId}-bookings`} studentId={studentId} kind="bookings" />
-      <ClassSection key={`${studentId}-attendance`} studentId={studentId} kind="attendance" />
+      <ClassSection
+        key={`${studentId}-bookings`}
+        studentId={studentId}
+        onUnavailable={onUnavailable}
+        kind="bookings"
+      />
+      <ClassSection
+        key={`${studentId}-attendance`}
+        studentId={studentId}
+        onUnavailable={onUnavailable}
+        kind="attendance"
+      />
       <p>Earlier class history may still be in the imported archive.</p>
     </div>
   );

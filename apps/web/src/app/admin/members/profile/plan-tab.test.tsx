@@ -15,7 +15,7 @@ it("renders a successful empty history, then refreshes without claiming an error
     .mockRejectedValueOnce(new Error("private"));
   client.listManagedPlans.mockResolvedValue([]);
   const update = vi.fn();
-  render(<PlanTab studentId="student-1" onCurrentMembership={update} />);
+  render(<PlanTab onUnavailable={vi.fn()} studentId="student-1" onCurrentMembership={update} />);
   expect((await screen.findByText(/No membership recorded yet/)).textContent).toContain(
     "no membership history",
   );
@@ -60,7 +60,7 @@ it("keeps cancelled history and selects the newest current membership even when 
   });
   client.listManagedPlans.mockRejectedValue(new Error("catalogue failed"));
   const update = vi.fn();
-  render(<PlanTab studentId="student-1" onCurrentMembership={update} />);
+  render(<PlanTab onUnavailable={vi.fn()} studentId="student-1" onCurrentMembership={update} />);
   await waitFor(() =>
     expect(update).toHaveBeenCalledWith({
       membershipId: "current",

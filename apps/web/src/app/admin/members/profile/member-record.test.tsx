@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { Profiler } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -177,6 +178,49 @@ describe("record location", () => {
 });
 
 describe("member record page", () => {
+  it("never commits another student's loaded notes during navigation, Back or Forward", async () => {
+    const profiles = ["student-1", "student-2"].map((studentId) => ({
+      ...full,
+      header: { ...full.header, studentId, fullName: studentId },
+      details: {
+        ...full.details,
+        studentId,
+        details: { internalNotes: `Private note for ${studentId}` },
+      },
+    }));
+    client.getMemberProfile.mockImplementation(async (id) =>
+      profiles.find((profile) => profile.header.studentId === id),
+    );
+    window.history.replaceState(null, "", recordHref("student-1", "notes"));
+    const leaks: string[] = [];
+    render(
+      <Profiler
+        id="record"
+        onRender={() => {
+          const id = new URLSearchParams(window.location.search).get("id");
+          for (const profile of profiles) {
+            if (
+              profile.header.studentId !== id &&
+              screen.queryByText(profile.details.details.internalNotes)
+            )
+              leaks.push(`${profile.header.studentId} rendered under ${id}`);
+          }
+        }}
+      >
+        <MemberRecord />
+      </Profiler>,
+    );
+    await screen.findByText("Private note for student-1");
+    window.history.pushState(null, "", recordHref("student-2", "notes"));
+    fireEvent.popState(window);
+    await screen.findByText("Private note for student-2");
+    window.history.back();
+    await screen.findByText("Private note for student-1");
+    window.history.forward();
+    await screen.findByText("Private note for student-2");
+    expect(leaks).toEqual([]);
+  });
+
   it("refuses an invalid id without calling the backend", async () => {
     open("?id=../student");
     expect((await screen.findByRole("alert")).textContent).toContain(

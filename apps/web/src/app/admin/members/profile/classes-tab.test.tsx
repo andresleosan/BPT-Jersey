@@ -16,7 +16,7 @@ it("loads booking activity independently from failed attendance and retries only
     if (kind === "attendance") throw Error("private");
     return { studentId: "s", kind, rows: [], nextCursor: null };
   });
-  render(<ClassesTab studentId="s" />);
+  render(<ClassesTab onUnavailable={vi.fn()} studentId="s" />);
   expect((await screen.findByText("No bookings recorded")).textContent).toBe(
     "No bookings recorded",
   );
@@ -71,7 +71,7 @@ it("continues an all-skipped page, deduplicates rows and resets history on Refre
           nextCursor: { at, recordId: cursor ? "b" : "imported" },
         },
   );
-  render(<ClassesTab studentId="s" />);
+  render(<ClassesTab onUnavailable={vi.fn()} studentId="s" />);
   const user = userEvent.setup();
   const section = within(screen.getByRole("region", { name: "Booking activity" }));
   await user.click(await section.findByRole("button", { name: "Load more" }));
@@ -102,8 +102,8 @@ it("discards pending responses when the student changes", async () => {
         })
       : Promise.resolve({ studentId, kind, rows: [], nextCursor: null }),
   );
-  const view = render(<ClassesTab studentId="old" />);
-  view.rerender(<ClassesTab studentId="new" />);
+  const view = render(<ClassesTab onUnavailable={vi.fn()} studentId="old" />);
+  view.rerender(<ClassesTab onUnavailable={vi.fn()} studentId="new" />);
   await screen.findByText("No bookings recorded");
   resolve({
     studentId: "old",

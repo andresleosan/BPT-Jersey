@@ -12,7 +12,7 @@ it("shows a safe failure then a successful empty membership-linked account on re
   client.getMemberSubscriptionBilling
     .mockRejectedValueOnce(new Error("private"))
     .mockResolvedValueOnce([]);
-  render(<PaymentsTab studentId="student-1" />);
+  render(<PaymentsTab onUnavailable={vi.fn()} studentId="student-1" />);
   expect((await screen.findByRole("alert")).textContent).toBe(
     "Unable to load recorded invoices and payments. Refresh to try again.",
   );
@@ -60,7 +60,7 @@ it("distinguishes invoice states, receipt amounts and complimentary access witho
       })),
     },
   ]);
-  render(<PaymentsTab studentId="student-1" />);
+  render(<PaymentsTab onUnavailable={vi.fn()} studentId="student-1" />);
   expect((await screen.findByText(/Complimentary access/)).textContent).toContain("not a payment");
   for (const state of ["Unpaid", "Partly paid", "Paid", "Void"])
     expect(screen.getByText(`${state} · £60.00`).textContent).toBe(`${state} · £60.00`);

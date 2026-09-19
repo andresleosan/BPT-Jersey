@@ -38,7 +38,7 @@ const searchError = "Unable to search members. Please try again.";
 export class MemberRecordLoadError extends Error {
   public constructor(
     message: string,
-    public readonly kind: "error" | "missing" = "error",
+    public readonly kind: "error" | "missing" | "denied" = "error",
   ) {
     super(message);
     this.name = "MemberRecordLoadError";

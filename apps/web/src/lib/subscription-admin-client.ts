@@ -21,12 +21,23 @@ import {
 } from "@bpt-jersey/domain/memberships/admin";
 import { getFirebaseFunctions } from "./firebase-client";
 
+import { MemberRecordLoadError } from "./member-profile-client";
+
 async function invoke<T>(name: string, input: unknown, schema: z.ZodType<T>): Promise<T> {
   try {
     const response = await httpsCallable<unknown, unknown>(getFirebaseFunctions(), name)(input);
     return schema.parse(response.data);
   } catch (error) {
     const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
+    if (name === "listMemberSubscriptions" || name === "listMemberSubscriptionBilling") {
+      if (code === "functions/not-found")
+        throw new MemberRecordLoadError("Live member record unavailable.", "missing");
+      if (code === "functions/permission-denied" || code === "functions/unauthenticated")
+        throw new MemberRecordLoadError(
+          "An active administrator session is required. Sign in again and reopen this member.",
+          "denied",
+        );
+    }
     if (code === "functions/aborted")
       throw new Error("This subscription has changed. Refresh before trying again.");
     if (code === "functions/permission-denied" || code === "functions/unauthenticated")

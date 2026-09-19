@@ -86,7 +86,7 @@ type LoadState =
   | Readonly<{ status: "loading" }>
   | Readonly<{ status: "invalid" }>
   | Readonly<{ status: "missing" }>
-  | Readonly<{ status: "error"; message: string }>
+  | Readonly<{ status: "error" | "denied"; message: string }>
   | Readonly<{ status: "ready"; profile: MemberProfile }>;
 
 function RecordHeader({
@@ -153,7 +153,7 @@ function MemberRecordSession({
   // The office searches from Members; the mat from Member search (operator 2026-09-19).
   const office = role === "owner" || role === "administrator";
   const [location, setLocation] = useState<RecordLocation | null>(null);
-  const [load, setLoad] = useState<LoadState>({ status: "loading" });
+  const [recordLoad, setLoad] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   /**
    * Task 17 review, Major-2: ONE fact, "the panel on screen holds unsaved work", owned here,
@@ -202,6 +202,11 @@ function MemberRecordSession({
   }, []);
 
   const studentId = location === null ? undefined : location.studentId;
+  // Effects run after commit: never render a loaded record for a different URL identity.
+  const load: LoadState =
+    recordLoad.status === "ready" && recordLoad.profile.header.studentId !== studentId
+      ? { status: "loading" }
+      : recordLoad;
 
   useEffect(() => {
     if (studentId === undefined) return undefined;
@@ -242,6 +247,19 @@ function MemberRecordSession({
   useEffect(() => {
     if (readyStudentId !== undefined) headingRef.current?.focus();
   }, [readyStudentId]);
+
+  const onUnavailable = useCallback(
+    (error: MemberRecordLoadError) => {
+      setLoad((current) =>
+        current.status === "ready" && current.profile.header.studentId === studentId
+          ? error.kind === "missing"
+            ? { status: "missing" }
+            : { status: "denied", message: error.message }
+          : current,
+      );
+    },
+    [studentId],
+  );
 
   const onCurrentMembership = useCallback(
     (
@@ -368,12 +386,25 @@ function MemberRecordSession({
           key={profile.header.studentId}
           studentId={profile.header.studentId}
           onCurrentMembership={onCurrentMembership}
+          onUnavailable={onUnavailable}
         />
       );
     if (activeTab === "payments" && profile.view === "full")
-      return <PaymentsTab key={profile.header.studentId} studentId={profile.header.studentId} />;
+      return (
+        <PaymentsTab
+          key={profile.header.studentId}
+          studentId={profile.header.studentId}
+          onUnavailable={onUnavailable}
+        />
+      );
     if (activeTab === "classes" && profile.view === "full")
-      return <ClassesTab key={profile.header.studentId} studentId={profile.header.studentId} />;
+      return (
+        <ClassesTab
+          key={profile.header.studentId}
+          studentId={profile.header.studentId}
+          onUnavailable={onUnavailable}
+        />
+      );
     if (activeTab === "notes" && profile.view === "full")
       return (
         <NotesTab
@@ -452,17 +483,19 @@ function MemberRecordSession({
         </div>
       ) : null}
 
-      {load.status === "error" ? (
+      {load.status === "error" || load.status === "denied" ? (
         <div className="member-record-notice">
           <p className="admin-eyebrow">Members / Record</p>
           <p role="alert">{load.message}</p>
-          <button
-            className="member-record-button"
-            onClick={() => setAttempt((current) => current + 1)}
-            type="button"
-          >
-            Try again
-          </button>
+          {load.status === "error" ? (
+            <button
+              className="member-record-button"
+              onClick={() => setAttempt((current) => current + 1)}
+              type="button"
+            >
+              Try again
+            </button>
+          ) : null}
         </div>
       ) : null}
 

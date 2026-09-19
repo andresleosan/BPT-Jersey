@@ -6,8 +6,16 @@ import type { SubscriptionBilling } from "@bpt-jersey/domain/memberships/admin";
 import { getMemberSubscriptionBilling } from "../../../../lib/subscription-admin-client";
 import { SubscriptionBillingHistory } from "../member-subscription-editor";
 
+import { MemberRecordLoadError } from "../../../../lib/member-profile-client";
+
 type State = { status: "loading" | "error" } | { status: "ready"; billing: SubscriptionBilling[] };
-export function PaymentsTab({ studentId }: { studentId: string }) {
+export function PaymentsTab({
+  studentId,
+  onUnavailable,
+}: {
+  studentId: string;
+  onUnavailable: (error: MemberRecordLoadError) => void;
+}) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -17,14 +25,19 @@ export function PaymentsTab({ studentId }: { studentId: string }) {
       (billing) => {
         if (active) setState({ status: "ready", billing });
       },
-      () => {
-        if (active) setState({ status: "error" });
+      (error: unknown) => {
+        if (!active) return;
+        if (error instanceof MemberRecordLoadError && error.kind !== "error") {
+          onUnavailable(error);
+          return;
+        }
+        setState({ status: "error" });
       },
     );
     return () => {
       active = false;
     };
-  }, [studentId, attempt]);
+  }, [studentId, attempt, onUnavailable]);
   return (
     <section aria-label="Recorded invoices and payments">
       <h3>Recorded invoices and payments</h3>

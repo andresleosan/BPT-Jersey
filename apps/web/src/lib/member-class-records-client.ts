@@ -5,8 +5,16 @@ import {
   type MemberClassQuery,
 } from "@bpt-jersey/domain/schedule/member-class-records";
 import { getFirebaseFunctions } from "./firebase-client";
+import type { MemberRecordLoadError } from "./member-profile-client";
 const unavailable = "Unable to load class history. Refresh to try again.";
-export class MemberClassLoadError extends Error {}
+export class MemberClassLoadError extends Error {
+  constructor(
+    message: string,
+    public readonly kind: MemberRecordLoadError["kind"] = "error",
+  ) {
+    super(message);
+  }
+}
 export async function getMemberClassRecords(input: MemberClassQuery) {
   try {
     const query = memberClassQuerySchema.parse(input);
@@ -29,6 +37,11 @@ export async function getMemberClassRecords(input: MemberClassQuery) {
           : code === "functions/permission-denied" || code === "functions/unauthenticated"
             ? "An active office session is required. Sign in again to view class history."
             : unavailable,
+      code === "functions/not-found"
+        ? "missing"
+        : code === "functions/permission-denied" || code === "functions/unauthenticated"
+          ? "denied"
+          : "error",
     );
   }
 }
