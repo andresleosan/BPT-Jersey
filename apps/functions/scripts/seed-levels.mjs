@@ -14,8 +14,8 @@ async function main() {
   const confirmation = options["confirmation"];
   const isRollback = Boolean(options["rollback"]);
 
-  if (target !== "emulator" && target !== "staging") {
-    throw new Error("Missing or invalid --target (must be 'emulator' or 'staging').");
+  if (target !== "emulator" && target !== "staging" && target !== "production") {
+    throw new Error("Missing or invalid --target (must be 'emulator', 'staging' or 'production').");
   }
 
   const initialEnvironment = {

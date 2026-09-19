@@ -1,6 +1,9 @@
 const demoProjectId = "demo-bpt-jersey";
 const demoFirestoreEmulatorHost = "127.0.0.1:8080";
 const knownProductionProjectIds = new Set(["bptjersey-f5a25"]);
+// Operator decision 2026-09-19 (T051V2): production only in this project, no emulator host, and
+// behind its own confirmation. Mirrors apps/functions/src/levels/level-seed.ts.
+const productionProjectId = "bptjersey-f5a25";
 // T099 must add an operator-approved, isolated project ID before staging is enabled.
 const approvedStagingProjectIds = new Set();
 const firebaseProjectIdPattern = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/u;
@@ -89,16 +92,18 @@ export function parseLevelSeedArguments(arguments_) {
 }
 
 export function assertLevelSeedConfirmation(target, isRollback, confirmation) {
-  if (target !== "staging") return;
-  const expected = isRollback ? "T083-LEVELS-ROLLBACK" : "T083-LEVELS-SEED";
+  let expected;
+  if (target === "staging") expected = isRollback ? "T083-LEVELS-ROLLBACK" : "T083-LEVELS-SEED";
+  else if (target === "production") {
+    expected = isRollback ? "T051V2-LEVELS-PRODUCTION-ROLLBACK" : "T051V2-LEVELS-PRODUCTION-SEED";
+  } else return;
   if (confirmation !== expected) {
-    throw new Error(`Confirmation required for staging: ${expected}`);
+    throw new Error(`Confirmation required for ${target}: ${expected}`);
   }
 }
 
 export function assertLevelSeedTargetEnvironment(target, environment) {
-  if (target === "production") throw new Error("Production seed is strictly prohibited.");
-  if (target !== "emulator" && target !== "staging") unsafeTarget();
+  if (target !== "emulator" && target !== "staging" && target !== "production") unsafeTarget();
   if (environment.nodeEnvironment?.trim().toLowerCase() === "production") unsafeTarget();
   if (environment.existingAppPresent === true && environment.existingAppProjectId === undefined) {
     unsafeTarget();
@@ -110,8 +115,15 @@ export function assertLevelSeedTargetEnvironment(target, environment) {
     normalizeProjectId(environment.existingAppProjectId),
   ].filter((projectId) => projectId !== undefined);
   const [projectId] = projectIds;
-  if (projectId === undefined || projectIds.some(isKnownProductionProject)) unsafeTarget();
+  if (projectId === undefined) unsafeTarget();
   if (new Set(projectIds).size !== 1) unsafeTarget();
+  if (target === "production") {
+    if (projectId !== productionProjectId || environment.firestoreEmulatorHost !== undefined) {
+      unsafeTarget();
+    }
+    return { target, projectId };
+  }
+  if (isKnownProductionProject(projectId)) unsafeTarget();
 
   if (
     target === "emulator" &&
