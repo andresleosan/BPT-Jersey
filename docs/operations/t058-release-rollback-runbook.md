@@ -306,7 +306,7 @@ pendiente desde el 2026-09-06.
 4. El operador abre las pantallas afectadas con sesión real **en `https://bptjersey.pages.dev`**, no
    en una preview (§1, CORS), y anota `200`/errores de consola, como se hizo el 2026-09-04 con
    `/admin/members/search`.
-5. Ledger: la fila de release de §8, completa. `Lista/Lista.js` refleja lo mismo en la misma sesión.
+5. Ledger: la fila de release de §8, completa. `BACKLOG.md` refleja lo mismo en la misma sesión.
 
 ## 5. Rollback
 

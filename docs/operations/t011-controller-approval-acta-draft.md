@@ -178,5 +178,5 @@ Transfers outside UK/EEA approved as: **none, other than Firebase Authentication
 
 **How to upgrade this record, if it is ever needed.** Vladimiro Afonso signs this same file in his
 own name: replace the "Signed by" row with his name, replace "Authorisation referenced" with the
-date he signed, change the signature form row, and record the date in the T011 row of `tasks.md`.
+date he signed, change the signature form row, and record the date in `BACKLOG.md` ("Cerradas" section).
 Nothing else in the act changes, because the decisions are unchanged — only who attests them.
