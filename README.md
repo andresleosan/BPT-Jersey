@@ -353,7 +353,7 @@ corepack pnpm typecheck
 corepack pnpm test
 ```
 
-Los cuatro tienen que pasar. Un par de avisos previos:
+Los cuatro tienen que pasar. Un aviso previo:
 
 - Ejecuta siempre los scripts que define `package.json`, no `tsc` o `vitest` sueltos: con otra
   configuracion producen fallos que no son regresiones reales.

@@ -16,8 +16,8 @@
 | ID | Tarea | Depende de | Estado | Criterio de salida |
 | -- | ----- | ---------- | ------ | ------------------ |
 | C1 | Unificación de miembros: `members` (243) → `students`; enlazar los 249 `regyfitMemberRecords` (hoy 1 enlazado); reapuntar 2.607 `auditEvents` de `class.memberId` a `studentId`; pagos, clases y notas históricas a colecciones canónicas con `source: "legacy-import"`; ficha canónica (Plan, Payments, Classes, Notes) con datos vivos; retirar el visor del archivo. Absorbe T108 y T049V2. | — | pendiente | Spec y plan propios (entrega 2b); dry-run en emuladores; conteo en producción: `students` = miembros reales, 0 `auditEvents` de clase sin `studentId` enlazable; las lecturas financieras excluyen `legacy-import`. |
-| C2 | T055V2: callables que la web publicada llama y dan 404 en producción (eran 21). Incluye verificar el deploy de las callables de Classes / Services (T046V2). | — | pendiente | Re-medir con `POST` sin sesión a cada URL (401 = existe, 404 = falta); desplegar las que falten, con confirmación; 0 respuestas 404. |
-| C3 | Desplegar las funciones de T050V2 (planes, precios, aforo) y `selfCheckIn` (T040V2). | C2 | bloqueada | Desbloquear las 82 sesiones importadas sin aforo (runbook en `docs/archive/tasksv2.md` T050V2); deploy confirmado; callables responden 401 sin sesión. |
+| C2 | T055V2: callables que la web publicada llama y dan 404 en producción (eran 21). | — | pendiente | Re-medir con `POST` sin sesión a cada URL (401 = existe, 404 = falta); desplegar las que falten, con confirmación; 0 respuestas 404. |
+| C3 | Desplegar `selfCheckIn` (T040V2) y cargar los pines de los centros. | C2 | pendiente | Deploy confirmado por el operador; `selfCheckIn` responde 401 sin sesión; pines cargados y el check-in de prueba pasa la puerta de 50 m. |
 | C4 | T024V2: programar el barrido de quorum, que hoy no se ejecuta nunca. | — | pendiente | Función programada desplegada; una ejecución registrada en los logs de producción. |
 | C5 | T021V2: datos que solo tiene el operador. | operador | bloqueada | Datos entregados y aplicados en las filas que los esperan. |
 | C6 | T127: renovación digital del waiver y gate de producción de `consent-callables`. | credenciales R2 | bloqueada | Credenciales R2 creadas por el operador; decisión de producto tomada; flujo probado en emuladores. |
@@ -67,14 +67,14 @@
 | T037V2 | Cerrada | main `6e35434` (ADR-010) y `312b0d4`; solo web (`admin-routes.ts`) |
 | T038V2 | Cerrada | main `312b0d4`; deploy de `listSessionBookedCounts` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, calendario de miembros) |
 | T039V2 | Cerrada | main `c29a783`/`312b0d4`/`05020d6`; solo `qa/tests`, sin funciones propias |
-| T046V2 | Abierta → C2 | merge `6bc9f71`; deploy no registrado en el repo |
-| T050V2 | Abierta → C3 | main `0d3fd10`/`6c3eb42`; web live, funciones bloqueadas por las 82 sesiones sin aforo (runbook en docs/archive/tasksv2.md) |
+| T046V2 | Cerrada | merge `6bc9f71`; 42 funciones de Plan 1 desplegadas según la fila T050V2 de docs/archive/tasksv2.md |
+| T050V2 | Cerrada | 6c3eb42, 0d3fd10; deploy de 48 funciones registrado en la fila T050V2 de docs/archive/tasksv2.md |
 | T051V2 | Cerrada | main `95d2778`; funciones de niveles desplegadas y `NEXT_PUBLIC_LEVELS_BACKEND=true` en Pages, 2026-09-19 |
 | T053V2 | Cerrada | main `09ea4ce`/`949d15c`; 101 funciones actualizadas y verificadas en producción, 2026-09-18 |
 | T055V2 | Abierta → C2 | main `a00007b`; solo 4 de 21 callables desplegados y verificados 2026-09-18, resto sigue en 404 |
 
 Descartadas: T017, T036, T061, T068, T069, T070, T071 (canceladas en v1); T049V2 (absorbida por C1);
-T005V2 y T020V2 (verificación de algo ya construido: se comprueban y se cierran en esta consolidación).
+T005V2 y T020V2 (verificación de algo ya construido: quedan por comprobar; si la comprobación falla, se reabren como Normales).
 
 ## Cerradas
 
