@@ -15,7 +15,7 @@
 - Preserve existing membership record schema and lifecycle, App Check, and browser-origin policy.
 - No automatic charges or renewal; one month means a clamped UTC calendar month.
 - Work in feature/member-subscription-alerts; do not modify shared main or publish in this task.
-- No Cronos or automated test suites; use static validation and builds as requested.
+- No automated test suites; use static validation and builds as requested.
 
 ### Task 1: Shared contracts and membership editing
 Files: create `packages/domain/src/memberships/subscription-admin-contracts.ts`, `apps/functions/src/memberships/subscription-admin-service.ts`, `apps/functions/src/memberships/subscription-admin-callables.ts`; modify domain package exports/runtime inputs, audit action registry and Functions runtime mapping/index.

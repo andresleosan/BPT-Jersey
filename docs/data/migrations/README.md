@@ -23,7 +23,7 @@ considera que T013 haya migrado datos.
 
 ## Bloqueo de reutilizacion del importador PDF (T084, 2026-08-18)
 
-`member-pdf-import-run-2026-08-12.yaml` es evidencia historica de una ejecucion productiva. No es
+`docs/archive/data/migrations/member-pdf-import-run-2026-08-12.yaml` es evidencia historica de una ejecucion productiva. No es
 una allowlist, un receipt reutilizable ni una autorizacion para otra corrida. En particular, su
 campo `guardLabelInCode: staging-allowlist` describe la etiqueta incorrecta usada entonces y no
 permite tratar `bptjersey-f5a25` como staging. Corregido el 2026-09-06 (T123): hasta esa fecha el

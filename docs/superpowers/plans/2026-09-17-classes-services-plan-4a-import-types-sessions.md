@@ -43,7 +43,7 @@ need people matched to `students` (decision 17). Plan 4b covers that after the p
   and are **not** part of this plan: they happen only after the operator confirms in chat.
 - Emulator project id is `demo-bpt-jersey`; `FIRESTORE_EMULATOR_HOST` must be loopback.
 - On this VPS emulators run in Docker `bpt-emu:local --network none` (port 8080 on the host is
-  code-server). Materialise `Lista Listav2 .cronos` with sparse-checkout before `typecheck`/`test`
+  code-server). Materialise `Lista Listav2` with sparse-checkout before `typecheck`/`test`
   and restore afterwards. Never run prettier on `tasksv2.md`.
 - Academy timezone is `Europe/Jersey`; every `startAt`/`endAt` is a UTC ISO string with
   milliseconds (`2026-09-14T05:00:00.000Z`), because `listSessions` compares them as strings.
@@ -629,9 +629,9 @@ confirm PASS again.
 ```bash
 corepack pnpm prettier --write qa/scripts/regyfit-classes-services-map.mjs qa/scripts/regyfit-classes-services-map.d.mts qa/unit/regyfit-classes-services-map.test.ts
 corepack pnpm lint
-git sparse-checkout add Lista Listav2 .cronos
+git sparse-checkout add Lista Listav2
 corepack pnpm typecheck
-git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'
+git sparse-checkout set '/*' '!/Lista' '!/Listav2'
 ```
 Expected: lint and typecheck exit 0.
 
@@ -1109,9 +1109,9 @@ filtro Status); producción pendiente de confirmación en chat; inscripciones, d
 quedan para 4b". Do not run prettier on this file. Then:
 
 ```bash
-git sparse-checkout add Lista Listav2 .cronos
+git sparse-checkout add Lista Listav2
 corepack pnpm vitest run --project node qa/unit/listav2-ledger-sync.test.ts
-git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'
+git sparse-checkout set '/*' '!/Lista' '!/Listav2'
 git add tasksv2.md
 git commit -m "docs(tasks): T049V2 Plan 4a evidence"
 ```

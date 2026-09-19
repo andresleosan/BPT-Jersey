@@ -9,7 +9,7 @@ Estado: aprobada para el piloto sintético. Esta aprobación no constituye una a
 | Fecha de ejecución técnica | 2026-08-25 |
 | Entorno | Workspace local; servidor estático en `127.0.0.1:3100` y Firebase Emulator para Rules |
 | Datos | Fixtures sintéticas; no se usaron datos de miembros, pagos ni proveedores reales |
-| Responsable técnico | Cronos (ejecución automatizada) |
+| Responsable técnico | Operador, con ejecución asistida por agentes de código |
 | Responsable operativo | Operador de esta sesión (identidad y rol no registrados en el workspace) |
 | Decisión | Aceptar con reservas únicamente para piloto sintético; no autorizar live, staging, producción, pagos ni datos reales |
 

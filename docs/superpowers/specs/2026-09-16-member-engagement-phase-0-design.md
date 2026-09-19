@@ -77,7 +77,7 @@ La fase 0 no construye ninguna de las tres. Construye lo que las tres comparten.
    antes de subir y pasa `corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck
    && corepack pnpm test` en local, porque la integración continua de GitHub está parada por la
    facturación de la cuenta.
-10. **`STACK.md` y `BRIEF.md` se retiran** en esta misma serie: solo servían al flujo Cronos, ya
+10. **`STACK.md` y `BRIEF.md` se retiran** en esta misma serie: solo servían al flujo de agencia retirado, ya
     retirado (`ce38a25`). Las decisiones vigentes viven en `CLAUDE.md`, `PRODUCT.md`, `DESIGN.md`,
     `LECCIONES.md` y `docs/adr/`. Las referencias históricas en ledgers y planes antiguos se dejan.
 

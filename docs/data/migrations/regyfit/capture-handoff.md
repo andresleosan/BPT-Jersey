@@ -1,4 +1,4 @@
-# Cronos Handoff: Regyfit Real Capture
+# Capture Handoff: Regyfit Real Capture
 
 ## Estado
 

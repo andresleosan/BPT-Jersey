@@ -66,7 +66,7 @@ referencias elegidas por pantalla, para pasar directamente a diseñar las interf
    cabecera, MacroFactor para la tira de días, Lifesum para el slider, Blinkist para la racha, HQ
    Trivia para el leaderboard).
 5. **En código**: spec con decisiones numeradas y trazables
-   (`docs/superpowers/specs/2026-09-10-member-calendar-design.md`), reglas puras en `packages/domain`,
+   (`docs/archive/superpowers/specs/2026-09-10-member-calendar-design.md`), reglas puras en `packages/domain`,
    un puerto con implementación `fixture` (viva en el banco :9471) e implementación `firebase`
    (escrita, sin conectar), y la UI encima. Cada pantalla nueva de abajo debería salir así.
 

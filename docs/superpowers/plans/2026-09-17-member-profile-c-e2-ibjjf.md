@@ -97,8 +97,8 @@ G6, G7, G9, G10). Executes after Plan B (`docs/superpowers/plans/2026-09-17-memb
   level catalogue and `seed-levels.mjs` rejects production; this plan does not change that.
 - Commands: always `corepack pnpm …` from `/root/BPT-Jersey`; Node `>=22.13 <25`.
 - On this VPS: the checkout is sparse; before `typecheck`, full `test` or `verify:mvp` run
-  `git sparse-checkout add Lista Listav2 .cronos` and restore afterwards with
-  `git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'`. Emulators run only inside Docker
+  `git sparse-checkout add Lista Listav2` and restore afterwards with
+  `git sparse-checkout set '/*' '!/Lista' '!/Listav2'`. Emulators run only inside Docker
   image `bpt-emu:local` with `--network none` (host port 8080 is code-server). Inside the container
   call `node_modules/.bin/firebase emulators:exec …` directly (pnpm 11 deps check aborts). Emulator
   runs need JDK 21 (in the image), project `demo-bpt-jersey`,
@@ -7776,7 +7776,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
 
 ```bash
 cd /root/BPT-Jersey
-git sparse-checkout add Lista Listav2 .cronos
+git sparse-checkout add Lista Listav2
 corepack pnpm --filter @bpt-jersey/domain build:runtime
 corepack pnpm --filter @bpt-jersey/functions build
 node apps/functions/scripts/build-deploy-artifact.mjs
@@ -7828,7 +7828,7 @@ Temporarily change `expect(card.getByText("12/25"))` to `"13/25"`, re-run Step 5
 - [ ] **Step 7: Commit**
 
 ```bash
-git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'
+git sparse-checkout set '/*' '!/Lista' '!/Listav2'
 git add qa/scripts/run-member-profile-ui-e2e.mjs qa/run-e2e.mjs qa/tests/member-profile.spec.ts qa/screenshots/t051-*.png qa/package.json pnpm-lock.yaml
 git commit -m "test(e2e): member record and JIU-JITSU IBJJF on emulators, desktop and 390px, axe and screenshots (T051V2)
 
@@ -7866,7 +7866,7 @@ changed, Task 18 Step 5 (2 passed). Record findings and fixes for Step 4.
 
 ```bash
 cd /root/BPT-Jersey
-git sparse-checkout add Lista Listav2 .cronos
+git sparse-checkout add Lista Listav2
 corepack pnpm install --frozen-lockfile
 corepack pnpm verify:mvp
 ```
@@ -7974,7 +7974,7 @@ git add -u apps/web/src/app/admin/members/profile
 git commit -m "docs(tasks): T051V2 E2 evidence — ibjjf-v2, manage view, emulator E2E and gate (T051V2)
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
-git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'
+git sparse-checkout set '/*' '!/Lista' '!/Listav2'
 ```
 
 ---

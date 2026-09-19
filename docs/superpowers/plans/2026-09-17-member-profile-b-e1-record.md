@@ -92,8 +92,8 @@ Web:
   Every new callable is exported from `apps/functions/src/index.ts`.
 - Commands from the repo root via Corepack: `corepack pnpm vitest run --project node <file>`,
   `corepack pnpm vitest run --project web <file>`. Before `typecheck` / full `test`, the sparse
-  checkout needs `git sparse-checkout add Lista Listav2 .cronos`; restore afterwards with
-  `git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'`. Emulator work (rules tests)
+  checkout needs `git sparse-checkout add Lista Listav2`; restore afterwards with
+  `git sparse-checkout set '/*' '!/Lista' '!/Listav2'`. Emulator work (rules tests)
   runs in Docker `bpt-emu:local --network none` on this VPS (port 8080 is code-server).
 - Never run prettier on `tasksv2.md`. Commit messages end with the tag `(T051V2)` and the line
   `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
@@ -7249,12 +7249,12 @@ go in the commit body under "Open for the operator", unchanged.
 - [ ] **Step 5: Unit gate**
 
 ```bash
-git sparse-checkout add Lista Listav2 .cronos
+git sparse-checkout add Lista Listav2
 corepack pnpm format:check
 corepack pnpm lint
 corepack pnpm typecheck
 corepack pnpm test
-git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'
+git sparse-checkout set '/*' '!/Lista' '!/Listav2'
 ```
 
 Expected: every command exits 0. If `format:check` fails, run `corepack pnpm exec prettier --write`

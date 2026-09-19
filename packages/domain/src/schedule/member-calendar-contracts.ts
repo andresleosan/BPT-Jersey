@@ -1,7 +1,7 @@
 /**
  * Member calendar (/account) — pure rules for what a member sees and may do.
  *
- * Spec: docs/superpowers/specs/2026-09-10-member-calendar-design.md
+ * Spec: docs/archive/superpowers/specs/2026-09-10-member-calendar-design.md
  * Every day, label and deadline is computed in Europe/Jersey. Nothing here touches Firebase.
  */
 import { isWithinBookingCutoff } from "./schedule-contracts";

@@ -1,6 +1,6 @@
 /**
  * Ready for Jiu Jitsu — member self check-in (/account). Pure rules only; nothing here touches
- * Firebase. Spec: docs/superpowers/specs/2026-09-14-ready-for-jiu-jitsu-self-check-in-design.md
+ * Firebase. Spec: docs/archive/superpowers/specs/2026-09-14-ready-for-jiu-jitsu-self-check-in-design.md
  */
 import {
   checkInProximityRadiusMeters,
