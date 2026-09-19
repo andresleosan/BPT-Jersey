@@ -37,7 +37,7 @@ operator-confirmed run captured 10 real `alunos-acessos` records into the privat
 encrypted staging root outside `Dev/`. No official export or documented API was
 verified.
 
-The sanitized handoff is in [`cronos-handoff.md`](cronos-handoff.md). The operator
+The sanitized handoff is in [`capture-handoff.md`](capture-handoff.md). The operator
 approved the restricted snapshot mapping for staging only. The staging run imported
 10 documents into `bptjersey-f5a25` under `demo-academy`; the raw records remain
 outside this checkout and are read only from `REGYFIT_PRIVATE_STAGING_ROOT`.

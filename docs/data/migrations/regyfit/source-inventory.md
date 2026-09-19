@@ -46,4 +46,4 @@ no values are stored in this inventory.
 
 The target collection and role projections were approved for the restricted staging
 snapshot only. The import completed in `bptjersey-f5a25` for `demo-academy`; see
-[`cronos-handoff.md`](cronos-handoff.md) for the sanitized receipt and rollback scope.
+[`capture-handoff.md`](capture-handoff.md) for the sanitized receipt and rollback scope.

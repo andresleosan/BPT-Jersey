@@ -140,7 +140,7 @@ Expected: FAIL, module not found.
 
 - [ ] **Step 1:** `git rm STACK.md BRIEF.md`; edit references so they point at `PRODUCT.md`, `DESIGN.md`, `LECCIONES.md`, `docs/adr/`.
 - [ ] **Step 2:** `grep -rn "STACK.md\|BRIEF.md" CLAUDE.md README.md PRODUCT.md` → empty.
-- [ ] **Step 3: Commit** `chore: retire STACK.md and BRIEF.md (Cronos-only documents)`
+- [ ] **Step 3: Commit** `chore: retire STACK.md and BRIEF.md (retired agency-workflow documents)`
 
 ### Task 7: Full gate and push
 

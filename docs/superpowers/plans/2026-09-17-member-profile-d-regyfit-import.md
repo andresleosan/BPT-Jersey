@@ -114,8 +114,8 @@ Tasks 1, 6–11); Task 1 Step 1 greps the merged code once before any code is wr
   `regyfit-classes-services-map.mjs`), no new dependencies, no speculative abstractions; deliberate
   simplifications carry `// ponytail:` comments naming the ceiling.
 - Before `corepack pnpm typecheck` / `test`, materialise the sparse paths
-  (`git sparse-checkout add Lista Listav2 .cronos`) and restore afterwards
-  (`git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'`). Never run prettier on
+  (`git sparse-checkout add Lista Listav2`) and restore afterwards
+  (`git sparse-checkout set '/*' '!/Lista' '!/Listav2'`). Never run prettier on
   `tasksv2.md`; edit it by hand.
 - Code, identifiers and UI copy in English (UK); ledger notes in Spanish. Every commit message ends with
   `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>` and carries `(T051V2)`.
@@ -1846,9 +1846,9 @@ DETAILS fields` FAILS (`profession` in `patch.details`). Restore. Rerun: PASS.
 - [ ] **Step 6: Typecheck, format, lint, commit**
 
 ```bash
-git sparse-checkout add Lista Listav2 .cronos
+git sparse-checkout add Lista Listav2
 corepack pnpm --filter @bpt-jersey/qa typecheck
-git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'
+git sparse-checkout set '/*' '!/Lista' '!/Listav2'
 corepack pnpm prettier --write qa/scripts/regyfit-member-profile-map.mjs qa/scripts/regyfit-member-profile-map.d.mts qa/unit/regyfit-member-profile-map.test.ts
 corepack pnpm lint
 git add qa/scripts/regyfit-member-profile-map.mjs qa/scripts/regyfit-member-profile-map.d.mts qa/unit/regyfit-member-profile-map.test.ts
@@ -3258,9 +3258,9 @@ salud `healthNumber`/`weightKg`/`heightCm`, `country`). Counts only, no identiti
 Then:
 
 ```bash
-git sparse-checkout add Lista Listav2 .cronos
+git sparse-checkout add Lista Listav2
 corepack pnpm vitest run --project node qa/unit/listav2-ledger-sync.test.ts
-git sparse-checkout set '/*' '!/.cronos' '!/Lista' '!/Listav2'
+git sparse-checkout set '/*' '!/Lista' '!/Listav2'
 git add tasksv2.md
 git commit -m "$(cat <<'EOF'
 docs(tasks): T051V2 Plan D Regyfit member-profile import evidence (T051V2)

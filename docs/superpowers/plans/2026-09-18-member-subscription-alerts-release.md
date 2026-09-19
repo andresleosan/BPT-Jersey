@@ -23,7 +23,7 @@ No migration, email provider, browser notification permission, automatic renewal
 
 ## Local validation
 
-Per the user's request, no automated tests, emulators, browser test suite, Cronos workflow, or external review agents were run.
+Per the user's request, no automated tests, emulators, browser test suite, or external review agents were run.
 
 - Domain and Functions TypeScript checks.
 - Web route generation and TypeScript check.
