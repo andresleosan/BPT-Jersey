@@ -30,7 +30,7 @@ const invoiceStates = {
   open: "Unpaid",
   partially_paid: "Partly paid",
   paid: "Paid",
-  void: "Waived",
+  void: "Void",
 };
 
 export function SubscriptionBillingHistory({
@@ -43,7 +43,7 @@ export function SubscriptionBillingHistory({
     .sort((a, b) => b.dueAt.localeCompare(a.dueAt));
   return (
     <section aria-label="Recorded payments" className="member-subscription-history">
-      <h4>Recorded payments and amounts due</h4>
+      <h4>Recorded invoices and payments</h4>
       {invoices.length === 0 ? (
         <p>No invoices or payments have been recorded.</p>
       ) : (
@@ -57,12 +57,15 @@ export function SubscriptionBillingHistory({
                 </span>
               </div>
               <p className="member-subscription-help">
-                Due {new Date(invoice.dueAt).toLocaleDateString("en-GB")}
+                Due{" "}
+                {new Date(invoice.dueAt).toLocaleDateString("en-GB", { timeZone: "Europe/Jersey" })}
               </p>
               {invoice.payments.map((payment) => (
                 <p key={payment.paymentId}>
                   {money(payment.amountMinor)} received · {methodNames[payment.method]} ·{" "}
-                  {new Date(payment.occurredAt).toLocaleDateString("en-GB")}
+                  {new Date(payment.occurredAt).toLocaleDateString("en-GB", {
+                    timeZone: "Europe/Jersey",
+                  })}
                   <br />
                   <span className="member-subscription-help">Reference: {payment.reference}</span>
                 </p>

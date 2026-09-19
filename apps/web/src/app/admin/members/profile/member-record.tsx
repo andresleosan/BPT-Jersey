@@ -29,6 +29,7 @@ import { useAdminOrStaffSession } from "../../admin-gate";
 import { DetailsTab } from "./details-tab";
 import { IbjjfCard } from "./ibjjf-card";
 import { ManageView, unsavedRatingsQuestion } from "./manage-view";
+import { PaymentsTab } from "./payments-tab";
 import { PlanTab } from "./plan-tab";
 import { ProfileTab } from "./profile-tab";
 import { RecordEmptyTab } from "./record-empty-tab";
@@ -350,6 +351,8 @@ export function MemberRecord() {
           onCurrentMembership={onCurrentMembership}
         />
       );
+    if (activeTab === "payments" && profile.view === "full")
+      return <PaymentsTab key={profile.header.studentId} studentId={profile.header.studentId} />;
     if (activeTab === "details") {
       return profile.view === "full" ? (
         <DetailsTab
