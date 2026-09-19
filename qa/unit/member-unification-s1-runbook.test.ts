@@ -60,6 +60,11 @@ describe("S1 operator runbook safety contract", () => {
     const runbook = readRunbook();
     for (const condition of [
       "invalidLegacyIds: 0",
+      "unparsableMembers: 0",
+      "unparsableRecords: 0",
+      "invalidIdentifiers",
+      "invalid-member-data",
+      "queue unavailable",
       "legacyIdCaseCollisions: 0",
       "readerVersion: canonical-v1",
       "rollbackEligibleStudentCount + strong + suggested + none",

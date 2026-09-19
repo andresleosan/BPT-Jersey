@@ -33,8 +33,8 @@ miembro real un `student` y lo enlaza con su registro del archivo cuando existe.
 
 ### 1. Emparejamiento (dominio, función pura)
 
-`packages/domain/src/members/member-migration-matching.ts`, exportado como
-`@bpt-jersey/domain/members/migration-matching`. Entrada: filas legacy `members`, registros
+`packages/domain/src/members/member-migration-contracts.ts`, exportado como
+`@bpt-jersey/domain/members/migration`. Entrada: filas legacy `members`, registros
 `regyfitMemberRecords`, claves ya reservadas (legacyMemberIds con decisión, recordIds enlazados) y la
 fecha de referencia. Salida: una fila por miembro legacy sin decisión, con una categoría:
 
@@ -57,7 +57,7 @@ verá la cola.
 
 ### 2. Lectura de la cola
 
-Callable `listMemberMigrationCandidates` (owner/administrator, App Check, `requireAdminActor` +
+Callable `listMemberMigrationQueue` (owner/administrator, App Check, `requireAdminActor` +
 `assertAcademyScope`, las mismas guardas que los demás callables de oficina; el MFA obligatorio,
 T017, está cancelado). Lee `members`, `regyfitMemberRecords`,
 `memberMigrationDecisions`, `regyfitOfficeLinks` y `regyfitMemberLinks`, y devuelve el resultado de la función de
@@ -121,12 +121,16 @@ de nacimiento, `legacyMemberId` que no cumplen el patrón de identificador admin
 `readerVersion`, `rollbackEligibleStudentCount` y `rollbackCapacityLimit` actuales. No imprime datos personales. Exige `GCLOUD_PROJECT` y, contra emuladores,
 host loopback.
 
-`qa/scripts/member-unification-s1-revert.mjs`: dry-run por defecto; lista y, con `--apply` más
-`MEMBER_UNIFICATION_CONFIRMATION=member-unification-s1-revert-v1` en producción, borra solo los
-documentos con `migrationId: member-unification-s1-2026-09` (students, admin profiles, identity keys,
-enlaces en `regyfitOfficeLinks`, decisiones y las familias de oficina `office-{studentId}` creadas
-por la migración). Nunca toca `members` ni
-`regyfitMemberRecords`. Mismo patrón de guardas que `purge-regyfit-record-passwords.mjs`.
+`qa/scripts/member-unification-s1-revert.mjs`: dry-run por defecto; cuenta y, con `S1_REVERT_APPLY=yes` más
+`MEMBER_UNIFICATION_CONFIRMATION=member-unification-s1-revert-v1` en producción, sigue la cadena de
+las decisiones `memberMigrationDecisions` con `migrationId: member-unification-s1-2026-09`.
+Para decisiones `link` o `create-unlinked`, comprueba en el perfil admin la marca S1:
+`source: legacy-member-migration`, el mismo `migrationId` y el `legacyMemberId` normalizado de la
+decisión. Si el perfil ya se borró en un revert parcial, permite reintentar los documentos restantes.
+Borra los students, perfiles admin, claves de identidad, enlaces en `regyfitOfficeLinks`, decisiones
+y familias de oficina `office-{studentId}` de esa cadena; un `skip` solo borra su decisión.
+Nunca toca `members` ni `regyfitMemberRecords`. Mismo patrón de guardas que
+`purge-regyfit-record-passwords.mjs`.
 
 ## Puesta en marcha
 
@@ -149,13 +153,13 @@ por la migración). Nunca toca `members` ni
   tope 400, revertir unas 245 altas deja sitio para unas 155 más: una segunda pasada completa exigiría
   antes una transición del plano de control que S1 no construye. El script inverso es para
   emergencias, no para repetir la migración.
-- Datos: `member-unification-s1-revert.mjs`. Los 2 `students` previos no llevan el `migrationId` y no
-  se tocan.
+- Datos: `member-unification-s1-revert.mjs`. Los 2 `students` previos quedan fuera de la cadena de
+  decisiones S1 y no se tocan; el script comprueba la marca S1 del perfil admin cuando existe.
 
 ## Garantías
 
 - `members` y `regyfitMemberRecords` no se modifican en S1.
-- Toda escritura nueva lleva `migrationId: member-unification-s1-2026-09`.
+- Toda escritura nueva queda ligada a una decisión `memberMigrationDecisions` con `migrationId`; el perfil admin lleva `migrationId`.
 - Ningún emparejamiento sin decisión explícita de owner/administrator (lote incluido: cada elemento
   del lote es una decisión registrada con su actor).
 - Contactos de emergencia, datos de salud y dirección del archivo no se copian al `student`.
