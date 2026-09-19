@@ -1,3 +1,4 @@
+import { HttpsError } from "firebase-functions/v2/https";
 import type { Firestore } from "firebase-admin/firestore";
 
 import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
@@ -58,8 +59,16 @@ export function createMemberProfileFirestoreStore(firestore: Firestore): MemberP
         .limit(maxMemberships)
         .get();
       return snapshot.docs.flatMap((document) => {
+        if (document.get("source") === "legacy-import") return [];
+        if (document.get("source") !== undefined)
+          throw new HttpsError("failed-precondition", "Unsupported membership source.");
         const parsed = parseMembershipRecord(document.data());
-        return parsed.ok && parsed.value.academyId === academyId ? [parsed.value] : [];
+        return parsed.ok &&
+          parsed.value.academyId === academyId &&
+          parsed.value.studentId === studentId &&
+          parsed.value.membershipId === document.id
+          ? [parsed.value]
+          : [];
       });
     },
     async getPlanDisplayName(academyId, planId) {

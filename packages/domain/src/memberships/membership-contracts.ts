@@ -308,3 +308,12 @@ export function canTransitionMembership(
   if (current === target) return true;
   return membershipTransitionTargets[current].includes(target);
 }
+
+/** The newest recorded current status; this is not a recalculation of eligibility or expiry. */
+export function selectCurrentMembership<
+  T extends { status: MembershipRecord["status"]; startsAt: string },
+>(memberships: readonly T[]): T | undefined {
+  return memberships
+    .filter((membership) => ["trial", "active", "paused", "overdue"].includes(membership.status))
+    .sort((left, right) => right.startsAt.localeCompare(left.startsAt))[0];
+}

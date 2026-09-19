@@ -44,12 +44,14 @@ async function invoke<T>(name: string, input: unknown, schema: z.ZodType<T>): Pr
     throw new Error("Unable to complete this request. Please try again.");
   }
 }
-export function getMemberSubscriptions(studentId: string) {
-  return invoke(
+export async function getMemberSubscriptions(studentId: string) {
+  const result = await invoke(
     "listMemberSubscriptions",
     memberSubscriptionQuerySchema.parse({ studentId }),
     memberSubscriptionContextSchema,
   );
+  if (result.studentId !== studentId || result.memberships.some((membership) => membership.studentId !== studentId)) throw new Error("Unable to load membership history. Please try again.");
+  return result;
 }
 export function editSubscription(input: SubscriptionEdit) {
   return invoke(
