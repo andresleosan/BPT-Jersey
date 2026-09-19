@@ -72,6 +72,14 @@ export function reportCounters(data, today) {
         queue.rows.filter((row) => row.category === category).length,
       ]),
     ),
+    undated: queue.rows.filter((row) => row.isMinor === "unknown").length,
+    invalidIdentifiers: data.members.filter((member) =>
+      [member.membershipNumber, member.idCardNumber, member.vatNumber].some(
+        (value) =>
+          value !== undefined &&
+          !/^[A-Z0-9][A-Z0-9 ./-]{0,63}$/.test(value.normalize("NFKC").trim().toUpperCase()),
+      ),
+    ).length,
     minorOrUndated: queue.rows.filter((row) => row.isMinor !== false).length,
     archiveOnly: queue.archiveOnly.length,
     invalidLegacyIds: normalizedIds.filter((id) => !/^[A-Z0-9][A-Z0-9 ./-]{0,63}$/.test(id)).length,
@@ -87,17 +95,7 @@ export function reportCounters(data, today) {
   };
 }
 
-async function main() {
-  const academyId = process.env.S1_ACADEMY_ID?.trim();
-  if (!academyId || academyId.includes("/")) throw new SafeScriptError("Invalid S1_ACADEMY_ID");
-  const { projectId } = resolveTarget(process.env);
-  const requireFromFunctions = createRequire(
-    new URL("../../apps/functions/package.json", import.meta.url),
-  );
-  const { initializeApp } = requireFromFunctions("firebase-admin/app");
-  const { getFirestore } = requireFromFunctions("firebase-admin/firestore");
-  const firestore = getFirestore(initializeApp({ projectId }));
-  const root = `academies/${academyId}`;
+export async function runReport(firestore, root, today) {
   const [members, records, decisions, officeLinks, memberLinks, state] = await Promise.all([
     ...[
       "members",
@@ -108,25 +106,54 @@ async function main() {
     ].map((name) => firestore.collection(`${root}/${name}`).get()),
     firestore.doc(`${root}/memberDirectoryStates/current`).get(),
   ]);
-  const parseDocuments = (snapshot, parse) =>
-    snapshot.docs.map((document) => {
+  const parseDocuments = (snapshot, parse) => {
+    const values = [];
+    let unparsable = 0;
+    for (const document of snapshot.docs) {
       const parsed = parse(document.data());
-      if (!parsed.ok) throw new SafeScriptError("Invalid migration input");
-      return parsed.value;
-    });
+      if (parsed.ok) values.push(parsed.value);
+      else unparsable += 1;
+    }
+    return { values, unparsable };
+  };
+  const parsedMembers = parseDocuments(members, parseMemberRecord);
+  const parsedRecords = parseDocuments(records, parseStoredRegyfitMemberRecord);
   const counters = reportCounters(
     {
-      members: parseDocuments(members, parseMemberRecord),
-      records: parseDocuments(records, parseStoredRegyfitMemberRecord),
+      members: parsedMembers.values,
+      records: parsedRecords.values,
       decidedMemberIds: new Set(decisions.docs.map((document) => document.id)),
       linkedRecordIds: new Set(
         [...officeLinks.docs, ...memberLinks.docs].map((document) => document.id),
       ),
       state: state.data(),
     },
-    new Date().toISOString().slice(0, 10),
+    today,
   );
-  for (const [key, value] of Object.entries(counters)) console.log(`${key}: ${value}`);
+  const output = {
+    ...counters,
+    members: members.docs.length,
+    archiveRecords: records.docs.length,
+    unparsableMembers: parsedMembers.unparsable,
+    unparsableRecords: parsedRecords.unparsable,
+  };
+  for (const [key, value] of Object.entries(output)) console.log(`${key}: ${value}`);
+  if (parsedMembers.unparsable > 0 || parsedRecords.unparsable > 0) {
+    throw new SafeScriptError("Queue would fail: unparsable documents");
+  }
+}
+
+async function main() {
+  const academyId = process.env.S1_ACADEMY_ID?.trim();
+  if (!academyId || academyId.includes("/")) throw new SafeScriptError("Invalid S1_ACADEMY_ID");
+  const { projectId } = resolveTarget(process.env);
+  const requireFromFunctions = createRequire(
+    new URL("../../apps/functions/package.json", import.meta.url),
+  );
+  const { initializeApp } = requireFromFunctions("firebase-admin/app");
+  const { getFirestore } = requireFromFunctions("firebase-admin/firestore");
+  const firestore = getFirestore(initializeApp({ projectId }));
+  await runReport(firestore, `academies/${academyId}`, new Date().toISOString().slice(0, 10));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

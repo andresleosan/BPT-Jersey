@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   reportCounters,
+  runReport,
   reportScriptError,
   SafeScriptError,
   resolveTarget as reportTarget,
@@ -163,6 +164,150 @@ describe("member unification S1 scripts", () => {
       output.mockRestore();
     }
   });
+  it.each([
+    [0, 0],
+    [2, 0],
+    [0, 3],
+    [2, 3],
+  ])(
+    "prints every counter before failing for unparsable documents (%i members, %i records)",
+    async (badMembers, badRecords) => {
+      const now = "2026-09-19T10:00:00.000Z";
+      const collections: Record<string, unknown[]> = {
+        members: [
+          ...Array.from({ length: badMembers }, () => ({ fullName: "Private malformed member" })),
+          {
+            memberId: "m1",
+            academyId: "synthetic",
+            fullName: "Synthetic Adult",
+            birthDate: "1990-01-01",
+            paymentStatus: "unknown",
+            gender: "unknown",
+            membershipStatus: "active",
+            createdAt: now,
+            createdBy: "synthetic",
+            updatedAt: now,
+            updatedBy: "synthetic",
+            source: "integration",
+            schemaVersion: "1",
+          },
+        ],
+        regyfitMemberRecords: [
+          ...Array.from({ length: badRecords }, () => ({ fullName: "Private malformed record" })),
+          {
+            recordId: "10",
+            fullName: "Synthetic Archive",
+            gender: "unknown",
+            membershipState: "active",
+            appAccess: {},
+            graduation: {},
+            plan: {},
+            attendance: { records: [] },
+            payments: [],
+            capturedAt: now,
+            source: "regyfit-admin-capture",
+            schemaVersion: "1",
+          },
+        ],
+      };
+      const store = {
+        collection: (path: string) => ({
+          get: async () => ({
+            docs: (collections[path.split("/").at(-1)!] ?? []).map((data, index) => ({
+              id: String(index),
+              data: () => data,
+            })),
+          }),
+        }),
+        doc: () => ({
+          get: async () => ({
+            data: () => ({
+              readerVersion: "canonical-v1",
+              rollbackEligibleStudentCount: 0,
+              rollbackCapacityLimit: 400,
+            }),
+          }),
+        }),
+      };
+      const output = vi.spyOn(console, "log").mockImplementation(() => {});
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      const exitCode = process.exitCode;
+      try {
+        await runReport(store, "academies/synthetic", "2026-09-19").catch(reportScriptError);
+        const lines = output.mock.calls.map(([line]) => line);
+        expect(lines).toContain(`unparsableMembers: ${badMembers}`);
+        expect(lines).toContain(`unparsableRecords: ${badRecords}`);
+        expect(lines).toContain(`members: ${badMembers + 1}`);
+        expect(lines).toContain(`archiveRecords: ${badRecords + 1}`);
+        expect(lines).toContain("none: 1");
+        expect(lines).toContain("archiveOnly: 1");
+        expect(lines).toContain("rollbackCapacityLimit: 400");
+        expect(
+          lines.every((line) => /^[A-Za-z]+: (?:[0-9]+|canonical-v1)$/.test(String(line))),
+        ).toBe(true);
+        if (badMembers || badRecords) {
+          expect(errors.mock.calls).toEqual([
+            ["errors: 1 — Queue would fail: unparsable documents"],
+          ]);
+          expect(process.exitCode).toBe(1);
+          expect(output.mock.invocationCallOrder.at(-1)!).toBeLessThan(
+            errors.mock.invocationCallOrder[0]!,
+          );
+        } else {
+          expect(errors).not.toHaveBeenCalled();
+          expect(process.exitCode).toBe(exitCode);
+        }
+      } finally {
+        output.mockRestore();
+        errors.mockRestore();
+        process.exitCode = exitCode;
+      }
+    },
+  );
+
+  it("counts invalid identifiers once per member after normalizing and undated queue rows only", () => {
+    const counters = reportCounters(
+      {
+        members: [
+          {
+            memberId: "m1",
+            fullName: "Synthetic One",
+            membershipNumber: "bad_1",
+            idCardNumber: "bad_2",
+            vatNumber: "bad_3",
+          },
+          { memberId: "m2", fullName: "Synthetic Two", membershipNumber: "  ａｂ１２ /.-  " },
+          { memberId: "m3", fullName: "Synthetic Three", vatNumber: "_" },
+          { memberId: "m4", fullName: "Synthetic Four", idCardNumber: "!" },
+          { memberId: "decided", fullName: "Synthetic Decided" },
+          { memberId: "minor", fullName: "Synthetic Minor", birthDate: "2020-01-01" },
+        ],
+        records: [
+          {
+            recordId: "10",
+            fullName: "Synthetic Match",
+            memberNumber: "AB12 /.-",
+            birthDate: "1990-01-01",
+          },
+        ],
+        decidedMemberIds: new Set(["decided"]),
+        linkedRecordIds: new Set(),
+        state: {
+          readerVersion: "canonical-v1",
+          rollbackEligibleStudentCount: 0,
+          rollbackCapacityLimit: 400,
+        },
+      },
+      "2026-09-19",
+    );
+    expect(counters).toMatchObject({
+      invalidIdentifiers: 3,
+      undated: 3,
+      minorOrUndated: 4,
+      strong: 1,
+    });
+  });
+
   it("reports the queue and normalized identifier counters without personal data", () => {
     expect(
       reportCounters(
@@ -222,6 +367,8 @@ describe("member unification S1 scripts", () => {
       ambiguous: 1,
       none: 3,
       minorOrUndated: 3,
+      undated: 2,
+      invalidIdentifiers: 0,
       archiveOnly: 1,
       invalidLegacyIds: 1,
       legacyIdCaseCollisions: 1,
