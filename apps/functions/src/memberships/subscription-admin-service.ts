@@ -88,7 +88,16 @@ export async function listMemberSubscriptionRecords(
         : [];
     }),
     memberships: memberships.docs
-      .map((doc) => project(membershipRecord(doc.data(), academyId, doc.id)))
+      .filter((doc) => {
+        if (doc.get("source") === "legacy-import") return false;
+        if (doc.get("source") !== undefined) invalid("Unsupported membership source.");
+        return true;
+      })
+      .map((doc) => {
+        const membership = membershipRecord(doc.data(), academyId, doc.id);
+        if (membership.studentId !== studentId) invalid("Subscription is unavailable.");
+        return project(membership);
+      })
       .sort((a, b) => b.startsAt.localeCompare(a.startsAt)),
   };
 }

@@ -1,3 +1,4 @@
+import { selectCurrentMembership } from "@bpt-jersey/domain/memberships/lifecycle";
 import type { FamilyRecord, FamilyRelationship } from "@bpt-jersey/domain/families";
 import {
   maskMembershipReference,
@@ -166,11 +167,7 @@ export function createMemberProfileService(
     studentId: string,
   ): Promise<MemberProfileCards["currentMembership"]> {
     const memberships = await store.listStudentMemberships(academyId, studentId);
-    const current = memberships
-      .filter((membership) =>
-        (currentMembershipStatuses as readonly string[]).includes(membership.status),
-      )
-      .sort((left, right) => right.startsAt.localeCompare(left.startsAt))[0];
+    const current = selectCurrentMembership(memberships);
     if (current === undefined) return null;
     const planName = (await store.getPlanDisplayName(academyId, current.planId)) ?? current.planId;
     return {

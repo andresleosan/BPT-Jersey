@@ -29,6 +29,7 @@ import { useAdminOrStaffSession } from "../../admin-gate";
 import { DetailsTab } from "./details-tab";
 import { IbjjfCard } from "./ibjjf-card";
 import { ManageView, unsavedRatingsQuestion } from "./manage-view";
+import { PlanTab } from "./plan-tab";
 import { ProfileTab } from "./profile-tab";
 import { RecordEmptyTab } from "./record-empty-tab";
 import { participantTypeLabel, statusLabel } from "./record-format";
@@ -228,6 +229,25 @@ export function MemberRecord() {
     if (readyStudentId !== undefined) headingRef.current?.focus();
   }, [readyStudentId]);
 
+  const onCurrentMembership = useCallback(
+    (
+      currentMembership: import("@bpt-jersey/domain/members/profile").MemberProfileCards["currentMembership"],
+    ) => {
+      setLoad((current) =>
+        current.status === "ready" && current.profile.view === "full"
+          ? {
+              ...current,
+              profile: {
+                ...current.profile,
+                cards: { ...current.profile.cards, currentMembership },
+              },
+            }
+          : current,
+      );
+    },
+    [],
+  );
+
   const onDirtyChange = useCallback((dirty: boolean) => {
     unsaved.current = dirty ? unsavedDetailsQuestion : null;
   }, []);
@@ -322,6 +342,14 @@ export function MemberRecord() {
         <ProfileTab profile={profile} ibjjfCardSlot={ibjjfCardSlot} />
       );
     }
+    if (activeTab === "plan" && profile.view === "full")
+      return (
+        <PlanTab
+          key={profile.header.studentId}
+          studentId={profile.header.studentId}
+          onCurrentMembership={onCurrentMembership}
+        />
+      );
     if (activeTab === "details") {
       return profile.view === "full" ? (
         <DetailsTab
