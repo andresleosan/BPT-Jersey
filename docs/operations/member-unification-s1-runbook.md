@@ -1,6 +1,6 @@
 # Unificación de miembros S1: operación de identidad con revisiones de tutor y edad
 
-Luis: esta guía prepara el informe, publica las cuatro funciones y la web, y verifica las decisiones de todos los miembros de `demo-academy` en `bptjersey-f5a25`.
+Luis: esta guía prepara el informe, publica las 40 funciones y la web, y verifica las decisiones de todos los miembros de `demo-academy` en `bptjersey-f5a25`.
 Son 27 pasos de operación y 8 de vuelta atrás opcional. Necesitas una terminal SSH del VPS como `root`, acceso de administrador, el gate local aprobado y tu PAT para publicar `main`.
 Los comandos de producción los ejecuta únicamente el operador después de su confirmación explícita en el chat. Esta guía no acredita que ya se hayan ejecutado.
 
@@ -193,20 +193,39 @@ test -f apps/functions/.env && test ! -L apps/functions/.env && echo 'OK: archiv
 
 Salida esperada: `OK: archivo real`. Si no aparece, detente.
 
-Hacer merge/push a `main` publica la web, incluida la nueva entrada de navegación «Member migration»; despliega los cuatro callables inmediatamente antes/después para evitar que la página muestre «queue unavailable». Este procedimiento los despliega antes del push.
+Hacer merge/push a `main` publica la web, incluida la nueva entrada de navegación «Member migration»; despliega las 40 funciones del paso 14 antes del push para evitar que la página muestre «queue unavailable» o use servicios incompatibles con la enmienda de menores.
 
-### 14. Despliega las funciones S1 y revisión
+### 14. Despliega las 40 funciones de S1 y servicios compartidos
 
 📍 Terminal del VPS · root · `/root/BPT-Jersey`.
 
-⚠️ Cambia funciones de producción. Ejecuta solo tras el paso 10. El `predeploy` de `firebase.json` construye el artefacto desplegable; no lo sustituyas por una compilación manual. Las barras finales permiten pegar el comando completo en varias líneas cortas.
+⚠️ Cambia funciones de producción. Ejecuta solo tras el paso 10. El `predeploy` de `firebase.json` construye el artefacto desplegable; no lo sustituyas por una compilación manual. La enmienda de menores cambió servicios compartidos usados por funciones ya desplegadas: estas 40 funciones deben desplegarse junto con la web en la misma publicación, completando los cuatro lotes antes del push. Nunca hagas un deploy total; `selfCheckIn` sigue sin desplegar. Ejecuta cada comando completo por separado y comprueba su resultado antes de continuar. Las barras finales separan opciones; el argumento de `--only` no contiene espacios ni saltos de línea.
 
 ```bash
-corepack pnpm exec firebase deploy --project bptjersey-f5a25 \
-  --only functions:listMemberMigrationQueue,functions:decideMemberMigration,functions:assignMemberGuardian,functions:setMemberDateOfBirth
+corepack pnpm exec firebase deploy \
+  --project bptjersey-f5a25 \
+  --only functions:listMemberMigrationQueue,functions:decideMemberMigration,functions:assignMemberGuardian,functions:setMemberDateOfBirth,functions:listMembers,functions:getMemberDetail,functions:getMemberProfile,functions:lookupMemberIdentity,functions:updateMember,functions:resolveMemberSubscriptionProfile
 ```
 
-Salida esperada: las cuatro funciones creadas o actualizadas correctamente y `Deploy complete!`. Si falla alguna, detente antes del push de la web. No aceptes propuestas de borrar otras funciones.
+```bash
+corepack pnpm exec firebase deploy \
+  --project bptjersey-f5a25 \
+  --only functions:registerImportedMemberForOffice,functions:getFamily,functions:updateFamily,functions:createMembership,functions:listMemberSubscriptions,functions:updateMemberSubscription,functions:manageMemberSubscription,functions:getStudentProgressSummary,functions:getStudentLevelHistory,functions:listStudentEvaluations
+```
+
+```bash
+corepack pnpm exec firebase deploy \
+  --project bptjersey-f5a25 \
+  --only functions:recordEvaluation,functions:listMedicalLeaves,functions:recordMedicalLeave,functions:listRecognitionCandidates,functions:approvePromotion,functions:openStudentLevel,functions:rejectPromotion,functions:listGraduations,functions:assignLevel,functions:voidPromotion
+```
+
+```bash
+corepack pnpm exec firebase deploy \
+  --project bptjersey-f5a25 \
+  --only functions:getProgressReport,functions:requestBooking,functions:checkIn,functions:correctAttendance,functions:recordCheckout,functions:issueNextWaitlistOffer,functions:completeMemberRecovery,functions:reviewMemberRecovery,functions:subscriptionExpiryNoticeWritten,functions:subscriptionExpiryNoticesSchedule
+```
+
+Salida esperada: las 40 funciones creadas o actualizadas correctamente y `Deploy complete!` en cada lote. Si falla cualquier lote, detente antes del push de la web. No aceptes propuestas de borrar otras funciones.
 
 ### 15. Actualiza la referencia remota de main
 
