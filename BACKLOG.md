@@ -16,7 +16,7 @@
 | ID | Tarea | Depende de | Estado | Criterio de salida |
 | -- | ----- | ---------- | ------ | ------------------ |
 | C1 | Unificación de miembros: `members` (243) → `students`; enlazar los 249 `regyfitMemberRecords` (hoy 1 enlazado); reapuntar 2.607 `auditEvents` de `class.memberId` a `studentId`; pagos, clases y notas históricas a colecciones canónicas con `source: "legacy-import"`; ficha canónica (Plan, Payments, Classes, Notes) con datos vivos; retirar el visor del archivo. Absorbe T108 y T049V2. | — | pendiente | Spec y plan propios (entrega 2b); dry-run en emuladores; conteo en producción: `students` = miembros reales, 0 `auditEvents` de clase sin `studentId` enlazable; las lecturas financieras excluyen `legacy-import`. |
-| C2 | T055V2: callables que la web publicada llama y dan 404 en producción (eran 21). | — | pendiente | Re-medir con `POST` sin sesión a cada URL (401 = existe, 404 = falta); desplegar las que falten, con confirmación; 0 respuestas 404. |
+| C2 | T055V2: callables que la web publicada llama y dan 404 en producción (eran 21). Incluye verificar el deploy de las callables de Classes / Services (T046V2). | — | pendiente | Re-medir con `POST` sin sesión a cada URL (401 = existe, 404 = falta); desplegar las que falten, con confirmación; 0 respuestas 404. |
 | C3 | Desplegar las funciones de T050V2 (planes, precios, aforo) y `selfCheckIn` (T040V2). | C2 | bloqueada | Desbloquear las 82 sesiones importadas sin aforo (runbook en `docs/archive/tasksv2.md` T050V2); deploy confirmado; callables responden 401 sin sesión. |
 | C4 | T024V2: programar el barrido de quorum, que hoy no se ejecuta nunca. | — | pendiente | Función programada desplegada; una ejecución registrada en los logs de producción. |
 | C5 | T021V2: datos que solo tiene el operador. | operador | bloqueada | Datos entregados y aplicados en las filas que los esperan. |
@@ -57,7 +57,7 @@
 | T027V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`overview-page.tsx`) |
 | T028V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin/attendance`) |
 | T029V2 | Cerrada | main `9d83d22`/`6988316`; solo web (`members/requests/page.tsx`) |
-| T030V2 | Cerrada | main `be977e6`; deploy de `apps/functions/src/health` registrado en docs/archive/tasksv2.md (T039V2, 39 callables 2026-09-15, incl. referencias médicas) |
+| T030V2 | Cerrada | main `be977e6`; deploy en el lote del 2026-09-15 registrado en la fila T039V2 de docs/archive/tasksv2.md (39 callables, incl. referencias médicas) |
 | T031V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin-routes.ts`, `admin-shell.tsx`) |
 | T032V2 | Cerrada | main `92d68ae`; deploy de `apps/functions/src/schedule` registrado en docs/archive/tasksv2.md (T039V2, 39 callables 2026-09-15, catálogo/clases/reservas) |
 | T033V2 | Cerrada | main `92d68ae`; deploy de `updateSession`/`removeClass` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15) |
@@ -67,7 +67,7 @@
 | T037V2 | Cerrada | main `6e35434` (ADR-010) y `312b0d4`; solo web (`admin-routes.ts`) |
 | T038V2 | Cerrada | main `312b0d4`; deploy de `listSessionBookedCounts` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, calendario de miembros) |
 | T039V2 | Cerrada | main `c29a783`/`312b0d4`/`05020d6`; solo `qa/tests`, sin funciones propias |
-| T046V2 | Cerrada | main `b433266`; 42 funciones desplegadas 2026-09-17 (memoria de proyecto) |
+| T046V2 | Abierta → C2 | merge `6bc9f71`; deploy no registrado en el repo |
 | T050V2 | Abierta → C3 | main `0d3fd10`/`6c3eb42`; web live, funciones bloqueadas por las 82 sesiones sin aforo (runbook en docs/archive/tasksv2.md) |
 | T051V2 | Cerrada | main `95d2778`; funciones de niveles desplegadas y `NEXT_PUBLIC_LEVELS_BACKEND=true` en Pages, 2026-09-19 |
 | T053V2 | Cerrada | main `09ea4ce`/`949d15c`; 101 funciones actualizadas y verificadas en producción, 2026-09-18 |
