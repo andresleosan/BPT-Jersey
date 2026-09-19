@@ -100,8 +100,8 @@ function AcademyMemberDirectorySection({
     >
       <div className="admin-panel-card-heading">
         <div>
-          <p className="admin-eyebrow">Members / Regyfit archive</p>
-          <h3 id="directory-search-heading">Regyfit archive (read only)</h3>
+          <p className="admin-eyebrow">Members / Imported archive</p>
+          <h3 id="directory-search-heading">Imported archive (read only)</h3>
         </div>
       </div>
 
@@ -116,7 +116,7 @@ function AcademyMemberDirectorySection({
       ) : null}
 
       <p className="member-record-hint">
-        Records captured from Regyfit
+        Records imported
         {directory.status === "loaded" && directory.page.capturedAt !== undefined
           ? ` on ${directory.page.capturedAt.slice(0, 10)}`
           : ""}

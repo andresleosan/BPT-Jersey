@@ -550,7 +550,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     // The two criteria, and the imported / BPT split: the class on day -20 sits before the
     // baseline cutoff, so it is inside the imported nine rather than counted twice.
     await expect(card.getByText("12/25")).toBeVisible();
-    await expect(card.getByText("9 from Regyfit + 3 in BPT")).toBeVisible();
+    await expect(card.getByText("9 imported + 3 in BPT")).toBeVisible();
     // The days criterion is the TARGET level's (White - 1st Stripe requires 75), not the 90 the
     // held WHITE BELT itself carries.
     await expect(card.getByText("30/75")).toBeVisible();

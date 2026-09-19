@@ -103,7 +103,7 @@ describe("members landing page", () => {
       "href",
       "/admin/members/add",
     );
-    expect(screen.getByRole("link", { name: "Regyfit archive" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Imported archive" })).toHaveAttribute(
       "href",
       "/admin/members/search",
     );

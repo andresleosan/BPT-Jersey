@@ -38,7 +38,7 @@ const recordCounts = [100, 250, 500, 750, 1000] as const;
 const dash = "—";
 
 /** One option for the whole Regyfit import, because one actorId is all it can filter on. */
-const importedActorLabel = "Regyfit (imported)";
+const importedActorLabel = "Imported history";
 
 type LoadStatus = "idle" | "loading" | "ready" | "error";
 

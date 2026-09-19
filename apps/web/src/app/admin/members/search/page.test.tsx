@@ -207,7 +207,7 @@ describe("Regyfit academy member directory", () => {
     expect(screen.getByText("Total: 2")).toBeVisible();
     expect(screen.getByText("Active: 1")).toBeVisible();
     expect(screen.getByText("No number: 1")).toBeVisible();
-    expect(screen.getByText(/captured from Regyfit on 2026-09-04/)).toBeVisible();
+    expect(screen.getByText(/Records imported on 2026-09-04/)).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Open full record for Unnumbered Adult" }),
     ).toHaveTextContent("#300");
@@ -273,7 +273,7 @@ describe("Regyfit academy member directory", () => {
     await user.click(within(profile).getByRole("tab", { name: "Classes" }));
     expect(within(profile).getAllByText("Strive Kids", { selector: "td" })).toHaveLength(2);
     await user.click(within(profile).getByRole("tab", { name: "Communication" }));
-    expect(within(profile).getByText(/not part of the captured Regyfit record/)).toBeVisible();
+    expect(within(profile).getByText(/not part of the imported record/)).toBeVisible();
   });
 
   it("runs the canonical lookup from the record and closes it", async () => {
@@ -373,7 +373,7 @@ describe("canonical name search (T051V2)", () => {
     const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
     expect(headings).not.toContain("Find a member");
     expect(screen.queryByLabelText("Member name")).toBeNull();
-    expect(headings.indexOf("Regyfit archive (read only)")).toBe(headings.length - 1);
+    expect(headings.indexOf("Imported archive (read only)")).toBe(headings.length - 1);
     expect(container.querySelectorAll("[style]")).toHaveLength(0);
     expect(container.querySelectorAll(".admin-status-badge")).toHaveLength(0);
   });
@@ -447,7 +447,7 @@ describe("canonical name search (T051V2)", () => {
       render(<SearchMembersPage />);
       expect(screen.getByLabelText("Member name")).toBeVisible();
       expect(screen.queryByLabelText("Exact identifier")).toBeNull();
-      expect(screen.queryByText("Regyfit archive (read only)")).toBeNull();
+      expect(screen.queryByText("Imported archive (read only)")).toBeNull();
       expect(clientMocks.listRegyfitMemberRecords).not.toHaveBeenCalled();
       cleanup();
     }
