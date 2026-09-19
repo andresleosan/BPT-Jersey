@@ -26,7 +26,14 @@ describe("shared staff workspace", () => {
     );
     expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Attendance" })).toBeInTheDocument();
-    for (const name of ["Billing", "Memberships", "Staff", "Reports", "Members"]) {
+    for (const name of [
+      "Billing",
+      "Memberships",
+      "Staff",
+      "Reports",
+      "Members",
+      "Member migration",
+    ]) {
       expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
     }
   });
@@ -48,6 +55,10 @@ describe("shared staff workspace", () => {
       </AdminShell>,
     );
     expect(screen.getByRole("link", { name: "Billing" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Member migration" })).toHaveAttribute(
+      "href",
+      "/admin/members/migration",
+    );
     expect(screen.queryByRole("link", { name: "My sign-in" })).not.toBeInTheDocument();
   });
 });

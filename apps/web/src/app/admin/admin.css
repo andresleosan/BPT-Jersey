@@ -3897,6 +3897,43 @@ a.admin-birthday-badge:focus-visible,
   overflow-x: auto;
 }
 
+.member-migration .admin-data-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.member-migration p,
+.member-migration strong,
+.member-migration button,
+.member-migration .admin-status-badge {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.member-migration-actions,
+.member-migration-candidates {
+  display: grid;
+  gap: 1rem;
+}
+
+.member-migration-times label {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+}
+
+@media (max-width: 50rem) {
+  .member-migration .admin-data-table thead {
+    display: none;
+  }
+
+  .member-migration .admin-data-table td {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .member-record-tabs .admin-member-profile-tab {
   min-height: 2.75rem;
 }
