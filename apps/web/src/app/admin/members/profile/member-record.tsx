@@ -30,6 +30,7 @@ import { ClassesTab } from "./classes-tab";
 import { DetailsTab } from "./details-tab";
 import { IbjjfCard } from "./ibjjf-card";
 import { ManageView, unsavedRatingsQuestion } from "./manage-view";
+import { NotesTab } from "./notes-tab";
 import { PaymentsTab } from "./payments-tab";
 import { PlanTab } from "./plan-tab";
 import { ProfileTab } from "./profile-tab";
@@ -154,6 +155,7 @@ export function MemberRecord() {
    * form and the IBJJF assessment both report into it; they cannot both be on screen at once.
    */
   const unsaved = useRef<string | null>(null);
+  const focusOfficeNote = useRef(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const locationRef = useRef<RecordLocation | null>(null);
   const activeTabRef = useRef<MemberRecordTab>("profile");
@@ -267,6 +269,12 @@ export function MemberRecord() {
     load.status === "ready" && load.profile.view === "full" ? memberRecordTabs : ["profile"];
   const activeTab: MemberRecordTab =
     location !== null && visibleTabs.includes(location.tab) ? location.tab : "profile";
+  useEffect(() => {
+    if (activeTab === "details" && focusOfficeNote.current) {
+      document.getElementById("member-details-internalNotes")?.focus();
+      focusOfficeNote.current = false;
+    }
+  }, [activeTab]);
   // The `popstate` listener is registered once, so it reads the current location through refs.
   useEffect(() => {
     locationRef.current = location;
@@ -356,6 +364,15 @@ export function MemberRecord() {
       return <PaymentsTab key={profile.header.studentId} studentId={profile.header.studentId} />;
     if (activeTab === "classes" && profile.view === "full")
       return <ClassesTab key={profile.header.studentId} studentId={profile.header.studentId} />;
+    if (activeTab === "notes" && profile.view === "full")
+      return (
+        <NotesTab
+          note={profile.details.details?.internalNotes}
+          onEdit={() => {
+            if (selectTab("details")) focusOfficeNote.current = true;
+          }}
+        />
+      );
     if (activeTab === "details") {
       return profile.view === "full" ? (
         <DetailsTab

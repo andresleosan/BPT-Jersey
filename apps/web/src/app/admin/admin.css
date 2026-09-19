@@ -4845,3 +4845,8 @@ a.admin-birthday-badge:focus-visible,
 .member-review-dialog input {
   width: 100%;
 }
+
+.member-office-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
