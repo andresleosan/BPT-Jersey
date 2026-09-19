@@ -113,7 +113,7 @@ function ClassSection({ studentId, kind }: { studentId: string; kind: MemberClas
         </p>
       ) : null}
       {state.loaded && !state.pending && !state.error ? (
-        <p role="status">
+        <p role="status" className={state.rows.length > 0 ? "visually-hidden" : undefined}>
           {state.rows.length === 0 && !state.nextCursor
             ? kind === "bookings"
               ? "No bookings recorded"

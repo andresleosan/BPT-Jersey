@@ -135,8 +135,8 @@ export async function listMemberClassRecordsPage(
           parsed.data.sessionId !== doc.id
         )
           return [doc.id, null] as const;
-        const { academyId: _academyId, ...session } = parsed.data;
-        return [doc.id, session] as const;
+        const { sessionId, title, startAt, endAt, locationId } = parsed.data;
+        return [doc.id, { sessionId, title, startAt, endAt, locationId }] as const;
       }),
     );
     const last = scanned.at(-1);

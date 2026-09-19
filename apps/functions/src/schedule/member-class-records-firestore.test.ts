@@ -31,5 +31,5 @@ it("uses scoped ordered limit+1 queries and propagates missing-index errors with
   expect(query.limit).toHaveBeenCalledWith(26);
   expect(query.startAfter).toHaveBeenCalledWith("2026-09-20T10:00:00.000Z", "r");
   expect(get).toHaveBeenCalledTimes(1);
-  expect(runTransaction.mock.calls[0]![1]).toEqual({ readOnly: true });
+  expect(runTransaction).toHaveBeenCalledWith(expect.any(Function), { readOnly: true });
 });

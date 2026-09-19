@@ -50,7 +50,11 @@ export async function getMemberSubscriptions(studentId: string) {
     memberSubscriptionQuerySchema.parse({ studentId }),
     memberSubscriptionContextSchema,
   );
-  if (result.studentId !== studentId || result.memberships.some((membership) => membership.studentId !== studentId)) throw new Error("Unable to load membership history. Please try again.");
+  if (
+    result.studentId !== studentId ||
+    result.memberships.some((membership) => membership.studentId !== studentId)
+  )
+    throw new Error("Unable to load membership history. Please try again.");
   return result;
 }
 export function editSubscription(input: SubscriptionEdit) {

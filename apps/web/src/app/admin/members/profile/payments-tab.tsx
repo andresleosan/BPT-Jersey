@@ -62,7 +62,7 @@ export function PaymentsTab({ studentId }: { studentId: string }) {
       ) : null}
       {state.status === "ready" ? (
         state.billing.some((item) => item.invoices.length > 0) ? (
-          <SubscriptionBillingHistory billing={state.billing} />
+          <SubscriptionBillingHistory billing={state.billing} showHeading={false} />
         ) : (
           <p role="status">No invoices or payments recorded for this member&apos;s memberships.</p>
         )

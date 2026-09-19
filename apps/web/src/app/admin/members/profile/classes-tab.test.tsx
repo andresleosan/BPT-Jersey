@@ -30,13 +30,11 @@ it("loads booking activity independently from failed attendance and retries only
     rows: [],
     nextCursor: null,
   });
-  await userEvent
-    .setup()
-    .click(
-      within(screen.getByRole("region", { name: "Attendance" })).getByRole("button", {
-        name: "Refresh",
-      }),
-    );
+  await userEvent.setup().click(
+    within(screen.getByRole("region", { name: "Attendance" })).getByRole("button", {
+      name: "Refresh",
+    }),
+  );
   await screen.findByText("No attendance recorded");
   expect(client.getMemberClassRecords.mock.calls.map(([input]) => input.kind)).toEqual([
     "bookings",

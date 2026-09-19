@@ -35,15 +35,17 @@ const invoiceStates = {
 
 export function SubscriptionBillingHistory({
   billing,
+  showHeading = true,
 }: {
   billing: readonly SubscriptionBilling[];
+  showHeading?: boolean;
 }) {
   const invoices = billing
     .flatMap((item) => item.invoices)
     .sort((a, b) => b.dueAt.localeCompare(a.dueAt));
   return (
     <section aria-label="Recorded payments" className="member-subscription-history">
-      <h4>Recorded invoices and payments</h4>
+      {showHeading ? <h4>Recorded invoices and payments</h4> : null}
       {invoices.length === 0 ? (
         <p>No invoices or payments have been recorded.</p>
       ) : (
