@@ -41,6 +41,7 @@ import {
   requestBooking,
   saveClass,
   saveLocation,
+  saveLocationGeofence,
   saveProgram,
   saveProgramV2,
   saveSession,
@@ -441,6 +442,21 @@ describe("Schedule Client", () => {
     });
   });
 
+  it("sends the reported town coordinates unchanged to saveLocationGeofence", async () => {
+    const input = {
+      locationId: "town",
+      geofence: { latitude: 49.183998, longitude: -2.107137 },
+    };
+    mockCallable.mockResolvedValueOnce({ data: { location: input } });
+    await expect(saveLocationGeofence(input)).resolves.toEqual(input);
+    expect(mockHttpsCallable).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "saveLocationGeofence",
+      scheduleCallableClientOptions,
+    );
+    expect(mockCallable).toHaveBeenLastCalledWith(input);
+  });
+
   it("calls updateLocation and returns the record", async () => {
     mockCallable.mockResolvedValueOnce({
       data: { location: { locationId: "salle-ouest", name: "Salle Ouest Renamed" } },
@@ -545,9 +561,9 @@ describe("Schedule Client", () => {
 
   it("calls deleteWeek and returns the sessions", async () => {
     mockCallable.mockResolvedValueOnce({ data: { sessions: [{ sessionId: "s-1" }] } });
-    await expect(
-      deleteWeek({ weekStart: "2026-09-14", reason: "Closed" }),
-    ).resolves.toHaveLength(1);
+    await expect(deleteWeek({ weekStart: "2026-09-14", reason: "Closed" })).resolves.toHaveLength(
+      1,
+    );
     expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "deleteWeek", {
       limitedUseAppCheckTokens: true,
     });

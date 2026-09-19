@@ -189,10 +189,10 @@ describe("Locations tab", () => {
     expect(within(dialog).getByLabelText("Name")).toHaveValue("BPT Town Renamed");
   });
 
-  it("refreshes the edit dialog after saving a geofence, enabling Clear coordinates", async () => {
+  it("saves the reported town geofence without submitting location details and enables Clear coordinates", async () => {
     mocks.saveLocationGeofence.mockResolvedValue({
       ...town,
-      geofence: { latitude: 49.186, longitude: -2.106 },
+      geofence: { latitude: 49.183998, longitude: -2.107137 },
     });
     render(<LocationsPage />);
     await screen.findByText("BPT Town");
@@ -202,11 +202,19 @@ describe("Locations tab", () => {
     const clearButton = within(dialog).getByRole("button", { name: "Clear coordinates" });
     expect(clearButton).toBeDisabled();
 
-    fireEvent.change(within(dialog).getByLabelText("Latitude"), { target: { value: "49.186" } });
-    fireEvent.change(within(dialog).getByLabelText("Longitude"), { target: { value: "-2.106" } });
-    fireEvent.submit(within(dialog).getByRole("form", { name: "BPT Town coordinates" }));
+    fireEvent.change(within(dialog).getByLabelText("Latitude"), { target: { value: "49.183998" } });
+    fireEvent.change(within(dialog).getByLabelText("Longitude"), {
+      target: { value: "-2.107137" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save coordinates" }));
 
-    await waitFor(() => expect(mocks.saveLocationGeofence).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mocks.saveLocationGeofence).toHaveBeenCalledExactlyOnceWith({
+        locationId: "town",
+        geofence: { latitude: 49.183998, longitude: -2.107137 },
+      }),
+    );
+    expect(mocks.updateLocation).not.toHaveBeenCalled();
     await waitFor(() => expect(clearButton).toBeEnabled());
   });
 
