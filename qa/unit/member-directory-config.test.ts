@@ -66,12 +66,18 @@ describe("T092 member-directory Firebase configuration", () => {
         indexes: unknown[];
       }>;
     }>("firestore.indexes.json");
-    const actual = config.fieldOverrides
+    const all = config.fieldOverrides
       .map(({ collectionGroup, fieldPath, indexes }) => ({
         key: `${collectionGroup}.${fieldPath}`,
         indexes,
       }))
       .sort((left, right) => left.key.localeCompare(right.key));
+    // The one override that ADDS indexes: the subscription-expiry sweep queries memberships by
+    // endsAt across academies. A restricted field given indexes drops out of `actual` and fails.
+    expect(all.filter(({ indexes }) => indexes.length > 0).map(({ key }) => key)).toEqual([
+      "memberships.endsAt",
+    ]);
+    const actual = all.filter(({ indexes }) => indexes.length === 0);
 
     expect(actual).toEqual([
       { key: "memberDirectoryCursorStates.afterLegacyDocumentId", indexes: [] },
