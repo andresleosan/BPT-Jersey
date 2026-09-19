@@ -259,4 +259,32 @@ describe.skipIf(!enabled)("member class Firestore pages", () => {
       ),
     ).toEqual(["m"]);
   });
+  it("all live readers report not-found after the canonical student is deleted", async () => {
+    const reference = base.collection("students").doc("s");
+    const student = (await reference.get()).data()!;
+    const first = await listMemberClassRecordsPage(store, actor, {
+      studentId: "s",
+      kind: "bookings",
+    });
+    expect(first.rows.length).toBeGreaterThan(0);
+    expect(first.nextCursor).not.toBeNull();
+    await reference.delete();
+    try {
+      await expect(
+        listMemberClassRecordsPage(store, actor, {
+          studentId: "s",
+          kind: "bookings",
+          cursor: first.nextCursor!,
+        }),
+      ).rejects.toMatchObject({ code: "not-found" });
+      await expect(listMemberSubscriptionRecords(db, academyId, "s")).rejects.toMatchObject({
+        code: "not-found",
+      });
+      await expect(listSubscriptionBilling(db, academyId, "s")).rejects.toMatchObject({
+        code: "not-found",
+      });
+    } finally {
+      await reference.set(student);
+    }
+  });
 });

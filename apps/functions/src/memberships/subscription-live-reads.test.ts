@@ -20,7 +20,7 @@ const membership = {
   createdBy: "u",
   updatedBy: "u",
 };
-function harness(records: Record<string, unknown>[]) {
+function harness(records: Record<string, unknown>[], missing = false) {
   const snap = (data: Record<string, unknown>) => ({
     id: data.membershipId,
     data: () => data,
@@ -47,7 +47,10 @@ function harness(records: Record<string, unknown>[]) {
       where: () => query,
       limit: () => query,
       get: async () => ({ docs: name === "plans" ? [] : records.map(snap), size: records.length }),
-      doc: () => ({ collection, get: async () => ({ data: () => student }) }),
+      doc: () => ({
+        collection,
+        get: async () => ({ data: () => (missing ? undefined : student) }),
+      }),
     };
     return query;
   };
@@ -88,3 +91,10 @@ it.each(["source", "student", "malformed", "cap"])(
     });
   },
 );
+
+it("Plan reader reports a deleted canonical member as not-found rather than failed-precondition", async () => {
+  const db = harness([membership], true);
+  await expect(listMemberSubscriptionRecords(db, "a", "s")).rejects.toMatchObject({
+    code: "not-found",
+  });
+});

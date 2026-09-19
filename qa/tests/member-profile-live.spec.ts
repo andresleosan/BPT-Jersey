@@ -247,6 +247,89 @@ test.describe("S3 live member record", () => {
     );
     await capture(page, info, "error");
   });
+  for (const tab of ["plan", "payments", "classes"]) {
+    test(`${tab} replaces a loaded record with unavailable navigation after deletion`, async ({
+      page,
+    }, info) => {
+      await fixture(page, true);
+      const callable =
+        tab === "plan"
+          ? "listMemberSubscriptions"
+          : tab === "payments"
+            ? "listMemberSubscriptionBilling"
+            : "listMemberClassRecords";
+      let missing = false;
+      await page.route(`**/${callable}`, async (route) => {
+        if (missing) {
+          await route.fulfill({
+            status: 404,
+            contentType: "application/json",
+            body: JSON.stringify({
+              error: { status: "NOT_FOUND", message: "Synthetic missing member" },
+            }),
+          });
+        } else if (tab === "classes") {
+          const { kind } = route.request().postDataJSON().data;
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              data: {
+                studentId: "s",
+                kind,
+                rows:
+                  kind === "bookings"
+                    ? [
+                        {
+                          recordId: "b",
+                          requestedAt: at,
+                          status: "confirmed",
+                          session: {
+                            sessionId: "session",
+                            title: "Synthetic BJJ class",
+                            startAt: at,
+                            endAt: "2026-09-20T11:00:00.000Z",
+                            locationId: "town",
+                          },
+                        },
+                      ]
+                    : [],
+                nextCursor: kind === "bookings" ? { at, recordId: "b" } : null,
+              },
+            }),
+          });
+        } else await route.fallback();
+      });
+      await page.goto(`/admin/members/profile?id=s&tab=${tab}&adminTestRole=owner`);
+      await expect(
+        page.getByText(
+          tab === "plan"
+            ? "Cancelled"
+            : tab === "payments"
+              ? "Partly paid · £60.00"
+              : "Synthetic BJJ class",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      missing = true;
+      const record = page.getByRole("region", { name: "Member record" });
+      await record
+        .getByRole("button", { name: tab === "classes" ? "Load more" : "Refresh", exact: true })
+        .click();
+      await expect(record.getByRole("tablist")).toHaveCount(0);
+      await expect(record.getByRole("heading", { name: profile.header.fullName })).toHaveCount(0);
+      await expect(
+        record.getByText("Live member record unavailable. It may not have been created yet."),
+      ).toBeVisible();
+      const migration = record.getByRole("link", { name: "Review member migration" });
+      await expect(migration).toHaveAttribute("href", "/admin/members/migration");
+      await expect(record.getByRole("button")).toHaveCount(0);
+      await migration.focus();
+      await page.keyboard.press("Tab");
+      await expect(record.getByRole("link", { name: "Imported archive" })).toBeFocused();
+      await capture(page, info, `${tab}-deleted`);
+    });
+  }
   test("coach forged tabs make no financial or notes requests", async ({ page }, info) => {
     const calls: CallableCall[] = [];
     const header = {

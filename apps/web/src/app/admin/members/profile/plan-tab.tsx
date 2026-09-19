@@ -9,6 +9,8 @@ import { getMemberSubscriptions } from "../../../../lib/subscription-admin-clien
 import { listManagedPlans } from "../../../../lib/membership-admin-client";
 
 type Current = MemberProfileCards["currentMembership"];
+import { MemberRecordLoadError } from "../../../../lib/member-profile-client";
+
 type State =
   | { status: "loading" | "error" }
   | {
@@ -25,8 +27,10 @@ const date = (value: string) =>
 export function PlanTab({
   studentId,
   onCurrentMembership,
+  onUnavailable,
 }: {
   studentId: string;
+  onUnavailable: (error: MemberRecordLoadError) => void;
   onCurrentMembership: (current: Current) => void;
 }) {
   const [state, setState] = useState<State>({ status: "loading" });
@@ -50,14 +54,19 @@ export function PlanTab({
         setState({ status: "ready", context, names, current });
         onCurrentMembership(current);
       },
-      () => {
-        if (active) setState({ status: "error" });
+      (error: unknown) => {
+        if (!active) return;
+        if (error instanceof MemberRecordLoadError && error.kind !== "error") {
+          onUnavailable(error);
+          return;
+        }
+        setState({ status: "error" });
       },
     );
     return () => {
       active = false;
     };
-  }, [studentId, attempt, onCurrentMembership]);
+  }, [studentId, attempt, onCurrentMembership, onUnavailable]);
   return (
     <section aria-label="Membership history">
       <h3>Plan</h3>

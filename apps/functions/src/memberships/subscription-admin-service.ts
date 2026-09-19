@@ -76,7 +76,9 @@ export async function listMemberSubscriptionRecords(
     base.collection("memberships").where("studentId", "==", studentId).limit(101).get(),
     base.collection("plans").where("active", "==", true).get(),
   ]);
-  const student = studentRecord(studentDoc.data(), academyId, studentId);
+  const studentData = studentDoc.data();
+  if (studentData === undefined) throw new HttpsError("not-found", "Member record unavailable.");
+  const student = studentRecord(studentData, academyId, studentId);
   if (memberships.size > 100) invalid("Too many subscriptions for this member. Contact support.");
   return {
     studentId,
