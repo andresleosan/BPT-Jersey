@@ -434,7 +434,7 @@ describe("member record page", () => {
     it("asks before the member-search link discards unsaved ratings", async () => {
       const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
       await dirtyManage();
-      const link = screen.getByRole("link", { name: "Back to member search" });
+      const link = screen.getByRole("link", { name: "Back to members" });
       expect(fireEvent.click(link)).toBe(false);
       expect(confirm).toHaveBeenCalledWith("Discard unsaved ratings?");
       confirm.mockReturnValue(true);
@@ -446,9 +446,7 @@ describe("member record page", () => {
       const user = await dirtyManage();
       await user.click(screen.getByRole("button", { name: "Save the ratings" }));
 
-      expect(fireEvent.click(screen.getByRole("link", { name: "Back to member search" }))).toBe(
-        true,
-      );
+      expect(fireEvent.click(screen.getByRole("link", { name: "Back to members" }))).toBe(true);
       await user.click(screen.getByRole("tab", { name: "Details" }));
       expect(confirm).not.toHaveBeenCalled();
       expect(await screen.findByRole("form", { name: "Member details" })).toBeTruthy();

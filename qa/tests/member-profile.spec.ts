@@ -497,7 +497,8 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     await page.setViewportSize({ width: 1440, height: 900 });
     const adult = members.adult!;
 
-    await page.goto("/admin/members/search");
+    // The office searches from Members since 2026-09-19.
+    await page.goto("/admin/members");
     await page.getByLabel("Member name").fill(adult.fullName);
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await auditAxe(page, "member search at 1440px");
@@ -906,13 +907,13 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
       /view=manage/u,
     );
 
-    // Exit 5: the member-search link, this time answered yes.
+    // Exit 5: the back link (to Members, for the office), this time answered yes.
     const beforeLink = session.confirms.length;
     session.setConfirmAnswer(true);
-    await page.getByRole("link", { name: "Back to member search" }).click();
+    await page.getByRole("link", { name: "Back to members" }).click();
     expect(session.confirms.at(-1), "exit 5 asked").toBe("Discard unsaved ratings?");
     expect(session.confirms.length).toBe(beforeLink + 1);
-    await expect(page).toHaveURL(/\/admin\/members\/search/u, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/admin\/members\/?(?:\?|$)/u, { timeout: 30_000 });
     expect(session.errors, "no uncaught page errors").toEqual([]);
   });
 
@@ -967,7 +968,8 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     const adult = members.adult!;
     const kid = members.kid!;
 
-    await page.goto("/admin/members/search");
+    // The office searches from Members since 2026-09-19.
+    await page.goto("/admin/members");
     await page.getByLabel("Member name").fill(adult.fullName);
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await expect(

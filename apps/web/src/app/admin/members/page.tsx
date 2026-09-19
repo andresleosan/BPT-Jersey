@@ -15,7 +15,9 @@ import {
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
 
+import { MemberNameSearch } from "./member-name-search";
 import { MemberSubscriptionEditor } from "./member-subscription-editor";
+import { recordHref } from "./profile/member-record";
 
 import "../admin.css";
 
@@ -41,7 +43,11 @@ const memberColumns = [
   {
     key: "fullName",
     label: "Name",
-    render: (member: AdminDirectoryRow) => member.fullName,
+    render: (member: AdminDirectoryRow) => (
+      <Link className="member-record-link" href={recordHref(member.studentId)}>
+        {member.fullName}
+      </Link>
+    ),
   },
   {
     key: "trainingCenter",
@@ -195,7 +201,7 @@ export function MembersPage() {
               Add new member
             </Link>
             <Link className="admin-home-link" href="/admin/members/search">
-              Search members
+              Regyfit archive
             </Link>
             <Link className="admin-home-link" href="/admin/members/recovery">
               Recover member access
@@ -209,6 +215,7 @@ export function MembersPage() {
         eyebrow="Members / Canonical directory"
         title="Members"
       />
+      <MemberNameSearch />
       <section className="admin-panel-card" aria-labelledby="member-directory-title">
         <div className="admin-panel-card-heading">
           <div>

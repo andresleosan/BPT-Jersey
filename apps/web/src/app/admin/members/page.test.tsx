@@ -77,9 +77,15 @@ describe("members landing page", () => {
       "Sort by Participant type ascending",
       "Sort by Active ascending",
       "Sort by Status ascending",
+      "Sort by Subscription ascending",
     ]);
     expect(screen.getByText("****1234")).toBeVisible();
-    expect(screen.getByText("Alex Johnson")).toBeVisible();
+    // The office opens the record from its own directory (operator 2026-09-19).
+    expect(screen.getByRole("link", { name: "Alex Johnson" })).toHaveAttribute(
+      "href",
+      "/admin/members/profile?id=student-1",
+    );
+    expect(screen.getByRole("search", { name: "Search members by name" })).toBeVisible();
     expect(screen.getByText("Town")).toBeVisible();
     expect(screen.getByText("adult")).toBeVisible();
     expect(screen.getByText("Yes")).toBeVisible();
@@ -97,7 +103,7 @@ describe("members landing page", () => {
       "href",
       "/admin/members/add",
     );
-    expect(screen.getByRole("link", { name: "Search members" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Regyfit archive" })).toHaveAttribute(
       "href",
       "/admin/members/search",
     );

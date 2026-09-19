@@ -366,18 +366,20 @@ describe("canonical name search (T051V2)", () => {
     clientMocks.lookupMemberIdentity.mockReset();
   });
 
-  it("puts the canonical search first and the read-only archive last, with no inline styles", async () => {
+  it("leaves the name search to the mat: the office gets the read-only archive last, with no inline styles", async () => {
     clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
     const { container } = render(<SearchMembersPage />);
     await screen.findByText("Synthetic Child");
     const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
-    expect(headings.indexOf("Find a member")).toBe(0);
+    expect(headings).not.toContain("Find a member");
+    expect(screen.queryByLabelText("Member name")).toBeNull();
     expect(headings.indexOf("Regyfit archive (read only)")).toBe(headings.length - 1);
     expect(container.querySelectorAll("[style]")).toHaveLength(0);
     expect(container.querySelectorAll(".admin-status-badge")).toHaveLength(0);
   });
 
   it("lists matching members with an inline Open record link", async () => {
+    gate.role = "coach";
     const user = userEvent.setup();
     profileClientMocks.searchMemberNames.mockResolvedValue([
       { studentId: "student-2", fullName: "Test Member B" },
@@ -398,6 +400,7 @@ describe("canonical name search (T051V2)", () => {
   // The reused record skeleton is far taller than a one-line name list (DESIGN.md §4:
   // a skeleton matches the real dimensions of what it stands in for).
   it("reserves a one-line row while searching, not a record panel", async () => {
+    gate.role = "coach";
     const user = userEvent.setup();
     clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
     profileClientMocks.searchMemberNames.mockReturnValue(new Promise(() => {}));
@@ -412,6 +415,7 @@ describe("canonical name search (T051V2)", () => {
   });
 
   it("asks for two letters and explains an empty or failed search", async () => {
+    gate.role = "coach";
     const user = userEvent.setup();
     clientMocks.listRegyfitMemberRecords.mockResolvedValue(directoryPage);
     profileClientMocks.searchMemberNames
