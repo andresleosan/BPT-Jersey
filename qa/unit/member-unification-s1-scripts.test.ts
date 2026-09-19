@@ -92,11 +92,13 @@ describe("member unification S1 scripts", () => {
   it("rejects rollback paths containing extra segments before any write", () => {
     expect(() =>
       revertPlan({
+        profiles: [],
         decisions: [
           {
             id: "synthetic",
             migrationId: "member-unification-s1-2026-09",
             studentId: "s/extra/segment",
+            kind: "link",
           },
         ],
         identityKeys: [],
@@ -157,6 +159,7 @@ describe("member unification S1 scripts", () => {
         new Set([
           "academies/synthetic/memberMigrationDecisions",
           "academies/synthetic/studentIdentityKeys",
+          "academies/synthetic/studentAdminProfiles",
           "academies/synthetic/regyfitOfficeLinks",
         ]),
       );
@@ -378,9 +381,110 @@ describe("member unification S1 scripts", () => {
       rollbackCapacityLimit: 400,
     });
   });
+  it.each([
+    { source: "admin", migrationId: "member-unification-s1-2026-09", legacyMemberId: "M1" },
+    { source: "legacy-member-migration", migrationId: "other", legacyMemberId: "M1" },
+    {
+      source: "legacy-member-migration",
+      migrationId: "member-unification-s1-2026-09",
+      legacyMemberId: "OTHER",
+    },
+  ])("rejects a foreign student profile before planning deletes (%j)", (profile) => {
+    expect(() =>
+      revertPlan({
+        decisions: [
+          {
+            id: "m1",
+            migrationId: "member-unification-s1-2026-09",
+            kind: "link",
+            studentId: "foreign",
+          },
+        ],
+        profiles: [{ id: "foreign", ...profile }],
+        identityKeys: [],
+        officeLinks: [],
+      }),
+    ).toThrow(new SafeScriptError("Decision points to a student not created by S1"));
+  });
+
+  it("never follows a skip decision's studentId", () => {
+    expect(
+      revertPlan({
+        decisions: [
+          {
+            id: "m1",
+            migrationId: "member-unification-s1-2026-09",
+            kind: "skip",
+            studentId: "foreign",
+          },
+        ],
+        profiles: [{ id: "foreign", source: "admin" }],
+        identityKeys: [{ id: "key", ownerStudentId: "foreign" }],
+        officeLinks: [{ id: "10", studentId: "foreign" }],
+      }),
+    ).toEqual(["memberMigrationDecisions/m1"]);
+  });
+
+  it.each(["link", "create-unlinked"])(
+    "normalizes the legacy ID marker for %s and allows retries with a missing profile",
+    (kind) => {
+      const inputs = {
+        decisions: [
+          { id: "  ｍ１  ", migrationId: "member-unification-s1-2026-09", kind, studentId: "s1" },
+        ],
+        identityKeys: [{ id: "key", ownerStudentId: "s1" }],
+        officeLinks: [{ id: "10", studentId: "s1" }],
+      };
+      const expected = [
+        "students/s1",
+        "studentAdminProfiles/s1",
+        "families/office-s1",
+        "studentIdentityKeys/key",
+        "regyfitOfficeLinks/10",
+        "memberMigrationDecisions/  ｍ１  ",
+      ];
+      expect(revertPlan({ ...inputs, profiles: [] })).toEqual(expected);
+      expect(
+        revertPlan({
+          ...inputs,
+          profiles: [
+            {
+              id: "s1",
+              source: "legacy-member-migration",
+              migrationId: "member-unification-s1-2026-09",
+              legacyMemberId: "M1",
+            },
+          ],
+        }),
+      ).toEqual(expected);
+    },
+  );
+
+  it.each([undefined, "unknown"])(
+    "rejects unsupported decision kinds even when the profile is absent (%s)",
+    (kind) => {
+      expect(() =>
+        revertPlan({
+          decisions: [
+            {
+              id: "m1",
+              migrationId: "member-unification-s1-2026-09",
+              ...(kind ? { kind } : {}),
+              studentId: "s1",
+            },
+          ],
+          profiles: [],
+          identityKeys: [],
+          officeLinks: [],
+        }),
+      ).toThrow(SafeScriptError);
+    },
+  );
+
   it("plans only S1-owned paths, including skips, and preserves unrelated documents", () => {
     expect(
       revertPlan({
+        profiles: [],
         decisions: [
           {
             id: "linked",
@@ -413,6 +517,7 @@ describe("member unification S1 scripts", () => {
     ]);
     expect(
       revertPlan({
+        profiles: [],
         decisions: [{ id: "other", migrationId: "other", studentId: "prior" }],
         identityKeys: [{ id: "prior-key", ownerStudentId: "prior" }],
         officeLinks: [{ id: "102", studentId: "prior" }],

@@ -37,8 +37,9 @@ export function resolveTarget(env) {
   return { ...resolved, apply };
 }
 
-export function revertPlan({ decisions, identityKeys, officeLinks }) {
+export function revertPlan({ decisions, identityKeys, officeLinks, profiles }) {
   const paths = new Set();
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
   const add = (collection, id) => {
     if (typeof id !== "string" || !id || id.includes("/") || id === "." || id === "..") {
       throw new SafeScriptError("Invalid rollback document segment");
@@ -47,8 +48,18 @@ export function revertPlan({ decisions, identityKeys, officeLinks }) {
   };
   for (const decision of decisions) {
     if (decision.migrationId !== MEMBER_MIGRATION_ID) continue;
-    if (decision.studentId) {
+    if (decision.studentId && decision.kind !== "skip") {
       const studentId = decision.studentId;
+      const profile = profileById.get(studentId);
+      if (
+        !["link", "create-unlinked"].includes(decision.kind) ||
+        (profile &&
+          (profile.source !== "legacy-member-migration" ||
+            profile.migrationId !== MEMBER_MIGRATION_ID ||
+            profile.legacyMemberId !== decision.id.normalize("NFKC").trim().toUpperCase()))
+      ) {
+        throw new SafeScriptError("Decision points to a student not created by S1");
+      }
       add("students", studentId);
       add("studentAdminProfiles", studentId);
       add("families", `office-${studentId}`);
@@ -66,15 +77,18 @@ export function revertPlan({ decisions, identityKeys, officeLinks }) {
 
 export async function runRevert(firestore, root, apply) {
   const loadPlan = async () => {
-    const [decisions, identityKeys, officeLinks] = await Promise.all(
-      ["memberMigrationDecisions", "studentIdentityKeys", "regyfitOfficeLinks"].map(
-        async (name) => {
-          const snapshot = await firestore.collection(`${root}/${name}`).get();
-          return snapshot.docs.map((document) => ({ ...document.data(), id: document.id }));
-        },
-      ),
+    const [decisions, identityKeys, officeLinks, profiles] = await Promise.all(
+      [
+        "memberMigrationDecisions",
+        "studentIdentityKeys",
+        "regyfitOfficeLinks",
+        "studentAdminProfiles",
+      ].map(async (name) => {
+        const snapshot = await firestore.collection(`${root}/${name}`).get();
+        return snapshot.docs.map((document) => ({ ...document.data(), id: document.id }));
+      }),
     );
-    return revertPlan({ decisions, identityKeys, officeLinks });
+    return revertPlan({ decisions, identityKeys, officeLinks, profiles });
   };
   const printCounts = (paths, prefix = "") => {
     for (const name of [
