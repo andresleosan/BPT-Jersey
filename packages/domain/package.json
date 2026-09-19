@@ -40,6 +40,11 @@
       "import": "./src/members/member-directory-contracts.ts",
       "default": "./lib/members/member-directory-contracts.js"
     },
+    "./members/migration": {
+      "types": "./src/members/member-migration-contracts.ts",
+      "import": "./src/members/member-migration-contracts.ts",
+      "default": "./lib/members/member-migration-contracts.js"
+    },
     "./members/directory-migration": {
       "types": "./src/members/member-directory-migration-contracts.ts",
       "import": "./src/members/member-directory-migration-contracts.ts",
