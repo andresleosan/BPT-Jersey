@@ -1,0 +1,81 @@
+# BACKLOG — BPT Jersey Academy Platform
+
+Único registro de trabajo pendiente desde el 2026-09-19. Sustituye a `docs/archive/tasks.md` y
+`docs/archive/tasksv2.md`, archivados sin cambios junto con sus tableros.
+
+**Reglas**
+- Cada trabajo tiene una fila aquí antes de empezar.
+- Una fila se cierra solo con evidencia real (test, commit, deploy medido). Al cerrarla se borra de
+  aquí y su evidencia va en el mensaje del commit y en una línea de "Cerradas".
+- Estados: `pendiente` → `en-progreso` → `hecha`; `bloqueada` si espera un dato o una decisión.
+- Nada se despliega a producción ni escribe en Firestore de producción sin confirmación explícita
+  del operador en el chat.
+
+## Críticos (en este orden)
+
+| ID | Tarea | Depende de | Estado | Criterio de salida |
+| -- | ----- | ---------- | ------ | ------------------ |
+| C1 | Unificación de miembros: `members` (243) → `students`; enlazar los 249 `regyfitMemberRecords` (hoy 1 enlazado); reapuntar 2.607 `auditEvents` de `class.memberId` a `studentId`; pagos, clases y notas históricas a colecciones canónicas con `source: "legacy-import"`; ficha canónica (Plan, Payments, Classes, Notes) con datos vivos; retirar el visor del archivo. Absorbe T108 y T049V2. | — | pendiente | Spec y plan propios (entrega 2b); dry-run en emuladores; conteo en producción: `students` = miembros reales, 0 `auditEvents` de clase sin `studentId` enlazable; las lecturas financieras excluyen `legacy-import`. |
+| C2 | T055V2: callables que la web publicada llama y dan 404 en producción (eran 21). | — | pendiente | Re-medir con `POST` sin sesión a cada URL (401 = existe, 404 = falta); desplegar las que falten, con confirmación; 0 respuestas 404. |
+| C3 | Desplegar las funciones de T050V2 (planes, precios, aforo) y `selfCheckIn` (T040V2). | C2 | bloqueada | Desbloquear las 82 sesiones importadas sin aforo (runbook en `docs/archive/tasksv2.md` T050V2); deploy confirmado; callables responden 401 sin sesión. |
+| C4 | T024V2: programar el barrido de quorum, que hoy no se ejecuta nunca. | — | pendiente | Función programada desplegada; una ejecución registrada en los logs de producción. |
+| C5 | T021V2: datos que solo tiene el operador. | operador | bloqueada | Datos entregados y aplicados en las filas que los esperan. |
+| C6 | T127: renovación digital del waiver y gate de producción de `consent-callables`. | credenciales R2 | bloqueada | Credenciales R2 creadas por el operador; decisión de producto tomada; flujo probado en emuladores. |
+
+## Normales
+
+| ID | Tarea | Estado |
+| -- | ----- | ------ |
+| T002V2 | Formulario de inscripción como asistente por pasos de 1 a 3 campos con barra de progreso | pendiente |
+| T003V2 | Impedir el zoom automático de iOS al enfocar un campo | pendiente |
+| T004V2 | Unificar "Ask for a place" y "Book a free class" en el mismo formulario | pendiente |
+| T006V2 | Reservar la primera clase antes de la aprobación y notificar al administrador | pendiente |
+| T007V2 | Cancelación gratuita hasta 12 h antes; después, propuesta de fee de inasistencia | pendiente |
+| T008V2 | El representante marca la asistencia de sus hijos al llevarlos | pendiente |
+| T009V2 | Cuenta propia del menor, con alcance recortado | pendiente |
+| T010V2 | Actualizar la sección de instructores | pendiente |
+| T011V2 | Publicar las dos direcciones de los centros | pendiente |
+| T013V2 | Sesiones del día como primer bloque del panel de administración | pendiente |
+| T014V2 | Priorizar el botón de asistencia 15 minutos antes de cada sesión | pendiente |
+| T015V2 | Contador de 20 minutos: quien no marca asistencia pierde la clase | pendiente |
+| T016V2 | Calendario semanal por días y franjas en el panel de administración | pendiente |
+| T017V2 | Siguiente clase con los confirmados y aviso de condiciones médicas | pendiente |
+| T018V2 | Bloquear la reserva a quien no se le cobró la mensualidad (depende de C1: hoy no hay `memberships`) | pendiente |
+| T019V2 | Etiquetar cada pago con su centro y elegir centro de retirada del merchandising | pendiente |
+| T023V2 | Un único conversor canónico de centro, sin migrar datos | pendiente |
+| T042V2 | Racha y progreso en lo alto de `/account` | pendiente |
+| T043V2 | Competidores en `/account/competitors` | pendiente |
+| T044V2 | Ajustes de cuenta en `/account/settings` | pendiente |
+| T047V2 | Classes / Services Plan 2: Memberships and Vouchers, Drop-ins, Bulk Operations | pendiente |
+| T048V2 | Classes / Services Plan 3: Listings & Reports, Options | pendiente |
+
+## Consolidación del 2026-09-19
+
+| ID | Veredicto | Evidencia |
+| -- | --------- | --------- |
+| T026V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin-shell.tsx`) |
+| T027V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`overview-page.tsx`) |
+| T028V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin/attendance`) |
+| T029V2 | Cerrada | main `9d83d22`/`6988316`; solo web (`members/requests/page.tsx`) |
+| T030V2 | Cerrada | main `be977e6`; deploy de `apps/functions/src/health` registrado en docs/archive/tasksv2.md (T039V2, 39 callables 2026-09-15, incl. referencias médicas) |
+| T031V2 | Cerrada | main `6e35434`/`6988316`/`312b0d4`; solo web (`admin-routes.ts`, `admin-shell.tsx`) |
+| T032V2 | Cerrada | main `92d68ae`; deploy de `apps/functions/src/schedule` registrado en docs/archive/tasksv2.md (T039V2, 39 callables 2026-09-15, catálogo/clases/reservas) |
+| T033V2 | Cerrada | main `92d68ae`; deploy de `updateSession`/`removeClass` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15) |
+| T034V2 | Cerrada | main `f477ed5`; solo web (`admin/levels`, `DESIGN.md`) |
+| T035V2 | Cerrada | main `be977e6`; deploy de `listRecentPayments`/`getFamilyFinancialAccount`/`listMemberNames` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, billing) |
+| T036V2 | Cerrada | main `be977e6`; deploy de `apps/functions/src/finance` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, billing) |
+| T037V2 | Cerrada | main `6e35434` (ADR-010) y `312b0d4`; solo web (`admin-routes.ts`) |
+| T038V2 | Cerrada | main `312b0d4`; deploy de `listSessionBookedCounts` registrado en docs/archive/tasksv2.md (T039V2, 2026-09-15, calendario de miembros) |
+| T039V2 | Cerrada | main `c29a783`/`312b0d4`/`05020d6`; solo `qa/tests`, sin funciones propias |
+| T046V2 | Cerrada | main `b433266`; 42 funciones desplegadas 2026-09-17 (memoria de proyecto) |
+| T050V2 | Abierta → C3 | main `0d3fd10`/`6c3eb42`; web live, funciones bloqueadas por las 82 sesiones sin aforo (runbook en docs/archive/tasksv2.md) |
+| T051V2 | Cerrada | main `95d2778`; funciones de niveles desplegadas y `NEXT_PUBLIC_LEVELS_BACKEND=true` en Pages, 2026-09-19 |
+| T053V2 | Cerrada | main `09ea4ce`/`949d15c`; 101 funciones actualizadas y verificadas en producción, 2026-09-18 |
+| T055V2 | Abierta → C2 | main `a00007b`; solo 4 de 21 callables desplegados y verificados 2026-09-18, resto sigue en 404 |
+
+Descartadas: T017, T036, T061, T068, T069, T070, T071 (canceladas en v1); T049V2 (absorbida por C1);
+T005V2 y T020V2 (verificación de algo ya construido: se comprueban y se cierran en esta consolidación).
+
+## Cerradas
+
+<!-- una línea por fila cerrada: fecha · ID · commit/evidencia -->
