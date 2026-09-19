@@ -8,7 +8,7 @@ import { createWeeklySessionStore } from "./weekly-session-service.js";
 export function createFirestoreQuorumSweepStore(firestore: Firestore): QuorumSweepStore {
   const service = createQuorumSweepService({ firestore: firestore as unknown as BookingFirestore });
   return {
-    async materialise(window) {
+    async materialise(window, onFailure) {
       const weekly = createWeeklySessionStore(firestore);
       const academies = new Set<string>();
       const query = firestore.collectionGroup("sessionSeries").limit(200);
@@ -21,8 +21,14 @@ export function createFirestoreQuorumSweepStore(firestore: Firestore): QuorumSwe
           if (academies.has(academyId)) continue;
           // Reuse the calendar's transactional materialisation; it preserves cancellations and
           // re-reads series revisions so a concurrent office edit cannot resurrect an occurrence.
-          await weekly.materialise(academyId, window);
           academies.add(academyId);
+          try {
+            await weekly.materialise(academyId, window, (error) =>
+              onFailure(error, "materialise-series"),
+            );
+          } catch (error) {
+            onFailure(error, "materialise-academy");
+          }
         }
         if (page.size < 200) break;
         page = await query.startAfter(page.docs.at(-1)!).get();
