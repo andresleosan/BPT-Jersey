@@ -22,6 +22,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/memberMigrationDecisions/{memberId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/regyfitMemberRecords/{recordId} {
       allow read, write: if false;
     }
