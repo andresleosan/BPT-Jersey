@@ -85,10 +85,11 @@ test.describe("member record visual (T051V2)", () => {
           members: [{ studentId: "student-visual-1", fullName: "Test Member A" }],
         },
         listRegyfitMemberRecords: { rows: [], total: 0, capturedAt: "2026-09-04T18:04:32.000Z" },
+        listMembers: { rows: [] },
       },
     });
 
-    await page.goto("/admin/members/search?adminTestRole=owner");
+    await page.goto("/admin/members?adminTestRole=owner");
     await page.getByLabel("Member name").fill("test");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.getByRole("link", { name: "Open record for Test Member A" })).toBeVisible();

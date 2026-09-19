@@ -131,6 +131,8 @@ function RecordHeader({
 
 export function MemberRecord() {
   const { role } = useAdminOrStaffSession();
+  // The office searches from Members; the mat from Member search (operator 2026-09-19).
+  const office = role === "owner" || role === "administrator";
   const [location, setLocation] = useState<RecordLocation | null>(null);
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -335,13 +337,13 @@ export function MemberRecord() {
       <div>
         <Link
           className="member-record-link"
-          href="/admin/members/search"
+          href={office ? "/admin/members" : "/admin/members/search"}
           onClick={(event) => {
             // A route change tears every panel down; nothing else on the way out asks.
             if (!mayLeave()) event.preventDefault();
           }}
         >
-          Back to member search
+          {office ? "Back to members" : "Back to member search"}
         </Link>
       </div>
 
