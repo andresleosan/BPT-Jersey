@@ -417,3 +417,22 @@ revelar la existencia de otra identidad.
 5. Crear/desplegar staging requiere checkpoint explicito y controles de costo.
 6. Produccion y cleanup destructivo requieren backup verificado, rollback ensayado y confirmacion
    separada del operador.
+
+## Enmienda 2026-09-19: migración dirigida por decisiones (S1)
+
+Para `demo-academy`, los `students` que vienen de `members` se crean mediante decisiones de la cola
+`/admin/members/migration`, con los callables `listMemberMigrationQueue` y `decideMemberMigration`,
+sobre el alta canónica `createAdult`, en lugar del forward executor por lotes.
+
+Las reglas 9 y 10 se mantienen: el emparejamiento automático solo admite un identificador fuerte
+idéntico y su aplicación sigue siendo una decisión explícita del administrador, incluso en lote.
+Los menores y las filas sin fecha suficiente para acreditar mayoría de edad quedan para S1b.
+
+Cada alta lleva `source: legacy-member-migration`, `migrationId: member-unification-s1-2026-09`,
+una clave de identidad `legacy-member-id` y un registro `memberMigrationDecisions/{memberId}`
+create-only. Los ejecutores bootstrap y forward ya construidos quedan sin uso y no se borran.
+
+T108 se cierra como **«sustituida por S1»** al verificar el conteo final en producción; esta enmienda
+no declara realizada esa verificación. La operación y su vuelta atrás se describen en el
+[runbook S1](../operations/member-unification-s1-runbook.md), conforme a la
+[spec de identidad S1](../superpowers/specs/2026-09-19-member-unification-s1-identity-design.md).
