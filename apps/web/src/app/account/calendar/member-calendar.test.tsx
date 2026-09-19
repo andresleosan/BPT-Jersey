@@ -50,6 +50,9 @@ const teen = { role: "teenStudent" as const, displayName: "Sam Demo" };
 const guardian = { role: "guardian" as const, displayName: "Jordan Demo" };
 
 beforeEach(() => {
+  // The fixture builds sessions around "now", so the real clock made this file fail every
+  // Saturday late morning and Sunday evening. A Wednesday morning always has open slots ahead.
+  vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date("2026-09-16T08:00:00.000Z") });
   HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
     this.setAttribute("open", "");
   });
