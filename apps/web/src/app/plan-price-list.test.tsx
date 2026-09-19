@@ -9,7 +9,7 @@ describe("PlanPriceList", () => {
   it("lists every live plan grouped by site with its price", () => {
     render(<PlanPriceList />);
     const town = screen.getByRole("region", { name: "BPT Town" });
-    expect(within(town).getByText("Town Kids & Teens 3x")).toBeInTheDocument();
+    expect(within(town).getByText("Town Kids & Teens 2x")).toBeInTheDocument();
     expect(within(town).getByText("£135 per term")).toBeInTheDocument();
     expect(screen.getByText("£7.50 per class")).toBeInTheDocument();
     expect(screen.queryByText("Town Teens")).not.toBeInTheDocument();

@@ -16,7 +16,7 @@ describe("plan copy", () => {
     ["west-teens-payg", "£7.50 per class", "Pay per class at West"],
     ["town-adult", "£85 per month", "Unlimited classes at Town · open mats at Town"],
     ["town-kids-1x", "£95 per term", "1 class a week at Town"],
-    ["town-kids-2x", "£135 per term", "3 classes a week at Town · kids open mat at Town"],
+    ["town-kids-2x", "£135 per term", "2 classes a week at Town · kids and teens full access to open mat at Town"],
   ])("describes %s", (planId, price, access) => {
     expect(formatPlanPrice(byId(planId))).toBe(price);
     expect(describePlanAccess(byId(planId))).toBe(access);

@@ -105,7 +105,7 @@ describe("firebase calendar repository", () => {
         studentId: "s-2",
         firstName: "Maya",
         participantType: "teens",
-        weeklyClassLimit: 3,
+        weeklyClassLimit: 2,
       }),
     ]);
   });
