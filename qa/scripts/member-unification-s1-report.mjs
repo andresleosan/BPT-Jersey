@@ -13,26 +13,36 @@ import { buildMemberMigrationQueue } from "../../packages/domain/lib/members/mem
 import { parseMemberRecord } from "../../packages/domain/lib/members/member-contracts.js";
 import { parseStoredRegyfitMemberRecord } from "../../packages/domain/lib/members/regyfit-member-record-contracts.js";
 
+export class SafeScriptError extends Error {}
+
+export function reportScriptError(error) {
+  // Only explicitly safe guard messages may leave the script; SDK errors can contain personal data.
+  console.error(error instanceof SafeScriptError ? `errors: 1 — ${error.message}` : "errors: 1");
+  process.exitCode = 1;
+}
+
 const productionProjectId = "bptjersey-f5a25";
 
 export function resolveTarget(env) {
   const target = env.S1_TARGET?.trim();
   if (target === "emulator") {
     if (!/^(?:127\.0\.0\.1|localhost|\[::1\]):[0-9]+$/i.test(env.FIRESTORE_EMULATOR_HOST ?? "")) {
-      throw new Error("Emulator reports require FIRESTORE_EMULATOR_HOST on a loopback host");
+      throw new SafeScriptError(
+        "Emulator reports require FIRESTORE_EMULATOR_HOST on a loopback host",
+      );
     }
     return { target, projectId: env.GCLOUD_PROJECT?.trim() || "demo-bpt-jersey" };
   }
   if (target === "production") {
     if (env.FIRESTORE_EMULATOR_HOST !== undefined) {
-      throw new Error("Production reports must not run with FIRESTORE_EMULATOR_HOST set");
+      throw new SafeScriptError("Production reports must not run with FIRESTORE_EMULATOR_HOST set");
     }
     if (env.GCLOUD_PROJECT?.trim() !== productionProjectId) {
-      throw new Error("Production reports require the exact GCLOUD_PROJECT");
+      throw new SafeScriptError("Production reports require the exact GCLOUD_PROJECT");
     }
     return { target, projectId: productionProjectId };
   }
-  throw new Error("S1_TARGET must be emulator or production");
+  throw new SafeScriptError("S1_TARGET must be emulator or production");
 }
 
 export function reportCounters(data, today) {
@@ -50,7 +60,7 @@ export function reportCounters(data, today) {
     state.rollbackEligibleStudentCount > 400 ||
     state.rollbackCapacityLimit !== 400
   ) {
-    throw new Error("Missing or invalid directory state");
+    throw new SafeScriptError("Missing or invalid directory state");
   }
   return {
     members: data.members.length,
@@ -79,7 +89,7 @@ export function reportCounters(data, today) {
 
 async function main() {
   const academyId = process.env.S1_ACADEMY_ID?.trim();
-  if (!academyId || academyId.includes("/")) throw new Error("Invalid S1_ACADEMY_ID");
+  if (!academyId || academyId.includes("/")) throw new SafeScriptError("Invalid S1_ACADEMY_ID");
   const { projectId } = resolveTarget(process.env);
   const requireFromFunctions = createRequire(
     new URL("../../apps/functions/package.json", import.meta.url),
@@ -101,7 +111,7 @@ async function main() {
   const parseDocuments = (snapshot, parse) =>
     snapshot.docs.map((document) => {
       const parsed = parse(document.data());
-      if (!parsed.ok) throw new Error("Invalid migration input");
+      if (!parsed.ok) throw new SafeScriptError("Invalid migration input");
       return parsed.value;
     });
   const counters = reportCounters(
@@ -120,9 +130,5 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(() => {
-    // SDK and validation errors can contain document paths or personal data.
-    console.error("errors: 1");
-    process.exitCode = 1;
-  });
+  main().catch(reportScriptError);
 }
