@@ -152,8 +152,12 @@ test("member migration queue: counters, batch links, required skip reason and re
   await expect(page.getByRole("tab", { name: "Suggested (1)" })).toBeFocused();
   await page.keyboard.press("End");
   await expect(page.getByRole("tab", { name: "Under 18 / no date (2)" })).toBeFocused();
-  await expect(page.getByText("Pending guardian", { exact: true })).toHaveCount(2);
-  await expect(page.getByRole("button", { name: "Skip…", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Guardian required", { exact: true })).toBeVisible();
+  await expect(page.getByText("Check age", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Skip…", exact: true })).toHaveCount(2);
+  await expect(
+    page.getByRole("button", { name: "Create without archive record", exact: true }),
+  ).toHaveCount(2);
   await capture("minors");
   await page.keyboard.press("Home");
   await expect(strong).toBeFocused();

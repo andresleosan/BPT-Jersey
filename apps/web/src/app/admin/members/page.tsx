@@ -15,6 +15,7 @@ import {
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 import { AdminDataTable } from "../admin-data-table";
 
+import { MemberReviewBadge } from "./member-review";
 import { MemberNameSearch } from "./member-name-search";
 import { MemberSubscriptionEditor } from "./member-subscription-editor";
 import { recordHref } from "./profile/member-record";
@@ -44,9 +45,12 @@ const memberColumns = [
     key: "fullName",
     label: "Name",
     render: (member: AdminDirectoryRow) => (
-      <Link className="member-record-link" href={recordHref(member.studentId)}>
-        {member.fullName}
-      </Link>
+      <div>
+        <Link className="member-record-link" href={recordHref(member.studentId)}>
+          {member.fullName}
+        </Link>
+        <MemberReviewBadge {...member} />
+      </div>
     ),
   },
   {
@@ -57,7 +61,8 @@ const memberColumns = [
   {
     key: "participantType",
     label: "Participant type",
-    render: (member: AdminDirectoryRow) => member.participantType,
+    render: (member: AdminDirectoryRow) =>
+      member.reviewReason === "date-of-birth-missing" ? "Age unknown" : member.participantType,
   },
   {
     key: "active",
@@ -100,6 +105,15 @@ function MembersDirectory({
   ];
   return (
     <>
+      <p role="status">
+        Pending reviews on this page:{" "}
+        {
+          result.rows.filter(
+            (row) =>
+              row.guardianStatus === "pending" || row.reviewReason === "date-of-birth-missing",
+          ).length
+        }
+      </p>
       {selected ? <MemberSubscriptionEditor key={selected} studentId={selected} /> : null}
       {result.rows.length === 0 ? (
         <p aria-live="polite" className="admin-no-results" role="status">

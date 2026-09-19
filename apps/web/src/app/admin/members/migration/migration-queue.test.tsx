@@ -133,7 +133,7 @@ it("chunks strong approvals at 50 and uses a unique UUID for every enrolment", a
   );
 });
 
-it("shows minors and missing dates only in their tab without decision buttons", async () => {
+it("allows decisions for minors and missing dates and shows their review flags", async () => {
   mocks.listMemberMigrationQueue.mockResolvedValue(
     queueWith([
       { ...strongRow("m1", "10"), isMinor: true },
@@ -146,8 +146,11 @@ it("shows minors and missing dates only in their tab without decision buttons", 
   await userEvent.click(screen.getByRole("tab", { name: /Under 18/ }));
   expect(screen.getByText("Test Member m1")).toBeVisible();
   expect(screen.getByText("Test Member m2")).toBeVisible();
+  expect(screen.getByText("Guardian required")).toBeVisible();
+  expect(screen.getByText("Check age")).toBeVisible();
+  await chooseTraining();
   for (const name of ["Link to this record", "Create without archive record", "Skip…"])
-    expect(screen.queryByRole("button", { name })).toBeNull();
+    expect(screen.getAllByRole("button", { name })).toHaveLength(2);
 });
 
 it("requires a trimmed reason of 3 to 200 characters to skip", async () => {
