@@ -167,7 +167,7 @@ export function LocationsPage() {
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, abbreviation: event.target.value }))
                 }
-                pattern="[A-Za-z0-9_-]{2,12}"
+                pattern="[A-Za-z0-9_\-]{2,12}"
                 required
                 value={draft.abbreviation}
               />
@@ -300,7 +300,7 @@ export function LocationsPage() {
                   onChange={(event) =>
                     setEditDraft((current) => ({ ...current, abbreviation: event.target.value }))
                   }
-                  pattern="[A-Za-z0-9_-]{2,12}"
+                  pattern="[A-Za-z0-9_\-]{2,12}"
                   required
                   value={editDraft.abbreviation}
                 />

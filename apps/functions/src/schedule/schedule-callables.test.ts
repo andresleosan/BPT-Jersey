@@ -1311,6 +1311,38 @@ describe("Self check-in callable", () => {
 describe("saveLocationGeofence (T109)", () => {
   const geofence = { latitude: 49.186, longitude: -2.106 };
 
+  it("accepts the reported town geofence through its dedicated callable, not updateLocation", async () => {
+    const store = createInMemoryScheduleStore();
+    const payload = {
+      locationId: "town",
+      geofence: { latitude: 49.183998, longitude: -2.107137 },
+    };
+    await expect(
+      createSaveLocationGeofenceHandler({ store })(fakeRequest(payload)),
+    ).resolves.toMatchObject({
+      location: payload,
+    });
+    await expect(
+      createUpdateLocationHandler({ store })(fakeRequest(payload)),
+    ).rejects.toMatchObject({
+      code: "invalid-argument",
+      message: "Location update accepts locationId, name, abbreviation, kind and active",
+    });
+  });
+
+  it.each(["", "T", "T!", "A".repeat(13)])(
+    "rejects invalid location abbreviation %j independently of coordinates",
+    async (abbreviation) => {
+      const handler = createUpdateLocationHandler({ store: createInMemoryScheduleStore() });
+      await expect(
+        handler(fakeRequest({ locationId: "town", name: "BPT Town", abbreviation })),
+      ).rejects.toMatchObject({
+        code: "invalid-argument",
+        message: "abbreviation must be 2–12 letters, digits, '_' or '-'",
+      });
+    },
+  );
+
   it("records the coordinates of a site for administration only", async () => {
     const store = createInMemoryScheduleStore();
     const handler = createSaveLocationGeofenceHandler({ store });
