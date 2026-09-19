@@ -218,7 +218,7 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
       {
         requestId: `t097-profile-${suffix}`,
         fullName,
-        dateOfBirth: `${new Date().getUTCFullYear() - adultAge}-01-15`,
+        dateOfBirth: `${new Date().getUTCFullYear() - adultAge}-01-01`,
         phoneNumber: "+441534000971",
         trainingCenter: "Town",
         trainingTimePreferences: ["evening"],
@@ -456,7 +456,7 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
         students: [
           {
             fullName: `Synthetic T097 Minor ${suffix}`,
-            dateOfBirth: `${new Date().getUTCFullYear() - minorAge}-04-11`,
+            dateOfBirth: `${new Date().getUTCFullYear() - minorAge}-01-01`,
             trainingCenter: "Town",
             trainingTimePreferences: ["afternoon"],
             emergencyContact: {

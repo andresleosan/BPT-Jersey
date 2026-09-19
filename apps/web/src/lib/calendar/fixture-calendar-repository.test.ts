@@ -1,13 +1,29 @@
 import { nextSelfCheckInSession } from "@bpt-jersey/domain/schedule/self-check-in";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createFixtureCalendarRepository } from "./fixture-calendar-repository";
 
-const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-const inThreeWeeks = new Date(Date.now() + 21 * 86400000).toISOString();
+let weekAgo: string;
+let inThreeWeeks: string;
+let soon: string;
+let later: string;
 const jerseyWeekday = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Jersey",
   weekday: "short",
+});
+
+beforeEach(() => {
+  // Ready sessions start 30 minutes from now, even on Sundays. Keep them on a Wednesday
+  // while the surrounding weeks still exercise the timetable's exclusion of Sundays.
+  vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date("2026-09-16T08:00:00.000Z") });
+  weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  inThreeWeeks = new Date(Date.now() + 21 * 86400000).toISOString();
+  soon = new Date(Date.now() - 3600000).toISOString();
+  later = new Date(Date.now() + 3 * 3600000).toISOString();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("fixture calendar repository", () => {
@@ -25,6 +41,7 @@ describe("fixture calendar repository", () => {
     expect(week.sessions.length).toBeGreaterThan(20);
     const days = new Set(week.sessions.map((s) => jerseyWeekday.format(new Date(s.startAt))));
     expect(days.has("Sun")).toBe(false);
+    expect([...days].sort()).toEqual(["Fri", "Mon", "Sat", "Thu", "Tue", "Wed"]);
     expect(week.programs.map((p) => p.programId)).toContain("prog-teens");
   });
 
@@ -79,8 +96,6 @@ describe("fixture calendar repository", () => {
 describe("fixture self check-in", () => {
   const near = { latitude: 49.184224, longitude: -2.107142, accuracyMeters: 12 };
   const far = { latitude: 49.185034, longitude: -2.107142, accuracyMeters: 12 };
-  const soon = new Date(Date.now() - 3600000).toISOString();
-  const later = new Date(Date.now() + 3 * 3600000).toISOString();
 
   it("seeds one ready session per participant, 30 minutes from load", async () => {
     for (const [role, studentId] of [

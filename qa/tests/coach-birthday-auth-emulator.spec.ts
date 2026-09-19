@@ -112,8 +112,8 @@ async function denied(
  * A date of birth whose day and month are `offsetDays` from today. The year is 2000, a leap year,
  * so 29 February is a valid synthetic birth date whichever day the suite runs on.
  */
-function birthDateIn(offsetDays: number): string {
-  return `2000-${new Date(Date.now() + offsetDays * day).toISOString().slice(5, 10)}`;
+function birthDateIn(offsetDays: number, now: Date): string {
+  return `2000-${new Date(now.getTime() + offsetDays * day).toISOString().slice(5, 10)}`;
 }
 
 async function enrolAdult(
@@ -155,16 +155,17 @@ test.describe("T112 coach birthdays with Firebase Emulators", () => {
 
     const townName = `T112 Town Birthday ${suffix}`;
     const westName = `T112 West Birthday ${suffix}`;
+    const now = new Date();
     const townStudentId = await enrolAdult(request, townAdult, {
       suffix: `town-${suffix}`,
       fullName: townName,
-      birthDate: birthDateIn(0),
+      birthDate: birthDateIn(0, now),
       site: "Town",
     });
     const westStudentId = await enrolAdult(request, westAdult, {
       suffix: `west-${suffix}`,
       fullName: westName,
-      birthDate: birthDateIn(3),
+      birthDate: birthDateIn(3, now),
       site: "West",
     });
 
@@ -224,7 +225,9 @@ test.describe("T112 coach birthdays with Firebase Emulators", () => {
         "turningAge",
       ]);
       // Every synthetic adult here was born in 2000: the panel gets the age, never the year.
-      expect(entry.turningAge).toBe(new Date().getUTCFullYear() - 2000);
+      // An upcoming birthday can fall in January of the next year.
+      const birthday = new Date(now.getTime() + entry.daysAway * day);
+      expect(entry.turningAge).toBe(birthday.getUTCFullYear() - 2000);
     }
 
     // A window of zero days is today only, so the member three days out drops off.

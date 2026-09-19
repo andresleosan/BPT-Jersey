@@ -1,5 +1,5 @@
 import { nextSelfCheckInSession } from "@bpt-jersey/domain/schedule/self-check-in";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCalendarRepository } from "./index";
 
@@ -20,6 +20,11 @@ async function candidateFor(
     nowMs: Date.now(),
   });
 }
+
+beforeEach(() => {
+  // Fixture storage is scoped to the Jersey date; reloads must not cross midnight.
+  vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date("2026-09-16T08:00:00.000Z") });
+});
 
 afterEach(() => {
   vi.useRealTimers();

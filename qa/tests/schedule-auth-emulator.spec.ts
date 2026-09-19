@@ -1074,10 +1074,8 @@ test.describe("T096 class operations with Firebase Emulators", () => {
     const starts = [4, 5, 6, 7, 8].map((hours) =>
       new Date(Date.now() + hours * hour).toISOString(),
     );
-    test.skip(
-      new Set(starts.map(jerseyWeek)).size !== 1,
-      "sessions would straddle a week boundary",
-    );
+    // On Sunday evenings, move the slots into Monday instead of skipping weekly-limit coverage.
+    const weekOffsetHours = new Set(starts.map(jerseyWeek)).size !== 1 ? 24 : 0;
 
     const owner = await signIn(request, process.env.T096_OWNER_EMAIL);
     // A separate synthetic adult: the other adults already hold a current Town membership.
@@ -1139,7 +1137,13 @@ test.describe("T096 class operations with Firebase Emulators", () => {
         await ok<{ session: { sessionId: string } }>(
           request,
           "saveSession",
-          sessionInput(programId, owner.uid, site, offsetHours * hour, `${title} ${suffix}`),
+          sessionInput(
+            programId,
+            owner.uid,
+            site,
+            (offsetHours + weekOffsetHours) * hour,
+            `${title} ${suffix}`,
+          ),
           owner,
         )
       ).session.sessionId;
