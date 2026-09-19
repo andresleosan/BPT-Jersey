@@ -34,7 +34,11 @@ export function describePlanAccess(
         : `${plan.weeklyClassLimit} class${plan.weeklyClassLimit === 1 ? "" : "es"} a week at ${at}`;
   if (plan.openMatSites.length === 0) return classes;
   // The session's age band decides which open mat a child can book; the copy names the kids one.
-  const openMat = plan.eligibleParticipantTypes.includes("adult") ? "open mats" : "kids open mat";
+  const openMat = plan.eligibleParticipantTypes.includes("adult")
+    ? "open mats"
+    : plan.eligibleParticipantTypes.includes("teens")
+      ? "kids and teens full access to open mat"
+      : "kids open mat";
   return `${classes} · ${openMat} at ${sites(plan.openMatSites)}`;
 }
 

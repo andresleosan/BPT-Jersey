@@ -48,12 +48,12 @@ const expectedCatalog = [
   ["town-kids-1x", "Town Kids & Teens 1x", 9500, "term", ["kids", "teens"], ["Town"], 1, [], null],
   [
     "town-kids-2x",
-    "Town Kids & Teens 3x",
+    "Town Kids & Teens 2x",
     13500,
     "term",
     ["kids", "teens"],
     ["Town"],
-    3,
+    2,
     ["Town"],
     null,
   ],
@@ -424,8 +424,8 @@ describe("membership plan contracts", () => {
     expect(code("town-adult", at("adult", "West", "class"))).toBe("CLASS_SITE_NOT_ELIGIBLE");
     expect(code("town-kids-1x", at("teens", "Town", "class"))).toBe("ALLOWED");
     expect(code("town-kids-1x", at("kids", "Town", "class", 1))).toBe("WEEKLY_LIMIT_REACHED");
-    expect(code("town-kids-2x", at("teens", "Town", "class", 2))).toBe("ALLOWED");
-    expect(code("town-kids-2x", at("kids", "Town", "class", 3))).toBe("WEEKLY_LIMIT_REACHED");
-    expect(code("town-kids-2x", at("kids", "Town", "openMat", 3))).toBe("ALLOWED");
+    expect(code("town-kids-2x", at("teens", "Town", "class", 1))).toBe("ALLOWED");
+    expect(code("town-kids-2x", at("kids", "Town", "class", 2))).toBe("WEEKLY_LIMIT_REACHED");
+    expect(code("town-kids-2x", at("kids", "Town", "openMat", 2))).toBe("ALLOWED");
   });
 });
