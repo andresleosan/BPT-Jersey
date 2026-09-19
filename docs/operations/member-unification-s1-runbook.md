@@ -76,6 +76,8 @@ Salida esperada: contadores `members`, `archiveRecords`, `decided`, `strong`, `s
 
 Deben cumplirse todas:
 
+- `unparsableMembers: 0`.
+- `unparsableRecords: 0`.
 - `invalidLegacyIds: 0`.
 - `legacyIdCaseCollisions: 0`.
 - `readerVersion: canonical-v1`.
@@ -83,6 +85,8 @@ Deben cumplirse todas:
 - `rollbackCapacityLimit: 400`.
 
 Salida esperada: todas las condiciones satisfechas. Si no, detente. No cambies `readerVersion`: exige otro diseño y autorización explícita. El presupuesto también debe reservar capacidad para cualquier ambiguo que se decida crear y para otras altas concurrentes; repite el informe antes de continuar si hay cambios. No cuentes dos veces `minorOrUndated`: esas filas ya están incluidas en las categorías.
+
+`invalidIdentifiers` > 0 indica miembros que serán rechazados con `invalid-member-data`: corrige sus identificadores en el registro legacy o decide omitirlos (`skip`). Por sí solo no es un motivo para detener la operación. `undated` cuenta filas sin fecha de nacimiento propia ni recuperada de una coincidencia fuerte; siguen pendientes de S1b. Si hay documentos no parseables, el informe imprime todos los contadores y termina con `errors: 1 — Queue would fail: unparsable documents` y código de salida 1.
 
 ### 8. Define el comando de conteos de solo lectura
 
@@ -186,6 +190,8 @@ test -f apps/functions/.env && test ! -L apps/functions/.env && echo 'OK: archiv
 ```
 
 Salida esperada: `OK: archivo real`. Si no aparece, detente.
+
+Hacer merge/push a `main` publica la web, incluida la nueva entrada de navegación «Member migration»; despliega los dos callables inmediatamente antes/después para evitar que la página muestre «queue unavailable». Este procedimiento los despliega antes del push.
 
 ### 14. Despliega únicamente las dos funciones S1
 
