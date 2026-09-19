@@ -82,6 +82,7 @@ describe("deploy runtime import preparation", () => {
         "export { SELF_CHECK_IN_MAXIMUM_DISTANCE_METRES } from '@bpt-jersey/domain/schedule/self-check-in';",
         'import "@bpt-jersey/domain/members";',
         'import "@bpt-jersey/domain/members/directory";',
+        'import "@bpt-jersey/domain/members/migration";',
         'import "@bpt-jersey/domain/members/directory-migration";',
         'import "@bpt-jersey/domain/members/directory-operations";',
         'import "@bpt-jersey/domain/members/directory-private-plan";',
@@ -112,6 +113,7 @@ describe("deploy runtime import preparation", () => {
     expect(prepared).toContain("../../domain/schedule/self-check-in-contracts.js");
     expect(prepared).toContain("../../domain/members/member-contracts.js");
     expect(prepared).toContain("../../domain/members/member-directory-contracts.js");
+    expect(prepared).toContain("../../domain/members/member-migration-contracts.js");
     expect(prepared).toContain("../../domain/members/member-directory-migration-contracts.js");
     expect(prepared).toContain("../../domain/members/member-directory-operation-contracts.js");
     expect(prepared).toContain("../../domain/members/member-directory-private-plan-contracts.js");
