@@ -49,7 +49,9 @@ test.describe("public homepage @smoke", () => {
     ).toHaveAttribute("href", "#locations");
     await expect(page.locator("#locations")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Classes in Jersey" })).toBeVisible();
-    await expect(page.getByText("Office 9, 13 Library Place", { exact: true })).toBeVisible();
+    await expect(
+      page.locator("#locations").getByText("Office 9, 13 Library Place", { exact: true }),
+    ).toBeVisible();
     const feesSection = page.locator("#fees");
     await expect(feesSection.getByText("£125 per month", { exact: true })).toBeVisible();
     await expect(feesSection.getByText("£135 per term", { exact: true })).toBeVisible();
@@ -72,16 +74,16 @@ test.describe("public homepage @smoke", () => {
     expect(classesUrl.pathname).toBe(initialUrl.pathname);
     expect(classesUrl.hash).toBe("#classes");
 
+    // Since 4808277 "Book a free class" is the enrolment call to action, not an in-page anchor:
+    // the hero button and the contact section's button both open /enrol. The click that follows
+    // it is at the end of the test, so everything measured on the home page is measured first.
     const main = page.locator("main");
-    await main.getByRole("link", { name: "Book a free class" }).first().click();
-    const contactUrl = new URL(page.url());
-    expect(contactUrl.origin).toBe(initialUrl.origin);
-    expect(contactUrl.pathname).toBe(initialUrl.pathname);
-    expect(contactUrl.hash).toBe("#contact");
+    const heroEnrolCta = main.getByRole("link", { name: "Book a free class" }).first();
+    await expect(heroEnrolCta).toHaveAttribute("href", "/enrol");
     const contactSection = page.locator("#contact");
     const contactCta = contactSection.getByRole("link", { name: "Book a free class" });
     await expect(contactCta).toBeVisible();
-    await expect(contactCta).toHaveAttribute("href", "#contact");
+    await expect(contactCta).toHaveAttribute("href", "/enrol");
     await expect(
       page.getByText("Public information last verified 2026-08-07.", { exact: true }),
     ).toBeVisible();
@@ -99,5 +101,10 @@ test.describe("public homepage @smoke", () => {
         fullPage: true,
       });
     }
+
+    await contactCta.click();
+    const enrolUrl = new URL(page.url());
+    expect(enrolUrl.origin).toBe(initialUrl.origin);
+    expect(enrolUrl.pathname).toBe("/enrol");
   });
 });
