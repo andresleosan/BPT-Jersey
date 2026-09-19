@@ -20,6 +20,7 @@ import {
 import { useAdminOrStaffSession } from "../../admin-gate";
 import { recordHref } from "../profile/member-record";
 import { MemberNameSearch } from "../member-name-search";
+import { LiveRecordLink } from "./live-record-link";
 import { MemberProfilePanel } from "./member-profile-panel";
 import { AdminDataTableWrap } from "../../admin-data-table";
 
@@ -460,6 +461,9 @@ function SearchMembersContent() {
       {/* Operator 2026-09-19: the office already searches from Members, so the name search is the
           mat's way into a record only. */}
       {office ? null : <MemberNameSearch />}
+      {office && selected.status === "loaded" ? (
+        <LiveRecordLink key={selected.record.recordId} recordId={selected.record.recordId} />
+      ) : null}
       {office ? (
         <ExactLookupSection
           identifier={identifier}

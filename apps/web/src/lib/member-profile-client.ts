@@ -36,7 +36,7 @@ const saveRateLimitedError =
 const searchError = "Unable to search members. Please try again.";
 
 export class MemberRecordLoadError extends Error {
-  public constructor(message: string) {
+  public constructor(message: string, public readonly kind: "error" | "missing" = "error") {
     super(message);
     this.name = "MemberRecordLoadError";
   }
@@ -77,7 +77,7 @@ export async function getMemberProfile(studentId: string): Promise<MemberProfile
     data = (await callable({ studentId })).data;
   } catch (error) {
     const code = errorCode(error);
-    if (code.endsWith("not-found")) throw new MemberRecordLoadError(notFoundError);
+    if (code.endsWith("not-found")) throw new MemberRecordLoadError(notFoundError, "missing");
     if (code.endsWith("permission-denied")) throw new MemberRecordLoadError(deniedError);
     if (code.endsWith("resource-exhausted")) throw new MemberRecordLoadError(rateLimitedError);
     throw new MemberRecordLoadError(loadError);

@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemberProfile } from "@bpt-jersey/domain/members/profile";
 
 const client = vi.hoisted(() => {
-  class MemberRecordLoadError extends Error {}
+  class MemberRecordLoadError extends Error {
+    constructor(
+      message: string,
+      public kind = "error",
+    ) {
+      super(message);
+    }
+  }
   class MemberDetailsConflictError extends Error {}
   return {
     MemberRecordLoadError,
@@ -465,4 +472,21 @@ describe("member record page", () => {
     await waitFor(() => expect(client.getMemberProfile).toHaveBeenCalledTimes(2));
     expect(await screen.findByRole("heading", { level: 2, name: "Test Member A" })).toBeTruthy();
   });
+});
+
+it("treats a missing canonical student as unavailable without asserting migration or exposing retry errors", async () => {
+  client.getMemberProfile.mockRejectedValueOnce(
+    new client.MemberRecordLoadError("not found", "missing"),
+  );
+  open("?id=student-1");
+  await waitFor(() =>
+    expect(screen.getByRole("status").textContent).toContain(
+      "Live member record unavailable. It may not have been created yet.",
+    ),
+  );
+  expect(screen.getByRole("link", { name: "Review member migration" }).getAttribute("href")).toBe(
+    "/admin/members/migration",
+  );
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByRole("tablist")).toBeNull();
 });
