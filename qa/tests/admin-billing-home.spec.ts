@@ -231,7 +231,8 @@ test.describe("admin billing home", () => {
     });
 
     await dialog.getByRole("button", { name: "Issue invoice" }).click();
-    await expect(page.getByRole("status")).toContainText("Invoice issued.");
+    // The billing skeleton can still be announcing its own status while the notice appears.
+    await expect(page.getByRole("status").filter({ hasText: "Invoice issued." })).toBeVisible();
 
     const call = calls.find((c) => c.name === "issueManualInvoice");
     expect(call?.body).toMatchObject({
@@ -250,7 +251,7 @@ test.describe("admin billing home", () => {
     await dialog.getByRole("radio", { name: "Cash" }).click();
     await dialog.getByLabel("Payment reference").fill("cash-1");
     await dialog.getByRole("button", { name: "Save payment" }).click();
-    await expect(page.getByRole("status")).toContainText("Payment recorded.");
+    await expect(page.getByRole("status").filter({ hasText: "Payment recorded." })).toBeVisible();
 
     const call = calls.find((c) => c.name === "recordManualPayment");
     expect(call?.body).toMatchObject({ data: { method: "cash" } });

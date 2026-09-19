@@ -77,6 +77,8 @@ export async function installAdminFixture(
       report: { query: (body as { data: unknown }).data, ...emptyReport },
     }),
     listUpcomingBirthdays: { birthdays: [] },
+    // The shell's notification panel asks on every admin page.
+    listAdminNotifications: { notifications: [], nextCursor: null, unreadCount: 0 },
     ...options.callables,
   };
 
