@@ -105,7 +105,7 @@ export function draftFromDetails(details: MemberDetails): DetailsDraft {
     vatNumber: details.vatNumber ?? "",
     profession: extra?.profession ?? "",
     gender: details.gender,
-    dateOfBirth: details.dateOfBirth,
+    dateOfBirth: details.dateOfBirth ?? "",
     weightKg: extra?.weightKg === undefined ? "" : String(extra.weightKg),
     heightCm: extra?.heightCm === undefined ? "" : String(extra.heightCm),
     registeredOn: extra?.registeredOn ?? "",

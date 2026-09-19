@@ -237,6 +237,7 @@ function existingMemberSeed(
 }
 
 function service(firestore: MemberDirectoryFirestore) {
+  let auditNumber = 0;
   return createCanonicalMemberDirectoryService({
     firestore,
     projectId: "demo-bpt-jersey",
@@ -245,7 +246,7 @@ function service(firestore: MemberDirectoryFirestore) {
     integritySecretMaterial: integritySecret,
     integritySecretVersion: "integrity-v1",
     generateStudentId: () => "student-new-1",
-    generateAuditId: () => "audit-new-1",
+    generateAuditId: () => `audit-new-${++auditNumber}`,
   });
 }
 
@@ -1083,26 +1084,32 @@ describe("legacy member migration", () => {
     expect(harness.records).toEqual(before);
   });
 
-  it.each([undefined, "161"])("refuses a minor with recordId %s", async (recordId) => {
-    const harness = fakeFirestore(controlPlaneSeed());
-    await expect(
-      service(harness.firestore).registerLegacyMember({
+  it.each(["2012-01-01", undefined])(
+    "creates a reviewable student with DOB %s and no family",
+    async (dateOfBirth) => {
+      const harness = fakeFirestore(controlPlaneSeed());
+      await service(harness.firestore).registerLegacyMember({
         actor: actor(),
-        value: { ...input(), dateOfBirth: "2012-01-01" },
+        value: { ...input(), dateOfBirth },
         now: migrationNow,
         ...legacy,
-        ...(recordId === undefined ? {} : { recordId }),
-      }),
-    ).rejects.toMatchObject({
-      code: "invalid",
-      message:
-        recordId === undefined
-          ? "Invalid admin student input"
-          : "Legacy migration is for adults only",
-    });
-    expect(harness.records.get(decisionPath)).toBeUndefined();
-    expect(harness.committedWritePaths).toEqual([]);
-  });
+      });
+      const student = harness.records.get("academies/academy-1/students/student-new-1");
+      expect(student).toMatchObject(
+        dateOfBirth
+          ? { guardianStatus: "pending", participantType: "minor", dateOfBirth }
+          : { reviewReason: "date-of-birth-missing", participantType: "minor" },
+      );
+      expect(student).not.toHaveProperty("familyId");
+      expect(student).not.toHaveProperty("userId");
+      if (!dateOfBirth) expect(student).not.toHaveProperty("dateOfBirth");
+      expect(
+        [...harness.records.keys()].filter(
+          (path) => path.includes("/families/") || path.includes("/relationships/"),
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it("skips with a decision and an audit event, and writes no student", async () => {
     const harness = fakeFirestore(controlPlaneSeed());
@@ -1206,5 +1213,158 @@ describe("office registration of imported members", () => {
       }),
     ).rejects.toMatchObject({ code: "invalid" });
     expect(h.records).toEqual(before);
+  });
+});
+
+describe("S1 admin review", () => {
+  const studentPath = "academies/academy-1/students/student-new-1";
+  const familyPath = "academies/academy-1/families/office-student-new-1";
+  const guardian = { fullName: "Synthetic Guardian", email: "guardian@example.test" };
+  const assign = {
+    kind: "assign-guardian",
+    studentId: "student-new-1",
+    requestId: "71cbb1aa-7020-4bb5-88a4-dbc73c5f0123",
+    guardianContact: guardian,
+  };
+  async function migrated(dateOfBirth: string | null = "2012-01-01") {
+    const harness = fakeFirestore();
+    const writer = service(harness.firestore);
+    await writer.registerLegacyMember({
+      actor: actor(),
+      now,
+      value: { ...input(), dateOfBirth: dateOfBirth ?? undefined },
+      legacyMemberId: "legacy-1",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+    });
+    return { harness, writer };
+  }
+  it("assigns an office contact atomically and replays without duplicate writes or PII in audit", async () => {
+    const { harness, writer } = await migrated();
+    const command = { actor: actor(), now, value: assign };
+    await expect(writer.reviewMember(command)).resolves.toEqual({ studentId: "student-new-1" });
+    expect(harness.records.get(studentPath)).toMatchObject({
+      guardianStatus: "assigned",
+      familyId: "office-student-new-1",
+    });
+    expect(harness.records.get(familyPath)).toMatchObject({
+      primaryContactUserId: null,
+      billingContactUserId: null,
+      guardianContact: guardian,
+    });
+    expect([...harness.records.keys()].some((path) => path.includes("/relationships/"))).toBe(
+      false,
+    );
+    const before = new Map(harness.records);
+    await writer.reviewMember(command);
+    expect(harness.records).toEqual(before);
+    const audits = [...harness.records.entries()].filter(([path]) =>
+      path.includes("/auditEvents/"),
+    );
+    expect(audits.some(([, event]) => event.action === "member.guardian.assigned")).toBe(true);
+    expect(JSON.stringify(audits)).not.toContain(guardian.email);
+    await expect(
+      writer.reviewMember({
+        ...command,
+        value: { ...assign, guardianContact: { ...guardian, fullName: "Different" } },
+      }),
+    ).rejects.toMatchObject({ code: "replay" });
+    expect(harness.records).toEqual(before);
+  });
+  it.each(["owner", "administrator"] as const)("allows active %s", async (role) => {
+    const { harness, writer } = await migrated();
+    harness.records.set(
+      "academies/academy-1/users/owner-1",
+      provisionedAdminDocument({ adminRole: role }),
+    );
+    await expect(
+      writer.reviewMember({ actor: { ...actor(), role }, now, value: assign }),
+    ).resolves.toEqual({ studentId: "student-new-1" });
+  });
+  it.each(["coach", "headCoach", "guardian", "adultStudent"] as const)(
+    "denies %s before writing",
+    async (role) => {
+      const { harness, writer } = await migrated();
+      const before = new Map(harness.records);
+      await expect(
+        writer.reviewMember({ actor: { ...actor(), role }, now, value: assign }),
+      ).rejects.toMatchObject({ code: "unauthorized" });
+      expect(harness.records).toEqual(before);
+    },
+  );
+  it.each([{ active: false }, { appCheckVerified: false }, { academyId: "other-academy" }])(
+    "denies invalid actor %s",
+    async (overrides) => {
+      const { harness, writer } = await migrated();
+      const before = new Map(harness.records);
+      await expect(
+        writer.reviewMember({ actor: { ...actor(), ...overrides }, now, value: assign }),
+      ).rejects.toThrow();
+      expect(harness.records).toEqual(before);
+    },
+  );
+  it("refuses a pre-existing family and a second assignment request", async () => {
+    const { harness, writer } = await migrated();
+    harness.records.set(familyPath, { unrelated: true });
+    await expect(writer.reviewMember({ actor: actor(), now, value: assign })).rejects.toMatchObject(
+      { code: "conflict" },
+    );
+    harness.records.delete(familyPath);
+    await writer.reviewMember({ actor: actor(), now, value: assign });
+    await expect(
+      writer.reviewMember({
+        actor: actor(),
+        now,
+        value: { ...assign, requestId: "81cbb1aa-7020-4bb5-88a4-dbc73c5f0123" },
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+  });
+  it.each(["1990-01-01", "2012-01-01"])(
+    "resolves unknown age to %s and replays",
+    async (dateOfBirth) => {
+      const { harness, writer } = await migrated(null);
+      const command = {
+        actor: actor(),
+        now,
+        value: {
+          kind: "set-date-of-birth",
+          studentId: "student-new-1",
+          requestId: assign.requestId,
+          dateOfBirth,
+        },
+      };
+      await writer.reviewMember(command);
+      const student = harness.records.get(studentPath);
+      expect(student).toMatchObject({
+        dateOfBirth,
+        participantType: dateOfBirth.startsWith("1990") ? "adult" : "minor",
+      });
+      expect(student).not.toHaveProperty("reviewReason");
+      if (dateOfBirth.startsWith("2012")) expect(student?.guardianStatus).toBe("pending");
+      else expect(student).not.toHaveProperty("guardianStatus");
+      const before = new Map(harness.records);
+      await writer.reviewMember(command);
+      expect(harness.records).toEqual(before);
+    },
+  );
+  it("rejects invalid contacts, tenant overrides and future dates", async () => {
+    const { harness, writer } = await migrated();
+    const before = new Map(harness.records);
+    for (const value of [
+      { ...assign, guardianContact: { fullName: "No contact" } },
+      { ...assign, academyId: "other" },
+      { ...assign, guardianContact: { fullName: "Test", email: "invalid" } },
+      {
+        kind: "set-date-of-birth",
+        studentId: assign.studentId,
+        requestId: assign.requestId,
+        dateOfBirth: "2099-01-01",
+      },
+    ]) {
+      await expect(writer.reviewMember({ actor: actor(), now, value })).rejects.toMatchObject({
+        code: "invalid",
+      });
+    }
+    expect(harness.records).toEqual(before);
   });
 });

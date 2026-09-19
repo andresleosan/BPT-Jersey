@@ -430,6 +430,8 @@ function activeSource(record: FamilyRecord | StudentProfile | FamilyRelationship
 }
 
 function planParticipantType(student: StudentProfile, effectiveAt: string): PlanParticipantType {
+  if (student.dateOfBirth === undefined)
+    throw new MembershipStoreError("conflict", "Review the student date of birth first");
   const effectiveDate = effectiveAt.slice(0, 10);
   if (deriveParticipantType(student.dateOfBirth, effectiveDate) === "adult") return "adult";
   const birth = student.dateOfBirth.split("-").map(Number);

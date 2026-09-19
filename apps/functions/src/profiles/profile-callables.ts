@@ -124,7 +124,12 @@ function parseEditablePayload(
     updatedBy: userId,
   };
   const parsed = parseStudentProfileAt(candidate, now.slice(0, 10));
-  if (!parsed.ok || parsed.value.participantType !== "adult") return invalidPayload();
+  if (
+    !parsed.ok ||
+    parsed.value.participantType !== "adult" ||
+    parsed.value.dateOfBirth === undefined
+  )
+    return invalidPayload();
 
   return Object.freeze({
     requestId: value.requestId,

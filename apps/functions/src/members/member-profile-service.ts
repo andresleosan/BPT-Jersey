@@ -199,6 +199,10 @@ export function createMemberProfileService(
         view: "full",
         header: {
           ...headerBase(student, today),
+          ...(student.guardianStatus === undefined
+            ? {}
+            : { guardianStatus: student.guardianStatus }),
+          ...(student.reviewReason === undefined ? {} : { reviewReason: student.reviewReason }),
           ...(maskedMemberReference === undefined ? {} : { maskedMemberReference }),
         },
         cards: {

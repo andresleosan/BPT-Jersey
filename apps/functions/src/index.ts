@@ -275,3 +275,8 @@ export {
   manageMemberSubscription,
   listMemberSubscriptionBilling,
 } from "./memberships/subscription-admin-callables.js";
+
+export {
+  assignMemberGuardian,
+  setMemberDateOfBirth,
+} from "./members/member-migration-callables.js";

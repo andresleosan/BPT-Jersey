@@ -3,7 +3,7 @@ import { z } from "zod";
 import { deriveUpcomingBirthdays } from "../birthdays/upcoming-birthday-contracts";
 import { ageInCompletedYears } from "../levels/level-contracts";
 import { currentMembershipStatuses } from "../memberships/membership-contracts";
-import { participantTypes } from "../profiles/profile-contracts";
+import { participantTypes, studentReviewFields } from "../profiles/profile-contracts";
 import {
   adminUpdateStudentInputSchema,
   memberRecordMaintenanceDetailSchema,
@@ -23,7 +23,8 @@ export const birthdayBadgeWindowDays = 7;
  * The badge in the record header. It asks the existing birthday derivation about one synthetic,
  * eligible candidate, so the 29 February rule and the day arithmetic live in one place only.
  */
-export function deriveBirthdayBadge(dateOfBirth: string, today: string): BirthdayBadge {
+export function deriveBirthdayBadge(dateOfBirth: string | undefined, today: string): BirthdayBadge {
+  if (dateOfBirth === undefined) return null;
   const [match] = deriveUpcomingBirthdays({
     today,
     windowDays: birthdayBadgeWindowDays,
@@ -83,8 +84,8 @@ export function academyDateOf(nowIso: string): string {
   return jerseyDay.format(new Date(nowIso));
 }
 
-export function memberAgeOn(dateOfBirth: string, today: string): number | null {
-  return ageInCompletedYears(dateOfBirth, today);
+export function memberAgeOn(dateOfBirth: string | undefined, today: string): number | null {
+  return dateOfBirth === undefined ? null : ageInCompletedYears(dateOfBirth, today);
 }
 
 /** Whole calendar months from one date-only value to another; 0 when `to` is before `from`. */
@@ -177,6 +178,7 @@ const headerShape = {
 export const coachMemberProfileHeaderSchema = z.strictObject(headerShape);
 
 export const memberProfileHeaderSchema = z.strictObject({
+  ...studentReviewFields,
   ...headerShape,
   maskedMemberReference: z
     .string()

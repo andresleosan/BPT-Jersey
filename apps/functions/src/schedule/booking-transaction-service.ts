@@ -350,6 +350,8 @@ function audience(
   value: ProgramRecord,
   sessionStartAt: string,
 ): ParticipantType {
+  if (profile.dateOfBirth === undefined)
+    return invalid("ineligible", "Review the student date of birth first");
   const sessionDate = localDate(sessionStartAt);
   const lifecycleType = deriveParticipantType(profile.dateOfBirth, sessionDate);
   let actual: ParticipantType = "adult";

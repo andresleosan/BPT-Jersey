@@ -1,6 +1,10 @@
+import { guardianContactSchema } from "../families/family-contracts";
 import { z } from "zod";
 import { deriveParticipantType } from "../profiles/profile-contracts";
-import { normalizeAdministrativeIdentifier } from "./member-directory-contracts";
+import {
+  adminCreateStudentInputShape,
+  normalizeAdministrativeIdentifier,
+} from "./member-directory-contracts";
 
 export const MEMBER_MIGRATION_ID = "member-unification-s1-2026-09";
 
@@ -198,7 +202,6 @@ export const memberMigrationRejectionCodes = [
   "unknown-member",
   "already-decided",
   "not-a-candidate",
-  "minor-deferred",
   "record-already-linked",
   "identifier-reserved",
   "invalid-member-data",
@@ -312,3 +315,28 @@ export function toMemberMigrationQueueResponse(
     decided,
   };
 }
+
+/** S1 alone permits an absent birth date; the student writer records a review flag. */
+export const legacyStudentInputSchema = z.strictObject({
+  ...adminCreateStudentInputShape,
+  dateOfBirth: adminCreateStudentInputShape.dateOfBirth.optional(),
+});
+export type LegacyStudentInput = z.infer<typeof legacyStudentInputSchema>;
+
+const reviewInputFields = {
+  studentId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  requestId: z.uuid(),
+};
+export const assignMemberGuardianInputSchema = z.strictObject({
+  ...reviewInputFields,
+  guardianContact: guardianContactSchema,
+});
+export const setMemberDateOfBirthInputSchema = z.strictObject({
+  ...reviewInputFields,
+  dateOfBirth: adminCreateStudentInputShape.dateOfBirth,
+});
+export const memberReviewInputSchema = z.discriminatedUnion("kind", [
+  assignMemberGuardianInputSchema.extend({ kind: z.literal("assign-guardian") }),
+  setMemberDateOfBirthInputSchema.extend({ kind: z.literal("set-date-of-birth") }),
+]);
+export const memberReviewResultSchema = z.strictObject({ studentId: reviewInputFields.studentId });

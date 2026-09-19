@@ -4,6 +4,9 @@ import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
   MEMBER_MIGRATION_ID,
   memberMigrationDecisionRecordSchema,
+  legacyStudentInputSchema,
+  memberReviewInputSchema,
+  type LegacyStudentInput,
 } from "@bpt-jersey/domain/members/migration";
 import {
   parseAdminCreateStudentInput,
@@ -11,7 +14,6 @@ import {
   normalizeAdministrativeIdentifier,
   parseAdminUpdateStudentInput,
   studentAdminProfileSchema,
-  type AdminCreateStudentInput,
   type AdminUpdateStudentInput,
   type StudentAdminProfile,
 } from "@bpt-jersey/domain/members/directory";
@@ -100,7 +102,6 @@ export type LegacyMemberSkipCommand = Readonly<{
 export const legacyMigrationErrorMessages = Object.freeze({
   alreadyDecided: "Legacy member already decided",
   recordLinked: "Imported record is already linked",
-  adultsOnly: "Legacy migration is for adults only",
 } as const);
 
 export type OfficeMemberDirectoryService = CanonicalMemberDirectoryService &
@@ -112,6 +113,7 @@ export type OfficeMemberDirectoryService = CanonicalMemberDirectoryService &
       command: LegacyMemberRegistrationCommand,
     ) => Promise<CreateAdminAdultResult>;
     skipLegacyMember: (command: LegacyMemberSkipCommand) => Promise<void>;
+    reviewMember: (command: CreateAdminAdultCommand) => Promise<Readonly<{ studentId: string }>>;
   }>;
 
 export type CreateAdminAdultResult = Readonly<{ memberId: string; studentId: string }>;
@@ -313,7 +315,7 @@ async function assertProvisionedActor(
 function requestMac(
   academyId: string,
   actorId: string,
-  input: AdminCreateStudentInput,
+  input: LegacyStudentInput,
   secretMaterial: string,
   recordId?: string,
 ): string {
@@ -322,7 +324,9 @@ function requestMac(
     values: [
       academyId,
       actorId,
-      canonicalizeMemberDirectoryValue(input),
+      canonicalizeMemberDirectoryValue(
+        Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
+      ),
       ...(recordId ? [recordId] : []),
     ],
     secretMaterial,
@@ -357,13 +361,14 @@ function requestReceiptId(
 }
 
 function buildStudent(
-  input: AdminCreateStudentInput,
+  input: LegacyStudentInput,
   academyId: string,
   studentId: string,
   actorId: string,
   now: string,
   /** Present only when office is enrolling somebody whose account is already known. */
   link?: Readonly<{ userId?: string; familyId: string }>,
+  legacy = false,
 ): StudentProfile {
   const record = {
     studentId,
@@ -372,12 +377,21 @@ function buildStudent(
       ? {}
       : { ...(link.userId ? { userId: link.userId } : {}), familyId: link.familyId }),
     fullName: input.fullName,
-    dateOfBirth: input.dateOfBirth,
+    ...(input.dateOfBirth === undefined ? {} : { dateOfBirth: input.dateOfBirth }),
     ...(input.phoneNumber === undefined ? {} : { phoneNumber: input.phoneNumber }),
     ...(input.email === undefined ? {} : { email: input.email }),
     trainingCenter: input.trainingCenter,
     trainingTimePreferences: input.trainingTimePreferences,
-    participantType: deriveParticipantType(input.dateOfBirth, now.slice(0, 10)),
+    participantType:
+      input.dateOfBirth === undefined
+        ? "minor"
+        : deriveParticipantType(input.dateOfBirth, now.slice(0, 10)),
+    ...(input.dateOfBirth === undefined ? { reviewReason: "date-of-birth-missing" } : {}),
+    ...(legacy &&
+    input.dateOfBirth !== undefined &&
+    deriveParticipantType(input.dateOfBirth, now.slice(0, 10)) === "minor"
+      ? { guardianStatus: "pending" }
+      : {}),
     active: true,
     status: "active" as const,
     schemaVersion: "1" as const,
@@ -392,7 +406,7 @@ function buildStudent(
 }
 
 function buildAdminProfile(
-  input: AdminCreateStudentInput,
+  input: LegacyStudentInput,
   academyId: string,
   studentId: string,
   actorId: string,
@@ -485,7 +499,13 @@ function buildUpdatedStudent(
       ...(input.email === undefined ? {} : { email: input.email }),
       trainingCenter: input.trainingCenter,
       trainingTimePreferences: input.trainingTimePreferences,
-      participantType: existing.participantType,
+      participantType: deriveParticipantType(input.dateOfBirth, now.slice(0, 10)),
+      ...((existing.reviewReason !== undefined ||
+        existing.guardianStatus !== undefined ||
+        (existing.participantType === "adult" && existing.familyId === undefined)) &&
+      deriveParticipantType(input.dateOfBirth, now.slice(0, 10)) === "minor"
+        ? { guardianStatus: existing.guardianStatus === "assigned" ? "assigned" : "pending" }
+        : {}),
       active: existing.active,
       status: existing.status,
       schemaVersion: existing.schemaVersion,
@@ -812,23 +832,28 @@ export function createCanonicalMemberDirectoryService(
   ): Promise<CreateAdminAdultResult> {
     requireAuthorizedActor(command.actor);
     const now = requiredTimestamp(command.now);
-    const officeInput = sourceRecordId
-      ? adminCreateStudentInputSchema.safeParse(command.value)
-      : null;
-    const parsedInput = sourceRecordId
-      ? officeInput?.success
-        ? { ok: true as const, value: officeInput.data }
-        : { ok: false as const }
-      : parseAdminCreateStudentInput(command.value, now.slice(0, 10));
-    if (!parsedInput.ok) {
+    const officeInput = legacy
+      ? legacyStudentInputSchema.safeParse(command.value)
+      : sourceRecordId
+        ? adminCreateStudentInputSchema.safeParse(command.value)
+        : null;
+    const parsedInput =
+      legacy || sourceRecordId
+        ? officeInput?.success
+          ? { ok: true as const, value: officeInput.data }
+          : { ok: false as const }
+        : parseAdminCreateStudentInput(command.value, now.slice(0, 10));
+    if (
+      !parsedInput.ok ||
+      (parsedInput.value.dateOfBirth !== undefined &&
+        parsedInput.value.dateOfBirth > now.slice(0, 10))
+    ) {
       throw new CanonicalMemberDirectoryError("invalid", "Invalid admin student input");
     }
-    if (
+    const needsReview =
       legacy !== undefined &&
-      deriveParticipantType(parsedInput.value.dateOfBirth, now.slice(0, 10)) !== "adult"
-    ) {
-      throw new CanonicalMemberDirectoryError("invalid", legacyMigrationErrorMessages.adultsOnly);
-    }
+      (parsedInput.value.dateOfBirth === undefined ||
+        deriveParticipantType(parsedInput.value.dateOfBirth, now.slice(0, 10)) === "minor");
     const academyId = command.actor.academyId;
     const actorId = command.actor.actorId;
     if (account !== undefined && parsedInput.value.phoneNumber === undefined) {
@@ -909,7 +934,9 @@ export function createCanonicalMemberDirectoryService(
           source.value.recordId !== sourceRecordId ||
           (storedSource?.academyId !== undefined && storedSource.academyId !== academyId) ||
           source.value.fullName !== parsedInput.value.fullName ||
-          (source.value.birthDate && source.value.birthDate !== parsedInput.value.dateOfBirth) ||
+          (!legacy &&
+            source.value.birthDate &&
+            source.value.birthDate !== parsedInput.value.dateOfBirth) ||
           (source.value.memberNumber
             ? normalizeAdministrativeIdentifier(source.value.memberNumber)
             : undefined) !== parsedInput.value.membershipNumber
@@ -1030,9 +1057,12 @@ export function createCanonicalMemberDirectoryService(
         studentId,
         actorId,
         now,
-        accountLink === undefined
-          ? { familyId: `office-${studentId}` }
-          : { userId: accountLink.userId, familyId: accountLink.familyId },
+        needsReview
+          ? undefined
+          : accountLink === undefined
+            ? { familyId: `office-${studentId}` }
+            : { userId: accountLink.userId, familyId: accountLink.familyId },
+        legacy !== undefined,
       );
       const profile = buildAdminProfile(
         parsedInput.value,
@@ -1129,7 +1159,7 @@ export function createCanonicalMemberDirectoryService(
       }
 
       const officeFamily =
-        accountLink === undefined
+        accountLink === undefined && !needsReview
           ? parseFamilyRecord({
               familyId: student.familyId,
               academyId,
@@ -1251,6 +1281,230 @@ export function createCanonicalMemberDirectoryService(
   }
 
   return Object.freeze({
+    async reviewMember(command: CreateAdminAdultCommand) {
+      requireAuthorizedActor(command.actor);
+      const now = requiredTimestamp(command.now);
+      const parsed = memberReviewInputSchema.safeParse(command.value);
+      if (
+        !parsed.success ||
+        (parsed.data.kind === "set-date-of-birth" && parsed.data.dateOfBirth > now.slice(0, 10))
+      ) {
+        throw new CanonicalMemberDirectoryError("invalid", "Invalid member review input");
+      }
+      const input = parsed.data;
+      const { academyId, actorId } = command.actor;
+      const { studentId } = input;
+      const receiptId = requestReceiptId(
+        academyId,
+        actorId,
+        input.requestId,
+        dependencies.integritySecretMaterial,
+      );
+      const expectedMac = createMemberDirectoryIntegrityMac({
+        domain: "bpt-member-review-request-v1",
+        values: [academyId, actorId, canonicalizeMemberDirectoryValue(input)],
+        secretMaterial: dependencies.integritySecretMaterial,
+      });
+      const receiptRef = dependencies.firestore.doc(receiptPath(academyId, receiptId));
+      const studentRef = dependencies.firestore.doc(studentPath(academyId, studentId));
+      const action =
+        input.kind === "assign-guardian" ? "member.guardian.assigned" : "member.date-of-birth.set";
+      const auditDraft = {
+        academyId,
+        actorId,
+        action,
+        targetRef: studentRef.path,
+        purpose: "member-record-maintenance",
+        correlationId: receiptId,
+      } as AuditEventDraft;
+      const auditEventId = requiredIdentifier(generateAuditId(), "generated audit ID");
+      return dependencies.firestore.runTransaction(async (transaction) => {
+        await assertProvisionedActor(transaction, dependencies, command.actor);
+        const receiptSnapshot = await transaction.get(receiptRef);
+        const studentSnapshot = await transaction.get(studentRef);
+        // Replays validate the original audit and binding, but never reapply an older mutation.
+        if (receiptSnapshot.exists) {
+          const receipt = writeReceiptSchema.safeParse(receiptSnapshot.data());
+          if (
+            !receipt.success ||
+            receipt.data.receiptId !== receiptId ||
+            receipt.data.academyId !== academyId ||
+            receipt.data.actorId !== actorId ||
+            receipt.data.studentId !== studentId ||
+            !constantTimeMacEquals(receipt.data.requestMac, expectedMac)
+          ) {
+            throw new CanonicalMemberDirectoryError("replay", "Divergent member review replay");
+          }
+          const audit = await transaction.get(
+            dependencies.firestore.doc(auditPath(academyId, receipt.data.auditEventId)),
+          );
+          if (
+            !studentSnapshot.exists ||
+            studentSnapshot.data()?.academyId !== academyId ||
+            studentSnapshot.data()?.studentId !== studentId ||
+            !matchesAuditEventReplay(audit.data(), receipt.data.auditEventId, auditDraft)
+          ) {
+            throw new CanonicalMemberDirectoryError(
+              "replay",
+              "Completed member review is unavailable",
+            );
+          }
+          return { studentId };
+        }
+        const student = parseStudentProfileAt(studentSnapshot.data(), now.slice(0, 10));
+        if (
+          !student.ok ||
+          student.value.academyId !== academyId ||
+          student.value.studentId !== studentId
+        ) {
+          throw new CanonicalMemberDirectoryError("invalid", "Member is unavailable");
+        }
+        const stateRef = dependencies.firestore.doc(statePath(academyId));
+        const guardRef = dependencies.firestore.doc(guardPath(academyId));
+        const [stateSnapshot, guardSnapshot] = await Promise.all([
+          transaction.get(stateRef),
+          transaction.get(guardRef),
+        ]);
+        const state = assertCanonicalMemberDirectoryWriterReady(
+          documentData(stateSnapshot, "Member directory state"),
+          {
+            academyId,
+            digestVersion: "hmac-sha256-v1",
+            secretVersion: dependencies.identitySecretVersion,
+          },
+        );
+        const guard = memberDirectoryRestoreGuardSchema.safeParse(guardSnapshot.data());
+        if (!guard.success)
+          throw new CanonicalMemberDirectoryError(
+            "unavailable",
+            "Member directory restore guard is unavailable",
+          );
+        const event = await transaction.get(
+          dependencies.firestore.doc(guardEventPath(academyId, guard.data.lastEventId)),
+        );
+        const currentControl = assertMemberDirectoryControlPlane({
+          projectId: dependencies.projectId,
+          state,
+          guard: guard.data,
+          event: documentData(event, "Member directory guard event"),
+          integritySecretMaterial: dependencies.integritySecretMaterial,
+          integritySecretVersion: dependencies.integritySecretVersion,
+        });
+        let nextStudent: StudentProfile;
+        let family: FamilyRecord | undefined;
+        let familyRef: MemberDirectoryDocumentReference | undefined;
+        if (input.kind === "assign-guardian") {
+          if (
+            student.value.guardianStatus !== "pending" ||
+            student.value.participantType !== "minor" ||
+            student.value.dateOfBirth === undefined ||
+            student.value.familyId !== undefined
+          ) {
+            throw new CanonicalMemberDirectoryError(
+              "conflict",
+              "Member does not need an office guardian",
+            );
+          }
+          const familyId = `office-${studentId}`;
+          familyRef = dependencies.firestore.doc(familyPath(academyId, familyId));
+          if ((await transaction.get(familyRef)).exists)
+            throw new CanonicalMemberDirectoryError("conflict", "Office family already exists");
+          const parsedFamily = parseFamilyRecord({
+            familyId,
+            academyId,
+            primaryContactUserId: null,
+            billingContactUserId: null,
+            guardianContact: input.guardianContact,
+            active: true,
+            status: "active",
+            schemaVersion: "1",
+            createdAt: now,
+            createdBy: actorId,
+            updatedAt: now,
+            updatedBy: actorId,
+          });
+          if (!parsedFamily.ok)
+            throw new CanonicalMemberDirectoryError("invalid", "Invalid guardian contact");
+          family = parsedFamily.value;
+          nextStudent = {
+            ...student.value,
+            familyId,
+            guardianStatus: "assigned",
+            updatedAt: now,
+            updatedBy: actorId,
+          };
+        } else {
+          const base = { ...student.value };
+          const previousGuardian = base.guardianStatus;
+          delete base.reviewReason;
+          delete base.guardianStatus;
+          const participantType = deriveParticipantType(input.dateOfBirth, now.slice(0, 10));
+          nextStudent = {
+            ...base,
+            dateOfBirth: input.dateOfBirth,
+            participantType,
+            ...(participantType === "minor" &&
+            (previousGuardian !== undefined || student.value.familyId === undefined)
+              ? {
+                  guardianStatus:
+                    previousGuardian === "assigned" ? ("assigned" as const) : ("pending" as const),
+                }
+              : {}),
+            updatedAt: now,
+            updatedBy: actorId,
+          };
+        }
+        if (!parseStudentProfileAt(nextStudent, now.slice(0, 10)).ok)
+          throw new CanonicalMemberDirectoryError("invalid", "Invalid reviewed student");
+        const nextState = {
+          ...state,
+          stateRevision: state.stateRevision + 1,
+          updatedAt: now,
+          updatedBy: actorId,
+        };
+        const nextControl = advanceMemberDirectoryControlPlane({
+          projectId: dependencies.projectId,
+          state: currentControl.state,
+          guard: currentControl.guard,
+          event: currentControl.event,
+          nextState,
+          operationId: receiptId,
+          transitionKind: "canonical-identity-update",
+          integritySecretMaterial: dependencies.integritySecretMaterial,
+          integritySecretVersion: dependencies.integritySecretVersion,
+          now,
+          actorId,
+        });
+        const receipt = writeReceiptSchema.parse({
+          receiptId,
+          academyId,
+          actorId,
+          requestMac: expectedMac,
+          studentId,
+          auditEventId,
+          stateRevisionBefore: state.stateRevision,
+          stateRevisionAfter: nextState.stateRevision,
+          status: "completed",
+          createdAt: now,
+          schemaVersion: "1",
+        });
+        transaction.set(studentRef, nextStudent);
+        if (familyRef && family) transaction.create(familyRef, family);
+        transaction.set(stateRef, nextState);
+        transaction.set(guardRef, nextControl.guard);
+        transaction.create(
+          dependencies.firestore.doc(guardEventPath(academyId, nextControl.event.eventId)),
+          nextControl.event,
+        );
+        appendAuditEventInTransaction(
+          transaction,
+          dependencies.firestore.doc(auditPath(academyId, auditEventId)),
+          auditDraft,
+        );
+        transaction.create(receiptRef, receipt);
+        return { studentId };
+      });
+    },
     async registerLegacyMember(command: LegacyMemberRegistrationCommand) {
       if (command.recordId !== undefined && !/^[0-9]{1,12}$/u.test(command.recordId))
         throw new CanonicalMemberDirectoryError("invalid", "Invalid imported record ID");

@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { adminCreateStudentInputShape } from "../members/member-directory-contracts";
 import type { ValidationIssue } from "../errors";
 import { memberGenders, type MemberGender } from "../members/member-contracts";
 import type {
@@ -7,6 +9,17 @@ import type {
   UserProfile,
 } from "../profiles/profile-contracts";
 import { err, ok, type Result } from "../result";
+
+export const guardianContactSchema = z
+  .strictObject({
+    fullName: adminCreateStudentInputShape.fullName,
+    phoneNumber: adminCreateStudentInputShape.phoneNumber,
+    email: adminCreateStudentInputShape.email,
+  })
+  .refine((contact) => contact.phoneNumber !== undefined || contact.email !== undefined, {
+    message: "A phone number or email is required",
+  });
+export type GuardianContact = z.infer<typeof guardianContactSchema>;
 
 export const familyStatuses = Object.freeze(["active", "inactive"] as const);
 export type FamilyStatus = (typeof familyStatuses)[number];
@@ -34,6 +47,7 @@ export type FamilyRecord = Readonly<{
   familyId: string;
   academyId: string;
   /** Null contacts identify an office-managed billing account without online access. */
+  guardianContact?: GuardianContact;
   primaryContactUserId: string | null;
   billingContactUserId: string | null;
 }> &
@@ -291,8 +305,17 @@ export function parseFamilyRecord(
 ): Result<FamilyRecord, readonly ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   if (!isPlainRecord(value)) return err([issue([], "invalid_type")]);
-  if (!hasExactFields(value, familyFields)) issues.push(issue([], "unexpected_property"));
+  if (!hasExactFields(value, familyFields, ["guardianContact"]))
+    issues.push(issue([], "unexpected_property"));
   validateIds(value, ["familyId", "academyId"], issues);
+  if (
+    value.guardianContact !== undefined &&
+    (value.primaryContactUserId !== null ||
+      value.billingContactUserId !== null ||
+      !guardianContactSchema.safeParse(value.guardianContact).success)
+  ) {
+    issues.push(issue(["guardianContact"], "invalid_guardian_contact"));
+  }
   if (value.primaryContactUserId !== null || value.billingContactUserId !== null) {
     validateIds(value, ["primaryContactUserId", "billingContactUserId"], issues);
   }

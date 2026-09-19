@@ -126,7 +126,7 @@ describe("member migration service", () => {
     expect(writer.registerLegacyMember).not.toHaveBeenCalled();
   });
 
-  it("defers minors and members without a date of birth", async () => {
+  it("registers minors and members without a date of birth", async () => {
     const minor = {
       ...adult,
       memberId: "m2",
@@ -156,10 +156,7 @@ describe("member migration service", () => {
         },
       ],
     });
-    expect(result.results.map((entry) => entry.status === "rejected" && entry.code)).toEqual([
-      "minor-deferred",
-      "minor-deferred",
-    ]);
+    expect(result.results.map((entry) => entry.status)).toEqual(["applied", "applied"]);
   });
 
   it("keeps going after a rejected decision and maps writer errors to safe codes", async () => {
@@ -297,4 +294,47 @@ describe("member migration service", () => {
     expect(writer.registerLegacyMember).not.toHaveBeenCalled();
     expect(writer.skipLegacyMember).not.toHaveBeenCalled();
   });
+});
+
+it.each(["link", "create-unlinked"] as const)(
+  "recovers a missing birth date from a strong match for %s",
+  async (kind) => {
+    const missing = { ...adult };
+    delete missing.birthDate;
+    const { service, writer } = harness({
+      members: [missing],
+      records: [{ ...archive, birthDate: "2015-01-01" }],
+    });
+    await service.decide(actor, {
+      decisions: [
+        {
+          kind,
+          legacyMemberId: "m1",
+          ...(kind === "link" ? { recordId: "10" } : {}),
+          requestId: crypto.randomUUID(),
+          ...training,
+        },
+      ],
+    });
+    expect(writer.registerLegacyMember).toHaveBeenCalledWith(
+      expect.objectContaining({ value: expect.objectContaining({ dateOfBirth: "2015-01-01" }) }),
+    );
+  },
+);
+it("keeps the member's own date when a linked strong record disagrees", async () => {
+  const { service, writer } = harness({ records: [{ ...archive, birthDate: "2015-01-01" }] });
+  await service.decide(actor, {
+    decisions: [
+      {
+        kind: "link",
+        legacyMemberId: "m1",
+        recordId: "10",
+        requestId: crypto.randomUUID(),
+        ...training,
+      },
+    ],
+  });
+  expect(writer.registerLegacyMember).toHaveBeenCalledWith(
+    expect.objectContaining({ value: expect.objectContaining({ dateOfBirth: adult.birthDate }) }),
+  );
 });

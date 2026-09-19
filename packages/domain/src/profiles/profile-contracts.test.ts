@@ -176,3 +176,41 @@ describe("profile contracts", () => {
     expect(parseStudentProfile(hidden).ok).toBe(false);
   });
 });
+
+describe("migration review flags", () => {
+  it("allows an absent date only with Check age and conservative minor type", () => {
+    const base = Object.fromEntries(
+      Object.entries(studentProfile).filter(([key]) => key !== "dateOfBirth" && key !== "userId"),
+    );
+    const missing = { ...base, participantType: "minor", reviewReason: "date-of-birth-missing" };
+    expect(parseStudentProfileAt(missing, "2026-09-19").ok).toBe(true);
+    expect(parseStudentProfileAt({ ...base, participantType: "minor" }, "2026-09-19").ok).toBe(
+      false,
+    );
+    expect(parseStudentProfileAt({ ...missing, participantType: "adult" }, "2026-09-19").ok).toBe(
+      false,
+    );
+    expect(parseStudentProfileAt({ ...missing, dateOfBirth: "2012-01-01" }, "2026-09-19").ok).toBe(
+      false,
+    );
+    expect(parseStudentProfileAt({ ...missing, userId: "user-1" }, "2026-09-19").ok).toBe(false);
+  });
+  it("accepts pending minors, but assigned requires a family", () => {
+    const minor = {
+      ...studentProfile,
+      dateOfBirth: "2012-01-01",
+      participantType: "minor",
+      guardianStatus: "pending",
+    };
+    expect(parseStudentProfileAt(minor, "2026-09-19").ok).toBe(true);
+    expect(parseStudentProfileAt({ ...minor, guardianStatus: "assigned" }, "2026-09-19").ok).toBe(
+      false,
+    );
+    expect(
+      parseStudentProfileAt(
+        { ...minor, guardianStatus: "assigned", familyId: "office-1" },
+        "2026-09-19",
+      ).ok,
+    ).toBe(true);
+  });
+});

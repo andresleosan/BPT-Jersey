@@ -1,3 +1,8 @@
+import {
+  assignMemberGuardianInputSchema,
+  setMemberDateOfBirthInputSchema,
+} from "@bpt-jersey/domain/members/migration";
+import { CanonicalMemberDirectoryError } from "./canonical-member-directory-service.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
@@ -83,5 +88,64 @@ export const decideMemberMigration = onCall(
     const { services, migration } = productionService();
     const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
     return decideMemberMigrationHandler(actor, request.data, migration);
+  },
+);
+
+export async function reviewMemberHandler(
+  actor: CanonicalMemberDirectoryActor,
+  data: unknown,
+  kind: "assign-guardian" | "set-date-of-birth",
+  writer: Pick<OfficeMemberDirectoryService, "reviewMember">,
+  now: string,
+) {
+  requireOffice(actor);
+  const schema =
+    kind === "assign-guardian" ? assignMemberGuardianInputSchema : setMemberDateOfBirthInputSchema;
+  const parsed = schema.safeParse(data);
+  if (!parsed.success)
+    throw new HttpsError("invalid-argument", "Check the review details and try again.");
+  try {
+    return await writer.reviewMember({ actor, value: { ...parsed.data, kind }, now });
+  } catch (error) {
+    if (error instanceof CanonicalMemberDirectoryError) {
+      const code =
+        error.code === "unauthorized"
+          ? "permission-denied"
+          : error.code === "invalid"
+            ? "invalid-argument"
+            : "failed-precondition";
+      throw new HttpsError(code, "Could not save this review. Refresh the member and try again.");
+    }
+    throw new HttpsError("internal", "Could not save this review. Please try again.");
+  }
+}
+
+export const assignMemberGuardian = onCall(
+  { ...browserAdminCallableOptions, secrets },
+  async (request) => {
+    const services = defaultMemberDirectoryCallableServices();
+    const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
+    return reviewMemberHandler(
+      actor,
+      request.data,
+      "assign-guardian",
+      services.writer as OfficeMemberDirectoryService,
+      services.now(),
+    );
+  },
+);
+
+export const setMemberDateOfBirth = onCall(
+  { ...browserAdminCallableOptions, secrets },
+  async (request) => {
+    const services = defaultMemberDirectoryCallableServices();
+    const actor = await requireCanonicalMemberDirectoryActor(request, services.isActorActive);
+    return reviewMemberHandler(
+      actor,
+      request.data,
+      "set-date-of-birth",
+      services.writer as OfficeMemberDirectoryService,
+      services.now(),
+    );
   },
 );

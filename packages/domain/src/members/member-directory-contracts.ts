@@ -6,6 +6,8 @@ import { memberGenders } from "./member-contracts";
 import {
   deriveParticipantType,
   participantTypes,
+  studentReviewFields,
+  type StudentReview,
   trainingCenters,
   trainingTimePreferences,
 } from "../profiles/profile-contracts";
@@ -406,6 +408,7 @@ export const memberDirectoryStateSchema = z
 export type MemberDirectoryState = Readonly<z.infer<typeof memberDirectoryStateSchema>>;
 
 const studentDirectoryShape = {
+  ...studentReviewFields,
   studentId: opaqueIdentifierSchema,
   fullName: canonicalText(160),
   trainingCenter: z.enum(trainingCenters),
@@ -436,7 +439,7 @@ export type MemberNameRow = Readonly<z.infer<typeof memberNameRowSchema>>;
 
 export const memberRecordMaintenanceDetailSchema = z.strictObject({
   ...studentDirectoryShape,
-  dateOfBirth: dateOnlySchema,
+  dateOfBirth: dateOnlySchema.optional(),
   phoneNumber: canonicalText(64).optional(),
   email: z.string().email().max(320).refine(isCanonicalText).optional(),
   trainingTimePreferences: z.array(z.enum(trainingTimePreferences)).max(3).readonly(),
@@ -454,19 +457,20 @@ export type MemberRecordMaintenanceDetail = Readonly<
   z.infer<typeof memberRecordMaintenanceDetailSchema>
 >;
 
-export type StudentDirectorySource = Readonly<{
-  studentId: string;
-  academyId: string;
-  fullName: string;
-  dateOfBirth: string;
-  phoneNumber?: string;
-  email?: string;
-  trainingCenter: (typeof trainingCenters)[number];
-  trainingTimePreferences: readonly (typeof trainingTimePreferences)[number][];
-  participantType: (typeof participantTypes)[number];
-  active: boolean;
-  status: (typeof profileStatuses)[number];
-}>;
+export type StudentDirectorySource = StudentReview &
+  Readonly<{
+    studentId: string;
+    academyId: string;
+    fullName: string;
+    dateOfBirth?: string;
+    phoneNumber?: string;
+    email?: string;
+    trainingCenter: (typeof trainingCenters)[number];
+    trainingTimePreferences: readonly (typeof trainingTimePreferences)[number][];
+    participantType: (typeof participantTypes)[number];
+    active: boolean;
+    status: (typeof profileStatuses)[number];
+  }>;
 
 export function normalizeAdministrativeIdentifier(value: string): string {
   return value.normalize("NFKC").trim().toUpperCase();
@@ -682,6 +686,8 @@ export function toAdminDirectoryRow(
     fullName: student.fullName,
     trainingCenter: student.trainingCenter,
     participantType: student.participantType,
+    ...(student.guardianStatus === undefined ? {} : { guardianStatus: student.guardianStatus }),
+    ...(student.reviewReason === undefined ? {} : { reviewReason: student.reviewReason }),
     active: student.active,
     status: student.status,
     ...(membershipReference === undefined ? {} : { membershipReference }),
@@ -696,12 +702,14 @@ export function toMemberRecordMaintenanceDetail(
   return Object.freeze({
     studentId: student.studentId,
     fullName: student.fullName,
-    dateOfBirth: student.dateOfBirth,
+    ...(student.dateOfBirth === undefined ? {} : { dateOfBirth: student.dateOfBirth }),
     ...(student.phoneNumber === undefined ? {} : { phoneNumber: student.phoneNumber }),
     ...(student.email === undefined ? {} : { email: student.email }),
     trainingCenter: student.trainingCenter,
     trainingTimePreferences: Object.freeze([...student.trainingTimePreferences]),
     participantType: student.participantType,
+    ...(student.guardianStatus === undefined ? {} : { guardianStatus: student.guardianStatus }),
+    ...(student.reviewReason === undefined ? {} : { reviewReason: student.reviewReason }),
     active: student.active,
     status: student.status,
     ...(profile.membershipNumber === undefined

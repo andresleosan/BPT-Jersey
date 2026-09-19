@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 
@@ -33,21 +34,29 @@ export type UserProfile = Readonly<{
 }> &
   ProfileAuditFields;
 
-export type StudentProfile = Readonly<{
-  studentId: string;
-  academyId: string;
-  familyId?: string;
-  userId?: string;
-  fullName: string;
-  dateOfBirth: string;
-  phoneNumber?: string;
-  email?: string;
-  trainingCenter: TrainingCenter;
-  trainingTimePreferences: readonly TrainingTimePreference[];
-  participantType: ParticipantType;
-  /** Profile photo, https only; written by account settings (T044V2), read by the competitor card. */
-  photoUrl?: string;
-}> &
+export const studentReviewFields = {
+  guardianStatus: z.enum(["pending", "assigned"]).optional(),
+  reviewReason: z.literal("date-of-birth-missing").optional(),
+};
+export const studentReviewSchema = z.strictObject(studentReviewFields);
+export type StudentReview = z.infer<typeof studentReviewSchema>;
+
+export type StudentProfile = StudentReview &
+  Readonly<{
+    studentId: string;
+    academyId: string;
+    familyId?: string;
+    userId?: string;
+    fullName: string;
+    dateOfBirth?: string;
+    phoneNumber?: string;
+    email?: string;
+    trainingCenter: TrainingCenter;
+    trainingTimePreferences: readonly TrainingTimePreference[];
+    participantType: ParticipantType;
+    /** Profile photo, https only; written by account settings (T044V2), read by the competitor card. */
+    photoUrl?: string;
+  }> &
   ProfileAuditFields;
 
 export type ClientProfileProjection = Readonly<{
@@ -84,6 +93,8 @@ const studentProfileFields = Object.freeze([
   "trainingTimePreferences",
   "participantType",
   "photoUrl",
+  "guardianStatus",
+  "reviewReason",
   "active",
   "status",
   "schemaVersion",
@@ -94,7 +105,17 @@ const studentProfileFields = Object.freeze([
 ] as const);
 const studentRequiredProfileFields = Object.freeze(
   studentProfileFields.filter(
-    (field) => !["familyId", "userId", "phoneNumber", "email", "photoUrl"].includes(field),
+    (field) =>
+      ![
+        "familyId",
+        "userId",
+        "phoneNumber",
+        "email",
+        "photoUrl",
+        "dateOfBirth",
+        "guardianStatus",
+        "reviewReason",
+      ].includes(field),
   ),
 );
 
@@ -265,6 +286,9 @@ export function parseStudentProfileAt(
     "phoneNumber",
     "email",
     "photoUrl",
+    "dateOfBirth",
+    "guardianStatus",
+    "reviewReason",
   ]);
   if (!isNonEmptyText(value.fullName, 160)) issues.push(issue(["fullName"], "invalid_text"));
   const invalidDateOfBirth =
@@ -272,8 +296,26 @@ export function parseStudentProfileAt(
     !dateOnlyPattern.test(value.dateOfBirth) ||
     !isValidCalendarDate(value.dateOfBirth) ||
     value.dateOfBirth > effectiveDate;
-  if (invalidDateOfBirth) {
+  const missingDate =
+    value.dateOfBirth === undefined && value.reviewReason === "date-of-birth-missing";
+  if (invalidDateOfBirth && !missingDate) {
     issues.push(issue(["dateOfBirth"], "invalid_date"));
+  }
+  if (
+    !studentReviewSchema.safeParse({
+      guardianStatus: value.guardianStatus,
+      reviewReason: value.reviewReason,
+    }).success ||
+    (value.reviewReason !== undefined &&
+      (!missingDate ||
+        value.participantType !== "minor" ||
+        value.userId !== undefined ||
+        value.guardianStatus !== undefined)) ||
+    (value.guardianStatus !== undefined &&
+      (value.participantType !== "minor" || invalidDateOfBirth)) ||
+    (value.guardianStatus === "assigned" && value.familyId === undefined)
+  ) {
+    issues.push(issue(["reviewReason"], "invalid_review_state"));
   }
   parseOptionalText(value, "familyId", 128, issues);
   parseOptionalText(value, "userId", 128, issues);
