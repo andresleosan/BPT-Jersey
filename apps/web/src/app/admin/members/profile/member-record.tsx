@@ -1,5 +1,7 @@
 "use client";
 
+import { MemberReviewActions } from "../member-review";
+
 import Link from "next/link";
 import {
   useCallback,
@@ -109,7 +111,11 @@ function RecordHeader({
         </div>
         <div>
           <dt>Type</dt>
-          <dd>{participantTypeLabel(header.participantType)}</dd>
+          <dd>
+            {header.reviewReason === "date-of-birth-missing"
+              ? "Age unknown"
+              : participantTypeLabel(header.participantType)}
+          </dd>
         </div>
         <div>
           <dt>Status</dt>
@@ -384,6 +390,12 @@ export function MemberRecord() {
       {load.status === "ready" ? (
         <>
           <RecordHeader header={load.profile.header} headingRef={headingRef} />
+          {office ? (
+            <MemberReviewActions
+              {...load.profile.header}
+              onSaved={() => setAttempt((current) => current + 1)}
+            />
+          ) : null}
           <div
             aria-label="Member record sections"
             className="admin-member-profile-tabs member-record-tabs"

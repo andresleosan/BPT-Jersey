@@ -4812,3 +4812,36 @@ a.admin-birthday-badge:focus-visible,
     transition: none;
   }
 }
+
+.member-review-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #721626;
+  font-weight: 600;
+  border-left: 0.3rem solid #8d1c2f;
+  padding: 0.25rem 0.5rem;
+  background: #fff0f2;
+}
+.member-review-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #8d1c2f;
+}
+.member-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.member-review-dialog {
+  width: min(32rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.member-review-dialog input {
+  width: 100%;
+}

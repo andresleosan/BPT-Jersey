@@ -12,6 +12,7 @@ import {
   listMemberMigrationQueue,
   memberMigrationErrorMessage,
 } from "../../../../lib/member-migration-client";
+import { MemberReviewBadge } from "../member-review";
 import { AdminDataTableWrap } from "../../admin-data-table";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
 
@@ -402,7 +403,8 @@ export function MigrationQueue() {
               ) : null}
               {tab === "minors" ? (
                 <p className="member-record-hint">
-                  Members under 18 or without a date of birth wait for the guardian step.
+                  Create these members now, then review their guardian or date of birth from the
+                  member record.
                 </p>
               ) : null}
               {rows.length === 0 ? (
@@ -450,7 +452,7 @@ export function MigrationQueue() {
                                             : "Name and birth date match"
                                       }
                                     />
-                                    {row.isMinor === false ? (
+                                    {
                                       <button
                                         type="button"
                                         className="member-record-button"
@@ -459,7 +461,7 @@ export function MigrationQueue() {
                                       >
                                         Link to this record
                                       </button>
-                                    ) : null}
+                                    }
                                   </div>
                                 ))
                               )}
@@ -467,28 +469,31 @@ export function MigrationQueue() {
                           </td>
                           <td data-label="Decision">
                             <div className="member-migration-actions">
-                              {row.isMinor !== false ? (
-                                <AdminStatusBadge status="Pending guardian" />
-                              ) : (
-                                <>
-                                  <button
-                                    type="button"
-                                    className="member-record-button"
-                                    disabled={disabled || !canEnrol}
-                                    onClick={() => enrol(row)}
-                                  >
-                                    Create without archive record
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="member-record-button"
-                                    disabled={disabled}
-                                    onClick={() => setSkipRow(row)}
-                                  >
-                                    Skip…
-                                  </button>
-                                </>
-                              )}
+                              <MemberReviewBadge
+                                {...(row.isMinor === "unknown"
+                                  ? { reviewReason: "date-of-birth-missing" as const }
+                                  : row.isMinor
+                                    ? { guardianStatus: "pending" as const }
+                                    : {})}
+                              />
+                              <>
+                                <button
+                                  type="button"
+                                  className="member-record-button"
+                                  disabled={disabled || !canEnrol}
+                                  onClick={() => enrol(row)}
+                                >
+                                  Create without archive record
+                                </button>
+                                <button
+                                  type="button"
+                                  className="member-record-button"
+                                  disabled={disabled}
+                                  onClick={() => setSkipRow(row)}
+                                >
+                                  Skip…
+                                </button>
+                              </>
                             </div>
                           </td>
                         </tr>

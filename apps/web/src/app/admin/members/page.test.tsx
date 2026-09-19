@@ -213,3 +213,24 @@ describe("members landing page", () => {
     expect(screen.queryByRole("button", { name: "Next page" })).not.toBeInTheDocument();
   });
 });
+
+it("shows guardian and age reviews with a page-scoped count", async () => {
+  clientMocks.listMembers.mockResolvedValue({
+    rows: [
+      { ...member, guardianStatus: "pending", participantType: "minor" },
+      {
+        ...member,
+        studentId: "student-2",
+        fullName: "Synthetic Unknown Age",
+        reviewReason: "date-of-birth-missing",
+        participantType: "minor",
+      },
+    ],
+  });
+  render(<MembersPage />);
+  expect(await screen.findByText("Guardian required")).toBeVisible();
+  expect(screen.getByText("Check age")).toBeVisible();
+  expect(screen.getByText("Pending reviews on this page: 2")).toBeVisible();
+  expect(screen.getByText("Age unknown")).toBeVisible();
+  cleanup();
+});
