@@ -4,7 +4,7 @@ Luis: esta guía prepara el informe, publica las dos funciones y la web, y verif
 Son 27 pasos de operación y 8 de vuelta atrás opcional. Necesitas una terminal SSH del VPS como `root`, acceso de administrador, el gate local aprobado y tu PAT para publicar `main`.
 Los comandos de producción los ejecuta únicamente el operador después de su confirmación explícita en el chat. Esta guía no acredita que ya se hayan ejecutado.
 
-⚠️ Estado del gate local de Task 9 (19-09-2026): **no aprobado**. La suite completa detectó cinco fallos: dos por el import de `@bpt-jersey/domain/members/migration` sin mapeo en el artefacto de funciones, dos por expectativas antiguas de navegación y uno por la lista de acciones de auditoría. No ejecutes la publicación hasta corregirlos y repetir el gate completo en verde.
+Estado del gate local (19-09-2026): **aprobado**. Tras la ronda final de correcciones y el merge local en `main`, la suite completa pasa (379 archivos, 4128 tests), igual que las reglas en Docker, la integración con emuladores, el E2E y la build web.
 
 ## Preparación e informe de solo lectura
 
@@ -224,7 +224,7 @@ Salida esperada: descarga correcta de la referencia remota. Si Git pide autentic
 git status --short --branch
 ```
 
-Salida esperada: rama `feature/member-unification-s1`, con el commit de Task 9 y sin cambios pendientes en archivos versionados. Los directorios locales `.impeccable/`, `Assets/`, `docs/audits/` y `.superpowers/` no forman parte de la publicación. No uses `git add .`. Ante otra rama o cambios versionados, detente.
+Salida esperada: rama `main` (S1 ya fusionada en local, por delante de `origin/main`) y sin cambios pendientes en archivos versionados. Los directorios locales `.impeccable/`, `Assets/`, `docs/audits/` y `.superpowers/` no forman parte de la publicación. No uses `git add .`. Ante otra rama o cambios versionados, detente.
 
 ### 17. Comprueba que main puede avanzar sin sobrescribir historia
 
