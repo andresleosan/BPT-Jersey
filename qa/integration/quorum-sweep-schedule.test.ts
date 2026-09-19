@@ -36,6 +36,65 @@ async function seed(sessionId: string, overrides: Record<string, unknown> = {}) 
 }
 
 describe.skipIf(!enabled)("scheduled quorum Firestore adapter", () => {
+  it("isolates malformed series while sweeping healthy series and existing sessions across academies", async () => {
+    const otherRoot = `academies/${academyId}-other`;
+    try {
+      await db!.doc(`${root}/sessionSeries/a-malformed`).set({ revisions: null });
+      for (const [seriesId, timezone] of [
+        ["b-invalid-zone", "Invalid/Zone"],
+        ["c-healthy", "UTC"],
+      ]) {
+        await db!.doc(`${root}/sessionSeries/${seriesId}`).set({
+          seriesId,
+          academyId,
+          timezone,
+          revisions: [
+            {
+              fromIndex: 0,
+              enabled: true,
+              template: {
+                academyId,
+                sessionId: seriesId,
+                startAt: window.to,
+                endAt: "2036-09-19T19:00:00.000Z",
+                minParticipants: 4,
+                status: "scheduled",
+              },
+            },
+          ],
+        });
+      }
+      await seed("existing");
+      await db!.doc(`${otherRoot}/sessions/under-quorum`).set({
+        academyId: `${academyId}-other`,
+        sessionId: "under-quorum",
+        startAt: window.to,
+        minParticipants: 4,
+        status: "scheduled",
+      });
+      const report = await sweepSessionQuorums(createFirestoreQuorumSweepStore(db!), now);
+      expect(report).toMatchObject({
+        cancelledSessions: 3,
+        failedSessions: 0,
+        failedMaterialisations: 2,
+      });
+      expect(report.failures).toEqual([
+        { stage: "materialise-series", code: "malformed-series", retryable: false },
+        { stage: "materialise-series", code: "malformed-series", retryable: false },
+      ]);
+      for (const path of [
+        `${root}/sessions/existing`,
+        `${root}/sessions/c-healthy`,
+        `${otherRoot}/sessions/under-quorum`,
+      ]) {
+        expect((await db!.doc(path).get()).get("status")).toBe("cancelled");
+      }
+      expect((await db!.collection(`${otherRoot}/auditEvents`).get()).size).toBe(1);
+    } finally {
+      await db!.recursiveDelete(db!.doc(otherRoot));
+    }
+  });
+
   it("materialises an unseen weekly occurrence and cancels it without changing its series", async () => {
     const series = {
       academyId,
@@ -143,14 +202,39 @@ describe.skipIf(!enabled)("scheduled quorum Firestore adapter", () => {
     await db!.recursiveDelete(db!.doc(root));
   });
 
-  it("isolates tenant mismatches while processing other sessions and preserves sessions meeting quorum", async () => {
+  it("isolates tenant mismatches while processing other sessions and preserves a positive minimum met by confirmed bookings", async () => {
     await seed("bad-tenant", { academyId: "other-academy" });
     await seed("healthy");
-    await seed("met", { minParticipants: 0 });
+    await seed("met", { minParticipants: 2 });
+    for (const bookingId of ["met-1", "met-2"]) {
+      await db!.doc(`${root}/bookings/${bookingId}`).set({
+        academyId,
+        sessionId: "met",
+        bookingId,
+        studentId: `synthetic-${bookingId}`,
+        status: "confirmed",
+      });
+    }
     const report = await sweepSessionQuorums(createFirestoreQuorumSweepStore(db!), now);
     expect(report).toMatchObject({ evaluatedSessions: 3, cancelledSessions: 1, failedSessions: 1 });
     expect((await db!.doc(`${root}/sessions/bad-tenant`).get()).get("status")).toBe("scheduled");
     expect((await db!.doc(`${root}/sessions/met`).get()).get("status")).toBe("scheduled");
+    expect((await db!.doc(`${root}/auditEvents/session-quorum-cancelled-met`).get()).exists).toBe(
+      false,
+    );
+    expect(
+      (
+        await db!
+          .collection(`${root}/auditEvents`)
+          .where("targetRef", "==", `${root}/sessions/met`)
+          .get()
+      ).empty,
+    ).toBe(true);
+    for (const bookingId of ["met-1", "met-2"]) {
+      expect((await db!.doc(`${root}/bookings/${bookingId}`).get()).get("status")).toBe(
+        "confirmed",
+      );
+    }
     expect((await db!.collection(`${root}/auditEvents`).get()).size).toBe(1);
   });
 });
