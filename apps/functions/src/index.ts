@@ -282,3 +282,4 @@ export {
   assignMemberGuardian,
   setMemberDateOfBirth,
 } from "./members/member-migration-callables.js";
+export { listMemberClassRecords } from "./schedule/member-class-records-callables.js";
