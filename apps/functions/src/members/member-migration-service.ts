@@ -52,6 +52,8 @@ const toRecordInput = (record: RegyfitMemberRecord): ArchiveRecordInput => ({
 
 function rejectionFor(error: unknown): MemberMigrationRejectionCode {
   if (!(error instanceof CanonicalMemberDirectoryError)) return "write-failed";
+  if (error.code === "invalid" && error.message === "Invalid admin student input")
+    return "invalid-member-data";
   if (error.message === legacyMigrationErrorMessages.alreadyDecided) return "already-decided";
   if (error.message === legacyMigrationErrorMessages.recordLinked) return "record-already-linked";
   if (error.message === legacyMigrationErrorMessages.adultsOnly) return "minor-deferred";

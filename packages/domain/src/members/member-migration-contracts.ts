@@ -201,6 +201,7 @@ export const memberMigrationRejectionCodes = [
   "minor-deferred",
   "record-already-linked",
   "identifier-reserved",
+  "invalid-member-data",
   "identity-changed",
   "write-failed",
 ] as const;

@@ -55,3 +55,10 @@ it("wraps decisions and validates decision results", async () => {
     "That record already belongs to another member.",
   );
 });
+
+it("explains how to resolve invalid member identifiers", async () => {
+  const result = { results: [{ legacyMemberId: "m1", status: "rejected", code: "invalid-member-data" }] };
+  mocks.callable.mockResolvedValueOnce({ data: result });
+  await expect(decideMemberMigration([{ kind: "skip", legacyMemberId: "m1", reason: "Duplicate" }])).resolves.toEqual(result);
+  expect(memberMigrationErrorMessage("invalid-member-data")).toBe("This member's ID or member number is not in a format the directory accepts. Correct the legacy record or skip.");
+});
