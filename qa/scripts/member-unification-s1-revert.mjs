@@ -45,6 +45,8 @@ export function revertPlan({
   students = [],
   families,
   relationships = [],
+  receipts = [],
+  auditEvents = [],
 }) {
   const paths = new Set();
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
@@ -88,9 +90,37 @@ export function revertPlan({
           "S1 family was linked outside the migration; manual review is required",
         );
       }
-      // Guardian assignment uses this same office family ID and the student.familyId link.
-      // There is no relationship or Auth user to delete. Keep the S1 decision until the end.
-      if (families === undefined || family) add("families", familyId);
+      // A deterministic ID is not ownership. Bind the family's creation metadata to a
+      // completed S1 creation/review receipt and its audit. These journals survive rollback,
+      // so ownership remains provable even after a partial run removed the student/profile.
+      const ownsFamily =
+        family &&
+        (!student || student.familyId === familyId) &&
+        typeof family.createdAt === "string" &&
+        typeof family.createdBy === "string" &&
+        receipts.some(
+          (receipt) =>
+            receipt.id === receipt.receiptId &&
+            receipt.status === "completed" &&
+            receipt.studentId === studentId &&
+            receipt.createdFamilyId === familyId &&
+            receipt.academyId === decision.academyId &&
+            receipt.academyId === family.academyId &&
+            receipt.createdAt === family.createdAt &&
+            receipt.actorId === family.createdBy &&
+            auditEvents.some(
+              (audit) =>
+                audit.id === receipt.auditEventId &&
+                audit.auditEventId === audit.id &&
+                audit.academyId === receipt.academyId &&
+                audit.actorId === receipt.actorId &&
+                audit.correlationId === receipt.id &&
+                audit.result === "completed" &&
+                audit.targetRef === `academies/${receipt.academyId}/students/${studentId}` &&
+                (audit.action === "member.created" || audit.action === "member.guardian.assigned"),
+            ),
+        );
+      if (ownsFamily) add("families", familyId);
       for (const key of identityKeys) {
         if (key.ownerStudentId === studentId) add("studentIdentityKeys", key.id);
       }
@@ -105,21 +135,32 @@ export function revertPlan({
 
 export async function runRevert(firestore, root, apply) {
   const loadPlan = async () => {
-    const [decisions, identityKeys, officeLinks, profiles, students, families, relationships] =
-      await Promise.all(
-        [
-          "memberMigrationDecisions",
-          "studentIdentityKeys",
-          "regyfitOfficeLinks",
-          "studentAdminProfiles",
-          "students",
-          "families",
-          "relationships",
-        ].map(async (name) => {
-          const snapshot = await firestore.collection(`${root}/${name}`).get();
-          return snapshot.docs.map((document) => ({ ...document.data(), id: document.id }));
-        }),
-      );
+    const [
+      decisions,
+      identityKeys,
+      officeLinks,
+      profiles,
+      students,
+      families,
+      relationships,
+      receipts,
+      auditEvents,
+    ] = await Promise.all(
+      [
+        "memberMigrationDecisions",
+        "studentIdentityKeys",
+        "regyfitOfficeLinks",
+        "studentAdminProfiles",
+        "students",
+        "families",
+        "relationships",
+        "memberDirectoryWriteReceipts",
+        "auditEvents",
+      ].map(async (name) => {
+        const snapshot = await firestore.collection(`${root}/${name}`).get();
+        return snapshot.docs.map((document) => ({ ...document.data(), id: document.id }));
+      }),
+    );
     return revertPlan({
       decisions,
       identityKeys,
@@ -128,6 +169,8 @@ export async function runRevert(firestore, root, apply) {
       students,
       families,
       relationships,
+      receipts,
+      auditEvents,
     });
   };
   const printCounts = (paths, prefix = "") => {

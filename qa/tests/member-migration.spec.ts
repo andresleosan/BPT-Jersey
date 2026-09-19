@@ -233,6 +233,35 @@ test("member migration queue: counters, batch links, required skip reason and re
   await expect(page.getByRole("tab", { name: "No match (0)", exact: true })).toBeVisible();
   await capture("empty");
 
+  await page.getByRole("tab", { name: "Under 18 / no date (2)", exact: true }).click();
+  await page.getByRole("button", { name: "Link to this record", exact: true }).first().click();
+  await expect(
+    page.getByRole("tab", { name: "Under 18 / no date (1)", exact: true }),
+  ).toBeVisible();
+  expect(decisions.at(-1)).toEqual([
+    {
+      kind: "link",
+      legacyMemberId: "m15",
+      recordId: "15",
+      requestId,
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+    },
+  ]);
+  await page.getByRole("button", { name: "Create without archive record", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "Under 18 / no date (0)", exact: true }),
+  ).toBeVisible();
+  expect(decisions.at(-1)).toEqual([
+    {
+      kind: "create-unlinked",
+      legacyMemberId: "m16",
+      requestId,
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+    },
+  ]);
+
   mode = "error";
   await page.reload();
   await expect(

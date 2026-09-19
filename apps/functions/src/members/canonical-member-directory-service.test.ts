@@ -1239,6 +1239,23 @@ describe("S1 admin review", () => {
     });
     return { harness, writer };
   }
+  it.each(["1990-01-01", "2012-01-01"])(
+    "journals the office family only in the receipt that creates it for DOB %s",
+    async (dateOfBirth) => {
+      const { harness, writer } = await migrated(dateOfBirth);
+      const receipts = () =>
+        [...harness.records.entries()]
+          .filter(([path]) => path.includes("/memberDirectoryWriteReceipts/"))
+          .map(([, record]) => record);
+      if (dateOfBirth === "2012-01-01") {
+        expect(receipts().every((receipt) => receipt.createdFamilyId === undefined)).toBe(true);
+        await writer.reviewMember({ actor: actor(), now, value: assign });
+      }
+      expect(
+        receipts().filter((receipt) => receipt.createdFamilyId === "office-student-new-1"),
+      ).toHaveLength(1);
+    },
+  );
   it("assigns an office contact atomically and replays without duplicate writes or PII in audit", async () => {
     const { harness, writer } = await migrated();
     const command = { actor: actor(), now, value: assign };
@@ -1347,6 +1364,47 @@ describe("S1 admin review", () => {
       expect(harness.records).toEqual(before);
     },
   );
+  it.each(["review", "editor"] as const)(
+    "marks adult-to-minor correction pending via %s and completes the existing office family",
+    async (path) => {
+      const { harness, writer } = await migrated("1990-01-01");
+      const originalFamily = harness.records.get(familyPath);
+      const value = {
+        studentId: assign.studentId,
+        requestId: "91cbb1aa-7020-4bb5-88a4-dbc73c5f0123",
+        dateOfBirth: "2012-01-01",
+      };
+      if (path === "review") {
+        await writer.reviewMember({
+          actor: actor(),
+          now,
+          value: { ...value, kind: "set-date-of-birth" },
+        });
+      } else {
+        await writer.updateAdminMember({
+          actor: actor(),
+          now,
+          value: { ...updateInput(), ...value },
+        });
+      }
+      expect(harness.records.get(studentPath)).toMatchObject({
+        participantType: "minor",
+        guardianStatus: "pending",
+        familyId: "office-student-new-1",
+      });
+      const command = { actor: actor(), now, value: assign };
+      await writer.reviewMember(command);
+      expect(harness.records.get(familyPath)).toEqual({
+        ...originalFamily,
+        guardianContact: guardian,
+      });
+      expect(harness.records.get(studentPath)).toMatchObject({ guardianStatus: "assigned" });
+      const before = new Map(harness.records);
+      await writer.reviewMember(command);
+      expect(harness.records).toEqual(before);
+    },
+  );
+
   it("rejects invalid contacts, tenant overrides and future dates", async () => {
     const { harness, writer } = await migrated();
     const before = new Map(harness.records);

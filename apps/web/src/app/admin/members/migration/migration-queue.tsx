@@ -222,7 +222,7 @@ export function MigrationQueue() {
   }
 
   function enrol(row: Row, recordId?: string) {
-    if (!canEnrol || row.isMinor !== false) return;
+    if (!canEnrol) return;
     const training = {
       legacyMemberId: row.legacyMemberId,
       requestId: crypto.randomUUID(),

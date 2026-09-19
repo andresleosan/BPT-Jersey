@@ -12,6 +12,7 @@ export declare function revertPlan(docs: {
     migrationId?: string;
     kind?: string;
     studentId?: string;
+    academyId?: string;
   }[];
   profiles: readonly {
     id: string;
@@ -26,7 +27,12 @@ export declare function revertPlan(docs: {
     primaryContactUserId?: string | null;
     billingContactUserId?: string | null;
     guardianContact?: unknown;
+    academyId?: string;
+    createdAt?: string;
+    createdBy?: string;
   }[];
+  receipts?: readonly Record<string, unknown>[];
+  auditEvents?: readonly Record<string, unknown>[];
   relationships?: readonly { studentId?: string; familyId?: string }[];
   identityKeys: readonly { id: string; ownerStudentId?: string }[];
   officeLinks: readonly { id: string; studentId?: string }[];
