@@ -315,3 +315,78 @@ it("settles an existing Billing invoice without an office link and exposes the a
     payments: [expect.objectContaining({ reference: "CASH-1" })],
   });
 });
+
+it("distinguishes an absent student from an existing student without a billing family", async () => {
+  const h = harness();
+  delete h.records.get(base + "students/student-1")!.familyId;
+  expect(await listSubscriptionBilling(h.db, actor.academyId, "student-1")).toEqual([]);
+  await expect(listSubscriptionBilling(h.db, actor.academyId, "missing")).rejects.toMatchObject({
+    code: "not-found",
+  });
+});
+
+it("excludes imported memberships, invoices and receipts before parsing and current selection", async () => {
+  const h = harness();
+  const saved = await saveManualSubscription(h.db, actor, input(paid));
+  h.records.delete(base + "membershipAdministration/" + saved.membershipId);
+  h.records.set(base + "memberships/imported", { studentId: "student-1", source: "legacy-import" });
+  h.records.set(base + "invoices/imported", {
+    membershipId: saved.membershipId,
+    source: "legacy-import",
+  });
+  const invoice = [...h.records].find(([path]) => path.includes("/invoices/manual-"))!;
+  h.records.set(base + "payments/imported", {
+    invoiceId: invoice[1].invoiceId,
+    source: "legacy-import",
+  });
+  h.records.set(base + "invoices/sibling", { membershipId: "sibling-membership", status: "open" });
+  h.records.set(base + "payments/sibling", { invoiceId: "sibling", amountMinor: 9999 });
+  const before = new Map(h.records);
+  const billing = await listSubscriptionBilling(h.db, actor.academyId, "student-1");
+  expect(billing).toHaveLength(1);
+  expect(billing[0]).toMatchObject({
+    membershipId: saved.membershipId,
+    currentInvoiceId: invoice[1].invoiceId,
+  });
+  expect(billing[0]!.invoices).toHaveLength(1);
+  expect(billing[0]!.invoices[0]!.payments).toEqual([
+    expect.objectContaining({ amountMinor: 6000, reference: "CASH-1" }),
+  ]);
+  expect(h.records).toEqual(before);
+});
+
+it.each([
+  "unknown-source",
+  "invalid-live",
+  "historical-pointer",
+  "membership-cap",
+  "invoice-cap",
+  "receipt-cap",
+])("fails safely for %s without finance writes", async (scenario) => {
+  const h = harness();
+  const saved = await saveManualSubscription(h.db, actor, input(paid));
+  const invoice = [...h.records].find(([path]) => path.includes("/invoices/"))!;
+  if (scenario === "unknown-source") invoice[1].source = "unknown";
+  if (scenario === "invalid-live") invoice[1].familyId = "wrong-family";
+  if (scenario === "historical-pointer") invoice[1].source = "legacy-import";
+  const collectionName =
+    scenario === "membership-cap"
+      ? "memberships"
+      : scenario === "invoice-cap"
+        ? "invoices"
+        : "payments";
+  if (scenario.endsWith("-cap")) {
+    for (let i = 0; i < (scenario === "receipt-cap" ? 1001 : 101); i++)
+      h.records.set(base + collectionName + "/extra-" + i, {
+        studentId: "student-1",
+        membershipId: saved.membershipId,
+        invoiceId: invoice[1].invoiceId,
+        source: "legacy-import",
+      });
+  }
+  const before = new Map(h.records);
+  await expect(listSubscriptionBilling(h.db, actor.academyId, "student-1")).rejects.toMatchObject({
+    code: "failed-precondition",
+  });
+  expect(h.records).toEqual(before);
+});

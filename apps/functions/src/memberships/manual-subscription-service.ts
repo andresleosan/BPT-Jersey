@@ -25,14 +25,23 @@ function fail(message: string): never {
   throw new HttpsError("failed-precondition", message);
 }
 
+function operationalDocument(document: DocumentSnapshot): boolean {
+  const source: unknown = document.get("source");
+  if (source === "legacy-import") return false;
+  if (source !== undefined) fail("Unsupported record source.");
+  return true;
+}
+
 function memberInvoices(
   documents: readonly DocumentSnapshot[],
   academyId: string,
   membershipId: string,
   familyId: string,
+  operationalOnly = false,
 ): InvoiceRecord[] {
   if (documents.length > 100) fail("Full billing history is available in Billing.");
   return documents
+    .filter((document) => !operationalOnly || operationalDocument(document))
     .map((document) => {
       const parsed = parseInvoiceRecord(document.data());
       if (
@@ -361,6 +370,12 @@ export async function saveManualSubscription(
 
 export async function listSubscriptionBilling(db: Firestore, academyId: string, studentId: string) {
   const base = db.doc(`academies/${academyId}`);
+  const student = parseStudentProfile(
+    (await base.collection("students").doc(studentId).get()).data(),
+  );
+  if (!student.ok || student.value.academyId !== academyId || student.value.studentId !== studentId)
+    throw new HttpsError("not-found", "Member record unavailable.");
+  if (!student.value.familyId) return [];
   const memberships = await base
     .collection("memberships")
     .where("studentId", "==", studentId)
@@ -368,13 +383,14 @@ export async function listSubscriptionBilling(db: Firestore, academyId: string, 
     .get();
   if (memberships.size > 100) fail("Too many subscriptions. Contact the office.");
   return Promise.all(
-    memberships.docs.map(async (document) => {
+    memberships.docs.filter(operationalDocument).map(async (document) => {
       const parsed = parseMembershipRecord(document.data());
       if (
         !parsed.ok ||
         parsed.value.academyId !== academyId ||
         parsed.value.studentId !== studentId ||
-        parsed.value.membershipId !== document.id
+        parsed.value.membershipId !== document.id ||
+        parsed.value.familyId !== student.value.familyId
       )
         fail("Invalid membership record.");
       const [invoices, administration] = await Promise.all([
@@ -386,10 +402,11 @@ export async function listSubscriptionBilling(db: Firestore, academyId: string, 
         academyId,
         document.id,
         parsed.value.familyId,
+        true,
       );
       const currentInvoice = currentInvoiceFor(validatedInvoices, administration);
       // Firestore supports up to 30 operands in an `in` query. Read receipts in bounded batches.
-      const invoiceIds = invoices.docs.map((doc) => doc.id);
+      const invoiceIds = validatedInvoices.map((invoice) => invoice.invoiceId);
       const chunks = Array.from({ length: Math.ceil(invoiceIds.length / 30) }, (_, index) =>
         invoiceIds.slice(index * 30, index * 30 + 30),
       );
@@ -400,13 +417,14 @@ export async function listSubscriptionBilling(db: Firestore, academyId: string, 
       );
       const receipts = receiptPages.flatMap((page) => {
         if (page.size > 1000) fail("Full payment history is available in Billing.");
-        return page.docs.map((doc) => {
+        return page.docs.filter(operationalDocument).map((doc) => {
           const payment = parseManualPaymentRecord(doc.data());
           if (
             !payment.ok ||
             payment.value.paymentId !== doc.id ||
             payment.value.academyId !== academyId ||
-            payment.value.familyId !== parsed.value.familyId
+            payment.value.familyId !== parsed.value.familyId ||
+            !invoiceIds.includes(payment.value.invoiceId)
           )
             fail("Invalid payment record.");
           return payment.value;
