@@ -40,6 +40,10 @@ export {
   revealRegyfitRecordField,
   updateCanonicalMember as updateMember,
 } from "./members/member-directory-callables.js";
+export {
+  decideMemberMigration,
+  listMemberMigrationQueue,
+} from "./members/member-migration-callables.js";
 export { listMemberNames } from "./members/member-names-callables.js";
 export { getMemberProfile, searchMemberNames } from "./members/member-profile-callables.js";
 export { exportClassHistoryPdf, listClassHistory } from "./audit/class-history-callables.js";
