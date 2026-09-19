@@ -72,10 +72,11 @@ describe("T092 member-directory Firebase configuration", () => {
         indexes,
       }))
       .sort((left, right) => left.key.localeCompare(right.key));
-    // The one override that ADDS indexes: the subscription-expiry sweep queries memberships by
-    // endsAt across academies. A restricted field given indexes drops out of `actual` and fails.
+    // The sweeps add cross-academy indexes for subscription expiry and session quorum.
+    // A restricted field given indexes drops out of `actual` and fails.
     expect(all.filter(({ indexes }) => indexes.length > 0).map(({ key }) => key)).toEqual([
       "memberships.endsAt",
+      "sessions.startAt",
     ]);
     const actual = all.filter(({ indexes }) => indexes.length === 0);
 
