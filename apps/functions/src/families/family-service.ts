@@ -1335,13 +1335,17 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           if (family.primaryContactUserId === tutorUserId) {
             return staffProjection(family, students, relationships);
           }
-          const updatedFamily: FamilyRecord = Object.freeze({
-            ...family,
+          const base = { ...family };
+          delete base.guardianContact;
+          const parsedFamily = parseFamilyRecord({
+            ...base,
             primaryContactUserId: tutor.userId,
             billingContactUserId: tutor.userId,
             updatedAt: now,
             updatedBy: actorId,
           });
+          if (!parsedFamily.ok) throw new FamilyStoreError("invalid", "Invalid updated family");
+          const updatedFamily = parsedFamily.value;
           transaction.set(familyReference, updatedFamily);
           for (const relationship of relationships) {
             if (!relationship.active || relationship.status !== "active") continue;

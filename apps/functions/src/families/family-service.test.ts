@@ -555,6 +555,42 @@ describe("family Firestore store", () => {
     });
   });
 
+  it("replaces an office contact with an Auth tutor and remains readable", async () => {
+    const familyPath = "academies/academy-1/families/office-student-1";
+    const { store, records } = createServices({
+      "academies/academy-1/users/user-1": tutorUser(),
+      [familyPath]: {
+        familyId: "office-student-1",
+        academyId: "academy-1",
+        primaryContactUserId: null,
+        billingContactUserId: null,
+        guardianContact: { fullName: "Synthetic Guardian", email: "guardian@example.test" },
+        active: true,
+        status: "active",
+        schemaVersion: "1",
+        createdAt: CONTROL_NOW,
+        createdBy: "admin-1",
+        updatedAt: CONTROL_NOW,
+        updatedBy: "admin-1",
+      },
+    });
+    const updated = await store.updateFamily({
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator",
+      familyId: "office-student-1",
+      operation: { kind: "replaceTutor", tutorUserId: "user-1" },
+      now: "2026-08-20T10:00:00.000Z",
+    });
+    await expect(store.getStaffFamily("academy-1", "office-student-1")).resolves.toEqual(updated);
+    expect(records.get(familyPath)).not.toHaveProperty("guardianContact");
+    expect(updated.family).toMatchObject({
+      primaryContactUserId: "user-1",
+      billingContactUserId: "user-1",
+      createdAt: CONTROL_NOW,
+    });
+  });
+
   it("deactivates one relationship and then the family without deleting documents", async () => {
     const { store, records } = createServices({
       "academies/academy-1/users/user-1": tutorUser(),

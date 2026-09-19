@@ -153,6 +153,38 @@ it("allows decisions for minors and missing dates and shows their review flags",
     expect(screen.getAllByRole("button", { name })).toHaveLength(2);
 });
 
+it.each([true, "unknown"] as const)(
+  "submits link and create decisions for isMinor=%s",
+  async (isMinor) => {
+    mocks.listMemberMigrationQueue.mockResolvedValue(
+      queueWith([{ ...strongRow("m1", "10"), isMinor }]),
+    );
+    mocks.decideMemberMigration.mockResolvedValue({
+      results: [{ legacyMemberId: "m1", status: "applied" }],
+    });
+    render(<MigrationQueue />);
+    await userEvent.click(await screen.findByRole("tab", { name: /Under 18/ }));
+    await chooseTraining();
+    for (const [name, decision] of [
+      ["Link to this record", { kind: "link", recordId: "10" }],
+      ["Create without archive record", { kind: "create-unlinked" }],
+    ] as const) {
+      await userEvent.click(screen.getByRole("button", { name }));
+      expect(mocks.decideMemberMigration).toHaveBeenLastCalledWith([
+        {
+          ...decision,
+          legacyMemberId: "m1",
+          requestId: expect.any(String),
+          trainingCenter: "Town",
+          trainingTimePreferences: ["evening"],
+        },
+      ]);
+      await waitFor(() => expect(screen.getByRole("button", { name })).toBeEnabled());
+    }
+    expect(mocks.decideMemberMigration).toHaveBeenCalledTimes(2);
+  },
+);
+
 it("requires a trimmed reason of 3 to 200 characters to skip", async () => {
   mocks.listMemberMigrationQueue.mockResolvedValue(queueWith([strongRow("m1", "10")]));
   mocks.decideMemberMigration.mockResolvedValue({

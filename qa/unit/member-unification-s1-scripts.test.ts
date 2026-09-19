@@ -164,6 +164,8 @@ describe("member unification S1 scripts", () => {
           "academies/synthetic/students",
           "academies/synthetic/families",
           "academies/synthetic/relationships",
+          "academies/synthetic/memberDirectoryWriteReceipts",
+          "academies/synthetic/auditEvents",
         ]),
       );
     } finally {
@@ -448,7 +450,6 @@ describe("member unification S1 scripts", () => {
       const expected = [
         "students/s1",
         "studentAdminProfiles/s1",
-        "families/office-s1",
         "studentIdentityKeys/key",
         "regyfitOfficeLinks/10",
         "memberMigrationDecisions/  ｍ１  ",
@@ -518,7 +519,6 @@ describe("member unification S1 scripts", () => {
     ).toEqual([
       "students/s1",
       "studentAdminProfiles/s1",
-      "families/office-s1",
       "studentIdentityKeys/key1",
       "studentIdentityKeys/key2",
       "regyfitOfficeLinks/101",
@@ -564,11 +564,41 @@ describe("member unification S1 scripts", () => {
   });
 });
 
-it("reverts assigned S1 office families, preserves others and refuses shared family links", () => {
+it("preserves a colliding office family without S1 creation evidence", () => {
+  const family = {
+    id: "office-s1",
+    familyId: "office-s1",
+    academyId: "synthetic",
+    primaryContactUserId: null,
+    billingContactUserId: null,
+    createdAt: "2026-09-18T10:00:00.000Z",
+    createdBy: "owner",
+  };
   const data = {
     decisions: [
       {
         id: "m1",
+        studentId: "s1",
+        kind: "create-unlinked",
+        migrationId: "member-unification-s1-2026-09",
+      },
+    ],
+    students: [{ id: "s1" }],
+    profiles: [],
+    identityKeys: [],
+    officeLinks: [],
+    families: [family],
+  };
+  expect(revertPlan(data)).not.toContain("families/office-s1");
+  expect(revertPlan({ ...data, students: [] })).not.toContain("families/office-s1");
+});
+
+it("reverts assigned S1 office families and retries partial batches with durable ownership evidence", async () => {
+  const data = {
+    decisions: [
+      {
+        id: "m1",
+        academyId: "synthetic",
         studentId: "s1",
         kind: "create-unlinked",
         migrationId: "member-unification-s1-2026-09",
@@ -582,6 +612,31 @@ it("reverts assigned S1 office families, preserves others and refuses shared fam
         legacyMemberId: "M1",
       },
     ],
+    receipts: [
+      {
+        id: "receipt",
+        receiptId: "receipt",
+        createdFamilyId: "office-s1",
+        academyId: "synthetic",
+        studentId: "s1",
+        actorId: "owner",
+        createdAt: "2026-09-19T10:00:00.000Z",
+        status: "completed",
+        auditEventId: "audit",
+      },
+    ],
+    auditEvents: [
+      {
+        id: "audit",
+        auditEventId: "audit",
+        academyId: "synthetic",
+        actorId: "owner",
+        correlationId: "receipt",
+        targetRef: "academies/synthetic/students/s1",
+        action: "member.guardian.assigned",
+        result: "completed",
+      },
+    ],
     identityKeys: [],
     officeLinks: [],
     students: [
@@ -592,6 +647,9 @@ it("reverts assigned S1 office families, preserves others and refuses shared fam
       {
         id: "office-s1",
         familyId: "office-s1",
+        academyId: "synthetic",
+        createdAt: "2026-09-19T10:00:00.000Z",
+        createdBy: "owner",
         primaryContactUserId: null,
         billingContactUserId: null,
         guardianContact: { fullName: "Synthetic Guardian", email: "guardian@example.test" },
@@ -600,6 +658,13 @@ it("reverts assigned S1 office families, preserves others and refuses shared fam
     ],
   };
   expect(revertPlan(data)).toContain("families/office-s1");
+  expect(
+    revertPlan({
+      ...data,
+      receipts: data.receipts.map((receipt) => ({ ...receipt, createdFamilyId: undefined })),
+    }),
+  ).not.toContain("families/office-s1");
+  expect(revertPlan({ ...data, auditEvents: [] })).not.toContain("families/office-s1");
   expect(revertPlan(data)).not.toContain("families/other");
   expect(() =>
     revertPlan({
@@ -611,4 +676,76 @@ it("reverts assigned S1 office families, preserves others and refuses shared fam
     revertPlan({ ...data, relationships: [{ studentId: "s1", familyId: "office-s1" }] }),
   ).toThrow("manual review");
   expect(revertPlan({ ...data, students: [], profiles: [] })).toContain("families/office-s1");
+  const documents = new Map<string, Record<string, unknown>>();
+  for (const [collection, records] of Object.entries({
+    memberMigrationDecisions: data.decisions,
+    students: data.students,
+    studentAdminProfiles: data.profiles,
+    families: data.families,
+    memberDirectoryWriteReceipts: data.receipts,
+    auditEvents: data.auditEvents,
+  })) {
+    for (const record of records) {
+      documents.set(`${collection}/${record.id}`, record);
+      if (record.id === "other" || record.id === "untouched") continue;
+      const replacements: Record<string, string> = {
+        s1: "s2",
+        m1: "m2",
+        M1: "M2",
+        "office-s1": "office-s2",
+        receipt: "receipt2",
+        audit: "audit2",
+        "academies/synthetic/students/s1": "academies/synthetic/students/s2",
+      };
+      const second = Object.fromEntries(
+        Object.entries(record).map(([key, value]) => [
+          key,
+          typeof value === "string" ? (replacements[value] ?? value) : value,
+        ]),
+      );
+      documents.set(`${collection}/${second.id}`, second);
+    }
+  }
+  for (let index = 0; index < 395; index++)
+    documents.set(`studentIdentityKeys/key-${index}`, { ownerStudentId: "s1" });
+  let commits = 0;
+  const store = {
+    collection: (path: string) => ({
+      get: async () => ({
+        docs: [...documents]
+          .filter(([key]) => key.startsWith(`${path.split("/")[2]}/`))
+          .map(([key, value]) => ({ id: key.split("/")[1]!, data: () => value })),
+      }),
+    }),
+    doc: (path: string) => ({ path }),
+    batch: () => {
+      const pending: string[] = [];
+      return {
+        delete: ({ path }: { path: string }) => {
+          pending.push(path.split("/").slice(2).join("/"));
+        },
+        commit: async () => {
+          if (++commits === 2) throw new Error("Synthetic interrupted batch");
+          pending.forEach((path) => documents.delete(path));
+        },
+      };
+    },
+  };
+  const output = vi.spyOn(console, "log").mockImplementation(() => {});
+  try {
+    await expect(runRevert(store, "academies/synthetic", true)).rejects.toThrow(
+      "Synthetic interrupted batch",
+    );
+    expect(documents.has("students/s2")).toBe(false);
+    expect(documents.has("studentAdminProfiles/s2")).toBe(false);
+    expect(documents.has("families/office-s2")).toBe(true);
+    await runRevert(store, "academies/synthetic", true);
+    expect(documents.has("families/office-s2")).toBe(false);
+    expect(documents.has("families/other")).toBe(true);
+    expect(documents.has("memberMigrationDecisions/m2")).toBe(false);
+    expect(documents.has("memberDirectoryWriteReceipts/receipt2")).toBe(true);
+    expect(documents.has("auditEvents/audit2")).toBe(true);
+  } finally {
+    output.mockRestore();
+  }
 });

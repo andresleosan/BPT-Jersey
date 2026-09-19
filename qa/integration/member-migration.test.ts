@@ -400,6 +400,8 @@ suite("member migration Firestore transaction integration", () => {
       decisions: await documents("memberMigrationDecisions"),
       identityKeys: await documents("studentIdentityKeys"),
       officeLinks: await documents("regyfitOfficeLinks"),
+      receipts: await documents("memberDirectoryWriteReceipts"),
+      auditEvents: await documents("auditEvents"),
     });
     expect(paths.filter((path) => path.startsWith("students/"))).toHaveLength(4);
     expect(paths.filter((path) => path.startsWith("memberMigrationDecisions/"))).toHaveLength(4);

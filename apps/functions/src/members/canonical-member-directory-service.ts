@@ -177,6 +177,7 @@ const writeReceiptSchema = z.strictObject({
   actorId: z.string().regex(safeIdentifierPattern),
   requestMac: z.string().regex(macPattern),
   studentId: z.string().regex(safeIdentifierPattern),
+  createdFamilyId: z.string().regex(safeIdentifierPattern).optional(),
   auditEventId: z.string().regex(safeIdentifierPattern),
   stateRevisionBefore: z.number().int().nonnegative().safe(),
   stateRevisionAfter: z.number().int().positive().safe(),
@@ -481,11 +482,43 @@ function buildKeys(
   );
 }
 
+async function guardianReviewFields(
+  transaction: MemberDirectoryTransaction,
+  firestore: MemberDirectoryFirestore,
+  student: StudentProfile,
+  dateOfBirth: string,
+  today: string,
+): Promise<Pick<StudentProfile, "guardianStatus">> {
+  if (deriveParticipantType(dateOfBirth, today) !== "minor") return {};
+  if (student.familyId !== undefined) {
+    const snapshot = await transaction.get(
+      firestore.doc(familyPath(student.academyId, student.familyId)),
+    );
+    if (snapshot.exists) {
+      const family = parseFamilyRecord(snapshot.data());
+      if (
+        !family.ok ||
+        family.value.academyId !== student.academyId ||
+        family.value.familyId !== student.familyId
+      )
+        throw new CanonicalMemberDirectoryError("unavailable", "Member family is unavailable");
+      if (
+        family.value.active &&
+        family.value.status === "active" &&
+        (family.value.primaryContactUserId !== null || family.value.guardianContact !== undefined)
+      )
+        return student.guardianStatus === undefined ? {} : { guardianStatus: "assigned" };
+    }
+  }
+  return { guardianStatus: "pending" };
+}
+
 function buildUpdatedStudent(
   existing: StudentProfile,
   input: AdminUpdateStudentInput,
   actorId: string,
   now: string,
+  guardianReview: Pick<StudentProfile, "guardianStatus">,
 ): StudentProfile {
   const parsed = parseStudentProfileAt(
     {
@@ -500,12 +533,7 @@ function buildUpdatedStudent(
       trainingCenter: input.trainingCenter,
       trainingTimePreferences: input.trainingTimePreferences,
       participantType: deriveParticipantType(input.dateOfBirth, now.slice(0, 10)),
-      ...((existing.reviewReason !== undefined ||
-        existing.guardianStatus !== undefined ||
-        (existing.participantType === "adult" && existing.familyId === undefined)) &&
-      deriveParticipantType(input.dateOfBirth, now.slice(0, 10)) === "minor"
-        ? { guardianStatus: existing.guardianStatus === "assigned" ? "assigned" : "pending" }
-        : {}),
+      ...guardianReview,
       active: existing.active,
       status: existing.status,
       schemaVersion: existing.schemaVersion,
@@ -1215,6 +1243,7 @@ export function createCanonicalMemberDirectoryService(
         actorId,
         requestMac: expectedRequestMac,
         studentId,
+        ...(officeFamily?.ok ? { createdFamilyId: officeFamily.value.familyId } : {}),
         auditEventId,
         stateRevisionBefore: state.stateRevision,
         stateRevisionAfter: nextState.stateRevision,
@@ -1393,12 +1422,14 @@ export function createCanonicalMemberDirectoryService(
         let nextStudent: StudentProfile;
         let family: FamilyRecord | undefined;
         let familyRef: MemberDirectoryDocumentReference | undefined;
+        let existingFamily = false;
         if (input.kind === "assign-guardian") {
           if (
             student.value.guardianStatus !== "pending" ||
             student.value.participantType !== "minor" ||
             student.value.dateOfBirth === undefined ||
-            student.value.familyId !== undefined
+            (student.value.familyId !== undefined &&
+              student.value.familyId !== `office-${studentId}`)
           ) {
             throw new CanonicalMemberDirectoryError(
               "conflict",
@@ -1407,7 +1438,23 @@ export function createCanonicalMemberDirectoryService(
           }
           const familyId = `office-${studentId}`;
           familyRef = dependencies.firestore.doc(familyPath(academyId, familyId));
-          if ((await transaction.get(familyRef)).exists)
+          const familySnapshot = await transaction.get(familyRef);
+          existingFamily = familySnapshot.exists;
+          const storedFamily = existingFamily
+            ? parseFamilyRecord(familySnapshot.data())
+            : undefined;
+          if (
+            existingFamily &&
+            (student.value.familyId !== familyId ||
+              !storedFamily?.ok ||
+              storedFamily.value.familyId !== familyId ||
+              storedFamily.value.academyId !== academyId ||
+              !storedFamily.value.active ||
+              storedFamily.value.status !== "active" ||
+              storedFamily.value.primaryContactUserId !== null ||
+              storedFamily.value.billingContactUserId !== null ||
+              storedFamily.value.guardianContact !== undefined)
+          )
             throw new CanonicalMemberDirectoryError("conflict", "Office family already exists");
           const parsedFamily = parseFamilyRecord({
             familyId,
@@ -1418,8 +1465,8 @@ export function createCanonicalMemberDirectoryService(
             active: true,
             status: "active",
             schemaVersion: "1",
-            createdAt: now,
-            createdBy: actorId,
+            createdAt: storedFamily?.ok ? storedFamily.value.createdAt : now,
+            createdBy: storedFamily?.ok ? storedFamily.value.createdBy : actorId,
             updatedAt: now,
             updatedBy: actorId,
           });
@@ -1435,7 +1482,6 @@ export function createCanonicalMemberDirectoryService(
           };
         } else {
           const base = { ...student.value };
-          const previousGuardian = base.guardianStatus;
           delete base.reviewReason;
           delete base.guardianStatus;
           const participantType = deriveParticipantType(input.dateOfBirth, now.slice(0, 10));
@@ -1443,13 +1489,13 @@ export function createCanonicalMemberDirectoryService(
             ...base,
             dateOfBirth: input.dateOfBirth,
             participantType,
-            ...(participantType === "minor" &&
-            (previousGuardian !== undefined || student.value.familyId === undefined)
-              ? {
-                  guardianStatus:
-                    previousGuardian === "assigned" ? ("assigned" as const) : ("pending" as const),
-                }
-              : {}),
+            ...(await guardianReviewFields(
+              transaction,
+              dependencies.firestore,
+              student.value,
+              input.dateOfBirth,
+              now.slice(0, 10),
+            )),
             updatedAt: now,
             updatedBy: actorId,
           };
@@ -1481,6 +1527,7 @@ export function createCanonicalMemberDirectoryService(
           actorId,
           requestMac: expectedMac,
           studentId,
+          ...(family && !existingFamily ? { createdFamilyId: family.familyId } : {}),
           auditEventId,
           stateRevisionBefore: state.stateRevision,
           stateRevisionAfter: nextState.stateRevision,
@@ -1489,7 +1536,10 @@ export function createCanonicalMemberDirectoryService(
           schemaVersion: "1",
         });
         transaction.set(studentRef, nextStudent);
-        if (familyRef && family) transaction.create(familyRef, family);
+        if (familyRef && family) {
+          if (existingFamily) transaction.set(familyRef, family);
+          else transaction.create(familyRef, family);
+        }
         transaction.set(stateRef, nextState);
         transaction.set(guardRef, nextControl.guard);
         transaction.create(
@@ -1697,6 +1747,13 @@ export function createCanonicalMemberDirectoryService(
           parsedInput.value,
           actorId,
           now,
+          await guardianReviewFields(
+            transaction,
+            dependencies.firestore,
+            existingStudent.value,
+            parsedInput.value.dateOfBirth,
+            now.slice(0, 10),
+          ),
         );
         const nextProfile = buildUpdatedAdminProfile(
           existingProfile,
