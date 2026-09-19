@@ -140,6 +140,9 @@ exported from `index.ts` and deliberately not a scheduled function: it requires 
 `--window-hours` and `--actor-id` and refuses any target but the demo Firestore Emulator. Enabling it
 automatically is a separate operator checkpoint, as recorded for the T062 producer.
 
+C4 añade el entry point independiente `sweepSessionQuorumsSchedule`; el despliegue y la evidencia
+de producción quedan a cargo del operador ([runbook](../operations/quorum-sweep-runbook.md)).
+
 The same run covers the 50 m check-in eligibility signal (T109): administration records the Town
 site coordinates with `saveLocationGeofence` (clients 403, malformed coordinates 400), the catalog
 returns them, a check-in measured inside the radius records `proximity.signal = "within"`, one
