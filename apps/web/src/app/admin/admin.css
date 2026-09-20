@@ -4929,3 +4929,8 @@ a.admin-birthday-badge:focus-visible,
     font-weight: 700;
   }
 }
+
+#registration-title:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 4px;
+}

@@ -2,9 +2,26 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const clientMocks = vi.hoisted(() => ({ createMember: vi.fn() }));
+const clientMocks = vi.hoisted(() => ({ createMember: vi.fn(), saveHealthProfile: vi.fn() }));
 
 vi.mock("../../../../lib/members-client", () => clientMocks);
+
+vi.mock("../../../../lib/health-client", () => ({
+  saveHealthProfile: clientMocks.saveHealthProfile,
+}));
+vi.mock("./registration-completion", () => ({
+  RegistrationCompletion: ({
+    studentId,
+    healthComplete,
+  }: {
+    studentId: string;
+    healthComplete: boolean;
+  }) => (
+    <p>
+      Setup {studentId}; health {healthComplete ? "saved" : "pending"}
+    </p>
+  ),
+}));
 
 import AddMemberRoute, { AddMemberPage } from "./page";
 
@@ -18,7 +35,9 @@ async function fillRequiredAdult(user: ReturnType<typeof userEvent.setup>): Prom
 describe("Add canonical adult member page", () => {
   afterEach(() => {
     cleanup();
+    window.history.replaceState(null, "", "/admin/members/add");
     clientMocks.createMember.mockReset();
+    clientMocks.saveHealthProfile.mockReset();
   });
 
   it("requires identity and training fields and routes minors to the family flow", () => {
@@ -34,9 +53,9 @@ describe("Add canonical adult member page", () => {
       "/admin/families",
     );
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Membership number")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("ID card number")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("VAT number")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Membership number")).toBeVisible();
+    expect(screen.getByLabelText("ID card number")).toBeVisible();
+    expect(screen.getByLabelText("VAT number")).toBeVisible();
   });
 
   it("focuses the first missing field and makes no request", async () => {
@@ -89,9 +108,9 @@ describe("Add canonical adult member page", () => {
     const firstRequestId = clientMocks.createMember.mock.calls[0]?.[0]?.requestId;
 
     await user.click(screen.getByRole("button", { name: "Add adult student" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("student-1");
+    expect(await screen.findByText(/Setup student-1/)).toBeVisible();
     expect(clientMocks.createMember.mock.calls[1]?.[0]?.requestId).toBe(firstRequestId);
-    expect(screen.getByLabelText("Full name")).toHaveValue("");
+    expect(screen.queryByLabelText("Full name")).not.toBeInTheDocument();
   });
 
   it("prevents duplicate submissions while a create request is pending", async () => {
@@ -112,7 +131,7 @@ describe("Add canonical adult member page", () => {
     expect(clientMocks.createMember).toHaveBeenCalledOnce();
     expect(submit).toBeDisabled();
     resolveRequest({ memberId: "student-1", studentId: "student-1" });
-    await waitFor(() => expect(screen.getByRole("status")).toBeVisible());
+    await waitFor(() => expect(screen.getByText(/Setup student-1/)).toBeVisible());
   });
 
   it("rejects a minor date in this route without calling the backend", async () => {
@@ -182,6 +201,54 @@ describe("Add canonical adult member page", () => {
     expect(screen.getByText("Enter both the address and the post code.")).toBeVisible();
     expect(screen.getByLabelText("Address")).toHaveFocus();
     expect(clientMocks.createMember).not.toHaveBeenCalled();
+  });
+
+  it("keeps a saved member and medical text when health saving fails, then retries only health", async () => {
+    const user = userEvent.setup();
+    clientMocks.createMember.mockResolvedValue({ memberId: "student-1", studentId: "student-1" });
+    clientMocks.saveHealthProfile
+      .mockRejectedValueOnce(new Error("private server detail"))
+      .mockResolvedValueOnce({});
+    render(<AddMemberPage />);
+    await fillRequiredAdult(user);
+    await user.type(screen.getByLabelText(/Medical conditions/), "Synthetic support note");
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Medical information has not been saved",
+    );
+    expect(screen.queryByText(/private server detail/)).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("Synthetic support note")).toBeVisible();
+    expect(screen.getByText(/health pending/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Retry saving medical information" }));
+    expect(await screen.findByText(/health saved/)).toBeVisible();
+    expect(clientMocks.createMember).toHaveBeenCalledOnce();
+    expect(clientMocks.saveHealthProfile).toHaveBeenCalledTimes(2);
+    expect(clientMocks.saveHealthProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        studentId: "student-1",
+        conditionSummary: "Synthetic support note",
+      }),
+    );
+  });
+
+  it("includes optional administrative identifiers in the canonical registration", async () => {
+    const user = userEvent.setup();
+    clientMocks.createMember.mockResolvedValue({ memberId: "student-1", studentId: "student-1" });
+    render(<AddMemberPage />);
+    await fillRequiredAdult(user);
+    await user.type(screen.getByLabelText("Membership number"), "BPT-TEST-1");
+    await user.type(screen.getByLabelText("ID card number"), "TEST-ID");
+    await user.type(screen.getByLabelText("VAT number"), "TEST-VAT");
+    await user.click(screen.getByRole("button", { name: "Add adult student" }));
+    await waitFor(() =>
+      expect(clientMocks.createMember).toHaveBeenCalledWith(
+        expect.objectContaining({
+          membershipNumber: "BPT-TEST-1",
+          idCardNumber: "TEST-ID",
+          vatNumber: "TEST-VAT",
+        }),
+      ),
+    );
   });
 
   it("keeps the direct route data-free in test mode", () => {

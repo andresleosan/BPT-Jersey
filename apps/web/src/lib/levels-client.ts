@@ -380,7 +380,7 @@ function isAgeBand(value: unknown): value is AgeBandEvaluation {
   );
 }
 
-/** Head coach only: opens a student's level record at the belt they hold. */
+/** Office and historical head coaches open the student's initial level. */
 export async function openStudentLevel(input: OpenStudentLevelInput): Promise<OpenedStudentLevel> {
   const parsed = parseOpenStudentLevelInput(input);
   if (!parsed.ok) throw new Error(levelsSafeErrors.open);

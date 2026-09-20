@@ -67,6 +67,66 @@ function services(): StaffCallableServices {
 }
 
 describe("staff callables", () => {
+  it.each(["owner", "administrator"])(
+    "%s manages coach creation, profiles, assignments, availability and activation",
+    async (role) => {
+      const current = services();
+      await createStaffProfileHandler(
+        request({ userId: "user-1", role: "coach", requestId: "request-1" }, role),
+        current,
+      );
+      await updateStaffProfileHandler(
+        request({ staffKey: "staff-1", role: "coach" }, role),
+        current,
+      );
+      await replaceStaffAssignmentsHandler(
+        request(
+          {
+            staffKey: "staff-1",
+            assignments: [{ targetType: "location", targetId: "location-town" }],
+          },
+          role,
+        ),
+        current,
+      );
+      await replaceStaffAvailabilityHandler(
+        request(
+          {
+            staffKey: "staff-1",
+            windows: [
+              { weekday: 1, startLocal: "17:00", endLocal: "19:00", timezone: "Europe/London" },
+            ],
+          },
+          role,
+        ),
+        current,
+      );
+      vi.mocked(current.store.setStaffActive).mockResolvedValue({
+        ...profile,
+        active: false,
+        status: "inactive",
+      });
+      await expect(
+        setStaffActiveHandler(request({ staffKey: "staff-1", active: false }, role), current),
+      ).resolves.toMatchObject({ active: false });
+      for (const method of [
+        current.store.createStaffProfile,
+        current.store.updateStaffProfile,
+        current.store.replaceStaffAssignments,
+        current.store.replaceStaffAvailability,
+        current.store.setStaffActive,
+      ]) {
+        expect(method).toHaveBeenCalledOnce();
+        expect(method).toHaveBeenCalledWith(
+          expect.objectContaining({ academyId: "academy-1", actorId: "owner-1" }),
+        );
+      }
+      expect(current.auth.setCustomUserClaims).toHaveBeenLastCalledWith("user-1", {
+        academyId: "academy-1",
+      });
+    },
+  );
+
   it("does not create the retired head-coach role", async () => {
     const current = services();
     await expect(

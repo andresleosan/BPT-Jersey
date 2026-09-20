@@ -156,6 +156,28 @@ const paid = {
   occurredAt: time,
 } as const;
 describe("office subscription settlements", () => {
+  it.each(["owner", "administrator"] as const)(
+    "%s assigns membership and records payment without a member login",
+    async (role) => {
+      const h = harness();
+      const family = h.records.get(base + "families/family-1")!;
+      h.records.set(base + "families/family-1", {
+        ...family,
+        primaryContactUserId: null,
+        billingContactUserId: null,
+      });
+      const command = input(paid);
+      const saved = await saveManualSubscription(h.db, { ...actor, role }, command);
+      expect(saved.status).toBe("active");
+      expect(saved.planId).toBe(selectedPlan.planId);
+      expect(h.records.get(base + "students/student-1")?.userId).toBeUndefined();
+      expect(h.records.get(base + "invoices/manual-" + command.requestId)?.status).toBe("paid");
+      expect([...h.records].filter(([path]) => path.includes("/payments/"))).toHaveLength(1);
+      expect(await saveManualSubscription(h.db, { ...actor, role }, command)).toEqual(saved);
+      expect([...h.records].filter(([path]) => path.includes("/payments/"))).toHaveLength(1);
+    },
+  );
+
   it("commits paid subscription, invoice and receipt together and replays once", async () => {
     const h = harness();
     const command = input(paid);
