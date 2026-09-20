@@ -2,7 +2,7 @@
 
 Date: 20 September 2026
 
-Status: written specification for user review. The four conversational design blocks were approved, including the correction that requests remain in the existing Enrolment requests section. The user subsequently requested automatic training-group matching and a member-facing form for missing training details, incorporated in section 7.1. This updated document has not yet been approved as the implementation specification. No application, production data or account permissions have been changed by this design work.
+Status: approved by the user on 20 September 2026, including section 7.1 on training details and automatic group matching. The implementation plan is prepared for separate review and selection of execution method. This design work has not changed application code, production data or account permissions.
 
 ## 1. Purpose and agreed boundaries
 
