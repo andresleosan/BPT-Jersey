@@ -1,10 +1,6 @@
 name: Firestore integration battery
-
-# qa/integration is not part of verify:mvp and nothing else runs it, so these
-# suites can rot silently. This gate runs them on a schedule and on demand.
+# Operator preference: tests run only when explicitly requested manually.
 on:
-  schedule:
-    - cron: "0 5 * * 1"
   workflow_dispatch:
 
 permissions:

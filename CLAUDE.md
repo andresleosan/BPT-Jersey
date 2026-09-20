@@ -2,16 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Current operator workflow
+
+Follow the current function-fix workflow in `AGENTS.md`: work and commit directly on
+local `main`, push to `origin/main`, and verify both commit SHAs. Do not create a branch,
+worktree, or PR unless explicitly requested. Do not add/run/retry tests or wait for CI
+unless explicitly requested. The commands below are references, not mandatory gates.
+Do not run full-workspace checks for a small fix; build only for an authorized deploy.
+
 ## Project
 
 BPT Jersey Academy Platform: public site, member/client area and admin panel for a single
 Brazilian jiu-jitsu academy. pnpm monorepo, TypeScript strict, Spanish-language docs. Talk to the
 operator in Spanish; code, identifiers and contracts are in English.
 
-Read `PRODUCT.md` (product), `DESIGN.md` (brand and interface rules), `LECCIONES.md` (hard-won
-lessons) and the ADRs in `docs/adr/` before non-trivial work. `BACKLOG.md` is the task ledger:
-every piece of work has a row there, and a row is only closed with real evidence (test, commit or
-measured deploy). The pre-2026-09-19 ledgers and boards are archived verbatim in `docs/archive/`.
+Read only the relevant parts of `PRODUCT.md`, `DESIGN.md`, `LECCIONES.md`, and
+`docs/adr/` for the change being made. Small function fixes do not require a new plan,
+spec, ADR, or backlog row. For planned backlog tasks, close rows with actual evidence
+(commit or measured deploy; test results only when tests were explicitly requested). The pre-2026-09-19 ledgers and boards are archived verbatim in `docs/archive/`.
 Design specs and implementation plans live in `docs/superpowers/specs/` and
 `docs/superpowers/plans/` (one dated file per feature); ADRs in `docs/adr/`.
 
@@ -49,7 +57,7 @@ the repo exports ~170 functions and the default 10 s discovery times out silentl
 
 ```bash
 corepack pnpm test:rules           # Firestore + RTDB security rules, spins emulators itself
-corepack pnpm test:integration     # qa/integration against emulators (minutes; weekly in CI)
+corepack pnpm test:integration     # qa/integration against emulators (minutes; manual-only CI)
 corepack pnpm firebase:emulators   # auth 9099, functions 5001, firestore 8080, rtdb 9000, ui 4000
 corepack pnpm test:e2e:smoke       # Playwright @smoke; build apps/web first (tests the static export)
 corepack pnpm --dir qa exec playwright install chromium   # once, into .playwright-browsers/
@@ -94,7 +102,7 @@ never synced from Regyfit. Firestore rules and composite indexes live at the rep
 (`firestore.rules`, `firestore.indexes.json`); a missing composite index shows up as an opaque
 runtime error, not at deploy time.
 
-## Testing conventions
+## Testing conventions (only when explicitly requested)
 
 - Unit: `*.test.ts(x)` beside the source. E2E: `*.spec.ts` in `qa/tests/`, prefer accessible roles.
 - Every test owns its data; no real Firebase projects or credentials in automated tests. Opt-in
@@ -102,5 +110,6 @@ runtime error, not at deploy time.
   in CI.
 - An existence check is not a functioning check (`LECCIONES.md` §4): assert the value, and for a
   new guard, disable it and confirm a test dies.
-- CI (`.github/workflows/ci.yml`) runs, in order: domain `build:runtime`, format:check, lint,
+- CI is manual-only and must not be dispatched without an explicit request. When requested,
+  `.github/workflows/ci.yml` runs, in order: domain `build:runtime`, format:check, lint,
   typecheck, test:unit, `pnpm audit --audit-level high`, test:rules, web build, e2e smoke.

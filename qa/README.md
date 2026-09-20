@@ -1,5 +1,10 @@
 # Quality assurance conventions
 
+Automated tests are currently opt-in only by explicit operator request. Do not add,
+run, retry, or wait for these suites during routine function fixes. All three GitHub
+QA workflows are manual-only. The instructions below apply when QA is requested;
+they are not prerequisites for committing and pushing a fix directly to `main`.
+
 - Unit files use `*.test.ts` or `*.test.tsx` and run with Vitest.
 - Browser journeys use `*.spec.ts` under `qa/tests/` and run with Playwright.
 - Prefer behavior and accessible roles over implementation details.
@@ -11,7 +16,7 @@
 ## Emulator integration battery
 
 - `qa/integration/**/*.test.ts` is the Vitest project `firestore-integration`. Run it from the repository root with `pnpm test:integration`, which starts the auth/firestore/database emulators against `demo-bpt-jersey` and pins JDK 21 before spawning them.
-- It is not part of `verify:mvp`, because it needs the emulators and takes a couple of minutes. The scheduled workflow `.github/workflows/integration.yml` runs it weekly and on demand so the suites cannot rot unnoticed.
+- It is not part of `verify:mvp`, because it needs the emulators and takes a couple of minutes. The workflow `.github/workflows/integration.yml` is available only on demand when the operator explicitly requests it.
 - A suite that needs a capability the emulator does not offer must skip itself with an explicit reason, never fail opaquely. Today only `backup-v3-rehearsal.test.ts` skips, because the Firestore Emulator rejects point-in-time reads.
 - Tests that depend on the deployed Functions artifact must inspect `.firebase-functions/`, the layout `firebase.json` deploys, and not `apps/functions/lib`, the intermediate `tsc` output where `@bpt-jersey/domain` still resolves to workspace TypeScript sources.
 

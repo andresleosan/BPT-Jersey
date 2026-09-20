@@ -1,11 +1,6 @@
 name: Golden path E2E
-
-# The authenticated golden path (T098) is not part of verify:mvp and nothing else runs it, so it
-# can rot silently like qa/integration did. This gate runs it on demand and on a weekly schedule
-# against the demo project only, with synthetic secrets generated inside the job.
+# Operator preference: tests run only when explicitly requested manually.
 on:
-  schedule:
-    - cron: "30 5 * * 1"
   workflow_dispatch:
 
 permissions:
