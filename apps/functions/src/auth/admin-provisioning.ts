@@ -193,12 +193,27 @@ function requireGoogleUser(user: AdminUserRecord, email: string): void {
 function requireTargetAdminClaims(
   user: AdminUserRecord,
   actor: AdminActor,
+  transition?: "team" | "invitation",
 ): AdminClaims | undefined {
   const hasAcademyId = Object.prototype.hasOwnProperty.call(user.customClaims, "academyId");
   const hasRole = Object.prototype.hasOwnProperty.call(user.customClaims, "role");
   if (!hasAcademyId && !hasRole) {
+    if (transition === "team")
+      throw new HttpsError("permission-denied", "The account is not part of this team");
     return undefined;
   }
+
+  const transitionRoles =
+    transition === "team"
+      ? ["headCoach", "coach"]
+      : transition === "invitation"
+        ? ["headCoach", "coach", "adultStudent", "guardian", "shopper"]
+        : [];
+  if (
+    user.customClaims.academyId === actor.academyId &&
+    transitionRoles.includes(String(user.customClaims.role))
+  )
+    return undefined;
 
   const currentClaims = parseAdminClaims({
     academyId: user.customClaims.academyId,
@@ -631,6 +646,7 @@ export async function provisionAdminRoleWithServices(
   request: CallableRequest,
   targetInput: { uid: string; email: string; role: AdminRole },
   services: AdminProvisioningServices,
+  transition?: "team" | "invitation",
 ): Promise<void> {
   const actor = requireAdminActor(request);
   requireVerifiedAppCheck(request);
@@ -643,7 +659,13 @@ export async function provisionAdminRoleWithServices(
   try {
     const user = await services.auth.getUser(target.uid);
     requireGoogleUser(user, target.email);
-    const existingAdminClaims = requireTargetAdminClaims(user, actor);
+    if (transition && (user.disabled || target.uid === actor.uid)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Cannot change your own role or a disabled account",
+      );
+    }
+    const existingAdminClaims = requireTargetAdminClaims(user, actor, transition);
 
     const previousClaims = { ...user.customClaims };
     const nextClaims = { ...previousClaims };

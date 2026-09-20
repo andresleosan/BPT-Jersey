@@ -25,6 +25,7 @@ const permissionsApi = vi.hoisted(() => ({
         : `Active until ${grant.expiresAt.slice(0, 10)}`,
 }));
 
+vi.mock("./team-directory", () => ({ TeamDirectory: () => null }));
 vi.mock("../../../lib/staff-client", () => staffApi);
 vi.mock("../../../lib/staff-permissions-client", () => permissionsApi);
 vi.mock("next/navigation", () => ({
@@ -58,9 +59,6 @@ const activeGrant = {
   schemaVersion: "1" as const,
   status: "active" as const,
 };
-
-const headCoach = { ...coach, role: "headCoach" as const };
-const inactiveHeadCoach = { ...headCoach, active: false, status: "inactive" as const };
 
 describe("admin staff page", () => {
   beforeEach(() => {
@@ -136,19 +134,19 @@ describe("admin staff page", () => {
   it("updates role and activation while restoring focus to the selected row action", async () => {
     const user = userEvent.setup();
     staffApi.listStaffProfiles.mockResolvedValue([coach]);
-    staffApi.updateStaffProfile.mockResolvedValue(headCoach);
-    staffApi.setStaffActive.mockResolvedValue(inactiveHeadCoach);
+    staffApi.updateStaffProfile.mockResolvedValue(coach);
+    staffApi.setStaffActive.mockResolvedValue({ ...coach, active: false, status: "inactive" });
     render(<StaffAdminPage />);
 
     await screen.findByRole("table", { name: "Staff profiles" });
     const rowAction = screen.getByRole("button", { name: "Select staff staff-1" });
     await user.click(rowAction);
-    await user.selectOptions(screen.getByLabelText("Selected staff role"), "headCoach");
+    await user.selectOptions(screen.getByLabelText("Selected staff role"), "coach");
     await user.click(screen.getByRole("button", { name: "Update role" }));
     await waitFor(() =>
       expect(staffApi.updateStaffProfile).toHaveBeenCalledWith({
         staffKey: "staff-1",
-        role: "headCoach",
+        role: "coach",
       }),
     );
     expect(rowAction).toHaveFocus();
@@ -161,7 +159,7 @@ describe("admin staff page", () => {
       }),
     );
     expect(rowAction).toHaveFocus();
-    expect(screen.getByRole("row", { name: /staff-1.*Head coach.*Inactive/i })).toBeVisible();
+    expect(screen.getByRole("row", { name: /staff-1.*Coach.*Inactive/i })).toBeVisible();
   });
 
   it("replaces availability and assignments with explicit fields", async () => {
@@ -237,7 +235,7 @@ describe("admin staff page", () => {
 
   it("disables selected-row actions while a mutation is pending", async () => {
     const user = userEvent.setup();
-    let resolveUpdate!: (profile: typeof headCoach) => void;
+    let resolveUpdate!: (profile: typeof coach) => void;
     staffApi.listStaffProfiles.mockResolvedValue([coach]);
     staffApi.updateStaffProfile.mockReturnValue(
       new Promise((resolve) => {
@@ -248,13 +246,13 @@ describe("admin staff page", () => {
 
     await screen.findByRole("table", { name: "Staff profiles" });
     await user.click(screen.getByRole("button", { name: "Select staff staff-1" }));
-    await user.selectOptions(screen.getByLabelText("Selected staff role"), "headCoach");
+    await user.selectOptions(screen.getByLabelText("Selected staff role"), "coach");
     await user.click(screen.getByRole("button", { name: "Update role" }));
     expect(screen.getByRole("button", { name: "Update role" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Deactivate staff profile" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Replace availability" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Replace assignment" })).toBeDisabled();
-    resolveUpdate(headCoach);
+    resolveUpdate(coach);
   });
 
   it.each(["owner", "administrator"] as const)(

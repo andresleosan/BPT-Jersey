@@ -1010,15 +1010,11 @@ describe("ManageView void", () => {
 });
 
 describe("ManageView roles", () => {
-  it("gives an administrator the record and the history but no decision", async () => {
+  it("gives administrators sporting decisions as well as history", async () => {
     renderView("administrator");
     await screen.findByRole("table", { name: "Level history" });
-    expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
-    expect(screen.queryByRole("form", { name: "Open level" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
-    expect(
-      screen.getByText("Only a head coach or the owner can open, assign or void a level."),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "Assign next level" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Void" })).toBeInTheDocument();
   });
 
   it("gives a coach the same read-only view", async () => {
@@ -1027,11 +1023,11 @@ describe("ManageView roles", () => {
     expect(screen.queryByRole("form", { name: "Assign next level" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Void" })).toBeNull();
     expect(
-      screen.getByText("Only a head coach or the owner can open, assign or void a level."),
+      screen.getByText("Only an administrator or the owner can open, assign or void a level."),
     ).toBeInTheDocument();
   });
 
-  it("tells an administrator who must open a level that has never been opened", async () => {
+  it("lets an administrator open the first level", async () => {
     api.getStudentLevelCard.mockResolvedValue({ state: "uninitialized", studentId: "student-1" });
     api.getStudentLevelHistory.mockResolvedValue({
       studentId: "student-1",
@@ -1040,10 +1036,7 @@ describe("ManageView roles", () => {
       entries: [],
     });
     renderView("administrator");
-    expect(
-      await screen.findByText("No level yet. A head coach or the owner opens it."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("form", { name: "Open level" })).toBeNull();
+    expect(await screen.findByRole("form", { name: "Open level" })).toBeInTheDocument();
   });
 });
 
@@ -1388,11 +1381,13 @@ describe("ManageView skills assessment", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers no assessment to an administrator", async () => {
+  it("offers assessment to an administrator", async () => {
     kidsRecord();
     renderView("administrator", 6);
     await screen.findByRole("table", { name: "Level history" });
-    expect(screen.queryByRole("heading", { level: 3, name: "Skills assessment" })).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Skills assessment" }),
+    ).toBeInTheDocument();
   });
 
   /**

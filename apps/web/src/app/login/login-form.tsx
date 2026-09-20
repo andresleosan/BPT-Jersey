@@ -21,7 +21,8 @@ import {
   sanitizeStaffReturnPath,
   toAuthMessage,
 } from "../../lib/login-flow";
-import type { LoginAudience } from "../../lib/login-flow";
+import type { LoginAudience, StaffDestination } from "../../lib/login-flow";
+import { acceptStaffInvitation } from "../../lib/team-access-client";
 import { isStaffNumber, signInWithStaffId } from "../../lib/staff-login-client";
 
 type LoginMode = "sign-in" | "create-client";
@@ -57,6 +58,7 @@ export function LoginForm({ audience }: LoginFormProps) {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [authError, setAuthError] = useState("");
   const [notice, setNotice] = useState("");
+  const [existingStaffDestination, setExistingStaffDestination] = useState<StaffDestination>();
   const [busy, setBusy] = useState(false);
   const locationSearch = useLocationSearch();
   const queryReturnTo = new URLSearchParams(locationSearch).get("returnTo");
@@ -75,6 +77,7 @@ export function LoginForm({ audience }: LoginFormProps) {
     setFieldErrors({});
     setAuthError("");
     setNotice("");
+    setExistingStaffDestination(undefined);
   }
 
   function validate(): FieldErrors {
@@ -92,10 +95,28 @@ export function LoginForm({ audience }: LoginFormProps) {
     return nextErrors;
   }
 
-  async function completeSignIn(credential: UserCredential): Promise<void> {
+  async function completeSignIn(credential: UserCredential, googleSignIn = false): Promise<void> {
     if (!isStaff) {
       navigateTo(memberDestination(sanitizeReturnPath(queryReturnTo)));
       return;
+    }
+
+    if (googleSignIn) {
+      try {
+        await acceptStaffInvitation();
+      } catch (error) {
+        const existing = await refreshAuthToken(credential.user);
+        const destination = resolveStaffDestination(
+          { academyId: existing.claims.academyId, role: existing.claims.role },
+          sanitizeStaffReturnPath(queryReturnTo),
+        );
+        if (!destination) throw error;
+        setNotice(
+          "We could not check pending access. You can retry or continue with your existing staff role.",
+        );
+        setExistingStaffDestination(destination);
+        return;
+      }
     }
 
     // The staff page never trusts the form: the ID token claims decide where this person works.
@@ -117,6 +138,7 @@ export function LoginForm({ audience }: LoginFormProps) {
     event.preventDefault();
     setAuthError("");
     setNotice("");
+    setExistingStaffDestination(undefined);
 
     const nextErrors = validate();
     setFieldErrors(nextErrors);
@@ -143,10 +165,11 @@ export function LoginForm({ audience }: LoginFormProps) {
     setBusy(true);
     setAuthError("");
     setNotice("");
+    setExistingStaffDestination(undefined);
 
     try {
       const credential = await signInWithGoogle();
-      await completeSignIn(credential);
+      await completeSignIn(credential, true);
     } catch (error) {
       setAuthError(toAuthMessage(error));
     } finally {
@@ -157,6 +180,7 @@ export function LoginForm({ audience }: LoginFormProps) {
   async function handlePasswordReset(): Promise<void> {
     setAuthError("");
     setNotice("");
+    setExistingStaffDestination(undefined);
 
     if (isStaff && isStaffNumber(email)) {
       setNotice(
@@ -250,6 +274,15 @@ export function LoginForm({ audience }: LoginFormProps) {
             {authError}
           </p>
         ) : null}
+        {existingStaffDestination && (
+          <button
+            className="login-submit"
+            type="button"
+            onClick={() => navigateTo(existingStaffDestination)}
+          >
+            Continue with existing staff access
+          </button>
+        )}
         {notice ? (
           <p className="login-message" role="status">
             {notice}

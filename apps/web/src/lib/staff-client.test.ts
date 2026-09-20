@@ -55,9 +55,9 @@ describe("staff callable web client", () => {
       requestId: "request-1",
     });
 
-    await updateStaffProfile({ staffKey: "staff-1", role: "headCoach" });
+    await updateStaffProfile({ staffKey: "staff-1", role: "coach" });
     expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "updateStaffProfile");
-    expect(mocks.callable).toHaveBeenLastCalledWith({ staffKey: "staff-1", role: "headCoach" });
+    expect(mocks.callable).toHaveBeenLastCalledWith({ staffKey: "staff-1", role: "coach" });
 
     await setStaffActive({ staffKey: "staff-1", active: false });
     expect(mocks.httpsCallable).toHaveBeenLastCalledWith({}, "setStaffActive");

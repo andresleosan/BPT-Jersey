@@ -67,6 +67,18 @@ function services(): StaffCallableServices {
 }
 
 describe("staff callables", () => {
+  it("does not create the retired head-coach role", async () => {
+    const current = services();
+    await expect(
+      createStaffProfileHandler(
+        request({ userId: "user-1", role: "headCoach", requestId: "r" }),
+        current,
+      ),
+    ).rejects.toMatchObject({ code: "invalid-argument" });
+    expect(current.store.createStaffProfile).not.toHaveBeenCalled();
+    expect(current.auth.setCustomUserClaims).not.toHaveBeenCalled();
+  });
+
   it("authorizes admin callers, derives tenant/actor, and syncs claims after create", async () => {
     const current = services();
 
@@ -390,7 +402,7 @@ describe("staff callables", () => {
     const current = services();
 
     await expect(
-      updateStaffProfileHandler(request({ staffKey: "staff-1", role: "headCoach" }), current),
+      updateStaffProfileHandler(request({ staffKey: "staff-1", role: "coach" }), current),
     ).resolves.toEqual({
       staffKey: "staff-1",
       role: "coach",

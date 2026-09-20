@@ -71,6 +71,17 @@ async function installStaffHarness(
   let profiles: StaffProfile[] = [{ ...initialProfile }, { ...secondInitialProfile }];
   await page.route("**/*", async (route) => {
     const request = route.request();
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-headers": "*",
+          "access-control-allow-methods": "POST, OPTIONS",
+        },
+      });
+      return;
+    }
     if (request.method() !== "POST") {
       await route.continue();
       return;
@@ -94,6 +105,17 @@ async function installStaffHarness(
       });
     };
 
+    if (request.url().includes("listTeamDirectory")) {
+      await respond({ people: [], nextPageToken: null });
+      return;
+    }
+    if (
+      request.url().includes("listStaffInvitations") ||
+      request.url().includes("listStaffPermissionGrants")
+    ) {
+      await respond([]);
+      return;
+    }
     if (request.url().includes("listStaffProfiles")) {
       if (options.failList) {
         await route.fulfill({
@@ -220,7 +242,7 @@ test.describe("staff management", () => {
 
     const rowAction = page.getByRole("button", { name: "Select staff staff-synthetic-1" });
     await rowAction.click();
-    await page.getByRole("combobox", { name: "Selected staff role" }).selectOption("headCoach");
+    await page.getByRole("combobox", { name: "Selected staff role" }).selectOption("coach");
     await page.getByRole("button", { name: "Update role" }).click();
     await expect(
       page.getByRole("button", { name: "Select staff staff-synthetic-1" }),
@@ -237,19 +259,25 @@ test.describe("staff management", () => {
     await page.getByLabel("End local time").fill("19:00");
     await page.getByLabel("IANA timezone").fill("Europe/London");
     await page.getByRole("button", { name: "Replace availability" }).click();
-    await expect(page.getByRole("status")).toHaveText("Staff availability replaced.");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Staff availability replaced." }),
+    ).toHaveText("Staff availability replaced.");
 
     await page.getByLabel("Target ID").fill("location-synthetic");
     await page.getByRole("button", { name: "Replace assignment" }).click();
-    await expect(page.getByRole("status")).toHaveText("Staff assignment replaced.");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Staff assignment replaced." }),
+    ).toHaveText("Staff assignment replaced.");
 
-    await page.getByLabel("User ID").fill("user-synthetic-2");
-    await page.getByLabel("Request ID").fill("request-synthetic-2");
+    await page.getByLabel("User ID", { exact: true }).fill("user-synthetic-2");
+    await page.getByLabel("Request ID", { exact: true }).fill("request-synthetic-2");
     await page.getByRole("button", { name: "Create staff profile" }).click();
-    await expect(page.getByRole("status")).toHaveText("Staff profile created.");
+    await expect(page.getByRole("status").filter({ hasText: "Staff profile created." })).toHaveText(
+      "Staff profile created.",
+    );
     await expect(page.getByText("staff-synthetic-3")).toBeVisible();
 
-    const userId = page.getByLabel("User ID");
+    const userId = page.getByLabel("User ID", { exact: true });
     await userId.focus();
     await page.keyboard.press("Tab");
     await expect(page.locator("#staff-create-role")).toBeFocused();
@@ -262,7 +290,7 @@ test.describe("staff management", () => {
     await installStaffHarness(page, { failList: true });
     await page.goto("/admin/staff?adminTestRole=administrator");
 
-    await expect(page.locator('p[role="alert"]')).toHaveText(
+    await expect(page.locator("#staff-error-message")).toHaveText(
       "Unable to load staff profiles. Please try again.",
     );
     await expect(page.locator("body")).not.toContainText("private backend details");

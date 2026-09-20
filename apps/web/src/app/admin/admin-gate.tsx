@@ -187,6 +187,7 @@ function FirebaseAdminGate({ children }: { children: ReactNode }) {
 }
 
 function E2EAdminGate({ children }: { children: ReactNode }) {
+  const pathname = usePathname() ?? "";
   const [state, setState] = useState<
     | { status: "loading" }
     | { status: "signed-out" }
@@ -225,6 +226,7 @@ function E2EAdminGate({ children }: { children: ReactNode }) {
   }
 
   if (state.status === "authorized-staff") {
+    if (!isStaffRouteAllowed(pathname, state.role)) return <AccessState status="denied" />;
     return (
       <AuthorizedStaffWaitlistContent
         onSignOut={async () => {}}

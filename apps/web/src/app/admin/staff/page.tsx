@@ -26,6 +26,8 @@ import {
 import { AdminDataTable } from "../admin-data-table";
 import { AdminSectionHeader, AdminStatusBadge } from "../admin-ui";
 
+import { TeamDirectory } from "./team-directory";
+
 import "../admin.css";
 
 type Mutation =
@@ -37,7 +39,6 @@ type StaffField =
 type StaffFieldElement = HTMLInputElement | HTMLSelectElement;
 
 const roleOptions: readonly { value: StaffRole; label: string }[] = [
-  { value: "headCoach", label: "Head coach" },
   { value: "coach", label: "Coach" },
 ];
 
@@ -68,7 +69,7 @@ const weekdays = [
 ] as const;
 
 function roleLabel(role: StaffRole): string {
-  return role === "headCoach" ? "Head coach" : "Coach";
+  return role === "headCoach" ? "Head coach (legacy)" : "Coach";
 }
 
 function statusLabel(active: boolean): string {
@@ -357,10 +358,12 @@ export function StaffAdminPage() {
   return (
     <section className="admin-module-page staff-admin-page" aria-labelledby="staff-admin-title">
       <AdminSectionHeader
-        description="Manage operational coach access without exposing identity or audit records."
+        description="View your team and manage administrative and coaching access."
         eyebrow="Staff / Access lifecycle"
         title="Staff management"
       />
+
+      <TeamDirectory />
 
       {error ? (
         <p
@@ -497,6 +500,11 @@ export function StaffAdminPage() {
                 onChange={(event) => setSelectedRole(event.target.value as StaffRole)}
                 value={selectedRole}
               >
+                {selectedRole === "headCoach" && (
+                  <option disabled value="headCoach">
+                    Head coach (legacy — move to Administrator above)
+                  </option>
+                )}
                 {roleOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}

@@ -17,7 +17,13 @@ export default function LessonPlansAdminRoute() {
           </p>
         </div>
       </header>
-      <LessonPlanAdminPanel canApprove={session.role === "headCoach"} />
+      <LessonPlanAdminPanel
+        canApprove={
+          session.role === "headCoach" ||
+          session.role === "administrator" ||
+          session.role === "owner"
+        }
+      />
     </section>
   );
 }

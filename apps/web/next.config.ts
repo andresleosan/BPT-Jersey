@@ -16,6 +16,8 @@ const devOrigins = (process.env.NEXT_DEV_ALLOWED_ORIGINS ?? "")
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  // Isolated local previews must not contend with the operator's running dev server.
+  ...(process.env.BPT_ISOLATED_PREVIEW === "true" ? { distDir: ".next/isolated-preview" } : {}),
   ...(devOrigins.length > 0 ? { allowedDevOrigins: devOrigins } : {}),
   output: "export",
   poweredByHeader: false,

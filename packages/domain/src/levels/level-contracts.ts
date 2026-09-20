@@ -564,7 +564,7 @@ export type EvaluationRecord = Readonly<{
   score: EvaluationScore;
   evidenceNotes: string;
   evaluatorId: string;
-  evaluatorRole: "headCoach" | "coach" | "owner";
+  evaluatorRole: "headCoach" | "coach" | "owner" | "administrator";
   evaluatedAt: string;
   schemaVersion: "1";
   createdAt: string;
@@ -1476,7 +1476,7 @@ export type GraduationRecord = Readonly<{
   status: PromotionDecisionStatus;
   decisionNotes: string;
   decidedBy: string;
-  decidedByRole: "headCoach" | "owner";
+  decidedByRole: "headCoach" | "owner" | "administrator";
   decidedAt: string;
   ceremonyDate: string | null;
   schemaVersion: "1";

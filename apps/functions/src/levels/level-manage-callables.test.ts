@@ -80,7 +80,7 @@ const openPayload = {
   startedOn: "2026-07-01",
 };
 
-const decisionRefusal = /The head coach or the owner is required/u;
+const decisionRefusal = /An administrator or owner is required/u;
 const staffRefusal = /A current staff role is required/u;
 const coachRefusal = /A current coach role is required/u;
 
@@ -102,6 +102,10 @@ describe("assignLevel and voidPromotion callables", () => {
 
     await handler(request(assignPayload, "owner"));
     await handler(request(assignPayload, "headCoach"));
+    await handler(request(assignPayload, "administrator"));
+    expect(assignLevel).toHaveBeenLastCalledWith(
+      expect.objectContaining({ decidedByRole: "administrator", decidedByStaffId: null }),
+    );
 
     expect(assignLevel).toHaveBeenNthCalledWith(
       1,
@@ -131,6 +135,10 @@ describe("assignLevel and voidPromotion callables", () => {
 
     await handler(request(voidPayload, "owner"));
     await handler(request(voidPayload, "headCoach"));
+    await handler(request(voidPayload, "administrator"));
+    expect(voidPromotion).toHaveBeenLastCalledWith(
+      expect.objectContaining({ decidedByRole: "administrator", decidedByStaffId: null }),
+    );
 
     expect(voidPromotion).toHaveBeenNthCalledWith(
       1,
@@ -157,7 +165,7 @@ describe("assignLevel and voidPromotion callables", () => {
     });
 
     // G12 narrows G6: the administrator sees the record and the history, but never writes a level.
-    for (const role of ["administrator", "coach", "guardian", "adultStudent"]) {
+    for (const role of ["coach", "guardian", "adultStudent"]) {
       await expect(assign(request(assignPayload, role))).rejects.toMatchObject({
         code: "permission-denied",
         message: expect.stringMatching(decisionRefusal),
@@ -320,6 +328,10 @@ describe("recordSkillRatings callable", () => {
     await handler(request(ratingsPayload, "coach"));
     await handler(request(ratingsPayload, "owner"));
     await handler(request(ratingsPayload, "headCoach"));
+    await handler(request(ratingsPayload, "administrator"));
+    expect(recordSkillRatings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ evaluatorRole: "administrator", evaluatorStaffId: null }),
+    );
 
     expect(recordSkillRatings).toHaveBeenNthCalledWith(
       1,
@@ -333,13 +345,13 @@ describe("recordSkillRatings callable", () => {
       3,
       expect.objectContaining({ evaluatorRole: "headCoach", evaluatorStaffId: "staff-1" }),
     );
-    for (const role of ["administrator", "guardian", "adultStudent"]) {
+    for (const role of ["guardian", "adultStudent"]) {
       await expect(handler(request(ratingsPayload, role))).rejects.toMatchObject({
         code: "permission-denied",
         message: expect.stringMatching(coachRefusal),
       });
     }
-    expect(recordSkillRatings).toHaveBeenCalledTimes(3);
+    expect(recordSkillRatings).toHaveBeenCalledTimes(4);
   });
 
   it("refuses a head coach with no staff record", async () => {
@@ -362,7 +374,7 @@ describe("recordSkillRatings callable", () => {
    * would still refuse an administrator if a future change ever gave administrators a staff record,
    * so it gets an actor the staff-id half cannot refuse (LECCIONES §5).
    */
-  it("refuses an administrator who does have a staff record", async () => {
+  it("allows an administrator who also has a staff record", async () => {
     const recordSkillRatings = vi.fn();
     const administratorWithStaffRecord: LevelAuthorizationService = {
       requireActor: async () =>
@@ -380,11 +392,13 @@ describe("recordSkillRatings callable", () => {
       authorization: administratorWithStaffRecord,
     });
 
-    await expect(handler(request(ratingsPayload, "administrator"))).rejects.toMatchObject({
-      code: "permission-denied",
-      message: expect.stringMatching(coachRefusal),
-    });
-    expect(recordSkillRatings).not.toHaveBeenCalled();
+    await handler(request(ratingsPayload, "administrator"));
+    expect(recordSkillRatings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluatorRole: "administrator",
+        evaluatorId: "administrator-user",
+      }),
+    );
   });
 
   it("parses the batch with the store's own schema", async () => {

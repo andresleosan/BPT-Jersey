@@ -40,6 +40,10 @@ export const auditActions = Object.freeze([
   "invoice.voided",
   "payment.recorded",
   "invoice.status.changed",
+  "staff.invitation.created",
+  "staff.invitation.cancelled",
+  "staff.invitation.accepted",
+  "staff.invitation.failed",
   "staff.created",
   "staff.updated",
   "staff.status.changed",
@@ -292,6 +296,10 @@ export type AuditEventDraft = CommonAuditEventDraft &
           | "membership.subscription.updated"
           | "membership.created"
           | "membership.status.changed"
+          | "staff.invitation.created"
+          | "staff.invitation.cancelled"
+          | "staff.invitation.accepted"
+          | "staff.invitation.failed"
           | "staff.created"
           | "staff.updated"
           | "staff.status.changed"
@@ -474,6 +482,10 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "invoice.voided": Object.freeze([...commonFields, "amountMinor", "currency"]),
   "invoice.status.changed": Object.freeze([...commonFields, "amountMinor", "currency"]),
   "payment.recorded": Object.freeze([...commonFields, "amountMinor", "currency", "method"]),
+  "staff.invitation.created": commonFields,
+  "staff.invitation.cancelled": commonFields,
+  "staff.invitation.accepted": commonFields,
+  "staff.invitation.failed": commonFields,
   "staff.created": commonFields,
   "staff.updated": commonFields,
   "staff.status.changed": commonFields,

@@ -115,8 +115,8 @@ export type LevelCatalogStore = Readonly<{
     academyId: string;
     input: RecordEvaluationInput;
     evaluatorId: string;
-    evaluatorStaffId: string;
-    evaluatorRole: "headCoach" | "coach";
+    evaluatorStaffId: string | null;
+    evaluatorRole: "headCoach" | "coach" | "owner" | "administrator";
     evaluatedAt?: string;
   }) => Promise<EvaluationRecord>;
   /**
@@ -130,7 +130,7 @@ export type LevelCatalogStore = Readonly<{
     input: RecordSkillRatingsInput;
     evaluatorId: string;
     evaluatorStaffId: string | null;
-    evaluatorRole: "headCoach" | "coach" | "owner";
+    evaluatorRole: "headCoach" | "coach" | "owner" | "administrator";
     evaluatedAt?: string;
   }) => Promise<RecordSkillRatingsResult>;
   listStudentEvaluations: (
@@ -158,16 +158,16 @@ export type LevelCatalogStore = Readonly<{
     academyId: string;
     input: ApprovePromotionInput;
     decidedBy: string;
-    decidedByStaffId: string;
-    decidedByRole: "headCoach";
+    decidedByStaffId: string | null;
+    decidedByRole: "headCoach" | "owner" | "administrator";
     decidedAt?: string;
   }) => Promise<GraduationRecord>;
   rejectPromotion: (params: {
     academyId: string;
     input: RejectPromotionInput;
     decidedBy: string;
-    decidedByStaffId: string;
-    decidedByRole: "headCoach";
+    decidedByStaffId: string | null;
+    decidedByRole: "headCoach" | "owner" | "administrator";
     decidedAt?: string;
   }) => Promise<GraduationRecord>;
   listGraduations: (academyId: string, studentId?: string) => Promise<readonly GraduationRecord[]>;
@@ -181,7 +181,7 @@ export type LevelCatalogStore = Readonly<{
      * fails closed on "Staff scope is invalid".
      */
     openedByStaffId: string | null;
-    openedByRole: "headCoach" | "owner";
+    openedByRole: "headCoach" | "owner" | "administrator";
     openedAt?: string;
   }) => Promise<OpenedStudentLevel>;
   /**
@@ -194,7 +194,7 @@ export type LevelCatalogStore = Readonly<{
     input: AssignLevelInput;
     decidedBy: string;
     decidedByStaffId: string | null;
-    decidedByRole: "headCoach" | "owner";
+    decidedByRole: "headCoach" | "owner" | "administrator";
     decidedAt?: string;
   }) => Promise<AssignLevelResult>;
   /**
@@ -209,7 +209,7 @@ export type LevelCatalogStore = Readonly<{
     input: VoidPromotionInput;
     decidedBy: string;
     decidedByStaffId: string | null;
-    decidedByRole: "headCoach" | "owner";
+    decidedByRole: "headCoach" | "owner" | "administrator";
     decidedAt?: string;
   }) => Promise<VoidPromotionResult>;
   getStudentLevelHistory: (academyId: string, studentId: string) => Promise<StudentLevelHistory>;
@@ -255,7 +255,7 @@ export type StudentLevelHead = Readonly<{
   openingNotes: string;
   openedDefinitionKey?: string;
   openedOn?: string;
-  openedByRole?: "headCoach" | "owner" | null;
+  openedByRole?: "headCoach" | "owner" | "administrator" | null;
   source?: "regyfit-import";
   importedBaseline?: ImportedBaseline;
   state: "initialized";
@@ -267,11 +267,15 @@ export type StudentLevelHead = Readonly<{
 }>;
 
 /**
- * T051V2 (G6 narrowed by G12): only the head coach and the owner open a level. A coach or an
- * administrator is refused here, before anything is read or written, in BOTH stores.
+ * Administrators and owners may open levels. Historical headCoach accounts retain their
+ * sporting powers until explicitly migrated; ordinary coaches may not open a level.
  */
 function assertLevelOpeningRole(openedByRole: string): void {
-  if (openedByRole !== "headCoach" && openedByRole !== "owner") {
+  if (
+    openedByRole !== "headCoach" &&
+    openedByRole !== "owner" &&
+    openedByRole !== "administrator"
+  ) {
     throw new LevelStoreError("tenant", "Level opening role is invalid");
   }
 }
@@ -304,11 +308,15 @@ function assertLevelStartNotInTheFuture(startedOn: string | undefined, now: stri
 }
 
 /**
- * T051V2 (G6 narrowed by G12): only the head coach and the owner assign a level. A coach or an
- * administrator is refused before anything is read or written, in BOTH stores.
+ * Administrators and owners may decide promotions. Historical headCoach records remain valid;
+ * an ordinary coach cannot perform these decisions.
  */
 function assertPromotionDecisionRole(decidedByRole: string): void {
-  if (decidedByRole !== "headCoach" && decidedByRole !== "owner") {
+  if (
+    decidedByRole !== "headCoach" &&
+    decidedByRole !== "owner" &&
+    decidedByRole !== "administrator"
+  ) {
     throw new LevelStoreError("tenant", "Promotion decision role is invalid");
   }
 }
@@ -734,12 +742,14 @@ function voidReasonOf(reason: unknown): string {
 
 /**
  * Task 11 (plan decision 7 / grill G6 "owner everything"): a coach, a head coach AND the owner may
- * rate skills; an administrator may see the card and the history but never rates. The message is
+ * rate skills; administrators also rate under the unified administrative/coaching role. The message is
  * distinct from `assertTransactionalActor`'s, because a code-only refusal ("tenant") passes for the
  * wrong reason — Tasks 8, 9 and 10 each caught that.
  */
-function assertRatingRole(role: unknown): asserts role is "headCoach" | "coach" | "owner" {
-  if (role !== "headCoach" && role !== "coach" && role !== "owner") {
+function assertRatingRole(
+  role: unknown,
+): asserts role is "headCoach" | "coach" | "owner" | "administrator" {
+  if (role !== "headCoach" && role !== "coach" && role !== "owner" && role !== "administrator") {
     throw new LevelStoreError("tenant", "Assessment actor role is invalid");
   }
 }
@@ -914,8 +924,8 @@ function currentScores(evaluations: readonly EvaluationRecord[]): Record<string,
 }
 
 /** Task 10: a stored decision role the history schema recognises; anything else is unknown. */
-function historyDecisionRole(value: unknown): "headCoach" | "owner" | null {
-  return value === "headCoach" || value === "owner" ? value : null;
+function historyDecisionRole(value: unknown): "headCoach" | "owner" | "administrator" | null {
+  return value === "headCoach" || value === "owner" || value === "administrator" ? value : null;
 }
 
 /** The criteria as they stood at an assignment; anything else reads as "not recorded". */
@@ -1473,7 +1483,12 @@ export function createLevelCatalogStore({
     async recordEvaluation(params): Promise<EvaluationRecord> {
       assertValidAcademyId(params.academyId);
       const { academyId, input, evaluatorId, evaluatorStaffId, evaluatorRole } = params;
-      if (evaluatorRole !== "headCoach" && evaluatorRole !== "coach") {
+      if (
+        evaluatorRole !== "headCoach" &&
+        evaluatorRole !== "coach" &&
+        evaluatorRole !== "owner" &&
+        evaluatorRole !== "administrator"
+      ) {
         throw new LevelStoreError("tenant", "Assessment actor role is invalid");
       }
       const now = params.evaluatedAt ?? new Date().toISOString();
@@ -2029,7 +2044,7 @@ export function createLevelCatalogStore({
     async approvePromotion(params): Promise<GraduationRecord> {
       const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
       assertValidAcademyId(academyId);
-      if (decidedByRole !== "headCoach") {
+      if (!["headCoach", "owner", "administrator"].includes(decidedByRole)) {
         throw new LevelStoreError("tenant", "Promotion decision role is invalid");
       }
       const now = params.decidedAt ?? new Date().toISOString();
@@ -2071,7 +2086,7 @@ export function createLevelCatalogStore({
         await assertTransactionalActor(transaction, firestore, {
           academyId,
           actorId: decidedBy,
-          actorRole: "headCoach",
+          actorRole: decidedByRole,
           actorStaffId: decidedByStaffId,
         });
         const student = storedStudent(
@@ -2516,7 +2531,7 @@ export function createLevelCatalogStore({
     async rejectPromotion(params): Promise<GraduationRecord> {
       const { academyId, input, decidedBy, decidedByStaffId, decidedByRole } = params;
       assertValidAcademyId(academyId);
-      if (decidedByRole !== "headCoach") {
+      if (!["headCoach", "owner", "administrator"].includes(decidedByRole)) {
         throw new LevelStoreError("tenant", "Promotion decision role is invalid");
       }
       const now = params.decidedAt ?? new Date().toISOString();
@@ -2535,7 +2550,7 @@ export function createLevelCatalogStore({
         await assertTransactionalActor(transaction, firestore, {
           academyId,
           actorId: decidedBy,
-          actorRole: "headCoach",
+          actorRole: decidedByRole,
           actorStaffId: decidedByStaffId,
         });
         const student = storedStudent(

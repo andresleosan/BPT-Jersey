@@ -473,7 +473,7 @@ describe("canonical Levels security boundary", () => {
     );
   });
 
-  it("allows formal promotion decisions only for the current head coach", async () => {
+  it("allows sporting decisions for owner and administrator while retaining legacy head coach", async () => {
     const promotion = {
       studentId: "student-opaque-1",
       fromDefinitionKey: "white-0",
@@ -496,11 +496,16 @@ describe("canonical Levels security boundary", () => {
       resolveStudent: vi.fn(async () => studentProfile as never),
     });
 
-    await expect(
-      createApprovePromotionHandler({ store, authorization: serviceFor("owner") })(
-        request(promotion, "owner", "owner-user"),
-      ),
-    ).rejects.toMatchObject({ code: "permission-denied" });
+    for (const role of ["owner", "administrator"] as const) {
+      await createApprovePromotionHandler({ store, authorization: serviceFor(role) })(
+        request(promotion, role, `${role}-user`),
+      );
+      expect(
+        (store as { approvePromotion: ReturnType<typeof vi.fn> }).approvePromotion,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ decidedByRole: role, decidedByStaffId: null }),
+      );
+    }
 
     await createApprovePromotionHandler({
       store,

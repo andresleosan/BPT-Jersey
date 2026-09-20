@@ -28,7 +28,7 @@ import {
   listSessions,
   recordCheckIn,
 } from "../../lib/schedule-client";
-import { useStaffSession } from "../../lib/staff-auth";
+import { useAdminOrStaffSession } from "../admin/admin-gate";
 const OpenLevelPanel = lazy(() =>
   import("./open-level-panel").then((module) => ({ default: module.OpenLevelPanel })),
 );
@@ -63,7 +63,7 @@ type BirthdayState =
   | Readonly<{ status: "error" }>;
 
 export default function CoachDashboardPage() {
-  const { session } = useStaffSession();
+  const session = useAdminOrStaffSession();
   const [premises, setPremises] = useState<PremisesChoice>(() => {
     try {
       if (typeof window !== "undefined") {
@@ -626,7 +626,8 @@ export default function CoachDashboardPage() {
                   </table>
                 )}
 
-                {session?.role === "headCoach" && operationalView ? (
+                {["headCoach", "administrator", "owner"].includes(session.role) &&
+                operationalView ? (
                   <Suspense fallback={<p role="status">Loading level tools…</p>}>
                     <OpenLevelPanel
                       key={effectiveSessionId}

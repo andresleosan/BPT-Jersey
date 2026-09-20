@@ -367,7 +367,7 @@ function MemberRecordSession({
   const ibjjfCardSlot: ReactNode =
     readyStudentId === undefined ? undefined : (
       <IbjjfCard
-        canOpenLevel={role === "owner" || role === "headCoach"}
+        canOpenLevel={role === "owner" || role === "administrator" || role === "headCoach"}
         manageHref={recordHref(readyStudentId, "profile", true)}
         studentId={readyStudentId}
       />

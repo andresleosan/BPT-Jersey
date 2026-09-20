@@ -55,7 +55,7 @@ export type LessonPlanRecord = Readonly<{
 
 export type ApproveLessonPlanInput = Readonly<{
   staffId: string;
-  staffRole: "head_coach" | "coach" | "administrator";
+  staffRole: "head_coach" | "coach" | "administrator" | "owner";
   approvedAt: string;
 }>;
 
@@ -316,7 +316,8 @@ export function approveLessonPlan(
 ): Result<LessonPlanRecord, readonly ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   if (plan.status !== "submitted") issues.push(issue(["plan", "status"], "plan_must_be_submitted"));
-  if (input.staffRole !== "head_coach") issues.push(issue(["staffRole"], "head_coach_required"));
+  if (!["head_coach", "administrator", "owner"].includes(input.staffRole))
+    issues.push(issue(["staffRole"], "head_coach_required"));
   if (!isIdentifier(input.staffId)) issues.push(issue(["staffId"], "invalid_identifier"));
   if (!isDateTime(input.approvedAt)) issues.push(issue(["approvedAt"], "invalid_iso_datetime"));
   if (issues.length > 0) return err(Object.freeze(issues));

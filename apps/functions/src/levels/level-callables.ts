@@ -40,12 +40,9 @@ type HandlerDependencies = Readonly<{
 }>;
 
 const staffRoles = new Set(["owner", "administrator", "headCoach", "coach"]);
-const assessmentRoles = new Set(["headCoach", "coach"]);
-/**
- * T051V2 (grill G6, narrowed by G12): coach, head coach and owner may RATE a skill; the
- * administrator may not, because a rating is a judgement about a member's jiu-jitsu.
- */
-const ratingRoles = new Set(["headCoach", "coach", "owner"]);
+const assessmentRoles = new Set(["headCoach", "coach", "owner", "administrator"]);
+// 2026-09-20: administrators combine office and head-coach responsibilities.
+const ratingRoles = new Set(["headCoach", "coach", "owner", "administrator"]);
 
 function invalidPayload(): never {
   throw new HttpsError("invalid-argument", "Levels payload is invalid");
@@ -119,21 +116,15 @@ function mapStoreError(error: unknown, action: string): never {
   throw new HttpsError("internal", `Unable to ${action}`);
 }
 
-/**
- * T051V2: who may OPEN, ASSIGN or VOID a level. The head coach needs a live staff record; the
- * owner has none by design (`assertTransactionalActor` validates the owner through the member
- * directory instead), so the store takes `staffId: null` from them. The administrator is refused
- * here — G12 narrows G6 to "the administrator sees the record and the history, and writes neither".
- * One helper, one message, so the three write callables cannot drift apart.
- */
+/** Legacy headCoach remains readable during explicit migration to administrator. */
 function decisionActor(
   actor: AuthorizedLevelActor,
-): Readonly<{ role: "headCoach" | "owner"; staffId: string | null }> {
-  if (actor.role === "owner") return { role: "owner", staffId: null };
-  if (actor.role === "headCoach" && actor.staffId !== null) {
+): Readonly<{ role: "headCoach" | "owner" | "administrator"; staffId: string | null }> {
+  if (actor.role === "owner" || actor.role === "administrator")
+    return { role: actor.role, staffId: null };
+  if (actor.role === "headCoach" && actor.staffId !== null)
     return { role: "headCoach", staffId: actor.staffId };
-  }
-  throw new HttpsError("permission-denied", "The head coach or the owner is required");
+  throw new HttpsError("permission-denied", "An administrator or owner is required");
 }
 
 /**
@@ -168,7 +159,10 @@ export function createListLevelCatalogHandler(dependencies: HandlerDependencies)
 export function createRecordEvaluationHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<{ evaluation: EvaluationRecord }> => {
     const actor = await dependencies.authorization.requireActor(request);
-    if (!assessmentRoles.has(actor.role) || actor.staffId === null) {
+    if (
+      !assessmentRoles.has(actor.role) ||
+      ((actor.role === "coach" || actor.role === "headCoach") && actor.staffId === null)
+    ) {
       throw new HttpsError("permission-denied", "A current coach role is required");
     }
     if (
@@ -198,7 +192,7 @@ export function createRecordEvaluationHandler(dependencies: HandlerDependencies)
           input: { ...parsed.value, studentId },
           evaluatorId: actor.userId,
           evaluatorStaffId: actor.staffId,
-          evaluatorRole: actor.role as "headCoach" | "coach",
+          evaluatorRole: actor.role as "headCoach" | "coach" | "owner" | "administrator",
         }),
       };
     } catch (error) {
@@ -323,9 +317,7 @@ export function createListRecognitionCandidatesHandler(dependencies: HandlerDepe
 export function createApprovePromotionHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<{ graduation: GraduationRecord }> => {
     const actor = await dependencies.authorization.requireActor(request);
-    if (actor.role !== "headCoach" || actor.staffId === null) {
-      throw new HttpsError("permission-denied", "The current head coach is required");
-    }
+    const decider = decisionActor(actor);
     if (
       !isPlainRecord(request.data) ||
       !exactFields(
@@ -349,8 +341,8 @@ export function createApprovePromotionHandler(dependencies: HandlerDependencies)
           academyId: actor.academyId,
           input: { ...parsed.value, studentId },
           decidedBy: actor.userId,
-          decidedByStaffId: actor.staffId,
-          decidedByRole: "headCoach",
+          decidedByStaffId: decider.staffId,
+          decidedByRole: decider.role,
         }),
       };
     } catch (error) {
@@ -392,9 +384,7 @@ export function createOpenStudentLevelHandler(dependencies: HandlerDependencies)
 export function createRejectPromotionHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<{ graduation: GraduationRecord }> => {
     const actor = await dependencies.authorization.requireActor(request);
-    if (actor.role !== "headCoach" || actor.staffId === null) {
-      throw new HttpsError("permission-denied", "The current head coach is required");
-    }
+    const decider = decisionActor(actor);
     if (
       !isPlainRecord(request.data) ||
       !exactFields(request.data, ["studentId", "targetDefinitionKey", "decisionNotes"])
@@ -414,8 +404,8 @@ export function createRejectPromotionHandler(dependencies: HandlerDependencies) 
           academyId: actor.academyId,
           input: { ...parsed.value, studentId },
           decidedBy: actor.userId,
-          decidedByStaffId: actor.staffId,
-          decidedByRole: "headCoach",
+          decidedByStaffId: decider.staffId,
+          decidedByRole: decider.role,
         }),
       };
     } catch (error) {
@@ -489,7 +479,7 @@ export function createVoidPromotionHandler(dependencies: HandlerDependencies) {
 export function createGetStudentLevelHistoryHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<StudentLevelHistory> => {
     const actor = await dependencies.authorization.requireActor(request);
-    // Read side: the administrator IS admitted here (G12), unlike the three write callables.
+    // All team roles may read the level history.
     if (!staffRoles.has(actor.role)) {
       throw new HttpsError("permission-denied", "A current staff role is required");
     }
@@ -507,7 +497,10 @@ export function createGetStudentLevelHistoryHandler(dependencies: HandlerDepende
 export function createRecordSkillRatingsHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<RecordSkillRatingsResult> => {
     const actor = await dependencies.authorization.requireActor(request);
-    if (!ratingRoles.has(actor.role) || (actor.role !== "owner" && actor.staffId === null)) {
+    if (
+      !ratingRoles.has(actor.role) ||
+      ((actor.role === "coach" || actor.role === "headCoach") && actor.staffId === null)
+    ) {
       throw new HttpsError("permission-denied", "A current coach role is required");
     }
     const parsed = recordSkillRatingsInputSchema.safeParse(request.data);
@@ -519,7 +512,7 @@ export function createRecordSkillRatingsHandler(dependencies: HandlerDependencie
         input: { ...parsed.data, studentId },
         evaluatorId: actor.userId,
         evaluatorStaffId: actor.staffId,
-        evaluatorRole: actor.role as "headCoach" | "coach" | "owner",
+        evaluatorRole: actor.role as "headCoach" | "coach" | "owner" | "administrator",
       });
     } catch (error) {
       return mapStoreError(error, "record assessment");

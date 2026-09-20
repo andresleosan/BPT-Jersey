@@ -413,6 +413,63 @@ describe("administrative role provisioning", () => {
     }
   });
 
+  it.each(["coach", "headCoach", "administrator"])(
+    "promotes existing %s through the team transition while preserving unrelated claims",
+    async (role) => {
+      const target = googleUser();
+      target.customClaims = { academyId: "academy-1", role, locale: "en-GB" };
+      const services = createSyntheticServices([target]);
+      await provisionAdminRoleWithServices(
+        callableRequest("owner", "academy-1"),
+        { uid: target.uid, email: target.email, role: "administrator" },
+        services,
+        "team",
+      );
+      expect(target.customClaims).toEqual({
+        academyId: "academy-1",
+        role: "administrator",
+        locale: "en-GB",
+      });
+      expect(
+        services.firestore.records.get(`academies/academy-1/users/${target.uid}`),
+      ).toMatchObject({ adminRole: "administrator", accountType: "staff" });
+    },
+  );
+  it.each(["teenStudent", "guardian", "adultStudent"])(
+    "does not promote %s through the team-only path",
+    async (role) => {
+      const target = googleUser();
+      target.customClaims = { academyId: "academy-1", role };
+      await expect(
+        provisionAdminRoleWithServices(
+          callableRequest("owner", "academy-1"),
+          { uid: target.uid, email: target.email, role: "owner" },
+          createSyntheticServices([target]),
+          "team",
+        ),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+      expect(target.customClaims.role).toBe(role);
+    },
+  );
+  it("does not let an invitation transfer an account across academies or elevate a teenager", async () => {
+    for (const claims of [
+      { academyId: "academy-2", role: "coach" },
+      { academyId: "academy-1", role: "teenStudent" },
+    ]) {
+      const target = googleUser();
+      target.customClaims = claims;
+      await expect(
+        provisionAdminRoleWithServices(
+          callableRequest("owner", "academy-1"),
+          { uid: target.uid, email: target.email, role: "owner" },
+          createSyntheticServices([target]),
+          "invitation",
+        ),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+      expect(target.customClaims).toEqual(claims);
+    }
+  });
+
   it("reads and validates the target while holding the lock, then releases it on failure", async () => {
     const target = googleUser();
     target.providerData = [{ providerId: "password" }];

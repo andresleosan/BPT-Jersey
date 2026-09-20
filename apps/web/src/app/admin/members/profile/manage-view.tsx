@@ -71,8 +71,14 @@ function formatDay(day: string | null): string | null {
   return Number.isNaN(at.getTime()) ? null : dayLabel.format(at);
 }
 
-const roleLabel = (role: "headCoach" | "owner" | null): string | null =>
-  role === "headCoach" ? "Head coach" : role === "owner" ? "Owner" : null;
+const roleLabel = (role: "headCoach" | "owner" | "administrator" | null): string | null =>
+  role === "headCoach"
+    ? "Head coach"
+    : role === "owner"
+      ? "Owner"
+      : role === "administrator"
+        ? "Administrator"
+        : null;
 
 /**
  * T051V2 review of Task 16 (Major-1): the dialog used to measure the trimmed length itself, which
@@ -656,8 +662,8 @@ export function ManageView({
   const [busy, setBusy] = useState(false);
   const [voidError, setVoidError] = useState<string | null>(null);
   const inFlight = useRef(false);
-  // G12: an administrator sees this record and its history, and reaches no decision at all.
-  const canDecide = role === "owner" || role === "headCoach";
+  // Administrator combines office and head-coach decision powers.
+  const canDecide = role === "owner" || role === "administrator" || role === "headCoach";
   /**
    * Rating is a wider door than deciding: `ratingRoles` on `recordEvaluation` accepts a coach as
    * well, who may never open, assign or void. The two must not be collapsed into one flag.
@@ -844,8 +850,8 @@ export function ManageView({
       return (
         <p className="ibjjf-muted">
           {loaded.card.state === "uninitialized"
-            ? "No level yet. A head coach or the owner opens it."
-            : "Only a head coach or the owner can open, assign or void a level."}
+            ? "No level yet. An administrator or the owner opens it."
+            : "Only an administrator or the owner can open, assign or void a level."}
         </p>
       );
     }
