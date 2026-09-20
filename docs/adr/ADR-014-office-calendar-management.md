@@ -1,6 +1,6 @@
 # ADR-014: gestión administrativa completa del calendario
 
-Fecha: 2026-09-20. Estado: implementación local; publicación pendiente.
+Fecha: 2026-09-20. Estado: backend desplegado; publicación web y validación autenticada pendientes.
 
 ## Decisión del operador
 
@@ -57,11 +57,19 @@ interceptadas y datos sintéticos. Resultados finales se registran en BACKLOG.md
 
 ## Publicación
 
-La entrega requiere publicar la web y actualizar exclusivamente la callable updateSession para
-habilitar la edición completa y retirar el tope de series. Las otras callables no necesitan
-redespliegue para estos cambios. No se ha publicado este alcance ni modificado sesiones reales.
-La aprobación para publicaciones previas no se interpreta como aprobación de esta nueva entrega.
+El operador autorizó explícitamente esta publicación en el chat el 2026-09-20. Se desplegó
+exclusivamente `functions:updateSession` en `bptjersey-f5a25`, región `us-central1`, desde el
+commit de código `8aa611f`. Firebase confirmó Successful update operation y Deploy complete,
+con código de salida 0. Evidencia: `.tmp/calendar-deploy.log`.
 
+Una petición POST vacía, sin autenticación, devolvió HTTP 401 el 2026-09-20 a las 07:32 UTC;
+evidencia `.tmp/calendar-post-deploy.json`. Esta comprobación verifica el rechazo del acceso
+anónimo; no sustituye la comprobación funcional con sesión administrativa. No se modificaron
+sesiones reales, cuentas, reglas o IAM. Las otras callables no requirieron redespliegue.
+
+La web queda preparada en `main` para el push del operador. Siguen pendientes el push, Success
+del commit correspondiente en Cloudflare Pages y comprobar creación, edición y retirada
+conservando el historial desde una sesión administrativa en producción.
 
 ## Evidencia final
 
