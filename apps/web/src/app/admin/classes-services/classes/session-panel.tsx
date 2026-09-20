@@ -202,7 +202,8 @@ export function SessionPanel({
   }, []);
 
   const editing = current === "edit" && session !== undefined;
-  const locked = editing;
+  const locked = editing && !canReadMemberships;
+  const mutationInFlight = useRef(false);
 
   function patch(change: Partial<Draft>): void {
     setDraft((previous) => ({ ...previous, ...change }));
@@ -245,7 +246,8 @@ export function SessionPanel({
       : null;
 
   async function submit(): Promise<void> {
-    if (!canEdit || blocked) return;
+    if (!canEdit || blocked || mutationInFlight.current) return;
+    mutationInFlight.current = true;
     setBusy(true);
     setError(null);
 
@@ -258,6 +260,13 @@ export function SessionPanel({
         const changes: { -readonly [K in keyof UpdateSessionInput]: UpdateSessionInput[K] } = {
           sessionId: session.sessionId,
         };
+        if (draft.locationId !== session.locationId) changes.locationId = draft.locationId;
+        if (draft.programId !== session.programId) {
+          changes.programId = draft.programId;
+          changes.title =
+            catalog.programs.find((row) => row.programId === draft.programId)?.name ??
+            session.title;
+        }
         if (Date.parse(startAt) !== Date.parse(session.startAt)) changes.startAt = startAt;
         if (Date.parse(endAt) !== Date.parse(session.endAt)) changes.endAt = endAt;
         if (capacity !== session.capacity) changes.capacity = capacity;
@@ -303,12 +312,15 @@ export function SessionPanel({
     } catch (failure) {
       setError(messageOf(failure, "Unable to save the class"));
     } finally {
+      mutationInFlight.current = false;
       setBusy(false);
     }
   }
 
   async function confirmCancellation(): Promise<void> {
-    if (!session || !canEdit || busy || reason.trim().length < 2) return;
+    if (!session || !canEdit || busy || mutationInFlight.current || reason.trim().length < 2)
+      return;
+    mutationInFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -316,6 +328,7 @@ export function SessionPanel({
     } catch (failure) {
       setError(messageOf(failure, "Unable to cancel the class"));
     } finally {
+      mutationInFlight.current = false;
       setBusy(false);
     }
   }
@@ -724,6 +737,10 @@ export function SessionPanel({
             ) : null}
             {confirming ? (
               <div className="cs-form-row cs-session-cancellation">
+                <p className="cs-session-help">
+                  Removes this session from the active calendar. Reservations and attendance stay in
+                  its history.
+                </p>
                 <label className="cs-field">
                   <span>Reason</span>
                   <input

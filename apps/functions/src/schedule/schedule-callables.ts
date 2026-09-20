@@ -187,7 +187,7 @@ function mapScheduleMutationError(
     throw new HttpsError("not-found", `${resource} not found`);
   }
   if (
-    /Only scheduled sessions|must end after|cannot exceed capacity|Choose this and following sessions|Too many saved occurrences/u.test(
+    /Only scheduled sessions|must end after|cannot exceed capacity|Choose this and following sessions/u.test(
       message,
     )
   ) {
@@ -616,8 +616,24 @@ export function createUpdateSessionHandler(options: { store: ScheduleStore }) {
     }
     const parsed = parseUpdateSessionInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+    if (
+      (parsed.value.locationId !== undefined || parsed.value.programId !== undefined) &&
+      actor.role !== "owner" &&
+      actor.role !== "administrator"
+    )
+      throw new HttpsError(
+        "permission-denied",
+        "Office access required to change session type or site",
+      );
     try {
-      return { session: await store.updateSession(actor.academyId, parsed.value, actor.userId) };
+      return {
+        session: await store.updateSession(
+          actor.academyId,
+          parsed.value,
+          actor.userId,
+          actor.role === "owner" || actor.role === "administrator",
+        ),
+      };
     } catch (error) {
       return mapScheduleMutationError(error, "Session");
     }

@@ -166,6 +166,7 @@
 }
 
 .cs-week {
+  overflow-x: auto;
   display: grid;
   grid-template-columns: 3.5rem repeat(7, minmax(8rem, 1fr));
   gap: 0.5rem;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayLabel, layoutWeek, mondayOf, nowMarker, weekDays } from "./week-grid";
+import { countSessionDays, dayLabel, layoutWeek, mondayOf, nowMarker, weekDays } from "./week-grid";
 
 const base = {
   colour: "#F0EFFF",
@@ -64,7 +64,7 @@ describe("week grid", () => {
     expect(layout.hours).toEqual([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
   });
 
-  it("splits overlapping sessions into columns, at most two", () => {
+  it("gives every overlapping session a separate column", () => {
     const at = (h: string) => `2026-09-14T${h}:00.000Z`;
     const layout = layoutWeek(
       [
@@ -78,9 +78,9 @@ describe("week grid", () => {
     );
     const placed = layout.days[0]!.sessions;
     expect(placed.map((s) => [s.sessionId, s.column, s.columns])).toEqual([
-      ["a", 0, 2],
-      ["b", 1, 2],
-      ["c", 0, 2],
+      ["a", 0, 3],
+      ["b", 1, 3],
+      ["c", 2, 3],
     ]);
   });
 
@@ -164,4 +164,29 @@ describe("week grid", () => {
     // Another week on screen: nothing to mark.
     expect(nowMarker("2026-09-24T13:30:00.000Z", "2026-09-14", "Europe/Jersey", window)).toBeNull();
   });
+});
+
+it("counts monthly classes once using local dates and excludes cancelled history", () => {
+  const rows = [
+    {
+      ...base,
+      sessionId: "late",
+      title: "Late",
+      startAt: "2026-09-14T23:30:00.000Z",
+      endAt: "2026-09-15T00:30:00.000Z",
+      booked: 3,
+    },
+    {
+      ...base,
+      sessionId: "cancelled",
+      title: "Cancelled",
+      startAt: "2026-09-14T23:30:00.000Z",
+      endAt: "2026-09-15T00:30:00.000Z",
+      status: "cancelled" as const,
+      booked: 8,
+    },
+  ];
+  expect([...countSessionDays(rows, "Europe/Jersey")]).toEqual([
+    ["2026-09-15", { classes: 1, registrations: 3 }],
+  ]);
 });

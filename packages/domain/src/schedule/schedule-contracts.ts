@@ -267,6 +267,8 @@ export type UpdateSessionInput = Readonly<{
   repeatScope?: "single" | "following";
   sessionId: string;
   title?: string;
+  locationId?: string;
+  programId?: string;
   instructorId?: string;
   startAt?: string;
   endAt?: string;
@@ -834,6 +836,8 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
     repeatScope,
     sessionId,
     title,
+    locationId,
+    programId,
     instructorId,
     startAt,
     endAt,
@@ -854,6 +858,8 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   if (
     [
       title,
+      locationId,
+      programId,
       instructorId,
       startAt,
       endAt,
@@ -914,6 +920,13 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   ) {
     return err("minParticipants cannot exceed capacity");
   }
+  for (const [field, value] of Object.entries({ locationId, programId })) {
+    if (
+      value !== undefined &&
+      (typeof value !== "string" || !value.trim() || value.length > 128 || value.includes("/"))
+    )
+      return err(`${field} must be a valid identifier`);
+  }
   const descriptionResult =
     description === undefined ? undefined : parseClassDescription(description);
   if (descriptionResult && !descriptionResult.ok) return err(descriptionResult.error);
@@ -925,6 +938,8 @@ export function parseUpdateSessionInput(input: unknown): Result<UpdateSessionInp
   const result: { -readonly [K in keyof UpdateSessionInput]: UpdateSessionInput[K] } = {
     sessionId: sessionId.trim(),
   };
+  if (typeof locationId === "string") result.locationId = locationId.trim();
+  if (typeof programId === "string") result.programId = programId.trim();
   if (typeof title === "string") result.title = title.trim();
   if (typeof instructorId === "string") result.instructorId = instructorId.trim();
   if (typeof startAt === "string") result.startAt = startAt;

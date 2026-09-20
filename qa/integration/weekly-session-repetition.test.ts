@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { deleteApp, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { afterAll, describe, expect, it } from "vitest";
+import {
+  newWeeklySeries,
+  weeklyOccurrence,
+} from "../../apps/functions/src/schedule/weekly-session-service.js";
 import { createFirestoreScheduleStore } from "../../apps/functions/src/schedule/schedule-service.js";
 
 // This test may never fall through to a real Firebase project.
@@ -27,7 +31,7 @@ const seed = {
 };
 const range = { from: "2026-10-01T00:00:00.000Z", to: "2026-11-30T23:59:59.000Z" };
 afterAll(async () => {
-  for (const collection of ["sessions", "sessionSeries", "bookings"]) {
+  for (const collection of ["sessions", "sessionSeries", "bookings", "attendance"]) {
     await firestore.recursiveDelete(firestore.collection(`academies/${academy}/${collection}`));
   }
   await deleteApp(app);
@@ -101,4 +105,90 @@ describe("weekly recurrence against Firestore", () => {
     ).toEqual([]);
     expect(await store.listSessions(academy + "-other", range)).toEqual([]);
   });
+});
+
+it("atomically edits and stops 600 persisted occurrences without losing history", async () => {
+  const first = await store.createSession(
+    academy,
+    { ...seed, title: "Large synthetic series" },
+    "owner",
+  );
+  const series = newWeeklySeries(first, "Europe/Jersey");
+  const batch = firestore.batch();
+  for (let index = 1; index < 600; index++) {
+    const row = weeklyOccurrence(series, index)!;
+    batch.create(firestore.doc(`academies/${academy}/sessions/${row.sessionId}`), row);
+  }
+  await batch.commit();
+  const last = weeklyOccurrence(series, 599)!;
+  const booking = firestore.doc(`academies/${academy}/bookings/large-synthetic-booking`);
+  const attendance = firestore.doc(`academies/${academy}/attendance/large-synthetic-attendance`);
+  await attendance.set({
+    sessionId: last.sessionId,
+    status: "attended",
+    studentId: "synthetic-large",
+  });
+  await booking.set({
+    sessionId: last.sessionId,
+    status: "confirmed",
+    studentId: "synthetic-large",
+  });
+  await store.updateSession(
+    academy,
+    { sessionId: first.sessionId, capacity: 25, repeatScope: "following" },
+    "administrator",
+    true,
+  );
+  expect((await store.getSession(academy, last.sessionId))!.capacity).toBe(25);
+  await store.updateSession(
+    academy,
+    { sessionId: first.sessionId, repeatWeekly: false, repeatScope: "following" },
+    "administrator",
+    true,
+  );
+  expect((await store.getSession(academy, last.sessionId))!.status).toBe("cancelled");
+  await store.updateSession(
+    academy,
+    {
+      sessionId: last.sessionId,
+      title: "Corrected historical title",
+      locationId: "west",
+      programId: "nogi",
+    },
+    "administrator",
+    true,
+  );
+  expect(await store.getSession(academy, last.sessionId)).toMatchObject({
+    status: "cancelled",
+    title: "Corrected historical title",
+    locationId: "west",
+    programId: "nogi",
+  });
+  expect((await attendance.get()).data()).toMatchObject({
+    sessionId: last.sessionId,
+    status: "attended",
+  });
+  expect((await booking.get()).data()).toMatchObject({
+    sessionId: last.sessionId,
+    status: "confirmed",
+  });
+});
+
+it("turns a cancelled standalone date into a weekly series while preserving that date's history", async () => {
+  const first = await store.createSession(academy, { ...seed, repeatWeekly: false }, "owner");
+  await store.cancelSession(academy, first.sessionId, "Historical removal", "owner");
+  const updated = await store.updateSession(
+    academy,
+    { sessionId: first.sessionId, repeatWeekly: true },
+    "administrator",
+    true,
+  );
+  expect(updated.status).toBe("cancelled");
+  const rows = (await store.listSessions(academy, range)).filter(
+    (row) => row.weeklySeriesId === first.sessionId,
+  );
+  expect(rows[0]!.status).toBe("cancelled");
+  expect(
+    rows.slice(1).every((row) => row.status === "scheduled" && row.cancellationReason === null),
+  ).toBe(true);
 });

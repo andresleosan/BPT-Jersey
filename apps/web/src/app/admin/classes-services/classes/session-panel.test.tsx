@@ -443,7 +443,7 @@ describe("SessionPanel", () => {
     expect(screen.getByLabelText("Date")).toHaveValue("2026-09-14");
   });
 
-  it("keeps the type and the location locked while editing", () => {
+  it("lets office staff change type and location without copying the session", async () => {
     render(
       <SessionPanel
         mode="edit"
@@ -459,9 +459,22 @@ describe("SessionPanel", () => {
       />,
     );
     const type = screen.getByLabelText("Class/service type");
-    expect(type).toBeDisabled();
-    expect(type).toHaveAttribute("title", "Copy the class to change it");
-    expect(screen.getByLabelText("Class/service location")).toBeDisabled();
+    expect(type).toBeEnabled();
+    fireEvent.change(type, { target: { value: "p0" } });
+    fireEvent.change(screen.getByLabelText("Class/service location"), {
+      target: { value: "west" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: "s1",
+          programId: "p0",
+          locationId: "west",
+          title: "NO GI All Levels",
+        }),
+      ),
+    );
   });
 
   it("hides every write control from a coach", () => {

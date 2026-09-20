@@ -1854,3 +1854,21 @@ describe("session capacity is required", () => {
     expect(parseUpdateSessionInput({ sessionId: "s1", capacity: 12 }).ok).toBe(true);
   });
 });
+
+it("validates changed session type and site and ignores client permission claims", () => {
+  const parsed = parseUpdateSessionInput({
+    sessionId: "s1",
+    programId: "nogi",
+    locationId: "west",
+    allowHistorical: true,
+  });
+  expect(parsed).toEqual({
+    ok: true,
+    value: { sessionId: "s1", programId: "nogi", locationId: "west" },
+  });
+  for (const field of ["locationId", "programId"]) {
+    for (const value of ["", " ", "other/path", 25, "x".repeat(129)]) {
+      expect(parseUpdateSessionInput({ sessionId: "s1", [field]: value }).ok).toBe(false);
+    }
+  }
+});

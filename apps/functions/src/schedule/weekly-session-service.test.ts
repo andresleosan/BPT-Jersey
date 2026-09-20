@@ -144,3 +144,76 @@ describe("weekly session repetition", () => {
     ).toEqual([]);
   });
 });
+
+it("edits and stops a series with more than 400 saved occurrences", async () => {
+  const store = createInMemoryScheduleStore();
+  const first = await store.createSession("large", seed, "owner");
+  for (let offset = 0; offset < 600; offset += 12) {
+    const start = Date.parse(seed.startAt) + offset * 7 * 86400000;
+    await store.listSessions("large", {
+      from: new Date(start).toISOString(),
+      to: new Date(start + 83 * 86400000).toISOString(),
+    });
+  }
+  const updated = await store.updateSession(
+    "large",
+    { sessionId: first.sessionId, capacity: 30, repeatScope: "following" },
+    "owner",
+  );
+  expect(updated.capacity).toBe(30);
+  const tailStart = Date.parse(seed.startAt) + 590 * 7 * 86400000;
+  const query = {
+    from: new Date(tailStart).toISOString(),
+    to: new Date(tailStart + 7 * 86400000).toISOString(),
+  };
+  expect((await store.listSessions("large", query)).every((row) => row.capacity === 30)).toBe(true);
+  await store.updateSession(
+    "large",
+    { sessionId: first.sessionId, repeatWeekly: false, repeatScope: "following" },
+    "owner",
+  );
+  expect(
+    (await store.listSessions("large", query)).every((row) => row.status === "cancelled"),
+  ).toBe(true);
+});
+
+it.each(["completed", "cancelled"] as const)(
+  "repeats a %s historical session without changing that date's status or cancelling future dates",
+  async (status) => {
+    const store = createInMemoryScheduleStore();
+    const first = await store.createSession("history", { ...seed, repeatWeekly: false }, "owner");
+    await store.__seedSessionId!(
+      "history",
+      {
+        ...first,
+        status,
+        cancellationReason: status === "cancelled" ? "Historical removal" : null,
+      },
+      first.sessionId,
+    );
+    const result = await store.updateSession(
+      "history",
+      { sessionId: first.sessionId, repeatWeekly: true },
+      "administrator",
+      true,
+    );
+    expect(result.status).toBe(status);
+    const rows = await store.listSessions("history", october);
+    expect(rows[0]!.status).toBe(status);
+    expect(
+      rows.slice(1).every((row) => row.status === "scheduled" && row.cancellationReason === null),
+    ).toBe(true);
+    await store.updateSession(
+      "history",
+      { sessionId: first.sessionId, repeatScope: "following", capacity: 25 },
+      "administrator",
+      true,
+    );
+    expect((await store.getSession("history", first.sessionId))!.status).toBe(status);
+    expect(
+      (await store.listSessions("history", october))
+        .slice(1)
+        .every((row) => row.status === "scheduled" && row.capacity === 25),
+    ).toBe(true);
+  },
+);

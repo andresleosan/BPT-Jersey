@@ -105,32 +105,29 @@ export function layoutWeek(
       .slice()
       .sort((a, b) => a.start.hour - b.start.hour || a.s.title.localeCompare(b.s.title));
     const placed: PlacedSession[] = [];
-    const active: { end: number; column: number }[] = [];
+    let group: PlacedSession[] = [];
+    let ends: number[] = [];
+    let groupEnd = -1;
+    function finishGroup(): void {
+      for (const session of group) placed.push({ ...session, columns: ends.length });
+      group = [];
+      ends = [];
+    }
     for (const { s, start, end } of own) {
-      for (let i = active.length - 1; i >= 0; i -= 1)
-        if (active[i]!.end <= start.hour) active.splice(i, 1);
-      const held = new Set(active.map((a) => a.column));
-      const column = held.has(0) ? (held.has(1) ? 0 : 1) : 0;
-      active.push({ end: end.hour, column });
       const rowStart = clamp(Math.round((start.hour - window.fromHour) * 2), 0, rows - 1);
       const rowEnd = clamp(Math.round((end.hour - window.fromHour) * 2), rowStart + 1, rows);
-      const rowSpan = rowEnd - rowStart;
-      placed.push({ ...s, rowStart, rowSpan, column, columns: 1 });
+      if (rowStart >= groupEnd) finishGroup();
+      let column = ends.findIndex((value) => value <= rowStart);
+      if (column === -1) column = ends.length;
+      ends[column] = rowEnd;
+      groupEnd = Math.max(groupEnd, rowEnd);
+      group.push({ ...s, rowStart, rowSpan: rowEnd - rowStart, column, columns: 1 });
     }
-    // second pass: every session that overlapped anything gets two columns
-    const columns = placed.map((p) =>
-      placed.some(
-        (q) =>
-          q !== p && q.rowStart < p.rowStart + p.rowSpan && p.rowStart < q.rowStart + q.rowSpan,
-      )
-        ? 2
-        : 1,
-    );
-    const final = placed.map((p, i) => ({ ...p, columns: columns[i]! }));
+    finishGroup();
     return Object.freeze({
       date,
       label: dayLabel(date),
-      sessions: Object.freeze(final),
+      sessions: Object.freeze(placed),
       classes: own.filter(({ s }) => s.status !== "cancelled").length,
       registrations: own.reduce((sum, { s }) => sum + (s.status === "cancelled" ? 0 : s.booked), 0),
     });
@@ -155,4 +152,21 @@ export function nowMarker(
     date,
     top: inside ? (hour - window.fromHour) / (window.toHour - window.fromHour) : null,
   };
+}
+
+/** Month summaries need one date conversion per class, with no week layout or overlap calculation. */
+export function countSessionDays(
+  sessions: readonly GridSession[],
+  timezone: string,
+): ReadonlyMap<string, { classes: number; registrations: number }> {
+  const counts = new Map<string, { classes: number; registrations: number }>();
+  for (const session of sessions) {
+    if (session.status === "cancelled") continue;
+    const date = localParts(session.startAt, timezone).date;
+    const count = counts.get(date) ?? { classes: 0, registrations: 0 };
+    count.classes += 1;
+    count.registrations += session.booked;
+    counts.set(date, count);
+  }
+  return counts;
 }

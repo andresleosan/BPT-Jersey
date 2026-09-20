@@ -77,3 +77,13 @@ the student. Completion requires confirmed level, subscription and any supplied 
 Administrator has full operational member/coach management; granting or removing administrative
 access remains owner-only. Medical administration uses current office authority and App Check;
 other roles keep their existing restrictions. See ADR-013; production publication is separate.
+
+
+## Office calendar management (2026-09-20)
+
+Owner and administrator can create sessions without a per-user count quota and correct session
+metadata in any status, including site and class type. Removing a session uses cancellation:
+it leaves the active calendar while bookings and attendance remain in history. Editing a weekly
+series has no application-imposed 400-occurrence ceiling. Member booking rules, authentication,
+academy boundaries and coach restrictions remain in force. Calendar summaries and recent date
+navigation avoid repeated work; users can refresh explicitly. See ADR-014; publication is separate.

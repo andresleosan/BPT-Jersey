@@ -234,6 +234,7 @@ export type ScheduleStore = Readonly<{
     academyId: string,
     input: UpdateSessionInput,
     actorId: string,
+    allowHistorical?: boolean,
   ) => Promise<SessionRecord>;
   removeClass: (
     academyId: string,
@@ -479,6 +480,8 @@ function mergeSessionUpdate(
   return Object.freeze({
     ...current,
     title: input.title ?? current.title,
+    locationId: input.locationId ?? current.locationId,
+    programId: input.programId ?? current.programId,
     instructorId: input.instructorId ?? input.instructorIds?.[0] ?? current.instructorId,
     startAt,
     endAt,
@@ -1159,16 +1162,25 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       input: UpdateSessionInput,
       actorId: string,
+      allowHistorical = false,
     ): Promise<SessionRecord> {
       const docRef = firestore.collection(`academies/${academyId}/sessions`).doc(input.sessionId);
       const existing = await docRef.get();
       if (!existing.exists) throw new Error(`Session ${input.sessionId} does not exist`);
       const current = existing.data() as SessionRecord;
-      if (current.status !== "scheduled") throw new Error("Only scheduled sessions can be edited");
+      if (!allowHistorical && current.status !== "scheduled")
+        throw new Error("Only scheduled sessions can be edited");
       const timezone =
         (await this.listLocations(academyId)).find((row) => row.locationId === current.locationId)
           ?.timezone ?? "Europe/Jersey";
-      return weekly.update(academyId, input, actorId, timezone, mergeSessionUpdate);
+      return weekly.update(
+        academyId,
+        input,
+        actorId,
+        timezone,
+        mergeSessionUpdate,
+        allowHistorical,
+      );
     },
 
     async removeClass(
@@ -2093,11 +2105,13 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       academyId: string,
       input: UpdateSessionInput,
       actorId: string,
+      allowHistorical = false,
     ): Promise<SessionRecord> {
       const map = sessionsMap.get(academyId);
       const current = map?.get(input.sessionId);
       if (!current) throw new Error(`Session ${input.sessionId} does not exist`);
-      if (current.status !== "scheduled") throw new Error("Only scheduled sessions can be edited");
+      if (!allowHistorical && current.status !== "scheduled")
+        throw new Error("Only scheduled sessions can be edited");
       const updated = mergeSessionUpdate(current, input, actorId, new Date().toISOString());
       if (!current.weeklySeriesId && input.repeatWeekly) {
         const timezone =
@@ -2106,7 +2120,11 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
         const series = newWeeklySeries(updated, timezone);
         if (!weeklyMap.has(academyId)) weeklyMap.set(academyId, new Map());
         weeklyMap.get(academyId)!.set(series.seriesId, series);
-        const first = weeklyOccurrence(series, 0)!;
+        const first = {
+          ...weeklyOccurrence(series, 0)!,
+          status: updated.status,
+          cancellationReason: updated.cancellationReason,
+        };
         map!.set(first.sessionId, first);
         return first;
       }
@@ -2131,9 +2149,6 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
             row.weeklySeriesId === series.seriesId &&
             (row.weeklyIndex ?? 0) >= (current.weeklyIndex ?? 0),
         );
-        if (future.length > 400) {
-          throw new Error("Too many saved occurrences to edit together; contact the office");
-        }
         weeklyMap.get(academyId)!.set(series.seriesId, next);
         for (const row of future)
           map!.set(row.sessionId, reviseWeeklySession(next, row, current.sessionId, updated));
