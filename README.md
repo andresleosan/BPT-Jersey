@@ -10,6 +10,23 @@ construir esta en `BACKLOG.md`; las decisiones de arquitectura, en `docs/adr/`.
 
 ---
 
+## Flujo actual para corregir funciones
+
+Por indicacion del operador, trabajar directamente en `main` local y publicar cada
+arreglo con un commit y `git push origin main`. No crear ramas, worktrees ni PR salvo
+peticion expresa. Antes de editar, actualizar `main` desde GitHub conservando cambios
+ajenos; al terminar, confirmar que ambos `main` tienen el mismo commit. No usar force-push.
+
+No crear ni ejecutar tests, reintentar suites o esperar CI salvo que el operador lo
+pida expresamente. Los tres workflows de pruebas son solo manuales, sin ejecuciones
+por push, PR o calendario. Los comandos de QA de este documento son referencias
+opcionales, no requisitos para cada arreglo. Tampoco se exige el gate completo de
+formato, lint, tipos y build; compilar solo lo necesario para un despliegue autorizado.
+La configuracion inicial no se repite en un entorno que ya funciona.
+
+Revisar el codigo y el estado Git para confirmar la entrega, indicando que no se
+corrieron tests. Publicar en GitHub no despliega las funciones de Firebase.
+
 ## Requisitos
 
 | Herramienta                | Version               | Para que                                                                                                                                                       |
@@ -89,14 +106,8 @@ NEXT_PUBLIC_ACADEMY_ID=demo-academy
 Los `NEXT_PUBLIC_FIREBASE_*` restantes son identificadores publicos de navegador, no credenciales de
 Admin SDK. Para apuntar a un proyecto real necesitas que el operador te pase los suyos.
 
-Comprueba que todo quedo bien antes de escribir codigo:
-
-```bash
-corepack pnpm typecheck
-corepack pnpm test
-```
-
-Si esos dos pasan, el entorno esta listo.
+Con las dependencias y la configuracion local preparadas, el entorno esta listo para
+trabajar. Las pruebas y comprobaciones completas son opcionales y requieren peticion expresa.
 
 ---
 
@@ -240,7 +251,6 @@ git clone https://github.com/andresleosan/BPT-Jersey.git
 cd BPT-Jersey
 corepack pnpm install --frozen-lockfile
 cp .env.example apps/web/.env.local
-corepack pnpm typecheck && corepack pnpm test
 ```
 
 En Linux el JDK correcto ya es el unico del sistema, asi que la trampa del `PATH` de Windows no
@@ -346,17 +356,10 @@ Nada de esto se inventa ni se sube: si algo falta, se pide.
 
 ## Antes de subir cambios
 
-```bash
-corepack pnpm format:check
-corepack pnpm lint
-corepack pnpm typecheck
-corepack pnpm test
-```
-
-Los cuatro tienen que pasar. Un aviso previo:
-
-- Ejecuta siempre los scripts que define `package.json`, no `tsc` o `vitest` sueltos: con otra
-  configuracion producen fallos que no son regresiones reales.
+Revisar el diff, incluir solo los archivos del arreglo, hacer commit en `main` y
+subirlo a `origin/main`. Confirmar que los dos apuntan al commit entregado. No ejecutar
+pruebas ni gates completos salvo peticion expresa; seguir `AGENTS.md` si hay cambios
+ajenos o un despliegue autorizado. Si se pide QA, usar los scripts de `package.json`.
 
 ---
 
@@ -372,5 +375,5 @@ Los cuatro tienen que pasar. Un aviso previo:
 | `docs/adr/`               | Decisiones de arquitectura, una por documento.                                   |
 | `docs/operations/`        | Runbooks, DPIA, retencion y politicas.                                           |
 
-El estado de una tarea se actualiza **en el ledger primero** y en el tablero despues, en el mismo
-cambio logico.
+Para trabajo planificado en el backlog, actualizar el ledger y el tablero correspondiente.
+Una correccion pequena de una funcion no requiere crear registros, planes ni ADR nuevos.
