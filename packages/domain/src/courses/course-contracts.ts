@@ -5,6 +5,7 @@ export const courseHoldMs = 24 * 60 * 60 * 1000;
 export const coursePageSize = 30;
 export const courseBatchSize = 100;
 export const courseIdSchema = z.uuid();
+export const courseRecordIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u);
 export const courseLabel = (max: number) => z.string().trim().min(1).max(max).regex(/^[^\u0000-\u001f\u007f]+$/u);
 const positive = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 export const courseDraftSchema = z.strictObject({
@@ -12,10 +13,10 @@ export const courseDraftSchema = z.strictObject({
   description: z.string().trim().min(1).max(6000),
   techniques: z.array(courseLabel(240)).min(1).max(40),
   instructor: z.discriminatedUnion("kind", [
-    z.strictObject({kind: z.literal("staff"), staffId: courseLabel(128), name: courseLabel(160)}),
+    z.strictObject({kind: z.literal("staff"), staffId: courseRecordIdSchema, name: courseLabel(160)}),
     z.strictObject({kind: z.literal("guest"), name: courseLabel(160)}),
   ]),
-  locationId: courseLabel(128), minAge: z.number().int().min(0).max(120),
+  locationId: courseRecordIdSchema, minAge: z.number().int().min(0).max(120),
   maxAge: z.number().int().min(0).max(120).nullable(), priceMinor: positive, capacity: positive,
   cancellationTerms: z.string().trim().min(1).max(6000),
   startsOn: z.iso.date(), startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u),

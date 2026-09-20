@@ -135,6 +135,7 @@ export type CreateAdminAdultForAccountCommand = Readonly<{
   account: MemberAccountLink;
   /** Internal enrolment scope; never accepted from the public member-write payload. */
   enrolmentRequestId?: string;
+  courseEnrolmentId?: string;
   now: string;
 }>;
 
@@ -860,6 +861,7 @@ export function createCanonicalMemberDirectoryService(
       trainingTimePreferences: readonly string[];
     }>,
     enrolmentRequestId?: string,
+    courseEnrolmentId?: string,
   ): Promise<CreateAdminAdultResult> {
     requireAuthorizedActor(command.actor);
     const now = requiredTimestamp(command.now);
@@ -890,9 +892,8 @@ export function createCanonicalMemberDirectoryService(
     // Only the internal account-linking path supplies this scope. Authority and audit retain
     // the real reviewer; receipts belong to the enrolment so another office user can resume.
     const receiptActorId =
-      enrolmentRequestId === undefined
-        ? actorId
-        : `enrolment:${requiredIdentifier(enrolmentRequestId, "enrolment request")}`;
+      courseEnrolmentId !== undefined ? `course:${requiredIdentifier(account?.userId ?? "", "course account")}` :
+      enrolmentRequestId === undefined ? actorId : `enrolment:${requiredIdentifier(enrolmentRequestId, "enrolment request")}`;
     if (account !== undefined && parsedInput.value.phoneNumber === undefined) {
       // The academy's client document will not parse without one, and a member without that
       // document is denied by levels and by the family projection: half-enrolled, in silence.
@@ -932,6 +933,18 @@ export function createCanonicalMemberDirectoryService(
 
     return dependencies.firestore.runTransaction(async (transaction) => {
       await assertProvisionedActor(transaction, dependencies, command.actor);
+      if (courseEnrolmentId !== undefined) {
+        const courseRequest = await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseEnrolments/${requiredIdentifier(courseEnrolmentId, "course enrolment")}`));
+        const value = courseRequest.data();
+        if (!value || value.applicantUid !== account?.userId || !value.proofId || !["review", "expired", "rejected", "cancelled"].includes(String(value.status)))
+          throw new CanonicalMemberDirectoryError("conflict", "Course identity approval is not available");
+        const participant = value.participant as {kind?: string; candidateId?: string} | undefined;
+        if (participant?.kind !== "candidate" || participant.candidateId !== parsedInput.value.requestId)
+          throw new CanonicalMemberDirectoryError("conflict", "Course candidate identity does not match");
+        const candidate = (await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseCandidates/${requiredIdentifier(participant.candidateId, "course candidate")}`))).data();
+        if (!candidate || candidate.applicantUid !== account?.userId || candidate.kind !== "adult" || candidate.fullName !== parsedInput.value.fullName || candidate.dateOfBirth !== parsedInput.value.dateOfBirth)
+          throw new CanonicalMemberDirectoryError("conflict", "Course candidate details do not match");
+      }
       const officeLinkRef = sourceRecordId
         ? dependencies.firestore.doc(`academies/${academyId}/regyfitOfficeLinks/${sourceRecordId}`)
         : undefined;
@@ -1032,7 +1045,7 @@ export function createCanonicalMemberDirectoryService(
           receiptSnapshot.data(),
           receiptId,
           academyId,
-          enrolmentRequestId === undefined
+          enrolmentRequestId === undefined && courseEnrolmentId === undefined
             ? actorId
             : String(receiptSnapshot.data()?.actorId ?? ""),
           expectedRequestMac,
@@ -1145,7 +1158,7 @@ export function createCanonicalMemberDirectoryService(
           ? undefined
           : {
               family: dependencies.firestore.doc(familyPath(academyId, accountLink.familyId)),
-              user: dependencies.firestore.doc(userPath(academyId, accountLink.userId)),
+              user: dependencies.firestore.doc(courseEnrolmentId === undefined ? userPath(academyId, accountLink.userId) : `academies/${academyId}/courseParticipantAccounts/${accountLink.userId}`),
             };
       let linkedRecords: Readonly<{ family: FamilyRecord; user: UserProfile }> | undefined;
       if (accountLink !== undefined && linkedRefs !== undefined) {
@@ -1153,7 +1166,7 @@ export function createCanonicalMemberDirectoryService(
           transaction.get(linkedRefs.family),
           transaction.get(linkedRefs.user),
         ]);
-        if (familySnapshot.exists || userSnapshot.exists) {
+        if (familySnapshot.exists || (userSnapshot.exists && courseEnrolmentId === undefined)) {
           throw new CanonicalMemberDirectoryError(
             "conflict",
             "This account already holds a member record",
@@ -1298,7 +1311,8 @@ export function createCanonicalMemberDirectoryService(
       });
       if (linkedRefs !== undefined && linkedRecords !== undefined) {
         transaction.create(linkedRefs.family, linkedRecords.family);
-        transaction.create(linkedRefs.user, linkedRecords.user);
+        if (courseEnrolmentId === undefined) transaction.create(linkedRefs.user, linkedRecords.user);
+        else transaction.set(linkedRefs.user, linkedRecords.user);
       }
       transaction.set(stateRef, nextState);
       transaction.set(guardRef, nextControl.guard);
@@ -1626,6 +1640,7 @@ export function createCanonicalMemberDirectoryService(
         undefined,
         undefined,
         command.enrolmentRequestId,
+        command.courseEnrolmentId,
       );
     },
     async updateAdminMember(command) {

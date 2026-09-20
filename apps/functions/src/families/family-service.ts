@@ -87,6 +87,7 @@ export type FamilyAuthService = Readonly<{
 export type CreateFamilyInput = Readonly<{
   /** Internal enrolment scope; the callable input never accepts this field. */
   enrolmentRequestId?: string;
+  courseEnrolmentId?: string;
   academyId: string;
   actorId: string;
   actorRole: "owner" | "administrator";
@@ -97,6 +98,7 @@ export type CreateFamilyInput = Readonly<{
 }>;
 
 export type UpdateFamilyInput = Readonly<{
+  courseEnrolmentId?: string;
   academyId: string;
   actorId: string;
   actorRole: "owner" | "administrator";
@@ -619,13 +621,14 @@ async function verifyAuthUser(
   auth: FamilyAuthService,
   userId: string,
   academyId: string,
+  courseContext = false,
 ): Promise<void> {
   try {
     const user = await auth.getUser(userId);
     if (user.customClaims?.academyId !== academyId) {
       throw new FamilyStoreError("tenant", "Tutor Auth tenant mismatch");
     }
-    if (user.uid !== userId || user.disabled === true || user.customClaims?.role !== "guardian") {
+    if (user.uid !== userId || user.disabled === true || (!courseContext ? user.customClaims?.role !== "guardian" : !["guardian", "adultStudent", "shopper", "coach", "headCoach", "owner", "administrator"].includes(String(user.customClaims?.role)))) {
       throw new FamilyStoreError("precondition", "Tutor Auth identity mismatch");
     }
   } catch (error) {
@@ -907,7 +910,9 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
       const academyId = pathSegment(input.academyId, "academy");
       const actorId = pathSegment(input.actorId, "actor");
       const receiptActorId =
-        input.enrolmentRequestId === undefined
+        input.courseEnrolmentId !== undefined
+          ? `course:${pathSegment(input.tutorUserId, "tutor")}`
+          : input.enrolmentRequestId === undefined
           ? actorId
           : `enrolment:${pathSegment(input.enrolmentRequestId, "enrolment request")}`;
       const requestId = pathSegment(input.requestId, "request");
@@ -955,14 +960,22 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
             receiptId,
             academyId,
             actorId:
-              input.enrolmentRequestId === undefined
+              input.enrolmentRequestId === undefined && input.courseEnrolmentId === undefined
                 ? actorId
                 : String(receiptSnapshot.data()?.actorId ?? ""),
             operation: "family.create",
             requestMac,
           });
         }
-        await verifyAuthUser(dependencies.auth, tutorUserId, academyId);
+        if (input.courseEnrolmentId) {
+          const courseRequest = readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseEnrolments/${pathSegment(input.courseEnrolmentId, "course enrolment")}`))).data();
+          if (!courseRequest || courseRequest.applicantUid !== tutorUserId || !courseRequest.proofId || !["review", "expired", "rejected", "cancelled"].includes(String(courseRequest.status))) throw new FamilyStoreError("precondition", "Course identity request is unavailable");
+          const participant = courseRequest.participant as {kind?: string; candidateId?: string} | undefined;
+          if (participant?.kind !== "candidate" || participant.candidateId !== requestId || students.length !== 1) throw new FamilyStoreError("precondition", "Course participant mismatch");
+          const candidate = readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseCandidates/${pathSegment(requestId, "course candidate")}`))).data();
+          if (!candidate || candidate.applicantUid !== tutorUserId || candidate.kind !== "minor" || candidate.fullName !== students[0]?.fullName || candidate.dateOfBirth !== students[0]?.dateOfBirth) throw new FamilyStoreError("precondition", "Course candidate mismatch");
+        }
+        await verifyAuthUser(dependencies.auth, tutorUserId, academyId, !!input.courseEnrolmentId);
         const control = await readCanonicalControl(
           transaction,
           dependencies.firestore,
@@ -984,7 +997,7 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           throw new FamilyStoreError("duplicate", "Tutor already belongs to a family");
         }
         const tutor = parseStoredTutor(
-          readDocumentSnapshot(await transaction.get(tutorReference)),
+          readDocumentSnapshot(await transaction.get(input.courseEnrolmentId ? dependencies.firestore.doc(`academies/${academyId}/courseParticipantAccounts/${tutorUserId}`) : tutorReference)),
           academyId,
         );
         const studentReferences = studentIds.map((studentId) =>
@@ -1257,14 +1270,14 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
               }
               const requestMac = familyRequestMac(
                 academyId,
-                actorId,
+                input.courseEnrolmentId ? `course:${familyId}` : actorId,
                 "family.student.add",
                 Object.freeze({ familyId, requestId, student }),
                 writer.integritySecretMaterial,
               );
               const receiptId = familyReceiptId(
                 academyId,
-                actorId,
+                input.courseEnrolmentId ? `course:${familyId}` : actorId,
                 "family.student.add",
                 requestId,
                 writer.integritySecretMaterial,
@@ -1295,7 +1308,7 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
             return resolveFamilyWriteReplay(transaction, dependencies, receiptSnapshot.data(), {
               receiptId: addPlan.receiptId,
               academyId,
-              actorId,
+              actorId: input.courseEnrolmentId ? String(receiptSnapshot.data()?.actorId ?? "") : actorId,
               operation: "family.student.add",
               requestMac: addPlan.requestMac,
               familyId,
@@ -1400,11 +1413,19 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
               "Link a guardian account before adding family access",
             );
           }
-          await verifyAuthUser(dependencies.auth, family.primaryContactUserId, academyId);
+          if (input.courseEnrolmentId) {
+            const courseRequest = readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseEnrolments/${pathSegment(input.courseEnrolmentId, "course enrolment")}`))).data();
+            if (!courseRequest || courseRequest.applicantUid !== family.primaryContactUserId || !courseRequest.proofId || !["review", "expired", "rejected", "cancelled"].includes(String(courseRequest.status))) throw new FamilyStoreError("precondition", "Course identity request is unavailable");
+            const participant = courseRequest.participant as {kind?: string; candidateId?: string} | undefined;
+            if (participant?.kind !== "candidate" || participant.candidateId !== input.operation.requestId) throw new FamilyStoreError("precondition", "Course participant mismatch");
+            const candidate = readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseCandidates/${pathSegment(input.operation.requestId, "course candidate")}`))).data();
+            if (!candidate || candidate.applicantUid !== family.primaryContactUserId || candidate.kind !== "minor" || candidate.fullName !== addPlan.student.fullName || candidate.dateOfBirth !== addPlan.student.dateOfBirth) throw new FamilyStoreError("precondition", "Course candidate mismatch");
+          }
+          await verifyAuthUser(dependencies.auth, family.primaryContactUserId, academyId, !!input.courseEnrolmentId);
           const tutor = parseStoredTutor(
             readDocumentSnapshot(
               await transaction.get(
-                dependencies.firestore.doc(userPath(academyId, family.primaryContactUserId)),
+                dependencies.firestore.doc(input.courseEnrolmentId ? `academies/${academyId}/courseParticipantAccounts/${family.primaryContactUserId}` : userPath(academyId, family.primaryContactUserId)),
               ),
             ),
             academyId,
