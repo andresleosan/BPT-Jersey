@@ -1,6 +1,9 @@
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
+import { createMemberAccessService, memberAccessDependenciesInTransaction } from "../members/member-access-service.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
+import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import {
   saveStudentGroupAccessSchema,
   studentGroupAccessQuerySchema,
@@ -14,7 +17,7 @@ import { createFirestoreCanonicalClientStudentScopeResolver } from "./canonical-
 const resolveScope = createFirestoreCanonicalClientStudentScopeResolver();
 
 function readStudent(data: unknown, academyId: string, studentId: string) {
-  const parsed = parseStudentProfile(data);
+  const parsed = parseEffectiveStudentProfileAt(data, dateKeyInJersey(new Date()));
   if (!parsed.ok || parsed.value.academyId !== academyId || parsed.value.studentId !== studentId) {
     throw new HttpsError("not-found", "Member record is unavailable.");
   }
@@ -50,12 +53,18 @@ export const getStudentGroupAccess = onCall(browserAdminCallableOptions, async (
   }
   const db = getFirestore();
   const base = `academies/${actor.academyId}`;
-  const [student, access] = await db.getAll(
-    db.doc(`${base}/students/${input.data.studentId}`),
-    db.doc(`${base}/studentGroupAccess/${input.data.studentId}`),
-  );
-  const profile = readStudent(student!.data(), actor.academyId, input.data.studentId);
-  return readAccess(access!.data(), actor.academyId, profile.studentId, profile.dateOfBirth);
+  const member = actor.role !== "owner" && actor.role !== "administrator";
+  if (member) await requireMemberAccountActor(request);
+  return db.runTransaction(async (tx) => {
+    if (member && !(await createMemberAccessService(memberAccessDependenciesInTransaction(db, tx))
+      .authorise(actor.academyId, actor.userId, input.data.studentId)).allowed) {
+      throw new HttpsError("permission-denied", "Member profile is unavailable");
+    }
+    const [student, access] = await tx.getAll(db.doc(`${base}/students/${input.data.studentId}`),
+      db.doc(`${base}/studentGroupAccess/${input.data.studentId}`));
+    const profile = readStudent(student!.data(), actor.academyId, input.data.studentId);
+    return readAccess(access!.data(), actor.academyId, profile.studentId, profile.dateOfBirth);
+  });
 });
 
 export const saveStudentGroupAccess = onCall(browserAdminCallableOptions, async (request) => {

@@ -156,3 +156,39 @@ export function createFirestoreMemberAccessService(options: Readonly<{ firestore
       createMemberAccessService(memberAccessDependenciesInTransaction(db(), tx, options.now)).listProfiles(academyId, actorId)),
   };
 }
+
+/** Structural adapter for existing stores: permission reads participate in THEIR transaction. */
+export function memberAccessInStoreTransaction<Reference, Query>(
+  firestore: Readonly<{ doc: (path: string) => Reference; collection: (path: string) => Readonly<{
+    where: (field: string, operator: "==", value: unknown) => Readonly<{ limit: (count: number) => Query }>;
+  }> }>,
+  transaction: Readonly<{ get: (reference: Reference | Query) => Promise<
+    Readonly<{ id: string; exists: boolean; data: () => Readonly<Record<string, unknown>> | undefined }> |
+    Readonly<{ docs: readonly Readonly<{ id: string; exists: boolean; data: () => Readonly<Record<string, unknown>> | undefined }>[] }>
+  > }>, now?: string,
+): MemberAccessService {
+  return createMemberAccessService({ ...(now ? { now: () => now } : {}),
+    getDocument: async (path) => {
+      const doc = await transaction.get(firestore.doc(path));
+      if ("docs" in doc) throw unavailable();
+      return { id: doc.id, exists: doc.exists, data: doc.data() };
+    },
+    queryDocuments: async (path, field, value, limit) => {
+      const result = await transaction.get(firestore.collection(path).where(field, "==", value).limit(limit));
+      if (!("docs" in result)) throw unavailable();
+      return result.docs.map((doc) => ({ id: doc.id, exists: doc.exists, data: doc.data() }));
+    },
+  });
+}
+
+export async function requireMemberProfileAccess(academyId: string, actorUserId: string, studentId: string,
+  options: Readonly<{ firestore?: Firestore; now?: () => string }> = {}): Promise<{ studentId: string; via: "self" | "guardian" }> {
+  const db = options.firestore ?? getFirestore();
+  return db.runTransaction(async (tx) => {
+    const deps = memberAccessDependenciesInTransaction(db, tx, options.now);
+    const access = await createMemberAccessService(deps).authorise(academyId, actorUserId, studentId);
+    if (!access.allowed) throw new HttpsError("permission-denied", "Member profile is unavailable");
+    const canonicalId = await resolveCanonicalStudentIdInTransaction({ get: deps.getDocument }, academyId, studentId);
+    return { studentId: canonicalId, via: access.via };
+  });
+}

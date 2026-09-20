@@ -1,97 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MemberRecoveryHistory } from "@bpt-jersey/domain/members/recovery";
 
-export function RecoveredMemberHistory() {
+export function RecoveredMemberHistory({ studentId }: { studentId?: string }) {
   const [history, setHistory] = useState<MemberRecoveryHistory>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  async function load() {
+  const generation = useRef(0);
+  useEffect(() => {
+    generation.current += 1;
+    setHistory(undefined); setBusy(false); setError(false);
+    return () => { generation.current += 1; };
+  }, [studentId]);
+  async function load(cursor?: string) {
     if (busy) return;
-    setBusy(true);
-    setError(false);
+    const current = generation.current;
+    setBusy(true); setError(false);
     try {
       const { getMemberRecoveryHistory } = await import("../../../lib/member-recovery-client");
-      setHistory(await getMemberRecoveryHistory());
-    } catch {
-      setError(true);
-    } finally {
-      setBusy(false);
-    }
+      const page = await getMemberRecoveryHistory(studentId ?? history?.studentId, cursor);
+      if (current !== generation.current) return;
+      setHistory((previous) => ({ ...page, entries: cursor && previous ?
+        [...new Map([...previous.entries, ...page.entries].map((entry) => [entry.entryId, entry])).values()] : page.entries }));
+    } catch { if (current === generation.current) setError(true); }
+    finally { if (current === generation.current) setBusy(false); }
   }
   return (
     <section aria-labelledby="recovered-history-title">
-      <h2 id="recovered-history-title">Your previous membership history</h2>
-      <p>
-        View the original progress, attendance and payments linked to your recovered membership.
-      </p>
-      {!history && (
-        <button className="button button-secondary" disabled={busy} onClick={() => void load()}>
-          {busy ? "Loading your history..." : "View previous history"}
-        </button>
-      )}
-      {error && <p role="alert">Unable to load your history. Please try again.</p>}
-      {history?.records.length === 0 && (
-        <p>
-          No archived history is linked to this account. Your current academy records remain
-          available above. Contact the office if you expect an older record.
-        </p>
-      )}
-      {history?.records.map((record) => (
-        <article key={record.recordId} className="client-identity">
-          <h3>{record.fullName}</h3>
-          <p>
-            Original records captured on {new Date(record.capturedAt).toLocaleDateString("en-GB")}.
-          </p>
-          <h4>Progress</h4>
-          <dl>
-            <dt>Belt</dt>
-            <dd>{record.graduation.belt ?? "Not recorded"}</dd>
-            <dt>Progress</dt>
-            <dd>
-              {record.graduation.progressPercent === undefined
-                ? "Not recorded"
-                : `${record.graduation.progressPercent}%`}
-            </dd>
-            <dt>Classes</dt>
-            <dd>{record.graduation.classesProgress ?? "Not recorded"}</dd>
-            <dt>Time progress</dt>
-            <dd>{record.graduation.daysProgress ?? "Not recorded"}</dd>
-            <dt>Membership plan</dt>
-            <dd>{record.plan.membershipPlan ?? "Not recorded"}</dd>
-            <dt>Original membership period</dt>
-            <dd>
-              {record.plan.validFrom ?? "Not recorded"} – {record.plan.validUntil ?? "Not recorded"}
-            </dd>
-            <dt>Classes attended</dt>
-            <dd>{record.attendance.attended ?? "Not recorded"}</dd>
-            <dt>Absences</dt>
-            <dd>{record.attendance.absences ?? "Not recorded"}</dd>
-          </dl>
-          <details>
-            <summary>Attendance records ({record.attendance.records.length})</summary>
-            <ul>
-              {record.attendance.records.map((entry, index) => (
-                <li key={index}>
-                  {entry.date} {entry.time} · {entry.className ?? "Class"} · {entry.status}
-                </li>
-              ))}
-            </ul>
-          </details>
-          <details>
-            <summary>Payment records ({record.payments.length})</summary>
-            <ul>
-              {record.payments.map((entry, index) => (
-                <li key={index}>
-                  {entry.date ?? "Date not recorded"} · {entry.description ?? "Payment"} ·{" "}
-                  {entry.amount ?? "Amount not recorded"}
-                </li>
-              ))}
-            </ul>
-          </details>
-        </article>
-      ))}
+      <h2 id="recovered-history-title">Confirmed previous history</h2>
+      <p>Reviewed payments, attendance and progress from the available historical records. The office reviews missing or uncertain details separately.</p>
+      {!history && <button className="button button-secondary" disabled={busy} onClick={() => void load()}>
+        {busy ? "Loading history…" : "View previous history"}
+      </button>}
+      {error && <p role="alert">Unable to load this history. Please try again.</p>}
+      {history?.entries.length === 0 && <p>No confirmed entries on this page.</p>}
+      {history && <ul>{history.entries.map((entry) => <li key={entry.entryId}>
+        <strong>{({ payment: "Payment", attendance: "Attendance", level: "Progress review", adjustment: "Historical adjustment" })[entry.kind]}</strong>
+        {" · "}{entry.occurredAt ? new Date(entry.occurredAt).toLocaleDateString("en-GB") : "Date not confirmed"}
+        {entry.kind === "payment" && <> · {entry.amountMinor === null ? "Amount not confirmed" : new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(entry.amountMinor / 100)}</>}
+      </li>)}</ul>}
+      {history?.nextCursor && <button className="button button-secondary" disabled={busy} onClick={() => void load(history.nextCursor!)}>
+        {busy ? "Loading history…" : "Load more history"}
+      </button>}
     </section>
   );
 }

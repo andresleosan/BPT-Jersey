@@ -1,3 +1,5 @@
+import { memberAccessInStoreTransaction } from "../members/member-access-service.js";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -23,7 +25,7 @@ import {
 } from "@bpt-jersey/domain/families";
 import {
   deriveParticipantType,
-  parseStudentProfile,
+  parseEffectiveStudentProfileAt,
   type StudentProfile,
 } from "@bpt-jersey/domain/profiles";
 import {
@@ -83,6 +85,7 @@ export type MembershipScope = Readonly<{
   familyIds?: readonly string[];
   studentIds?: readonly string[];
   membershipIds?: readonly string[];
+  memberActorId?: string;
 }>;
 export type MembershipAuthorizationScope = MembershipScope;
 
@@ -95,6 +98,7 @@ export type CreateMembershipStoreInput = Readonly<{
   studentId: string;
   planId: PlanId;
   status: "trial" | "active";
+  memberActor?: boolean;
   scope: MembershipScope;
 }>;
 
@@ -276,7 +280,7 @@ function storedStudent(
   if (!snapshot.exists) throw new MembershipStoreError("invalid", "Student source is missing");
   if (snapshot.id !== expectedStudentId)
     throw new MembershipStoreError("invalid", "Student identity is invalid");
-  const parsed = parseStudentProfile(snapshot.data());
+  const parsed = parseEffectiveStudentProfileAt(snapshot.data(), dateKeyInJersey(new Date()));
   if (!parsed.ok) throw new MembershipStoreError("invalid", "Stored student is invalid");
   if (parsed.value.studentId !== expectedStudentId)
     throw new MembershipStoreError("invalid", "Student identity is invalid");
@@ -384,7 +388,9 @@ function normalizeScope(scope: MembershipScope): MembershipScope {
     familyIds?: readonly string[];
     studentIds?: readonly string[];
     membershipIds?: readonly string[];
+    memberActorId?: string;
   } = { academyId };
+  if (scope.memberActorId !== undefined) normalized.memberActorId = pathSegment(scope.memberActorId, "member actor");
   for (const field of ["familyIds", "studentIds", "membershipIds"] as const) {
     const values = scope?.[field];
     if (values === undefined) continue;
@@ -477,6 +483,23 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
       return safely(async () => {
         const scope = normalizeScope(scopeInput);
         const records = await dependencies.firestore.runTransaction(async (transaction) => {
+          if (scope.memberActorId) {
+            if (!scope.studentIds) throw new MembershipStoreError("tenant", "Member scope is required");
+            const access = memberAccessInStoreTransaction(dependencies.firestore, transaction);
+            const records: MembershipRecord[] = [];
+            for (const studentId of scope.studentIds) {
+              if (!(await access.authorise(scope.academyId, scope.memberActorId, studentId)).allowed) continue;
+              const page = querySnapshot(await transaction.get(dependencies.firestore.collection(membershipsPath(scope.academyId))
+                .where("studentId", "==", studentId).limit(101)));
+              if (page.docs.length > 100) throw new MembershipStoreError("precondition", "Membership history requires office review");
+              for (const doc of page.docs) {
+                const item = storedMembership(doc);
+                if (item.academyId !== scope.academyId || item.studentId !== studentId) throw new MembershipStoreError("tenant", "Membership binding is invalid");
+                if (isAllowed(scope, "familyIds", item.familyId) && isAllowed(scope, "membershipIds", item.membershipId)) records.push(item);
+              }
+            }
+            return records.sort((a, b) => a.membershipId.localeCompare(b.membershipId));
+          }
           const snapshot = querySnapshot(
             await transaction.get(
               dependencies.firestore
@@ -513,6 +536,8 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
           );
           if (!snapshot.exists) return undefined;
           const membership = storedMembership(snapshot, membershipId);
+          if (scope.memberActorId && !(await memberAccessInStoreTransaction(dependencies.firestore, transaction)
+            .authorise(scope.academyId, scope.memberActorId, membership.studentId)).allowed) return undefined;
           if (membership.academyId !== scope.academyId) {
             throw new MembershipStoreError("tenant", "Membership tenant mismatch");
           }
@@ -563,6 +588,14 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
             throw new MembershipStoreError("duplicate", "Membership identity is already in use");
           }
           const studentRecord = storedStudent(documentSnapshot(studentSnapshot), studentId);
+          if (input.memberActor) {
+            const access = await memberAccessInStoreTransaction(dependencies.firestore, transaction).authorise(academyId, actorId, studentId);
+            if (!access.allowed || (access.via === "self" && studentRecord.participantType !== "adult")) {
+              throw new MembershipStoreError("tenant", "An adult or current guardian must manage this subscription");
+            }
+          }
+          const aliases = querySnapshot(await transaction.get(dependencies.firestore.collection(`academies/${academyId}/memberIdentityAliases`).where("canonicalStudentId", "==", studentId).limit(1)));
+          if (aliases.docs.length) throw new MembershipStoreError("precondition", "Use the office subscription review for consolidated member history");
           // The billing family is the student's own canonical family unless the caller named one;
           // a named family must still match the student record (checked below).
           const familyId = requestedFamilyId ?? studentRecord.familyId;
@@ -574,30 +607,26 @@ export function createMembershipStore(dependencies: MembershipStoreDependencies)
           // primary contact and carry no relationship document.
           const isMinor = studentRecord.participantType === "minor";
           const familyReference = dependencies.firestore.doc(familyPath(academyId, familyId));
-          const relationshipReference = dependencies.firestore.doc(
-            relationshipPath(academyId, familyId, studentId),
-          );
-          const [familySnapshot, relationshipSnapshot] = await Promise.all([
+          const [familySnapshot, relationshipSnapshots] = await Promise.all([
             transaction.get(familyReference),
-            isMinor ? transaction.get(relationshipReference) : Promise.resolve(undefined),
+            isMinor ? transaction.get(dependencies.firestore.collection(`academies/${academyId}/relationships`).where("studentId", "==", studentId).limit(101)) : Promise.resolve(undefined),
           ]);
           const currentMemberships = querySnapshot(
             await transaction.get(
               dependencies.firestore
                 .collection(membershipsPath(academyId))
-                .where("studentId", "==", studentId),
+                .where("studentId", "==", studentId).limit(101),
             ),
           );
 
           const familyRecord = storedFamily(documentSnapshot(familySnapshot), familyId);
           const planRecord = storedPlan(documentSnapshot(planSnapshot), planId);
-          const relationshipRecord =
-            relationshipSnapshot === undefined
-              ? undefined
-              : storedRelationship(
-                  documentSnapshot(relationshipSnapshot),
-                  `${familyId}--${studentId}`,
-                );
+          const relationshipDocs = relationshipSnapshots === undefined ? [] : querySnapshot(relationshipSnapshots).docs;
+          if (relationshipDocs.length > 100 || currentMemberships.docs.length > 100) throw new MembershipStoreError("precondition", "Member history needs a bounded review");
+          const currentRelationships = relationshipDocs.map((doc) => storedRelationship(doc, doc.id)).filter((link) =>
+            activeSource(link) && Date.parse(link.validFrom) <= Date.parse(timestamp) && (link.validTo === undefined || Date.parse(timestamp) < Date.parse(link.validTo)));
+          if (currentRelationships.length > 1) throw new MembershipStoreError("conflict", "Conflicting guardian records need review");
+          const relationshipRecord = currentRelationships[0];
 
           const waiverVersions = querySnapshot(
             await transaction.get(

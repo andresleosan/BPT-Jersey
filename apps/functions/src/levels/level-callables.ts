@@ -79,8 +79,7 @@ function targetPayload(
   actor: AuthorizedLevelActor,
   options: Readonly<{ staffMayOmit?: boolean }> = {},
 ): string | undefined {
-  if (actor.role === "adultStudent") {
-    emptyPayload(value);
+  if ((actor.role === "adultStudent" || actor.role === "teenStudent") && isPlainRecord(value) && exactFields(value, [])) {
     return undefined;
   }
   if (

@@ -1,8 +1,10 @@
+import { memberAccessInStoreTransaction } from "../members/member-access-service.js";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { randomUUID } from "node:crypto";
 
 import {
   deriveParticipantType,
-  parseStudentProfile,
+  parseEffectiveStudentProfileAt,
   parseStudentProfileAt,
   parseUserProfile,
   type ClientProfileProjection,
@@ -217,7 +219,7 @@ function readSnapshotData(
   collection: "user" | "student",
 ): UserProfile | StudentProfile {
   const data = snapshot.data();
-  const parsed = collection === "user" ? parseUserProfile(data) : parseStudentProfile(data);
+  const parsed = collection === "user" ? parseUserProfile(data) : parseEffectiveStudentProfileAt(data, dateKeyInJersey(new Date()));
   if (!parsed.ok) throw new ProfileStoreError("invalid", `Invalid stored ${collection} profile`);
   return parsed.value;
 }
@@ -583,9 +585,12 @@ export function createProfileStore(dependencies: ProfileStoreDependencies): Prof
         .collection(studentsPath(safeAcademyId))
         .where("userId", "==", safeUserId)
         .limit(2);
-      return dependencies.firestore.runTransaction((transaction) =>
-        readProjection(transaction, userRef, query, safeAcademyId),
-      );
+      return dependencies.firestore.runTransaction(async (transaction) => {
+        const own = (await memberAccessInStoreTransaction(dependencies.firestore, transaction).listProfiles(safeAcademyId, safeUserId))
+          .find((profile) => profile.via === "self");
+        if (!own) return undefined;
+        return readProjection(transaction, userRef, query, safeAcademyId);
+      });
     },
 
     async saveClientProfile(input) {
@@ -624,6 +629,10 @@ export function createProfileStore(dependencies: ProfileStoreDependencies): Prof
       const keyRef = dependencies.firestore.doc(keyPath(safeAcademyId, identityKeyId));
 
       return dependencies.firestore.runTransaction(async (transaction) => {
+        const own = (await memberAccessInStoreTransaction(dependencies.firestore, transaction).listProfiles(safeAcademyId, safeUserId))
+          .find((profile) => profile.via === "self");
+        if (!own) throw new ProfileStoreError("tenant", "Request approval before linking an athlete profile");
+
         const receiptSnapshot = await transaction.get(receiptRef);
         if (!isDocumentSnapshot(receiptSnapshot)) {
           throw new ProfileStoreError("invalid", "Invalid profile receipt lookup");
@@ -727,7 +736,7 @@ export function createProfileStore(dependencies: ProfileStoreDependencies): Prof
           }
           const parsedStoredStudent = parseStudentProfileAt(
             studentSnapshotDocument.data(),
-            now.slice(0, 10),
+            typeof studentSnapshotDocument.data()?.updatedAt === "string" ? String(studentSnapshotDocument.data()!.updatedAt).slice(0, 10) : "invalid",
           );
           if (!parsedStoredStudent.ok) {
             throw new ProfileStoreError("invalid", "Invalid stored student profile");
@@ -740,6 +749,10 @@ export function createProfileStore(dependencies: ProfileStoreDependencies): Prof
           ) {
             throw new ProfileStoreError("tenant", "Profile tenant mismatch");
           }
+        }
+
+        if (!existingStudent || existingStudent.dateOfBirth !== input.dateOfBirth) {
+          throw new ProfileStoreError("unavailable", "Ask the office to review changes to your date of birth");
         }
 
         let existingIdentityKey: Readonly<z.infer<typeof studentIdentityKeySchema>> | undefined;

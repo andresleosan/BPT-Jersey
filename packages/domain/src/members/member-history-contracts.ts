@@ -76,5 +76,14 @@ export const confirmedMemberHistorySchema = memberHistoryEntrySchema.pick({
 });
 export function projectConfirmedMemberHistory(entry: MemberHistoryEntry, currentSourceVersion: string | undefined) {
   return entry.confirmation === "confirmed" && entry.sourceVersion === currentSourceVersion && !entry.equivalentToEntryId
-    ? confirmedMemberHistorySchema.parse(entry) : null;
+    ? confirmedMemberHistorySchema.parse({ entryId: entry.entryId, kind: entry.kind, occurredAt: entry.occurredAt,
+        amountMinor: entry.amountMinor, supersedesEntryId: entry.supersedesEntryId }) : null;
 }
+
+export const accountMemberHistoryPageSchema = z.strictObject({
+  studentId: reviewIdentifierSchema,
+  entries: z.array(confirmedMemberHistorySchema).max(50),
+  nextCursor: z.uuid().nullable(),
+  coverage: z.literal("confirmed-captured-records-only"),
+});
+export type AccountMemberHistoryPage = Readonly<z.infer<typeof accountMemberHistoryPageSchema>>;

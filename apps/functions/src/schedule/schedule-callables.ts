@@ -1,3 +1,4 @@
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireCourseActor } from "../courses/course-authorization.js";
 import { requireCourseRosterAccess } from "../courses/course-roster.js";
 import { courseRecordIdSchema } from "@bpt-jersey/domain/courses";
@@ -86,6 +87,7 @@ async function requireStudentScope(
 ): Promise<void> {
   const actor = requireUserActor(request);
   if (staffRoles.includes(actor.role as (typeof staffRoles)[number])) return;
+  await requireMemberAccountActor(request);
   if (
     (actor.role === "guardian" || actor.role === "adultStudent" || actor.role === "teenStudent") &&
     (await (options.resolveClientStudentScope ?? resolveCanonicalClientStudent)({
@@ -1089,12 +1091,6 @@ export function createRecordCheckoutHandler(options: StudentScopeOptions) {
       throw new HttpsError(
         "failed-precondition",
         "Independent release requires verified policy evidence",
-      );
-    }
-    if (actor.role === "adultStudent") {
-      throw new HttpsError(
-        "permission-denied",
-        "Adult student checkout is not enabled until the policy is approved",
       );
     }
     if (!isStaff) await requireStudentScope(request, parsed.value.studentId, options);

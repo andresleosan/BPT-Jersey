@@ -1,3 +1,4 @@
+import { createMemberAccessService } from "../members/member-access-service.js";
 import { createHash } from "node:crypto";
 
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
@@ -38,6 +39,7 @@ export type WaitlistStore = Readonly<{
     academyId: string;
     request: JoinWaitlistInput;
     actorId: string;
+    memberActor?: boolean;
     now?: string;
   }) => Promise<WaitlistEntryRecord>;
   cancelWaitlist: (input: {
@@ -45,6 +47,7 @@ export type WaitlistStore = Readonly<{
     sessionId: string;
     studentId: string;
     actorId: string;
+    memberActor?: boolean;
     now?: string;
   }) => Promise<WaitlistEntryRecord>;
   issueNextWaitlistOffer: (input: {
@@ -59,6 +62,7 @@ export type WaitlistStore = Readonly<{
     studentId: string;
     response: WaitlistOfferResponse;
     actorId: string;
+    memberActor?: boolean;
     /** Accepting an offer creates a booking, and that booking gets its own log line. */
     auditActor?: BookingAuditActor;
     now?: string;
@@ -337,6 +341,24 @@ function positionState(
     revision: value.revision as number,
     lastPosition: value.lastPosition === undefined ? null : (value.lastPosition as number),
   };
+}
+
+async function assertWaitlistMember(firestore: GenericWaitlistFirestore, transaction: Transaction,
+  academyId: string, actorId: string, studentId: string, memberActor: boolean | undefined): Promise<void> {
+  if (!memberActor) return;
+  const access = createMemberAccessService({
+    getDocument: async (path) => {
+      const doc = await transaction.get(firestore.doc(path));
+      return { id: doc.id, exists: doc.exists, data: doc.data() };
+    },
+    queryDocuments: async (path, field, value, limit) => {
+      const page = await transaction.get(firestore.collection(path).where(field, "==", value).limit(limit));
+      return page.docs.map((doc) => ({ id: doc.id, exists: true, data: doc.data() }));
+    },
+  });
+  if (!(await access.authorise(academyId, actorId, studentId)).allowed) {
+    throw new WaitlistStoreError("ineligible", "Member access is no longer available");
+  }
 }
 
 function writePositionState(
@@ -632,6 +654,7 @@ export function createFirestoreWaitlistStore({
       );
 
       return firestore.runTransaction(async (transaction) => {
+        await assertWaitlistMember(firestore, transaction, academyId, actorId, studentId, input.memberActor);
         const [sessionDoc, membershipDoc, positionDoc, bookings, offers, target] =
           await Promise.all([
             transaction.get(sessionRef),
@@ -744,6 +767,7 @@ export function createFirestoreWaitlistStore({
       const studentId = segment(input.studentId, "studentId");
       const now = nowValue(input.now);
       return firestore.runTransaction(async (transaction) => {
+        await assertWaitlistMember(firestore, transaction, academyId, actorId, studentId, input.memberActor);
         const target = await waitlistTarget({
           firestore,
           transaction,
@@ -936,6 +960,7 @@ export function createFirestoreWaitlistStore({
         | { kind: "responded"; entry: WaitlistEntryRecord }
         | { kind: "expired"; entry: WaitlistEntryRecord }
       > = await firestore.runTransaction(async (transaction) => {
+        await assertWaitlistMember(firestore, transaction, academyId, actorId, studentId, input.memberActor);
         const target = await waitlistTarget({
           firestore,
           transaction,

@@ -1,3 +1,5 @@
+import { memberAccessInStoreTransaction } from "../members/member-access-service.js";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -25,7 +27,7 @@ import {
 } from "@bpt-jersey/domain/documents";
 import { parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import {
-  parseStudentProfile,
+  parseEffectiveStudentProfileAt,
   parseUserProfile,
   type StudentProfile,
   type UserProfile,
@@ -63,7 +65,7 @@ export type ConsentFirestore = Readonly<{
   runTransaction: <T>(callback: (transaction: ConsentTransaction) => Promise<T>) => Promise<T>;
 }>;
 
-export type ConsentClientRole = "guardian" | "adultStudent";
+export type ConsentClientRole = "guardian" | "adultStudent" | "teenStudent";
 export type ConsentAdminRole = "owner" | "administrator";
 export type ConsentAuditDraft = Readonly<{
   academyId: string;
@@ -234,7 +236,7 @@ function storedUser(
 }
 function storedStudent(snapshot: ConsentDocumentSnapshot, academyId: string): StudentProfile {
   if (!snapshot.exists) throw new ConsentStoreError("precondition", "Student is not available");
-  const parsed = parseStudentProfile(snapshot.data());
+  const parsed = parseEffectiveStudentProfileAt(snapshot.data(), dateKeyInJersey(new Date()));
   if (
     !parsed.ok ||
     parsed.value.academyId !== academyId ||
@@ -324,36 +326,10 @@ async function assertAuthority(
     asDocument(await transaction.get(firestore.doc(recordPath(academyId, "students", studentId)))),
     academyId,
   );
-  if (role === "adultStudent") {
-    if (student.participantType !== "adult" || student.userId !== actorId)
-      throw new ConsentStoreError("forbidden", "Adult consent scope is not permitted");
-    return { user, student };
+  const access = await memberAccessInStoreTransaction(firestore, transaction, now).authorise(academyId, actorId, studentId);
+  if (!access.allowed || (access.via === "self" && student.participantType !== "adult")) {
+    throw new ConsentStoreError("forbidden", "Legal consent authority is not permitted");
   }
-  if (student.participantType !== "minor")
-    throw new ConsentStoreError("forbidden", "Guardian consent scope is not permitted");
-  const relationships = asQuery(
-    await transaction.get(
-      firestore
-        .collection(collectionPath(academyId, "relationships"))
-        .where("studentId", "==", studentId)
-        .limit(100),
-    ),
-  );
-  const permitted = relationships.docs.some((snapshot) => {
-    const parsed = parseFamilyRelationship(snapshot.data());
-    return (
-      parsed.ok &&
-      parsed.value.academyId === academyId &&
-      parsed.value.studentId === studentId &&
-      parsed.value.adultUserId === actorId &&
-      parsed.value.active &&
-      parsed.value.status === "active" &&
-      parsed.value.validFrom <= now &&
-      (parsed.value.validTo === undefined || parsed.value.validTo > now)
-    );
-  });
-  if (!permitted)
-    throw new ConsentStoreError("forbidden", "Guardian consent scope is not permitted");
   return { user, student };
 }
 
@@ -528,56 +504,10 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
         const current =
           currentCandidate && currentCandidate.effectiveAt <= now ? currentCandidate : null;
         const students: StudentProfile[] = [];
-        if (input.role === "adultStudent") {
-          const matches = asQuery(
-            await transaction.get(
-              dependencies.firestore
-                .collection(collectionPath(academyId, "students"))
-                .where("userId", "==", actorId)
-                .limit(2),
-            ),
-          );
-          if (matches.docs.length > 1)
-            throw new ConsentStoreError("conflict", "Multiple adult student profiles are linked");
-          if (matches.docs[0]) {
-            const student = storedStudent(matches.docs[0], academyId);
-            if (student.participantType !== "adult" || student.userId !== actorId)
-              throw new ConsentStoreError("forbidden", "Adult consent scope is not permitted");
-            students.push(student);
-          }
-        } else {
-          const links = asQuery(
-            await transaction.get(
-              dependencies.firestore
-                .collection(collectionPath(academyId, "relationships"))
-                .where("adultUserId", "==", actorId)
-                .limit(100),
-            ),
-          );
-          for (const link of links.docs) {
-            const parsed = parseFamilyRelationship(link.data());
-            if (
-              !parsed.ok ||
-              parsed.value.academyId !== academyId ||
-              parsed.value.adultUserId !== actorId ||
-              !parsed.value.active ||
-              parsed.value.status !== "active" ||
-              parsed.value.validFrom > now ||
-              (parsed.value.validTo !== undefined && parsed.value.validTo <= now)
-            )
-              continue;
-            const student = storedStudent(
-              asDocument(
-                await transaction.get(
-                  dependencies.firestore.doc(
-                    recordPath(academyId, "students", parsed.value.studentId),
-                  ),
-                ),
-              ),
-              academyId,
-            );
-            if (student.participantType === "minor") students.push(student);
-          }
+        const profiles = await memberAccessInStoreTransaction(dependencies.firestore, transaction, now).listProfiles(academyId, actorId);
+        for (const profile of profiles) {
+          const student = storedStudent(asDocument(await transaction.get(dependencies.firestore.doc(recordPath(academyId, "students", profile.studentId)))), academyId);
+          if (profile.via === "guardian" || student.participantType === "adult") students.push(student);
         }
         const subjects = [];
         for (const student of new Map(
@@ -865,7 +795,7 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
         );
         if (consent.status !== "accepted")
           throw new ConsentStoreError("precondition", "Consent evidence is not available");
-        if (input.role === "guardian" || input.role === "adultStudent") {
+        if (input.role === "guardian" || input.role === "adultStudent" || input.role === "teenStudent") {
           await assertAuthority(
             transaction,
             dependencies.firestore,
@@ -892,11 +822,14 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
           throw new ConsentStoreError("precondition", "Consent evidence is not available");
         return { consent, document };
       });
-      const downloadUrl = await dependencies.r2
-        .createPdfDownloadUrl({ objectKey: result.document.objectKey, expiresInSeconds: 600 })
-        .catch(() => {
-          throw new ConsentStoreError("precondition", "Consent evidence is not available");
-        });
+      let downloadUrl: string;
+      if (input.role === "owner" || input.role === "administrator") {
+        downloadUrl = await dependencies.r2.createPdfDownloadUrl({ objectKey: result.document.objectKey, expiresInSeconds: 600 });
+      } else {
+        const bytes = await dependencies.r2.readObject(result.document.objectKey);
+        if (bytes.byteLength !== result.document.sizeBytes || createHash("sha256").update(bytes).digest("hex") !== result.document.sha256) throw new ConsentStoreError("precondition", "Consent evidence changed");
+        downloadUrl = `data:application/pdf;base64,${Buffer.from(bytes).toString("base64")}`;
+      }
       await dependencies.firestore.runTransaction(async (transaction) => {
         const consent = storedConsent(
           asDocument(
@@ -911,7 +844,7 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
           consent.evidenceDocumentId !== result.document.documentId
         )
           throw new ConsentStoreError("precondition", "Consent evidence is not available");
-        if (input.role === "guardian" || input.role === "adultStudent") {
+        if (input.role === "guardian" || input.role === "adultStudent" || input.role === "teenStudent") {
           await assertAuthority(
             transaction,
             dependencies.firestore,
@@ -919,7 +852,7 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
             actorId,
             input.role,
             consent.subjectId,
-            now,
+            new Date().toISOString(),
           );
           if (consent.signedBy !== actorId)
             throw new ConsentStoreError("forbidden", "Consent evidence access is not permitted");
@@ -934,7 +867,8 @@ export function createConsentStore(dependencies: ConsentStoreDependencies): Cons
           ),
           academyId,
         );
-        if (document.status !== "active" || document.objectKey !== result.document.objectKey)
+        if (document.status !== "active" || document.objectKey !== result.document.objectKey ||
+            document.sha256 !== result.document.sha256 || document.sizeBytes !== result.document.sizeBytes)
           throw new ConsentStoreError("precondition", "Consent evidence is not available");
         appendAudit(
           dependencies,

@@ -1,3 +1,6 @@
+import { createMemberAccessService, memberAccessDependenciesInTransaction } from "../members/member-access-service.js";
+import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
+import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
@@ -12,6 +15,7 @@ import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { UserActorContext } from "@bpt-jersey/domain";
 import type { StaffFamilyProjection } from "@bpt-jersey/domain/families";
 
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { createFamilyStore, type FamilyStore } from "../families/family-service.js";
 import {
@@ -33,6 +37,7 @@ type MembershipFamilyStore = Pick<FamilyStore, "getGuardianFamily" | "getStaffFa
 
 export type MembershipCallableServices = Readonly<{
   store: MembershipStore;
+  memberStudentIds: (academyId: string, actorId: string) => Promise<readonly string[]>;
   familyStore: MembershipFamilyStore;
   findStudentByUserId: (
     academyId: string,
@@ -199,6 +204,7 @@ async function requireReader(
   if (!["owner", "administrator", "guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
     permissionDenied();
   }
+  if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) await requireMemberAccountActor(request);
   return actor;
 }
 
@@ -224,135 +230,6 @@ function scopeContains(scope: MembershipScope, record: MembershipRecord): boolea
   );
 }
 
-async function guardianScope(
-  actor: UserActorContext,
-  services: MembershipCallableServices,
-  requestedFamilyId?: string,
-  requestedStudentId?: string,
-): Promise<MembershipScope> {
-  const projection = await services.familyStore.getGuardianFamily(actor.academyId, actor.userId);
-  if (
-    projection === undefined ||
-    !projection.family.active ||
-    projection.family.status !== "active" ||
-    (projection.family.familyId !== requestedFamilyId && requestedFamilyId !== undefined)
-  ) {
-    permissionDenied();
-  }
-  const staffProjection: StaffFamilyProjection | undefined =
-    await services.familyStore.getStaffFamily(actor.academyId, projection.family.familyId);
-  if (
-    staffProjection === undefined ||
-    staffProjection.family.academyId !== actor.academyId ||
-    staffProjection.family.familyId !== projection.family.familyId ||
-    !staffProjection.family.active ||
-    staffProjection.family.status !== "active"
-  ) {
-    permissionDenied();
-  }
-  const relatedStudentIds = new Set(
-    projection.students
-      .filter((student) => student.active && student.status === "active")
-      .map((student) => student.studentId),
-  );
-  const studentIds = staffProjection.students
-    .filter(
-      (student) =>
-        student.participantType === "minor" &&
-        student.academyId === actor.academyId &&
-        student.familyId === projection.family.familyId &&
-        student.active &&
-        student.status === "active" &&
-        relatedStudentIds.has(student.studentId),
-    )
-    .map((student) => student.studentId);
-  if (requestedStudentId !== undefined && !studentIds.includes(requestedStudentId)) {
-    permissionDenied();
-  }
-  if (studentIds.length === 0) permissionDenied();
-  return Object.freeze({
-    academyId: actor.academyId,
-    familyIds: Object.freeze([projection.family.familyId]),
-    studentIds: Object.freeze(requestedStudentId === undefined ? studentIds : [requestedStudentId]),
-  });
-}
-
-async function adultStudentScope(
-  actor: UserActorContext,
-  services: MembershipCallableServices,
-  requestedFamilyId?: string,
-  requestedStudentId?: string,
-): Promise<MembershipScope> {
-  const student = await services.findStudentByUserId(actor.academyId, actor.userId);
-  if (
-    student === undefined ||
-    student.participantType !== "adult" ||
-    !student.active ||
-    student.status !== "active"
-  ) {
-    permissionDenied();
-  }
-  if (
-    (requestedFamilyId !== undefined && requestedFamilyId !== student.familyId) ||
-    (requestedStudentId !== undefined && requestedStudentId !== student.studentId)
-  ) {
-    permissionDenied();
-  }
-  const family = await services.familyStore.getStaffFamily(actor.academyId, student.familyId);
-  if (
-    family === undefined ||
-    family.family.academyId !== actor.academyId ||
-    family.family.familyId !== student.familyId ||
-    !family.family.active ||
-    family.family.status !== "active"
-  ) {
-    permissionDenied();
-  }
-  return Object.freeze({
-    academyId: actor.academyId,
-    familyIds: Object.freeze([student.familyId]),
-    studentIds: Object.freeze([student.studentId]),
-  });
-}
-
-async function teenStudentScope(
-  actor: UserActorContext,
-  services: MembershipCallableServices,
-  requestedFamilyId?: string,
-  requestedStudentId?: string,
-): Promise<MembershipScope> {
-  const student = await services.findStudentByUserId(actor.academyId, actor.userId);
-  if (
-    student === undefined ||
-    student.participantType !== "minor" ||
-    !student.active ||
-    student.status !== "active"
-  ) {
-    permissionDenied();
-  }
-  if (
-    (requestedFamilyId !== undefined && requestedFamilyId !== student.familyId) ||
-    (requestedStudentId !== undefined && requestedStudentId !== student.studentId)
-  ) {
-    permissionDenied();
-  }
-  const family = await services.familyStore.getStaffFamily(actor.academyId, student.familyId);
-  if (
-    family === undefined ||
-    family.family.academyId !== actor.academyId ||
-    family.family.familyId !== student.familyId ||
-    !family.family.active ||
-    family.family.status !== "active"
-  ) {
-    permissionDenied();
-  }
-  return Object.freeze({
-    academyId: actor.academyId,
-    familyIds: Object.freeze([student.familyId]),
-    studentIds: Object.freeze([student.studentId]),
-  });
-}
-
 async function readerScope(
   actor: UserActorContext,
   services: MembershipCallableServices,
@@ -362,14 +239,11 @@ async function readerScope(
   if (actor.role === "owner" || actor.role === "administrator") {
     return Object.freeze({ academyId: actor.academyId });
   }
-  if (actor.role === "guardian") {
-    return guardianScope(actor, services, familyId, studentId);
-  }
-  if (actor.role === "adultStudent") {
-    return adultStudentScope(actor, services, familyId, studentId);
-  }
-  if (actor.role === "teenStudent") {
-    return teenStudentScope(actor, services, familyId, studentId);
+  if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
+    const allowed = await services.memberStudentIds(actor.academyId, actor.userId);
+    if (studentId && !allowed.includes(studentId)) permissionDenied();
+    return Object.freeze({ academyId: actor.academyId, memberActorId: actor.userId, studentIds: studentId ? [studentId] : allowed,
+      ...(familyId ? { familyIds: [familyId] } : {}) });
   }
   return permissionDenied();
 }
@@ -442,7 +316,6 @@ export async function createMembershipHandler(
   services: MembershipCallableServices,
 ): Promise<MembershipProjection> {
   const actor = await requireReader(request, services);
-  if (actor.role === "teenStudent") permissionDenied();
   const payload = parseCreatePayload(request.data);
   try {
     const scope =
@@ -466,6 +339,7 @@ export async function createMembershipHandler(
       studentId: payload.studentId,
       planId: payload.planId,
       status: payload.status,
+      memberActor: actor.role !== "owner" && actor.role !== "administrator",
       scope,
     });
     if (!scopeContains(scope, record)) permissionDenied();
@@ -582,6 +456,12 @@ function membershipCallableServices(): MembershipCallableServices {
         getUser: async (userId) => ({ uid: (await getAuth().getUser(userId)).uid }),
       },
       firestore: firestore as unknown as Parameters<typeof createFamilyStore>[0]["firestore"],
+    }),
+    memberStudentIds: (academyId, actorId) => firestore.runTransaction(async (tx) => {
+      const profiles = await createMemberAccessService(memberAccessDependenciesInTransaction(firestore, tx)).listProfiles(academyId, actorId);
+      const ids = (await Promise.all(profiles.map((profile) => canonicalMemberIdentityIds(createMemberDirectoryReadTransaction(firestore, tx), academyId, profile.studentId)))).flat();
+      if (ids.length > 100) throw new HttpsError("failed-precondition", "Member history requires office review");
+      return [...new Set(ids)];
     }),
     findStudentByUserId,
     isActorActive: async (actor) => !(await getAuth().getUser(actor.userId)).disabled,

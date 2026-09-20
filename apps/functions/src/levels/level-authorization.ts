@@ -1,11 +1,13 @@
+import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
+import { createMemberAccessService } from "../members/member-access-service.js";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, type CallableRequest } from "firebase-functions/v2/https";
 
 import type { UserActorContext } from "@bpt-jersey/domain";
-import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import {
-  parseStudentProfile,
+  parseEffectiveStudentProfileAt,
   parseUserProfile,
   type StudentProfile,
 } from "@bpt-jersey/domain/profiles";
@@ -24,6 +26,8 @@ export type LevelAuthorizationDependencies = Readonly<{
     Readonly<{
       uid: string;
       disabled: boolean;
+      emailVerified: boolean;
+      tokensValidAfterTime?: string;
       customClaims: Readonly<Record<string, unknown>>;
     }>
   >;
@@ -58,12 +62,12 @@ const supportedRoles = new Set([
   "coach",
   "guardian",
   "adultStudent",
+  "teenStudent",
 ]);
-const clientRoles = new Set(["guardian", "adultStudent"]);
+const clientRoles = new Set(["guardian", "adultStudent", "teenStudent"]);
 const administrativeRoles = new Set(["owner", "administrator"]);
 const staffRoles = new Set(["headCoach", "coach"]);
 const permittedCustomClaims = new Set(["academyId", "role", "mfaEnrolled", "locale"]);
-const MAX_RELATIONSHIPS = 100;
 
 function denied(): never {
   throw new HttpsError("permission-denied", "Levels access is not permitted");
@@ -87,7 +91,7 @@ function exactAuthorityClaims(
       (key) => typeof key === "string" && permittedCustomClaims.has(key),
     ) &&
     claims.academyId === academyId &&
-    claims.role === role
+    (claims.role === role || (clientRoles.has(role) && clientRoles.has(String(claims.role))))
   );
 }
 
@@ -115,7 +119,7 @@ function storedStudent(
   expectedStudentId?: string,
 ): StudentProfile {
   if (!document.exists || document.data === undefined) return denied();
-  const parsed = parseStudentProfile(document.data);
+  const parsed = parseEffectiveStudentProfileAt(document.data, dateKeyInJersey(new Date()));
   if (
     !parsed.ok ||
     document.id !== parsed.value.studentId ||
@@ -130,6 +134,7 @@ function storedStudent(
 async function activeActor(
   actor: UserActorContext,
   dependencies: LevelAuthorizationDependencies,
+  authenticationTime: number,
 ): Promise<AuthorizedLevelActor> {
   if (
     !safeIdentifier(actor.userId) ||
@@ -203,6 +208,8 @@ async function activeActor(
   }
 
   if (clientRoles.has(actor.role)) {
+    if (!authUser.emailVerified || !Number.isFinite(authenticationTime) ||
+        (authUser.tokensValidAfterTime && authenticationTime < Date.parse(authUser.tokensValidAfterTime))) return denied();
     const user = await dependencies
       .getDocument(`academies/${actor.academyId}/users/${actor.userId}`)
       .catch(() => unavailable());
@@ -234,89 +241,24 @@ export function createLevelAuthorization(
         throw new HttpsError("unauthenticated", "Verified App Check is required");
       }
       const actor = requireUserActor(request);
-      return activeActor(actor, dependencies);
+      return activeActor(actor, dependencies, Number(request.auth?.token.auth_time) * 1000);
     },
 
     async resolveStudent(actor, requestedStudentId) {
-      if (actor.role === "adultStudent") {
-        if (requestedStudentId !== undefined) return denied();
-        const matches = await dependencies
-          .queryDocuments(`academies/${actor.academyId}/students`, "userId", actor.userId, 2)
-          .catch(() => unavailable());
-        if (matches.length !== 1) return denied();
-        const profile = storedStudent(matches[0]!, actor.academyId);
-        if (
-          profile.userId !== actor.userId ||
-          profile.participantType !== "adult" ||
-          !profile.active ||
-          profile.status !== "active"
-        ) {
-          return denied();
+      const access = createMemberAccessService(dependencies);
+      let studentId = requestedStudentId;
+      if (clientRoles.has(actor.role)) {
+        if (studentId === undefined) {
+          const profiles = await access.listProfiles(actor.academyId, actor.userId);
+          studentId = profiles.find((profile) => profile.via === "self")?.studentId;
         }
-        return profile;
+        if (!studentId || !(await access.authorise(actor.academyId, actor.userId, studentId)).allowed) return denied();
       }
+      if (!safeIdentifier(studentId)) return denied();
+      studentId = await resolveCanonicalStudentIdInTransaction({ get: dependencies.getDocument }, actor.academyId, studentId);
+      const document = await dependencies.getDocument(`academies/${actor.academyId}/students/${studentId}`).catch(() => unavailable());
+      return storedStudent(document, actor.academyId, studentId);
 
-      if (!safeIdentifier(requestedStudentId)) return denied();
-      const studentDocument = await dependencies
-        .getDocument(`academies/${actor.academyId}/students/${requestedStudentId}`)
-        .catch(() => unavailable());
-      const profile = storedStudent(studentDocument, actor.academyId, requestedStudentId);
-
-      if (actor.role !== "guardian") return profile;
-      if (
-        profile.participantType !== "minor" ||
-        !profile.active ||
-        profile.status !== "active" ||
-        !safeIdentifier(profile.familyId)
-      ) {
-        return denied();
-      }
-
-      const [familyDocument, relationships] = await Promise.all([
-        dependencies.getDocument(`academies/${actor.academyId}/families/${profile.familyId}`),
-        dependencies.queryDocuments(
-          `academies/${actor.academyId}/relationships`,
-          "studentId",
-          profile.studentId,
-          MAX_RELATIONSHIPS + 1,
-        ),
-      ]).catch(() => unavailable());
-      if (relationships.length > MAX_RELATIONSHIPS || familyDocument.data === undefined) {
-        return denied();
-      }
-      const family = parseFamilyRecord(familyDocument.data);
-      if (
-        !familyDocument.exists ||
-        !family.ok ||
-        familyDocument.id !== profile.familyId ||
-        family.value.academyId !== actor.academyId ||
-        !family.value.active ||
-        family.value.status !== "active"
-      ) {
-        return denied();
-      }
-
-      const now = dependencies.now?.() ?? new Date().toISOString();
-      const permitted = relationships.some((document) => {
-        if (!document.exists || document.data === undefined) return false;
-        const parsed = parseFamilyRelationship(document.data);
-        return (
-          parsed.ok &&
-          document.id === parsed.value.relationshipId &&
-          parsed.value.academyId === actor.academyId &&
-          parsed.value.familyId === profile.familyId &&
-          parsed.value.studentId === profile.studentId &&
-          parsed.value.adultUserId === actor.userId &&
-          parsed.value.relationshipType === "guardian" &&
-          parsed.value.permissions.includes("readProfile") &&
-          parsed.value.active &&
-          parsed.value.status === "active" &&
-          parsed.value.validFrom <= now &&
-          (parsed.value.validTo === undefined || parsed.value.validTo > now)
-        );
-      });
-      if (!permitted) return denied();
-      return profile;
     },
   };
 }
@@ -329,6 +271,8 @@ export function createFirebaseLevelAuthorization(): LevelAuthorizationService {
       return {
         uid: user.uid,
         disabled: user.disabled,
+        emailVerified: user.emailVerified,
+        tokensValidAfterTime: user.tokensValidAfterTime,
         customClaims: user.customClaims ?? {},
       };
     },

@@ -1,3 +1,4 @@
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineString } from "firebase-functions/params";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
@@ -70,17 +71,19 @@ function admin(request: CallableRequest<unknown>) {
     throw new HttpsError("permission-denied", "Waiver administration is not permitted");
   return actor;
 }
-function client(request: CallableRequest<unknown>) {
+async function client(request: CallableRequest<unknown>) {
   const actor = requireUserActor(request);
-  if (actor.role !== "guardian" && actor.role !== "adultStudent")
+  if (actor.role !== "guardian" && actor.role !== "adultStudent" && actor.role !== "teenStudent")
     throw new HttpsError("permission-denied", "Waiver registration is not permitted");
+  await requireMemberAccountActor(request);
   return { ...actor, role: actor.role as ConsentClientRole };
 }
-function evidenceActor(request: CallableRequest<unknown>) {
+async function evidenceActor(request: CallableRequest<unknown>) {
   const actor = requireUserActor(request);
-  if (!["owner", "administrator", "guardian", "adultStudent"].includes(actor.role))
+  if (!["owner", "administrator", "guardian", "adultStudent", "teenStudent"].includes(actor.role))
     throw new HttpsError("permission-denied", "Waiver evidence access is not permitted");
-  return actor as typeof actor & { role: "owner" | "administrator" | "guardian" | "adultStudent" };
+  if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) await requireMemberAccountActor(request);
+  return actor as typeof actor & { role: "owner" | "administrator" | "guardian" | "adultStudent" | "teenStudent" };
 }
 function mapError(error: unknown, operation: "read" | "write"): never {
   if (error instanceof HttpsError) throw error;
@@ -163,7 +166,7 @@ export async function getWaiverRegistrationHandler(
   services: ConsentCallableServices,
 ) {
   assertRegistrationEnabled(services);
-  const actor = client(request);
+  const actor = await client(request);
   noPayload(request.data);
   try {
     return await services.store.getWaiverRegistration({
@@ -181,7 +184,7 @@ export async function acceptWaiverHandler(
   services: ConsentCallableServices,
 ) {
   assertRegistrationEnabled(services);
-  const actor = client(request);
+  const actor = await client(request);
   const parsed = parseWaiverAcceptanceInput(request.data);
   if (!parsed.ok) return invalid();
   try {
@@ -201,7 +204,7 @@ export async function revokeWaiverConsentHandler(
   services: ConsentCallableServices,
 ) {
   assertRegistrationEnabled(services);
-  const actor = client(request);
+  const actor = await client(request);
   const parsed = parseConsentIdInput(request.data);
   if (!parsed.ok) return invalid();
   try {
@@ -221,7 +224,7 @@ export async function getWaiverEvidenceDownloadHandler(
   services: ConsentCallableServices,
 ) {
   assertRegistrationEnabled(services);
-  const actor = evidenceActor(request);
+  const actor = await evidenceActor(request);
   const parsed = parseConsentIdInput(request.data);
   if (!parsed.ok) return invalid();
   try {

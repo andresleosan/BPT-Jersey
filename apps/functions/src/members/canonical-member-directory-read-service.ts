@@ -1,3 +1,4 @@
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { resolveCanonicalStudentIdInTransaction } from "./member-identity-resolution.js";
 import { timingSafeEqual } from "node:crypto";
 
@@ -33,7 +34,7 @@ import {
   type RevealRegyfitRecordFieldResult,
 } from "@bpt-jersey/domain/members/regyfit-records";
 import { memberProfileRequestSchema } from "@bpt-jersey/domain/members/profile";
-import { parseStudentProfileAt, type StudentProfile } from "@bpt-jersey/domain/profiles";
+import { parseEffectiveStudentProfileAt, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import { z } from "zod";
 import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
 
@@ -423,7 +424,7 @@ function parseStudent(
   if (document.id !== expectedStudentId) {
     throw new DirectoryDataIssue("Student binding mismatch");
   }
-  const parsed = parseStudentProfileAt(documentData(document, "Student"), effectiveDate);
+  const parsed = parseEffectiveStudentProfileAt(documentData(document, "Student"), effectiveDate);
   if (
     !parsed.ok ||
     parsed.value.studentId !== expectedStudentId ||
@@ -849,7 +850,7 @@ export function createCanonicalMemberDirectoryReadService(
               document,
               command.actor.academyId,
               document.id,
-              now.slice(0, 10),
+              dateKeyInJersey(new Date(now)),
             );
             const profileDocument = profileDocuments[index];
             if (profileDocument === undefined) {
@@ -911,7 +912,7 @@ export function createCanonicalMemberDirectoryReadService(
             studentDocument,
             command.actor.academyId,
             studentId,
-            now.slice(0, 10),
+            dateKeyInJersey(new Date(now)),
           );
           const profile = parseAdminProfile(
             profileDocument,
@@ -949,7 +950,7 @@ export function createCanonicalMemberDirectoryReadService(
             studentDocument,
             command.actor.academyId,
             studentId,
-            now.slice(0, 10),
+            dateKeyInJersey(new Date(now)),
           );
           const adminProfile = parseOptionalAdminProfile(
             profileDocument,
@@ -1068,7 +1069,7 @@ export function createCanonicalMemberDirectoryReadService(
             studentDocument,
             command.actor.academyId,
             studentId,
-            now.slice(0, 10),
+            dateKeyInJersey(new Date(now)),
           );
           const profile = parseAdminProfile(profileDocument, command.actor.academyId, studentId);
           const currentIdentifier = identifierFromProfile(profile, value.lookupKind);

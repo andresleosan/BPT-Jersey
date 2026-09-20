@@ -138,16 +138,6 @@ export function createMemberProfileService(
           candidates.push({ userId: relationship.adultUserId, familyId: relationship.familyId });
         }
       }
-    } else if (student.familyId !== undefined) {
-      const family = await store.getFamily(academyId, student.familyId);
-      if (
-        family !== undefined &&
-        family.active &&
-        family.primaryContactUserId !== null &&
-        family.primaryContactUserId !== student.userId
-      ) {
-        candidates.push({ userId: family.primaryContactUserId, familyId: family.familyId });
-      }
     }
     const seen = new Set<string>();
     const managers: { displayName: string; familyId: string }[] = [];

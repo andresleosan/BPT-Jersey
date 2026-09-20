@@ -224,10 +224,10 @@ export const consentIdInputSchema = z.strictObject({ consentId: safeIdSchema });
 export const waiverVersionIdInputSchema = z.strictObject({ waiverVersionId: safeIdSchema });
 export const waiverEvidenceDownloadSchema = z.strictObject({
   consent: consentProjectionSchema,
-  downloadUrl: z
-    .string()
-    .url()
-    .refine((value) => new URL(value).protocol === "https:"),
+  downloadUrl: z.union([
+    z.string().url().refine((value) => new URL(value).protocol === "https:"),
+    z.string().max(15_000_000).regex(/^data:application\/pdf;base64,[A-Za-z0-9+/]+={0,2}$/u),
+  ]),
   expiresAt: dateTimeSchema,
 });
 

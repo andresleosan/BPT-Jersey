@@ -8,6 +8,7 @@ import {
 } from "@bpt-jersey/domain/consents/disclaimers";
 
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   DisclaimerError,
@@ -32,11 +33,8 @@ function office(request: CallableRequest<unknown>) {
   return actor;
 }
 
-function client(request: CallableRequest<unknown>) {
-  const actor = requireUserActor(request);
-  if (actor.role !== "guardian" && actor.role !== "adultStudent") {
-    throw new HttpsError("permission-denied", "Disclaimer access is not permitted");
-  }
+async function client(request: CallableRequest<unknown>) {
+  const actor = await requireMemberAccountActor(request);
   return { ...actor, role: actor.role as DisclaimerClientRole };
 }
 
@@ -128,7 +126,7 @@ export function createListDisclaimersHandler(options: { service: DisclaimerServi
 
 export function createGetOutstandingDisclaimersHandler(options: { service: DisclaimerService }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = client(request);
+    const actor = await client(request);
     const data = request.data as { studentId?: unknown } | null;
     if (
       data === null ||
@@ -155,7 +153,7 @@ export function createGetOutstandingDisclaimersHandler(options: { service: Discl
 
 export function createAcceptDisclaimerHandler(options: { service: DisclaimerService }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = client(request);
+    const actor = await client(request);
     const parsed = parseDisclaimerAcceptanceInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", "Acceptance payload is invalid");
     try {
@@ -175,7 +173,7 @@ export function createAcceptDisclaimerHandler(options: { service: DisclaimerServ
 
 export function createWithdrawDisclaimerAcceptanceHandler(options: { service: DisclaimerService }) {
   return async (request: CallableRequest<unknown>) => {
-    const actor = client(request);
+    const actor = await client(request);
     const parsed = parseDisclaimerWithdrawalInput(request.data);
     if (!parsed.ok) throw new HttpsError("invalid-argument", "Withdrawal payload is invalid");
     try {

@@ -19,7 +19,7 @@ async function call<T>(name: string, input: unknown, schema: z.ZodType<T>): Prom
   const result = await httpsCallable<unknown, unknown>(getFirebaseFunctions(), name)(input);
   return schema.parse(result.data);
 }
-export const getMemberRecoveryHistory = () => call("getMemberRecoveryHistory", null, memberRecoveryHistorySchema);
+export const getMemberRecoveryHistory = (studentId?: string, cursor?: string) => call("getMemberRecoveryHistory", studentId ? { studentId, ...(cursor ? { cursor } : {}) } : null, memberRecoveryHistorySchema);
 export const beginMemberRecovery = (input: z.input<typeof beginMemberRecoveryInputSchema>) =>
   call(
     "beginMemberRecovery",

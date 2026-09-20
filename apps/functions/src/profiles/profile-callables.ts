@@ -30,6 +30,7 @@ type ProfileAuthService = Readonly<{
     Readonly<{
       uid: string;
       disabled: boolean;
+      emailVerified: boolean;
       email?: string | null;
       displayName?: string | null;
       customClaims?: Readonly<Record<string, unknown>>;
@@ -146,7 +147,7 @@ function requireClientActor(request: CallableRequest<unknown>) {
     throw new HttpsError("unauthenticated", "Verified App Check is required");
   }
   const actor = requireUserActor(request);
-  if (actor.role !== "adultStudent") {
+  if (!["guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
     throw new HttpsError("permission-denied", "Profile access is not permitted");
   }
   return actor;
@@ -165,8 +166,9 @@ async function requireCurrentClientAuth(
   if (
     authUser.uid !== actor.userId ||
     authUser.disabled ||
+    !authUser.emailVerified ||
     authUser.customClaims?.academyId !== actor.academyId ||
-    authUser.customClaims?.role !== "adultStudent"
+    !["guardian", "adultStudent", "teenStudent"].includes(String(authUser.customClaims?.role))
   ) {
     throw new HttpsError("permission-denied", "Profile access is not permitted");
   }
@@ -244,6 +246,7 @@ function profileCallableServices(): ProfileCallableServices {
         return {
           uid: user.uid,
           disabled: user.disabled,
+          emailVerified: user.emailVerified,
           email: user.email ?? null,
           displayName: user.displayName ?? null,
           ...(user.customClaims === undefined ? {} : { customClaims: user.customClaims }),

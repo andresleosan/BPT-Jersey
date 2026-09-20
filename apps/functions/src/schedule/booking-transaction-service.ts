@@ -1,3 +1,4 @@
+import { createMemberAccessService } from "../members/member-access-service.js";
 import { studentGroupAccessSchema } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
   classActorGroup,
@@ -660,6 +661,7 @@ async function executeBookingInTransaction(
   const studentId = segment(input.request.studentId, "studentId");
   const membershipId = segment(input.request.membershipId, "membershipId");
   if (!validDate(input.now)) return invalid("invalid", "now is invalid");
+  await assertBookingMemberAccess({ ...input, studentId });
   let reservationWaitlistId: string | undefined;
   if (input.reservationWaitlistId !== undefined) {
     if (!waitlistDocumentIdPattern.test(input.reservationWaitlistId)) {
@@ -935,6 +937,7 @@ async function cancelBookingInTransaction(input: {
   const sessionId = segment(input.request.sessionId, "sessionId");
   const studentId = segment(input.request.studentId, "studentId");
   if (!validDate(input.now)) return invalid("invalid", "now is invalid");
+  await assertBookingMemberAccess({ ...input, studentId });
 
   // Generated, never derived: a cancellation must never land on the line of an earlier booking.
   const auditRef = input.firestore.collection(path(academyId, "auditEvents")).doc();
@@ -1059,4 +1062,28 @@ export function createBookingTransactionService(options: {
       );
     },
   });
+}
+
+/** Shared permission reads join the booking write, so guardian changes race safely with it. */
+export async function assertBookingMemberAccess(input: Readonly<{
+  firestore: Pick<BookingFirestore, "doc" | "collection">; transaction: Pick<BookingTransaction, "get">;
+  academyId: string; actorId: string; studentId: string; actorRole: string; now: string;
+  requireVia?: "self" | "guardian";
+}>): Promise<void> {
+  if (!["guardian", "adultStudent", "teenStudent"].includes(input.actorRole)) return;
+  const service = createMemberAccessService({ now: () => input.now,
+    getDocument: async (path) => {
+      const doc = await input.transaction.get(input.firestore.doc(path));
+      return { id: doc.id, exists: doc.exists, data: doc.data() };
+    },
+    queryDocuments: async (path, field, value, limit) => {
+      const query = input.firestore.collection(path).where(field, "==", value).limit(limit);
+      const snapshot = await input.transaction.get(query);
+      return snapshot.docs.map((doc) => ({ id: doc.id, exists: doc.exists, data: doc.data() }));
+    },
+  });
+  const access = await service.authorise(input.academyId, input.actorId, input.studentId);
+  if (!access.allowed || (input.requireVia && access.via !== input.requireVia)) {
+    return invalid("ineligible", "Member access is no longer available");
+  }
 }

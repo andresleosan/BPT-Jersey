@@ -1,3 +1,4 @@
+import { memberAccessInStoreTransaction } from "../members/member-access-service.js";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -9,7 +10,6 @@ import {
   type PrivateDocumentRecord,
   type PrivateDocumentUploadInput,
 } from "@bpt-jersey/domain/documents";
-import { parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { R2Client } from "../storage/r2-client.js";
 
@@ -80,7 +80,7 @@ export type DocumentStore = Readonly<{
     input: Readonly<{
       academyId: string;
       actorId: string;
-      role: "owner" | "administrator" | "guardian";
+      role: "owner" | "administrator" | "guardian" | "adultStudent" | "teenStudent";
       studentId: string;
     }>,
   ) => Promise<Readonly<{ document: PrivateDocumentProjection; downloadUrl: string }> | undefined>;
@@ -155,25 +155,9 @@ async function guardianAllowed(
   studentId: string,
   now: string,
 ): Promise<boolean> {
-  const query = firestore
-    .collection(relationshipsPath(academyId))
-    .where("studentId", "==", studentId)
-    .limit(100);
-  return asQuery(await transaction.get(query)).docs.some((snapshot) => {
-    if (!snapshot.exists) return false;
-    const parsed = parseFamilyRelationship(snapshot.data());
-    return (
-      parsed.ok &&
-      parsed.value.academyId === academyId &&
-      parsed.value.studentId === studentId &&
-      parsed.value.adultUserId === actorId &&
-      parsed.value.active &&
-      parsed.value.status === "active" &&
-      parsed.value.validFrom <= now &&
-      (parsed.value.validTo === undefined || parsed.value.validTo > now)
-    );
-  });
+  return (await memberAccessInStoreTransaction(firestore, transaction, now).authorise(academyId, actorId, studentId)).allowed;
 }
+
 function safeUpload(input: PrivateDocumentUploadInput): PrivateDocumentUploadInput {
   const parsed = parsePrivateDocumentUploadInput(input);
   if (!parsed.ok) throw new DocumentStoreError("invalid", "Private document upload is invalid");
@@ -278,7 +262,7 @@ export function createDocumentStore(dependencies: DocumentStoreDependencies): Do
       const now = new Date().toISOString();
       const record = await dependencies.firestore.runTransaction(async (transaction) => {
         if (
-          input.role === "guardian" &&
+          (input.role === "guardian" || input.role === "adultStudent" || input.role === "teenStudent") &&
           !(await guardianAllowed(
             transaction,
             dependencies.firestore,
@@ -300,10 +284,20 @@ export function createDocumentStore(dependencies: DocumentStoreDependencies): Do
         return records[0];
       });
       if (!record) return undefined;
-      const downloadUrl = await dependencies.r2.createPdfDownloadUrl({
-        objectKey: record.objectKey,
-        expiresInSeconds: 600,
-      });
+      let downloadUrl: string;
+      if (input.role === "owner" || input.role === "administrator") {
+        downloadUrl = await dependencies.r2.createPdfDownloadUrl({ objectKey: record.objectKey, expiresInSeconds: 600 });
+      } else {
+        // Return the authorised document bytes, never a reusable bearer URL into private storage.
+        const bytes = await dependencies.r2.readObject(record.objectKey);
+        if (bytes.byteLength !== record.sizeBytes || createHash("sha256").update(bytes).digest("hex") !== record.sha256) throw new DocumentStoreError("precondition", "Document evidence changed");
+        await dependencies.firestore.runTransaction(async (transaction) => {
+          if (!(await guardianAllowed(transaction, dependencies.firestore, academyId, actorId, studentId, new Date().toISOString()))) throw new DocumentStoreError("forbidden", "Document access is not permitted");
+          const current = stored(asDoc(await transaction.get(dependencies.firestore.doc(documentPath(academyId, record.documentId)))), academyId);
+          if (current.status !== "active" || current.sha256 !== record.sha256 || current.studentId !== studentId) throw new DocumentStoreError("forbidden", "Document access is not permitted");
+        });
+        downloadUrl = `data:application/pdf;base64,${Buffer.from(bytes).toString("base64")}`;
+      }
       return Object.freeze({ document: toPrivateDocumentProjection(record), downloadUrl });
     },
     async revokeWaiver(input) {

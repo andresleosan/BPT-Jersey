@@ -21,6 +21,7 @@ type GuardianProfileAuthService = Readonly<{
     Readonly<{
       uid: string;
       disabled: boolean;
+      emailVerified: boolean;
       email?: string | null;
       customClaims?: Readonly<Record<string, unknown>>;
     }>
@@ -95,7 +96,7 @@ function requireGuardianActor(request: CallableRequest<unknown>) {
     throw new HttpsError("unauthenticated", "Verified App Check is required");
   }
   const actor = requireUserActor(request);
-  if (actor.role !== "guardian") {
+  if (!["guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
     throw new HttpsError("permission-denied", "Guardian profile access is not permitted");
   }
   return actor;
@@ -115,11 +116,12 @@ async function requireCurrentGuardianAuth(
   if (
     authUser.uid !== actor.userId ||
     authUser.disabled ||
+    !authUser.emailVerified ||
     !isPlainRecord(claims) ||
     !Object.hasOwn(claims, "academyId") ||
     !Object.hasOwn(claims, "role") ||
     claims.academyId !== actor.academyId ||
-    claims.role !== "guardian" ||
+    !["guardian", "adultStudent", "teenStudent"].includes(String(claims.role)) ||
     typeof authUser.email !== "string" ||
     authUser.email.trim().length === 0
   ) {
@@ -188,6 +190,7 @@ function guardianProfileCallableServices(): GuardianProfileCallableServices {
         return {
           uid: user.uid,
           disabled: user.disabled,
+          emailVerified: user.emailVerified,
           email: user.email ?? null,
           ...(user.customClaims === undefined ? {} : { customClaims: user.customClaims }),
         };

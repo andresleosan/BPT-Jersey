@@ -4,8 +4,8 @@ import { assertCourseActorLive } from "../courses/course-store.js";
 import { authorizeCourseSessionActor } from "../courses/course-access.js";
 import { resolveCourseParticipantInTransaction } from "../courses/course-participants.js";
 import { classActorGroup, type AuditEventDraft } from "@bpt-jersey/domain/audit";
-import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
-import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
+import { parseFamilyRecord } from "@bpt-jersey/domain/families";
+import { parseEffectiveStudentProfileAt, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import {
   attendanceStates,
   buildAttendanceId,
@@ -30,6 +30,8 @@ import {
   type SelfCheckInRefusal,
 } from "@bpt-jersey/domain/schedule/self-check-in";
 
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import { assertBookingMemberAccess } from "./booking-transaction-service.js";
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 import type {
   BookingDocumentData,
@@ -276,7 +278,7 @@ function requireStudent(
 ): StudentProfile {
   const value = data(snapshot);
   if (value === undefined) return fail("not-found", "Student is unavailable");
-  const parsed = parseStudentProfile(value);
+  const parsed = parseEffectiveStudentProfileAt(value, dateKeyInJersey(new Date()));
   if (
     !parsed.ok ||
     snapshot.id !== parsed.value.studentId ||
@@ -374,37 +376,6 @@ async function bookingSnapshots(
   );
 }
 
-function validGuardianRelationship(
-  snapshot: BookingDocumentSnapshot,
-  academyId: string,
-  familyId: string,
-  studentId: string,
-  adultUserId: string,
-  nowMs: number,
-): boolean {
-  const value = data(snapshot);
-  if (value === undefined) return false;
-  const parsed = parseFamilyRelationship(value);
-  if (!parsed.ok) return false;
-  const validFromMs = Date.parse(parsed.value.validFrom);
-  const validToMs =
-    parsed.value.validTo === undefined ? undefined : Date.parse(parsed.value.validTo);
-  return (
-    snapshot.id === parsed.value.relationshipId &&
-    parsed.value.academyId === academyId &&
-    parsed.value.familyId === familyId &&
-    parsed.value.studentId === studentId &&
-    parsed.value.adultUserId === adultUserId &&
-    parsed.value.relationshipType === "guardian" &&
-    parsed.value.permissions.includes("readProfile") &&
-    parsed.value.active &&
-    parsed.value.status === "active" &&
-    Number.isFinite(validFromMs) &&
-    validFromMs <= nowMs &&
-    (validToMs === undefined || (Number.isFinite(validToMs) && nowMs < validToMs))
-  );
-}
-
 async function validateCourseAttendance(
   firestore: AttendanceFirestore, transaction: AttendanceTransaction, sessionSnapshot: BookingDocumentSnapshot,
   bookings: readonly BookingDocumentSnapshot[], context: MutationContext<unknown>, studentId: string, self: boolean,
@@ -412,6 +383,8 @@ async function validateCourseAttendance(
   const session = data(sessionSnapshot);
   if (!session?.courseId) {
     if (self && !memberRoles.has(context.actorRole)) fail("credential", "Member authority is required for ordinary check-in");
+    if (self) await assertBookingMemberAccess({ firestore, transaction, academyId: context.academyId,
+      actorId: context.actorId, actorRole: context.actorRole, studentId, now: new Date().toISOString() });
     return;
   }
   const db = firestore as unknown as Firestore;
@@ -802,7 +775,7 @@ export function createTransactionalAttendanceService(
         if (!isStaff || reason.length < 2 || reason.length > 200) {
           return fail("credential", "Staff override authority and reason are required");
         }
-      } else if (context.actorRole !== "guardian" && !isStaff) {
+      } else if (!memberRoles.has(context.actorRole) && !isStaff) {
         return fail("credential", "Guardian or staff checkout authority is required");
       }
 
@@ -897,23 +870,12 @@ export function createTransactionalAttendanceService(
           return fail("conflict", "Relationship scope is over limit");
         }
         if (context.input.method === "authorizedAdult") {
-          const nowMs = Date.parse(occurredAt);
-          if (
-            authorizedAdultId === undefined ||
-            !relationshipSnapshot.docs.some((snapshot) =>
-              validGuardianRelationship(
-                snapshot,
-                academyId,
-                student.familyId!,
-                studentId,
-                authorizedAdultId,
-                nowMs,
-              ),
-            )
-          ) {
-            return fail("credential", "Authorized adult relationship is unavailable");
-          }
+          if (!authorizedAdultId) return fail("credential", "Authorized adult relationship is unavailable");
+          await assertBookingMemberAccess({ firestore: options.firestore, transaction, academyId,
+            actorId: authorizedAdultId, actorRole: "guardian", studentId, now: new Date().toISOString(),
+            requireVia: "guardian" });
         }
+
 
         const existing = storedCheckout(checkoutSnapshot, academyId, sessionId, studentId);
         if (existing !== undefined) {

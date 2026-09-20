@@ -1,3 +1,4 @@
+import { memberAccessInStoreTransaction } from "../members/member-access-service.js";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { memberAgeOn } from "@bpt-jersey/domain/members/access";
 import { signedGuardianState, guardianRelationshipVersion, prepareChildGuardianChange, eighteenthBirthday } from "../members/member-guardian-state.js";
@@ -1295,70 +1296,21 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
     },
 
     async getGuardianFamily(academyIdInput, adultUserIdInput) {
-      const academyId = pathSegment(academyIdInput, "academy");
-      const adultUserId = pathSegment(adultUserIdInput, "adult");
+      const academyId = pathSegment(academyIdInput, "academy"), adultUserId = pathSegment(adultUserIdInput, "guardian");
       return dependencies.firestore.runTransaction(async (transaction) => {
-        const relationshipSnapshot = readQuerySnapshot(
-          await transaction.get(
-            dependencies.firestore
-              .collection(relationshipsPath(academyId))
-              .where("adultUserId", "==", adultUserId)
-              .limit(MAX_FAMILY_STUDENTS + 1),
-          ),
-        );
-        const activeRelationships = relationshipSnapshot.docs
-          .map(parseStoredRelationship)
-          .filter(
-            (relationship) =>
-              relationship.academyId === academyId &&
-              relationship.adultUserId === adultUserId &&
-              relationship.active &&
-              relationship.status === "active",
-          );
-        if (activeRelationships.length === 0) return undefined;
-        const familyIds = new Set(activeRelationships.map((relationship) => relationship.familyId));
-        if (familyIds.size !== 1)
-          throw new FamilyStoreError("duplicate", "Guardian family is ambiguous");
-        const familyId = [...familyIds][0];
-        if (familyId === undefined)
-          throw new FamilyStoreError("invalid", "Guardian family is missing");
-        const family = parseStoredFamily(
-          readDocumentSnapshot(
-            await transaction.get(dependencies.firestore.doc(familyPath(academyId, familyId))),
-          ),
-        );
-        if (
-          !family.active ||
-          family.status !== "active" ||
-          family.primaryContactUserId !== adultUserId
-        ) {
-          return undefined;
-        }
-        const tutor = parseStoredTutor(
-          readDocumentSnapshot(
-            await transaction.get(dependencies.firestore.doc(userPath(academyId, adultUserId))),
-          ),
-          academyId,
-        );
-        const students = await readStudents(
-          transaction,
-          dependencies.firestore,
-          academyId,
-          familyId,
-        );
-        const linkedStudentIds = new Set(
-          activeRelationships.map((relationship) => relationship.studentId),
-        );
-        const linkedStudents = students.filter((student) =>
-          linkedStudentIds.has(student.studentId),
-        );
-        if (linkedStudents.length !== linkedStudentIds.size) {
-          throw new FamilyStoreError(
-            "conflict",
-            "Guardian relationship points to a missing student",
-          );
-        }
-        return guardianProjection(family, tutor, linkedStudents);
+        const profiles = (await memberAccessInStoreTransaction(dependencies.firestore, transaction).listProfiles(academyId, adultUserId))
+          .filter((profile) => profile.via === "guardian");
+        if (!profiles.length) return undefined;
+        const students = await Promise.all(profiles.map(async (profile) => parseStoredStudent(readDocumentSnapshot(
+          await transaction.get(dependencies.firestore.doc(studentPath(academyId, profile.studentId))),
+        ))));
+        // Compatibility callers receive one filtered family; new account readers enumerate the union.
+        const familyId = students.map((student) => student.familyId).filter((id): id is string => typeof id === "string").sort()[0];
+        if (!familyId) return undefined;
+        const family = parseStoredFamily(readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(familyPath(academyId, familyId)))));
+        if (family.academyId !== academyId) throw new FamilyStoreError("tenant", "Family tenant mismatch");
+        const tutor = parseStoredTutor(readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(userPath(academyId, adultUserId)))), academyId);
+        return guardianProjection(family, tutor, students.filter((student) => student.familyId === familyId));
       });
     },
 

@@ -1,10 +1,5 @@
 import { z } from "zod";
-import {
-  regyfitGraduationSchema,
-  regyfitPlanSchema,
-  regyfitAttendanceSchema,
-  regyfitPaymentSchema,
-} from "./regyfit-member-record-contracts";
+import { accountMemberHistoryPageSchema } from "./member-history-contracts";
 import { trainingCenters, trainingTimePreferences } from "../profiles/profile-contracts";
 
 const opaqueId = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -106,19 +101,5 @@ export const reviewMemberRecoveryResultSchema = z.strictObject({
 });
 export type MemberRecoveryRequestRow = z.infer<typeof memberRecoveryRequestRowSchema>;
 export type MemberRecoveryDetail = z.infer<typeof getMemberRecoveryDetailResultSchema>;
-export const memberRecoveryHistorySchema = z.strictObject({
-  records: z
-    .array(
-      z.strictObject({
-        recordId: z.string(),
-        fullName: boundedText,
-        capturedAt: z.iso.datetime(),
-        graduation: regyfitGraduationSchema,
-        plan: regyfitPlanSchema,
-        attendance: regyfitAttendanceSchema,
-        payments: z.array(regyfitPaymentSchema).max(50),
-      }),
-    )
-    .max(20),
-});
+export const memberRecoveryHistorySchema = accountMemberHistoryPageSchema;
 export type MemberRecoveryHistory = z.infer<typeof memberRecoveryHistorySchema>;
