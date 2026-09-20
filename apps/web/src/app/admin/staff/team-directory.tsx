@@ -124,7 +124,7 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
         setLoading(false);
         await changeTeamRole({
           userId: review.person.userId,
-          email: review.person.email!,
+          email: review.person.email,
           role: review.role,
         });
         if (!mounted.current) return;
@@ -238,7 +238,7 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
                         <button
                           className="staff-row-action"
                           type="button"
-                          disabled={busy || !!review || !person.email}
+                          disabled={busy || !!review}
                           aria-label={`Change role for ${person.name || person.email || "team member"}`}
                           onClick={() => {
                             setSelected(person);
@@ -275,7 +275,8 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
         >
           <h4>Change account role</h4>
           <p>
-            {selected.name || selected.email} · {selected.email}
+            {selected.name || selected.email || selected.userId} ·{" "}
+            {selected.email || "No email linked"}
           </p>
           <label className="staff-field">
             New role
@@ -356,8 +357,12 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
         <section className="staff-card staff-role-review" aria-labelledby="staff-role-review-title">
           <h3 id="staff-role-review-title">Confirm staff access</h3>
           <p>
-            <strong>{review.kind === "role" ? review.person.email : review.email}</strong> will
-            receive the <strong>{teamRoleLabels[review.role]}</strong> role
+            <strong>
+              {review.kind === "role"
+                ? review.person.name || review.person.email || review.person.userId
+                : review.email}
+            </strong>{" "}
+            will receive the <strong>{teamRoleLabels[review.role]}</strong> role
             {review.kind === "invitation" ? " when they sign in with Google" : " immediately"}.
           </p>
           <p>
@@ -368,7 +373,14 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
                 : "Administrators can manage members, finances, the team, classes and sporting decisions. They cannot grant owner or administrator access."}
           </p>
           {review.kind === "role" && (
-            <p>This replaces their current {teamRoleLabels[review.person.role]} role.</p>
+            <>
+              <p>This replaces their current {teamRoleLabels[review.person.role]} role.</p>
+              {!review.person.email && (
+                <p>
+                  No email is linked. Their existing staff account and Staff ID sign-in are kept.
+                </p>
+              )}
+            </>
           )}
           <div className="staff-team-actions">
             <button

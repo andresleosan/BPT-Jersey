@@ -51,7 +51,7 @@ async function sessionFromUser(user: User): Promise<AdminSessionState> {
       role: tokenResult.claims.role,
     });
 
-    if (!claims.ok || user.uid.trim().length === 0 || !user.email?.trim()) {
+    if (!claims.ok || user.uid.trim().length === 0) {
       return { status: "denied" };
     }
 
@@ -60,7 +60,7 @@ async function sessionFromUser(user: User): Promise<AdminSessionState> {
       user,
       session: Object.freeze({
         uid: user.uid,
-        email: user.email.trim(),
+        email: user.email?.trim() ?? "",
         displayName: user.displayName?.trim() ?? "",
         academyId: claims.value.academyId,
         role: claims.value.role,

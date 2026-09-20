@@ -54,7 +54,7 @@ export type SyntheticFirestore = {
 
 type AdminUserRecord = {
   uid: string;
-  email: string;
+  email: string | null;
   displayName: string | null;
   disabled: boolean;
   providerData: ReadonlyArray<{ providerId: string }>;
@@ -75,6 +75,7 @@ const targetSchema = z.strictObject({
   email: z.string().email().max(320),
   role: adminRoleSchema,
 });
+const teamTargetSchema = targetSchema.extend({ email: targetSchema.shape.email.nullable() });
 const actionSchema = z.enum(["grant", "revoke"]);
 
 /**
@@ -185,7 +186,7 @@ function requireGoogleUser(user: AdminUserRecord, email: string): void {
   if (!user.providerData.some((provider) => provider.providerId === "google.com")) {
     throw new HttpsError("failed-precondition", "The target must have a Google provider");
   }
-  if (user.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+  if (user.email?.trim().toLowerCase() !== email.trim().toLowerCase()) {
     throw new HttpsError("invalid-argument", "Target email does not match the Firebase user");
   }
 }
@@ -558,7 +559,7 @@ async function releaseRecoveredRoleLock(
 async function persistUserAndAudit(
   services: AdminProvisioningServices,
   actor: AdminActor,
-  target: { uid: string; email: string; role: AdminRole; displayName: string },
+  target: { uid: string; email: string | null; role: AdminRole; displayName: string },
   user: AdminUserRecord,
   lock: RoleLock,
   action: "grant" | "revoke",
@@ -593,7 +594,9 @@ async function persistUserAndAudit(
       accountType: "staff",
       displayName: target.displayName,
       email: target.email,
-      authProvider: "google",
+      authProvider: user.providerData.some((provider) => provider.providerId === "google.com")
+        ? "google"
+        : (user.providerData[0]?.providerId ?? "custom"),
       active,
       adminRole: action === "grant" ? target.role : null,
       lastRoleChangeAuditId: auditRef.id,
@@ -614,7 +617,7 @@ async function setClaimsAndPersist(
   previousClaims: Record<string, unknown>,
   nextClaims: Record<string, unknown>,
   actor: AdminActor,
-  target: { uid: string; email: string; role: AdminRole; displayName: string },
+  target: { uid: string; email: string | null; role: AdminRole; displayName: string },
   user: AdminUserRecord,
   lock: RoleLock,
   action: "grant" | "revoke",
@@ -644,21 +647,38 @@ async function setClaimsAndPersist(
 
 export async function provisionAdminRoleWithServices(
   request: CallableRequest,
-  targetInput: { uid: string; email: string; role: AdminRole },
+  targetInput: { uid: string; email: string | null; role: AdminRole },
   services: AdminProvisioningServices,
   transition?: "team" | "invitation",
 ): Promise<void> {
   const actor = requireAdminActor(request);
   requireVerifiedAppCheck(request);
   requireOwner(actor);
-  const target = parseOrThrow(targetSchema.safeParse(targetInput), "Invalid administrative target");
+  const target = parseOrThrow(
+    (transition === "team" ? teamTargetSchema : targetSchema).safeParse(targetInput),
+    "Invalid administrative target",
+  );
   const action = currentAction(request);
   const lock = await acquireRoleLock(services, actor, target.uid);
   const leaseRenewal = maintainRoleLockLease(services, lock);
   let authMutationStarted = false;
   try {
     const user = await services.auth.getUser(target.uid);
-    requireGoogleUser(user, target.email);
+    // Existing team accounts are identified by UID and academy, including Staff ID accounts.
+    // Email invitations and general provisioning retain their Google identity requirement.
+    if (transition === "team") {
+      if (
+        target.email !== null &&
+        user.email?.trim().toLowerCase() !== target.email.trim().toLowerCase()
+      )
+        throw new HttpsError(
+          "failed-precondition",
+          "Account details changed. Refresh the team directory.",
+        );
+    } else {
+      if (!target.email) throw new HttpsError("invalid-argument", "An email address is required.");
+      requireGoogleUser(user, target.email);
+    }
     if (transition && (user.disabled || target.uid === actor.uid)) {
       throw new HttpsError(
         "failed-precondition",
@@ -697,7 +717,7 @@ export async function provisionAdminRoleWithServices(
       previousClaims,
       nextClaims,
       actor,
-      { ...target, displayName: user.displayName ?? "" },
+      { ...target, email: user.email, displayName: user.displayName ?? "" },
       user,
       lock,
       action,

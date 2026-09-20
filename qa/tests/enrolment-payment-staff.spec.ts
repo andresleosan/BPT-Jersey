@@ -45,9 +45,16 @@ const detail = {
 
 async function harness(
   page: Page,
-  options: { failUpload?: boolean; failDetail?: boolean; delayUpload?: boolean } = {},
+  options: {
+    failUpload?: boolean;
+    failDetail?: boolean;
+    delayUpload?: boolean;
+    noStaffEmail?: boolean;
+    failRole?: boolean;
+  } = {},
 ) {
   const calls: { name: string; data: Record<string, unknown> }[] = [];
+  let roleFailures = options.failRole ? 1 : 0;
   let uploadFailures = options.failUpload ? 1 : 0;
   let detailFailures = options.failDetail ? 1 : 0;
   const now = Math.floor(Date.now() / 1000);
@@ -165,7 +172,7 @@ async function harness(
           {
             userId: "synthetic-coach",
             name: "Synthetic coach",
-            email: "coach@example.test",
+            email: options.noStaffEmail ? null : "coach@example.test",
             role: "coach",
           },
         ],
@@ -173,8 +180,11 @@ async function harness(
       };
     else if (["listStaffInvitations", "listStaffProfiles"].includes(name)) result = [];
     else if (name === "listStaffPermissionGrants") result = { grants: [] };
-    else if (name === "changeTeamRole") result = { changed: true };
-    else if (name === "createStaffInvitation")
+    else if (name === "changeTeamRole") {
+      if (options.failRole) await new Promise((resolve) => setTimeout(resolve, 700));
+      if (roleFailures-- > 0) return failure();
+      result = { changed: true };
+    } else if (name === "createStaffInvitation")
       result = {
         id: "a".repeat(64),
         version: "synthetic-version",
@@ -344,3 +354,52 @@ test("owner promotes a coach and creates administrative access in one staff form
     fullPage: true,
   });
 });
+
+for (const role of ["administrator", "owner"] as const) {
+  test(`owner changes an email-less coach to ${role} with keyboard and save retry`, async ({
+    page,
+  }, info) => {
+    if (info.project.name.includes("mobile"))
+      await page.setViewportSize({ width: 320, height: 740 });
+    const calls = await harness(page, { noStaffEmail: true, failRole: true });
+    await page.goto("/admin/staff?adminTestRole=owner");
+    const change = page.getByRole("button", { name: "Change role for Synthetic coach" });
+    await expect(change).toBeEnabled();
+    await change.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByLabel("New role")).toBeFocused();
+    await page.getByLabel("New role").selectOption(role);
+    await page.getByRole("button", { name: "Review role change" }).click();
+    const confirm = page.getByRole("button", { name: "Confirm access" });
+    await expect(confirm).toBeFocused();
+    await expect(page.getByText(/will receive/)).toContainText("Synthetic coach");
+    await expect(page.getByText(/Their existing staff account/)).toBeVisible();
+    await noOverflow(page);
+    await page.screenshot({
+      path: `../.tmp/staff-no-email-${role}-${info.project.name}.png`,
+      fullPage: true,
+    });
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: "Saving access…" })).toBeDisabled();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Unable to change this role" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("table", { name: "Team directory" }).getByText("Coach", { exact: true }),
+    ).toBeVisible();
+    await confirm.click();
+    await expect(page.getByRole("status").filter({ hasText: "Role changed" })).toBeVisible();
+    expect(calls.filter((call) => call.name === "changeTeamRole").map((call) => call.data)).toEqual(
+      [
+        { userId: "synthetic-coach", email: null, role },
+        { userId: "synthetic-coach", email: null, role },
+      ],
+    );
+    await expect(
+      page
+        .getByRole("table", { name: "Team directory" })
+        .getByText(role === "owner" ? "Owner" : "Administrator", { exact: true }),
+    ).toBeVisible();
+    await noOverflow(page);
+  });
+}

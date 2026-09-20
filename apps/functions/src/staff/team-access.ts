@@ -41,7 +41,7 @@ export type TeamAccessServices = Readonly<{
   };
   grant(
     actor: AdminActor,
-    target: { uid: string; email: string; role: "owner" | "administrator" | "coach" },
+    target: { uid: string; email: string | null; role: "owner" | "administrator" | "coach" },
     transition: "team" | "invitation",
   ): Promise<void>;
   now(): Date;

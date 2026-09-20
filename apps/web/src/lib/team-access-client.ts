@@ -16,7 +16,7 @@ export function listTeamDirectory(pageToken?: string) {
   return call("listTeamDirectory", teamDirectoryRequestSchema.parse(pageToken ? { pageToken } : {}), teamDirectoryResponseSchema, "Unable to load the team directory. Please try again.");
 }
 export function changeTeamRole(input: ChangeTeamRoleInput) {
-  return call("changeTeamRole", changeTeamRoleSchema.parse(input), z.strictObject({ changed: z.literal(true) }), "Unable to change this role. Check that the account has Google linked and refresh the list.");
+  return call("changeTeamRole", changeTeamRoleSchema.parse(input), z.strictObject({ changed: z.literal(true) }), "Unable to change this role. Refresh the team directory and check that the account is active and you still have owner access.");
 }
 export function createStaffInvitation(input: StaffInvitationInput) {
   return call("createStaffInvitation", staffInvitationInputSchema.parse(input), staffInvitationSchema, "Unable to authorise this email. Please refresh and try again.");

@@ -103,3 +103,12 @@ submitted details and payment evidence, chooses any published initial level, and
 subscription period. Approval completes the member, level and subscription; retries preserve the
 same decision and avoid duplicate payments. Staff creation uses one email-and-role form; only owners
 can authorise administrative roles or promote existing coaches. See ADR-016; publication is separate.
+
+## Staff role changes without email (2026-09-20)
+
+An owner can change an existing team account to Administrator or Owner directly from Staff,
+even when no email or Google account is linked. The target is its existing UID within the academy;
+confirmation identifies it by name. Staff ID and password remain valid after promotion, and the
+admin panel accepts the refreshed administrative claims without requiring an email. The coaching
+profile and unrelated claims remain intact. New email invitations still activate through verified
+Google sign-in. Publication of this correction is separate.

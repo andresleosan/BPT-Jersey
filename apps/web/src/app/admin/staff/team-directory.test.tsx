@@ -29,6 +29,45 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("team directory", () => {
+  it("keeps an email-less coach unchanged when saving fails and allows retry", async () => {
+    api.listTeamDirectory.mockResolvedValue({
+      people: [{ ...people[1], email: null }],
+      nextPageToken: null,
+    });
+    api.changeTeamRole.mockRejectedValueOnce(
+      new Error("Unable to change this role. Please retry."),
+    );
+    const user = userEvent.setup();
+    render(<TeamDirectoryContent session={session} />);
+    await user.click(await screen.findByRole("button", { name: "Change role for Academy coach" }));
+    await user.click(screen.getByRole("button", { name: "Review role change" }));
+    await user.click(screen.getByRole("button", { name: "Confirm access" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to change this role");
+    expect(within(screen.getByRole("table")).getByText("Coach")).toBeVisible();
+    expect(screen.queryByText(/Role changed to/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Confirm access" }));
+    expect(await screen.findByText(/Role changed to Administrator/)).toBeVisible();
+  });
+
+  it.each(["administrator", "owner"])("promotes a coach without email to %s", async (role) => {
+    api.listTeamDirectory.mockResolvedValue({
+      people: [{ ...people[1], email: null }],
+      nextPageToken: null,
+    });
+    const user = userEvent.setup();
+    render(<TeamDirectoryContent session={session} />);
+    const change = await screen.findByRole("button", { name: "Change role for Academy coach" });
+    expect(change).toBeEnabled();
+    await user.click(change);
+    await user.selectOptions(screen.getByLabelText("New role"), role);
+    await user.click(screen.getByRole("button", { name: "Review role change" }));
+    expect(screen.getByText(/will receive/)).toHaveTextContent("Academy coach");
+    await user.click(screen.getByRole("button", { name: "Confirm access" }));
+    await waitFor(() =>
+      expect(api.changeTeamRole).toHaveBeenCalledWith({ userId: "coach", email: null, role }),
+    );
+    expect(await screen.findByText(/Role changed to/)).toBeVisible();
+  });
   it("shows name, email and role, with no separate profile page", async () => {
     render(<TeamDirectoryContent session={{ ...session, role: "administrator" }} />);
     const table = await screen.findByRole("table", { name: "Team directory" });
