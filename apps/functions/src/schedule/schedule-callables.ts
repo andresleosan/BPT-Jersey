@@ -1,3 +1,4 @@
+import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireCourseActor } from "../courses/course-authorization.js";
 import { requireCourseRosterAccess } from "../courses/course-roster.js";
@@ -80,6 +81,15 @@ export function createFirestoreGuardianStudentScopeResolver(
 }
 
 const resolveCanonicalClientStudent = createFirestoreCanonicalClientStudentScopeResolver();
+async function requestedMemberStudentId(request: CallableRequest<unknown>, value: unknown): Promise<string> {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  const actor = await requireMemberAccountActor(request);
+  const own = (await createFirestoreMemberAccessService().listProfiles(actor.academyId, actor.userId))
+    .find((profile) => profile.via === "self");
+  if (!own) throw new HttpsError("invalid-argument", "Select a member profile");
+  return own.studentId;
+}
+
 async function requireStudentScope(
   request: CallableRequest<unknown>,
   studentId: string,
@@ -765,14 +775,12 @@ export function createListStudentBookingsHandler(options: StudentScopeOptions) {
   return async (request: CallableRequest<unknown>) => {
     const actor = requireUserActor(request);
     const data = request.data as { studentId?: unknown };
-    const studentId =
-      typeof data?.studentId === "string" && data.studentId.trim()
-        ? data.studentId.trim()
-        : actor.userId;
+    const studentId = await requestedMemberStudentId(request, data?.studentId);
 
     await requireStudentScope(request, studentId, options);
 
     const bookings = await store.listStudentBookings(actor.academyId, studentId);
+    await requireStudentScope(request, studentId, options);
     return {
       bookings,
     };
@@ -958,14 +966,12 @@ export function createListStudentAttendanceHandler(options: StudentScopeOptions)
   return async (request: CallableRequest<unknown>) => {
     const actor = requireUserActor(request);
     const data = request.data as { studentId?: unknown };
-    const studentId =
-      typeof data?.studentId === "string" && data.studentId.trim()
-        ? data.studentId.trim()
-        : actor.userId;
+    const studentId = await requestedMemberStudentId(request, data?.studentId);
 
     await requireStudentScope(request, studentId, options);
 
     const attendance = await store.listStudentAttendance(actor.academyId, studentId);
+    await requireStudentScope(request, studentId, options);
     return {
       attendance: attendanceForActor(actor, attendance),
     };
@@ -1042,10 +1048,7 @@ export function createListAttendanceHistoryHandler(options: StudentScopeOptions)
       throw new HttpsError("invalid-argument", "sessionId is required");
     }
 
-    const studentId =
-      typeof data.studentId === "string" && data.studentId.trim()
-        ? data.studentId.trim()
-        : actor.userId;
+    const studentId = await requestedMemberStudentId(request, data.studentId);
 
     await requireStudentScope(request, studentId, options);
 
@@ -1055,6 +1058,7 @@ export function createListAttendanceHistoryHandler(options: StudentScopeOptions)
       studentId,
     );
 
+    await requireStudentScope(request, studentId, options);
     return {
       history: attendanceForActor(actor, history),
     };
@@ -1147,10 +1151,7 @@ export function createGetStudentCheckoutHandler(options: StudentScopeOptions) {
       throw new HttpsError("invalid-argument", "sessionId is required");
     }
 
-    const studentId =
-      typeof data.studentId === "string" && data.studentId.trim()
-        ? data.studentId.trim()
-        : actor.userId;
+    const studentId = await requestedMemberStudentId(request, data.studentId);
 
     await requireStudentScope(request, studentId, options);
 
@@ -1159,6 +1160,7 @@ export function createGetStudentCheckoutHandler(options: StudentScopeOptions) {
       data.sessionId.trim(),
       studentId,
     );
+    await requireStudentScope(request, studentId, options);
     return {
       checkout,
     };

@@ -1,3 +1,5 @@
+import { resolveCanonicalStudentIdInTransaction } from "../members/member-identity-resolution.js";
+import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { createMemberAccessService, memberAccessDependenciesInTransaction } from "../members/member-access-service.js";
@@ -60,9 +62,10 @@ export const getStudentGroupAccess = onCall(browserAdminCallableOptions, async (
       .authorise(actor.academyId, actor.userId, input.data.studentId)).allowed) {
       throw new HttpsError("permission-denied", "Member profile is unavailable");
     }
-    const [student, access] = await tx.getAll(db.doc(`${base}/students/${input.data.studentId}`),
-      db.doc(`${base}/studentGroupAccess/${input.data.studentId}`));
-    const profile = readStudent(student!.data(), actor.academyId, input.data.studentId);
+    const studentId = await resolveCanonicalStudentIdInTransaction(createMemberDirectoryReadTransaction(db, tx), actor.academyId, input.data.studentId);
+    const [student, access] = await tx.getAll(db.doc(`${base}/students/${studentId}`),
+      db.doc(`${base}/studentGroupAccess/${studentId}`));
+    const profile = readStudent(student!.data(), actor.academyId, studentId);
     return readAccess(access!.data(), actor.academyId, profile.studentId, profile.dateOfBirth);
   });
 });

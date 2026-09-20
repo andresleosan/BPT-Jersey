@@ -1089,12 +1089,21 @@ export function createCanonicalMemberDirectoryReadService(
               auditResult: "no-match",
             });
           }
+          const canonicalId = await resolveCanonicalStudentIdInTransaction(transaction, command.actor.academyId, studentId);
+          let row = toAdminDirectoryRow(student, profile);
+          if (canonicalId !== studentId) {
+            const [canonicalStudent, canonicalProfile] = await Promise.all([
+              transaction.get(studentPath(command.actor.academyId, canonicalId)),
+              transaction.get(profilePath(command.actor.academyId, canonicalId)),
+            ]);
+            row = toAdminDirectoryRow(
+              parseStudent(canonicalStudent, command.actor.academyId, canonicalId, dateKeyInJersey(new Date(now))),
+              parseAdminProfile(canonicalProfile, command.actor.academyId, canonicalId),
+            );
+          }
           return Object.freeze({
             kind: "success",
-            value: Object.freeze({
-              matched: true as const,
-              row: toAdminDirectoryRow(student, profile),
-            }),
+            value: Object.freeze({ matched: true as const, row }),
             auditResult: "completed",
           });
         },

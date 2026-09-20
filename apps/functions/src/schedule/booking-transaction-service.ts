@@ -1,3 +1,5 @@
+import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { createMemberAccessService } from "../members/member-access-service.js";
 import { studentGroupAccessSchema } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
@@ -18,7 +20,7 @@ import {
 } from "@bpt-jersey/domain/memberships/lifecycle";
 import {
   deriveParticipantType,
-  parseStudentProfile,
+  parseEffectiveStudentProfileAt,
   type StudentProfile,
 } from "@bpt-jersey/domain/profiles";
 import {
@@ -234,7 +236,7 @@ function membership(
   snapshot: BookingDocumentSnapshot,
   academyId: string,
   membershipId: string,
-  studentId: string,
+  identityIds: readonly string[],
   now: string,
 ): MembershipRecord {
   const parsed = parseMembershipRecord(data(snapshot, "membership"));
@@ -248,7 +250,7 @@ function membership(
     return invalid("tenant", "Membership scope is invalid");
   }
   if (
-    value.studentId !== studentId ||
+    !identityIds.includes(value.studentId) ||
     (value.status !== "active" && value.status !== "trial") ||
     Date.parse(value.startsAt) > Date.parse(now) ||
     (value.endsAt !== null && Date.parse(value.endsAt) <= Date.parse(now))
@@ -276,7 +278,7 @@ function student(
   academyId: string,
   studentId: string,
 ): StudentProfile {
-  const parsed = parseStudentProfile(data(snapshot, "student"));
+  const parsed = parseEffectiveStudentProfileAt(data(snapshot, "student"), dateKeyInJersey(new Date()));
   if (!parsed.ok) return invalid("invalid", "Stored student is invalid");
   if (
     snapshot.id !== studentId ||
@@ -423,12 +425,30 @@ async function isOpenMatProgram(
   return openMat;
 }
 
+async function bookingIdentityIds(input: {
+  firestore: BookingFirestore; transaction: BookingTransaction; academyId: string; studentId: string;
+}): Promise<readonly string[]> {
+  return canonicalMemberIdentityIds({
+    get: async (path) => {
+      const doc = await input.transaction.get(input.firestore.doc(path));
+      return { id: doc.id, exists: doc.exists, data: doc.data() };
+    },
+    listCollection: async ({ academyId, collection, equal, limit }) => {
+      if (!equal || collection !== "memberIdentityAliases") return invalid("invalid", "Invalid identity query");
+      const docs = await input.transaction.get(input.firestore.collection(`academies/${academyId}/${collection}`)
+        .where(equal.field, "==", equal.value).limit(limit));
+      return docs.docs.map((doc) => ({ id: doc.id, exists: doc.exists, data: doc.data() }));
+    },
+  }, input.academyId, input.studentId);
+}
+
 async function weeklyUsage(input: {
   firestore: BookingFirestore;
   transaction: BookingTransaction;
   academyId: string;
   studentId: string;
   week: string;
+  identityIds: readonly string[];
   currentIds: readonly string[];
   additionalProgramIds: readonly string[];
 }): Promise<number> {
@@ -460,7 +480,7 @@ async function weeklyUsage(input: {
     ) {
       continue;
     }
-    const ids = buildBookingIdCandidates(sessionSnapshot.id, input.studentId);
+    const ids = input.identityIds.flatMap((id) => buildBookingIdCandidates(sessionSnapshot.id, id));
     const bookingSnapshots = await Promise.all(
       ids.map((id) =>
         input.transaction.get(input.firestore.doc(path(input.academyId, "bookings") + "/" + id)),
@@ -470,18 +490,18 @@ async function weeklyUsage(input: {
       .filter((snapshot) => snapshot.exists)
       .map((snapshot) => booking(snapshot, input.academyId));
     for (const existing of found) {
-      if (existing.sessionId !== sessionSnapshot.id || existing.studentId !== input.studentId) {
+      if (existing.sessionId !== sessionSnapshot.id || !input.identityIds.includes(existing.studentId)) {
         return invalid("conflict", "Booking identity collision");
       }
     }
-    if (found.length === 2) {
+    if (found.length > 1) {
       return invalid("conflict", "Duplicate physical booking versions");
     }
     const existing = found[0];
     if (
       existing !== undefined &&
       existing.sessionId === sessionSnapshot.id &&
-      existing.studentId === input.studentId &&
+      input.identityIds.includes(existing.studentId) &&
       existing.status === "confirmed" &&
       !input.currentIds.includes(existing.bookingId)
     ) {
@@ -629,7 +649,8 @@ async function bookingTarget(input: {
   sessionId: string;
   studentId: string;
 }) {
-  const ids = buildBookingIdCandidates(input.sessionId, input.studentId);
+  const identityIds = await bookingIdentityIds(input);
+  const ids = identityIds.flatMap((id) => buildBookingIdCandidates(input.sessionId, id));
   const references = ids.map((id) =>
     input.firestore.doc(path(input.academyId, "bookings") + "/" + id),
   );
@@ -640,14 +661,15 @@ async function bookingTarget(input: {
     .filter((snapshot) => snapshot.exists)
     .map((snapshot) => booking(snapshot, input.academyId));
   for (const item of found) {
-    if (item.sessionId !== input.sessionId || item.studentId !== input.studentId) {
+    if (item.sessionId !== input.sessionId || !identityIds.includes(item.studentId)) {
       return invalid("conflict", "Booking identity collision");
     }
   }
-  if (found.length === 2) {
+  if (found.length > 1) {
     return invalid("conflict", "Duplicate physical booking versions");
   }
-  const index = snapshots[0]!.exists ? 0 : snapshots[1]!.exists ? 1 : 0;
+  const existingIndex = snapshots.findIndex((snapshot) => snapshot.exists);
+  const index = existingIndex < 0 ? 0 : existingIndex;
   return { reference: references[index]!, existing: found[0], ids };
 }
 
@@ -658,7 +680,9 @@ async function executeBookingInTransaction(
   const academyId = segment(input.academyId, "academyId");
   const actorId = segment(input.actorId, "actorId");
   const sessionId = segment(input.request.sessionId, "sessionId");
-  const studentId = segment(input.request.studentId, "studentId");
+  const requestedStudentId = segment(input.request.studentId, "studentId");
+  const identityIds = await bookingIdentityIds({ ...input, studentId: requestedStudentId });
+  const studentId = identityIds[0]!;
   const membershipId = segment(input.request.membershipId, "membershipId");
   if (!validDate(input.now)) return invalid("invalid", "now is invalid");
   await assertBookingMemberAccess({ ...input, studentId });
@@ -696,13 +720,12 @@ async function executeBookingInTransaction(
     membershipSnapshot,
     academyId,
     membershipId,
-    studentId,
+    identityIds,
     storedSession.startAt,
   );
   const storedStudent = student(studentSnapshot, academyId, studentId);
-  if (storedMembership.familyId !== storedStudent.familyId) {
-    return invalid("conflict", "Membership family does not match student family");
-  }
+  // Membership ownership follows the approved athlete identity; its original payer family
+  // survives a guardian replacement and is used only for the financial eligibility read below.
   const capacityRevision = revision(capacitySnapshot, academyId, sessionId, "sessionId");
   if (!isWithinBookingCutoff(storedSession.startAt, input.now, 60)) {
     return invalid("ineligible", "Booking cutoff has passed");
@@ -776,6 +799,7 @@ async function executeBookingInTransaction(
           academyId,
           studentId,
           week,
+          identityIds,
           currentIds: target.ids,
           additionalProgramIds,
         }),
@@ -796,7 +820,7 @@ async function executeBookingInTransaction(
       scope: {
         academyId,
         familyIds: [storedMembership.familyId],
-        studentIds: [studentId],
+        studentIds: identityIds,
       },
     }),
   ]);
@@ -834,7 +858,7 @@ async function executeBookingInTransaction(
     bookingId: target.reference.id || buildBookingId(sessionId, studentId),
     academyId,
     sessionId,
-    studentId,
+    studentId: target.existing?.studentId ?? studentId,
     membershipId,
     status: "confirmed",
     requestedAt: input.now,
@@ -1066,7 +1090,7 @@ export function createBookingTransactionService(options: {
 
 /** Shared permission reads join the booking write, so guardian changes race safely with it. */
 export async function assertBookingMemberAccess(input: Readonly<{
-  firestore: Pick<BookingFirestore, "doc" | "collection">; transaction: Pick<BookingTransaction, "get">;
+  firestore: { doc: BookingFirestore["doc"]; collection: (path: string) => BookingQuery }; transaction: Pick<BookingTransaction, "get">;
   academyId: string; actorId: string; studentId: string; actorRole: string; now: string;
   requireVia?: "self" | "guardian";
 }>): Promise<void> {

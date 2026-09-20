@@ -107,6 +107,12 @@ export function createListClientRemindersHandler({
         ),
       ]);
 
+      const currentAudience = actor.role === "guardian"
+        ? await services.resolveGuardianAudience(actor.academyId, actor.userId)
+        : await services.resolveAdultStudentAudience(actor.academyId, actor.userId);
+      if (!currentAudience || audience.studentIds.some((id) => !currentAudience.studentIds.includes(id)) ||
+          audience.familyIds.some((id) => !currentAudience.familyIds.includes(id))) permissionDenied();
+
       return {
         reminders: buildInAppReminders({
           now: new Date().toISOString(),

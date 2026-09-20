@@ -272,7 +272,7 @@ export function createFirebaseLevelAuthorization(): LevelAuthorizationService {
         uid: user.uid,
         disabled: user.disabled,
         emailVerified: user.emailVerified,
-        tokensValidAfterTime: user.tokensValidAfterTime,
+        ...(user.tokensValidAfterTime === undefined ? {} : { tokensValidAfterTime: user.tokensValidAfterTime }),
         customClaims: user.customClaims ?? {},
       };
     },
