@@ -439,11 +439,40 @@ describe("enrolment approval lock", () => {
     // This is the whole defence against two students for one person: a second key would mint a
     // second write receipt, and the canonical writer would happily create a second record.
     const { result } = await begin(
-      { [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }) },
+      {
+        [requestPath]: record({
+          status: "approving",
+          approvalRequestId: approvalKey,
+          reviewedAt: "2026-09-01T00:00:00.000Z",
+        }),
+      },
       otherApprovalKey,
       "owner-2",
     );
 
+    expect(result.record.approvalRequestId).toBe(approvalKey);
+  });
+
+  it("blocks a second reviewer during the active approval lease", async () => {
+    await expect(
+      begin(
+        {
+          [requestPath]: record({
+            status: "approving",
+            approvalRequestId: approvalKey,
+            reviewedAt: later,
+          }),
+        },
+        otherApprovalKey,
+        "owner-2",
+      ),
+    ).rejects.toThrow("already running");
+  });
+
+  it("recovers an old approving request without a review timestamp", async () => {
+    const { result } = await begin({
+      [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }),
+    });
     expect(result.record.approvalRequestId).toBe(approvalKey);
   });
 
@@ -488,7 +517,11 @@ describe("enrolment approval lock", () => {
 
   it("settles a held approval and records what it created", async () => {
     const { store, documents, audits } = firestoreDouble({
-      [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }),
+      [requestPath]: record({
+        status: "approving",
+        approvalRequestId: approvalKey,
+        reviewedAt: "2026-09-01T00:00:00.000Z",
+      }),
       [holdPath]: hold("approving"),
     });
 
@@ -507,7 +540,11 @@ describe("enrolment approval lock", () => {
 
   it("parks a half-finished approval where office can see it, never back with the applicant", async () => {
     const { store, documents, audits } = firestoreDouble({
-      [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }),
+      [requestPath]: record({
+        status: "approving",
+        approvalRequestId: approvalKey,
+        reviewedAt: "2026-09-01T00:00:00.000Z",
+      }),
       [holdPath]: hold("approving"),
     });
 
@@ -584,7 +621,11 @@ describe("enrolment approval lock", () => {
 
   it("does not let the applicant pull a request out from under an approval in progress", async () => {
     const { store } = firestoreDouble({
-      [requestPath]: record({ status: "approving", approvalRequestId: approvalKey }),
+      [requestPath]: record({
+        status: "approving",
+        approvalRequestId: approvalKey,
+        reviewedAt: "2026-09-01T00:00:00.000Z",
+      }),
     });
 
     await expect(

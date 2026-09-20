@@ -292,3 +292,8 @@ export {
   cancelStaffInvitation,
   acceptStaffInvitation,
 } from "./staff/team-access-callables.js";
+
+export {
+  uploadEnrolmentPaymentProof,
+  getEnrolmentPaymentInstructions,
+} from "./members/enrolment-payment-proof.js";

@@ -288,6 +288,19 @@ describe("private storage selection outside and inside the Functions Emulator", 
     await expect(disabled.deleteObject(objectKey)).rejects.toThrowError(expected);
   });
 
+  it("stores screenshots only under the enrolment prefix and enforces their smaller size limit", async () => {
+    const client = createEmulatorR2Client();
+    const proofKey = "academies/academy-1/enrolment-proofs/account/request/proof";
+    const screenshot = new Uint8Array([137, 80, 78, 71]);
+    await client.putObject(proofKey, screenshot, "image/png");
+    expect(await client.readObject(proofKey)).toEqual(screenshot);
+    await expect(client.putObject(objectKey, screenshot, "image/png")).rejects.toThrow();
+    await expect(
+      client.putObject(proofKey, new Uint8Array(2 * 1024 * 1024 + 1), "image/jpeg"),
+    ).rejects.toThrow();
+    await expect(client.putObject(proofKey, screenshot, "image/svg+xml")).rejects.toThrow();
+  });
+
   it("stores, reads back and deletes PDF objects by copy in the emulator store", async () => {
     const client = createEmulatorR2Client();
     await client.putObject(objectKey, pdf, "application/pdf");

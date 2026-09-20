@@ -1,6 +1,8 @@
+import { parsePaymentInstructionsInput } from "@bpt-jersey/domain/finance";
 import { httpsCallable } from "firebase/functions";
 
 import type {
+  EnrolmentApprovalSetup,
   EnrolmentRequestClientView,
   EnrolmentRequestDetail,
   EnrolmentRequestRow,
@@ -255,6 +257,7 @@ export type EnrolmentApprovalOutcome = Readonly<{
  */
 export async function approveEnrolmentRequest(
   enrolmentRequestId: string,
+  setup: EnrolmentApprovalSetup,
 ): Promise<EnrolmentApprovalOutcome> {
   try {
     const callable = httpsCallable<
@@ -262,6 +265,7 @@ export async function approveEnrolmentRequest(
         enrolmentRequestId: string;
         requestId: string;
         purpose: "enrolment-request-review";
+        setup: EnrolmentApprovalSetup;
       },
       unknown
     >(getFirebaseFunctions(), "approveEnrolmentRequest");
@@ -269,6 +273,7 @@ export async function approveEnrolmentRequest(
       await callable({
         enrolmentRequestId,
         requestId: createEnrolmentRequestId(),
+        setup,
         purpose: "enrolment-request-review",
       })
     ).data;
@@ -296,4 +301,31 @@ export async function approveEnrolmentRequest(
     }
     throw officeFailure(error, approvalError);
   }
+}
+
+export async function uploadEnrolmentPaymentProof(requestId: string, file: File): Promise<string> {
+  if (!["image/png", "image/jpeg"].includes(file.type) || file.size <= 0 || file.size > 2 * 1024 * 1024)
+    throw new Error("Choose a PNG or JPEG screenshot up to 2 MB.");
+  const data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(new Error("Unable to read the screenshot. Choose the file again."));
+    reader.readAsDataURL(file);
+  });
+  try {
+    const result = (await httpsCallable<unknown, unknown>(getFirebaseFunctions(), "uploadEnrolmentPaymentProof")({ requestId, contentType: file.type, base64: data })).data;
+    if (!isRecord(result) || typeof result.proofId !== "string" || !/^[a-f0-9]{64}$/u.test(result.proofId)) throw new Error();
+    return result.proofId;
+  } catch { throw new Error("Unable to upload the screenshot. Your details are still here; please retry."); }
+}
+
+export async function getEnrolmentPaymentInstructions() {
+  try {
+    const data = (await httpsCallable<unknown, unknown>(getFirebaseFunctions(), "getEnrolmentPaymentInstructions")({})).data;
+    if (!isRecord(data)) throw new Error();
+    if (data.instructions === null) return null;
+    const parsed = parsePaymentInstructionsInput(data.instructions);
+    if (!parsed.ok) throw new Error();
+    return parsed.value;
+  } catch { throw new Error("Unable to load bank details. Retry or contact the academy before transferring."); }
 }

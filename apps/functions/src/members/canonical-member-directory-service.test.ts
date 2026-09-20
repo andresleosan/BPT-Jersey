@@ -643,6 +643,30 @@ describe("canonical member directory writer, linked to an account (T122)", () =>
     email: "Adult@Example.test",
   } as const;
 
+  it("replays an enrolment across reviewers while checking the current reviewer's authority", async () => {
+    const store = fakeFirestore();
+    store.records.set(
+      "academies/academy-1/users/owner-2",
+      provisionedAdminDocument({ userId: "owner-2" }),
+    );
+    const command = {
+      actor: actor(),
+      value: input(),
+      account,
+      now,
+      enrolmentRequestId: "enrolment-synthetic",
+    };
+    const result = await service(store).createAdminAdultForAccount(command);
+    const count = store.records.size;
+    const other = { ...command, actor: { ...actor(), actorId: "owner-2" } };
+    expect(await service(store).createAdminAdultForAccount(other)).toEqual(result);
+    expect(store.records.size).toBe(count);
+    store.records.delete("academies/academy-1/users/owner-2");
+    await expect(service(store).createAdminAdultForAccount(other)).rejects.toMatchObject({
+      code: "unauthorized",
+    });
+  });
+
   it("writes the member and their account as one record", async () => {
     const store = fakeFirestore();
 

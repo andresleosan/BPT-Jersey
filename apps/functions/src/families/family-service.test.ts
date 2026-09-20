@@ -220,6 +220,25 @@ function createServices(
 }
 
 describe("family Firestore store", () => {
+  it("replays an enrolment for another active reviewer without a second family", async () => {
+    const { store, records } = createServices({ "academies/academy-1/users/user-1": tutorUser() });
+    const command = {
+      academyId: "academy-1",
+      actorId: "admin-1",
+      actorRole: "administrator" as const,
+      requestId: "request-enrolment",
+      enrolmentRequestId: "enrolment-synthetic",
+      tutorUserId: "user-1",
+      students: [draft("Synthetic Minor")],
+      now: "2026-08-19T10:00:00.000Z",
+    };
+    const result = await store.createFamily(command);
+    const count = records.size;
+    expect(await store.createFamily({ ...command, actorId: "admin-2" })).toEqual(result);
+    expect(records.size).toBe(count);
+    records.delete("academies/academy-1/users/admin-2");
+    await expect(store.createFamily({ ...command, actorId: "admin-2" })).rejects.toThrow();
+  });
   it("atomically creates one family, two minors, and deterministic guardian relationships", async () => {
     const { store, records } = createServices({
       "academies/academy-1/users/user-1": tutorUser(),

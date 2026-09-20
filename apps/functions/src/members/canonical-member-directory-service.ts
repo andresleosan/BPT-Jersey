@@ -133,6 +133,8 @@ export type CreateAdminAdultForAccountCommand = Readonly<{
   actor: CanonicalMemberDirectoryActor;
   value: unknown;
   account: MemberAccountLink;
+  /** Internal enrolment scope; never accepted from the public member-write payload. */
+  enrolmentRequestId?: string;
   now: string;
 }>;
 
@@ -857,6 +859,7 @@ export function createCanonicalMemberDirectoryService(
       trainingCenter: string;
       trainingTimePreferences: readonly string[];
     }>,
+    enrolmentRequestId?: string,
   ): Promise<CreateAdminAdultResult> {
     requireAuthorizedActor(command.actor);
     const now = requiredTimestamp(command.now);
@@ -884,6 +887,12 @@ export function createCanonicalMemberDirectoryService(
         deriveParticipantType(parsedInput.value.dateOfBirth, now.slice(0, 10)) === "minor");
     const academyId = command.actor.academyId;
     const actorId = command.actor.actorId;
+    // Only the internal account-linking path supplies this scope. Authority and audit retain
+    // the real reviewer; receipts belong to the enrolment so another office user can resume.
+    const receiptActorId =
+      enrolmentRequestId === undefined
+        ? actorId
+        : `enrolment:${requiredIdentifier(enrolmentRequestId, "enrolment request")}`;
     if (account !== undefined && parsedInput.value.phoneNumber === undefined) {
       // The academy's client document will not parse without one, and a member without that
       // document is denied by levels and by the family projection: half-enrolled, in silence.
@@ -906,14 +915,14 @@ export function createCanonicalMemberDirectoryService(
           };
     const expectedRequestMac = requestMac(
       academyId,
-      actorId,
+      receiptActorId,
       parsedInput.value,
       dependencies.integritySecretMaterial,
       sourceRecordId,
     );
     const receiptId = requestReceiptId(
       academyId,
-      actorId,
+      receiptActorId,
       parsedInput.value.requestId,
       dependencies.integritySecretMaterial,
     );
@@ -1027,7 +1036,9 @@ export function createCanonicalMemberDirectoryService(
           receiptSnapshot.data(),
           receiptId,
           academyId,
-          actorId,
+          enrolmentRequestId === undefined
+            ? actorId
+            : String(receiptSnapshot.data()?.actorId ?? ""),
           expectedRequestMac,
         );
       }
@@ -1613,7 +1624,13 @@ export function createCanonicalMemberDirectoryService(
       return createAdult(command);
     },
     async createAdminAdultForAccount(command) {
-      return createAdult(command, command.account);
+      return createAdult(
+        command,
+        command.account,
+        undefined,
+        undefined,
+        command.enrolmentRequestId,
+      );
     },
     async updateAdminMember(command) {
       requireAuthorizedActor(command.actor);

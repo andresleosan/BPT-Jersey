@@ -17,9 +17,10 @@ import { useAdminGateSession } from "../admin-gate";
 import { AdminDataTable } from "../admin-data-table";
 
 type AdministrativeRole = "administrator" | "owner";
+type InvitationRole = AdministrativeRole | "coach";
 type Review =
   | { kind: "role"; person: TeamDirectoryPerson; role: AdministrativeRole }
-  | { kind: "invitation"; email: string; role: AdministrativeRole };
+  | { kind: "invitation"; email: string; role: InvitationRole };
 
 export function TeamDirectory() {
   const session = useAdminGateSession();
@@ -45,7 +46,9 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
   const [selected, setSelected] = useState<TeamDirectoryPerson>();
   const [role, setRole] = useState<AdministrativeRole>("administrator");
   const [email, setEmail] = useState("");
-  const [invitedRole, setInvitedRole] = useState<AdministrativeRole>("administrator");
+  const [invitedRole, setInvitedRole] = useState<InvitationRole>(
+    session.role === "owner" ? "administrator" : "coach",
+  );
   const [review, setReview] = useState<Review>();
   const owner = session.role === "owner";
   const roleSelect = useRef<HTMLSelectElement>(null);
@@ -179,7 +182,7 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
 
   return (
     <section className="staff-team-directory" aria-labelledby="team-directory-title">
-      <div className="staff-team-heading">
+      <div className="staff-team-heading" id="staff-account-roles">
         <div>
           <p className="admin-eyebrow">Academy team</p>
           <h3 id="team-directory-title">Team directory</h3>
@@ -270,7 +273,7 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
             setReview({ kind: "role", person: selected, role });
           }}
         >
-          <h4>Change administrative role</h4>
+          <h4>Change account role</h4>
           <p>
             {selected.name || selected.email} · {selected.email}
           </p>
@@ -303,17 +306,19 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
           </div>
         </form>
       )}
-      {owner && (
+      {(owner || session.role === "administrator") && (
         <form className="staff-card" onSubmit={reviewInvitation}>
-          <p className="admin-eyebrow">Administrative access</p>
-          <h3>Authorise an email</h3>
+          <p className="admin-eyebrow">New team member</p>
+          <h3>Create staff profile</h3>
           <p className="staff-hint">
-            Access activates when this person signs in at /staff/login with the matching verified
-            Google account. Authorisation lasts seven days. No email is sent automatically.
+            {owner ? "Choose Coach, Administrator or Owner." : "Create coaching access by email."}{" "}
+            The profile and access activate when this person signs in at /staff/login with the
+            matching verified Google account. Authorisation lasts seven days. No email is sent
+            automatically.
           </p>
           <div className="staff-form-grid">
             <label className="staff-field">
-              Invitation email
+              Staff email
               <input
                 ref={inviteEmail}
                 required
@@ -326,34 +331,41 @@ export function TeamDirectoryContent({ session }: { session: AdminSession }) {
               />
             </label>
             <label className="staff-field">
-              Invitation role
+              Staff role
               <select
                 value={invitedRole}
                 disabled={busy || !!review}
-                onChange={(event) => setInvitedRole(event.target.value as AdministrativeRole)}
+                onChange={(event) => setInvitedRole(event.target.value as InvitationRole)}
               >
-                <option value="administrator">Administrator</option>
-                <option value="owner">Owner</option>
+                <option value="coach">Coach</option>
+                {owner ? (
+                  <>
+                    <option value="administrator">Administrator</option>
+                    <option value="owner">Owner</option>
+                  </>
+                ) : null}
               </select>
             </label>
           </div>
           <button className="staff-primary-button" disabled={busy || !!review} type="submit">
-            Review invitation
+            Review staff access
           </button>
         </form>
       )}
       {review && (
         <section className="staff-card staff-role-review" aria-labelledby="staff-role-review-title">
-          <h3 id="staff-role-review-title">Confirm administrative access</h3>
+          <h3 id="staff-role-review-title">Confirm staff access</h3>
           <p>
             <strong>{review.kind === "role" ? review.person.email : review.email}</strong> will
             receive the <strong>{teamRoleLabels[review.role]}</strong> role
             {review.kind === "invitation" ? " when they sign in with Google" : " immediately"}.
           </p>
           <p>
-            {review.role === "owner"
-              ? "Owners can manage the academy and grant administrative access to other people."
-              : "Administrators can manage members, finances, the team, classes and sporting decisions. They cannot grant owner or administrator access."}
+            {review.role === "coach"
+              ? "Coaches have sporting access. They cannot manage finances or administrative roles."
+              : review.role === "owner"
+                ? "Owners can manage the academy and grant administrative access to other people."
+                : "Administrators can manage members, finances, the team, classes and sporting decisions. They cannot grant owner or administrator access."}
           </p>
           {review.kind === "role" && (
             <p>This replaces their current {teamRoleLabels[review.person.role]} role.</p>

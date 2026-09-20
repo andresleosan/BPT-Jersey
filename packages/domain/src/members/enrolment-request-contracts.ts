@@ -147,10 +147,60 @@ export const enrolmentPlanSelectionsSchema = z
   .readonly();
 export type EnrolmentPlanSelections = Readonly<z.infer<typeof enrolmentPlanSelectionsSchema>>;
 
+export const enrolmentPaymentSchema = z
+  .strictObject({
+    proofId: z.string().regex(/^[a-f0-9]{64}$/u),
+    amountMinor: z.number().int().positive().max(100_000_000),
+    paidOn: z.iso.date(),
+    reference: z.string().trim().min(1).max(120),
+  })
+  .readonly();
+export type EnrolmentPayment = z.infer<typeof enrolmentPaymentSchema>;
+
+export const enrolmentApprovalSetupSchema = z
+  .strictObject({
+    students: z
+      .array(
+        z.strictObject({
+          planId: z.enum(planIds),
+          definitionKey: opaqueIdentifierSchema,
+          startsOn: z.iso.date(),
+          endsOn: z.iso.date().nullable(),
+        }),
+      )
+      .min(1)
+      .max(maximumEnrolmentRequestMinors + 1),
+    detailsVerified: z.literal(true),
+    paymentVerified: z.literal(true),
+  })
+  .readonly();
+export type EnrolmentApprovalSetup = z.infer<typeof enrolmentApprovalSetupSchema>;
+
+/** Only West per-session plans are paid at class, never at registration. */
+export function enrolmentNeedsPayment(planId: string): boolean {
+  const plan = PLAN_CATALOG.find((item) => item.planId === planId);
+  return !(
+    plan?.billingPeriod === "per-session" &&
+    plan.classSites.length === 1 &&
+    plan.classSites[0] === "West"
+  );
+}
+export function enrolmentPaymentTotal(selections: EnrolmentPlanSelections): number {
+  return [selections.applicant, ...selections.minors].reduce<number>(
+    (total, id) =>
+      total +
+      (id && enrolmentNeedsPayment(id)
+        ? (PLAN_CATALOG.find((plan) => plan.planId === id)?.priceMinor ?? 0)
+        : 0),
+    0,
+  );
+}
+
 export const enrolmentRequestSubmissionSchema = z
   .strictObject({
     ...enrolmentDetailsShape,
     planSelections: enrolmentPlanSelectionsSchema,
+    payment: enrolmentPaymentSchema.optional(),
   })
   .readonly();
 export type EnrolmentRequestSubmission = Readonly<z.infer<typeof enrolmentRequestSubmissionSchema>>;
@@ -166,6 +216,10 @@ export const enrolmentRequestRecordSchema = z
     minors: z.array(enrolmentMinorSchema).max(maximumEnrolmentRequestMinors).readonly(),
     // Older requests remain reviewable without a plan preference.
     planSelections: enrolmentPlanSelectionsSchema.optional(),
+    payment: enrolmentPaymentSchema.optional(),
+    approvalSetup: enrolmentApprovalSetupSchema.optional(),
+    approvalStartedAt: auditDateTimeSchema.optional(),
+    approvalActorId: opaqueIdentifierSchema.optional(),
     submittedBy: opaqueIdentifierSchema,
     submittedAt: auditDateTimeSchema,
     /**
@@ -223,6 +277,7 @@ export const enrolmentRequestApprovalSchema = z
     enrolmentRequestId: opaqueIdentifierSchema,
     requestId: z.string().regex(uuidV4Pattern),
     purpose: z.literal("enrolment-request-review"),
+    setup: enrolmentApprovalSetupSchema,
   })
   .readonly();
 export type EnrolmentRequestApproval = Readonly<z.infer<typeof enrolmentRequestApprovalSchema>>;
@@ -275,6 +330,10 @@ export type EnrolmentRequestDetail = Readonly<{
   applicant: EnrolmentApplicant;
   minors: readonly EnrolmentMinor[];
   planSelections?: EnrolmentPlanSelections;
+  payment?: EnrolmentPayment;
+  paymentProofUrl?: string;
+  approvalSetup?: EnrolmentApprovalSetup;
+  waiverAcceptance?: EnrolmentRequestRecord["waiverAcceptance"];
   submittedBy: string;
   submittedAt: string;
   reviewedBy?: string;
@@ -420,7 +479,7 @@ export function parseEnrolmentRequestSubmission(
   if (!isPlainData(value)) return err(issue([], "invalid_plain_data"));
   const parsed = enrolmentRequestSubmissionSchema.safeParse(value);
   if (!parsed.success) return err(issues(parsed.error));
-  const { planSelections, ...details } = parsed.data;
+  const { planSelections, payment, ...details } = parsed.data;
   const checkedDetails = parseEnrolmentRequestDetails(details, effectiveDate);
   if (!checkedDetails.ok) return checkedDetails;
   const { applicantIsStudent, applicant, minors } = details;
@@ -447,6 +506,11 @@ export function parseEnrolmentRequestSubmission(
       return err(issue(["planSelections", "minors", index], "plan_not_available"));
     }
   }
+  const total = enrolmentPaymentTotal(planSelections);
+  if (total > 0 && !payment) return err(issue(["payment"], "payment_proof_required"));
+  if (payment && (payment.amountMinor !== total || payment.paidOn > effectiveDate))
+    return err(issue(["payment"], "payment_does_not_match_plans"));
+  if (total === 0 && payment) return err(issue(["payment"], "payment_not_required"));
   return ok(parsed.data);
 }
 
@@ -497,6 +561,9 @@ export function toEnrolmentRequestDetail(record: EnrolmentRequestRecord): Enrolm
     applicant: record.applicant,
     minors: Object.freeze([...record.minors]),
     ...(record.planSelections === undefined ? {} : { planSelections: record.planSelections }),
+    ...(record.payment ? { payment: record.payment } : {}),
+    ...(record.approvalSetup ? { approvalSetup: record.approvalSetup } : {}),
+    ...(record.waiverAcceptance ? { waiverAcceptance: record.waiverAcceptance } : {}),
     submittedBy: record.submittedBy,
     submittedAt: record.submittedAt,
     ...(record.reviewedBy === undefined ? {} : { reviewedBy: record.reviewedBy }),

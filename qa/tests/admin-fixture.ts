@@ -99,7 +99,11 @@ export async function installAdminFixture(
       return;
     }
     if (url.pathname.startsWith("/admin")) {
-      if (!url.pathname.endsWith(".html") && !url.pathname.includes(".")) {
+      if (
+        process.env.ADMIN_FIXTURE_STATIC_EXPORT !== "false" &&
+        !url.pathname.endsWith(".html") &&
+        !url.pathname.includes(".")
+      ) {
         url.pathname = `${url.pathname.replace(/\/$/, "")}.html`;
       }
       url.searchParams.set("adminTestRole", role);

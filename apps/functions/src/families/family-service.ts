@@ -85,6 +85,8 @@ export type FamilyAuthService = Readonly<{
 }>;
 
 export type CreateFamilyInput = Readonly<{
+  /** Internal enrolment scope; the callable input never accepts this field. */
+  enrolmentRequestId?: string;
   academyId: string;
   actorId: string;
   actorRole: "owner" | "administrator";
@@ -904,6 +906,10 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
       const writer = requireCanonicalDependencies(canonicalDependencies);
       const academyId = pathSegment(input.academyId, "academy");
       const actorId = pathSegment(input.actorId, "actor");
+      const receiptActorId =
+        input.enrolmentRequestId === undefined
+          ? actorId
+          : `enrolment:${pathSegment(input.enrolmentRequestId, "enrolment request")}`;
       const requestId = pathSegment(input.requestId, "request");
       const tutorUserId = pathSegment(input.tutorUserId, "tutor");
       const now = validNow(input.now);
@@ -915,14 +921,14 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
       });
       const requestMac = familyRequestMac(
         academyId,
-        actorId,
+        receiptActorId,
         "family.create",
         requestValue,
         writer.integritySecretMaterial,
       );
       const receiptId = familyReceiptId(
         academyId,
-        actorId,
+        receiptActorId,
         "family.create",
         requestId,
         writer.integritySecretMaterial,
@@ -948,7 +954,10 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           return resolveFamilyWriteReplay(transaction, dependencies, receiptSnapshot.data(), {
             receiptId,
             academyId,
-            actorId,
+            actorId:
+              input.enrolmentRequestId === undefined
+                ? actorId
+                : String(receiptSnapshot.data()?.actorId ?? ""),
             operation: "family.create",
             requestMac,
           });

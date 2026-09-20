@@ -22,6 +22,8 @@ const enrolmentApi = vi.hoisted(() => ({
   createEnrolmentRequestId: vi.fn(() => "6f1d2f66-6f4f-4a2e-9a0e-2b6f0a4a1c11"),
   listMyEnrolmentRequests: vi.fn(),
   submitEnrolmentRequest: vi.fn(),
+  uploadEnrolmentPaymentProof: vi.fn(),
+  getEnrolmentPaymentInstructions: vi.fn().mockResolvedValue(null),
   withdrawEnrolmentRequest: vi.fn(),
 }));
 
@@ -41,6 +43,7 @@ const buyer = {
 };
 
 beforeEach(() => {
+  enrolmentApi.uploadEnrolmentPaymentProof.mockResolvedValue("a".repeat(64));
   authState.status = "signed-in";
   authState.session = buyer;
   enrolmentApi.listMyEnrolmentRequests.mockResolvedValue([]);
@@ -61,6 +64,16 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+async function completePayment(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /continue to payment/i }));
+  await user.type(screen.getByLabelText("Transfer date"), "2026-09-01");
+  await user.type(screen.getByLabelText("Transfer reference"), "SYNTHETIC");
+  await user.upload(
+    screen.getByLabelText(/Payment screenshot/),
+    new File(["synthetic"], "transfer.png", { type: "image/png" }),
+  );
+}
+
 describe("enrolment request page", () => {
   it("asks a visitor to sign in before applying", async () => {
     authState.status = "signed-out";
@@ -80,9 +93,29 @@ describe("enrolment request page", () => {
 
     render(<EnrolPage />);
 
-    expect(screen.getByRole("heading", { name: /already enrolled/i })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: /already enrolled/i })).toBeVisible();
     expect(screen.queryByRole("button", { name: /send request/i })).not.toBeInTheDocument();
-    expect(enrolmentApi.listMyEnrolmentRequests).not.toHaveBeenCalled();
+    expect(enrolmentApi.listMyEnrolmentRequests).toHaveBeenCalledOnce();
+  });
+
+  it("shows an interrupted approval to a guardian whose account role was already granted", async () => {
+    authState.session = { ...buyer, role: "guardian" };
+    enrolmentApi.listMyEnrolmentRequests.mockResolvedValueOnce([
+      {
+        enrolmentRequestId: "enrolment-synthetic",
+        status: "approval-failed",
+        submittedAt: "2026-09-19T12:00:00.000Z",
+        applicantName: "Synthetic guardian",
+        applicantIsStudent: false,
+        minorCount: 1,
+        trainingCenter: "Town",
+      },
+    ]);
+    render(<EnrolPage />);
+    expect(
+      await screen.findByRole("heading", { name: /academy is looking into it/i }),
+    ).toBeVisible();
+    expect(screen.queryByRole("heading", { name: /already enrolled/i })).not.toBeInTheDocument();
   });
 
   /**
@@ -118,6 +151,7 @@ describe("enrolment request page", () => {
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
+    await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -147,12 +181,13 @@ describe("enrolment request page", () => {
     expect(screen.queryByText("£85 per month")).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: /Kids|Teens/ })).not.toBeInTheDocument();
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: /send request/i }));
+    await user.click(screen.getByRole("button", { name: /continue to payment/i }));
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Choose an available plan for every student",
     );
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
     await user.click(screen.getByRole("radio", { name: /West Adult/ }));
+    await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request/i }));
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
     expect(enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0]).toMatchObject({
@@ -171,6 +206,7 @@ describe("enrolment request page", () => {
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
+    await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -245,6 +281,7 @@ describe("enrolment request page", () => {
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     expect(screen.queryByRole("radio", { name: /Town Adult/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: /Town Kids & Teens 1x/ }));
+    await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
@@ -323,6 +360,7 @@ describe("enrolment request page", () => {
     await user.click(screen.getByRole("checkbox", { name: /read and understand this waiver/i }));
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
+    await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request to the academy/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -497,9 +535,10 @@ describe("enrolment steps", () => {
     expect(west.getAllByRole("radio")).toHaveLength(2);
     expect(west.queryByRole("radio", { name: /West Kids/ })).not.toBeInTheDocument();
     await user.click(town.getByRole("radio", { name: /Town Kids & Teens 1x/ }));
-    await user.click(screen.getByRole("button", { name: /send request/i }));
+    await user.click(screen.getByRole("button", { name: /continue to payment/i }));
     expect(enrolmentApi.submitEnrolmentRequest).not.toHaveBeenCalled();
     await user.click(west.getByRole("radio", { name: /West Teens single class/ }));
+    await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request/i }));
     await waitFor(() => expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledOnce());
     const submission = enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0];
@@ -515,9 +554,10 @@ describe("enrolment steps", () => {
     await fillAdult(user);
     await user.click(screen.getByRole("button", { name: /continue to plans/i }));
     await user.click(screen.getByRole("radio", { name: /Town Adult/ }));
+    await completePayment(user);
     await user.click(screen.getByRole("button", { name: /send request/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Try again");
-    expect(screen.getByRole("radio", { name: /Town Adult/ })).toBeChecked();
+    expect(screen.getByLabelText("Transfer reference")).toHaveValue("SYNTHETIC");
     const firstSubmission = enrolmentApi.submitEnrolmentRequest.mock.calls[0]?.[0];
     let complete: () => void = () => undefined;
     enrolmentApi.submitEnrolmentRequest.mockImplementationOnce(
@@ -533,7 +573,7 @@ describe("enrolment steps", () => {
     );
     await user.click(screen.getByRole("button", { name: /send request/i }));
     expect(screen.getByRole("button", { name: /sending request/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /back to details/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /back to plans/i })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /sending request/i }));
     expect(enrolmentApi.submitEnrolmentRequest).toHaveBeenCalledTimes(2);
     expect(enrolmentApi.submitEnrolmentRequest.mock.calls[1]?.[0]).toEqual(firstSubmission);

@@ -1,4 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { createEnrolmentRegistration } from "./enrolment-registration.js";
+import { enrolmentProofKey, enrolmentStorageSecrets } from "./enrolment-payment-proof.js";
+import { createPrivateStorageR2Client, type R2Client } from "../storage/r2-client.js";
+import { createHash, randomUUID } from "node:crypto";
 
 import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
@@ -63,6 +66,7 @@ export type EnrolmentRequestQueue = Readonly<{
 
 export type EnrolmentRequestCallableServices = Readonly<{
   store: EnrolmentRequestStore;
+  storage?: R2Client;
   now?: () => string;
 }>;
 
@@ -76,6 +80,7 @@ export type EnrolmentRequestCallableServices = Readonly<{
  */
 export type EnrolmentOfficeCallableServices = Readonly<{
   reader: CanonicalMemberDirectoryReadService;
+  storage?: R2Client;
   approvals: EnrolmentApprovalService;
   isActorActive: MemberDirectoryActorActivityCheck;
   /**
@@ -139,6 +144,17 @@ export async function submitEnrolmentRequestHandler(
   const parsed = parseEnrolmentRequestSubmission(request.data, occurredAt.slice(0, 10));
   if (!parsed.ok) throw new HttpsError("invalid-argument", "Enrolment payload is invalid");
   try {
+    if (parsed.value.payment) {
+      const proofId = parsed.value.payment.proofId;
+      const bytes = await services.storage?.readObject(
+        enrolmentProofKey(actor.academyId, actor.userId, parsed.value.requestId, proofId),
+      );
+      if (!bytes || createHash("sha256").update(bytes).digest("hex") !== proofId)
+        throw new HttpsError(
+          "failed-precondition",
+          "Upload the payment screenshot before submitting.",
+        );
+    }
     return toEnrolmentRequestClientView(
       await services.store.submit({
         academyId: actor.academyId,
@@ -286,11 +302,28 @@ export async function getEnrolmentRequestDetailHandler(
   const parsed = parseEnrolmentRequestDetailRequest(request.data);
   if (!parsed.ok) throw new HttpsError("invalid-argument", "Enrolment payload is invalid");
   try {
-    return await services.reader.enrolmentRequestDetail({
+    const detail = await services.reader.enrolmentRequestDetail({
       actor,
       value: parsed.value,
       now: officeNow(services),
     });
+    if (!detail.payment) return detail;
+    const requestId = detail.enrolmentRequestId.replace(/^enrolment-/u, "");
+    const paymentProofUrl = await services.storage?.createPdfDownloadUrl({
+      objectKey: enrolmentProofKey(
+        actor.academyId,
+        detail.submittedBy,
+        requestId,
+        detail.payment.proofId,
+      ),
+      expiresInSeconds: 600,
+    });
+    if (!paymentProofUrl)
+      throw new HttpsError(
+        "unavailable",
+        "Payment screenshot is temporarily unavailable. Retry the full request.",
+      );
+    return { ...detail, paymentProofUrl };
   } catch (error) {
     return mapOfficeError(error, "read");
   }
@@ -309,6 +342,7 @@ export async function approveEnrolmentRequestHandler(
       actor,
       enrolmentRequestId: parsed.value.enrolmentRequestId,
       requestId: parsed.value.requestId,
+      setup: parsed.value.setup,
       now: officeNow(services),
       ...(instructorName === undefined ? {} : { instructorName }),
     });
@@ -322,6 +356,7 @@ function callableServices(): EnrolmentRequestCallableServices {
     typeof createEnrolmentRequestStore
   >[0]["firestore"];
   return {
+    storage: createPrivateStorageR2Client(),
     store: createEnrolmentRequestStore({
       firestore,
       appendAudit: (transaction, reference, draft) =>
@@ -357,6 +392,7 @@ function officeCallableServices(): EnrolmentOfficeCallableServices {
       appendAuditEventInTransaction(transaction, reference, draft as AuditEventDraft),
   });
   return {
+    storage: createPrivateStorageR2Client(),
     reader: createCanonicalMemberDirectoryReadService({
       store: adapters.reader,
       identitySecretMaterial: identityKeySecret.value(),
@@ -366,6 +402,7 @@ function officeCallableServices(): EnrolmentOfficeCallableServices {
       generateAuditId: randomUUID,
     }),
     approvals: createEnrolmentApprovalService({
+      registration: createEnrolmentRegistration(firestore),
       store,
       directory: createCanonicalMemberDirectoryService({
         firestore: adapters.writer,
@@ -443,11 +480,17 @@ export const enrolmentRequestCallableOptions = browserAdminCallableOptions;
 /** The office door carries the writer secrets; the applicant-facing callables never need them. */
 const enrolmentOfficeCallableOptions = {
   ...browserAdminCallableOptions,
-  secrets: [identityKeySecret, migrationIntegritySecret, directoryCursorSecret],
+  secrets: [
+    identityKeySecret,
+    migrationIntegritySecret,
+    directoryCursorSecret,
+    ...enrolmentStorageSecrets,
+  ],
 };
 
-export const submitEnrolmentRequest = onCall(enrolmentRequestCallableOptions, (request) =>
-  submitEnrolmentRequestHandler(request, callableServices()),
+export const submitEnrolmentRequest = onCall(
+  { ...enrolmentRequestCallableOptions, secrets: enrolmentStorageSecrets },
+  (request) => submitEnrolmentRequestHandler(request, callableServices()),
 );
 export const listMyEnrolmentRequests = onCall(enrolmentRequestCallableOptions, (request) =>
   listMyEnrolmentRequestsHandler(request, callableServices()),

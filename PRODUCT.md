@@ -94,3 +94,12 @@ not zero; retrying counts leaves the classes usable. The annual total is availab
 Mobile week/day views show a readable daily agenda; selecting another day in the loaded week
 requires no new query. The mobile month opens weeks from full-width rows. Secondary controls and
 section navigation collapse on small screens; desktop retains its timetable. See ADR-015.
+
+## Public enrolment and staff access (2026-09-20)
+
+Public enrolment collects details, suggests eligible plans by age and centre, then asks for bank
+transfer evidence. Only West per-session plans are exempt, including teen PAYG. Office reviews all
+submitted details and payment evidence, chooses any published initial level, and confirms the paid
+subscription period. Approval completes the member, level and subscription; retries preserve the
+same decision and avoid duplicate payments. Staff creation uses one email-and-role form; only owners
+can authorise administrative roles or promote existing coaches. See ADR-016; publication is separate.

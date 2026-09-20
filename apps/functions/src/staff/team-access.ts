@@ -41,7 +41,7 @@ export type TeamAccessServices = Readonly<{
   };
   grant(
     actor: AdminActor,
-    target: { uid: string; email: string; role: "owner" | "administrator" },
+    target: { uid: string; email: string; role: "owner" | "administrator" | "coach" },
     transition: "team" | "invitation",
   ): Promise<void>;
   now(): Date;
@@ -117,10 +117,12 @@ export async function createStaffInvitationHandler(
   request: CallableRequest,
   services: TeamAccessServices,
 ) {
-  const actor = await currentActor(request, services, true);
+  const actor = await currentActor(request, services);
   const input = staffInvitationInputSchema.safeParse(request.data);
   if (!input.success)
     throw new HttpsError("invalid-argument", "Enter an email address and an administrative role.");
+  if (input.data.role !== "coach" && actor.role !== "owner")
+    throw new HttpsError("permission-denied", "Only an owner can grant administrative access.");
   const now = services.now();
   return services.invitations.save({
     id: createHash("sha256").update(input.data.email).digest("hex"),
@@ -180,12 +182,19 @@ export async function acceptStaffInvitationHandler(
     const issuer = await services.auth.getUser(invitation.invitedBy);
     if (
       issuer.disabled ||
-      issuer.customClaims?.role !== "owner" ||
+      !(
+        issuer.customClaims?.role === "owner" ||
+        (invitation.role === "coach" && issuer.customClaims?.role === "administrator")
+      ) ||
       issuer.customClaims.academyId !== invitation.academyId
     )
       throw new HttpsError("permission-denied", "The invitation needs to be renewed by an owner.");
     await services.grant(
-      { uid: issuer.uid, academyId: invitation.academyId, role: "owner" },
+      {
+        uid: issuer.uid,
+        academyId: invitation.academyId,
+        role: issuer.customClaims!.role as "owner" | "administrator",
+      },
       { uid: user.uid, email: invitation.email, role: invitation.role },
       "invitation",
     );

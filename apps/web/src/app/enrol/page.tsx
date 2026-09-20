@@ -17,14 +17,17 @@ import {
   createEnrolmentRequestId,
   listMyEnrolmentRequests,
   submitEnrolmentRequest,
+  uploadEnrolmentPaymentProof,
   withdrawEnrolmentRequest,
 } from "../../lib/enrolment-client";
 import {
   parseEnrolmentRequestDetails,
+  enrolmentPaymentTotal,
   parseEnrolmentRequestSubmission,
   maximumEnrolmentRequestMinors,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import type { PlanId } from "@bpt-jersey/domain/memberships";
+import { EnrolmentBankDetails } from "./payment-instructions";
 import { EnrolmentPlanChoices } from "./plan-choices";
 import "./enrolment-steps.css";
 
@@ -159,6 +162,7 @@ function toDetails(form: ApplicantForm, requestId: string): EnrolmentRequestDeta
       gender: minor.gender,
       trainingCenter: minor.trainingCenter,
       trainingTimePreferences: [...minor.trainingTimePreferences],
+      ...(emergencyContact ? { emergencyContact } : {}),
     })),
     // Only the version travels. The server stores the hash of the text it holds, so the acceptance
     // names words the academy can reproduce rather than words this form claims were on screen.
@@ -391,13 +395,26 @@ function MinorFields({
 function EnrolContent() {
   const { session, status } = useClientSession();
   const [form, setForm] = useState<ApplicantForm>(emptyForm);
-  const [step, setStep] = useState<"details" | "plans">("details");
+  const [step, setStep] = useState<"details" | "plans" | "payment">("details");
+  const [proof, setProof] = useState<File>();
+  const [proofId, setProofId] = useState<string>();
+  const [paidOn, setPaidOn] = useState("");
+  const [reference, setReference] = useState("");
+  const selections = {
+    ...(form.applicantIsStudent && form.selectedPlan ? { applicant: form.selectedPlan } : {}),
+    minors: form.applicantIsStudent
+      ? []
+      : form.minors
+          .filter((minor) => minor.selectedPlan)
+          .map((minor) => minor.selectedPlan as PlanId),
+  };
+  const paymentTotal = enrolmentPaymentTotal(selections);
   const [requestId, setRequestId] = useState(createEnrolmentRequestId);
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const submitting = useRef(false);
   const effectiveDate = new Date().toISOString().slice(0, 10);
   useEffect(() => {
-    if (step === "plans") stepHeading.current?.focus();
+    stepHeading.current?.focus();
   }, [step]);
   const [requests, setRequests] = useState<readonly EnrolmentRequestClientView[]>();
   const [loadFailed, setLoadFailed] = useState(false);
@@ -407,7 +424,7 @@ function EnrolContent() {
   const alreadyStudent = session?.role === "guardian" || session?.role === "adultStudent";
 
   useEffect(() => {
-    if (!signedIn || alreadyStudent) return;
+    if (!signedIn) return;
     let active = true;
     void listMyEnrolmentRequests()
       .then((items) => {
@@ -422,7 +439,7 @@ function EnrolContent() {
     return () => {
       active = false;
     };
-  }, [signedIn, alreadyStudent]);
+  }, [signedIn]);
 
   /**
    * El prellenado es una cortesía: siembra el nombre y el correo de la sesión una vez y no vuelve
@@ -473,23 +490,52 @@ function EnrolContent() {
       setStep("plans");
       return;
     }
-    const parsed = parseEnrolmentRequestSubmission(
-      {
-        ...toDetails(form, requestId),
-        planSelections: {
-          ...(form.applicantIsStudent ? { applicant: form.selectedPlan } : {}),
-          minors: form.applicantIsStudent ? [] : form.minors.map((minor) => minor.selectedPlan),
-        },
-      },
-      effectiveDate,
-    );
-    if (!parsed.ok) {
-      setMessage("Choose an available plan for every student before sending your request.");
+    if (
+      (form.applicantIsStudent && !form.selectedPlan) ||
+      (!form.applicantIsStudent && form.minors.some((minor) => !minor.selectedPlan))
+    ) {
+      setMessage("Choose an available plan for every student.");
+      return;
+    }
+    if (step === "plans") {
+      setProofId(undefined);
+      setStep("payment");
+      return;
+    }
+    if (
+      paymentTotal > 0 &&
+      ((!proof && !proofId) || !paidOn || paidOn > effectiveDate || !reference.trim())
+    ) {
+      setMessage("Add the transfer date, reference and a PNG or JPEG screenshot before sending.");
       return;
     }
     submitting.current = true;
     setBusy(true);
     try {
+      const uploaded =
+        paymentTotal > 0
+          ? (proofId ?? (await uploadEnrolmentPaymentProof(requestId, proof!)))
+          : undefined;
+      if (uploaded) setProofId(uploaded);
+      const parsed = parseEnrolmentRequestSubmission(
+        {
+          ...toDetails(form, requestId),
+          planSelections: selections,
+          ...(uploaded
+            ? {
+                payment: {
+                  proofId: uploaded,
+                  amountMinor: paymentTotal,
+                  paidOn,
+                  reference: reference.trim(),
+                },
+              }
+            : {}),
+        },
+        effectiveDate,
+      );
+      if (!parsed.ok)
+        throw new Error("Check your selected plans and payment details before sending.");
       const saved = await submitEnrolmentRequest(parsed.value);
       setRequests([saved, ...(requests ?? [])]);
     } catch (error) {
@@ -507,6 +553,8 @@ function EnrolContent() {
       const updated = await withdrawEnrolmentRequest(enrolmentRequestId);
       setStep("details");
       setRequestId(createEnrolmentRequestId());
+      setProof(undefined);
+      setProofId(undefined);
       setRequests((current) =>
         (current ?? []).map((item) =>
           item.enrolmentRequestId === updated.enrolmentRequestId ? updated : item,
@@ -539,7 +587,27 @@ function EnrolContent() {
     );
   }
 
-  if (alreadyStudent) {
+  if (alreadyStudent && requests === undefined) {
+    return (
+      <main className="enrol-page" id="main-content">
+        <p role="status">Checking your registration…</p>
+      </main>
+    );
+  }
+  if (alreadyStudent && loadFailed) {
+    return (
+      <main className="enrol-page" id="main-content">
+        <p role="alert">
+          We could not check your registration. Reload this page to try again, or contact the
+          academy.
+        </p>
+        <a className="button button-primary" href="/account">
+          Go to your account
+        </a>
+      </main>
+    );
+  }
+  if (alreadyStudent && (!openRequest || openRequest.status === "approved")) {
     return (
       <main className="enrol-page" id="main-content" aria-labelledby="enrol-title">
         <p className="account-eyebrow">BPT Jersey / Join</p>
@@ -585,6 +653,7 @@ function EnrolContent() {
           <ol className="enrol-steps" aria-label="Registration progress">
             <li aria-current={step === "details" ? "step" : undefined}>1. Your details</li>
             <li aria-current={step === "plans" ? "step" : undefined}>2. Choose plans</li>
+            <li aria-current={step === "payment" ? "step" : undefined}>3. Payment and review</li>
           </ol>
           {step === "details" ? (
             <>
@@ -830,7 +899,7 @@ function EnrolContent() {
                 Continue to plans
               </button>
             </>
-          ) : (
+          ) : step === "plans" ? (
             <>
               <h2 ref={stepHeading} tabIndex={-1}>
                 Choose your plans
@@ -885,6 +954,82 @@ function EnrolContent() {
                   Back to details
                 </button>
                 <button className="button button-primary" disabled={busy} type="submit">
+                  Continue to payment
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 ref={stepHeading} tabIndex={-1}>
+                Payment and review
+              </h2>
+              {paymentTotal > 0 ? (
+                <fieldset disabled={busy} className="enrol-applicant">
+                  <legend>Bank transfer evidence</legend>
+                  <EnrolmentBankDetails />
+                  <p>
+                    Transfer total: <strong>£{(paymentTotal / 100).toFixed(2)}</strong>. Upload one
+                    screenshot covering the selected plans. West pay-as-you-go classes are paid
+                    separately at class.
+                  </p>
+                  <label className="enrol-field">
+                    Transfer date
+                    <input
+                      type="date"
+                      max={effectiveDate}
+                      value={paidOn}
+                      onChange={(event) => setPaidOn(event.target.value)}
+                    />
+                  </label>
+                  <label className="enrol-field">
+                    Transfer reference
+                    <input
+                      maxLength={120}
+                      value={reference}
+                      onChange={(event) => setReference(event.target.value)}
+                    />
+                  </label>
+                  <label className="enrol-field">
+                    Payment screenshot (PNG or JPEG, up to 2 MB)
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      onChange={(event) => {
+                        setProof(event.target.files?.[0]);
+                        setProofId(undefined);
+                      }}
+                    />
+                  </label>
+                  {proof ? (
+                    <p role="status">
+                      Selected: {proof.name}
+                      {proofId ? " · uploaded" : ""}
+                    </p>
+                  ) : null}
+                  <p className="enrol-hint">
+                    Only academy administrators can review your screenshot. Registration remains
+                    pending until they check the transfer.
+                  </p>
+                </fieldset>
+              ) : (
+                <p>
+                  No payment screenshot is needed for West Pay as you go. Pay for each class when
+                  you attend.
+                </p>
+              )}
+              <div className="hero-actions">
+                <button
+                  className="button button-secondary"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => {
+                    setStep("plans");
+                    setMessage(undefined);
+                  }}
+                >
+                  Back to plans
+                </button>
+                <button className="button button-primary" disabled={busy} type="submit">
                   {busy ? "Sending request..." : "Send request to the academy"}
                 </button>
               </div>
@@ -899,7 +1044,12 @@ function EnrolContent() {
 export default function EnrolPage() {
   return (
     <ClientAuthProvider>
-      <EnrolContent />
+      <ScopedEnrolContent />
     </ClientAuthProvider>
   );
+}
+
+function ScopedEnrolContent() {
+  const { session } = useClientSession();
+  return <EnrolContent key={`${session?.uid ?? "signed-out"}:${session?.role ?? "none"}`} />;
 }

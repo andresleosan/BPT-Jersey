@@ -87,6 +87,7 @@ export function addSubscriptionMonth(value: string): string {
 
 const manualSettlementSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("unchanged") }),
+  z.strictObject({ kind: z.literal("pay-as-you-go") }),
   z.strictObject({ kind: z.literal("complimentary"), reason: z.string().trim().min(1).max(240) }),
   z.strictObject({
     kind: z.literal("unpaid"),

@@ -15,6 +15,8 @@ vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 
 import { approveEnrolmentRequest, getEnrolmentRequestDetail } from "./enrolment-client";
 
+const setup = { students: [{ planId: "town-adult" as const, definitionKey: "yellow-2", startsOn: "2026-09-01", endsOn: "2026-10-01" }], detailsVerified: true as const, paymentVerified: true as const };
+
 /** A rejection shaped like the one the Firebase SDK raises for a callable that answered 403. */
 function callableError(code: string, message = "") {
   return Object.assign(new Error(message), { code, message });
@@ -34,7 +36,7 @@ describe("the office half of the enrolment client", () => {
     );
 
     await expect(getEnrolmentRequestDetail("enrolment-1")).rejects.toThrow(/not fully provisioned/);
-    await expect(approveEnrolmentRequest("enrolment-1")).rejects.toThrow(/ask an owner/i);
+    await expect(approveEnrolmentRequest("enrolment-1", setup)).rejects.toThrow(/ask an owner/i);
   });
 
   it("tells a reviewer they have spent the restricted read budget, not that the page is broken", async () => {
@@ -51,7 +53,7 @@ describe("the office half of the enrolment client", () => {
     await expect(getEnrolmentRequestDetail("enrolment-1")).rejects.toThrow(
       "Unable to open this request.",
     );
-    await expect(approveEnrolmentRequest("enrolment-1")).rejects.toThrow(
+    await expect(approveEnrolmentRequest("enrolment-1", setup)).rejects.toThrow(
       "Unable to approve this request.",
     );
   });
@@ -61,7 +63,7 @@ describe("the office half of the enrolment client", () => {
       callableError("functions/failed-precondition", "waiver-missing: the waiver was not accepted"),
     );
 
-    await expect(approveEnrolmentRequest("enrolment-1")).rejects.toThrow("waiver-missing");
+    await expect(approveEnrolmentRequest("enrolment-1", setup)).rejects.toThrow("waiver-missing");
   });
 
   it("does not leak a malformed payload as if it were a permission problem", async () => {
