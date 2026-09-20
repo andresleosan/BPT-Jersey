@@ -58,7 +58,7 @@ export async function approveCourseEnrolment(db: Firestore, actor: CourseActor, 
     writeMoney(); tx.set(ref, approved);
     for (const lockRef of lockRefs) tx.set(lockRef, {enrolmentId: enrolment.enrolmentId, participantKey: enrolment.participantKey});
     if (!enrolment.seatCommitted) writeCourseSeats(db, tx, course, 1, now);
-    for (const incident of incidents.docs) tx.update(incident.ref, {state: "resolved", resolution: "Payment confirmed and course place approved.", resolvedAt: now});
+    for (const incident of incidents.docs) if (incident.data().proofId === enrolment.proofId) tx.update(incident.ref, {state: "resolved", resolution: "Payment confirmed and course place approved.", resolvedAt: now});
     const job = newCourseJob(course, "project_enrolment", enrolment.enrolmentId, approved.revision);
     tx.set(courseCollection(db, actor.academyId, "courseJobs").doc(job.jobId), job);
     appendCourseNotice(tx, db, actor.academyId, {eventId: `approved:${enrolment.enrolmentId}`, recipientUid: enrolment.applicantUid, courseId: course.courseId, enrolmentId: enrolment.enrolmentId, kind: "approved", title: "You're enrolled", message: "Your payment is approved. All remaining course sessions are included in your calendar.", href: "/account/courses", createdAt: now});

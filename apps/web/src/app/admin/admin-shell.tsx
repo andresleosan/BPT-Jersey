@@ -41,6 +41,7 @@ const navigationGroups: readonly NavigationGroup[] = [
     label: "Mat",
     items: [
       { label: "Classes / Services", href: "/admin/classes-services" },
+      { label: "Courses & seminars", href: "/admin/courses" },
       { label: "Levels", href: "/admin/levels" },
       { label: "Waitlists", href: "/admin/waitlists", ownerOnly: true },
       { label: "Lesson plans", href: "/admin/lesson-plans", ownerOnly: true },
@@ -294,6 +295,9 @@ export function AdminShell({
                   </span>
                 </span>
               </p>
+              <Link className="admin-home-link" href="/account/courses">
+                My courses
+              </Link>
               <Link className="admin-home-link" href="/">
                 Home
               </Link>

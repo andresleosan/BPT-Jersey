@@ -55,7 +55,7 @@ export type CourseJob = {jobId: string; academyId: string; courseId: string;
   enrolmentId: string | null; expectedRevision: number; nextOrdinal: number;
   state: "queued" | "running" | "done" | "failed"; leaseUntil: string | null; lastError: string | null;
   recipientCursor: string | null; eventId: string | null; attempts: number; nextAttemptAt: string | null};
-export type ApprovalInput = CourseMutation & {acknowledgeDuplicate?: boolean};
+export type ApprovalInput = CourseMutation & {acknowledgeDuplicate?: boolean | undefined};
 export type CourseRefund = {refundId: string; academyId: string; enrolmentId: string;
   amountMinor: number; currency: "GBP"; reason: string; status: "pending" | "recorded" | "cancelled";
   reference: string | null; occurredAt: string | null; createdBy: string; updatedBy: string; revision: number};

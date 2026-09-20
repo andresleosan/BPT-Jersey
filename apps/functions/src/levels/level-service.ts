@@ -1167,6 +1167,7 @@ function countedAttendance(
       throw new LevelStoreError("tenant", "Attendance scope is invalid");
     }
     if (
+      typeof value.courseId === "string" ||
       value.studentId !== studentId ||
       value.correctionOf !== null ||
       (value.state !== "attended" && value.state !== "late")
@@ -2011,6 +2012,7 @@ export function createLevelCatalogStore({
           throw new LevelStoreError("tenant", "Attendance scope is invalid");
         }
         if (
+          typeof record.courseId === "string" ||
           !studentIds.has(record.studentId) ||
           record.correctionOf !== null ||
           (record.state !== "attended" && record.state !== "late")

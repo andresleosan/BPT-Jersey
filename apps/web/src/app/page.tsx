@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { academyContent } from "../content/academy";
 import Image from "next/image";
 
+import { CoursePromotionBar } from "./courses/course-promotion-bar";
+
 import { PlanPriceList } from "./plan-price-list";
 
 export const metadata: Metadata = {
@@ -33,6 +35,7 @@ export default function HomePage() {
           <a href="#top">Home</a>
           <a href="#classes">Classes</a>
           <a href="#programs">Programs</a>
+          <a href="/courses">Courses</a>
           <a href="#shop">Shop</a>
           <a href="#locations">Locations</a>
           <a href="#contact">Contact</a>
@@ -81,6 +84,8 @@ export default function HomePage() {
             </ul>
           </aside>
         </section>
+
+        <CoursePromotionBar />
 
         <section className="classes-section" id="classes" aria-labelledby="classes-title">
           <div className="section-heading">

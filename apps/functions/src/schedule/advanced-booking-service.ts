@@ -654,6 +654,7 @@ export function createFirestoreWaitlistStore({
           throw new WaitlistStoreError("ineligible", "Waitlist entry cannot be reopened");
         }
 
+        if (sessionDoc.data()?.courseId) throw new WaitlistStoreError("ineligible", "Course sessions use the course enrolment waitlist");
         const storedSession = sessionCapacity(sessionDoc.data(), academyId, sessionId, now);
         assertMembership(
           membershipDoc.data(),
@@ -810,6 +811,7 @@ export function createFirestoreWaitlistStore({
         if (!sessionDoc.exists) {
           throw new WaitlistStoreError("not-found", "Session not found");
         }
+        if (sessionDoc.data()?.courseId) throw new WaitlistStoreError("ineligible", "Course sessions use the course enrolment waitlist");
         const storedSession = sessionCapacity(sessionDoc.data(), academyId, sessionId, now);
         const currentOffers = entries(offeredDocs, academyId, 1, true);
         const currentOffer = currentOffers[0];

@@ -126,3 +126,12 @@ Full or temporarily blocked sessions within accessible groups remain visible wit
 action. Grant changes are recorded with actor, revision and before/after groups, and are checked
 inside booking transactions, including waitlist offers. Member/guardian reads are scoped to the
 canonical student. Publication requires coordinated Functions and frontend deployment.
+
+## Finite courses and seminars (implementation, activation pending)
+
+Office users create finite weekly courses and seminars, publish a public catalogue and review one
+bank-transfer request per participant. Adults and guardians can enrol without a regular membership;
+staff keep their existing roles. Approved participants receive remaining sessions in the existing
+calendar and coach roster. Course attendance is separate from ordinary quotas, fees and graduation
+counts. Cancellation closes future access; withdrawals and refunds have explicit office decisions.
+See `docs/runbooks/finite-courses.md` for configuration and recovery. Production activation is separate.

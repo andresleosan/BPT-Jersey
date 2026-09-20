@@ -1,3 +1,8 @@
+import type { Firestore, Transaction } from "firebase-admin/firestore";
+import { canAccessCourseSession, type Course, type CourseEnrolment } from "@bpt-jersey/domain/courses";
+import { assertCourseActorLive } from "../courses/course-store.js";
+import { authorizeCourseSessionActor } from "../courses/course-access.js";
+import { resolveCourseParticipantInTransaction } from "../courses/course-participants.js";
 import { classActorGroup, type AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
@@ -35,7 +40,7 @@ import type {
 } from "./booking-transaction-service.js";
 
 export type ScheduleMutationActorRole =
-  "owner" | "administrator" | "headCoach" | "coach" | "guardian" | "adultStudent" | "teenStudent";
+  "owner" | "administrator" | "headCoach" | "coach" | "guardian" | "adultStudent" | "teenStudent" | "shopper";
 
 type ScheduleAttendanceErrorCode =
   "conflict" | "credential" | "ineligible" | "invalid" | "not-found" | "tenant";
@@ -400,6 +405,29 @@ function validGuardianRelationship(
   );
 }
 
+async function validateCourseAttendance(
+  firestore: AttendanceFirestore, transaction: AttendanceTransaction, sessionSnapshot: BookingDocumentSnapshot,
+  bookings: readonly BookingDocumentSnapshot[], context: MutationContext<unknown>, studentId: string, self: boolean,
+): Promise<void> {
+  const session = data(sessionSnapshot);
+  if (!session?.courseId) {
+    if (self && !memberRoles.has(context.actorRole)) fail("credential", "Member authority is required for ordinary check-in");
+    return;
+  }
+  const db = firestore as unknown as Firestore;
+  const tx = transaction as unknown as Transaction;
+  const actor = {uid: context.actorId, academyId: context.academyId, role: context.actorRole};
+  await assertCourseActorLive(db, tx, actor);
+  const course = data(await transaction.get(firestore.doc(path(context.academyId, "courses", String(session.courseId))))) as Course | undefined;
+  const booking = bookings.find(b => b.exists)?.data();
+  const source = booking?.source as {kind?: string; courseId?: string; enrolmentId?: string} | undefined;
+  if (!course || !["published", "completed"].includes(course.status) || course.academyId !== context.academyId || course.publicationRevision !== session.coursePublicationRevision || booking?.schemaVersion !== "2" || source?.kind !== "course" || source.courseId !== course.courseId || typeof source.enrolmentId !== "string") fail("ineligible", "Approved course access is required");
+  const enrolment = data(await transaction.get(firestore.doc(path(context.academyId, "courseEnrolments", source.enrolmentId)))) as CourseEnrolment | undefined;
+  if (!enrolment || enrolment.studentId !== studentId || enrolment.academyId !== context.academyId || !canAccessCourseSession(enrolment, {courseId: course.courseId, startAt: String(session.startAt), status: String(session.status)})) fail("ineligible", "Course access is no longer active");
+  if (self) await resolveCourseParticipantInTransaction(db, tx, actor, {kind: "student", studentId});
+  else await authorizeCourseSessionActor(db, tx, actor, course, studentId);
+}
+
 export function createTransactionalAttendanceService(
   options: Readonly<{
     firestore: AttendanceFirestore;
@@ -445,6 +473,7 @@ export function createTransactionalAttendanceService(
           ]);
         const session = requireSession(sessionSnapshot, academyId, sessionId, false);
         requireStudent(studentSnapshot, academyId, studentId);
+        await validateCourseAttendance(options.firestore, transaction, sessionSnapshot, bookings, context, studentId, false);
         requireConfirmedBooking(bookings, academyId, sessionId, studentId);
         const existing = storedAttendance(attendanceSnapshot, academyId, sessionId, studentId);
         const draft = auditDraft({
@@ -510,6 +539,7 @@ export function createTransactionalAttendanceService(
         if (auditSnapshot.exists) return fail("conflict", "Attendance evidence already exists");
 
         const record: AttendanceRecord = Object.freeze({
+          ...(typeof data(sessionSnapshot)?.courseId === "string" ? {courseId: String(data(sessionSnapshot)?.courseId)} : {}),
           attendanceId,
           academyId,
           sessionId,
@@ -544,7 +574,7 @@ export function createTransactionalAttendanceService(
       const actorId = segment(context.actorId, "actorId");
       const sessionId = segment(context.input.sessionId, "sessionId");
       const studentId = segment(context.input.studentId, "studentId");
-      if (!memberRoles.has(context.actorRole)) {
+      if (!memberRoles.has(context.actorRole) && !staffRoles.has(context.actorRole) && context.actorRole !== "shopper") {
         return fail("credential", "Member authority is required for self check-in");
       }
       const occurredAt = currentTime(context.occurredAt);
@@ -578,6 +608,7 @@ export function createTransactionalAttendanceService(
           studentId,
           session,
         });
+        await validateCourseAttendance(options.firestore, transaction, sessionSnapshot, bookings, context, studentId, true);
         try {
           requireConfirmedBooking(bookings, academyId, sessionId, studentId);
         } catch (error) {
@@ -628,6 +659,7 @@ export function createTransactionalAttendanceService(
         }
 
         const record: AttendanceRecord = Object.freeze({
+          ...(typeof data(sessionSnapshot)?.courseId === "string" ? {courseId: String(data(sessionSnapshot)?.courseId)} : {}),
           attendanceId,
           academyId,
           sessionId,
@@ -723,6 +755,7 @@ export function createTransactionalAttendanceService(
         }
 
         const correction: AttendanceRecord = Object.freeze({
+          ...(typeof data(sessionSnapshot)?.courseId === "string" ? {courseId: String(data(sessionSnapshot)?.courseId)} : {}),
           attendanceId: correctionId,
           academyId,
           sessionId,

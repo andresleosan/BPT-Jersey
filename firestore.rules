@@ -298,6 +298,65 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Course records are accessed only through the authorised server APIs.
+    match /courses/{recordId} {
+      allow read, write: if false;
+    }
+    match /publicCourses/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseCandidates/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseCandidateKeys/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseParticipantAccounts/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseStudentAliases/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseIdentityReceipts/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseEnrolments/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseParticipantLocks/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseProofs/{recordId} {
+      allow read, write: if false;
+    }
+    match /coursePaymentIncidents/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseRefunds/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseEvidenceKeys/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseOperations/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseAudit/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseRateLimits/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseJobs/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseWorkerState/{recordId} {
+      allow read, write: if false;
+    }
+    match /courseNotices/{recordId} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

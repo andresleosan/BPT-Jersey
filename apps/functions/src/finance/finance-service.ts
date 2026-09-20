@@ -1039,7 +1039,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
           method: payment.method,
           manualReference: payment.manualReference,
           invoiceReference: invoice.invoiceReference,
-          description: invoice.description,
+          description: invoice.schemaVersion === 2 ? `Course · ${invoice.description}`.slice(0, 200) : invoice.description,
           familyId: payment.familyId,
           memberName:
             invoice.membershipId === null ? null : (names.get(invoice.membershipId) ?? null),

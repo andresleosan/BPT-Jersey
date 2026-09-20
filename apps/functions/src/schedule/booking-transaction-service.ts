@@ -299,8 +299,7 @@ function booking(snapshot: BookingDocumentSnapshot, academyId: string): BookingR
     !identifierPattern.test(value.sessionId) ||
     typeof value.studentId !== "string" ||
     !identifierPattern.test(value.studentId) ||
-    typeof value.membershipId !== "string" ||
-    !identifierPattern.test(value.membershipId) ||
+    !(value.schemaVersion === "1" && typeof value.membershipId === "string" && identifierPattern.test(value.membershipId) || value.schemaVersion === "2" && value.membershipId === null && typeof value.source === "object" && value.source !== null && (value.source as {kind?: string}).kind === "course" && typeof (value.source as {courseId?: string}).courseId === "string" && typeof (value.source as {enrolmentId?: string}).enrolmentId === "string" && typeof value.absent === "boolean") ||
     !["requested", "confirmed", "cancelled"].includes(value.status as string) ||
     !validDate(value.requestedAt) ||
     !validDate(value.createdAt) ||
@@ -451,6 +450,7 @@ async function weeklyUsage(input: {
   let used = 0;
   const openMatByProgram = new Map<string, boolean>();
   for (const sessionSnapshot of sessions.docs) {
+    if (sessionSnapshot.data()?.courseId) continue;
     const historical = historicalSession(sessionSnapshot, input.academyId, sessionSnapshot.id);
     if (
       historical.status === "cancelled" ||
@@ -689,6 +689,7 @@ async function executeBookingInTransaction(
       input.transaction.get(capacityRef),
     ]);
   const storedSession = session(sessionSnapshot, academyId, sessionId);
+  if (sessionSnapshot.data()?.courseId) return invalid("ineligible", "Course sessions are included through a course enrolment");
   const storedMembership = membership(
     membershipSnapshot,
     academyId,
@@ -953,6 +954,7 @@ async function cancelBookingInTransaction(input: {
     }),
   ]);
   const storedSession = data(sessionSnapshot, "session");
+  if (storedSession.courseId) return invalid("ineligible", "Use course absence instead of cancelling this booking");
   if (
     sessionSnapshot.id !== sessionId ||
     storedSession.sessionId !== sessionId ||

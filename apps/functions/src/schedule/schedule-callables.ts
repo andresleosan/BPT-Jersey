@@ -1,3 +1,6 @@
+import { requireCourseActor } from "../courses/course-authorization.js";
+import { requireCourseRosterAccess } from "../courses/course-roster.js";
+import { courseRecordIdSchema } from "@bpt-jersey/domain/courses";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
@@ -1227,9 +1230,27 @@ export const listClasses = onCall(scheduleCallableOptions, async (request) =>
   createListClassesHandler({ store: getStore() })(request),
 );
 
-export const listSessions = onCall(scheduleCallableOptions, async (request) =>
-  createListSessionsHandler({ store: getStore() })(request),
-);
+async function guardCourseStaffSession(request: CallableRequest<unknown>): Promise<void> {
+  const actor = requireUserActor(request);
+  if (!["owner", "administrator", "coach", "headCoach"].includes(actor.role)) return;
+  const id = (request.data as {sessionId?: unknown} | null)?.sessionId;
+  if (!courseRecordIdSchema.safeParse(id).success) return;
+  const session = await getFirestore().doc(`academies/${actor.academyId}/sessions/${id}`).get();
+  if (session.data()?.courseId) await requireCourseRosterAccess(getFirestore(), await requireCourseActor(request), String(id));
+}
+export const listSessions = onCall(scheduleCallableOptions, async (request) => {
+  const result = await createListSessionsHandler({store: getStore()})(request);
+  const actor = requireUserActor(request);
+  if (!["coach", "headCoach"].includes(actor.role)) return result;
+  const courseActor = await requireCourseActor(request);
+  const visible = [];
+  for (const session of result.sessions) {
+    if (!session.courseId) {visible.push(session); continue;}
+    try {await requireCourseRosterAccess(getFirestore(), courseActor, session.sessionId); visible.push(session);}
+    catch (error) {if (!(error instanceof HttpsError) || error.code !== "permission-denied") throw error;}
+  }
+  return {sessions: visible};
+});
 
 export const getDailyOperationsDashboard = onCall(scheduleCallableOptions, async (request) =>
   createGetDailyOperationsDashboardHandler({ store: getStore() })(request),
@@ -1275,9 +1296,10 @@ export const cancelBooking = onCall(scheduleCallableOptions, async (request) =>
   createCancelBookingHandler(getStudentScopeOptions())(request),
 );
 
-export const listSessionBookings = onCall(scheduleCallableOptions, async (request) =>
-  createListSessionBookingsHandler({ store: getStore() })(request),
-);
+export const listSessionBookings = onCall(scheduleCallableOptions, async (request) => {
+  await guardCourseStaffSession(request);
+  return createListSessionBookingsHandler({ store: getStore() })(request);
+});
 
 export const listStudentBookings = onCall(scheduleCallableOptions, async (request) =>
   createListStudentBookingsHandler(getStudentScopeOptions())(request),
@@ -1287,9 +1309,10 @@ export const evaluateSessionMinimum = onCall(scheduleCallableOptions, async (req
   createEvaluateSessionMinimumHandler({ store: getStore() })(request),
 );
 
-export const checkIn = onCall(scheduleCallableOptions, async (request) =>
-  createCheckInHandler({ store: getStore() })(request),
-);
+export const checkIn = onCall(scheduleCallableOptions, async (request) => {
+  await guardCourseStaffSession(request);
+  return createCheckInHandler({ store: getStore() })(request);
+});
 
 export const selfCheckIn = onCall(scheduleCallableOptions, async (request) =>
   createSelfCheckInHandler({ store: getStore() })(request),
@@ -1299,41 +1322,47 @@ export const reconcileSessionQuorum = onCall(scheduleCallableOptions, async (req
   createReconcileSessionQuorumHandler({ store: getStore() })(request),
 );
 
-export const listSessionAttendance = onCall(scheduleCallableOptions, async (request) =>
-  createListSessionAttendanceHandler({ store: getStore() })(request),
-);
+export const listSessionAttendance = onCall(scheduleCallableOptions, async (request) => {
+  await guardCourseStaffSession(request);
+  return createListSessionAttendanceHandler({ store: getStore() })(request);
+});
 
 export const listStudentAttendance = onCall(scheduleCallableOptions, async (request) =>
   createListStudentAttendanceHandler(getStudentScopeOptions())(request),
 );
 
-export const correctAttendance = onCall(scheduleCallableOptions, async (request) =>
-  createCorrectAttendanceHandler({ store: getStore() })(request),
-);
+export const correctAttendance = onCall(scheduleCallableOptions, async (request) => {
+  await guardCourseStaffSession(request);
+  return createCorrectAttendanceHandler({ store: getStore() })(request);
+});
 
-export const reconcileSessionNoShows = onCall(scheduleCallableOptions, async (request) =>
-  createReconcileSessionNoShowsHandler({ store: getStore() })(request),
-);
+export const reconcileSessionNoShows = onCall(scheduleCallableOptions, async (request) => {
+  await guardCourseStaffSession(request);
+  return createReconcileSessionNoShowsHandler({ store: getStore() })(request);
+});
 
 export const listAttendanceHistory = onCall(scheduleCallableOptions, async (request) =>
   createListAttendanceHistoryHandler(getStudentScopeOptions())(request),
 );
 
-export const recordCheckout = onCall(scheduleCallableOptions, async (request) =>
-  createRecordCheckoutHandler(getStudentScopeOptions())(request),
-);
+export const recordCheckout = onCall(scheduleCallableOptions, async (request) => {
+  await guardCourseStaffSession(request);
+  return createRecordCheckoutHandler(getStudentScopeOptions())(request);
+});
 
-export const listSessionCheckouts = onCall(scheduleCallableOptions, async (request) =>
-  createListSessionCheckoutsHandler({ store: getStore() })(request),
-);
+export const listSessionCheckouts = onCall(scheduleCallableOptions, async (request) => {
+  await guardCourseStaffSession(request);
+  return createListSessionCheckoutsHandler({ store: getStore() })(request);
+});
 
 export const getStudentCheckout = onCall(scheduleCallableOptions, async (request) =>
   createGetStudentCheckoutHandler(getStudentScopeOptions())(request),
 );
 
-export const getSessionOperationalView = onCall(scheduleCallableOptions, async (request) =>
-  createGetSessionOperationalViewHandler({ store: getStore() })(request),
-);
+export const getSessionOperationalView = onCall(scheduleCallableOptions, async (request) => {
+  await guardCourseStaffSession(request);
+  return createGetSessionOperationalViewHandler({ store: getStore() })(request);
+});
 
 export const saveLocation = onCall(scheduleCallableOptions, async (request) =>
   createSaveLocationHandler({ store: getStore() })(request),

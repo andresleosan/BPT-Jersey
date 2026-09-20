@@ -45,7 +45,7 @@ const pollIntervalMs = 60_000;
 
 type MemberCalendarProps = Readonly<{
   repository: CalendarRepository;
-  session: Readonly<{ role: CalendarRole; displayName: string }>;
+  session: Readonly<{ role: CalendarMember["role"]; displayName: string }>;
   onSignOut: () => void;
   /** Rendered after the check-in slider and before the purple header: the streak panel (T042V2). */
   topSlot?: ReactNode;
@@ -133,7 +133,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     }>
   >({ studentId: "", names: [] });
 
-  const days = useMemo(() => visibleDays({ now, viewport, offset }), [now, viewport, offset]);
+  const days = useMemo(() => visibleDays({ now, viewport, offset, includeSunday: true }), [now, viewport, offset]);
   const firstDay = days[0];
   const lastDay = days[days.length - 1];
   const loadFrom = firstDay
@@ -242,6 +242,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     const memberContext = {
       studentId: participant.studentId,
       membershipId: participant.membershipId,
+      courseSessionIds: selectedWeek.courseSessionIds ?? [],
       ...(participant.membershipStartsAt
         ? {
             membershipStartsAt: participant.membershipStartsAt,
@@ -262,7 +263,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     const classesBookedByWeek = new Map<string, number>();
     for (const row of selectedWeek.sessions) {
       const rowProgram = programs.get(row.programId);
-      if (row.status === "cancelled" || !bookings.has(row.sessionId) || !rowProgram) continue;
+      if (row.courseId || row.status === "cancelled" || !bookings.has(row.sessionId) || !rowProgram) continue;
       if (
         rowProgram.discipline === "open-mat" ||
         memberContext.additionalProgramIds?.includes(row.programId)
@@ -424,7 +425,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
 
   const handleBook = useCallback(
     async (entry: CalendarEntry) => {
-      if (!participant) return;
+      if (!participant || !participant.membershipId || entry.session.courseId) return;
       setBusyKey(entry.session.sessionId);
       try {
         const booking = await repository.book({
@@ -448,6 +449,11 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
       if (!participant) return;
       setBusyKey(entry.session.sessionId);
       try {
+        if (entry.session.courseId && repository.setCourseAbsence) {
+          const absent = entry.booking?.schemaVersion === "2" && entry.booking.absent;
+          applyBooking(await repository.setCourseAbsence(entry.session.sessionId, participant.studentId, !absent));
+          return;
+        }
         const booking = await repository.cancel({
           sessionId: entry.session.sessionId,
           studentId: participant.studentId,
@@ -464,8 +470,8 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     [participant, repository, applyBooking, flashNote],
   );
 
-  const next = nextOffset(viewport, offset, now);
-  const prev = prevOffset(viewport, offset, now);
+  const next = nextOffset(viewport, offset, now, true);
+  const prev = prevOffset(viewport, offset, now, true);
   const weekColumns = days.map((day) => (day.isToday ? "1.6fr" : "1fr")).join(" ");
   const weekStyle = { "--week-columns": weekColumns } as React.CSSProperties;
   const failed = memberState === "error" || weekState === "error";
@@ -538,7 +544,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
                 notes={notes}
                 now={now}
                 onBook={(entry) => void handleBook(entry)}
-                onCancelRequest={setCancelling}
+                onCancelRequest={(entry) => entry.session.courseId ? void handleConfirmCancel(entry) : setCancelling(entry)}
               />
             ))}
           </div>

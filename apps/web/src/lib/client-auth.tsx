@@ -185,7 +185,7 @@ export function ClientAuthGate({
   if (status === "signed-in") {
     const role = session?.role;
     if (role === undefined || allow.includes(role)) {
-      return children;
+      return <><nav className="client-course-nav" aria-label="Course access"><a href="/courses">Courses &amp; seminars</a><a href="/account/courses">My course requests</a></nav>{children}</>;
     }
 
     return (
@@ -200,6 +200,9 @@ export function ClientAuthGate({
         <div className="hero-actions">
           <a className="button button-primary" href="/enrol">
             Ask for a place
+          </a>
+          <a className="button button-secondary" href="/account/courses">
+            My courses
           </a>
           <a className="button button-secondary" href="/shop">
             Go to the club shop

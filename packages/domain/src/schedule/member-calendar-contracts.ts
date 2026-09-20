@@ -166,6 +166,7 @@ export function visibleDays(input: {
   now: Date;
   viewport: CalendarViewport;
   offset: number;
+  includeSunday?: boolean;
 }): readonly CalendarDay[] {
   const todayKey = dateKeyInJersey(input.now);
   const today = todayAnchor(input.now);
@@ -175,37 +176,37 @@ export function visibleDays(input: {
     const days: CalendarDay[] = [];
     let cursor = new Date(today.getTime() + offset * dayMs);
     while (days.length < 2) {
-      if (!isSunday(cursor)) days.push(dayFromAnchor(cursor, todayKey));
+      if (input.includeSunday || !isSunday(cursor)) days.push(dayFromAnchor(cursor, todayKey));
       cursor = new Date(cursor.getTime() + dayMs);
     }
     return Object.freeze(days);
   }
 
-  const monday = new Date(baseMonday(today).getTime() + offset * 7 * dayMs);
+  const monday = new Date((input.includeSunday ? mondayOfWeek(today) : baseMonday(today)).getTime() + offset * 7 * dayMs);
   return Object.freeze(
-    [0, 1, 2, 3, 4, 5].map((step) =>
+    (input.includeSunday ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4, 5]).map((step) =>
       dayFromAnchor(new Date(monday.getTime() + step * dayMs), todayKey),
     ),
   );
 }
 
-export function nextOffset(viewport: CalendarViewport, offset: number, now: Date): number | null {
+export function nextOffset(viewport: CalendarViewport, offset: number, now: Date, includeSunday = false): number | null {
   if (viewport === "desktop") {
     const next = offset + 1;
     return next <= desktopMaxOffset(now) ? next : null;
   }
   const today = todayAnchor(now);
   let next = offset + 1;
-  if (isSunday(new Date(today.getTime() + next * dayMs))) next += 1;
+  if (!includeSunday && isSunday(new Date(today.getTime() + next * dayMs))) next += 1;
   return next <= calendarMaxOffsetDays ? next : null;
 }
 
-export function prevOffset(viewport: CalendarViewport, offset: number, now: Date): number | null {
+export function prevOffset(viewport: CalendarViewport, offset: number, now: Date, includeSunday = false): number | null {
   if (offset <= 0) return null;
   if (viewport === "desktop") return offset - 1;
   const today = todayAnchor(now);
   let prev = offset - 1;
-  if (isSunday(new Date(today.getTime() + prev * dayMs))) prev -= 1;
+  if (!includeSunday && isSunday(new Date(today.getTime() + prev * dayMs))) prev -= 1;
   return prev < 0 ? null : prev;
 }
 
@@ -226,7 +227,8 @@ export type LockedReason = "age_band" | "site" | "open_mat" | "weekly_limit" | "
 
 export type CalendarMemberContext = Readonly<{
   studentId: string;
-  membershipId: string;
+  membershipId: string | null;
+  courseSessionIds?: readonly string[];
   membershipStartsAt?: string;
   membershipEndsAt?: string | null | undefined;
   participantType: ParticipantType;
@@ -252,6 +254,8 @@ function lockedReasonFor(
   program: ProgramRecord,
   member: CalendarMemberContext,
 ): LockedReason | undefined {
+  if (session.courseId) return member.courseSessionIds?.includes(session.sessionId) ? undefined : "paid_period";
+  if (member.membershipId === null) return "paid_period";
   if (member.additionalProgramIds?.includes(program.programId)) return undefined;
   if (member.dateOfBirth === null) return "age_band";
   const band =
@@ -304,6 +308,7 @@ export function deriveSessionStatus(input: {
     input.booking !== undefined &&
     (input.booking.status === "confirmed" || input.booking.status === "requested");
   if (booked) return Object.freeze({ status: "booked" });
+  if (input.session.courseId) return Object.freeze({status: "closed"});
   const sessionTime = Date.parse(input.session.startAt);
   if (
     (input.member.membershipStartsAt &&

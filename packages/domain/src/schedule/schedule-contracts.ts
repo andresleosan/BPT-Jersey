@@ -1309,7 +1309,7 @@ function endWithZ(d: Date): string {
 export const bookingStatuses = Object.freeze(["requested", "confirmed", "cancelled"] as const);
 export type BookingStatus = (typeof bookingStatuses)[number];
 
-export type BookingRecord = Readonly<{
+export type LegacyBookingRecord = Readonly<{
   bookingId: string; // canonical v2 length-prefixed ID; legacy pair IDs remain read-compatible
   academyId: string;
   sessionId: string;
@@ -1325,6 +1325,15 @@ export type BookingRecord = Readonly<{
   updatedAt: string;
   updatedBy: string;
 }>;
+
+export type CourseBookingRecord = Omit<LegacyBookingRecord, "membershipId" | "schemaVersion"> & {
+  schemaVersion: "2"; membershipId: null;
+  source: {kind: "course"; courseId: string; enrolmentId: string}; absent: boolean;
+};
+export type BookingRecord = LegacyBookingRecord | CourseBookingRecord;
+export function isCourseBooking(value: BookingRecord): value is CourseBookingRecord {
+  return value.schemaVersion === "2" && value.membershipId === null && value.source.kind === "course";
+}
 
 export type RequestBookingInput = Readonly<{
   sessionId: string;
@@ -1624,6 +1633,7 @@ export type AttendanceProximity = Readonly<{
 }>;
 
 export type AttendanceRecord = Readonly<{
+  courseId?: string;
   attendanceId: string; // deterministic: `${sessionId}__${studentId}` or correction `corr_...`
   academyId: string;
   sessionId: string;

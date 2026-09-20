@@ -42,6 +42,7 @@ export type PreClassAttendee = Readonly<{
 }>;
 
 export type PreClassView = Readonly<{
+  cursor?: string | null;
   session: SessionRecord;
   attendees: readonly PreClassAttendee[];
   evidence: Readonly<{
