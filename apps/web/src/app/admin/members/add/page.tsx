@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
   deriveParticipantType,
@@ -13,6 +13,8 @@ import {
 } from "@bpt-jersey/domain";
 import { createMember, type CreateMemberInput } from "../../../../lib/members-client";
 import { saveHealthProfile } from "../../../../lib/health-client";
+
+import { RegistrationCompletion } from "./registration-completion";
 
 import "../../admin.css";
 
@@ -31,6 +33,9 @@ type FormValues = Readonly<{
   dateOfBirth: string;
   phoneNumber: string;
   frequencyNote: string;
+  membershipNumber: string;
+  idCardNumber: string;
+  vatNumber: string;
   gender: "" | MemberGender;
   trainingCenter: "" | TrainingCenter;
   trainingTimePreferences: readonly TrainingTimePreference[];
@@ -49,6 +54,9 @@ const initialValues: FormValues = {
   dateOfBirth: "",
   phoneNumber: "",
   frequencyNote: "",
+  membershipNumber: "",
+  idCardNumber: "",
+  vatNumber: "",
   gender: "",
   trainingCenter: "",
   trainingTimePreferences: [],
@@ -118,6 +126,11 @@ function inputFromValues(values: FormValues, requestId: string): CreateMemberInp
     ...(optionalText(values.frequencyNote) === undefined
       ? {}
       : { frequencyNote: optionalText(values.frequencyNote) }),
+    ...(optionalText(values.membershipNumber)
+      ? { membershipNumber: values.membershipNumber.trim() }
+      : {}),
+    ...(optionalText(values.idCardNumber) ? { idCardNumber: values.idCardNumber.trim() } : {}),
+    ...(optionalText(values.vatNumber) ? { vatNumber: values.vatNumber.trim() } : {}),
     ...(values.gender === "" ? {} : { gender: values.gender }),
     ...(emergencyContact === undefined ? {} : { emergencyContact }),
     ...(postalAddress === undefined ? {} : { postalAddress }),
@@ -133,7 +146,29 @@ export function AddMemberPage() {
   const [requestId, setRequestId] = useState(() => globalThis.crypto.randomUUID());
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [createdMember, setCreatedMember] = useState<string | null>(null);
+  const [healthStatus, setHealthStatus] = useState<"none" | "saving" | "pending" | "saved">("none");
+  const healthInFlight = useRef(false);
+  const completionHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (createdMember) completionHeading.current?.focus();
+  }, [createdMember]);
+  useEffect(() => {
+    const studentId = new URLSearchParams(window.location.search).get("studentId");
+    if (studentId && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(studentId)) {
+      setCreatedMember(studentId);
+      if (new URLSearchParams(window.location.search).has("healthPending"))
+        setHealthStatus("pending");
+    }
+  }, []);
+  useEffect(() => {
+    if (healthStatus !== "pending" && healthStatus !== "saving") return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [healthStatus]);
   const [busy, setBusy] = useState(false);
   const fullNameRef = useRef<HTMLInputElement>(null);
   const dateOfBirthRef = useRef<HTMLInputElement>(null);
@@ -217,29 +252,18 @@ export function AddMemberPage() {
     event.preventDefault();
     if (submittingRef.current) return;
     setError("");
-    setSuccess("");
     if (!validate()) return;
 
     submittingRef.current = true;
     setBusy(true);
     try {
       const result = await createMember(inputFromValues(values, requestId));
-      if (values.medicalConditions.trim().length > 0) {
-        try {
-          await saveHealthProfile({
-            studentId: result.studentId,
-            minimumOperationalSupport: ["none"],
-            conditionSummary: values.medicalConditions.trim(),
-            staffReferenceLabel: null,
-            expiresAt: null,
-          });
-        } catch {
-          // Health support is safeguarded for synthetic pilot; non-blocking on create
-        }
-      }
-      setValues(initialValues);
-      setRequestId(globalThis.crypto.randomUUID());
-      setSuccess(`Adult student added successfully. ID: ${result.studentId}`);
+      setCreatedMember(result.studentId);
+      const url = new URL(window.location.href);
+      url.searchParams.set("studentId", result.studentId);
+      if (values.medicalConditions.trim()) url.searchParams.set("healthPending", "1");
+      window.history.replaceState(null, "", url);
+      if (values.medicalConditions.trim()) await saveMedicalInformation(result.studentId);
     } catch {
       setError(genericFormError);
     } finally {
@@ -247,6 +271,93 @@ export function AddMemberPage() {
       setBusy(false);
     }
   }
+
+  async function saveMedicalInformation(studentId: string): Promise<void> {
+    if (healthInFlight.current || !values.medicalConditions.trim()) return;
+    healthInFlight.current = true;
+    setHealthStatus("saving");
+    try {
+      await saveHealthProfile({
+        studentId,
+        minimumOperationalSupport: ["none"],
+        conditionSummary: values.medicalConditions.trim(),
+        staffReferenceLabel: null,
+        expiresAt: null,
+      });
+      setHealthStatus("saved");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("healthPending");
+      window.history.replaceState(null, "", url);
+    } catch {
+      setHealthStatus("pending");
+    } finally {
+      healthInFlight.current = false;
+    }
+  }
+
+  function restart() {
+    setCreatedMember(null);
+    setValues(initialValues);
+    setHealthStatus("none");
+    setRequestId(globalThis.crypto.randomUUID());
+    setError("");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("studentId");
+    url.searchParams.delete("healthPending");
+    window.history.replaceState(null, "", url);
+  }
+
+  if (createdMember)
+    return (
+      <section className="admin-member-page" aria-labelledby="registration-title">
+        <header className="admin-page-heading">
+          <p className="admin-eyebrow">Members / Registration</p>
+          <h2 id="registration-title" ref={completionHeading} tabIndex={-1}>
+            Complete member registration
+          </h2>
+          {values.fullName ? <p>{values.fullName}</p> : null}
+          <p>
+            Choose the member’s level and subscription below. An online account is not required for
+            manual membership.
+          </p>
+        </header>
+        {healthStatus === "pending" || healthStatus === "saving" ? (
+          <section
+            className="member-subscription-editor ibjjf-form"
+            aria-label="Medical information pending"
+          >
+            <p role={healthStatus === "pending" ? "alert" : "status"}>
+              {healthStatus === "pending"
+                ? "Medical information has not been saved. Your member record is saved. Keep this page open and retry."
+                : "Saving medical information…"}
+            </p>
+            <label htmlFor="pending-medical">Medical information to save</label>
+            <textarea
+              id="pending-medical"
+              value={values.medicalConditions}
+              maxLength={1000}
+              disabled={healthStatus === "saving"}
+              onChange={(event) => updateField("medicalConditions", event.target.value)}
+              rows={3}
+            />
+            <button
+              className="admin-auth-button"
+              type="button"
+              disabled={healthStatus === "saving" || !values.medicalConditions.trim()}
+              onClick={() => void saveMedicalInformation(createdMember)}
+            >
+              Retry saving medical information
+            </button>
+          </section>
+        ) : null}
+        <RegistrationCompletion
+          key={createdMember}
+          studentId={createdMember}
+          healthComplete={healthStatus === "saved" || healthStatus === "none"}
+          onRestart={restart}
+        />
+      </section>
+    );
 
   return (
     <section className="admin-member-page" aria-labelledby="add-member-title">
@@ -258,8 +369,8 @@ export function AddMemberPage() {
           relationship is created with the student.
         </p>
         <p>
-          An adult can only receive a membership or an invoice once they have signed in and linked
-          their own account; staff-created records without an account stay directory-only.
+          Save personal details first, then choose the initial level, subscription and payment
+          details here. Manual membership does not require an online account.
         </p>
         <Link href="/admin/families">Create a family and minor student</Link>
       </header>
@@ -358,6 +469,9 @@ export function AddMemberPage() {
           ["email", "Email address", "email"],
           ["phoneNumber", "Mobile number", "tel"],
           ["frequencyNote", "Frequency note", "text"],
+          ["membershipNumber", "Membership number", "text"],
+          ["idCardNumber", "ID card number", "text"],
+          ["vatNumber", "VAT number", "text"],
         ].map(([field, label, type]) => (
           <div className="login-field" key={field}>
             <label htmlFor={`member-${field}`}>{label}</label>
@@ -495,11 +609,6 @@ export function AddMemberPage() {
         {error ? (
           <p aria-live="assertive" className="login-message login-message-error" role="alert">
             {error}
-          </p>
-        ) : null}
-        {success ? (
-          <p aria-live="polite" className="login-message" role="status">
-            {success}
           </p>
         ) : null}
 

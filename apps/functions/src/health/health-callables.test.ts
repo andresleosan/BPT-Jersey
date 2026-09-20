@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   getHealthProfileHandler,
+  deactivateHealthProfileHandler,
+  reviewHealthProfileChangeRequestHandler,
   listHealthReferencesHandler,
   saveHealthProfileHandler,
   saveHealthReferenceLabelHandler,
   type HealthCallableServices,
 } from "./health-callables.js";
+import { requireUserActor } from "../auth/user-authorization.js";
+import { HttpsError } from "firebase-functions/v2/https";
 const row = {
   studentId: "student-1",
   displayName: "Ana Coelho",
@@ -22,11 +26,16 @@ const projection = {
   schemaVersion: "1",
 } as const;
 function request(data: unknown, role = "owner") {
-  return { data, auth: { uid: "owner-1", token: { academyId: "academy-1", role } } } as never;
+  return {
+    data,
+    app: { appId: "synthetic-app" },
+    auth: { uid: "owner-1", token: { academyId: "academy-1", role } },
+  } as never;
 }
 function services(pilotEnabled = true): HealthCallableServices {
   return {
     pilotEnabled,
+    authorizeOffice: vi.fn(async (request) => requireUserActor(request)),
     store: {
       getHealthProfile: vi.fn(async () => projection),
       saveHealthProfile: vi.fn(async () => ({
@@ -52,9 +61,66 @@ function services(pilotEnabled = true): HealthCallableServices {
   };
 }
 describe("health callables", () => {
+  it.each(["owner", "administrator"])(
+    "%s manages health outside the pilot with current office authority",
+    async (role) => {
+      const current = services(false);
+      await getHealthProfileHandler(request({ studentId: "student-1" }, role), current);
+      await saveHealthProfileHandler(
+        request(
+          {
+            studentId: "student-1",
+            minimumOperationalSupport: ["none"],
+            conditionSummary: "Synthetic note",
+            staffReferenceLabel: null,
+            expiresAt: null,
+          },
+          role,
+        ),
+        current,
+      );
+      await listHealthReferencesHandler(request(null, role), current);
+      await saveHealthReferenceLabelHandler(
+        request({ studentId: "student-1", staffReferenceLabel: "Support" }, role),
+        current,
+      );
+      await deactivateHealthProfileHandler(request({ studentId: "student-1" }, role), current);
+      await reviewHealthProfileChangeRequestHandler(
+        request({ requestId: "request-1", decision: "approve" }, role),
+        current,
+      );
+      expect(current.authorizeOffice).toHaveBeenCalledTimes(6);
+      expect(current.store.saveHealthProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          academyId: "academy-1",
+          actorId: "owner-1",
+          studentId: "student-1",
+          conditionSummary: "Synthetic note",
+        }),
+      );
+    },
+  );
+  it("refuses revoked office authority or missing application verification before accessing medical data", async () => {
+    const current = services(false);
+    vi.mocked(current.authorizeOffice).mockRejectedValue(
+      new HttpsError("permission-denied", "Office authority revoked"),
+    );
+    await expect(
+      getHealthProfileHandler(request({ studentId: "student-1" }), current),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(current.store.getHealthProfile).not.toHaveBeenCalled();
+    const missingApp = {
+      ...(request({ studentId: "student-1" }) as object),
+      app: undefined,
+    } as never;
+    await expect(getHealthProfileHandler(missingApp, services(false))).rejects.toMatchObject({
+      code: "unauthenticated",
+    });
+  });
+
   it("fails closed outside the synthetic pilot", async () => {
     await expect(
-      getHealthProfileHandler(request({ studentId: "student-1" }), services(false)),
+      getHealthProfileHandler(request({ studentId: "student-1" }, "coach"), services(false)),
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
   it("verifies role and delegates only a validated payload", async () => {
@@ -101,9 +167,9 @@ describe("health callables", () => {
     await expect(
       listHealthReferencesHandler(request({ studentId: "x" }), current),
     ).rejects.toMatchObject({ code: "invalid-argument" });
-    await expect(listHealthReferencesHandler(request(null), services(false))).rejects.toMatchObject(
-      { code: "failed-precondition" },
-    );
+    await expect(
+      listHealthReferencesHandler(request(null, "coach"), services(false)),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 
   it("keeps the whole medical record behind the office", async () => {
@@ -136,7 +202,7 @@ describe("health callables", () => {
       saveHealthReferenceLabelHandler(request({ ...payload, conditionSummary: "leak" }), current),
     ).rejects.toMatchObject({ code: "invalid-argument" });
     await expect(
-      saveHealthReferenceLabelHandler(request(payload), services(false)),
+      saveHealthReferenceLabelHandler(request(payload, "coach"), services(false)),
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 });

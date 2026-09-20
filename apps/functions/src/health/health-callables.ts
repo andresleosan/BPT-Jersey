@@ -7,6 +7,7 @@ import {
   type HealthProfileChangeRequestInput,
   type HealthProfileSaveInput,
 } from "@bpt-jersey/domain/health";
+import { requireActiveOfficeActor } from "../auth/office-actor.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import {
   createHealthStore,
@@ -17,6 +18,7 @@ import {
 
 export type HealthCallableServices = Readonly<{
   store: HealthStore;
+  authorizeOffice: typeof requireActiveOfficeActor;
   pilotEnabled?: boolean;
   now?: () => string;
 }>;
@@ -100,6 +102,21 @@ function requireRole(request: CallableRequest<unknown>, allowed: readonly Health
     throw new HttpsError("permission-denied", "Health access is not permitted");
   return actor;
 }
+/** Office manages member health with live authority. Other roles keep their pilot boundary. */
+async function requireHealthActor(
+  request: CallableRequest<unknown>,
+  services: HealthCallableServices,
+  allowed: readonly HealthActorRole[],
+) {
+  const actor = requireRole(request, allowed);
+  if (actor.role === "owner" || actor.role === "administrator") {
+    if (!request.app) throw new HttpsError("unauthenticated", "Verified application is required");
+    return services.authorizeOffice(request);
+  }
+  pilot(services);
+  return actor;
+}
+
 function mapError(error: unknown, operation: "read" | "write"): never {
   if (error instanceof HttpsError) throw error;
   if (error instanceof HealthStoreError) {
@@ -120,8 +137,7 @@ export async function getHealthProfileHandler(
   request: CallableRequest<unknown>,
   services: HealthCallableServices,
 ) {
-  pilot(services);
-  const actor = requireRole(request, roles);
+  const actor = await requireHealthActor(request, services, roles);
   const studentId = parseStudentPayload(request.data);
   try {
     return await services.store.getHealthProfile({
@@ -138,8 +154,7 @@ export async function saveHealthProfileHandler(
   request: CallableRequest<unknown>,
   services: HealthCallableServices,
 ) {
-  pilot(services);
-  const actor = requireRole(request, ["owner", "administrator"]);
+  const actor = await requireHealthActor(request, services, ["owner", "administrator"]);
   const payload = parseInput<HealthProfileSaveInput>(request.data, parseHealthProfileSaveInput);
   try {
     return await services.store.saveHealthProfile({
@@ -160,8 +175,7 @@ export async function saveHealthReferenceLabelHandler(
   request: CallableRequest<unknown>,
   services: HealthCallableServices,
 ) {
-  pilot(services);
-  const actor = requireRole(request, staffRoles);
+  const actor = await requireHealthActor(request, services, staffRoles);
   const payload = parseReferenceLabelPayload(request.data);
   try {
     return await services.store.saveReferenceLabel({
@@ -178,8 +192,7 @@ export async function deactivateHealthProfileHandler(
   request: CallableRequest<unknown>,
   services: HealthCallableServices,
 ) {
-  pilot(services);
-  const actor = requireRole(request, ["owner", "administrator"]);
+  const actor = await requireHealthActor(request, services, ["owner", "administrator"]);
   const studentId = parseStudentPayload(request.data);
   try {
     return await services.store.deactivateHealthProfile({
@@ -232,8 +245,7 @@ export async function reviewHealthProfileChangeRequestHandler(
   request: CallableRequest<unknown>,
   services: HealthCallableServices,
 ) {
-  pilot(services);
-  const actor = requireRole(request, ["owner", "administrator"]);
+  const actor = await requireHealthActor(request, services, ["owner", "administrator"]);
   const payload = parseReviewPayload(request.data);
   try {
     return await services.store.reviewChangeRequest({
@@ -249,8 +261,7 @@ export async function listHealthReferencesHandler(
   request: CallableRequest<unknown>,
   services: HealthCallableServices,
 ) {
-  pilot(services);
-  const actor = requireRole(request, staffRoles);
+  const actor = await requireHealthActor(request, services, staffRoles);
   if (request.data !== null && request.data !== undefined) invalidPayload();
   try {
     return { references: await services.store.listReferences({ academyId: actor.academyId }) };
@@ -260,6 +271,7 @@ export async function listHealthReferencesHandler(
 }
 function callableServices(): HealthCallableServices {
   return {
+    authorizeOffice: requireActiveOfficeActor,
     pilotEnabled: process.env.BPT_SYNTHETIC_PILOT === "true",
     store: createHealthStore({
       firestore: getFirestore() as unknown as Parameters<typeof createHealthStore>[0]["firestore"],

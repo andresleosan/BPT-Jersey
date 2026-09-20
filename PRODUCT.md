@@ -66,3 +66,14 @@ unmet class, time, skill or age criteria, including skipped ranks. The review st
 criteria; a note is optional. The server records the decision, actor and criteria as they stood.
 Coach permissions remain unchanged; historical headCoach accounts still need a note below criteria.
 Academy scope, active authorisation, valid dates and current level references remain enforced.
+
+## Complete administrative enrolment (2026-09-20)
+
+Office staff save personal details, then complete initial level and manual subscription/payment
+on the same registration screen. Members do not need an online account for manual subscriptions.
+Minor students start through Families with their tutor and continue to the same setup screen.
+Progress is explicit; a failed medical save remains pending and can be retried without duplicating
+the student. Completion requires confirmed level, subscription and any supplied medical information.
+Administrator has full operational member/coach management; granting or removing administrative
+access remains owner-only. Medical administration uses current office authority and App Check;
+other roles keep their existing restrictions. See ADR-013; production publication is separate.

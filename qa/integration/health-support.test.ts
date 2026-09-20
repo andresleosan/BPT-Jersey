@@ -1,3 +1,4 @@
+import { requireUserActor } from "../../apps/functions/src/auth/user-authorization.js";
 import { randomUUID } from "node:crypto";
 
 import { deleteApp, initializeApp } from "firebase-admin/app";
@@ -69,6 +70,7 @@ const relationship = {
 function request(data: unknown, role: string, uid: string) {
   return {
     data,
+    app: { appId: "synthetic-app" },
     auth: { uid, token: { academyId, role } },
   } as never;
 }
@@ -76,6 +78,8 @@ function request(data: unknown, role: string, uid: string) {
 function services(): HealthCallableServices {
   return {
     pilotEnabled: true,
+    // Handler/store integration uses synthetic actors; live Auth checks have separate tests.
+    authorizeOffice: async (request) => requireUserActor(request),
     store: createHealthStore({
       firestore: firestore as unknown as HealthFirestore,
       generateRequestId: () => requestId,
@@ -104,6 +108,37 @@ describe("health support against the Firestore emulator", () => {
     ]);
     await deleteApp(app);
   });
+
+  it.each(["owner", "administrator"])(
+    "persists medical information for %s outside the synthetic pilot",
+    async (role) => {
+      const current = { ...services(), pilotEnabled: false };
+      await saveHealthProfileHandler(
+        request(
+          {
+            studentId,
+            minimumOperationalSupport: ["none"],
+            conditionSummary: "Synthetic office registration note",
+            staffReferenceLabel: null,
+            expiresAt: null,
+          },
+          role,
+          ownerId,
+        ),
+        current,
+      );
+      const stored = await firestore
+        .doc(`academies/${academyId}/healthProfiles/${studentId}`)
+        .get();
+      expect(stored.get("conditionSummary")).toBe("Synthetic office registration note");
+      await expect(
+        getHealthProfileHandler(request({ studentId }, role, ownerId), current),
+      ).resolves.toMatchObject({
+        studentId,
+        conditionSummary: "Synthetic office registration note",
+      });
+    },
+  );
 
   it("keeps guardian projection redacted and completes an atomic approval", async () => {
     await saveHealthProfileHandler(

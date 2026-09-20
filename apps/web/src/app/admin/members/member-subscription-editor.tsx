@@ -460,7 +460,13 @@ function SubscriptionForm({
   );
 }
 
-export function MemberSubscriptionEditor({ studentId }: { studentId: string }) {
+export function MemberSubscriptionEditor({
+  studentId,
+  onStatusChange,
+}: {
+  studentId: string;
+  onStatusChange?: (saved: boolean) => void;
+}) {
   const [data, setData] = useState<{
     context: MemberSubscriptionContext;
     plans: readonly ManagedMembershipPlan[];
@@ -470,6 +476,7 @@ export function MemberSubscriptionEditor({ studentId }: { studentId: string }) {
   const [success, setSuccess] = useState("");
   const [reload, setReload] = useState(0);
   function refresh() {
+    onStatusChange?.(false);
     setData(null);
     setError("");
     setReload((value) => value + 1);
@@ -482,7 +489,10 @@ export function MemberSubscriptionEditor({ studentId }: { studentId: string }) {
       getMemberSubscriptionBilling(studentId),
     ]).then(
       ([context, plans, billing]) => {
-        if (active) setData({ context, plans: plans.filter((plan) => plan.active), billing });
+        if (active) {
+          setData({ context, plans: plans.filter((plan) => plan.active), billing });
+          onStatusChange?.(context.memberships.some((item) => item.status !== "cancelled"));
+        }
       },
       (failure) => {
         if (active)
@@ -492,7 +502,7 @@ export function MemberSubscriptionEditor({ studentId }: { studentId: string }) {
     return () => {
       active = false;
     };
-  }, [studentId, reload]);
+  }, [studentId, reload, onStatusChange]);
   function saved() {
     setSuccess("Subscription saved. Payment history has been updated.");
     refresh();
@@ -513,6 +523,13 @@ export function MemberSubscriptionEditor({ studentId }: { studentId: string }) {
       {success ? <p role="status">{success}</p> : null}
       {data ? (
         <>
+          {data.plans.length === 0 ? (
+            <p role="alert">
+              No active subscription plans are available.{" "}
+              <Link href="/admin/memberships">Manage membership plans</Link> before completing
+              registration.
+            </p>
+          ) : null}
           {!data.context.memberships.some((item) => item.status !== "cancelled") ? (
             <SubscriptionForm studentId={studentId} plans={data.plans} onSaved={saved} />
           ) : null}

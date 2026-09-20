@@ -734,11 +734,11 @@ export function FamilyAdminPage() {
                   {relationshipActive ? (
                     <>
                       <Link
-                        aria-label={`Create membership for ${student.fullName}`}
+                        aria-label={`Complete registration for ${student.fullName}`}
                         className="family-text-button"
-                        href={`/admin/memberships?familyId=${encodeURIComponent(selectedFamily.family.familyId)}&studentId=${encodeURIComponent(student.studentId)}`}
+                        href={`/admin/members/add?studentId=${encodeURIComponent(student.studentId)}`}
                       >
-                        Create membership
+                        Complete registration
                       </Link>
                       <button
                         aria-label={`Deactivate relationship for ${student.fullName}`}
