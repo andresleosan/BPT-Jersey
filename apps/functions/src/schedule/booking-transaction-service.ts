@@ -694,7 +694,7 @@ async function executeBookingInTransaction(
     academyId,
     membershipId,
     studentId,
-    input.now,
+    storedSession.startAt,
   );
   const storedStudent = student(studentSnapshot, academyId, studentId);
   if (storedMembership.familyId !== storedStudent.familyId) {
@@ -743,11 +743,16 @@ async function executeBookingInTransaction(
     input.firestore.doc(path(academyId, "studentGroupAccess") + "/" + studentId),
   );
   const groupData = groupSnapshot.exists ? groupSnapshot.data() : undefined;
-  if (groupSnapshot.exists && (!groupData || groupData.academyId !== academyId || groupData.studentId !== studentId)) {
+  if (
+    groupSnapshot.exists &&
+    (!groupData || groupData.academyId !== academyId || groupData.studentId !== studentId)
+  ) {
     return invalid("tenant", "Group access scope is invalid");
   }
   const groupAccess = studentGroupAccessSchema.safeParse({
-    studentId, programIds: groupData?.programIds ?? [], revision: groupData?.revision ?? 0,
+    studentId,
+    programIds: groupData?.programIds ?? [],
+    revision: groupData?.revision ?? 0,
     dateOfBirth: storedStudent.dateOfBirth ?? null,
   });
   if (!groupAccess.success) return invalid("invalid", "Group access is invalid");
@@ -760,15 +765,17 @@ async function executeBookingInTransaction(
   const quotaRevision = revision(quotaSnapshot, academyId, quotaKey, "quotaId");
 
   const [used, occupied, account] = await Promise.all([
-    additionalAccess ? Promise.resolve(0) : weeklyUsage({
-      firestore: input.firestore,
-      transaction: input.transaction,
-      academyId,
-      studentId,
-      week,
-      currentIds: target.ids,
-      additionalProgramIds,
-    }),
+    additionalAccess
+      ? Promise.resolve(0)
+      : weeklyUsage({
+          firestore: input.firestore,
+          transaction: input.transaction,
+          academyId,
+          studentId,
+          week,
+          currentIds: target.ids,
+          additionalProgramIds,
+        }),
     occupancy({
       firestore: input.firestore,
       transaction: input.transaction,
@@ -800,14 +807,15 @@ async function executeBookingInTransaction(
   }
   // Additional groups waive age, site and plan quotas only. Membership, financial standing,
   // active programs, booking cutoff and capacity are still required.
-  const access = additionalAccess && storedPlan.active
-    ? { allowed: true as const }
-    : evaluatePlanAccess(storedPlan, {
-        participantType: audience(storedStudent, storedProgram, storedSession.startAt),
-        site: storedSession.locationId === "town" ? "Town" : "West",
-        sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
-        weeklyClassesUsed: used,
-      });
+  const access =
+    additionalAccess && storedPlan.active
+      ? { allowed: true as const }
+      : evaluatePlanAccess(storedPlan, {
+          participantType: audience(storedStudent, storedProgram, storedSession.startAt),
+          site: storedSession.locationId === "town" ? "Town" : "West",
+          sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
+          weeklyClassesUsed: used,
+        });
   if (!access.allowed) {
     return invalid(
       access.code === "WEEKLY_LIMIT_REACHED" ? "weekly-limit" : "ineligible",

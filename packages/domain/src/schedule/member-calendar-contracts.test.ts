@@ -225,6 +225,28 @@ describe("deriveSessionStatus", () => {
     now: twoHoursBefore,
   };
 
+  it("shows paid period limits while retaining previous bookings and attendance", () => {
+    const expired = {
+      ...base,
+      member: {
+        ...maya,
+        membershipStartsAt: "2026-08-01T00:00:00Z",
+        membershipEndsAt: session.startAt,
+      },
+    };
+    expect(deriveSessionStatus(expired)).toEqual({ status: "locked", lockedReason: "paid_period" });
+    expect(deriveSessionStatus({ ...expired, booking }).status).toBe("booked");
+    expect(deriveSessionStatus({ ...expired, attendance: attendance("attended") }).status).toBe(
+      "attended",
+    );
+    expect(
+      deriveSessionStatus({
+        ...base,
+        member: { ...maya, membershipStartsAt: session.startAt, membershipEndsAt: null },
+      }).status,
+    ).toBe("open");
+  });
+
   it("is open when in group, bookable and not booked", () => {
     expect(deriveSessionStatus(base)).toEqual({ status: "open" });
   });

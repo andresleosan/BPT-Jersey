@@ -1184,7 +1184,7 @@ describe("office registration of imported members", () => {
         birthDate: dateOfBirth,
         gender: "unknown",
         membershipState: "active",
-        appAccess: {},
+        appAccess: { password: { obsolete: "synthetic-marker" } },
         graduation: {},
         plan: {},
         attendance: { records: [] },

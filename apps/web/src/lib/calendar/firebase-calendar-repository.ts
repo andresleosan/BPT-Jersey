@@ -85,7 +85,7 @@ export function createFirebaseCalendarRepository(session: {
           names.get(membership.studentId) ?? session.displayName,
           births.get(membership.studentId),
         );
-        if (participant) participants.push(participant);
+        if (participant) participants.push({ ...participant, membershipStartsAt: membership.startsAt, membershipEndsAt: membership.endsAt });
       }
       return { role: session.role, displayName: session.displayName, participants };
     },

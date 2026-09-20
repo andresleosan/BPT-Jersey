@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import type { RegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 import type {
   MemberRecoveryDetail,
   MemberRecoveryRequestRow,
@@ -14,6 +16,13 @@ import { useAdminOrStaffSession } from "../../admin-gate";
 import { AdminSectionHeader } from "../../admin-ui";
 import "../../admin.css";
 import "./recovery.css";
+const ProfileSubscriptionEditor = dynamic(
+  () =>
+    import("../search/profile-subscription-editor").then(
+      (module) => module.ProfileSubscriptionEditor,
+    ),
+  { loading: () => <p role="status">Loading subscription controls…</p> },
+);
 const statuses: Record<CompleteMemberRecoveryResult["status"], string> = {
   "verify-email": "Email verification needed",
   "pending-review": "Awaiting review",
@@ -36,6 +45,8 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [reload, setReload] = useState(0);
+  const [approvedArchive, setApprovedArchive] = useState<string>();
+  const [subscriptionRecord, setSubscriptionRecord] = useState<RegyfitMemberRecord>();
   const [refreshing, setRefreshing] = useState(true);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -86,11 +97,16 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
   function review(decision: "approve" | "reject") {
     if (!detail || (decision === "approve" && (!candidateId || !confirmed))) return;
     void run(async () => {
+      const selected = detail.candidates.find((candidate) => candidate.candidateId === candidateId);
       const outcome = await reviewMemberRecovery({
         requestId: detail.request.requestId,
         decision,
         ...(decision === "approve" ? { candidateId, identityConfirmed: true } : {}),
       });
+      if (outcome.status === "linked" || outcome.status === "profile-required") {
+        setApprovedArchive(selected?.archiveRecordId);
+        setSubscriptionRecord(undefined);
+      }
       setNotice(
         outcome.status === "rejected"
           ? "Request rejected."
@@ -123,6 +139,32 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
           description="Review existing members who need help accessing their account."
         />
       )}
+      {approvedArchive ? (
+        <section aria-label="Recovered member subscription">
+          <h3>Confirm the previous paid period</h3>
+          <p>Link the old payment to a current plan so classes use the member's paid dates.</p>
+          {!subscriptionRecord ? (
+            <button
+              type="button"
+              className="admin-auth-button"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const { getRegyfitMemberRecord } = await import("../../../../lib/members-client");
+                  setSubscriptionRecord(await getRegyfitMemberRecord(approvedArchive));
+                })
+              }
+            >
+              Review previous subscription
+            </button>
+          ) : (
+            <ProfileSubscriptionEditor
+              key={subscriptionRecord.recordId}
+              record={subscriptionRecord}
+            />
+          )}
+        </section>
+      ) : null}
       <p className="recovery-guidance">
         Verify identity using academy records or a direct conversation. A matching name alone does
         not establish ownership. For children or inactive memberships, follow the guardian or

@@ -655,7 +655,13 @@ export function createFirestoreWaitlistStore({
         }
 
         const storedSession = sessionCapacity(sessionDoc.data(), academyId, sessionId, now);
-        assertMembership(membershipDoc.data(), academyId, membershipId, studentId, now);
+        assertMembership(
+          membershipDoc.data(),
+          academyId,
+          membershipId,
+          studentId,
+          storedSession.startAt,
+        );
         if (bookings.docs.length > maxSessionCapacity) {
           throw new WaitlistStoreError("invalid", "Booking query limit exceeded");
         }

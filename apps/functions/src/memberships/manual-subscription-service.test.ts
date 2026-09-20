@@ -442,3 +442,81 @@ it.each([
   });
   expect(h.records).toEqual(before);
 });
+
+describe("previous membership payment linkage", () => {
+  function previous(h: ReturnType<typeof harness>) {
+    const record = {
+      recordId: "123",
+      fullName: "Fixture member",
+      gender: "unknown",
+      membershipState: "active",
+      appAccess: { password: "synthetic-obsolete-marker" },
+      graduation: { belt: "Historical belt" },
+      plan: { membershipPlan: "Previous plan", validFrom: "2026-08-01", validUntil: "2026-09-30" },
+      attendance: { records: [] },
+      payments: [{ amount: "£60", description: "Previous payment" }],
+      capturedAt: time,
+      source: "regyfit-admin-capture",
+      schemaVersion: "1",
+    };
+    h.records.set(base + "regyfitMemberRecords/123", record);
+    h.records.set(base + "regyfitOfficeLinks/123", {
+      academyId: actor.academyId,
+      recordId: "123",
+      studentId: "student-1",
+    });
+    return record;
+  }
+  it("links the confirmed period, retains original history and never creates duplicate money", async () => {
+    const h = harness();
+    const archive = previous(h);
+    h.records.set(base + "memberships/legacy", { studentId: "student-1", source: "legacy-import" });
+    const command = {
+      ...input({ kind: "previously-paid", recordId: "123", paymentConfirmed: true }),
+      endsAt: "2026-10-01T00:00:00.000Z",
+    };
+    const result = await saveManualSubscription(h.db, actor, command);
+    expect(result).toMatchObject({ status: "active", startsAt: time, endsAt: command.endsAt });
+    expect(await saveManualSubscription(h.db, actor, command)).toEqual(result);
+    expect(h.records.get(base + "regyfitMemberRecords/123")).toEqual(archive);
+    expect([...h.records.keys()].filter((p) => /\/(invoices|payments)\//.test(p))).toEqual([]);
+    expect(await listSubscriptionBilling(h.db, actor.academyId, "student-1")).toEqual([
+      expect.objectContaining({
+        complimentary: false,
+        previousPaymentRecordId: "123",
+        currentInvoiceId: null,
+        invoices: [],
+      }),
+    ]);
+    await expect(
+      saveManualSubscription(h.db, actor, { ...command, requestId: randomUUID() }),
+    ).rejects.toMatchObject({ code: "failed-precondition" });
+  });
+  it.each([
+    "unlinked",
+    "wrong-member",
+    "conflicting-link",
+    "unconfirmed",
+    "no-end",
+    "future-start",
+  ])("rejects %s before creating access", async (scenario) => {
+    const h = harness();
+    previous(h);
+    const command = input({ kind: "previously-paid", recordId: "123", paymentConfirmed: true });
+    if (scenario === "unlinked") h.records.delete(base + "regyfitOfficeLinks/123");
+    if (scenario === "wrong-member")
+      h.records.get(base + "regyfitOfficeLinks/123")!.studentId = "other";
+    if (scenario === "conflicting-link")
+      h.records.set(base + "regyfitMemberLinks/123", {
+        academyId: actor.academyId,
+        recordId: "123",
+        studentId: "other",
+      });
+    if (scenario === "unconfirmed") Reflect.set(command.settlement, "paymentConfirmed", false);
+    if (scenario === "no-end") command.endsAt = null;
+    if (scenario === "future-start") command.startsAt = "2099-01-01T00:00:00Z";
+    const before = new Map(h.records);
+    await expect(saveManualSubscription(h.db, actor, command)).rejects.toThrow();
+    expect(h.records).toEqual(before);
+  });
+});

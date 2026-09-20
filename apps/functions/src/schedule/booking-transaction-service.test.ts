@@ -342,3 +342,26 @@ describe("booking transaction audit trail", () => {
     });
   });
 });
+
+describe("paid period at the time of the class", () => {
+  it.each([
+    ["2026-09-19T00:00:00.000Z", null, false],
+    ["2026-01-01T00:00:00.000Z", sessionStartAt, false],
+    ["2026-01-01T00:00:00.000Z", "2026-09-18T17:00:00.000Z", false],
+    [sessionStartAt, "2026-09-19T00:00:00.000Z", true],
+  ])("uses paid dates %s to %s for the class, eligible=%s", async (startsAt, endsAt, eligible) => {
+    const store = createFirestore();
+    seedAcademy(store);
+    const membershipPath = `academies/${academyId}/memberships`;
+    store.seed(membershipPath + "/m1", { ...store.documents(membershipPath)[0], startsAt, endsAt });
+    const attempt = createService(store).requestBooking(academyId, bookingRequest, "s1", {
+      ip: null,
+      role: "adultStudent",
+    });
+    if (eligible) await expect(attempt).resolves.toMatchObject({ status: "confirmed" });
+    else {
+      await expect(attempt).rejects.toMatchObject({ code: "ineligible" });
+      expect(store.documents(bookingsPath)).toEqual([]);
+    }
+  });
+});

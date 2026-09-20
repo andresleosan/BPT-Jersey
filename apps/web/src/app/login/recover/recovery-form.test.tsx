@@ -79,7 +79,7 @@ it("keeps changed-email requests waiting for review instead of navigating", asyn
   api.completeMemberRecovery.mockResolvedValue({ status: "pending-review" });
   const user = await begin();
   await user.click(screen.getByRole("button", { name: "Continue with Google" }));
-  expect(await screen.findByText(/office will check your identity/i)).toBeVisible();
+  expect(await screen.findByText(/administrator will verify your old membership/i)).toBeVisible();
   expect(navigation.navigateTo).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Check request status" })).toBeVisible();
 });
@@ -91,7 +91,7 @@ it("resumes an opaque ticket after reload with an existing session", async () =>
   });
   api.completeMemberRecovery.mockResolvedValue({ status: "pending-review" });
   render(<RecoveryForm />);
-  await screen.findByText(/office will check your identity/i);
+  await screen.findByText(/administrator will verify your old membership/i);
   expect(api.completeMemberRecovery).toHaveBeenCalledWith({ recoveryId });
 });
 it("collects missing profile fields only after identity authorization", async () => {

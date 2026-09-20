@@ -166,3 +166,37 @@ describe("manual subscription profile", () => {
     });
   });
 });
+
+it("requires payment confirmation and links the archive without recording another receipt", async () => {
+  const user = userEvent.setup();
+  render(
+    <MemberSubscriptionEditor
+      studentId="student-1"
+      previousRecord={{
+        ...record,
+        plan: {
+          membershipPlan: "Previous plan",
+          validFrom: "2026-08-01",
+          validUntil: "2026-09-30",
+        },
+      }}
+    />,
+  );
+  await user.selectOptions(
+    await screen.findByLabelText("Payment for this period"),
+    "previously-paid",
+  );
+  await user.selectOptions(screen.getByLabelText("Subscription plan"), plans[0]!.planId);
+  expect(screen.queryByLabelText("Amount (£)")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Assign subscription" }));
+  expect(api.manageManualSubscription).not.toHaveBeenCalled();
+  await user.click(screen.getByLabelText(/I have verified this member's previous payment/));
+  await user.click(screen.getByRole("button", { name: "Assign subscription" }));
+  await waitFor(() => expect(api.manageManualSubscription).toHaveBeenCalledOnce());
+  expect(api.manageManualSubscription.mock.calls[0]![0]).toMatchObject({
+    operation: "assign",
+    settlement: { kind: "previously-paid", recordId: "161", paymentConfirmed: true },
+    startsAt: new Date("2026-08-01T00:00").toISOString(),
+    endsAt: new Date("2026-10-01T00:00").toISOString(),
+  });
+});

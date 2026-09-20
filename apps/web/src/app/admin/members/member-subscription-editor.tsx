@@ -9,6 +9,7 @@ import {
   type MemberSubscriptionContext,
   type SubscriptionBilling,
 } from "@bpt-jersey/domain/memberships/admin";
+import type { RegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 import type { PlanId } from "@bpt-jersey/domain/memberships";
 import {
   getMemberSubscriptions,
@@ -86,12 +87,14 @@ function SubscriptionForm({
   billing,
   plans,
   onSaved,
+  previousRecord,
 }: {
   studentId: string;
   subscription?: EditableSubscription;
   billing?: SubscriptionBilling | undefined;
   plans: readonly ManagedMembershipPlan[];
   onSaved: () => void;
+  previousRecord?: RegyfitMemberRecord | undefined;
 }) {
   const id = useId();
   const [initialNow] = useState(() => new Date().toISOString());
@@ -101,7 +104,9 @@ function SubscriptionForm({
   const [operation, setOperation] = useState<ManualSubscriptionInput["operation"]>(
     subscription ? "update" : "assign",
   );
-  const [planId, setPlanId] = useState<PlanId | "">(subscription?.planId ?? plans[0]?.planId ?? "");
+  const [planId, setPlanId] = useState<PlanId | "">(
+    subscription?.planId ?? (previousRecord ? "" : plans[0]?.planId) ?? "",
+  );
   const [startsAt, setStartsAt] = useState(localDateTime(subscription?.startsAt ?? initialNow));
   const [endsAt, setEndsAt] = useState(
     localDateTime(subscription ? subscription.endsAt : addSubscriptionMonth(initialNow)),
@@ -121,6 +126,7 @@ function SubscriptionForm({
   const [reference, setReference] = useState("");
   const [receivedAt, setReceivedAt] = useState(localDateTime(initialNow));
   const [reason, setReason] = useState("");
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const lock = useRef(false);
@@ -184,6 +190,10 @@ function SubscriptionForm({
       setError("Enter a reason for free membership.");
       return;
     }
+    if (kind === "previously-paid" && (!previousRecord || !paymentConfirmed || noEndDate)) {
+      setError("Confirm the previous payment and its end date before linking access.");
+      return;
+    }
     const fields = {
       studentId,
       membershipId: subscription?.membershipId ?? null,
@@ -222,9 +232,11 @@ function SubscriptionForm({
             }
           : kind === "unpaid"
             ? { kind, amountMinor }
-            : kind === "complimentary"
-              ? { kind, reason: reason.trim() }
-              : { kind: "unchanged" };
+            : kind === "previously-paid" && previousRecord
+              ? { kind, recordId: previousRecord.recordId, paymentConfirmed: true }
+              : kind === "complimentary"
+                ? { kind, reason: reason.trim() }
+                : { kind: "unchanged" };
       pending.current = { key, input: { ...fields, requestId, settlement } };
     }
     lock.current = true;
@@ -263,6 +275,25 @@ function SubscriptionForm({
         ) : null}
       </div>
       {billing?.complimentary && billing.reason ? <p>Free membership: {billing.reason}</p> : null}
+      {billing?.previousPaymentRecordId ? (
+        <p>
+          Access is linked to a previous payment. Original receipts remain in the member archive.
+        </p>
+      ) : null}
+      {previousRecord && !subscription ? (
+        <div className="member-record-notice">
+          <h4>Previous paid membership</h4>
+          <p>
+            {previousRecord.plan.membershipPlan ?? "Plan not recorded"} ·{" "}
+            {previousRecord.plan.validFrom ?? "Start not recorded"} to{" "}
+            {previousRecord.plan.validUntil ?? "End not recorded"}
+          </p>
+          <p>
+            Choose the matching current plan and confirm the paid dates. Select Previously paid to
+            retain the original receipts without recording another payment.
+          </p>
+        </div>
+      ) : null}
       <fieldset disabled={busy || cancelled}>
         {subscription && !cancelled ? (
           <label className="member-subscription-field" htmlFor={`${id}-operation`}>
@@ -350,16 +381,47 @@ function SubscriptionForm({
             id={`${id}-settlement`}
             value={kind}
             disabled={paymentLocked}
-            onChange={(event) => setKind(event.target.value as typeof kind)}
+            onChange={(event) => {
+              const next = event.target.value as typeof kind;
+              setKind(next);
+              setPaymentConfirmed(false);
+              if (next === "previously-paid") {
+                setNoEndDate(false);
+                setStartsAt(
+                  previousRecord?.plan.validFrom ? `${previousRecord.plan.validFrom}T00:00` : "",
+                );
+                setEndsAt(
+                  previousRecord?.plan.validUntil
+                    ? new Date(Date.parse(previousRecord.plan.validUntil + "T00:00:00Z") + 86400000)
+                        .toISOString()
+                        .slice(0, 10) + "T00:00"
+                    : "",
+                );
+              }
+            }}
           >
             {operation === "update" ? (
               <option value="unchanged">Keep current payment status</option>
+            ) : null}
+            {previousRecord && operation === "assign" ? (
+              <option value="previously-paid">Previously paid: link existing payment</option>
             ) : null}
             <option value="paid">Payment received</option>
             <option value="unpaid">Unpaid — amount due</option>
             <option value="complimentary">Complimentary — no payment required</option>
           </select>
         </label>
+        {kind === "previously-paid" ? (
+          <label className="member-subscription-checkbox">
+            <input
+              type="checkbox"
+              required
+              checked={paymentConfirmed}
+              onChange={(event) => setPaymentConfirmed(event.target.checked)}
+            />
+            I have verified this member's previous payment, plan and paid period.
+          </label>
+        ) : null}
         {paymentLocked ? (
           <p className="member-subscription-help">
             Recorded payments are preserved. Choose Renew for a new period.{" "}
@@ -463,9 +525,11 @@ function SubscriptionForm({
 export function MemberSubscriptionEditor({
   studentId,
   onStatusChange,
+  previousRecord,
 }: {
   studentId: string;
   onStatusChange?: (saved: boolean) => void;
+  previousRecord?: RegyfitMemberRecord | undefined;
 }) {
   const [data, setData] = useState<{
     context: MemberSubscriptionContext;
@@ -504,7 +568,7 @@ export function MemberSubscriptionEditor({
     };
   }, [studentId, reload, onStatusChange]);
   function saved() {
-    setSuccess("Subscription saved. Payment history has been updated.");
+    setSuccess("Subscription saved. Access follows the confirmed paid period.");
     refresh();
   }
   return (
@@ -531,7 +595,12 @@ export function MemberSubscriptionEditor({
             </p>
           ) : null}
           {!data.context.memberships.some((item) => item.status !== "cancelled") ? (
-            <SubscriptionForm studentId={studentId} plans={data.plans} onSaved={saved} />
+            <SubscriptionForm
+              studentId={studentId}
+              plans={data.plans}
+              onSaved={saved}
+              previousRecord={previousRecord}
+            />
           ) : null}
           {data.context.memberships.map((subscription) => (
             <SubscriptionForm

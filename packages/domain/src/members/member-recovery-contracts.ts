@@ -73,6 +73,10 @@ export const memberRecoveryCandidateSchema = z.strictObject({
   dateOfBirth: z.string().optional(),
   membershipState: z.enum(["active", "inactive"]),
   source: z.enum(["regyfit", "member", "student"]).optional(),
+  archiveRecordId: z
+    .string()
+    .regex(/^[0-9]{1,12}$/u)
+    .optional(),
 });
 export const getMemberRecoveryDetailInputSchema = z.strictObject({
   requestId: opaqueId,

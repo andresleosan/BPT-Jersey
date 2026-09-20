@@ -176,6 +176,26 @@ describe("RegistrationsPanel", () => {
     expect(mocks.requestBooking).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { startsAt: stamp, endsAt: sessionFixture.startAt },
+    { startsAt: "2026-09-15T00:00:00.000Z", endsAt: null },
+  ])("refuses a class outside the paid period: %o", async (period) => {
+    mocks.listMemberNames.mockResolvedValue([
+      { studentId: "st2", fullName: "Willow S.", familyId: null },
+    ]);
+    mocks.listMemberships.mockResolvedValue([
+      { ...membership("m2", "st2", "f2", "active"), ...period },
+    ]);
+    render(<RegistrationsPanel session={sessionFixture} canEdit canReadMemberships />);
+    await screen.findByText("No one is registered yet.");
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "wi" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Willow S." }));
+    expect(
+      await screen.findByText(/outside the member's paid membership period/),
+    ).toBeInTheDocument();
+    expect(mocks.requestBooking).not.toHaveBeenCalled();
+  });
+
   it("names a refused membership list instead of blaming the member", async () => {
     mocks.listMemberNames.mockResolvedValue([
       { studentId: "st2", fullName: "Willow S.", familyId: null },

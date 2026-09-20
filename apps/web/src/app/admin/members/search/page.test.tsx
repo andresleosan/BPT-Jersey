@@ -375,7 +375,7 @@ describe("canonical name search (T051V2)", () => {
     const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
     expect(headings).not.toContain("Find a member");
     expect(screen.queryByLabelText("Member name")).toBeNull();
-    expect(headings.indexOf("Imported archive (read only)")).toBe(headings.length - 1);
+    expect(headings.indexOf("Previous member records")).toBe(headings.length - 1);
     expect(container.querySelectorAll("[style]")).toHaveLength(0);
     expect(container.querySelectorAll(".admin-status-badge")).toHaveLength(0);
   });
@@ -449,7 +449,7 @@ describe("canonical name search (T051V2)", () => {
       render(<SearchMembersPage />);
       expect(screen.getByLabelText("Member name")).toBeVisible();
       expect(screen.queryByLabelText("Exact identifier")).toBeNull();
-      expect(screen.queryByText("Imported archive (read only)")).toBeNull();
+      expect(screen.queryByText("Previous member records")).toBeNull();
       expect(clientMocks.listRegyfitMemberRecords).not.toHaveBeenCalled();
       cleanup();
     }

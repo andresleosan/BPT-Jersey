@@ -86,6 +86,11 @@ export function addSubscriptionMonth(value: string): string {
 }
 
 const manualSettlementSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("previously-paid"),
+    recordId: z.string().regex(/^[0-9]{1,12}$/u),
+    paymentConfirmed: z.literal(true),
+  }),
   z.strictObject({ kind: z.literal("unchanged") }),
   z.strictObject({ kind: z.literal("pay-as-you-go") }),
   z.strictObject({ kind: z.literal("complimentary"), reason: z.string().trim().min(1).max(240) }),
@@ -132,6 +137,15 @@ export const manualSubscriptionSchema = z
       });
     if (value.endsAt && Date.parse(value.endsAt) <= Date.parse(value.startsAt))
       context.addIssue({ code: "custom", path: ["endsAt"], message: "End must follow start." });
+    if (
+      value.settlement.kind === "previously-paid" &&
+      (value.operation !== "assign" || !value.endsAt)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["settlement"],
+        message: "Previous payments require a new subscription with a confirmed end date.",
+      });
     if (value.operation !== "update" && value.settlement.kind === "unchanged")
       context.addIssue({
         code: "custom",
@@ -160,6 +174,7 @@ export type OfficeMemberRegistration = z.infer<typeof officeMemberRegistrationSc
 export const subscriptionBillingSchema = z.strictObject({
   membershipId: id,
   complimentary: z.boolean(),
+  previousPaymentRecordId: z.string().optional(),
   currentInvoiceId: id.nullable(),
   reason: z.string().nullable(),
   invoices: z.array(

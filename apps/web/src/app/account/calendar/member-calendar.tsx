@@ -242,20 +242,32 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     const memberContext = {
       studentId: participant.studentId,
       membershipId: participant.membershipId,
+      ...(participant.membershipStartsAt
+        ? {
+            membershipStartsAt: participant.membershipStartsAt,
+            membershipEndsAt: participant.membershipEndsAt,
+          }
+        : {}),
       participantType: participant.participantType,
       planClassSites: participant.planClassSites,
       planOpenMatSites: participant.planOpenMatSites,
       weeklyClassLimit: participant.weeklyClassLimit,
-      ...(selectedWeek.groupAccess ? {
-        additionalProgramIds: selectedWeek.groupAccess.programIds,
-        dateOfBirth: selectedWeek.groupAccess.dateOfBirth,
-      } : {}),
+      ...(selectedWeek.groupAccess
+        ? {
+            additionalProgramIds: selectedWeek.groupAccess.programIds,
+            dateOfBirth: selectedWeek.groupAccess.dateOfBirth,
+          }
+        : {}),
     };
     const classesBookedByWeek = new Map<string, number>();
     for (const row of selectedWeek.sessions) {
       const rowProgram = programs.get(row.programId);
       if (row.status === "cancelled" || !bookings.has(row.sessionId) || !rowProgram) continue;
-      if (rowProgram.discipline === "open-mat" || memberContext.additionalProgramIds?.includes(row.programId)) continue;
+      if (
+        rowProgram.discipline === "open-mat" ||
+        memberContext.additionalProgramIds?.includes(row.programId)
+      )
+        continue;
       const key = jerseyWeekKey(row.startAt);
       classesBookedByWeek.set(key, (classesBookedByWeek.get(key) ?? 0) + 1);
     }
@@ -265,7 +277,8 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     for (const sessionRecord of sorted) {
       const program = programs.get(sessionRecord.programId);
       const day = dayOf(days, sessionRecord.startAt);
-      if (!program || !day || !canViewMemberSession(sessionRecord, program, memberContext)) continue;
+      if (!program || !day || !canViewMemberSession(sessionRecord, program, memberContext))
+        continue;
       const booking = bookings.get(sessionRecord.sessionId);
       const derived = deriveSessionStatus({
         session: sessionRecord,

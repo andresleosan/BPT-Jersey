@@ -36,7 +36,7 @@ import {
   importedSubscriptionQuerySchema,
   officeMemberRegistrationSchema,
 } from "@bpt-jersey/domain/memberships/admin";
-import { parseRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
+import { parseStoredRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 
 const identityKeySecret = defineSecret("MEMBER_DIRECTORY_IDENTITY_KEY_SECRET");
@@ -346,9 +346,7 @@ async function importedMemberRecord(academyId: string, recordId: string) {
     .doc(`academies/${academyId}/regyfitMemberRecords/${recordId}`)
     .get();
   const data = snapshot.data();
-  const parsed = parseRegyfitMemberRecord(
-    Object.fromEntries(Object.entries(data ?? {}).filter(([key]) => key !== "academyId")),
-  );
+  const parsed = parseStoredRegyfitMemberRecord(data);
   if (
     !parsed.ok ||
     parsed.value.recordId !== recordId ||

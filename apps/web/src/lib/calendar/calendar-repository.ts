@@ -28,6 +28,8 @@ export type CalendarParticipant = Readonly<{
   firstName: string;
   membershipId: string;
   planId: PlanId;
+  membershipStartsAt?: string;
+  membershipEndsAt?: string | null;
   participantType: ParticipantType;
   planClassSites: readonly Site[];
   planOpenMatSites: readonly Site[];
