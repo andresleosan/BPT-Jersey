@@ -90,6 +90,10 @@ const manualSettlementSchema = z.discriminatedUnion("kind", [
     kind: z.literal("previously-paid"),
     recordId: z.string().regex(/^[0-9]{1,12}$/u),
     paymentConfirmed: z.literal(true),
+    review: z.strictObject({
+      decisionId: z.uuid(), sourceVersion: z.string().regex(/^\d+:\d+$/u),
+      sourceItemIds: z.array(z.string().min(1).max(240)).min(1).max(20),
+    }).optional(),
   }),
   z.strictObject({ kind: z.literal("unchanged") }),
   z.strictObject({ kind: z.literal("pay-as-you-go") }),

@@ -57,7 +57,7 @@ export type CanonicalDirectoryReadTransaction = Readonly<{
   listCollection?: (input: Readonly<{
     academyId: string;
     collection: string;
-    equal?: Readonly<{ field: "studentId" | "canonicalStudentId"; value: string }>;
+    equal?: Readonly<{ field: "studentId" | "canonicalStudentId" | "membershipId" | "invoiceId"; value: string }>;
     afterDocumentId?: string;
     limit: number;
   }>) => Promise<readonly DirectoryReadDocument[]>;

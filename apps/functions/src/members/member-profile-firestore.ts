@@ -5,6 +5,9 @@ import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/f
 import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 
+import { canonicalMemberIdentityIds } from "./member-identity-resolution.js";
+import { createMemberDirectoryReadTransaction } from "./member-directory-firestore.js";
+
 import type { MemberProfileStore } from "./member-profile-service.js";
 
 const maxRelationships = 100;
@@ -53,22 +56,21 @@ export function createMemberProfileFirestoreStore(firestore: Firestore): MemberP
       return snapshot.exists ? userDisplayNameOf(snapshot.data()) : undefined;
     },
     async listStudentMemberships(academyId, studentId) {
-      const snapshot = await academy(academyId)
-        .collection("memberships")
-        .where("studentId", "==", studentId)
-        .limit(maxMemberships)
-        .get();
-      return snapshot.docs.flatMap((document) => {
-        if (document.get("source") === "legacy-import") return [];
-        if (document.get("source") !== undefined)
-          throw new HttpsError("failed-precondition", "Unsupported membership source.");
-        const parsed = parseMembershipRecord(document.data());
-        return parsed.ok &&
-          parsed.value.academyId === academyId &&
-          parsed.value.studentId === studentId &&
-          parsed.value.membershipId === document.id
-          ? [parsed.value]
-          : [];
+      return firestore.runTransaction(async (tx) => {
+        const ids = await canonicalMemberIdentityIds(createMemberDirectoryReadTransaction(firestore, tx), academyId, studentId);
+        const pages = await Promise.all(ids.map((id) => tx.get(academy(academyId).collection("memberships")
+          .where("studentId", "==", id).limit(maxMemberships + 1))));
+        const docs = pages.flatMap((page) => page.docs);
+        if (docs.length > maxMemberships) throw new HttpsError("failed-precondition", "Review this member's subscription history in bounded pages.");
+        return docs.flatMap((document) => {
+          if (document.get("source") === "legacy-import") return [];
+          if (document.get("source") !== undefined) throw new HttpsError("failed-precondition", "Unsupported membership source.");
+          const parsed = parseMembershipRecord(document.data());
+          if (!parsed.ok || parsed.value.academyId !== academyId || !ids.includes(parsed.value.studentId) || parsed.value.membershipId !== document.id) {
+            throw new HttpsError("failed-precondition", "Subscription ownership needs inventory review.");
+          }
+          return [parsed.value];
+        });
       });
     },
     async getPlanDisplayName(academyId, planId) {

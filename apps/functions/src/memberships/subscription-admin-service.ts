@@ -1,3 +1,5 @@
+import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
+import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
@@ -71,37 +73,43 @@ export async function listMemberSubscriptionRecords(
   studentId: string,
 ): Promise<MemberSubscriptionContext> {
   const base = db.doc(`academies/${academyId}`);
-  const [studentDoc, memberships, plans] = await Promise.all([
-    base.collection("students").doc(studentId).get(),
-    base.collection("memberships").where("studentId", "==", studentId).limit(101).get(),
-    base.collection("plans").where("active", "==", true).get(),
-  ]);
-  const studentData = studentDoc.data();
-  if (studentData === undefined) throw new HttpsError("not-found", "Member record unavailable.");
-  const student = studentRecord(studentData, academyId, studentId);
-  if (memberships.size > 100) invalid("Too many subscriptions for this member. Contact support.");
-  return {
-    studentId,
-    fullName: student.fullName,
-    eligiblePlanIds: plans.docs.flatMap((doc) => {
-      const plan = parsePlanRecord(doc.data());
-      return plan.ok && plan.value.planId === doc.id && eligible(plan.value, student)
-        ? [plan.value.planId]
-        : [];
-    }),
-    memberships: memberships.docs
-      .filter((doc) => {
-        if (doc.get("source") === "legacy-import") return false;
-        if (doc.get("source") !== undefined) invalid("Unsupported membership source.");
-        return true;
-      })
-      .map((doc) => {
-        const membership = membershipRecord(doc.data(), academyId, doc.id);
-        if (membership.studentId !== studentId) invalid("Subscription is unavailable.");
-        return project(membership);
-      })
-      .sort((a, b) => b.startsAt.localeCompare(a.startsAt)),
-  };
+  return db.runTransaction(async (tx) => {
+    const ids = await canonicalMemberIdentityIds(createMemberDirectoryReadTransaction(db, tx), academyId, studentId);
+    const canonicalId = ids[0]!;
+    const [studentDoc, membershipPages, plans] = await Promise.all([
+      tx.get(base.collection("students").doc(canonicalId)),
+      Promise.all(ids.map((id) => tx.get(base.collection("memberships").where("studentId", "==", id).limit(101)))),
+      tx.get(base.collection("plans").where("active", "==", true).limit(101)),
+    ]);
+    const memberships = { docs: membershipPages.flatMap((page) => page.docs), size: membershipPages.reduce((n, page) => n + page.size, 0) };
+    if (plans.size > 100) invalid("The plan catalogue requires review.");
+    const studentData = studentDoc.data();
+    if (studentData === undefined) throw new HttpsError("not-found", "Member record unavailable.");
+    const student = studentRecord(studentData, academyId, canonicalId);
+    if (memberships.size > 100) invalid("Too many subscriptions for this member. Contact support.");
+    return {
+      studentId: canonicalId,
+      fullName: student.fullName,
+      eligiblePlanIds: plans.docs.flatMap((doc) => {
+        const plan = parsePlanRecord(doc.data());
+        return plan.ok && plan.value.planId === doc.id && eligible(plan.value, student)
+          ? [plan.value.planId]
+          : [];
+      }),
+      memberships: memberships.docs
+        .filter((doc) => {
+          if (doc.get("source") === "legacy-import") return false;
+          if (doc.get("source") !== undefined) invalid("Unsupported membership source.");
+          return true;
+        })
+        .map((doc) => {
+          const membership = membershipRecord(doc.data(), academyId, doc.id);
+          if (!ids.includes(membership.studentId)) invalid("Subscription is unavailable.");
+          return project(membership);
+        })
+        .sort((a, b) => b.startsAt.localeCompare(a.startsAt)),
+    };
+  });
 }
 
 export async function editMemberSubscription(
