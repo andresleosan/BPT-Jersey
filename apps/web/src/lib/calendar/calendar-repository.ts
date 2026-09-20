@@ -1,3 +1,4 @@
+import type { StudentGroupAccess } from "@bpt-jersey/domain/schedule/member-calendar";
 import type {
   AttendanceRecord,
   BookingRecord,
@@ -40,6 +41,7 @@ export type CalendarMember = Readonly<{
 }>;
 
 export type CalendarWeekData = Readonly<{
+  groupAccess?: StudentGroupAccess;
   sessions: readonly SessionRecord[];
   programs: readonly ProgramRecord[];
   bookings: readonly BookingRecord[];

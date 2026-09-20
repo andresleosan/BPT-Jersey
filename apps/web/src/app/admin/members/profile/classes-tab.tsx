@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { GroupAccessEditor } from "./group-access-editor";
 import { useEffect, useState } from "react";
 import type {
   MemberClassCursor,
@@ -184,9 +185,10 @@ function ClassSection({
     </section>
   );
 }
-export function ClassesTab({ studentId, onUnavailable }: RecordProps) {
+export function ClassesTab({ studentId, onUnavailable, canManageGroups = false }: RecordProps & { canManageGroups?: boolean }) {
   return (
     <div>
+      {canManageGroups ? <GroupAccessEditor key={studentId} studentId={studentId} /> : null}
       <p>
         Booking requests and recorded attendance, newest activity first. Session dates are shown
         separately.

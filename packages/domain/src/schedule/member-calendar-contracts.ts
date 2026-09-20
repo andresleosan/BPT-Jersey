@@ -231,6 +231,9 @@ export type CalendarMemberContext = Readonly<{
   planClassSites: readonly Site[];
   planOpenMatSites: readonly Site[];
   weeklyClassLimit: WeeklyClassLimit;
+  additionalProgramIds?: readonly string[];
+  /** null means the live profile needs a date of birth; undefined supports fixture contexts. */
+  dateOfBirth?: string | null;
 }>;
 
 export type DerivedSessionStatus = Readonly<{
@@ -247,12 +250,29 @@ function lockedReasonFor(
   program: ProgramRecord,
   member: CalendarMemberContext,
 ): LockedReason | undefined {
-  if (program.ageBand !== "all" && program.ageBand !== member.participantType) return "age_band";
+  if (member.additionalProgramIds?.includes(program.programId)) return undefined;
+  if (member.dateOfBirth === null) return "age_band";
+  const band = member.dateOfBirth === undefined
+    ? member.participantType
+    : participantTypeOn(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
+  if (program.ageBand !== "all" && program.ageBand !== band) return "age_band";
   const site = sessionSite(session);
   if (program.discipline === "open-mat") {
     return member.planOpenMatSites.includes(site) ? undefined : "open_mat";
   }
   return member.planClassSites.includes(site) ? undefined : "site";
+}
+
+/** Use the session date so birthdays change group access on the correct day. */
+export function participantTypeOn(dateOfBirth: string, dateKey: string): ParticipantType {
+  let age = Number(dateKey.slice(0, 4)) - Number(dateOfBirth.slice(0, 4));
+  if (dateKey.slice(5) < dateOfBirth.slice(5)) age -= 1;
+  return age >= 18 ? "adult" : age >= 12 ? "teens" : "kids";
+}
+
+/** Group/site access is visibility; capacity and temporary limits are session states. */
+export function canViewMemberSession(session: SessionRecord, program: ProgramRecord, member: CalendarMemberContext): boolean {
+  return lockedReasonFor(session, program, member) === undefined;
 }
 
 export function deriveSessionStatus(input: {
@@ -279,10 +299,11 @@ export function deriveSessionStatus(input: {
   if (booked) return Object.freeze({ status: "booked" });
 
   const bookable =
-    input.session.status === "scheduled" &&
+    input.program.active && input.session.status === "scheduled" &&
     isWithinBookingCutoff(input.session.startAt, input.now.toISOString(), calendarCutoffMinutes);
   if (!bookable || input.session.capacity === null) return Object.freeze({ status: "closed" });
   if (
+    !input.member.additionalProgramIds?.includes(input.program.programId) &&
     input.program.discipline !== "open-mat" &&
     input.member.weeklyClassLimit !== null &&
     (input.weeklyClassesBooked ?? 0) >= input.member.weeklyClassLimit
@@ -354,3 +375,5 @@ export function lockedReasonLabel(
   if (reason === "weekly_limit") return "Weekly class limit reached";
   return `Open Mats at ${site} aren't in your plan`;
 }
+
+export * from "./student-group-access-contracts";

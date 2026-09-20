@@ -114,3 +114,15 @@ confirmation identifies it by name. Staff ID and password remain valid after pro
 admin panel accepts the refreshed administrative claims without requiring an email. The coaching
 profile and unrelated claims remain intact. New email invitations still activate through verified
 Google sign-in. Publication of this correction is separate.
+
+## Additional member group access (2026-09-20)
+
+The member calendar hides sessions outside the member's age group and plan sites. Owners and
+administrators manage additional program access from Members → profile → Classes. Each grant
+adds to normal access and waives age, site and class allowance/weekly limits for that program;
+additional-group bookings do not consume the normal weekly allowance while the grant is active.
+Active membership and plan, payment standing, session capacity and booking deadlines still apply.
+Full or temporarily blocked sessions within accessible groups remain visible without a booking
+action. Grant changes are recorded with actor, revision and before/after groups, and are checked
+inside booking transactions, including waitlist offers. Member/guardian reads are scoped to the
+canonical student. Publication requires coordinated Functions and frontend deployment.
