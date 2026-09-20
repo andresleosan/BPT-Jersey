@@ -2,7 +2,7 @@
 
 Date: 20 September 2026
 
-Status: written specification for user review. The four conversational design blocks were approved, including the correction that requests remain in the existing Enrolment requests section. This document has not yet been approved as the implementation specification. No application, production data or account permissions have been changed by this design work.
+Status: written specification for user review. The four conversational design blocks were approved, including the correction that requests remain in the existing Enrolment requests section. The user subsequently requested automatic training-group matching and a member-facing form for missing training details, incorporated in section 7.1. This updated document has not yet been approved as the implementation specification. No application, production data or account permissions have been changed by this design work.
 
 ## 1. Purpose and agreed boundaries
 
@@ -96,7 +96,27 @@ Guardian changes and adulthood retain who made historical payments and the athle
 
 Retain belt, stripes, level dates and training progress. Reconcile a reviewed historical balance and the attendance cut-off before combining them with new BPT activity. Do not fabricate dated attendance events from an aggregate count. Count each event once and identify incomplete coverage explicitly.
 
-Confirm group, location and class access using the relevant age, level and plan permissions. A belt alone does not establish all training assignments. Preserve existing confirmed assignments; send ambiguous mappings for administrative review. Booking requires the applicable confirmed plan and normal class permissions, even when profile access has already been approved.
+Derive group and class eligibility automatically when confirmed age, centre, level and the configured class rules produce an unambiguous match. A belt alone does not establish all training assignments. Preserve existing confirmed assignments and specific permissions; send ambiguous or conflicting mappings for administrative review. Booking requires the applicable confirmed plan and normal class permissions, even when profile access has already been approved.
+
+### 7.1 Complete your training details
+
+Provide **Complete your training details** on the athlete's member interface and on an authorised guardian's selected child profile. Surface it when information required to determine the training group or subscription is missing or unconfirmed. Keep the rest of the approved profile and confirmed history available. Profiles with complete, confirmed details and valid coverage should proceed directly to their eligible sessions without an unnecessary completion step.
+
+Prefill available birth date, training centre and historical plan/frequency, identifying information that needs confirmation. Ask for missing or unconfirmed values rather than requiring the member to re-enter a complete legacy record. Use the date of birth to calculate age; do not ask the member to type an age that will become stale. Confirm the current training centre, Town or West, and the desired training frequency or pay-as-you-go preference where it is needed to distinguish plans. Existing contact or training-time fields from the recovery flow can be reused when their operational purpose requires them; they are not substitutes for plan eligibility.
+
+Use current configured class age ranges, centre, discipline, level restrictions and existing explicit permissions to derive eligible groups. An unambiguous match from confirmed data can be assigned automatically. If input data still needs verification, display a calculated proposal until verification is complete. Multiple ambiguous matches or no matching group require review; do not select the first record arbitrarily. Recheck eligibility at the session date so birthdays are handled correctly.
+
+Training age ranges, subscription participant types and account independence are separate rules. The source includes configurable class presets such as 4–7, 8–11, 12–15 and 16+, while the current subscription categorisation treats adults from 18. Do not hard-code the presets as universal rules or silently equate a 16+ training group with an adult account or adult subscription. The implementation must use and reconcile the actual configured catalogue and class restrictions consistently across assignment and booking.
+
+Filter subscription options by the current authorised catalogue, eligibility, site coverage and frequency. Preserve an existing confirmed subscription if compatible. Where one option remains, suggest it automatically. Where several options fit, let the member choose their preferred compatible option with its current price, frequency, sites and billing period visible. Do not silently upgrade, downgrade or charge a member. Retired plans may remain part of history but must not be offered as new selections. If no option fits, allow submission for BPT review instead of trapping the member behind an empty required selector.
+
+A member's correction to a recorded birth date or centre, or a requested change of subscription, does not silently overwrite confirmed data or an existing paid period. Preserve the original and route discrepancies through the agreed administrative review. Training preferences and self-declared details do not prove historical payment. Level changes remain a staff correction workflow; the member may flag an error rather than award their own progression.
+
+Once identity access is approved, missing training-data review belongs to **Members → Data review** on the same member record. If an existing enrolment or recovery request is still awaiting completion, attach the submitted details to that request in **Enrolment requests**. Do not create a duplicate access request or a separate member directory.
+
+For uncertain legacy coverage, submitting the form leaves the subscription under review. Once the required details and applicable subscription coverage are confirmed, the calendar offers eligible sessions, subject to normal capacity, booking windows, frequency limits and plan conditions. A calculated group or selected plan alone does not enable booking, establish a paid period or authorise a new charge. Pay-as-you-go options retain their own confirmed billing rules rather than inventing a prepaid period.
+
+The standalone preview includes **06 · Training details**: a fictional member with prefilled details, a calculated group, compatible plan choices, a no-match submission path and a design-only preview of booking access after BPT confirmation. The catalogue and dates shown are examples, not a production-data audit or current price quotation.
 
 ## 8. Unified Members interface
 
@@ -140,7 +160,7 @@ The implementation plan should sequence: identity/reconciliation foundations; ac
 
 The prototype is `/root/compartido/bpt-members-propuesta-v1.html`. It is standalone, uses embedded assets and fictional data, and makes no backend requests. Authentication, approval, edits and payments are demonstrations. The interview record is `/root/compartido/bpt-members-decisiones.md`.
 
-Validation so far consists of code/document inspection and scoped prototype inspection. Earlier desktop/mobile preview work used fictional data. No production inventory has been performed for this design and no runtime migration guarantees have been established.
+Validation so far consists of code/document inspection and scoped prototype inspection. Desktop/mobile preview work, including the training-details screen, used fictional data. No production inventory has been performed for this design and no runtime migration guarantees have been established.
 
 Follow the repository's explicit preference: no automated test suites, broad lint/type checks or builds are required or authorised by this design review. Use code inspection and focused review. Any later requested tests or authorised deployment checks belong to their approved execution scope.
 
@@ -157,3 +177,8 @@ The next step after approval of this written specification is an implementation 
 - `apps/web/src/app/admin/members/recovery/page.tsx`
 - `apps/web/src/app/login/recover/recovery-form.tsx`
 - `packages/domain/src/profiles/profile-contracts.ts`
+- `packages/domain/src/schedule/schedule-contracts.ts`
+- `packages/domain/src/schedule/member-calendar-contracts.ts`
+- `packages/domain/src/memberships/plan-contracts.ts`
+- `packages/domain/src/members/enrolment-request-contracts.ts`
+- `apps/web/src/app/enrol/plan-choices.tsx`
