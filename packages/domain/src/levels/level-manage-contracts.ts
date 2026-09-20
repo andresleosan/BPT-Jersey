@@ -44,8 +44,8 @@ function boundedFreeText(min: number, max: number) {
 /**
  * The operator note on a promotion decision: 10–500 characters, trimmed, no control characters
  * other than line breaks. Exported because the assign SERVICE re-checks it at the store, the same
- * way it re-checks the promotion date there: the note is the only record of why somebody was
- * promoted below criteria, on an irreversible audited write, so it is not left to the boundary.
+ * way it re-checks the promotion date there. Administrators and owners may omit the note even
+ * below criteria; a supplied note must still meet this contract. Legacy head coaches require one.
  */
 export const promotionNoteSchema = boundedFreeText(10, 500);
 // Gaps are rendered in the assign dialog and the history table, so they carry the same rule.

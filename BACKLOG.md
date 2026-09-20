@@ -24,6 +24,8 @@
 
 ## Normales
 
+- **T057V2 · en-progreso:** Graduación manual por administrator/owner sin requisitos deportivos ni nota obligatoria. Requisitos pendientes y autor conservados en historial; coach restringido. Rama `feat/manual-administrative-graduations`; 4.320 pruebas en 402 archivos y 10 pruebas de navegador móvil/escritorio pasan; TypeScript, lint, formato y empaquetado verificados. Pendiente publicación autorizada de `assignLevel` y web. Decisión en ADR-012.
+
 - **T056V2 · en-progreso:** Staff: directorio con nombre, correo y rol para owner/administrator; administrator unifica oficina y coach principal; owner hereda ambas capacidades. Ascensos e invitaciones a administrator/owner, reservados al owner. Activación con Google verificado desde Staff. Rama `feat/staff-directory-roles`; validado localmente: 4.312 pruebas en 402 archivos, 18 pruebas de navegador móvil/escritorio, TypeScript, lint y formato. Implementación `bd50832`; 16 funciones desplegadas el 2026-09-20 con autorización explícita: 6 creadas y 10 actualizadas, 16/16 HTTP 401 sin sesión. Evidencia `.tmp/staff-roles-release/probe-results.json`. Pendiente push de web y Success en Pages; las cuentas headCoach se convierten explícitamente desde Staff. Decisión y compatibilidad en ADR-011.
 
 | ID     | Tarea                                                                                               | Estado    |

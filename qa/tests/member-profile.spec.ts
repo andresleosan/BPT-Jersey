@@ -583,8 +583,8 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     await expect(notMet).toContainText("Classes 12/25 not met");
     await expect(
       promote.getByRole("button", { name: "Confirm promotion" }),
-      "Confirm is refused until the mandatory note is valid",
-    ).toBeDisabled();
+      "An owner can confirm unmet criteria without a note",
+    ).toBeEnabled();
     await auditAxe(page, "assign confirmation dialog at 1440px");
     await page.screenshot({ path: "screenshots/t051-ibjjf-assign-dialog-desktop.png" });
 
@@ -912,7 +912,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     expect(session.errors, "no uncaught page errors").toEqual([]);
   });
 
-  test("a coach may rate but never decide; an administrator sees no assessment at all", async ({
+  test("a coach may rate but never decide; an administrator may rate and graduate", async ({
     page,
   }) => {
     test.setTimeout(240_000);
@@ -926,7 +926,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     await expect(page.getByRole("form", { name: "Assign next level" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Void" })).toHaveCount(0);
     await expect(
-      page.getByText("Only a head coach or the owner can open, assign or void a level."),
+      page.getByText("Only an administrator or the owner can open, assign or void a level."),
     ).toBeVisible();
     await page.screenshot({ path: "screenshots/t051-ibjjf-manage-coach-desktop.png" });
 
@@ -942,12 +942,8 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).toHaveURL(/\/account/u, { timeout: 30_000 });
     await openManage(page, kid.studentId);
-    await expect(
-      page.getByRole("region", { name: "Skills assessment" }),
-      "G12: an administrator is offered no assessment at all",
-    ).toHaveCount(0);
-    await expect(page.getByRole("form", { name: "Assign next level" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Void" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Skills assessment" })).toBeVisible();
+    await expect(page.getByRole("form", { name: "Assign next level" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Level history" })).toBeVisible();
     await page.screenshot({ path: "screenshots/t051-ibjjf-manage-administrator-desktop.png" });
   });

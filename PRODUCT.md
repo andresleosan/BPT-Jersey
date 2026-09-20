@@ -58,3 +58,11 @@ new head-coach assignments are retired. Belt levels are independent of access ro
 Staff includes an office-only list of team names, emails and roles. Only owners change administrative
 roles or authorise an email for administrator/owner access. Email authorisations activate through
 verified Google sign-in at `/staff/login`, expire after seven days and do not send email automatically.
+
+## Manual graduations (2026-09-20)
+
+Administrators and owners may promote an active student to a higher catalogue level regardless of
+unmet class, time, skill or age criteria, including skipped ranks. The review still shows unmet
+criteria; a note is optional. The server records the decision, actor and criteria as they stood.
+Coach permissions remain unchanged; historical headCoach accounts still need a note below criteria.
+Academy scope, active authorisation, valid dates and current level references remain enforced.

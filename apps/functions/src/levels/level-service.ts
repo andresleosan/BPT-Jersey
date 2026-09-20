@@ -1095,9 +1095,9 @@ function buildLevelHistory(
 }
 
 /**
- * Grill G7: the server, never the caller, decides what is missing, and a below-criteria assignment
- * without a note is refused. Shared by both stores so the gap list and the stored snapshot can
- * never diverge between them.
+ * The server records unmet sporting criteria for every decision. Administrators and owners may
+ * graduate without meeting them or supplying a note; legacy head coaches still require a note.
+ * Both stores share this policy and the historical snapshot.
  */
 function promotionAssignmentOf(
   params: Readonly<{
@@ -1105,6 +1105,7 @@ function promotionAssignmentOf(
     from: LevelDefinitionRecord;
     to: LevelDefinitionRecord;
     input: AssignLevelInput;
+    decidedByRole: "headCoach" | "owner" | "administrator";
     currentLevelStartedAt: string;
     importedBaseline: ImportedBaseline | null;
     attendedAt: readonly string[];
@@ -1135,7 +1136,7 @@ function promotionAssignmentOf(
       params.dateOfBirth === null ? null : ageInCompletedYears(params.dateOfBirth, promotedAt),
   });
   const note = assignmentNoteOf(params.input.note);
-  if (gaps.length > 0 && note === null) {
+  if (gaps.length > 0 && note === null && params.decidedByRole === "headCoach") {
     throw new LevelStoreError("invalid", "A note is required when criteria are not met");
   }
   return Object.freeze({
@@ -2329,6 +2330,7 @@ export function createLevelCatalogStore({
           from,
           to,
           input,
+          decidedByRole,
           currentLevelStartedAt: startedAt,
           importedBaseline: storedImportedBaseline(headData.importedBaseline),
           attendedAt,
@@ -3332,6 +3334,7 @@ export function createInMemoryLevelStore(): LevelCatalogStore {
         from,
         to,
         input,
+        decidedByRole,
         currentLevelStartedAt: head.currentLevelStartedAt,
         importedBaseline: storedImportedBaseline(head.importedBaseline),
         attendedAt: [],
