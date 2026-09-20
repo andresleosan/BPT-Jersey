@@ -445,6 +445,7 @@ function generateSessions(
 }
 
 function bookingFor(session: SessionRecord, p: CalendarParticipant): BookingRecord {
+  if (!p.membershipId) throw new Error("An ordinary demo booking requires a membership.");
   return {
     bookingId: `bk_${session.sessionId}_${p.studentId}`,
     academyId,

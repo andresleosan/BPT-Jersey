@@ -37,7 +37,7 @@ cpSync(
 run(nodeExecutable, [
   tscExecutable,
   "-p",
-  "apps/functions/tsconfig.json",
+  "apps/functions/tsconfig.deploy.json",
   "--module",
   "ESNext",
   "--moduleResolution",

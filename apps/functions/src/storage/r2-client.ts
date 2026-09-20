@@ -365,7 +365,7 @@ export function createEmulatorR2Client(
     createPrivateImageUrl: async (input) => {
       assertObjectKey(input.objectKey);
       if (!input.objectKey.includes("/course-proofs/") || input.expiresInSeconds !== 60 || !["image/jpeg", "image/png"].includes(input.contentType)) throw new Error("Invalid private image request");
-      return assertHttpsAbsoluteUrl(await getSigner(new GetObjectCommand({Bucket: options.bucket, Key: input.objectKey, ResponseContentType: input.contentType, ResponseCacheControl: "private, no-store, max-age=0", ResponseContentDisposition: "inline"}), {expiresIn: 60}));
+      return assertHttpsAbsoluteUrl(signedUrl(input.objectKey, "download"));
     },
     putObject: async (objectKey, body, contentType) => {
       assertObjectKey(objectKey);

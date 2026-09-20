@@ -1,6 +1,8 @@
 import type { CoursePage, CourseSlot, PublicCourse } from "@bpt-jersey/domain/courses";
 export type PublicCourseSlot = CourseSlot & {status: string};
-const endpoint = process.env.NEXT_PUBLIC_COURSES_API_URL ?? "";
+const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+const endpoint = process.env.NEXT_PUBLIC_COURSES_API_URL
+  ?? (projectId ? `https://us-central1-${projectId}.cloudfunctions.net/coursePublic` : "");
 type Entry = {data?: unknown; etag?: string | undefined; promise?: Promise<unknown> | undefined; controller?: AbortController | undefined; consumers: number};
 const cache = new Map<string, Entry>();
 /** Public JSON only. This module deliberately has no Firebase dependencies. */
