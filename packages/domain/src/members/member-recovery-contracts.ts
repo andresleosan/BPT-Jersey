@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  regyfitGraduationSchema,
+  regyfitPlanSchema,
+  regyfitAttendanceSchema,
+  regyfitPaymentSchema,
+} from "./regyfit-member-record-contracts";
 import { trainingCenters, trainingTimePreferences } from "../profiles/profile-contracts";
 
 const opaqueId = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -54,6 +60,7 @@ export const memberRecoveryRequestRowSchema = z.strictObject({
   status: memberRecoveryStatusSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  accountVerified: z.boolean().optional(),
 });
 export const listMemberRecoveryRequestsResultSchema = z.strictObject({
   requests: z.array(memberRecoveryRequestRowSchema).max(50),
@@ -65,8 +72,12 @@ export const memberRecoveryCandidateSchema = z.strictObject({
   email: z.string().max(320).optional(),
   dateOfBirth: z.string().optional(),
   membershipState: z.enum(["active", "inactive"]),
+  source: z.enum(["regyfit", "member", "student"]).optional(),
 });
-export const getMemberRecoveryDetailInputSchema = z.strictObject({ requestId: opaqueId });
+export const getMemberRecoveryDetailInputSchema = z.strictObject({
+  requestId: opaqueId,
+  search: z.string().trim().min(2).max(160).optional(),
+});
 export const getMemberRecoveryDetailResultSchema = z.strictObject({
   request: memberRecoveryRequestRowSchema.extend({
     previousEmail: z.string().max(320),
@@ -91,3 +102,19 @@ export const reviewMemberRecoveryResultSchema = z.strictObject({
 });
 export type MemberRecoveryRequestRow = z.infer<typeof memberRecoveryRequestRowSchema>;
 export type MemberRecoveryDetail = z.infer<typeof getMemberRecoveryDetailResultSchema>;
+export const memberRecoveryHistorySchema = z.strictObject({
+  records: z
+    .array(
+      z.strictObject({
+        recordId: z.string(),
+        fullName: boundedText,
+        capturedAt: z.iso.datetime(),
+        graduation: regyfitGraduationSchema,
+        plan: regyfitPlanSchema,
+        attendance: regyfitAttendanceSchema,
+        payments: z.array(regyfitPaymentSchema).max(50),
+      }),
+    )
+    .max(20),
+});
+export type MemberRecoveryHistory = z.infer<typeof memberRecoveryHistorySchema>;

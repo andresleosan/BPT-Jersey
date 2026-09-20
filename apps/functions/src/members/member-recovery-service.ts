@@ -7,15 +7,22 @@ import {
   completeMemberRecoveryInputSchema,
   reviewMemberRecoveryInputSchema,
   getMemberRecoveryDetailInputSchema,
+  memberRecoveryProfileSchema,
+  memberRecoveryHistorySchema,
   type MemberRecoveryProfile,
   type CompleteMemberRecoveryResult,
   type MemberRecoveryDetail,
   type MemberRecoveryRequestRow,
 } from "@bpt-jersey/domain/members/recovery";
+import { parseStoredRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 import {
-  parseRegyfitMemberRecord,
-  type RegyfitMemberRecord,
-} from "@bpt-jersey/domain/members/regyfit-records";
+  loadRecoverySources,
+  archiveForLegacyMember,
+  normalizeRecoveryName,
+  type RecoverySource,
+  type RecoverySourceKind,
+} from "./member-recovery-sources.js";
+export { normalizeRecoveryName } from "./member-recovery-sources.js";
 import {
   studentAdminProfileSchema,
   normalizeAdministrativeIdentifier,
@@ -64,6 +71,7 @@ export type MemberRecoveryDependencies = Readonly<{
   auth: {
     getUser: (uid: string) => Promise<RecoveryAuthUser>;
     setCustomUserClaims: (uid: string, claims: Record<string, unknown>) => Promise<void>;
+    revokeRefreshTokens?: (uid: string) => Promise<void>;
   };
   now?: () => string;
 }>;
@@ -77,7 +85,13 @@ const ticketSchema = z.strictObject({
   updatedAt: z.string(),
   expiresAt: z.string(),
   candidates: z
-    .array(z.strictObject({ candidateId: id, recordId: z.string().regex(/^\d{1,12}$/u) }))
+    .array(
+      z.strictObject({
+        candidateId: id,
+        recordId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+        kind: z.enum(["regyfit", "member", "student"]).optional(),
+      }),
+    )
     .max(20),
   userId: z.string().optional(),
   accountEmail: z.string().optional(),
@@ -87,6 +101,8 @@ const ticketSchema = z.strictObject({
   approvedEmail: z.string().optional(),
   reviewedBy: z.string().optional(),
   studentId: z.string().optional(),
+  profile: memberRecoveryProfileSchema.optional(),
+  retiredUserId: z.string().optional(),
 });
 type Ticket = z.infer<typeof ticketSchema>;
 const linkSchema = z.strictObject({
@@ -95,7 +111,7 @@ const linkSchema = z.strictObject({
   studentId: z.string(),
   userId: z.string(),
   recoveryId: id,
-  source: z.literal("regyfit-admin-capture"),
+  source: z.enum(["regyfit-admin-capture", "legacy-member-directory", "canonical-student"]),
   sourceCapturedAt: z.string(),
   verificationMethod: z.enum(["registered-email", "administrator-review"]),
   reviewedBy: z.string().optional(),
@@ -103,14 +119,6 @@ const linkSchema = z.strictObject({
   createdBy: z.string(),
   schemaVersion: z.literal("1"),
 });
-export function normalizeRecoveryName(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .trim()
-    .replace(/\s+/gu, " ")
-    .toLocaleLowerCase("en-US");
-}
 const email = (value: string) => value.trim().toLowerCase();
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
@@ -124,21 +132,6 @@ function safeSegment(value: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(value))
     throw new HttpsError("failed-precondition", "Recovery configuration is unavailable");
   return value;
-}
-// Recovery accepts stored import metadata without carrying obsolete access data into identity work.
-// Keep the strict source parser authoritative for every other field; never mutate the import.
-function parseStoredRegyfitMemberRecord(value: unknown) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return parseRegyfitMemberRecord(value);
-  }
-  const record = Object.fromEntries(Object.entries(value).filter(([key]) => key !== "academyId"));
-  const access = record.appAccess;
-  if (typeof access === "object" && access !== null && !Array.isArray(access)) {
-    record.appAccess = Object.fromEntries(
-      Object.entries(access).filter(([key]) => key !== "password"),
-    );
-  }
-  return parseRegyfitMemberRecord(record);
 }
 function validDate(value: string | undefined): value is string {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
@@ -188,11 +181,14 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     if (ticket.academyId !== academyId || ticket.recoveryId !== recoveryId) conflict();
     return ticket;
   }
-  async function source(t: Transaction, recordId: string) {
-    const snapshot = await t.get(ref("regyfitMemberRecords", recordId));
-    const parsed = parseStoredRegyfitMemberRecord(snapshot.data());
-    if (!parsed.ok || parsed.value.recordId !== recordId) conflict();
-    return parsed.value;
+  function source(
+    sources: readonly RecoverySource[],
+    recordId: string,
+    kind: RecoverySourceKind = "regyfit",
+  ) {
+    const record = sources.find((s) => s.kind === kind && s.recordId === recordId);
+    if (!record) conflict();
+    return archiveForLegacyMember(record, sources);
   }
   async function account(uid: string) {
     safeSegment(uid);
@@ -228,6 +224,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     status: ticket.status,
     createdAt: ticket.createdAt,
     updatedAt: ticket.updatedAt,
+    accountVerified: ticket.accountVerified === true,
   });
   function audit(
     t: Transaction,
@@ -248,11 +245,11 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
   async function writeLink(
     t: Transaction,
     ticket: Ticket,
-    record: RegyfitMemberRecord,
+    record: RecoverySource,
     user: RecoveryAuthUser,
     supplied: MemberRecoveryProfile,
     time: string,
-  ): Promise<CompleteMemberRecoveryResult> {
+  ): Promise<CompleteMemberRecoveryResult & { retiredUserId?: string }> {
     const uid = user.uid;
     const accountEmail = email(user.email ?? "");
     // Imported evidence of a minor or an impossible birth date cannot be corrected by
@@ -284,7 +281,14 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       value: uid,
       secretMaterial: d.identitySecretMaterial,
     });
-    const linkRef = ref("regyfitMemberLinks", record.recordId);
+    const sourceKey =
+      record.kind === "regyfit"
+        ? record.recordId
+        : mac("bpt-recovery-source-v1", [academyId, record.kind, record.recordId]);
+    const linkRef = ref(
+      record.kind === "regyfit" ? "regyfitMemberLinks" : "memberRecoverySourceLinks",
+      sourceKey,
+    );
     const [
       stateSnap,
       guardSnap,
@@ -294,6 +298,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       studentsSnap,
       profilesSnap,
       officeLinkSnap,
+      migrationSnap,
     ] = await Promise.all([
       t.get(stateRef),
       t.get(guardRef),
@@ -302,7 +307,13 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       t.get(ref("users", uid)),
       t.get(d.firestore.collection(root + "students").limit(1001)),
       t.get(d.firestore.collection(root + "studentAdminProfiles").limit(1001)),
-      t.get(ref("regyfitOfficeLinks", record.recordId)),
+      t.get(
+        ref(
+          "regyfitOfficeLinks",
+          record.kind === "regyfit" ? record.recordId : "not-an-archive-record",
+        ),
+      ),
+      t.get(ref("memberMigrationDecisions", record.legacyMemberId ?? "not-a-legacy-record")),
     ]);
     if (studentsSnap.docs.length > 1000 || profilesSnap.docs.length > 1000)
       throw new HttpsError("unavailable", "Recovery requires office assistance");
@@ -375,6 +386,17 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       keys.map((key) => t.get(ref("studentIdentityKeys", key.keyId))),
     );
     const targets = new Set<string>();
+    if (record.canonicalStudentId) targets.add(record.canonicalStudentId);
+    const migration = migrationSnap.data();
+    if (migrationSnap.exists && migration?.kind !== "skip") {
+      if (
+        migration?.academyId !== academyId ||
+        migration?.legacyMemberId !== record.legacyMemberId ||
+        typeof migration?.studentId !== "string"
+      )
+        conflict();
+      targets.add(migration.studentId);
+    }
     const officeLink = officeLinkSnap.data();
     if (officeLinkSnap.exists) {
       if (
@@ -390,11 +412,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     const administrativeOwners = new Set<string>();
     const existingLink = linkSnap.exists ? parse(linkSchema, linkSnap.data()) : undefined;
     if (existingLink) {
-      if (
-        existingLink.academyId !== academyId ||
-        existingLink.recordId !== record.recordId ||
-        existingLink.userId !== uid
-      )
+      if (existingLink.academyId !== academyId || existingLink.recordId !== record.recordId)
         return { status: "pending-review" };
       targets.add(existingLink.studentId);
     }
@@ -456,18 +474,61 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     if (
       existing &&
       !existingLink &&
+      existing.studentId !== record.canonicalStudentId &&
+      existing.studentId !== officeLink?.studentId &&
+      existing.studentId !== migration?.studentId &&
       !administrativeOwners.has(existing.studentId) &&
       !samePersonByProfile(existing)
     )
       return { status: "pending-review" };
-    if (existing && existing.userId !== undefined && existing.userId !== uid)
-      return { status: "pending-review" };
+    const previousUid = existing?.userId && existing.userId !== uid ? existing.userId : undefined;
+    const transferApproved =
+      previousUid !== undefined &&
+      ticket.status !== "linked" &&
+      ticket.reviewedBy !== undefined &&
+      ticket.approvedCandidateId !== undefined &&
+      ticket.approvedEmail === accountEmail;
+    if (previousUid && !transferApproved) return { status: "pending-review" };
+    const oldKeyId = previousUid
+      ? deriveStudentIdentityKeyId({
+          academyId,
+          kind: "auth-user-id",
+          value: previousUid,
+          secretMaterial: d.identitySecretMaterial,
+        })
+      : undefined;
+    const oldProfileSnap = previousUid ? await t.get(ref("users", previousUid)) : undefined;
+    const oldKeySnap = oldKeyId ? await t.get(ref("studentIdentityKeys", oldKeyId)) : undefined;
+    if (previousUid) {
+      const oldAuth = await d.auth.getUser(previousUid);
+      const oldProfile = parseUserProfile(oldProfileSnap?.data());
+      const oldKey = oldKeySnap?.exists
+        ? parse(studentIdentityKeySchema, oldKeySnap.data())
+        : undefined;
+      if (
+        !oldProfile.ok ||
+        oldProfile.value.academyId !== academyId ||
+        oldProfile.value.userId !== previousUid ||
+        oldProfile.value.accountType !== "client" ||
+        oldAuth.customClaims?.academyId !== academyId ||
+        !["adultStudent", "shopper"].includes(String(oldAuth.customClaims?.role)) ||
+        [...students.values()].some(
+          (s) => s.userId === previousUid && s.studentId !== existing?.studentId,
+        ) ||
+        (oldKey &&
+          (oldKey.academyId !== academyId ||
+            oldKey.ownerStudentId !== existing?.studentId ||
+            oldKey.kind !== "auth-user-id" ||
+            oldKey.keyId !== oldKeyId))
+      )
+        conflict();
+    }
     if (
       existing &&
       (!existing.active || existing.status !== "active" || existing.participantType !== "adult")
     )
       return { status: "pending-review" };
-    if (record.membershipState !== "active") return { status: "pending-review" };
+    if (!existing && record.membershipState !== "active") return { status: "pending-review" };
     if (existing && sourceBirthDate && existing.dateOfBirth !== sourceBirthDate)
       return { status: "pending-review" };
     const profile: MemberRecoveryProfile = {
@@ -520,11 +581,18 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       oldFamily.value.primaryContactUserId === null &&
       oldFamily.value.billingContactUserId === null &&
       (officeLink?.studentId === studentId || familyId === `office-${studentId}`);
-    const onlineFamily = claimOfficeFamily ? { ...oldFamily.value } : undefined;
+    const transferFamily =
+      transferApproved &&
+      oldFamily?.ok &&
+      oldFamily.value.primaryContactUserId === previousUid &&
+      oldFamily.value.billingContactUserId === previousUid &&
+      ![...students.values()].some((s) => s.familyId === familyId && s.studentId !== studentId);
+    const claimFamily = claimOfficeFamily || transferFamily;
+    const onlineFamily = claimFamily && oldFamily?.ok ? { ...oldFamily.value } : undefined;
     if (onlineFamily) delete onlineFamily.guardianContact;
     const family = familySnap.exists
       ? parseFamilyRecord(
-          claimOfficeFamily
+          claimFamily
             ? {
                 ...onlineFamily,
                 primaryContactUserId: uid,
@@ -588,9 +656,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
         fullName: existing?.fullName ?? record.fullName,
         dateOfBirth: profile.dateOfBirth,
         phoneNumber: profile.phoneNumber,
-        email:
-          existing?.email ??
-          (z.email().safeParse(record.email).success ? record.email : accountEmail),
+        email: accountEmail,
         trainingCenter: profile.trainingCenter,
         trainingTimePreferences: profile.trainingTimePreferences,
         participantType: "adult",
@@ -625,10 +691,10 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     for (const item of ids)
       if (profiles.has(studentId) && adminProfile[item.field] !== item.value)
         return { status: "pending-review" };
-    const receiptId = "write-" + mac("bpt-recovery-write-v1", [academyId, record.recordId, uid]);
+    const receiptId = "write-" + mac("bpt-recovery-write-v1", [academyId, sourceKey, uid]);
     const receiptRef = ref("memberRecoveryWriteReceipts", receiptId);
     const receipt = await t.get(receiptRef);
-    if (existingLink) {
+    if (existingLink && !previousUid) {
       if (
         !receipt.exists ||
         receipt.data()?.studentId !== studentId ||
@@ -679,13 +745,54 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
         actorId: uid,
       }),
     );
+    const historicalLinks = previousUid
+      ? await Promise.all(
+          ["regyfitMemberLinks", "memberRecoverySourceLinks"].map((collection) =>
+            t.get(
+              d.firestore
+                .collection(root + collection)
+                .where("studentId", "==", studentId)
+                .limit(1001),
+            ),
+          ),
+        )
+      : [];
+    if (historicalLinks.some((snapshot) => snapshot.docs.length > 1000)) conflict();
+    for (const snapshot of historicalLinks)
+      for (const document of snapshot.docs) {
+        const linked = parse(linkSchema, document.data());
+        if (
+          linked.academyId !== academyId ||
+          linked.studentId !== studentId ||
+          linked.userId !== previousUid
+        )
+          conflict();
+      }
+    // Keep the same student and family IDs. Historical collections stay attached to them.
+    if (previousUid && oldProfileSnap?.exists) {
+      t.update(ref("users", previousUid), {
+        active: false,
+        status: "inactive",
+        updatedAt: time,
+        updatedBy: ticket.reviewedBy,
+      });
+      if (oldKeySnap?.exists) t.delete(oldKeySnap.ref);
+      for (const snapshot of historicalLinks)
+        for (const document of snapshot.docs)
+          t.update(document.ref, {
+            userId: uid,
+            recoveryId: ticket.recoveryId,
+            verificationMethod: "administrator-review",
+            reviewedBy: ticket.reviewedBy,
+          });
+    }
     t.set(ref("students", studentId), student.value);
     t.set(ref("users", uid), client.value);
     if (!familySnap.exists) t.create(familyRef, family.value);
-    else if (claimOfficeFamily) t.set(familyRef, family.value);
+    else if (claimFamily) t.set(familyRef, family.value);
     if (!profiles.has(studentId)) t.create(ref("studentAdminProfiles", studentId), adminProfile);
     for (const key of planned) t.create(ref("studentIdentityKeys", key.keyId), key);
-    t.create(linkRef, {
+    t.set(linkRef, {
       academyId,
       recordId: record.recordId,
       studentId,
@@ -729,7 +836,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       purpose: "member-record-maintenance",
       correlationId: receiptId,
     } as AuditEventDraft);
-    return { status: "linked" };
+    return { status: "linked", ...(previousUid ? { retiredUserId: previousUid } : {}) };
   }
 
   async function complete(value: unknown, uid: string): Promise<CompleteMemberRecoveryResult> {
@@ -746,35 +853,64 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
           "Recovery request has expired. Please start again.",
         );
       const spend = await quota(t, "account:" + uid, 30, time);
-      let result: CompleteMemberRecoveryResult;
+      let result: CompleteMemberRecoveryResult & { retiredUserId?: string };
       if (ticket.status === "rejected") result = { status: "rejected" };
       else if (!user.emailVerified || !user.email || !z.email().safeParse(user.email).success)
         result = { status: "verify-email" };
       else {
-        const records = await Promise.all(
-          ticket.candidates.map(async (candidate) => ({
-            candidate,
-            record: await source(t, candidate.recordId),
-          })),
-        );
-        const exact = records.filter(
-          ({ record }) =>
-            normalizeRecoveryName(record.fullName) === normalizeRecoveryName(ticket.fullName) &&
-            ticket.previousEmail !== "" &&
-            record.email !== undefined &&
-            email(record.email) === ticket.previousEmail,
-        );
+        const sources = await loadRecoverySources(t, d.firestore, academyId, time);
+        const records = ticket.candidates.map((candidate) => ({
+          candidate,
+          record: source(sources, candidate.recordId, candidate.kind),
+        }));
         const approved =
           ticket.approvedEmail === email(user.email)
             ? records.find((item) => item.candidate.candidateId === ticket.approvedCandidateId)
             : undefined;
-        const chosen =
-          approved ??
-          (exact.length === 1 && email(user.email) === ticket.previousEmail ? exact[0] : undefined);
+        let chosen = approved;
+        if (ticket.status === "linked") {
+          // A completed ticket cannot become a new approval or reclaim a replaced account.
+          const candidates = await Promise.all(
+            records.map(async (item) => {
+              const r = item.record;
+              const key =
+                r.kind === "regyfit"
+                  ? r.recordId
+                  : mac("bpt-recovery-source-v1", [academyId, r.kind, r.recordId]);
+              const link = (
+                await t.get(
+                  ref(
+                    r.kind === "regyfit" ? "regyfitMemberLinks" : "memberRecoverySourceLinks",
+                    key,
+                  ),
+                )
+              ).data();
+              return link?.academyId === academyId &&
+                link?.userId === uid &&
+                link?.recordId === r.recordId
+                ? item
+                : undefined;
+            }),
+          );
+          chosen = candidates.find((item) => item !== undefined);
+          if (!chosen)
+            throw new HttpsError(
+              "permission-denied",
+              "This recovery no longer owns the member account.",
+            );
+        }
         result = chosen
-          ? await writeLink(t, ticket, chosen.record, user, input.profile ?? {}, time)
+          ? await writeLink(
+              t,
+              ticket,
+              chosen.record,
+              user,
+              { ...ticket.profile, ...input.profile },
+              time,
+            )
           : { status: "pending-review" };
       }
+      if (ticket.status === "linked" && result.status !== "linked") conflict();
       spend();
       t.set(ref("memberRecoveryRequests", ticket.recoveryId), {
         ...ticket,
@@ -789,11 +925,19 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
           typeof user.email === "string" &&
           z.email().safeParse(user.email).success,
         status: result.status,
+        ...(result.retiredUserId ? { retiredUserId: result.retiredUserId } : {}),
+        ...(input.profile ? { profile: { ...ticket.profile, ...input.profile } } : {}),
         updatedAt: time,
       });
-      return result;
+      return {
+        ...result,
+        ...(ticket.retiredUserId && !result.retiredUserId
+          ? { retiredUserId: ticket.retiredUserId }
+          : {}),
+      };
     });
     if (outcome.status === "linked") {
+      if (outcome.retiredUserId) await d.auth.revokeRefreshTokens?.(outcome.retiredUserId);
       const fresh = await account(uid);
       if (!fresh.emailVerified || email(fresh.email ?? "") !== email(user.email ?? ""))
         throw new HttpsError("failed-precondition", "Verify your account and try recovery again");
@@ -816,7 +960,8 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
           "Account access is still being updated. Please try again.",
         );
     }
-    return outcome;
+    const { retiredUserId: _retiredUserId, ...publicOutcome } = outcome;
+    return publicOutcome;
   }
 
   return {
@@ -829,15 +974,8 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       const expiresAt = new Date(Date.parse(time) + 24 * 3600000).toISOString();
       await d.firestore.runTransaction(async (t) => {
         const spend = await quota(t, "ip:" + ip, 10, time);
-        const snapshot = await t.get(
-          d.firestore.collection(root + "regyfitMemberRecords").limit(1001),
-        );
-        if (snapshot.docs.length > 1000)
-          throw new HttpsError("unavailable", "Recovery is temporarily unavailable");
-        const candidates = snapshot.docs.flatMap((document) => {
-          const parsed = parseStoredRegyfitMemberRecord(document.data());
-          if (!parsed.ok || parsed.value.recordId !== document.id) return [];
-          const record = parsed.value;
+        const sources = await loadRecoverySources(t, d.firestore, academyId, time);
+        const candidates = sources.flatMap((record) => {
           return normalizeRecoveryName(record.fullName) === normalizeRecoveryName(input.fullName) ||
             (input.email !== undefined &&
               record.email !== undefined &&
@@ -847,9 +985,11 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
                   candidateId: mac("bpt-recovery-candidate-v1", [
                     academyId,
                     recoveryId,
+                    record.kind,
                     record.recordId,
                   ]),
                   recordId: record.recordId,
+                  kind: record.kind,
                 },
               ]
             : [];
@@ -872,6 +1012,80 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       return { recoveryId, expiresAt };
     },
     complete,
+    async history(uid: string) {
+      const user = await account(uid);
+      if (!user.emailVerified || user.customClaims?.role !== "adultStudent")
+        throw new HttpsError("permission-denied", "Member access is required.");
+      return d.firestore.runTransaction(async (t) => {
+        const spend = await quota(t, "history:" + uid, 30, now());
+        const profile = parseUserProfile((await t.get(ref("users", uid))).data());
+        if (
+          !profile.ok ||
+          profile.value.academyId !== academyId ||
+          profile.value.userId !== uid ||
+          !profile.value.active ||
+          profile.value.status !== "active"
+        )
+          conflict();
+        const owned = await t.get(
+          d.firestore
+            .collection(root + "students")
+            .where("userId", "==", uid)
+            .limit(2),
+        );
+        if (owned.docs.length !== 1) conflict();
+        const student = parseStudentProfileAt(owned.docs[0]!.data(), now().slice(0, 10));
+        if (
+          !student.ok ||
+          student.value.academyId !== academyId ||
+          student.value.studentId !== owned.docs[0]!.id ||
+          !student.value.active ||
+          student.value.status !== "active"
+        )
+          conflict();
+        const snapshots = await Promise.all(
+          ["regyfitMemberLinks", "regyfitOfficeLinks"].map((collection) =>
+            t.get(
+              d.firestore
+                .collection(root + collection)
+                .where("studentId", "==", student.value.studentId)
+                .limit(21),
+            ),
+          ),
+        );
+        const ids = new Set<string>();
+        for (const snapshot of snapshots)
+          for (const doc of snapshot.docs) {
+            const link = doc.data();
+            if (
+              link.academyId !== academyId ||
+              link.studentId !== student.value.studentId ||
+              link.recordId !== doc.id ||
+              (link.userId !== undefined && link.userId !== uid)
+            )
+              conflict();
+            ids.add(doc.id);
+          }
+        if (ids.size > 20) conflict();
+        const records = await Promise.all(
+          [...ids].map(async (recordId) => {
+            const stored = (await t.get(ref("regyfitMemberRecords", recordId))).data();
+            const parsed = parseStoredRegyfitMemberRecord(stored);
+            if (
+              !parsed.ok ||
+              parsed.value.recordId !== recordId ||
+              (stored?.academyId !== undefined && stored.academyId !== academyId)
+            )
+              conflict();
+            const { fullName, capturedAt, graduation, plan, attendance, payments } = parsed.value;
+            return { recordId, fullName, capturedAt, graduation, plan, attendance, payments };
+          }),
+        );
+        const result = memberRecoveryHistorySchema.parse({ records });
+        spend();
+        return result;
+      });
+    },
     async list(actor: CanonicalMemberDirectoryActor) {
       return d.firestore.runTransaction(async (t) => {
         await admin(t, actor);
@@ -883,18 +1097,33 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
         const snapshot = await t.get(
           d.firestore
             .collection(root + "memberRecoveryRequests")
-            .where("status", "==", "pending-review")
+            .where("status", "in", ["pending-review", "profile-required"])
             .where("accountVerified", "==", true)
             .where("expiresAt", ">", time)
             .orderBy("expiresAt", "asc")
             .orderBy("createdAt", "asc")
             .limit(51),
         );
-        const requests = snapshot.docs
+        const unverified = await t.get(
+          d.firestore
+            .collection(root + "memberRecoveryRequests")
+            .where("status", "==", "verify-email")
+            .where("accountVerified", "==", false)
+            .where("expiresAt", ">", time)
+            .orderBy("expiresAt", "asc")
+            .orderBy("createdAt", "asc")
+            .limit(51),
+        );
+        const actionable = [...snapshot.docs, ...unverified.docs].sort(
+          (a, b) =>
+            String(a.data().expiresAt).localeCompare(String(b.data().expiresAt)) ||
+            String(a.data().createdAt).localeCompare(String(b.data().createdAt)),
+        );
+        const requests = actionable
           .slice(0, 50)
           .map((document) => row(parse(ticketSchema, document.data())));
         spend();
-        return { requests, truncated: snapshot.docs.length > 50 };
+        return { requests, truncated: actionable.length > 50 };
       });
     },
     async detail(
@@ -906,19 +1135,56 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
         await admin(t, actor);
         const spend = await quota(t, "detail:" + actor.actorId, 20, now());
         const ticket = await load(t, input.requestId);
-        const candidates = await Promise.all(
-          ticket.candidates.map(async (candidate) => {
-            const record = await source(t, candidate.recordId);
-            return {
-              candidateId: candidate.candidateId,
-              fullName: record.fullName,
-              ...(record.email ? { email: record.email } : {}),
-              ...(record.birthDate ? { dateOfBirth: record.birthDate } : {}),
-              membershipState: record.membershipState,
-            };
-          }),
+        const sources = await loadRecoverySources(t, d.firestore, academyId, now());
+        // Refresh candidates for old tickets and let office staff resolve misspelled names.
+        const found = sources.filter((record) =>
+          input.search
+            ? normalizeRecoveryName(record.fullName).includes(
+                normalizeRecoveryName(input.search),
+              ) ||
+              (record.email && email(record.email).includes(email(input.search))) ||
+              record.memberNumber === input.search
+            : normalizeRecoveryName(record.fullName) === normalizeRecoveryName(ticket.fullName) ||
+              (ticket.previousEmail &&
+                record.email &&
+                email(record.email) === ticket.previousEmail),
         );
+        const fresh = found.map((record) => ({
+          kind: record.kind,
+          recordId: record.recordId,
+          candidateId: mac("bpt-recovery-candidate-v1", [
+            academyId,
+            ticket.recoveryId,
+            record.kind,
+            record.recordId,
+          ]),
+        }));
+        const retained = input.search
+          ? ticket.candidates.filter((c) => c.candidateId === ticket.approvedCandidateId)
+          : ticket.candidates;
+        const selections = [...retained];
+        for (const candidate of fresh)
+          if (
+            !selections.some(
+              (c) => (c.kind ?? "regyfit") === candidate.kind && c.recordId === candidate.recordId,
+            )
+          )
+            selections.push(candidate);
+        ticket.candidates = selections.slice(0, 20);
+        const candidates = ticket.candidates.map((candidate) => {
+          const record = source(sources, candidate.recordId, candidate.kind);
+          return {
+            candidateId: candidate.candidateId,
+            fullName: record.fullName,
+            ...(record.email ? { email: record.email } : {}),
+            ...(record.birthDate ? { dateOfBirth: record.birthDate } : {}),
+            membershipState: record.membershipState,
+            source: candidate.kind ?? "regyfit",
+          };
+        });
         spend();
+        if (ticket.status !== "linked" && ticket.status !== "rejected")
+          t.set(ref("memberRecoveryRequests", ticket.recoveryId), ticket);
         audit(t, actor.actorId, ticket.recoveryId, "member.recovery.detail.read");
         return {
           request: {
@@ -947,6 +1213,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
         if (
           input.decision === "approve" &&
           (!uid ||
+            !ticket.accountVerified ||
             !ticket.accountEmail ||
             !ticket.candidates.some((candidate) => candidate.candidateId === input.candidateId))
         )

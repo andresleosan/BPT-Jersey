@@ -252,6 +252,7 @@ export {
   completeMemberRecovery,
   listMemberRecoveryRequests,
   getMemberRecoveryDetail,
+  getMemberRecoveryHistory,
   reviewMemberRecovery,
 } from "./members/member-recovery-callables.js";
 

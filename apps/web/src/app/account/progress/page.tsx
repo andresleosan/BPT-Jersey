@@ -5,6 +5,7 @@ import { ClientAuthGate, ClientAuthProvider, useClientSession } from "../../../l
 import { LevelsBrowser } from "../../levels/levels-browser";
 import { FamilyProgressPanel } from "./family-progress";
 import { OwnProgressPanel } from "./own-progress";
+import { RecoveredMemberHistory } from "./recovered-history";
 
 function ProgressContent() {
   const { session } = useClientSession();
@@ -28,6 +29,7 @@ function ProgressContent() {
         {session?.role === "guardian" ? <FamilyProgressPanel /> : <OwnProgressPanel />}
       </div>
 
+      {session?.role === "adultStudent" ? <RecoveredMemberHistory /> : null}
       <LevelsBrowser roleContext="client" />
     </main>
   );

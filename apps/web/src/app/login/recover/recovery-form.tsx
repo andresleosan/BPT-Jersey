@@ -213,6 +213,9 @@ export function RecoveryForm() {
         setBusy(true);
         setPassword("");
         if (kind === "create") {
+          // Bind the request before email delivery so it is visible to the office even if delivery fails.
+          await showOutcome(ticket, operation);
+          if (!operation.current()) return;
           setResult({ status: "verify-email" });
           try {
             await sendRecoveryVerification(current.uid);
@@ -226,7 +229,7 @@ export function RecoveryForm() {
             return;
           }
         }
-        if (operation.current()) await showOutcome(ticket, operation);
+        if (kind !== "create" && operation.current()) await showOutcome(ticket, operation);
       } catch (failure) {
         if (!operation.current()) return;
         const code =
@@ -464,9 +467,10 @@ export function RecoveryForm() {
         <div>
           <h2 tabIndex={-1}>Request awaiting review</h2>
           <p>
-            The office will check your identity before restoring access. Contact BPT Jersey if you
-            need help or no longer know your previous email. Requests for children need the guardian
-            process.
+            Your request has been sent to the office under Enrolment requests. An administrator will
+            verify your old membership before approving access to your existing profile and history.
+            Contact BPT Jersey if you need help or no longer know your previous email. Requests for
+            children need the guardian process.
           </p>
           <button type="button" className="button button-secondary" disabled={busy} onClick={check}>
             Check request status

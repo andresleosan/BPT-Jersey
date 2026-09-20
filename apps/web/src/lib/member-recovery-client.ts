@@ -1,6 +1,7 @@
 import { httpsCallable } from "firebase/functions";
 import { z } from "zod";
 import {
+  memberRecoveryHistorySchema,
   beginMemberRecoveryInputSchema,
   beginMemberRecoveryResultSchema,
   completeMemberRecoveryInputSchema,
@@ -18,6 +19,7 @@ async function call<T>(name: string, input: unknown, schema: z.ZodType<T>): Prom
   const result = await httpsCallable<unknown, unknown>(getFirebaseFunctions(), name)(input);
   return schema.parse(result.data);
 }
+export const getMemberRecoveryHistory = () => call("getMemberRecoveryHistory", null, memberRecoveryHistorySchema);
 export const beginMemberRecovery = (input: z.input<typeof beginMemberRecoveryInputSchema>) =>
   call(
     "beginMemberRecovery",
@@ -32,10 +34,10 @@ export const completeMemberRecovery = (input: z.input<typeof completeMemberRecov
   );
 export const listMemberRecoveryRequests = () =>
   call("listMemberRecoveryRequests", null, listMemberRecoveryRequestsResultSchema);
-export const getMemberRecoveryDetail = (requestId: string) =>
+export const getMemberRecoveryDetail = (requestId: string, search?: string) =>
   call(
     "getMemberRecoveryDetail",
-    getMemberRecoveryDetailInputSchema.parse({ requestId }),
+    getMemberRecoveryDetailInputSchema.parse({ requestId, ...(search ? { search } : {}) }),
     getMemberRecoveryDetailResultSchema,
   );
 export const reviewMemberRecovery = (input: z.input<typeof reviewMemberRecoveryInputSchema>) =>
