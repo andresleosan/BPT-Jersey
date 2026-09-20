@@ -32,14 +32,9 @@ const navigationGroups: readonly NavigationGroup[] = [
     items: [
       { label: "Members", href: "/admin/members" },
       { label: "Families", href: "/admin/families", ownerOnly: true },
-      { label: "CRM", href: "/admin/crm", ownerOnly: true },
-      { label: "Retention", href: "/admin/retention", ownerOnly: true },
-      { label: "Member recovery", href: "/admin/members/recovery", ownerOnly: true },
       { label: "Member search", href: "/admin/members/search" },
-      { label: "Member migration", href: "/admin/members/migration" },
       { label: "Memberships", href: "/admin/memberships" },
       { label: "Enrolment requests", href: "/admin/members/requests" },
-      { label: "Medical conditions", href: "/admin/members/medical" },
     ],
   },
   {

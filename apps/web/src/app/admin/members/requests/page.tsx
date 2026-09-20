@@ -24,6 +24,7 @@ import { useAdminOrStaffSession } from "../../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
 
 import "../../admin.css";
+import { MemberRecoveryQueue } from "../recovery/recovery-queue";
 
 type QueueState =
   | Readonly<{ status: "loading" }>
@@ -335,10 +336,18 @@ function EnrolmentRequestQueueContent() {
   return (
     <section className="admin-module-page enrolment-admin-page" aria-label="Enrolment requests">
       <AdminSectionHeader
-        description="People who asked for a place from the website. Check the detail with the applicant, or send a request back with a note when something is missing."
+        description="Review new enrolment requests and restore access for existing members."
         eyebrow="People / Enrolment requests"
         title="Enrolment requests"
       />
+
+      {office ? (
+        <section id="member-recovery" aria-label="Member recovery requests">
+          <MemberRecoveryQueue embedded />
+        </section>
+      ) : null}
+
+      <h2>New enrolment requests</h2>
 
       <section className="admin-panel-card admin-request-help" aria-labelledby="request-help-title">
         <h3 id="request-help-title">What the buttons do</h3>

@@ -217,7 +217,7 @@ export function MembersPage() {
             <Link className="admin-home-link" href="/admin/members/search">
               Imported archive
             </Link>
-            <Link className="admin-home-link" href="/admin/members/recovery">
+            <Link className="admin-home-link" href="/admin/members/requests#member-recovery">
               Recover member access
             </Link>
             <Link className="admin-home-link" href="/admin/families">
