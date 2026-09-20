@@ -175,6 +175,7 @@ function EnrolmentRequestQueueContent() {
   const [verified, setVerified] = useState<Record<string, boolean>>({});
   const [paymentVerified, setPaymentVerified] = useState<Record<string, boolean>>({});
   const inFlight = useRef(false);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -198,6 +199,10 @@ function EnrolmentRequestQueueContent() {
       active = false;
     };
   }, [reloadToken]);
+
+  useEffect(() => {
+    if (openDetailId) reviewHeading.current?.focus();
+  }, [openDetailId]);
 
   async function openDetail(request: EnrolmentRequestRow, refresh = false): Promise<void> {
     if (!refresh && openDetailId === request.enrolmentRequestId) {
@@ -367,8 +372,8 @@ function EnrolmentRequestQueueContent() {
           </dd>
           <dt>Approve and enrol</dt>
           <dd>
-            Saves the member record, chosen subscription, verified payment and initial level. Review
-            all details and payment evidence first.
+            Opens the request for review. Choose the initial level and plan dates, verify the
+            details and any required payment, then select Confirm approval and enrol.
           </dd>
         </dl>
         {office ? null : (
@@ -476,25 +481,14 @@ function EnrolmentRequestQueueContent() {
                     >
                       Send back to applicant
                     </button>
-                    {/*
-                      Approving creates a member record and grants the account a role. It stays out
-                      of reach until the reviewer has actually opened the request: office was
-                      previously able to approve somebody while looking at a name and a centre,
-                      which is the gap this slice exists to close.
-                    */}
+                    {/* The first action opens review; only the confirmation submits approval. */}
                     {office && openDetailId !== request.enrolmentRequestId ? (
                       <button
                         className="staff-primary-button"
-                        disabled={
-                          busyId === request.enrolmentRequestId ||
-                          !details[request.enrolmentRequestId]
-                        }
-                        onClick={() => void approve(request)}
-                        title={
-                          details[request.enrolmentRequestId]
-                            ? undefined
-                            : "Read the full request before enrolling somebody."
-                        }
+                        disabled={busyId !== undefined}
+                        onClick={() => void openDetail(request)}
+                        aria-controls={`enrolment-review-${request.enrolmentRequestId}`}
+                        aria-expanded={false}
                         type="button"
                       >
                         Approve and enrol
@@ -506,6 +500,13 @@ function EnrolmentRequestQueueContent() {
                 openDetailId === request.enrolmentRequestId &&
                 details[request.enrolmentRequestId] ? (
                   <>
+                    <h3
+                      id={`enrolment-review-${request.enrolmentRequestId}`}
+                      ref={reviewHeading}
+                      tabIndex={-1}
+                    >
+                      Review and confirm enrolment
+                    </h3>
                     <DetailPanel
                       detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
                     />
@@ -653,7 +654,7 @@ function EnrolmentRequestQueueContent() {
                           disabled={busyId !== undefined}
                           onClick={() => void approve(request)}
                         >
-                          Approve and enrol
+                          Confirm approval and enrol
                         </button>
                       ) : null}
                     </fieldset>
