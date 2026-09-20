@@ -64,13 +64,17 @@ export function LoginForm({ audience }: LoginFormProps) {
   const queryReturnTo = new URLSearchParams(locationSearch).get("returnTo");
 
   const isCreating = !isStaff && mode === "create-client";
-  const contextTitle = isStaff ? "Staff sign-in" : "Client account";
+  const contextTitle = isStaff
+    ? "Staff sign-in"
+    : isCreating
+      ? "Create member account"
+      : "Member sign-in";
   const submitLabel = busy
     ? isCreating
       ? "Creating account"
       : "Signing in"
     : isCreating
-      ? "Create client account"
+      ? "Create member account"
       : "Sign in";
 
   function clearMessages(): void {
@@ -90,6 +94,8 @@ export function LoginForm({ audience }: LoginFormProps) {
     }
     if (!password.trim()) {
       nextErrors.password = "Password is required.";
+    } else if (isCreating && password.length < 6) {
+      nextErrors.password = "Use at least 6 characters for your password.";
     }
 
     return nextErrors;
@@ -225,9 +231,33 @@ export function LoginForm({ audience }: LoginFormProps) {
         <p>
           {isStaff
             ? "Enter your staff ID or email and password. If you have linked Google, you can also sign in below."
-            : "Sign in to manage your account and reach the authenticated client area."}
+            : isCreating
+              ? "Use an email address from any provider and choose a password. You can complete your membership details after creating your account."
+              : "Sign in to manage your membership, classes and family."}
         </p>
       </div>
+
+      {!isStaff ? (
+        <div className="login-account-options" role="group" aria-label="Account access">
+          {(["sign-in", "create-client"] as const).map((option) => (
+            <button
+              key={option}
+              className="login-account-option"
+              type="button"
+              aria-pressed={mode === option}
+              disabled={busy}
+              onClick={() => {
+                if (mode === option) return;
+                setMode(option);
+                setPassword("");
+                clearMessages();
+              }}
+            >
+              {option === "sign-in" ? "Sign in" : "Create member account"}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <form
         className="login-form"
@@ -259,7 +289,11 @@ export function LoginForm({ audience }: LoginFormProps) {
         <div className="login-field">
           <label htmlFor="login-password">Password</label>
           <input
-            aria-describedby={fieldErrors.password ? "login-password-error" : undefined}
+            aria-describedby={
+              fieldErrors.password
+                ? "login-password-error"
+                : isCreating ? "login-password-help" : undefined
+            }
             aria-invalid={fieldErrors.password ? "true" : "false"}
             autoComplete={isCreating ? "new-password" : "current-password"}
             id="login-password"
@@ -267,6 +301,11 @@ export function LoginForm({ audience }: LoginFormProps) {
             type="password"
             value={password}
           />
+          {isCreating && !fieldErrors.password ? (
+            <p className="login-field-help" id="login-password-help">
+              Use at least 6 characters.
+            </p>
+          ) : null}
           {fieldErrors.password ? (
             <p className="login-field-error" id="login-password-error">
               {fieldErrors.password}
@@ -310,14 +349,16 @@ export function LoginForm({ audience }: LoginFormProps) {
         >
           Continue with Google
         </button>
-        <button
-          className="login-reset"
-          disabled={busy}
-          onClick={() => void handlePasswordReset()}
-          type="button"
-        >
-          Forgot password?
-        </button>
+        {!isCreating ? (
+          <button
+            className="login-reset"
+            disabled={busy}
+            onClick={() => void handlePasswordReset()}
+            type="button"
+          >
+            Forgot password?
+          </button>
+        ) : null}
       </form>
 
       <div className="login-secondary-actions">
@@ -330,19 +371,7 @@ export function LoginForm({ audience }: LoginFormProps) {
           <a className="login-context-link" href={memberLoginPath}>
             Not a coach or office member? Member sign-in
           </a>
-        ) : (
-          <button
-            className="login-mode-toggle"
-            disabled={busy}
-            onClick={() => {
-              setMode(isCreating ? "sign-in" : "create-client");
-              clearMessages();
-            }}
-            type="button"
-          >
-            {isCreating ? "Back to sign in" : "Create client account"}
-          </button>
-        )}
+        ) : null}
       </div>
     </section>
   );

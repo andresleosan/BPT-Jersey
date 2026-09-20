@@ -158,6 +158,11 @@ function errorCode(error: unknown): string | undefined {
 
 export function toAuthMessage(error: unknown): string {
   switch (errorCode(error)) {
+    case "auth/email-already-in-use":
+      return "An account already uses this email. Sign in or reset your password.";
+    case "auth/weak-password":
+    case "auth/password-does-not-meet-requirements":
+      return "Choose a stronger password with at least 6 characters, uppercase and lowercase letters, a number and a symbol.";
     case "auth/invalid-credential":
     case "auth/invalid-email":
     case "auth/user-not-found":
