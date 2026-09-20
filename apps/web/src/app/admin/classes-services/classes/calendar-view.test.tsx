@@ -4,7 +4,11 @@ import { CalendarView } from "./calendar-view";
 import { mondayOf } from "./week-grid";
 import type { GridSession } from "./week-grid";
 
+const viewport = vi.hoisted(() => ({ compact: false }));
+vi.mock("./use-compact-calendar", () => ({ useCompactCalendar: () => viewport.compact }));
+
 afterEach(() => {
+  viewport.compact = false;
   cleanup();
 });
 
@@ -25,6 +29,39 @@ function noop(): void {
 }
 
 describe("CalendarView", () => {
+  it("uses the selected mobile day and follows a Today reset from its parent", () => {
+    viewport.compact = true;
+    const onSelectDate = vi.fn();
+    const props = {
+      view: "week" as const,
+      weekStart: "2026-09-14",
+      timezone: "Europe/Jersey",
+      window,
+      canEdit: false,
+      onOpen: noop,
+      onCreate: noop,
+      onSelectWeek: noop,
+      onSelectDate,
+      sessions: [
+        {
+          ...base,
+          sessionId: "wed",
+          title: "Wednesday class",
+          startAt: "2026-09-16T16:00:00.000Z",
+          endAt: "2026-09-16T17:00:00.000Z",
+        },
+      ],
+    };
+    const { rerender } = render(<CalendarView {...props} selectedDate="2026-09-16" />);
+    expect(screen.getByRole("button", { name: /Wednesday class/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Day to show"), { target: { value: "2026-09-17" } });
+    expect(onSelectDate).toHaveBeenCalledWith("2026-09-17");
+    rerender(<CalendarView {...props} selectedDate="2026-09-14" />);
+    expect(screen.getByLabelText("Day to show")).toHaveValue("2026-09-14");
+    expect(screen.queryByRole("button", { name: /Wednesday class/ })).not.toBeInTheDocument();
+    expect(screen.getByText("No classes match this day and these filters.")).toBeInTheDocument();
+  });
+
   it("marks today's column and places the now line on it, only for the week that holds today", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // 13:00 in Jersey (BST) on Wednesday 16 September: 7 of the 14 visible hours have passed.

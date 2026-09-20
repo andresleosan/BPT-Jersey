@@ -184,7 +184,7 @@ export function ListView({
           row.instructorIds.map(trainerName).join(" "),
           localParts(row.startAt, timezone).date,
           `${timeOf(row.startAt, timezone)} - ${timeOf(row.endAt, timezone)}`,
-          String(row.booked),
+          row.booked === null ? "" : String(row.booked),
           row.capacity === null ? "Set capacity" : String(row.capacity),
           row.status,
         ]
@@ -345,7 +345,9 @@ export function ListView({
                   {timeOf(row.startAt, timezone)} - {timeOf(row.endAt, timezone)}
                 </td>
                 <td data-label="Registrations">
-                  {row.capacity === null ? "Set capacity" : `${row.booked} / ${row.capacity}`}
+                  {row.capacity === null
+                    ? "Set capacity"
+                    : `${row.booked ?? "—"} / ${row.capacity}`}
                 </td>
                 <td data-label="Attendance">
                   <Link href={`/admin/attendance?session=${row.sessionId}`}>Attendance</Link>
