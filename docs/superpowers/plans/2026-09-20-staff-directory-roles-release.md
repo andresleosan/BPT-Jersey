@@ -16,11 +16,11 @@ Fecha: 2026-09-20. Rama: `feat/staff-directory-roles`.
 
 Capturas sintéticas y registros en `.tmp/team-*`. Sin mediciones nuevas de rendimiento de producción.
 
-## Publicación pendiente
+## Functions desplegadas; web pendiente
 
-No se ha publicado esta funcionalidad ni modificado cuentas de producción. La identidad Git local está configurada con los datos proporcionados por el operador.
+El 2026-09-20 el operador autorizó explícitamente el lote de 16 funciones. Se desplegó el código de `bd50832` en `bptjersey-f5a25`, región `us-central1`: 6 creaciones y 10 actualizaciones correctas, con salida 0 de Firebase CLI. No se han cambiado cuentas de producción. La publicación de la web continúa pendiente.
 
-Tras guardar los commits y obtener aprobación específica para producción, el lote acotado de Functions contiene:
+El lote desplegado contiene:
 
 - `listTeamDirectory`, `changeTeamRole`, `createStaffInvitation`, `listStaffInvitations`, `cancelStaffInvitation`, `acceptStaffInvitation`.
 - `createStaffProfile`, `updateStaffProfile`: impiden nuevas asignaciones headCoach.
@@ -30,3 +30,5 @@ Tras guardar los commits y obtener aprobación específica para producción, el 
 Son 16 funciones. No se requiere cambiar reglas ni índices. No usar un deploy total. La web se publica con el push autorizado a main después de disponer de las funciones. Andres ejecuta el push; no se solicitan credenciales. Comprobar el estado Success del commit en Cloudflare Pages y probar el acceso con cuentas autorizadas.
 
 Una reversión de código posterior a nuevas decisiones de administrator debe conservar la lectura de esos registros. Las invitaciones en `processing` requieren revisión operativa antes de reautorizar; no se repiten concesiones de resultado incierto. Véase ADR-011.
+
+Verificación posterior: un POST sin sesión por cada endpoint, sin reintentos y con pausa de 0,5 s, devolvió HTTP 401 en los 16 casos. Registro `.tmp/staff-roles-release/probe-results.json` y log de despliegue `.tmp/staff-roles-deploy.log`. Esta comprobación confirma disponibilidad y rechazo sin autenticación; no sustituye la prueba con sesiones reales tras publicar la web.

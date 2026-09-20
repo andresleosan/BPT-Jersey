@@ -1,6 +1,6 @@
 # ADR-011: administrador y coach principal unificados
 
-Fecha: 2026-09-20. Estado: aceptada por el operador en chat; implementación local pendiente de publicación.
+Fecha: 2026-09-20. Estado: aceptada por el operador en chat; Functions publicadas con aprobación explícita, web pendiente.
 
 ## Decisión
 
