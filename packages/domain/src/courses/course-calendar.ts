@@ -10,7 +10,7 @@ export function checkedCourseInstant(date: string, time: string): string {
   const expected = `${date}T${time}`;
   if (!Number.isFinite(ms) || wallTime(ms) !== expected
     || wallTime(ms - 3600000) === expected || wallTime(ms + 3600000) === expected)
-    throw new Error("Choose an unambiguous local date and time in Jersey.");
+    throw new Error(`Choose an unambiguous Jersey time: ${date} at ${time}.`);
   return new Date(ms).toISOString();
 }
 export function courseSlot(course: Pick<Course, "courseId" | "startsOn" | "startTime" | "endTime" | "sessionCount">, ordinal: number): CourseSlot {

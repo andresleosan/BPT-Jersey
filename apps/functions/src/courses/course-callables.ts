@@ -68,7 +68,7 @@ export const getCoursePaymentInstructions = callable(z.strictObject({enrolmentId
 export const listCourseNotices = callable(page, false, (actor, i) => queries.listCourseNotices(getFirestore(), actor, i.cursor), []);
 export const markCourseNoticeRead = callable(z.strictObject({noticeId: z.string().regex(/^[a-f0-9]{64}$/u)}), false, async (actor, i) => {await queries.markCourseNoticeRead(getFirestore(), actor, i.noticeId); return {ok: true};}, []);
 export const listCourseRefunds = callable(enrolmentPage, false, (actor, i) => queries.listCourseRefunds(getFirestore(), actor, i.enrolmentId, i.cursor), []);
-export const listCoursePaymentIncidents = callable(page.extend({enrolmentId: courseIdSchema.optional()}), false, (actor, i) => queries.listCoursePaymentIncidents(getFirestore(), actor, i), []);
+export const listCoursePaymentIncidents = callable(page.extend({enrolmentId: courseIdSchema.optional(), openOnly: z.boolean().optional()}), false, (actor, i) => queries.listCoursePaymentIncidents(getFirestore(), actor, i), []);
 export const setCourseAbsence = callable(z.strictObject({requestId: courseIdSchema, sessionId: courseRecordIdSchema, studentId: courseRecordIdSchema, absent: z.boolean()}), false, (actor, i) => access.setCourseAbsence(getFirestore(), actor, i), []);
 export const courseSelfCheckIn = callable(z.unknown(), false, async (actor, value) => {
   const input = parseSelfCheckInInput(value);
@@ -82,9 +82,9 @@ export const courseSelfCheckIn = callable(z.unknown(), false, async (actor, valu
 
 export const cancelCourse = callable(z.strictObject({courseId: courseIdSchema, expectedRevision: z.number().int().nonnegative(), requestId: courseIdSchema, reason: courseLabel(1000)}), true, (actor, i) => jobs.cancelCourse(getFirestore(), actor, i), []);
 export const retryCourseJob = callable(z.strictObject({jobId: z.string().max(256).regex(/^[A-Za-z0-9_-]+$/u), requestId: courseIdSchema}), true, (actor, i) => jobs.retryCourseJob(getFirestore(), actor, i.jobId, i.requestId), []);
-export const listCourseJobs = callable(page, true, (actor, i) => queries.coursePage(getFirestore().collection(`academies/${actor.academyId}/courseJobs`).where("state", "==", "failed"), i.cursor), []);
+export const listCourseJobs = callable(page.extend({state: z.enum(["failed", "queued", "running"]).optional()}), true, (actor, i) => queries.coursePage(getFirestore().collection(`academies/${actor.academyId}/courseJobs`).where("state", "==", i.state ?? "failed"), i.cursor), []);
 export const getCourseEnrolmentDetail = callable(z.strictObject({enrolmentId: courseIdSchema}), false, (actor, i) => queries.getCourseEnrolmentDetail(getFirestore(), actor, i.enrolmentId), []);
-export const listCourseSessionDates = callable(page.extend({courseId: courseIdSchema, enrolmentId: courseIdSchema.optional()}), false, (actor, i) => queries.listCourseSessionDates(getFirestore(), actor, i), []);
+export const listCourseSessionDates = callable(page.extend({courseId: courseIdSchema, enrolmentId: courseIdSchema.optional(), draft: courseDraftSchema.optional()}), false, (actor, i) => queries.listCourseSessionDates(getFirestore(), actor, i), []);
 export const listCourseCoaches = callable(page, true, (actor, i) => queries.courseCoachOptions(getFirestore(), actor, i.cursor), []);
 
 export const reviseCourseLocalSession = callable(z.strictObject({courseId: courseIdSchema, sessionId: courseRecordIdSchema, expectedRevision: z.number().int().nonnegative(), requestId: courseIdSchema, reason: courseLabel(500), startLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/u), endLocal: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/u), cancel: z.boolean()}), true, async (actor, i) => {

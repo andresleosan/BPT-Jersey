@@ -116,7 +116,7 @@ export async function filterPublishedCourseSessions<T extends {courseId?: string
     const snapshots = await db.getAll(...ids.slice(offset, offset + 100).map(id => courseCollection(db, academyId, "courses").doc(id)));
     for (const s of snapshots) if (s.exists) courses.set(s.id, s.data() as Course);
   }
-  return sessions.filter(s => !s.courseId || (courses.has(s.courseId) && ["published", "completed"].includes(courses.get(s.courseId)!.status) && courses.get(s.courseId)?.publicationRevision === s.coursePublicationRevision));
+  return sessions.filter(s => !s.courseId || (courses.has(s.courseId) && (["published", "completed"].includes(courses.get(s.courseId)!.status) || (courses.get(s.courseId)!.status === "cancelled" && String((s as {startAt?: string}).startAt ?? "~") < (courses.get(s.courseId)!.accessClosedAt ?? courses.get(s.courseId)!.updatedAt))) && courses.get(s.courseId)?.publicationRevision === s.coursePublicationRevision));
 }
 
 export async function reviseCourseSession(db: Firestore, actor: CourseActor, courseId: string, sessionId: string,

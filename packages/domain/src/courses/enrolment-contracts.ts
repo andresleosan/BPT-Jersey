@@ -15,9 +15,9 @@ export type CourseEnrolment = {
   enrolmentId: string; academyId: string; courseId: string; applicantUid: string;
   participant: ParticipantRef; participantKey: string; studentId: string | null;
   status: EnrolmentStatus; revision: number; priceMinor: number; currency: "GBP";
-  courseRevision: number; acceptedTerms: string; acceptedAt: string; reference: string;
+  courseRevision: number; acceptedTerms: string; acceptedAt: string; reference: string; transferReference?: string;
   proofId: string | null; expiresAt: string | null; submittedAt: string | null;
-  approvedAt: string | null; accessFrom: string | null; queuedAt: string | null;
+  approvedAt: string | null; accessFrom: string | null; accessUntil?: string | null; queuedAt: string | null;
   decisionReason: string | null; createdAt: string; updatedAt: string;
   seatCommitted: boolean; receivedMinor: number; refundedMinor: number; pendingRefundMinor: number;
 };

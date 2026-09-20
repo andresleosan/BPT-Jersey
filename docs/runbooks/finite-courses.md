@@ -1,12 +1,12 @@
 # Finite courses and seminars
 
-Finite weekly programmes use the ordinary calendar and coach attendance screen, canonical students/families and existing invoices/payments. Each participant sends one bank-transfer reference and screenshot. Staff retain their roles; office management requires no personal membership.
+Finite weekly programmes use the ordinary calendar and coach attendance screen, canonical students/families and existing invoices/payments. Each participant receives a separate immutable transfer reference, then sends the reference actually used and a screenshot. Staff retain their roles; office management requires no personal membership.
 
 ## Future authorised release
 
 Code publication is separate from deployment. No deployment or feature activation is authorised by this document. Keep `academies/<academy>/settings/courseFeatures.coursesEnabled` false or absent; deploy Firestore indexes and compatible backend; configure `COURSES_ACADEMY_ID`; point the web build's `NEXT_PUBLIC_COURSES_API_URL` to the deployed `coursePublic` HTTPS endpoint; deploy the frontend; activate sales only when authorised. Existing bank instructions must be valid. Evidence uses the existing private R2 configuration and canonical identity secrets.
 
-Routes: `/courses`, `/courses/view?course=<uuid>`, `/account/courses`, `/account/courses/calendar` and `/admin/courses`. The personal course calendar reuses MemberCalendar for eligible account roles. Coach sessions use the existing interface. Drafts remain hidden until all dates are prepared.
+Routes: `/courses`, `/courses/view?course=<uuid>`, `/account/courses`, `/account/courses/calendar` and `/admin/courses`. The personal course calendar reuses MemberCalendar for eligible account roles. Coach sessions use the existing interface. Drafts provide a paginated preview of exact Jersey dates, including DST validation, and remain hidden until all dates are prepared. Processing shows queued/running/failed jobs and their progress.
 
 Disabling courses closes new reservations, waitlist offers, publication and the public catalogue. Existing approved access, attendance, payment review, refunds and cancellation remain available. After v2 documents exist, retain v2 readers during rollback; prefer compatible repair over deploying old code.
 
@@ -16,7 +16,7 @@ Holds and offers last 24 hours. Evidence awaiting review holds its seat indefini
 
 Price and accepted terms are snapshots. Approval records one full payment and includes remaining sessions automatically. Course bookings use string schemaVersion 2, null membership and an explicit course/enrolment source. Finance uses numeric schemaVersion 2 and a user/family payer. Ordinary records remain v1. Course attendance does not consume ordinary quotas or count towards graduation or no-show fees.
 
-A withdrawal keeps access until office confirmation. Refunds are manual records: pending does not mean paid; recorded requires a completed transfer date and bank reference. No bank transfer is automated. Cancellation closes future entitlement immediately and processes session cancellation, notices and incidents in batches. Attendance and financial history remain.
+A withdrawal keeps access until office confirmation. Refunds are manual records: pending does not mean paid; recorded requires a completed transfer date and bank reference. No bank transfer is automated. Cancellation closes future entitlement immediately and processes session cancellation, notices and incidents in batches. Attendance and financial history remain. Closed enrolments keep their authorised historical dates in the personal calendar. A later approval can rebind remaining bookings from the previous closed enrolment without changing attendance.
 
 ## Recovery
 
@@ -35,10 +35,10 @@ For counter reconciliation: pause sales, preserve a consistent course/enrolment 
 
 Course collections deny direct client Firestore access. Public HTTP returns an explicit programme allowlist. Private callables require App Check and live academy/role authority. Coaches receive sporting roster fields only. PNG/JPEG proofs are decoded and re-encoded with metadata stripped, capped at 2 MiB and 20 megapixels. Private image URLs expire after one minute and request no-store caching. Never paste signed URLs into logs or tickets.
 
-Office subject export is paginated at 30, scoped by applicant UID, omits storage keys and signed URLs, and omits minor candidate identity from an adult export. Participant-specific requests and financial retention need office review of linked canonical records. It is not a self-service destructive erasure endpoint. No proposed ADR-008 retention policy is enabled.
+Office subject export is paginated at 30, scoped by applicant UID, omits storage keys and signed URLs, and omits minor candidate identity from an adult export. Participant-specific requests and financial retention need office review of linked canonical records. The proposed participant export extension was rejected by automatic approval review and remains unimplemented pending explicit operator approval. It is not a self-service destructive erasure endpoint. No proposed ADR-008 retention policy is enabled.
 
 Backup inventory: courses, publicCourses, courseCandidates, courseCandidateKeys, courseParticipantAccounts, courseStudentAliases, courseIdentityReceipts, courseEnrolments, courseParticipantLocks, courseProofs, coursePaymentIncidents, courseRefunds, courseEvidenceKeys, courseOperations, courseAudit, courseRateLimits, courseJobs, courseWorkerState and courseNotices. R2 uses `academies/<academy>/course-proofs/<enrolment>/<proof>.jpg`. Firestore metadata backup does not copy image objects; authorised object backup/restore must preserve references separately. Technical rate buckets expire separately from financial evidence.
 
 ## Verification status
 
-Source inspection and Git delivery evidence only. Per operator instruction, no tests, browser sessions, Lighthouse, full-workspace type/lint checks or builds have run. No live member data or production actions have been exercised. Runtime behaviour and performance have not been measured.
+Source inspection and Git delivery evidence only. Per operator instruction, no tests, browser sessions, Lighthouse, full-workspace type/lint checks or builds have run. No live member data or production actions have been exercised. Runtime behaviour and performance have not been measured. Independent source review found no remaining Critical/Important issues in the course flow after the recorded fixes; the export extension remains outside that verdict.

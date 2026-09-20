@@ -30,10 +30,17 @@ export async function prepareCourseBooking(db: Firestore, tx: Transaction, acade
   const existing = (await tx.getAll(...refs)).filter(snapshot => snapshot.exists);
   if (existing.length > 1) courseFailure("conflict", "Booking identity requires office review.");
   const old = existing[0]?.data();
-  if (old && (old.schemaVersion !== "2" || old.membershipId !== null || old.source?.kind !== "course" || old.source?.courseId !== course.courseId || old.source?.enrolmentId !== enrolment.enrolmentId || old.studentId !== studentId || old.sessionId !== sessionId || old.academyId !== academyId)) courseFailure("conflict", "The existing booking belongs to a different enrolment.");
+  if (old && (old.schemaVersion !== "2" || old.membershipId !== null || old.source?.kind !== "course" || old.source?.courseId !== course.courseId || old.studentId !== studentId || old.sessionId !== sessionId || old.academyId !== academyId)) courseFailure("conflict", "The existing booking belongs to a different enrolment.");
+  const replacing = !!old && old.source.enrolmentId !== enrolment.enrolmentId;
   const now = new Date().toISOString();
-  const booking: CourseBookingRecord = {bookingId: existing[0]?.id ?? buildBookingId(sessionId, studentId), academyId, sessionId, studentId, membershipId: null, schemaVersion: "2", source: {kind: "course", courseId: course.courseId, enrolmentId: enrolment.enrolmentId}, absent: old?.absent === true, status: "confirmed", requestedAt: old?.requestedAt ?? enrolment.approvedAt ?? now, cancelledAt: null, cancellationReason: null, createdAt: old?.createdAt ?? now, createdBy: old?.createdBy ?? actor?.uid ?? "course-projection", updatedAt: now, updatedBy: actor?.uid ?? "course-projection"};
-  return {booking, write: () => {if (!old || old.status !== "confirmed") tx.set(courseCollection(db, academyId, "bookings").doc(booking.bookingId), booking);}};
+  if (replacing) {
+    // The approval instant defines the included dates even when projection runs after class starts.
+    const previous = courseData<CourseEnrolment>(await tx.get(courseCollection(db, academyId, "courseEnrolments").doc(old.source.enrolmentId)));
+    if (previous.courseId !== course.courseId || previous.studentId !== studentId || !["cancelled", "rejected", "expired"].includes(previous.status) || !enrolment.accessFrom || session.startAt < enrolment.accessFrom)
+      courseFailure("conflict", "The previous booking cannot be replaced.");
+  }
+  const booking: CourseBookingRecord = {bookingId: existing[0]?.id ?? buildBookingId(sessionId, studentId), academyId, sessionId, studentId, membershipId: null, schemaVersion: "2", source: {kind: "course", courseId: course.courseId, enrolmentId: enrolment.enrolmentId}, absent: !replacing && old?.absent === true, status: "confirmed", requestedAt: old?.requestedAt ?? enrolment.approvedAt ?? now, cancelledAt: null, cancellationReason: null, createdAt: old?.createdAt ?? now, createdBy: old?.createdBy ?? actor?.uid ?? "course-projection", updatedAt: now, updatedBy: actor?.uid ?? "course-projection"};
+  return {booking, write: () => {if (!old || replacing || old.status !== "confirmed") tx.set(courseCollection(db, academyId, "bookings").doc(booking.bookingId), booking);}};
 }
 export async function ensureCourseBooking(db: Firestore, actor: CourseActor, sessionId: string, studentId: string): Promise<CourseBookingRecord> {
   courseRecordIdSchema.parse(sessionId); courseRecordIdSchema.parse(studentId);

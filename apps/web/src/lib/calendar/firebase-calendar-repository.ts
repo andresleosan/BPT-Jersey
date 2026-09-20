@@ -60,19 +60,21 @@ function participantFromPlan(
 export function createFirebaseCalendarRepository(session: {
   role: CalendarMember["role"];
   displayName: string;
+  scope?: "all" | "courses";
 }): CalendarRepository {
-  const ordinaryRole = ["guardian", "adultStudent", "teenStudent"].includes(session.role);
+  const ordinaryRole = session.scope !== "courses" && ["guardian", "adultStudent", "teenStudent"].includes(session.role);
   const membershipStudents = new Set<string>();
   const courseSessions = new Set<string>();
   return {
     async loadMember(): Promise<CalendarMember> {
+      membershipStudents.clear();
       const [memberships, plans] = await Promise.all([
         ordinaryRole ? listClientMemberships() : Promise.resolve([]), ordinaryRole ? listAvailableMembershipPlans() : Promise.resolve([]),
       ]);
       const current = memberships.filter((m) => m.status === "active" || m.status === "trial");
       const names = new Map<string, string>();
       const births = new Map<string, string>();
-      if (session.role === "guardian") {
+      if (ordinaryRole && session.role === "guardian") {
         const family = await getFamily();
         for (const student of family?.students ?? []) {
           names.set(student.studentId, student.fullName);
@@ -105,6 +107,7 @@ export function createFirebaseCalendarRepository(session: {
       return { role: session.role, displayName: session.displayName, participants };
     },
     async loadWeek(studentId, fromIso, toIso) {
+      courseSessions.clear();
       const courses: {sessions: CalendarWeekData["sessions"]; programs: CalendarWeekData["programs"]; bookings: CalendarWeekData["bookings"]; attendance: CalendarWeekData["attendance"]; bookedCounts: CalendarWeekData["bookedCounts"]; courseSessionIds: readonly string[]} = {sessions: [], programs: [], bookings: [], attendance: [], bookedCounts: {}, courseSessionIds: []};
       const loadCourses = async () => {
         let cursor: string | undefined;
@@ -133,6 +136,7 @@ export function createFirebaseCalendarRepository(session: {
     cancel: cancelBooking,
     async clockIn(input) {return courseSessions.has(input.sessionId) ? (await courseApi.checkIn(input)).attendance : selfCheckIn(input);},
     async loadPenalties(studentId) {
+      if (session.scope === "courses") return [];
       // Penalties are an office-only ancillary display. A member denial must not prevent the
       // calendar's booking and attendance data from remaining usable.
       const penalties = await listNoShowPenalties().catch(() => []);

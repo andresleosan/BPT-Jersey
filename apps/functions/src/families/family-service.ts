@@ -1095,6 +1095,10 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
         if (readDocumentSnapshot(await transaction.get(familyReference)).exists) {
           throw new FamilyStoreError("duplicate", "Family identity is already in use");
         }
+        if (input.courseEnrolmentId) {
+          const courseFamilies = readQuerySnapshot(await transaction.get(dependencies.firestore.collection(familiesPath(academyId)).where("primaryContactUserId", "==", tutorUserId).limit(2)));
+          if (courseFamilies.docs.length > 0) throw new FamilyStoreError("duplicate", "Course applicant already has a family");
+        }
         const tutor = parseStoredTutor(
           readDocumentSnapshot(await transaction.get(input.courseEnrolmentId ? dependencies.firestore.doc(`academies/${academyId}/courseParticipantAccounts/${tutorUserId}`) : tutorReference)),
           academyId,

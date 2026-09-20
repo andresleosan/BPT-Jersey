@@ -84,7 +84,7 @@ async function decideEnrolment(db: Firestore, actor: CourseActor, value: Decisio
     const now = new Date().toISOString();
     const status = input.action === "request-withdrawal" ? "withdrawal_requested" : input.action === "confirm-withdrawal" ? "cancelled" : input.action === "deny-withdrawal" ? "approved" : input.action === "reject" ? "rejected" : "correction";
     const release = status === "cancelled" || status === "rejected";
-    const next: CourseEnrolment = {...enrolment, status, revision: enrolment.revision + 1, decisionReason: input.reason, expiresAt: status === "correction" ? new Date(Date.parse(now) + 86_400_000).toISOString() : null, seatCommitted: release ? false : enrolment.seatCommitted, updatedAt: now};
+    const next: CourseEnrolment = {...enrolment, status, ...(status === "cancelled" ? {accessUntil: now} : {}), revision: enrolment.revision + 1, decisionReason: input.reason, expiresAt: status === "correction" ? new Date(Date.parse(now) + 86_400_000).toISOString() : null, seatCommitted: release ? false : enrolment.seatCommitted, updatedAt: now};
     tx.set(ref, next);
     if (release && enrolment.seatCommitted) writeCourseSeats(db, tx, course, -1, now);
     if (status === "cancelled") {

@@ -19,7 +19,7 @@ export function CourseSessionGate({children}: {children: (session: CourseSession
         const token = await user.getIdTokenResult();
         if (!token.claims.role) {
           let registration = registrations.get(user.uid);
-          if (!registration) {registration = registerShopperAccount(); registrations.set(user.uid, registration);}
+          if (!registration) {registration = registerShopperAccount().catch(error => {registrations.delete(user.uid); throw error;}); registrations.set(user.uid, registration);}
           await registration; await user.getIdToken(true);
         }
         const resolved = await courseApi.session({});
