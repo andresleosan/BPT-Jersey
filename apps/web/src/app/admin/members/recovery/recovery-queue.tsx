@@ -31,6 +31,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
   const [detail, setDetail] = useState<MemberRecoveryDetail>();
   const [candidateId, setCandidateId] = useState<string>();
   const [confirmed, setConfirmed] = useState(false);
+  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -90,6 +91,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
               ? "Access restored. The member can continue from their recovery page."
               : "Identity reviewed. Further office follow-up is required before access can be restored.",
       );
+      window.dispatchEvent(new Event("bpt-recovery-reviewed"));
       setDetail(undefined);
       setConfirmed(false);
       setCandidateId(undefined);
@@ -100,15 +102,24 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
   return (
     <section className="admin-module-page" aria-label="Member access recovery">
       {embedded ? (
-        <header>
-          <h2>Member recovery</h2>
-          <p>Review access requests from existing members.</p>
-        </header>
+        <div role="status">
+          <h2>Member access recovery</h2>
+          <p>
+            {queue
+              ? `${queue.requests.length}${queue.truncated ? "+" : ""} recovery requests need attention.`
+              : "Loading recovery notifications..."}
+          </p>
+        </div>
       ) : (
         <AdminSectionHeader
-          title="Member recovery"
-          eyebrow="People / Enrolment requests"
-          description="Review access requests from existing members."
+          title="Member access recovery"
+          eyebrow="Members / Access recovery"
+          description="Check requests from existing members whose account details need office review."
+          actions={
+            <a className="admin-home-link" href="/admin/members/requests">
+              Back to enrolment requests
+            </a>
+          }
         />
       )}
       <div className="admin-panel-card">
@@ -142,7 +153,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
       {!queue && !error ? <p>Loading recovery requests...</p> : null}
       {queue?.truncated ? (
         <p>
-          Showing the oldest 50 verified requests awaiting review. Resolve requests, then refresh to
+          Showing the oldest 50 account-bound recovery requests. Resolve requests, then refresh to
           see the next ones.
         </p>
       ) : null}
@@ -175,9 +186,37 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
           <dl>
             <dt>Previous email supplied</dt>
             <dd>{detail.request.previousEmail || "Not supplied"}</dd>
+            <dt>Email verified</dt>
+            <dd>{detail.request.accountVerified ? "Yes" : "Awaiting email verification"}</dd>
             <dt>Account email</dt>
             <dd>{detail.request.accountEmail ?? "Not available"}</dd>
           </dl>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (search.trim().length < 2) return;
+              void run(async () => {
+                setCandidateId(undefined);
+                setConfirmed(false);
+                setDetail(await getMemberRecoveryDetail(detail.request.requestId, search.trim()));
+              });
+            }}
+          >
+            <label>
+              Search all member records
+              <input
+                value={search}
+                minLength={2}
+                maxLength={160}
+                required
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Name, email or membership number"
+              />
+            </label>
+            <button type="submit" className="button button-secondary" disabled={busy}>
+              Find member record
+            </button>
+          </form>
           <fieldset disabled={busy}>
             <legend>Select the member record</legend>
             {detail.candidates.map((candidate) => (
@@ -193,7 +232,13 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
                   }}
                 />{" "}
                 <span>
-                  {candidate.fullName} · {candidate.email ?? "No previous email"} ·{" "}
+                  {candidate.fullName} ·{" "}
+                  {candidate.source === "student"
+                    ? "Current member profile"
+                    : candidate.source === "member"
+                      ? "Legacy member directory"
+                      : "Regyfit archive"}{" "}
+                  · {candidate.email ?? "No previous email"} ·{" "}
                   {candidate.dateOfBirth ?? "No date of birth"} · {candidate.membershipState}
                 </span>
               </label>
@@ -221,6 +266,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
               className="button button-primary"
               disabled={
                 busy ||
+                !detail.request.accountVerified ||
                 !candidateId ||
                 !confirmed ||
                 detail.request.status === "linked" ||
@@ -228,7 +274,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
               }
               onClick={() => review("approve")}
             >
-              Approve identity
+              Approve recovery
             </button>
             <button
               type="button"

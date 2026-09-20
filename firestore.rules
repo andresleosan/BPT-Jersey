@@ -18,6 +18,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/memberRecoverySourceLinks/{recordId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/regyfitMemberLinks/{recordId} {
       allow read, write: if false;
     }

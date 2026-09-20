@@ -80,6 +80,39 @@ export function AdminShell({
   session: AdminSession | StaffSession;
 }) {
   const pathname = usePathname() ?? "";
+  const [recoveryCount, setRecoveryCount] = useState<string>();
+  useEffect(() => {
+    if (session.role !== "owner" && session.role !== "administrator") return;
+    let active = true;
+    let running = false;
+    const refresh = async () => {
+      if (running || document.visibilityState === "hidden") return;
+      running = true;
+      try {
+        const { listMemberRecoveryRequests } = await import("../../lib/member-recovery-client");
+        const result = await listMemberRecoveryRequests();
+        if (active)
+          setRecoveryCount(
+            result.requests.length
+              ? String(result.requests.length) + (result.truncated ? "+" : "")
+              : undefined,
+          );
+      } catch {
+        if (active) setRecoveryCount(undefined);
+      } finally {
+        running = false;
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 60_000);
+    const onReviewed = () => void refresh();
+    window.addEventListener("bpt-recovery-reviewed", onReviewed);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("bpt-recovery-reviewed", onReviewed);
+    };
+  }, [session.role, session.uid]);
   const coachWorkspace = isStaffRole(session.role);
   const roleLabel =
     session.role === "owner"
@@ -213,6 +246,9 @@ export function AdminShell({
                   >
                     <span aria-hidden="true">-&gt;</span>
                     {item.label}
+                    {item.href === "/admin/members/requests" && recoveryCount
+                      ? ` (${recoveryCount} recovery)`
+                      : ""}
                   </Link>
                 </li>
               ))}
