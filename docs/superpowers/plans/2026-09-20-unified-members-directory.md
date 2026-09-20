@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-20-unified-members-directory-design.md`, approved by the user on 20 September 2026, including section 7.1.
 
-**Status:** Ready for written-plan review and selection of execution method. This document does not execute a migration, deploy functions or change member data.
+**Status:** Approved for native execution (option B). Implementation is in progress; production migration and deployment remain separate. Task progress and inspection evidence are recorded in the plan-scoped execution ledger.
 
 ## Global Constraints
 
@@ -96,7 +96,7 @@ Sequence: **1 → 2 → 3**, **2 → 4 → 5 → 6 → 7**, **3 + 4 → 8 → 9*
 - Consume `MemberMigrationStore.load(academyId): Promise<MemberMigrationSnapshot>` as the current compatibility adapter. It currently loads complete collections into memory; do not reuse that implementation as the new paginated reader or as proof of complete archive coverage.
 - Produce `InventoryCollection`, `InventoryPage`, `InventoryRow` and `MemberInventoryService.page(academyId, collection, cursor?): Promise<InventoryPage>` as defined below; callable `getMemberInventoryPage` is office-only.
 
-- [ ] Define the inventory contracts and their strict Zod schemas. Validate opaque cursors server-side; max page size is 100. Store raw values only in existing protected sources, never in summary output.
+- [x] Define the inventory contracts and their strict Zod schemas. Validate opaque cursors server-side; max page size is 100. Store raw values only in existing protected sources, never in summary output.
 
 ```ts
 export type InventoryCollection =
@@ -121,7 +121,7 @@ export interface MemberInventoryService {
 }
 ```
 
-- [ ] Implement document-ID pagination with a 101st-row sentinel; bind each cursor to actor, academy, collection and last document. Parse each stored schema; report invalid rows by safe ID and issue code instead of silently omitting them. Keep `complete: false` when the sentinel exists.
+- [x] Implement document-ID pagination with a 101st-row sentinel; bind each cursor to actor, academy, collection and last document. Parse each stored schema; report invalid rows by safe ID and issue code instead of silently omitting them. Keep `complete: false` when the sentinel exists.
 
 ```ts
 const fetched = await query.limit(101).get();
@@ -130,10 +130,10 @@ const complete = fetched.docs.length <= 100;
 // The cursor state uses the existing protected cursor store, never client JSON.
 ```
 
-- [ ] Add office-only callable validation through `requireCanonicalMemberDirectoryActor` and the existing restricted-read budget. The request permits only the `InventoryCollection` allowlist; it never accepts an arbitrary Firestore path. Responses contain no contacts, identity numbers, passwords or payment credentials.
-- [ ] Extend the private inventory report to distinguish documents, linked athletes, unresolved identities, missing dates/guardians, conflicting links and dangling operational references. Record capture dates and the archive's 50-payment/50-attendance-row limits. A stored array of 50 does not prove only 50 lifetime transactions. Label source coverage `complete`, `partial` or `unknown` only on evidence; cursor exhaustion means the stored collection was traversed, not that Regyfit history is complete.
-- [ ] Inspect a synthetic 101-row boundary, an invalid middle row, a duplicate source link and a second capture containing overlapping history. Expected: next page reachable, invalid row reported, duplication unresolved, and no claim that document count equals people. Do not run the callable against production during this task without existing read authorisation.
-- [ ] Commit only this task's files with message `Add paginated member source inventory`. Follow the global publication workflow.
+- [x] Add office-only callable validation through `requireCanonicalMemberDirectoryActor` and the existing restricted-read budget. The request permits only the `InventoryCollection` allowlist; it never accepts an arbitrary Firestore path. Responses contain no contacts, identity numbers, passwords or payment credentials.
+- [x] Extend the private inventory report to distinguish documents, linked athletes, unresolved identities, missing dates/guardians, conflicting links and dangling operational references. Record capture dates and the archive's 50-payment/50-attendance-row limits. A stored array of 50 does not prove only 50 lifetime transactions. Label source coverage `complete`, `partial` or `unknown` only on evidence; cursor exhaustion means the stored collection was traversed, not that Regyfit history is complete.
+- [x] Inspect a synthetic 101-row boundary, an invalid middle row, a duplicate source link and a second capture containing overlapping history. Expected: next page reachable, invalid row reported, duplication unresolved, and no claim that document count equals people. Do not run the callable against production during this task without existing read authorisation.
+- [x] Commit only this task's files with message `Add paginated member source inventory`. Follow the global publication workflow.
 
 ## Task 2: Add explicit, versioned reconciliation decisions
 

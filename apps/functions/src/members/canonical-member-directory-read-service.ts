@@ -41,6 +41,7 @@ export type DirectoryReadDocument = Readonly<{
   id: string;
   exists: boolean;
   data: DirectoryReadData | undefined;
+  version?: string;
 }>;
 
 export type CanonicalDirectoryReadTransaction = Readonly<{
@@ -52,6 +53,12 @@ export type CanonicalDirectoryReadTransaction = Readonly<{
       limit: number;
     }>,
   ) => Promise<readonly DirectoryReadDocument[]>;
+  listCollection?: (input: Readonly<{
+    academyId: string;
+    collection: string;
+    afterDocumentId?: string;
+    limit: number;
+  }>) => Promise<readonly DirectoryReadDocument[]>;
   create: (path: string, data: DirectoryReadData) => void;
   set: (path: string, data: DirectoryReadData) => void;
 }>;
@@ -187,11 +194,13 @@ const restrictedReadLimitSchema = z.strictObject({
 type CursorPayload = Readonly<z.infer<typeof cursorPayloadSchema>>;
 type RestrictedReadLimit = Readonly<z.infer<typeof restrictedReadLimitSchema>>;
 type RestrictedAction =
+  | "member.inventory.read"
   | "member.detail.read"
   | "member.identity.lookup"
   | "enrolment.request.detail.read"
   | "regyfit.record.field.read";
 type RestrictedPurpose =
+  | "member-inventory-review"
   | "member-record-maintenance"
   | "member-identity-lookup"
   | "enrolment-request-review"
@@ -640,7 +649,7 @@ function appendRestrictedAuditEvent(
   );
 }
 
-async function runRestricted<T>(
+export async function runRestricted<T>(
   input: Readonly<{
     command: DirectoryReadCommand;
     action: RestrictedAction;
@@ -654,6 +663,8 @@ async function runRestricted<T>(
   }>,
 ): Promise<T> {
   const { actor, now } = input.command;
+  requireAuthorizedActor(actor);
+  requiredTimestamp(now);
   const generatedAuditId = requiredIdentifier(
     input.dependencies.generateAuditId(),
     "generated audit ID",
