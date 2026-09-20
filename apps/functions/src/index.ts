@@ -298,3 +298,5 @@ export {
   uploadEnrolmentPaymentProof,
   getEnrolmentPaymentInstructions,
 } from "./members/enrolment-payment-proof.js";
+
+export { getStudentGroupAccess, saveStudentGroupAccess } from "./schedule/student-group-access-callables.js";

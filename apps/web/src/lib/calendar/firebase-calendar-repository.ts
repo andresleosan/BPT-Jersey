@@ -1,14 +1,7 @@
-/**
- * NOT RUN IN A BROWSER AGAINST FIREBASE — written against the client signatures in
- * ../schedule-client, ../waitlist-client, ../no-show-penalties-client and ../family-client.
- * What is verified (2026-09-15): the unit tests of this file, and the `selfCheckIn` callable
- * end-to-end in the Functions Emulator (qa/tests/schedule-auth-emulator.spec.ts, 3/3). What is
- * not: this adapter running in a browser session, because App Check is fail-closed outside
- * production. Before calling it verified: (1) run /account with NEXT_PUBLIC_CALENDAR_SOURCE=firebase
- * against a real session, (2) provide `bookedCounts` (today every session reads as not full),
- * (3) confirm how a teenStudent's studentId reaches loadMember.
- */
-import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
+/** Firebase-backed member calendar. Access grants are refreshed with every week load. */
+import { getStudentGroupAccess } from "../student-group-access-client";
+import type { PlanDraft } from "@bpt-jersey/domain/memberships";
+import { listAvailableMembershipPlans } from "../membership-client";
 
 import { getFamily } from "../family-client";
 import { participantBand } from "../participant-band";
@@ -38,12 +31,10 @@ function firstName(fullName: string): string {
 function participantFromPlan(
   studentId: string,
   membershipId: string,
-  planId: string,
+  plan: PlanDraft,
   name: string,
   dateOfBirth: string | undefined,
 ): CalendarParticipant | undefined {
-  const plan = PLAN_CATALOG.find((candidate) => candidate.planId === planId);
-  if (!plan) return undefined;
   // A plan open to several bands (Town Kids & Teens) needs the member's own band.
   const band = dateOfBirth === undefined ? undefined : participantBand(dateOfBirth);
   const participantType =
@@ -69,7 +60,9 @@ export function createFirebaseCalendarRepository(session: {
 }): CalendarRepository {
   return {
     async loadMember(): Promise<CalendarMember> {
-      const memberships = await listClientMemberships();
+      const [memberships, plans] = await Promise.all([
+        listClientMemberships(), listAvailableMembershipPlans(),
+      ]);
       const current = memberships.filter((m) => m.status === "active" || m.status === "trial");
       const names = new Map<string, string>();
       const births = new Map<string, string>();
@@ -83,10 +76,12 @@ export function createFirebaseCalendarRepository(session: {
       const participants: CalendarParticipant[] = [];
       for (const membership of current) {
         if (participants.some((p) => p.studentId === membership.studentId)) continue;
+        const plan = plans.find((candidate) => candidate.planId === membership.planId);
+        if (!plan) continue;
         const participant = participantFromPlan(
           membership.studentId,
           membership.membershipId,
-          membership.planId,
+          plan,
           names.get(membership.studentId) ?? session.displayName,
           births.get(membership.studentId),
         );
@@ -95,7 +90,7 @@ export function createFirebaseCalendarRepository(session: {
       return { role: session.role, displayName: session.displayName, participants };
     },
     async loadWeek(studentId, fromIso, toIso) {
-      const [sessions, catalog, bookings, attendance, bookedCounts] = await Promise.all([
+      const [sessions, catalog, bookings, attendance, bookedCounts, groupAccess] = await Promise.all([
         listSessions({ from: fromIso, to: toIso }),
         getScheduleCatalog(),
         listStudentBookings(studentId),
@@ -103,8 +98,9 @@ export function createFirebaseCalendarRepository(session: {
         // Fail open: booked counts are a display nicety only; the server still enforces capacity
         // when booking, so losing this read must not blank the whole calendar.
         listSessionBookedCounts({ from: fromIso, to: toIso }).catch(() => ({})),
+        getStudentGroupAccess(studentId),
       ]);
-      return { sessions, programs: catalog.programs, bookings, attendance, bookedCounts };
+      return { sessions, programs: catalog.programs, bookings, attendance, bookedCounts, groupAccess };
     },
     book: requestBooking,
     cancel: cancelBooking,

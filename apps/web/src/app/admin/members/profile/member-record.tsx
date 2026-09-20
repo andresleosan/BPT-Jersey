@@ -410,6 +410,7 @@ function MemberRecordSession({
     if (activeTab === "classes" && profile.view === "full")
       return (
         <ClassesTab
+          canManageGroups={office}
           key={profile.header.studentId}
           studentId={profile.header.studentId}
           onUnavailable={onUnavailable}

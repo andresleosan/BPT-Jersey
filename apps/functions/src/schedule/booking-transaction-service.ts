@@ -1,3 +1,4 @@
+import { studentGroupAccessSchema } from "@bpt-jersey/domain/schedule/member-calendar";
 import {
   classActorGroup,
   type AuditEventDraft,
@@ -429,6 +430,7 @@ async function weeklyUsage(input: {
   studentId: string;
   week: string;
   currentIds: readonly string[];
+  additionalProgramIds: readonly string[];
 }): Promise<number> {
   const weekStartUtc = Date.parse(input.week + "T00:00:00Z");
   if (Number.isNaN(weekStartUtc)) return invalid("invalid", "Booking week is invalid");
@@ -450,7 +452,11 @@ async function weeklyUsage(input: {
   const openMatByProgram = new Map<string, boolean>();
   for (const sessionSnapshot of sessions.docs) {
     const historical = historicalSession(sessionSnapshot, input.academyId, sessionSnapshot.id);
-    if (historical.status === "cancelled" || weekStart(historical.startAt) !== input.week) {
+    if (
+      historical.status === "cancelled" ||
+      weekStart(historical.startAt) !== input.week ||
+      input.additionalProgramIds.includes(historical.programId)
+    ) {
       continue;
     }
     const ids = buildBookingIdCandidates(sessionSnapshot.id, input.studentId);
@@ -732,6 +738,21 @@ async function executeBookingInTransaction(
   ]);
   const storedPlan = plan(planSnapshot, academyId, storedMembership.planId);
   const storedProgram = program(programSnapshot, academyId, storedSession.programId);
+  // Read the grant inside this transaction: a concurrent revocation forces a retry.
+  const groupSnapshot = await input.transaction.get(
+    input.firestore.doc(path(academyId, "studentGroupAccess") + "/" + studentId),
+  );
+  const groupData = groupSnapshot.exists ? groupSnapshot.data() : undefined;
+  if (groupSnapshot.exists && (!groupData || groupData.academyId !== academyId || groupData.studentId !== studentId)) {
+    return invalid("tenant", "Group access scope is invalid");
+  }
+  const groupAccess = studentGroupAccessSchema.safeParse({
+    studentId, programIds: groupData?.programIds ?? [], revision: groupData?.revision ?? 0,
+    dateOfBirth: storedStudent.dateOfBirth ?? null,
+  });
+  if (!groupAccess.success) return invalid("invalid", "Group access is invalid");
+  const additionalProgramIds = groupAccess.data.programIds;
+  const additionalAccess = additionalProgramIds.includes(storedSession.programId);
   const week = weekStart(storedSession.startAt);
   const quotaKey = quotaId(studentId, week);
   const quotaRef = input.firestore.doc(path(academyId, "bookingQuotaStates") + "/" + quotaKey);
@@ -739,13 +760,14 @@ async function executeBookingInTransaction(
   const quotaRevision = revision(quotaSnapshot, academyId, quotaKey, "quotaId");
 
   const [used, occupied, account] = await Promise.all([
-    weeklyUsage({
+    additionalAccess ? Promise.resolve(0) : weeklyUsage({
       firestore: input.firestore,
       transaction: input.transaction,
       academyId,
       studentId,
       week,
       currentIds: target.ids,
+      additionalProgramIds,
     }),
     occupancy({
       firestore: input.firestore,
@@ -776,12 +798,16 @@ async function executeBookingInTransaction(
   ) {
     return invalid("financial", "Financial access is not eligible");
   }
-  const access = evaluatePlanAccess(storedPlan, {
-    participantType: audience(storedStudent, storedProgram, storedSession.startAt),
-    site: storedSession.locationId === "town" ? "Town" : "West",
-    sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
-    weeklyClassesUsed: used,
-  });
+  // Additional groups waive age, site and plan quotas only. Membership, financial standing,
+  // active programs, booking cutoff and capacity are still required.
+  const access = additionalAccess && storedPlan.active
+    ? { allowed: true as const }
+    : evaluatePlanAccess(storedPlan, {
+        participantType: audience(storedStudent, storedProgram, storedSession.startAt),
+        site: storedSession.locationId === "town" ? "Town" : "West",
+        sessionType: storedProgram.discipline === "open-mat" ? "openMat" : "class",
+        weeklyClassesUsed: used,
+      });
   if (!access.allowed) {
     return invalid(
       access.code === "WEEKLY_LIMIT_REACHED" ? "weekly-limit" : "ineligible",
