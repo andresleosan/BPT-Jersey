@@ -1,6 +1,11 @@
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import { memberAgeOn } from "@bpt-jersey/domain/members/access";
+import { signedGuardianState, guardianRelationshipVersion, prepareChildGuardianChange, eighteenthBirthday } from "../members/member-guardian-state.js";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
+  childGuardianChangeSchema,
+  type ChildGuardianChange,
   parseFamilyRecord,
   parseFamilyRelationship,
   parseFamilyStudentDraft,
@@ -14,6 +19,7 @@ import { parseAuditEventDraft, type AuditEventDraft } from "@bpt-jersey/domain/a
 import {
   deriveParticipantType,
   parseStudentProfile,
+  parseEffectiveStudentProfileAt,
   parseUserProfile,
   type StudentProfile,
   type UserProfile,
@@ -79,6 +85,7 @@ export type FamilyAuthService = Readonly<{
     Readonly<{
       uid: string;
       disabled?: boolean;
+      emailVerified?: boolean;
       customClaims?: Readonly<Record<string, unknown>>;
     }>
   >;
@@ -119,6 +126,7 @@ export type GetStaffFamilyInput = Readonly<{
 }>;
 
 export type FamilyStore = Readonly<{
+  changeChildGuardian: (input: ChildGuardianChange & Readonly<{ academyId: string; actorId: string; actorRole: "owner" | "administrator"; now: string }>) => Promise<StaffFamilyProjection>;
   createFamily: (input: CreateFamilyInput) => Promise<StaffFamilyProjection>;
   getStaffFamily: (
     academyId: string,
@@ -432,6 +440,7 @@ function advanceCanonicalControl(
     actorId: string;
     operationId: string;
     addedStudentCount: number;
+    transitionKind?: "family-minor-create" | "member-guardian-change";
     now: string;
   }>,
 ) {
@@ -456,7 +465,7 @@ function advanceCanonicalControl(
       event: control.event,
       nextState,
       operationId: input.operationId,
-      transitionKind: "family-minor-create",
+      transitionKind: input.transitionKind ?? "family-minor-create",
       integritySecretMaterial: dependencies.integritySecretMaterial,
       integritySecretVersion: dependencies.integritySecretVersion,
       now: input.now,
@@ -503,7 +512,7 @@ function parseStoredFamily(snapshot: FamilyDocumentSnapshot): FamilyRecord {
 
 function parseStoredStudent(snapshot: FamilyDocumentSnapshot): StudentProfile {
   if (!snapshot.exists) throw new FamilyStoreError("invalid", "Stored student is missing");
-  const parsed = parseStudentProfile(snapshot.data());
+  const parsed = parseEffectiveStudentProfileAt(snapshot.data(), dateKeyInJersey(new Date()));
   if (!parsed.ok) throw new FamilyStoreError("invalid", "Stored student is invalid");
   return parsed.value;
 }
@@ -628,7 +637,7 @@ async function verifyAuthUser(
     if (user.customClaims?.academyId !== academyId) {
       throw new FamilyStoreError("tenant", "Tutor Auth tenant mismatch");
     }
-    if (user.uid !== userId || user.disabled === true || (!courseContext ? user.customClaims?.role !== "guardian" : !["guardian", "adultStudent", "shopper", "coach", "headCoach", "owner", "administrator"].includes(String(user.customClaims?.role)))) {
+    if (user.uid !== userId || user.disabled === true || user.emailVerified !== true || (!courseContext ? !["guardian", "adultStudent"].includes(String(user.customClaims?.role)) : !["guardian", "adultStudent", "shopper", "coach", "headCoach", "owner", "administrator"].includes(String(user.customClaims?.role)))) {
       throw new FamilyStoreError("precondition", "Tutor Auth identity mismatch");
     }
   } catch (error) {
@@ -646,6 +655,12 @@ function staffProjection(
     family,
     students: Object.freeze([...students]),
     relationships: Object.freeze([...relationships]),
+    relationshipVersions: Object.freeze(Object.fromEntries(relationships.map((link) => [link.relationshipId, guardianRelationshipVersion(link)]))),
+    adulthood: Object.freeze(students.map((student) => ({ studentId: student.studentId,
+      eighteenthBirthday: student.dateOfBirth ? eighteenthBirthday(student.dateOfBirth) : null,
+      ownAccessPrepared: typeof student.userId === "string",
+      guardianAccessEnded: (memberAgeOn(student.dateOfBirth, dateKeyInJersey(new Date())) ?? -1) >= 18,
+    }))),
   });
 }
 
@@ -898,6 +913,22 @@ async function resolveFamilyWriteReplay(
   return staffProjection(family, students, relationships);
 }
 
+function guardianTransaction(transaction: FamilyTransaction, firestore: FamilyFirestore) {
+  return {
+    get: async (path: string) => readDocumentSnapshot(await transaction.get(firestore.doc(path))).data(),
+    listRelationships: async (academyId: string, studentId: string) => readQuerySnapshot(await transaction.get(
+      firestore.collection(relationshipsPath(academyId)).where("studentId", "==", studentId).limit(101),
+    )).docs.map((doc) => ({ id: doc.id, data: doc.data() })),
+    create: (path: string, data: FamilyDocumentData) => { transaction.create(firestore.doc(path), data); },
+    set: (path: string, data: FamilyDocumentData) => { transaction.set(firestore.doc(path), data); },
+  };
+}
+async function assertUnusedChildGuardianState(transaction: FamilyTransaction, firestore: FamilyFirestore, academyId: string, studentId: string) {
+  const adapter = guardianTransaction(transaction, firestore);
+  const [anchor, links] = await Promise.all([adapter.get(`academies/${academyId}/memberGuardianStates/${studentId}`), adapter.listRelationships(academyId, studentId)]);
+  if (anchor || links.length) throw new FamilyStoreError("conflict", "A generated child identity already has guardian history");
+}
+
 export function createFamilyStore(dependencies: FamilyStoreDependencies): FamilyStore {
   const canonicalDependencies = validateCanonicalDependencies(dependencies.canonicalControl);
   const generateFamilyId = dependencies.generateFamilyId ?? randomUUID;
@@ -905,6 +936,85 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
   const generateAuditId = dependencies.generateAuditId ?? randomUUID;
 
   return Object.freeze({
+    async changeChildGuardian(input) {
+      const writer = requireCanonicalDependencies(canonicalDependencies);
+      const { academyId: rawAcademy, actorId: rawActor, actorRole, now: rawNow, ...raw } = input;
+      const value = childGuardianChangeSchema.parse(raw);
+      const academyId = pathSegment(rawAcademy, "academy"), actorId = pathSegment(rawActor, "actor");
+      const now = validNow(rawNow);
+      const bodyMac = createMemberDirectoryIntegrityMac({ domain: "bpt-child-guardian-request-v1",
+        values: [academyId, actorId, canonicalizeMemberDirectoryValue(value)], secretMaterial: writer.integritySecretMaterial });
+      const receiptReference = dependencies.firestore.doc(`academies/${academyId}/memberGuardianDecisions/${value.requestId}`);
+      const auditEventId = pathSegment(generateAuditId(), "audit event");
+      return dependencies.firestore.runTransaction(async (transaction) => {
+        await assertTransactionalAdministrativeActor(transaction, dependencies.firestore, { academyId, actorId, actorRole });
+        const receipt = readDocumentSnapshot(await transaction.get(receiptReference));
+        if (receipt.exists) {
+          const saved = receipt.data();
+          if (saved?.academyId !== academyId || saved.actorId !== actorId || typeof saved.bodyMac !== "string" || !constantTimeMacEquals(saved.bodyMac, bodyMac)) {
+            throw new FamilyStoreError("conflict", "This guardian decision ID has already been used");
+          }
+          const resultMac = createMemberDirectoryIntegrityMac({ domain: "bpt-child-guardian-result-v1",
+            values: [bodyMac, canonicalizeMemberDirectoryValue(saved.result)], secretMaterial: writer.integritySecretMaterial });
+          if (typeof saved.resultMac !== "string" || !constantTimeMacEquals(saved.resultMac, resultMac)) throw new FamilyStoreError("conflict", "Guardian decision result needs review");
+          return saved.result as StaffFamilyProjection;
+        }
+        const control = await readCanonicalControl(transaction, dependencies.firestore, academyId, writer);
+        const studentReference = dependencies.firestore.doc(studentPath(academyId, value.studentId));
+        const storedStudent = readDocumentSnapshot(await transaction.get(studentReference));
+        const parsedStudent = parseEffectiveStudentProfileAt(storedStudent.data(), dateKeyInJersey(new Date(now)));
+        if (!parsedStudent.ok || storedStudent.id !== value.studentId || parsedStudent.value.studentId !== value.studentId || parsedStudent.value.academyId !== academyId) throw new FamilyStoreError("conflict", "Child identity needs review");
+        const student = parsedStudent.value;
+        if (!student.active || student.status !== "active") throw new FamilyStoreError("precondition", "The member must be active before changing access");
+        if (value.proposedGuardianUserId) {
+          if (value.proposedGuardianUserId === student.userId) throw new FamilyStoreError("precondition", "A member cannot be their own guardian");
+          const authUser = await dependencies.auth.getUser(value.proposedGuardianUserId);
+          if (authUser.uid !== value.proposedGuardianUserId || authUser.disabled || authUser.emailVerified !== true || authUser.customClaims?.academyId !== academyId ||
+              !["guardian", "adultStudent", "teenStudent", "shopper"].includes(String(authUser.customClaims?.role))) throw new FamilyStoreError("precondition", "A verified member account is required for the guardian");
+          const tutor = parseStoredTutor(readDocumentSnapshot(await transaction.get(dependencies.firestore.doc(userPath(academyId, value.proposedGuardianUserId)))), academyId);
+          if (tutor.userId !== value.proposedGuardianUserId) throw new FamilyStoreError("conflict", "Guardian account identity mismatch");
+        }
+        const familyId = student.familyId ?? `office-${student.studentId}`;
+        const familyReference = dependencies.firestore.doc(familyPath(academyId, familyId));
+        const familyDoc = readDocumentSnapshot(await transaction.get(familyReference));
+        if (!student.familyId && familyDoc.exists) throw new FamilyStoreError("conflict", "The office family already belongs to another record");
+        const family: FamilyRecord = familyDoc.exists ? parseStoredFamily(familyDoc) : {
+          academyId, familyId, primaryContactUserId: null, billingContactUserId: null, active: true, status: "active",
+          schemaVersion: "1", createdAt: now, createdBy: actorId, updatedAt: now, updatedBy: actorId,
+        };
+        if (family.academyId !== academyId || !family.active || family.status !== "active") throw new FamilyStoreError("conflict", "The family needs office review");
+        const [students, relationships] = await Promise.all([readStudents(transaction, dependencies.firestore, academyId, familyId), readRelationships(transaction, dependencies.firestore, academyId, familyId)]);
+        const prepared = await prepareChildGuardianChange(guardianTransaction(transaction, dependencies.firestore), value, {
+          academyId, actorId, now, student, familyId, integritySecretMaterial: writer.integritySecretMaterial,
+        });
+        const { guardianStatus: _guardianStatus, ...withoutGuardianStatus } = student;
+        const participantType = deriveParticipantType(student.dateOfBirth!, now.slice(0, 10));
+        const nextStudent: StudentProfile = { ...withoutGuardianStatus, familyId, participantType,
+          ...(prepared.relationship && participantType === "minor" ? { guardianStatus: "assigned" as const } : {}), updatedAt: now, updatedBy: actorId };
+        const nextControl = advanceCanonicalControl(dependencies.firestore, control, writer, {
+          academyId, actorId, operationId: value.requestId, addedStudentCount: 0, now, transitionKind: "member-guardian-change",
+        });
+        const nextRelationships = relationships.map((link) => prepared.ended && prepared.ended.relationshipId === link.relationshipId ? prepared.ended : link);
+        if (prepared.relationship) nextRelationships.push(prepared.relationship);
+        const result = staffProjection(family, [...students.filter((item) => item.studentId !== student.studentId), nextStudent], nextRelationships);
+        const resultMac = createMemberDirectoryIntegrityMac({ domain: "bpt-child-guardian-result-v1", values: [bodyMac, canonicalizeMemberDirectoryValue(result)], secretMaterial: writer.integritySecretMaterial });
+        if (!familyDoc.exists) transaction.create(familyReference, family);
+        transaction.set(studentReference, nextStudent);
+        prepared.commit();
+        transaction.set(control.stateRef, nextControl.state);
+        transaction.set(control.guardRef, nextControl.guard);
+        transaction.create(nextControl.eventRef, nextControl.event);
+        transaction.create(receiptReference, { academyId, actorId, studentId: student.studentId, bodyMac, resultMac, result,
+          input: value, before: prepared.before, ended: prepared.ended, relationship: prepared.relationship, anchor: prepared.anchor,
+          endReason: prepared.reason, occurredAt: now, schemaVersion: "1" });
+        appendAuditEventInTransaction(transaction, dependencies.firestore.doc(auditPath(academyId, auditEventId)), {
+          academyId, actorId, action: "member.updated", targetRef: studentReference.path,
+          purpose: "member-record-maintenance", correlationId: `write-${bodyMac}`,
+        } as AuditEventDraft);
+        return result;
+      });
+    },
+
     async createFamily(input) {
       const writer = requireCanonicalDependencies(canonicalDependencies);
       const academyId = pathSegment(input.academyId, "academy");
@@ -985,17 +1095,6 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
         if (readDocumentSnapshot(await transaction.get(familyReference)).exists) {
           throw new FamilyStoreError("duplicate", "Family identity is already in use");
         }
-        const existingFamilies = readQuerySnapshot(
-          await transaction.get(
-            dependencies.firestore
-              .collection(familiesPath(academyId))
-              .where("primaryContactUserId", "==", tutorUserId)
-              .limit(2),
-          ),
-        );
-        if (existingFamilies.docs.length > 0) {
-          throw new FamilyStoreError("duplicate", "Tutor already belongs to a family");
-        }
         const tutor = parseStoredTutor(
           readDocumentSnapshot(await transaction.get(input.courseEnrolmentId ? dependencies.firestore.doc(`academies/${academyId}/courseParticipantAccounts/${tutorUserId}`) : tutorReference)),
           academyId,
@@ -1044,6 +1143,7 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
         const parsedFamily = parseFamilyRecord(family);
         if (!parsedFamily.ok) throw new FamilyStoreError("invalid", "Family creation is invalid");
 
+        await Promise.all(studentIds.map((id) => assertUnusedChildGuardianState(transaction, dependencies.firestore, academyId, id)));
         const records = students.map((student, index) => {
           const studentId = studentIds[index];
           const reference = studentReferences[index];
@@ -1096,6 +1196,10 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           }
           transaction.create(record.reference, record.student);
           transaction.create(relationshipReference, record.relationship);
+          transaction.create(dependencies.firestore.doc(`academies/${academyId}/memberGuardianStates/${record.student.studentId}`), signedGuardianState({
+            academyId, studentId: record.student.studentId, relationshipId: record.relationship.relationshipId,
+            guardianUserId: record.relationship.adultUserId, revision: randomUUID(), updatedAt: now, updatedBy: actorId, schemaVersion: "1",
+          }, writer.integritySecretMaterial));
           const adminProfileReference = adminProfileReferences[index];
           if (record.adminProfile !== undefined) {
             if (adminProfileReference === undefined) {
@@ -1255,6 +1359,9 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
     },
 
     async updateFamily(input) {
+      if (input.operation.kind === "replaceTutor" || input.operation.kind === "deactivateRelationship") {
+        throw new FamilyStoreError("precondition", "Use the reviewed guardian action on the selected child's member record");
+      }
       const writer = requireCanonicalDependencies(canonicalDependencies);
       const academyId = pathSegment(input.academyId, "academy");
       const actorId = pathSegment(input.actorId, "actor");
@@ -1334,69 +1441,6 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           ...(await readRelationships(transaction, dependencies.firestore, academyId, familyId)),
         ];
 
-        if (input.operation.kind === "replaceTutor") {
-          const tutorUserId = pathSegment(input.operation.tutorUserId, "tutor");
-          await verifyAuthUser(dependencies.auth, tutorUserId, academyId);
-          const tutor = parseStoredTutor(
-            readDocumentSnapshot(
-              await transaction.get(dependencies.firestore.doc(userPath(academyId, tutorUserId))),
-            ),
-            academyId,
-          );
-          const otherFamilies = readQuerySnapshot(
-            await transaction.get(
-              dependencies.firestore
-                .collection(familiesPath(academyId))
-                .where("primaryContactUserId", "==", tutorUserId)
-                .limit(2),
-            ),
-          ).docs.filter((snapshot) => snapshot.id !== familyId);
-          if (otherFamilies.length > 0) {
-            throw new FamilyStoreError("duplicate", "Tutor already belongs to another family");
-          }
-          if (family.primaryContactUserId === tutorUserId) {
-            return staffProjection(family, students, relationships);
-          }
-          const base = { ...family };
-          delete base.guardianContact;
-          const parsedFamily = parseFamilyRecord({
-            ...base,
-            primaryContactUserId: tutor.userId,
-            billingContactUserId: tutor.userId,
-            updatedAt: now,
-            updatedBy: actorId,
-          });
-          if (!parsedFamily.ok) throw new FamilyStoreError("invalid", "Invalid updated family");
-          const updatedFamily = parsedFamily.value;
-          transaction.set(familyReference, updatedFamily);
-          for (const relationship of relationships) {
-            if (!relationship.active || relationship.status !== "active") continue;
-            transaction.set(
-              dependencies.firestore.doc(relationshipPath(academyId, relationship.relationshipId)),
-              Object.freeze({
-                ...relationship,
-                adultUserId: tutor.userId,
-                updatedAt: now,
-                updatedBy: actorId,
-              }),
-            );
-          }
-          return staffProjection(
-            updatedFamily,
-            students,
-            relationships.map((relationship) =>
-              relationship.active && relationship.status === "active"
-                ? Object.freeze({
-                    ...relationship,
-                    adultUserId: tutor.userId,
-                    updatedAt: now,
-                    updatedBy: actorId,
-                  })
-                : relationship,
-            ),
-          );
-        }
-
         if (input.operation.kind === "addStudent") {
           if (addPlan === undefined) {
             throw new FamilyStoreError("invalid", "Student write plan is missing");
@@ -1447,6 +1491,7 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           if (readDocumentSnapshot(await transaction.get(adminProfileReference)).exists) {
             throw new FamilyStoreError("duplicate", "Student identity is already linked");
           }
+          await assertUnusedChildGuardianState(transaction, dependencies.firestore, academyId, studentId);
           const adminProfile = buildMinorAdminProfile(
             addPlan.student,
             academyId,
@@ -1497,6 +1542,10 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           });
           transaction.create(studentReference, student);
           transaction.create(relationshipReference, relationship);
+          transaction.create(dependencies.firestore.doc(`academies/${academyId}/memberGuardianStates/${studentId}`), signedGuardianState({
+            academyId, studentId, relationshipId: relationship.relationshipId, guardianUserId: relationship.adultUserId,
+            revision: randomUUID(), updatedAt: now, updatedBy: actorId, schemaVersion: "1",
+          }, writer.integritySecretMaterial));
           if (adminProfile !== undefined) {
             transaction.create(adminProfileReference, adminProfile);
           }
@@ -1526,32 +1575,6 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           );
         }
 
-        if (input.operation.kind === "deactivateRelationship") {
-          const studentId = pathSegment(input.operation.studentId, "student");
-          const relationship = relationships.find((item) => item.studentId === studentId);
-          if (relationship === undefined)
-            throw new FamilyStoreError("not-found", "Family relationship is missing");
-          if (relationship.active && relationship.status === "active") {
-            const updated = Object.freeze({
-              ...relationship,
-              active: false,
-              status: "inactive" as const,
-              updatedAt: now,
-              updatedBy: actorId,
-            });
-            transaction.set(
-              dependencies.firestore.doc(relationshipPath(academyId, relationship.relationshipId)),
-              updated,
-            );
-            return staffProjection(
-              family,
-              students,
-              relationships.map((item) => (item.studentId === studentId ? updated : item)),
-            );
-          }
-          return staffProjection(family, students, relationships);
-        }
-
         if (!family.active || family.status !== "active") {
           return staffProjection(family, students, relationships);
         }
@@ -1562,22 +1585,39 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           updatedAt: now,
           updatedBy: actorId,
         });
-        transaction.set(familyReference, updatedFamily);
-        const updatedRelationships = relationships.map((relationship) => {
-          if (!relationship.active || relationship.status !== "active") return relationship;
-          const updated = Object.freeze({
-            ...relationship,
-            active: false,
-            status: "inactive" as const,
-            updatedAt: now,
-            updatedBy: actorId,
+        const suspensionId = randomUUID();
+        const preparedChanges = [];
+        for (const relationship of relationships.filter((link) => link.active && link.status === "active")) {
+          const student = students.find((item) => item.studentId === relationship.studentId);
+          if (!student) throw new FamilyStoreError("conflict", "A family relationship has no member");
+          const requestId = randomUUID();
+          const change: ChildGuardianChange = { requestId, studentId: student.studentId,
+            expectedRelationshipId: relationship.relationshipId, expectedRelationshipVersion: guardianRelationshipVersion(relationship),
+            proposedGuardianUserId: null, evidence: "Office deactivated this family and its current relationships", reason: "Family deactivation" };
+          const prepared = await prepareChildGuardianChange(guardianTransaction(transaction, dependencies.firestore), change, {
+            academyId, actorId, now, student, familyId, integritySecretMaterial: writer.integritySecretMaterial, deactivateFamily: true,
           });
-          transaction.set(
-            dependencies.firestore.doc(relationshipPath(academyId, relationship.relationshipId)),
-            updated,
-          );
-          return updated;
+          preparedChanges.push({ change, prepared, auditId: generateAuditId() });
+        }
+        const nextControl = advanceCanonicalControl(dependencies.firestore, control, writer, {
+          academyId, actorId, operationId: suspensionId, addedStudentCount: 0, now, transitionKind: "member-guardian-change",
         });
+        transaction.set(familyReference, updatedFamily);
+        for (const { change, prepared, auditId } of preparedChanges) {
+          prepared.commit();
+          transaction.create(dependencies.firestore.doc(`academies/${academyId}/memberGuardianDecisions/${change.requestId}`), {
+            academyId, actorId, studentId: change.studentId, input: change, before: prepared.before, ended: prepared.ended,
+            anchor: prepared.anchor, endReason: "family-deactivated", occurredAt: now, schemaVersion: "1",
+          });
+          appendAuditEventInTransaction(transaction, dependencies.firestore.doc(auditPath(academyId, auditId)), {
+            academyId, actorId, action: "member.updated", targetRef: studentPath(academyId, change.studentId),
+            purpose: "member-record-maintenance", correlationId: `write-${prepared.anchor.integrityMac}`,
+          } as AuditEventDraft);
+        }
+        transaction.set(control.stateRef, nextControl.state);
+        transaction.set(control.guardRef, nextControl.guard);
+        transaction.create(nextControl.eventRef, nextControl.event);
+        const updatedRelationships = relationships.map((relationship) => preparedChanges.find((item) => item.prepared.ended?.relationshipId === relationship.relationshipId)?.prepared.ended ?? relationship);
         return staffProjection(updatedFamily, students, updatedRelationships);
       });
     },

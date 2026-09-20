@@ -62,6 +62,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /academies/{academyId}/memberGuardianStates/{studentId} {
+      allow read, write: if false;
+    }
+    match /academies/{academyId}/memberGuardianDecisions/{requestId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/memberHistoryEntries/{entryId} {
       allow read, write: if false;
     }

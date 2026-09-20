@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 import type { CanonicalDirectoryReadTransaction } from "./canonical-member-directory-read-service.js";
@@ -42,7 +43,7 @@ export async function prepareMemberReviewWrite(
     appendAuditEventInTransaction({ create: (ref: { id: string }, value) =>
       tx.create(`${base}/auditEvents/${ref.id}`, value) }, { id: `review-${requestId}` }, {
       academyId: actor.academyId, actorId: actor.actorId, action: "member.updated",
-      targetRef: `${base}/students/${studentId}`, purpose: "member-record-maintenance", correlationId: requestId,
+      targetRef: `${base}/students/${studentId}`, purpose: "member-record-maintenance", correlationId: `write-${createHash("sha256").update(`${actor.academyId}:${studentId}:${requestId}`).digest("hex")}`,
     } as AuditEventDraft);
   };
 }

@@ -100,7 +100,7 @@ function jerseyOffsetMinutes(date: Date): number {
   return Math.round((asUtc - date.getTime()) / 60000);
 }
 
-function jerseyMidnight(dateKey: string): Date {
+export function jerseyMidnight(dateKey: string): Date {
   const [year, month, day] = splitKey(dateKey);
   const localMidnightAsUtc = Date.UTC(year, month - 1, day, 0);
   return new Date(localMidnightAsUtc - jerseyOffsetMinutes(noonAnchor(dateKey)) * 60000);

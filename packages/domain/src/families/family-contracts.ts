@@ -113,6 +113,8 @@ export type StaffFamilyProjection = Readonly<{
   family: FamilyRecord;
   students: readonly StudentProfile[];
   relationships: readonly FamilyRelationship[];
+  relationshipVersions?: Readonly<Record<string, string>>;
+  adulthood?: readonly Readonly<{ studentId: string; eighteenthBirthday: string | null; ownAccessPrepared: boolean; guardianAccessEnded: boolean }>[];
 }>;
 
 export type GuardianFamilyProjection = Readonly<{
@@ -462,3 +464,12 @@ export function parseFamilyStudentDraft(
   } as FamilyStudentDraft;
   return parseResult(parsed, issues);
 }
+
+export const childGuardianChangeSchema = z.strictObject({
+  requestId: z.uuid(), studentId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u),
+  expectedRelationshipId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u).nullable(),
+  expectedRelationshipVersion: z.string().regex(/^[a-f0-9]{64}$/u).nullable(),
+  proposedGuardianUserId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u).nullable(),
+  evidence: z.string().trim().min(3).max(1000), reason: z.string().trim().min(3).max(500),
+}).refine((value) => (value.expectedRelationshipId === null) === (value.expectedRelationshipVersion === null));
+export type ChildGuardianChange = Readonly<z.infer<typeof childGuardianChangeSchema>>;
