@@ -1,6 +1,6 @@
 # ADR-013: alta administrativa completa y gestión operativa
 
-Fecha: 2026-09-20. Estado: implementada localmente; publicación pendiente de aprobación.
+Fecha: 2026-09-20. Estado: Functions publicadas con autorización explícita; web pendiente.
 
 ## Decisión del operador
 
@@ -81,3 +81,15 @@ Capturas con datos sintéticos: `.tmp/enrolment-*.jpg`.
 3. Avanzar main con este cambio probado y realizar el push por el flujo SSH del operador.
 4. Confirmar Success del commit en Cloudflare Pages, proyecto bptjersey, y probar el registro
    con sesión administrativa. Hasta entonces no se declara implementado en producción.
+
+## Publicación de Functions verificada
+
+El operador autorizó en chat esta publicación («autorizo y haz /compact»). El 2026-09-20 se
+publicaron exactamente las seis funciones sobre el código 3fc9bbe: cuatro actualizaciones y
+creación de deactivateHealthProfile y reviewHealthProfileChangeRequest. Firebase finalizó con
+exit 0 y Deploy complete. Log: `.tmp/complete-enrolment-deploy.log`.
+
+Un POST vacío sin sesión por función devolvió HTTP 401 en las seis. Evidencia con horas:
+`.tmp/complete-enrolment-post-deploy.json`. Esta comprobación verifica disponibilidad y rechazo
+sin sesión; no sustituye la comprobación funcional con una sesión administrativa.
+No se modificaron expedientes reales. La web requiere el push del operador y Success en Pages.
