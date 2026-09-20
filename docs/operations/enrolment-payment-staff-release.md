@@ -1,6 +1,6 @@
 # Publicación de registro y Staff · 2026-09-20
 
-Estado: cambios locales en `feat/enrolment-payment-staff`; sin publicación de esta entrega.
+Estado: publicación autorizada explícitamente por el operador el 2026-09-20. Código `d14098b`, integrado por avance directo en `main`. Las 15 Functions se han desplegado; la web se publica mediante el push de esta entrega y su check Cloudflare Pages.
 
 ## Alcance revisable
 
@@ -48,3 +48,18 @@ Estado: cambios locales en `feat/enrolment-payment-staff`; sin publicación de e
 - Formato y compilación: `.tmp/enrolment-format-verified.log`, `.tmp/enrolment-runtime-build.log`, `.tmp/enrolment-functions-build-final.log`, `.tmp/enrolment-web-build.log`.
 - Las comprobaciones locales no demuestran disponibilidad de secretos R2, vinculación Google de
   cuentas reales ni despliegue. No se ha medido latencia de producción en esta entrega.
+
+## Despliegue autorizado y comprobado
+
+- Firebase `bptjersey-f5a25`, `us-central1`: 15/15 operaciones completadas, dos altas y trece
+  actualizaciones, salida 0; `.tmp/enrolment-production-deploy.log`.
+- Las cinco referencias R2 tienen versiones ENABLED; se consultaron solo metadatos, sin leer
+  valores. Evidencia `.tmp/enrolment-storage-metadata.json`.
+- `adminOperationalNotificationCreated` ya estaba ACTIVE en `europe-west9`; no se republicó.
+- Entre 09:19:34 y 09:19:44 UTC, las 15 llamadas sin sesión devolvieron HTTP 401/UNAUTHENTICATED.
+  Evidencia `.tmp/enrolment-production-probes.json`. Esto confirma disponibilidad y rechazo de
+  acceso anónimo; no equivale a completar una inscripción autenticada.
+- El conector Cloudflare solo ve otra cuenta. El resultado de Pages se comprueba en los check-runs
+  públicos de GitHub para el commit publicado; no requiere acceder a valores de autenticación.
+- Falta la aceptación funcional con sesión real: alta, evidencia, aprobación, membresía/nivel
+  y promoción de un coach. No se crearon cuentas, pagos ni miembros de prueba en producción.
