@@ -219,7 +219,7 @@ Implementation note (20 September): review decisions and typed application are s
 - Consume `resolveCanonicalStudentId`, existing `ManualSubscriptionInput` and `saveManualSubscription`, existing Regyfit record schemas and existing staff progression operations.
 - Produce `MemberHistoryEntry`, `AttendanceBaseline`, `MemberHistoryService.list(academyId: string, studentId: string, cursor?: string): Promise<{entries: readonly MemberHistoryEntry[]; nextCursor: string | null}>`.
 
-- [ ] Define provenance and unknown-value handling; an archive movement is evidence, not a new BPT financial transaction.
+- [x] Define provenance and unknown-value handling; an archive movement is evidence, not a new BPT financial transaction.
 
 ```ts
 export type MemberHistoryEntry = Readonly<{
@@ -243,8 +243,8 @@ export type AttendanceBaseline = Readonly<{
 }>;
 ```
 
-- [ ] Link each archive row using source-record/capture/item provenance. Preserve an available upstream transaction ID; otherwise use a deterministic per-capture row reference and mark cross-capture matches for review. Equal amount/date/text is only a duplicate candidate, since two real payments can be identical. Store reviewed equivalences before combining capture histories. Paginate, expose coverage and never silently claim bounded arrays are the lifetime ledger.
-- [ ] Reuse the existing `previously-paid` settlement. The reviewer selects the matching plan, dates and original evidence; enrich its receipt with the reconciliation decision and source item references. Keep `endsAt` exclusive as in the existing linking flow. Detect existing compatible paid coverage before creating a membership; reuse its identity or route a discrepancy, not another subscription. Do not call charge, invoice-create or payment-create code on this path.
+- [x] Link each archive row using source-record/capture/item provenance. Preserve an available upstream transaction ID; otherwise use a deterministic per-capture row reference and mark cross-capture matches for review. Equal amount/date/text is only a duplicate candidate, since two real payments can be identical. Store reviewed equivalences before combining capture histories. Paginate, expose coverage and never silently claim bounded arrays are the lifetime ledger.
+- [x] Reuse the existing `previously-paid` settlement. The reviewer selects the matching plan, dates and original evidence; enrich its receipt with the reconciliation decision and source item references. Keep `endsAt` exclusive as in the existing linking flow. Detect existing compatible paid coverage before creating a membership; reuse its identity or route a discrepancy, not another subscription. Do not call charge, invoice-create or payment-create code on this path.
 
 ```ts
 const settlement: ManualSubscriptionInput["settlement"] = {
@@ -254,10 +254,10 @@ const settlement: ManualSubscriptionInput["settlement"] = {
 };
 ```
 
-- [ ] Store reviewed `AttendanceBaseline` records in `memberAttendanceBaselines/{studentId}` with existing guards/audit. Count the confirmed baseline through its cut-off plus unique confirmed BPT events strictly after that cut-off. Display earlier overlapping BPT events as history without adding them again. If completeness or overlap is unresolved, show the known periods separately; never create dated events from an aggregate count. Preserve level, belt, stripes and graduation dates through the existing staff correction workflow.
-- [ ] Corrections append an adjustment or a new reviewed baseline with previous-version evidence; retain originals and payer identity. Guardian changes must never call subscription renewal, mandate transfer or payment cancellation. Require the existing financial workflow for future payer changes. Update confirmed profile/history projections without exposing staff-only evidence notes to clients.
-- [ ] Inspect a repeated paid-period link, already expired source plan, same-price duplicate candidates, unknown amount, partial attendance snapshot and overlapping baseline. Expected: no charge/invoice, no reactivation from a legacy active flag, unknown stays unknown, and no doubled progress. Inspect concurrent plan edits for version rejection.
-- [ ] Commit with message `Link member history without duplicating paid coverage`.
+- [x] Store reviewed `AttendanceBaseline` records in `memberAttendanceBaselines/{studentId}` with existing guards/audit. Count the confirmed baseline through its cut-off plus unique confirmed BPT events strictly after that cut-off. Display earlier overlapping BPT events as history without adding them again. If completeness or overlap is unresolved, show the known periods separately; never create dated events from an aggregate count. Preserve level, belt, stripes and graduation dates through the existing staff correction workflow.
+- [x] Corrections append an adjustment or a new reviewed baseline with previous-version evidence; retain originals and payer identity. Guardian changes must never call subscription renewal, mandate transfer or payment cancellation. Require the existing financial workflow for future payer changes. Update confirmed profile/history projections without exposing staff-only evidence notes to clients.
+- [x] Inspect a repeated paid-period link, already expired source plan, same-price duplicate candidates, unknown amount, partial attendance snapshot and overlapping baseline. Expected: no charge/invoice, no reactivation from a legacy active flag, unknown stays unknown, and no doubled progress. Inspect concurrent plan edits for version rejection.
+- [x] Commit with message `Link member history without duplicating paid coverage`.
 
 ## Task 4: Define account access independently from class and plan age rules
 

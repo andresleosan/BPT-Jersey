@@ -76,7 +76,7 @@ function writerTransaction(
   return adapter;
 }
 
-function readerTransaction(
+export function createMemberDirectoryReadTransaction(
   firestore: Firestore,
   transaction: Transaction,
 ): CanonicalDirectoryReadTransaction {
@@ -101,7 +101,7 @@ function readerTransaction(
       let query = firestore.collection(`academies/${academyId}/${collection}`)
         .orderBy(FieldPath.documentId());
       if (equal !== undefined) {
-        if (!["studentId", "canonicalStudentId"].includes(equal.field) ||
+        if (!["studentId", "canonicalStudentId", "membershipId", "invoiceId"].includes(equal.field) ||
             !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(equal.value)) {
           throw new Error("Invalid directory query filter");
         }
@@ -137,7 +137,7 @@ export function createMemberDirectoryFirestoreAdapters(
   const reader: CanonicalDirectoryReadStore = Object.freeze({
     runTransaction<T>(callback: (transaction: CanonicalDirectoryReadTransaction) => Promise<T>) {
       return firestore.runTransaction(
-        (transaction) => callback(readerTransaction(firestore, transaction)),
+        (transaction) => callback(createMemberDirectoryReadTransaction(firestore, transaction)),
         { maxAttempts: canonicalDirectoryReadTransactionMaxAttempts },
       );
     },

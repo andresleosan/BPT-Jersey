@@ -13,7 +13,7 @@ import { deriveStudentIdentityKeyId, studentIdentityKeySchema, constantTimeMacEq
 
 import { resolveCanonicalStudentIdInTransaction } from "./member-identity-resolution.js";
 
-const referenceCollections = ["memberships", "bookings", "attendance", "invoices", "payments", "relationships",
+const referenceCollections = ["memberships", "bookings", "attendance", "relationships",
   "regyfitOfficeLinks", "regyfitMemberLinks", "memberRecoverySourceLinks", "memberMigrationDecisions"] as const;
 async function preview(
   tx: CanonicalDirectoryReadTransaction, deps: MemberReconciliationDependencies,
@@ -75,6 +75,38 @@ async function preview(
       if (collection === "relationships" && id === studentId && doc.data?.status === "active") blockers.add("An active source relationship needs a separate link decision");
       if (collection === "memberships" && ["trial", "active", "paused", "overdue"].includes(String(doc.data?.status))) activePlans.set(id, (activePlans.get(id) ?? 0) + 1);
     }
+  }
+  // Billing ownership follows membership -> invoice -> payment, never payer family alone.
+  if (!tx.listCollection) throw new HttpsError("failed-precondition", "Billing queries are unavailable");
+  for (const id of [studentId, canonicalStudentId]) {
+    const membershipIds = references.find((row) => row.collection === "memberships" && row.studentId === id)!.ids;
+    const invoiceIds = new Set<string>(), paymentIds = new Set<string>();
+    let complete = true;
+    for (const membershipId of membershipIds) {
+      if (totalReferences > 250) { complete = false; break; }
+      const invoices = await tx.listCollection({ academyId: actor.academyId, collection: "invoices",
+        equal: { field: "membershipId", value: membershipId }, limit: 51 });
+      if (invoices.length > 50) complete = false;
+      totalReferences += invoices.length;
+      for (const invoice of invoices.slice(0, 50)) {
+        invoiceIds.add(invoice.id);
+        versions.push(["invoices", id, invoice.id, invoice.version ?? "unavailable"]);
+        if (!invoice.version || invoice.data?.academyId !== actor.academyId || invoice.data?.membershipId !== membershipId) blockers.add("Billing ownership needs inventory review");
+        if (totalReferences > 250) { complete = false; break; }
+        const payments = await tx.listCollection({ academyId: actor.academyId, collection: "payments",
+          equal: { field: "invoiceId", value: invoice.id }, limit: 51 });
+        if (payments.length > 50) complete = false;
+        totalReferences += payments.length;
+        for (const payment of payments.slice(0, 50)) {
+          paymentIds.add(payment.id);
+          versions.push(["payments", id, payment.id, payment.version ?? "unavailable"]);
+          if (!payment.version || payment.data?.academyId !== actor.academyId || payment.data?.invoiceId !== invoice.id) blockers.add("Billing ownership needs inventory review");
+        }
+      }
+    }
+    if (!complete || invoiceIds.size > 100 || paymentIds.size > 100) blockers.add("The billing union needs a bounded migration operation");
+    references.push({ collection: "invoices", studentId: id, ids: [...invoiceIds].slice(0, 100), complete: complete && invoiceIds.size <= 100 },
+      { collection: "payments", studentId: id, ids: [...paymentIds].slice(0, 100), complete: complete && paymentIds.size <= 100 });
   }
   if (totalReferences > 250) blockers.add("The reference union needs a bounded migration operation");
   if ((activePlans.get(studentId) ?? 0) + (activePlans.get(canonicalStudentId) ?? 0) > 1) {

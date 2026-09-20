@@ -304,3 +304,5 @@ export { getStudentGroupAccess, saveStudentGroupAccess } from "./schedule/studen
 export { getMemberInventoryPage } from "./members/member-inventory-callables.js";
 
 export { getMemberReconciliationCase, decideMemberReconciliation, closeMemberReconciliation, previewMemberIdentityAlias, approveMemberIdentityAlias } from "./members/member-reconciliation-callables.js";
+
+export { getMemberHistory, reviewMemberHistoryEntry, saveMemberAttendanceBaseline } from "./members/member-history-callables.js";

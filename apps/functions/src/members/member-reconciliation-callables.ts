@@ -19,7 +19,7 @@ const identitySecret = defineSecret("MEMBER_DIRECTORY_IDENTITY_KEY_SECRET");
 const cursorSecret = defineSecret("MEMBER_DIRECTORY_CURSOR_SECRET");
 const integritySecret = defineSecret("MEMBER_DIRECTORY_MIGRATION_INTEGRITY_SECRET");
 const options = { ...browserAdminCallableOptions, secrets: [identitySecret, cursorSecret, integritySecret] };
-function callable<T>(schema: z.ZodType<T>, handler: (deps: MemberReconciliationDependencies, actor: CanonicalMemberDirectoryActor, input: T) => Promise<unknown>) {
+export function memberReviewCallable<T>(schema: z.ZodType<T>, handler: (deps: MemberReconciliationDependencies, actor: CanonicalMemberDirectoryActor, input: T) => Promise<unknown>) {
   return onCall(options, async (request) => {
     const firestore = getFirestore();
     const actor = await requireCanonicalMemberDirectoryActor(request, createMemberDirectoryActorActivityCheck({
@@ -38,13 +38,13 @@ function callable<T>(schema: z.ZodType<T>, handler: (deps: MemberReconciliationD
     try { return await handler(deps, actor, parsed.data); } catch (error) { return mapMemberDirectoryError(error); }
   });
 }
-export const getMemberReconciliationCase = callable(reconciliationCaseInputSchema, (deps, actor, input) =>
+export const getMemberReconciliationCase = memberReviewCallable(reconciliationCaseInputSchema, (deps, actor, input) =>
   createMemberReconciliationService(deps, actor).getCase(actor.academyId, input.studentId));
-export const decideMemberReconciliation = callable(reconciliationDecisionInputSchema, (deps, actor, input) =>
+export const decideMemberReconciliation = memberReviewCallable(reconciliationDecisionInputSchema, (deps, actor, input) =>
   createMemberReconciliationService(deps, actor).decide(actor, input));
-export const closeMemberReconciliation = callable(closeReconciliationInputSchema, (deps, actor, input) =>
+export const closeMemberReconciliation = memberReviewCallable(closeReconciliationInputSchema, (deps, actor, input) =>
   createMemberReconciliationService(deps, actor).close(actor, input));
-export const previewMemberIdentityAlias = callable(aliasPreviewInputSchema, (deps, actor, input) =>
+export const previewMemberIdentityAlias = memberReviewCallable(aliasPreviewInputSchema, (deps, actor, input) =>
   createMemberIdentityAliasService(deps, actor).preview(input));
-export const approveMemberIdentityAlias = callable(approveAliasInputSchema, (deps, actor, input) =>
+export const approveMemberIdentityAlias = memberReviewCallable(approveAliasInputSchema, (deps, actor, input) =>
   createMemberIdentityAliasService(deps, actor).approve(input));
