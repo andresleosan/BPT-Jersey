@@ -1,6 +1,6 @@
 # ADR-012: graduación manual por decisión administrativa
 
-Fecha: 2026-09-20. Decisión solicitada por el operador; implementación local.
+Fecha: 2026-09-20. Decisión solicitada por el operador; función publicada con aprobación explícita, web pendiente.
 
 Administrator y owner pueden graduar sin cumplir los requisitos deportivos del catálogo. En la
 ficha, Manage → Assign next level → Review promotion permite confirmar con nota opcional aunque
@@ -30,3 +30,12 @@ control; el código original se restauró antes de la suite final. Capturas y re
 `.tmp/manual-graduation-*`. La prueba antigua de integración se actualizó a esta política; no
 se ejecutó su flujo optativo con emuladores en esta entrega. No se modificaron cuentas ni
 graduaciones de producción.
+
+## Publicación autorizada
+
+El 2026-09-20 el operador autorizó desplegar `assignLevel` y preparar la web. Firebase CLI terminó
+con salida 0 y confirmó la actualización de esa única función en `bptjersey-f5a25`, `us-central1`,
+con el código de `d87fd9f`. Un POST sin sesión devolvió HTTP 401, sin reintentos. Evidencia:
+`.tmp/manual-graduation-deploy.log` y `.tmp/manual-graduation-post-deploy.json`. No se realizaron
+graduaciones de producción. La comprobación acredita disponibilidad y rechazo sin autenticación;
+el flujo administrativo debe comprobarse tras el push de la web y Success en Cloudflare Pages.
