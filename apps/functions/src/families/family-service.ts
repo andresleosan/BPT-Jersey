@@ -1542,7 +1542,7 @@ export function createFamilyStore(dependencies: FamilyStoreDependencies): Family
           updatedBy: actorId,
         });
         const suspensionId = randomUUID();
-        const preparedChanges = [];
+        const preparedChanges: Array<{ change: ChildGuardianChange; prepared: Awaited<ReturnType<typeof prepareChildGuardianChange>>; auditId: string }> = [];
         for (const relationship of relationships.filter((link) => link.active && link.status === "active")) {
           const student = students.find((item) => item.studentId === relationship.studentId);
           if (!student) throw new FamilyStoreError("conflict", "A family relationship has no member");

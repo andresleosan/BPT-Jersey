@@ -2,6 +2,11 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export const domainImportReplacements: Readonly<Record<string, string>> = Object.freeze({
+  "@bpt-jersey/domain/members/reconciliation": "../../domain/members/member-reconciliation-contracts.js",
+  "@bpt-jersey/domain/members/inventory": "../../domain/members/member-inventory-contracts.js",
+  "@bpt-jersey/domain/members/history": "../../domain/members/member-history-contracts.js",
+  "@bpt-jersey/domain/members/access": "../../domain/members/member-access-contracts.js",
+  "@bpt-jersey/domain/courses": "../../domain/courses/index.js",
   "@bpt-jersey/domain/audit": "../../domain/audit/audit-event.js",
   "@bpt-jersey/domain/audit/class-history": "../../domain/audit/class-history-contracts.js",
   "@bpt-jersey/domain/consents": "../../domain/consents/consent-contracts.js",

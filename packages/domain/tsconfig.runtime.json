@@ -67,6 +67,11 @@
     "src/staff/permission-grant-contracts.ts",
     "src/consents/disclaimer-contracts.ts",
     "src/memberships/subscription-admin-contracts.ts",
-    "src/schedule/member-class-record-contracts.ts"
+    "src/schedule/member-class-record-contracts.ts",
+    "src/courses/index.ts",
+    "src/members/member-access-contracts.ts",
+    "src/members/member-history-contracts.ts",
+    "src/members/member-inventory-contracts.ts",
+    "src/members/member-reconciliation-contracts.ts"
   ]
 }

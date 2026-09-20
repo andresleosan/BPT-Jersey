@@ -32,7 +32,7 @@ export function eighteenthBirthday(dateOfBirth: string): string {
 export async function prepareChildGuardianChange(tx: GuardianTransaction, input: ChildGuardianChange,
   context: Readonly<{ academyId: string; actorId: string; now: string; student: StudentProfile; familyId: string; integritySecretMaterial: string; deactivateFamily?: boolean }>) {
   const { academyId, actorId, now, student, familyId, integritySecretMaterial } = context;
-  const fail = (message: string): never => { throw new HttpsError("failed-precondition", message); };
+  function fail(message: string): never { throw new HttpsError("failed-precondition", message); }
   const age = memberAgeOn(student.dateOfBirth, dateKeyInJersey(new Date(now)));
   if (student.academyId !== academyId || student.studentId !== input.studentId || age === null) fail("Confirm this member's identity and date of birth first");
   if (input.proposedGuardianUserId === null && age < 16 && !context.deactivateFamily) fail("A guardian is required before age 16");

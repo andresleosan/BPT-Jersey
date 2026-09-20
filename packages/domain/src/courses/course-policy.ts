@@ -12,7 +12,7 @@ export function isCourseAgeEligible(course: Pick<Course, "minAge" | "maxAge">, b
   const age = courseAge(birth, date);
   return Number.isInteger(age) && age >= course.minAge && (course.maxAge === null || age <= course.maxAge);
 }
-export function canAccessCourseSession(e: CourseEnrolment, s: Pick<CourseSlot, "courseId" | "startAt"> & {status: string}): boolean {
+export function canAccessCourseSession(e: CourseEnrolment, s: Pick<CourseSlot, "startAt"> & {courseId?: string; status: string}): boolean {
   return ["approved", "withdrawal_requested"].includes(e.status) && e.studentId !== null
     && s.courseId === e.courseId && e.accessFrom !== null && Date.parse(s.startAt) >= Date.parse(e.accessFrom)
     && s.status !== "cancelled";

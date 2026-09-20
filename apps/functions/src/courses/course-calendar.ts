@@ -9,7 +9,7 @@ import { courseCollection, courseData, courseFailure, type CourseActor } from ".
 export async function getCourseCalendarPage(db: Firestore, actor: CourseActor, input: {studentId: string; from: string; to: string; cursor?: string | undefined}) {
   await resolveCourseParticipant(db, actor, {kind: "student", studentId: input.studentId});
   if (Date.parse(input.to) <= Date.parse(input.from) || Date.parse(input.to) - Date.parse(input.from) > 15 * 86400000) courseFailure("invalid", "Choose a calendar range of at most 15 days.");
-  let cursor: {e: string; s?: string} | null = null;
+  let cursor: {e: string; s?: string | undefined} | null = null;
   if (input.cursor) {try {cursor = z.strictObject({e:z.uuid(),s:z.string().regex(/^[A-Za-z0-9_:-]+$/u).optional()}).parse(JSON.parse(Buffer.from(input.cursor,"base64url").toString("utf8")));} catch {courseFailure("invalid", "Refresh the course calendar.");}}
   const enrolments = courseCollection(db, actor.academyId, "courseEnrolments");
   let enrolment: CourseEnrolment | null = null;

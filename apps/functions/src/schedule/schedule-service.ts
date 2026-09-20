@@ -1479,7 +1479,7 @@ export function createFirestoreScheduleStore(options: {
       actorRole?: ScheduleMutationActorRole,
       actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
-      const courseSession = await firestore.doc(`academies/${academyId}/sessions/${input.sessionId}`).get();
+      const courseSession = await firestore.collection(`academies/${academyId}/sessions`).doc(input.sessionId).get();
       if (courseSession.data()?.courseId) await ensureCourseBooking(firestore as unknown as Firestore, {uid: actorId, academyId, role: requireAttendanceActorRole(actorRole)}, input.sessionId, input.studentId);
       return attendanceTransactions.recordCheckIn({
         academyId,
@@ -1499,7 +1499,7 @@ export function createFirestoreScheduleStore(options: {
       actorRole?: ScheduleMutationActorRole,
       actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
-      const courseSession = await firestore.doc(`academies/${academyId}/sessions/${input.sessionId}`).get();
+      const courseSession = await firestore.collection(`academies/${academyId}/sessions`).doc(input.sessionId).get();
       if (courseSession.data()?.courseId) await ensureCourseBooking(firestore as unknown as Firestore, {uid: actorId, academyId, role: requireAttendanceActorRole(actorRole)}, input.sessionId, input.studentId);
       return attendanceTransactions.recordSelfCheckIn({
         academyId,
