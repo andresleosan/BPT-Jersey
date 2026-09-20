@@ -690,9 +690,34 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     });
   });
 
-  it("refuses an assignment below criteria with no note", async () => {
+  it.each(["owner", "administrator"] as const)(
+    "lets %s graduate below criteria without a note and preserves the gaps",
+    async (role) => {
+      const fixture = await makeFixture();
+      const actor = role === "owner" ? "owner-user-1" : "admin-user-1";
+      const result = await fixture.assign({}, { decidedBy: actor, decidedByRole: role });
+      expect(result.gaps).toEqual(
+        expect.arrayContaining(["Classes 0/25 not met", "Days 71/75 not met"]),
+      );
+      expect(await fixture.currentDefinitionKey()).toBe("white-2nd-stripe");
+      expect(await fixture.readPromotion(result.promotionId)).toMatchObject({
+        decidedBy: actor,
+        decidedByRole: role,
+        decisionNotes: "",
+        note: null,
+        gaps: result.gaps,
+      });
+    },
+  );
+
+  it("refuses a legacy head-coach assignment below criteria with no note", async () => {
     const fixture = await makeFixture();
-    await expect(fixture.assign()).rejects.toMatchObject({
+    await expect(
+      fixture.assign(
+        {},
+        { decidedBy: "head-user-1", decidedByStaffId: "staff-head-1", decidedByRole: "headCoach" },
+      ),
+    ).rejects.toMatchObject({
       code: "invalid",
       message: "A note is required when criteria are not met",
     });
@@ -718,7 +743,12 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
     ],
   ])("refuses a below-criteria assignment whose note is %s", async (_label, note, message) => {
     const fixture = await makeFixture();
-    await expect(fixture.assign({ note })).rejects.toMatchObject({ code: "invalid", message });
+    await expect(
+      fixture.assign(
+        { note },
+        { decidedBy: "head-user-1", decidedByStaffId: "staff-head-1", decidedByRole: "headCoach" },
+      ),
+    ).rejects.toMatchObject({ code: "invalid", message });
     expect(await fixture.currentDefinitionKey()).toBe("white-belt");
   });
 
@@ -1314,12 +1344,51 @@ describe("assignLevel (T051V2, grill G7)", () => {
 
   it("requires a note when the server finds gaps, and writes nothing", async () => {
     const { store, writes } = await withHead();
-    await expect(store.assignLevel(assign())).rejects.toMatchObject({
+    await expect(
+      store.assignLevel(
+        assign(
+          {},
+          {
+            decidedBy: "head-user-1",
+            decidedByStaffId: "staff-head-1",
+            decidedByRole: "headCoach",
+          },
+        ),
+      ),
+    ).rejects.toMatchObject({
       code: "invalid",
       message: "A note is required when criteria are not met",
     });
     expect(writes).toHaveLength(0);
   });
+
+  it.each(["owner", "administrator"] as const)(
+    "audits a below-criteria graduation by %s without a note",
+    async (role) => {
+      const { store, records, writes } = await withHead();
+      const actor = role === "owner" ? "owner-user-1" : "admin-user-1";
+      const result = await store.assignLevel(assign({}, { decidedBy: actor, decidedByRole: role }));
+      expect(result.gaps).toEqual([
+        "Skips 1 stripe",
+        "Classes 11/25 not met",
+        "Days 71/75 not met",
+      ]);
+      expect(
+        records.get(`academies/${academyId}/levelPromotions/${result.promotionId}`),
+      ).toMatchObject({
+        decidedBy: actor,
+        decidedByRole: role,
+        note: null,
+        gaps: result.gaps,
+        atAssignment: { classes: { done: 11, min: 25 }, days: { done: 71, min: 75 } },
+      });
+      expect(writes.find((write) => write.path.includes("/auditEvents/"))?.data).toMatchObject({
+        actorId: actor,
+        action: "level.promotion.approved",
+        targetRef: `academies/${academyId}/levelPromotions/${result.promotionId}`,
+      });
+    },
+  );
 
   it("stores gaps, the note, the criteria at assignment and a restore snapshot", async () => {
     const { store, records, writes } = await withHead();

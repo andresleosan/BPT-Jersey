@@ -439,6 +439,46 @@ describe("ManageView history", () => {
 });
 
 describe("ManageView assignment", () => {
+  it.each(["owner", "administrator"])(
+    "lets %s confirm unmet requirements with no note",
+    async (role) => {
+      api.assignLevel.mockResolvedValue({
+        promotionId: "grad_new",
+        toDefinitionKey: secondStripe,
+        promotedOn: today,
+        gaps: ["Skips 1 stripe"],
+      });
+      renderView(role);
+      const form = await assignForm();
+      fireEvent.change(within(form).getByLabelText("Next level"), {
+        target: { value: secondStripe },
+      });
+      fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
+      fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveTextContent(
+        "You can confirm this promotion even though the criteria are not met.",
+      );
+      expect(within(dialog).getByRole("list", { name: "Criteria not met" })).toHaveTextContent(
+        "Classes 12/25 not met",
+      );
+      expect(within(dialog).getByLabelText("Note (optional, 10 to 500 characters)")).toHaveValue(
+        "",
+      );
+      const confirm = within(dialog).getByRole("button", { name: "Confirm promotion" });
+      expect(confirm).toBeEnabled();
+      fireEvent.click(confirm);
+      await waitFor(() =>
+        expect(api.assignLevel).toHaveBeenCalledWith({
+          studentId: "student-1",
+          fromDefinitionKey: whiteBelt,
+          toDefinitionKey: secondStripe,
+          promotedOn: today,
+        }),
+      );
+    },
+  );
+
   it("lists gaps, demands a note of 10 to 500 characters and assigns once", async () => {
     api.assignLevel.mockResolvedValue({
       promotionId: "grad_new",
@@ -446,7 +486,7 @@ describe("ManageView assignment", () => {
       promotedOn: today,
       gaps: ["Skips 1 stripe"],
     });
-    renderView();
+    renderView("headCoach");
     const form = await assignForm();
     const select = within(form).getByLabelText("Next level");
     const options = within(select)
@@ -512,7 +552,7 @@ describe("ManageView assignment", () => {
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
     const dialog = await screen.findByRole("dialog");
-    const note = within(dialog).getByLabelText("Note (required, 10 to 500 characters)");
+    const note = within(dialog).getByLabelText("Note (optional, 10 to 500 characters)");
     expect(note).toHaveAccessibleDescription("");
     // Nine characters: typed, and shorter than the contract's minimum of ten.
     fireEvent.change(note, { target: { value: "too short" } });
@@ -545,7 +585,7 @@ describe("ManageView assignment", () => {
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
     const dialog = await screen.findByRole("dialog");
-    const note = within(dialog).getByLabelText("Note (required, 10 to 500 characters)");
+    const note = within(dialog).getByLabelText("Note (optional, 10 to 500 characters)");
     fireEvent.change(note, { target: { value: "Ready on every count but the clock." } });
     const confirm = within(dialog).getByRole("button", { name: "Confirm promotion" });
     // Both clicks land before React re-renders, so neither the `disabled` attribute nor the
@@ -630,7 +670,7 @@ describe("ManageView assignment", () => {
     fireEvent.change(within(form).getByLabelText("Promotion date"), { target: { value: today } });
     fireEvent.click(within(form).getByRole("button", { name: "Review promotion" }));
     const dialog = await screen.findByRole("dialog");
-    const note = within(dialog).getByLabelText("Note (required, 10 to 500 characters)");
+    const note = within(dialog).getByLabelText("Note (optional, 10 to 500 characters)");
     fireEvent.change(note, { target: { value: invisible } });
     expect(within(dialog).getByRole("button", { name: "Confirm promotion" })).toBeDisabled();
     expect(dialog).toHaveTextContent(

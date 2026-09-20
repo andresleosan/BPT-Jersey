@@ -282,6 +282,7 @@ function OpenLevelForm({
 }
 
 function AssignLevelForm({
+  manualDecision,
   studentId,
   fullName,
   age,
@@ -291,6 +292,7 @@ function AssignLevelForm({
   mayDiscardRatings,
   onDone,
 }: Readonly<{
+  manualDecision: boolean;
   studentId: string;
   fullName: string;
   age: number | null;
@@ -342,7 +344,7 @@ function AssignLevelForm({
           skillScores: scores.latest,
           ageYears: age,
         });
-  const noteRequired = gaps.length > 0;
+  const noteRequired = !manualDecision && gaps.length > 0;
   const confirmDisabled = noteRequired
     ? !noteIsValid(note)
     : note.trim() !== "" && !noteIsValid(note);
@@ -445,8 +447,9 @@ function AssignLevelForm({
           ) : (
             <>
               <p>
-                Not every criterion BPT records for this level is met. A note is required and is
-                kept with the promotion.
+                {manualDecision
+                  ? "You can confirm this promotion even though the criteria are not met. The unmet criteria and your decision are saved in the history."
+                  : "Not every criterion BPT records for this level is met. A note is required and is kept with the promotion."}
               </p>
               <ul aria-label="Criteria not met">
                 {gaps.map((gap) => (
@@ -881,6 +884,7 @@ export function ManageView({
     }
     return (
       <AssignLevelForm
+        manualDecision={role === "owner" || role === "administrator"}
         age={age}
         current={currentDefinition}
         data={loaded}
