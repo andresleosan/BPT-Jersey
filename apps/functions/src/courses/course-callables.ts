@@ -98,4 +98,4 @@ export const getCourseCalendar = callable(z.strictObject({studentId: courseRecor
 
 export const listCourseRoster = callable(page.extend({sessionId: courseRecordIdSchema}), false, (actor, i) => getCourseRoster(getFirestore(), actor, i.sessionId, i.cursor), []);
 
-export const exportCourseSubject = callable(page.extend({subjectUid: courseRecordIdSchema}), true, (actor, i) => exportCourseSubjectData(getFirestore(), actor, i.subjectUid, i.cursor), []);
+export const exportCourseSubject = callable(page.extend({subjectUid: courseRecordIdSchema, studentId: courseRecordIdSchema.optional()}), true, (actor, i) => exportCourseSubjectData(getFirestore(), actor, i.subjectUid, i.cursor, i.studentId), []);
