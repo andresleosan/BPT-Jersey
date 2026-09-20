@@ -183,6 +183,11 @@ export type ClassRecord = Readonly<{
 }>;
 
 export type SessionRecord = Readonly<{
+  courseId?: string;
+  courseOrdinal?: number;
+  courseSessionCount?: number;
+  coursePublicationRevision?: number;
+  instructorName?: string;
   sessionId: string;
   academyId: string;
   classId: string | null;

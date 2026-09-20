@@ -1,3 +1,4 @@
+import { filterPublishedCourseSessions } from "../courses/course-publication.js";
 import type { Firestore } from "firebase-admin/firestore";
 import {
   createWeeklySessionStore,
@@ -667,7 +668,7 @@ async function copyWeekWith(
       86_400_000,
   );
   // The same predicate as the preview: what the operator was shown is what gets copied.
-  const source = liveSessions(await store.listSessions(academyId, from));
+  const source = liveSessions(await store.listSessions(academyId, from)).filter(session => !session.courseId);
   if (source.some((session) => session.capacity === null)) {
     throw new Error("Every session in the source week needs a capacity before it can be copied");
   }
@@ -1168,6 +1169,7 @@ export function createFirestoreScheduleStore(options: {
       const existing = await docRef.get();
       if (!existing.exists) throw new Error(`Session ${input.sessionId} does not exist`);
       const current = existing.data() as SessionRecord;
+      if (current.courseId) throw new Error("Edit this session in Courses & Seminars.");
       if (!allowHistorical && current.status !== "scheduled")
         throw new Error("Only scheduled sessions can be edited");
       const timezone =
@@ -1262,9 +1264,8 @@ export function createFirestoreScheduleStore(options: {
         .where("startAt", "<=", query.to)
         .get();
 
-      return snapshot.docs
-        .map((doc) => doc.data() as SessionRecord)
-        .filter((session) => {
+      const published = await filterPublishedCourseSessions(firestore, academyId, snapshot.docs.map(doc => doc.data() as SessionRecord));
+      return published.filter((session) => {
           if (query.locationId && session.locationId !== query.locationId) {
             return false;
           }
@@ -1305,7 +1306,8 @@ export function createFirestoreScheduleStore(options: {
         .get();
 
       if (!doc.exists) return null;
-      return (doc.data() as SessionRecord) ?? null;
+      const record = doc.data() as SessionRecord;
+      return (await filterPublishedCourseSessions(firestore, academyId, [record]))[0] ?? null;
     },
 
     async createSession(
@@ -1369,6 +1371,7 @@ export function createFirestoreScheduleStore(options: {
       }
 
       const current = existing.data() as SessionRecord;
+      if (current.courseId) throw new Error("Cancel this session in Courses & Seminars.");
       const now = new Date().toISOString();
 
       const cancelled: SessionRecord = Object.freeze({
