@@ -27,7 +27,7 @@ import {
   maximumEnrolmentRequestMinors,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import type { PlanId } from "@bpt-jersey/domain/memberships";
-import { EnrolmentBankDetails } from "./payment-instructions";
+import { EnrolmentBankDetails, useEnrolmentBankDetails } from "./payment-instructions";
 import { EnrolmentPlanChoices } from "./plan-choices";
 import "./enrolment-steps.css";
 
@@ -421,6 +421,9 @@ function EnrolContent() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const signedIn = status === "signed-in";
+  const bankDetails = useEnrolmentBankDetails(
+    signedIn && session ? `${session.uid}:${session.role ?? ""}` : undefined,
+  );
   const alreadyStudent = session?.role === "guardian" || session?.role === "adultStudent";
 
   useEffect(() => {
@@ -966,7 +969,7 @@ function EnrolContent() {
               {paymentTotal > 0 ? (
                 <fieldset disabled={busy} className="enrol-applicant">
                   <legend>Bank transfer evidence</legend>
-                  <EnrolmentBankDetails />
+                  <EnrolmentBankDetails {...bankDetails} />
                   <p>
                     Transfer total: <strong>£{(paymentTotal / 100).toFixed(2)}</strong>. Upload one
                     screenshot covering the prepaid plans. Pay-as-you-go classes are paid
