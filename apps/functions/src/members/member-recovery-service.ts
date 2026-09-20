@@ -1175,6 +1175,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
           const record = source(sources, candidate.recordId, candidate.kind);
           return {
             candidateId: candidate.candidateId,
+            ...(record.kind === "regyfit" ? { archiveRecordId: record.recordId } : {}),
             fullName: record.fullName,
             ...(record.email ? { email: record.email } : {}),
             ...(record.birthDate ? { dateOfBirth: record.birthDate } : {}),

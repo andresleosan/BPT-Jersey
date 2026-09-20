@@ -52,7 +52,35 @@ Members can open **Progress → Your previous membership history** to view their
 archive's graduation progress, membership plan, attendance and payments. Loading is
 on demand. The server resolves the current member from authenticated ownership and
 returns only those historical fields; it accepts no client-supplied member ID.
-Historical snapshots do not manufacture new payments, subscriptions or graduation decisions.
+Historical snapshots do not automatically create current subscriptions, payments or graduation decisions.
+
+## Linking an existing paid period
+
+After approval, **Review previous subscription** opens the linked archive's current
+subscription editor. The same editor is available from **Previous member records**.
+If the member has no canonical profile yet, office registration creates one with a
+persistent source link; later recovery reuses that profile. Stored archive fields
+from the old application are normalised before validation and never become new credentials.
+
+For a member without a current subscription, select the matching current plan and
+**Previously paid: link existing payment**. Recorded dates prefill the form; the
+archive's final paid day is included by setting the exclusive end to the next day.
+The administrator confirms the original payment, plan and dates. Missing dates must
+be supplied from office evidence. The server verifies the archive-to-student link,
+rejects conflicting links and prevents duplicate active subscriptions or duplicate retries.
+
+This creates a current subscription and an audit reference to the original archive,
+without creating another invoice or payment. The original payment and progress history
+remain intact. Legacy import snapshots do not block this canonical subscription.
+Booking, waitlist entry and offer acceptance use the class start time to check the
+paid period. Member calendars and office registration report classes outside that period;
+existing bookings and attendance remain visible. Plan, capacity, financial standing,
+consent and administrator-assigned group rules continue to apply.
+
+The archive's active flag is insufficient to infer payment coverage. Read-only inspection
+found 87 records within their recorded dates, 150 expired periods and 12 active flags
+without complete dates. These are archive record counts, not distinct verified members.
+Office confirmation is required; deployment does not bulk-activate those records.
 
 ## Deployment and validation
 
@@ -76,7 +104,17 @@ On 2026-09-20, read-only production counts found 243 legacy directory records, 2
 records and 3 current students. Six of seven recovery attempts were still unbound;
 one was linked. These counts overlap and are not distinct member counts.
 
-The 2026-09-20 change is verified by source inspection, deployment compilation and
-read-only release checks. Automated tests were not run under the current operator
-workflow; older test suites have not been updated for mandatory office approval.
-Production approval with a real member remains an acceptance check, not a claimed test result.
+The recovery and subscription change was tested at the user's explicit request.
+Focused unit/component tests cover mandatory approval, optional old email, verification
+retries, source parsing, conflicting ownership, paid-period confirmation and date boundaries.
+Firebase Auth and Firestore emulator scenarios cover new Google and password identities,
+name-only recovery, queue approval, subsequent sign-in with member claims, preserved student
+and family IDs, progress/history access, idempotent paid-period linking, and booking/waitlist
+refusal outside the paid period. Email verification is simulated; email delivery and a real
+Google browser redirect are not covered. Browser visual/performance checks remain unmeasured.
+No real member was approved or altered as part of these tests.
+
+Deploy the subscription connection with `resolveMemberSubscriptionProfile`,
+`registerImportedMemberForOffice`, `manageMemberSubscription`, `listMemberSubscriptionBilling`,
+`getMemberRecoveryDetail`, `requestBooking`, `joinWaitlist`, `issueNextWaitlistOffer`
+and `acceptWaitlistOffer`, plus the frontend. No additional rules or indexes are required.

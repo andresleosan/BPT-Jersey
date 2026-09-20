@@ -147,11 +147,51 @@ suite("member recovery Firestore transaction integration", () => {
       "192.0.2.2",
     );
     const profile = { trainingCenter: "Town", trainingTimePreferences: ["evening"] };
-    const outcomes = await Promise.all([
+    const pending = await Promise.all([
       service.complete({ recoveryId: a.recoveryId, profile }, "account-a"),
       service.complete({ recoveryId: b.recoveryId, profile }, "account-b"),
     ]);
-    expect(outcomes.map((value) => value.status).sort()).toEqual(["linked", "pending-review"]);
+    expect(pending).toEqual([{ status: "pending-review" }, { status: "pending-review" }]);
+    const actor = {
+      actorId: "recovery-office",
+      academyId,
+      role: "owner" as const,
+      active: true,
+      appCheckVerified: true,
+    };
+    await database.doc(root + "users/recovery-office").set({
+      userId: actor.actorId,
+      academyId,
+      accountType: "staff",
+      displayName: "Office",
+      email: "office@example.test",
+      authProvider: "google",
+      active: true,
+      adminRole: "owner",
+      lastRoleChangeAuditId: "audit-1",
+      createdAt: Timestamp.now(),
+      createdBy: actor.actorId,
+      updatedAt: Timestamp.now(),
+      updatedBy: actor.actorId,
+      status: "active",
+      schemaVersion: 1,
+    });
+    const detail = await service.detail({ requestId: a.recoveryId }, actor);
+    const approved = await service.review(
+      {
+        requestId: a.recoveryId,
+        decision: "approve",
+        candidateId: detail.candidates[0]!.candidateId,
+        identityConfirmed: true,
+      },
+      actor,
+    );
+    expect(approved.status).toBe("linked");
+    const outcomes = [
+      approved,
+      await service.complete({ recoveryId: b.recoveryId, profile }, "account-b"),
+    ];
+    expect(outcomes.map((value) => value.status)).toEqual(["linked", "pending-review"]);
     const students = await database.collection(root + "students").get();
     expect(students.size).toBe(1);
     const winner =
@@ -258,7 +298,7 @@ suite("member recovery Firestore transaction integration", () => {
     seed(60, 4000, { expiresAt: "2026-09-18T09:00:00.000Z" });
     seed(60, 5000, { accountVerified: false }, true);
     seed(60, 6000, { accountVerified: false });
-    seed(60, 7000, { status: "profile-required" });
+    seed(60, 7000, { status: "profile-required", expiresAt: now });
     await batch.commit();
     const first = await queue.list(actor);
     expect(first.truncated).toBe(true);

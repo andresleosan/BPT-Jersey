@@ -165,7 +165,11 @@ export function ProfileSubscriptionEditor({
     return paymentsOnly ? (
       <MemberSubscriptionPayments key={state.studentId} studentId={state.studentId} />
     ) : (
-      <MemberSubscriptionEditor key={state.studentId} studentId={state.studentId} />
+      <MemberSubscriptionEditor
+        key={state.studentId}
+        studentId={state.studentId}
+        previousRecord={record}
+      />
     );
   return (
     <section

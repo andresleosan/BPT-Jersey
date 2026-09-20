@@ -26,7 +26,7 @@ import {
 } from "@bpt-jersey/domain/profiles";
 import { parseFamilyRecord, type FamilyRecord } from "@bpt-jersey/domain/families";
 import { z } from "zod";
-import { parseRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
+import { parseStoredRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 import {
@@ -961,11 +961,7 @@ export function createCanonicalMemberDirectoryService(
           ),
         ]);
         const storedSource = sourceSnapshot.data();
-        const source = parseRegyfitMemberRecord(
-          Object.fromEntries(
-            Object.entries(storedSource ?? {}).filter(([key]) => key !== "academyId"),
-          ),
-        );
+        const source = parseStoredRegyfitMemberRecord(storedSource);
         if (
           !source.ok ||
           source.value.recordId !== sourceRecordId ||

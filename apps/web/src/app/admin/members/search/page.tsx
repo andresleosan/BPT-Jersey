@@ -102,7 +102,7 @@ function AcademyMemberDirectorySection({
       <div className="admin-panel-card-heading">
         <div>
           <p className="admin-eyebrow">Members / Imported archive</p>
-          <h3 id="directory-search-heading">Imported archive (read only)</h3>
+          <h3 id="directory-search-heading">Previous member records</h3>
         </div>
       </div>
 

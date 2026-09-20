@@ -108,12 +108,14 @@ function harness() {
                       path.startsWith(target.path + "/") &&
                       path.split("/").length === target.path.split("/").length + 1 &&
                       (target.filters ?? []).every((filter) =>
-                        filter.operator === "=="
-                          ? data[filter.field] === filter.value
-                          : filter.operator === ">" &&
-                            typeof data[filter.field] === "string" &&
-                            typeof filter.value === "string" &&
-                            String(data[filter.field]) > filter.value,
+                        filter.operator === "in"
+                          ? (filter.value as unknown[]).includes(data[filter.field])
+                          : filter.operator === "=="
+                            ? data[filter.field] === filter.value
+                            : filter.operator === ">" &&
+                              typeof data[filter.field] === "string" &&
+                              typeof filter.value === "string" &&
+                              String(data[filter.field]) > filter.value,
                       ) &&
                       (target.orders ?? []).every((order) => data[order.field] !== undefined),
                   )
@@ -206,6 +208,24 @@ const begin = (
 ) => h.service.begin({ fullName, email }, "192.0.2.1");
 
 describe("legacy member recovery", () => {
+  async function approve(h: ReturnType<typeof harness>, recoveryId: string, uid = "user-1") {
+    const bound = await h.service.complete({ recoveryId }, uid);
+    if (bound.status === "linked") return bound;
+    const actor = queueOffice(h);
+    const detail = await h.service.detail({ requestId: recoveryId }, actor);
+    const candidate =
+      detail.candidates.find((c) => c.source === "regyfit") ?? detail.candidates[0]!;
+    return h.service.review(
+      {
+        requestId: recoveryId,
+        decision: "approve",
+        candidateId: candidate.candidateId,
+        identityConfirmed: true,
+      },
+      actor,
+    );
+  }
+
   it.each([true, false])(
     "requires office review for a name-only request, stored email present: %s",
     async (hasEmail) => {
@@ -288,6 +308,7 @@ describe("legacy member recovery", () => {
   it("requires completion then atomically links and replays without duplicating source or student", async () => {
     const h = harness();
     const ticket = await begin(h);
+    await approve(h, ticket.recoveryId);
     expect(await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1")).toMatchObject({
       status: "profile-required",
       profile: { dateOfBirth: "1990-01-01" },
@@ -315,6 +336,7 @@ describe("legacy member recovery", () => {
     const sourcePath = prefix + "regyfitMemberRecords/123";
     h.records.set(sourcePath, stored);
     const ticket = await begin(h);
+    await approve(h, ticket.recoveryId);
     expect(await h.service.complete({ recoveryId: ticket.recoveryId, profile }, "user-1")).toEqual({
       status: "linked",
     });
@@ -327,6 +349,7 @@ describe("legacy member recovery", () => {
   it("preserves a durable link and repairs failed Auth promotion", async () => {
     const h = harness();
     const ticket = await begin(h);
+    await approve(h, ticket.recoveryId);
     h.failClaim(true);
     await expect(
       h.service.complete({ recoveryId: ticket.recoveryId, profile }, "user-1"),
@@ -365,6 +388,8 @@ describe("legacy member recovery", () => {
     const h = harness();
     const a = await begin(h),
       b = await begin(h);
+    await approve(h, a.recoveryId);
+    await approve(h, b.recoveryId);
     const results = await Promise.all([
       h.service.complete({ recoveryId: a.recoveryId, profile }, "user-1"),
       h.service.complete({ recoveryId: b.recoveryId, profile }, "user-1"),
@@ -407,6 +432,7 @@ describe("legacy member recovery", () => {
   it("preserves source birth date and phone when completion tries to replace them", async () => {
     const h = harness();
     const ticket = await begin(h);
+    await approve(h, ticket.recoveryId);
     await h.service.complete(
       {
         recoveryId: ticket.recoveryId,
@@ -471,6 +497,7 @@ describe("legacy member recovery", () => {
   it("reuses an existing canonical student, retaining creation fields and profile metadata", async () => {
     const h = harness();
     const initial = await begin(h);
+    await approve(h, initial.recoveryId);
     await h.service.complete({ recoveryId: initial.recoveryId, profile }, "user-1");
     const [studentPath, old] = [...h.records.entries()].find(([path]) =>
       path.startsWith(prefix + "students/"),
@@ -491,6 +518,7 @@ describe("legacy member recovery", () => {
         h.records.delete(path);
     }
     const next = await begin(h);
+    await approve(h, next.recoveryId);
     expect(await h.service.complete({ recoveryId: next.recoveryId }, "user-1")).toEqual({
       status: "linked",
     });
@@ -512,6 +540,7 @@ describe("legacy member recovery", () => {
     async (action) => {
       const h = harness();
       const initial = await begin(h);
+      await approve(h, initial.recoveryId);
       await h.service.complete({ recoveryId: initial.recoveryId, profile }, "user-1");
       const [studentPath, student] = [...h.records.entries()].find(([path]) =>
         path.startsWith(prefix + "students/"),
@@ -564,6 +593,7 @@ describe("legacy member recovery", () => {
           ),
         ).toEqual({ status: "linked" });
       } else {
+        await approve(h, next.recoveryId);
         expect(await h.service.complete({ recoveryId: next.recoveryId }, "user-1")).toEqual({
           status: "linked",
         });
@@ -596,9 +626,7 @@ describe("legacy member recovery", () => {
       freezeStatus: "frozen",
     });
     const ticket = await begin(h);
-    await expect(
-      h.service.complete({ recoveryId: ticket.recoveryId, profile }, "user-1"),
-    ).rejects.toThrow();
+    await expect(approve(h, ticket.recoveryId)).rejects.toThrow();
     expect(h.records.has(prefix + "regyfitMemberLinks/123")).toBe(false);
   });
   it("allows an authenticated pending request to resume after a week while unbound tickets expire", async () => {
@@ -666,6 +694,7 @@ describe("legacy member recovery", () => {
       delete first.memberNumber;
       h.records.set(prefix + "regyfitMemberRecords/123", first);
       const initial = await begin(h);
+      await approve(h, initial.recoveryId);
       expect(
         await h.service.complete({ recoveryId: initial.recoveryId, profile }, "user-1"),
       ).toEqual({ status: "linked" });
@@ -745,6 +774,7 @@ describe("legacy member recovery", () => {
     delete imported.memberNumber;
     h.records.set(prefix + "regyfitMemberRecords/123", imported);
     const initial = await begin(h);
+    await approve(h, initial.recoveryId);
     expect(await h.service.complete({ recoveryId: initial.recoveryId, profile }, "user-1")).toEqual(
       { status: "linked" },
     );
@@ -756,6 +786,7 @@ describe("legacy member recovery", () => {
     });
     h.user({ email: "new@example.test" });
     const duplicate = await begin(h, "new@example.test");
+    await approve(h, duplicate.recoveryId);
     expect(await h.service.complete({ recoveryId: duplicate.recoveryId }, "user-1")).toEqual({
       status: "linked",
     });
@@ -833,7 +864,7 @@ describe("legacy member recovery", () => {
       h.records.set(prefix + "memberRecoveryRequests/" + id, value);
     }
     seedQueue(h, 60, 5000, { accountVerified: false });
-    seedQueue(h, 60, 6000, { status: "profile-required" });
+    seedQueue(h, 60, 6000, { status: "profile-required", expiresAt: now });
     const first = await h.service.list(actor);
     expect(first.truncated).toBe(false);
     expect(first.requests.map((value) => value.requestId)).toEqual(actionable);
@@ -870,7 +901,9 @@ describe("legacy member recovery", () => {
     expect((await h.service.list(actor)).requests).toEqual([]);
     h.user({ email: "new@example.test", emailVerified: false });
     await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
-    expect((await h.service.list(actor)).requests).toEqual([]);
+    expect((await h.service.list(actor)).requests).toEqual([
+      expect.objectContaining({ status: "verify-email", accountVerified: false }),
+    ]);
     h.user({ emailVerified: true });
     await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
     expect((await h.service.list(actor)).requests.map((value) => value.requestId)).toEqual([
@@ -878,7 +911,9 @@ describe("legacy member recovery", () => {
     ]);
     h.user({ emailVerified: false });
     await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
-    expect((await h.service.list(actor)).requests).toEqual([]);
+    expect((await h.service.list(actor)).requests).toEqual([
+      expect.objectContaining({ status: "verify-email", accountVerified: false }),
+    ]);
     h.user({ emailVerified: true });
     await h.service.complete({ recoveryId: ticket.recoveryId }, "user-1");
     await h.service.review({ requestId: ticket.recoveryId, decision: "reject" }, actor);

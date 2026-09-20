@@ -140,13 +140,20 @@ export function RegistrationsPanel({
 
   /** Enrols one student; returns the reason it could not be done, or null on success. */
   async function enrol(studentId: string): Promise<string | null> {
-    const membership = memberships.find(
+    if (!membershipsReady) return noMembershipList;
+    const active = memberships.filter(
       (candidate) =>
         candidate.studentId === studentId &&
         (candidate.status === "active" || candidate.status === "trial"),
     );
-    if (!membershipsReady) return noMembershipList;
-    if (!membership) return noMembership;
+    if (!active.length) return noMembership;
+    const sessionTime = Date.parse(session.startAt);
+    const membership = active.find(
+      (candidate) =>
+        Date.parse(candidate.startsAt) <= sessionTime &&
+        (candidate.endsAt === null || sessionTime < Date.parse(candidate.endsAt)),
+    );
+    if (!membership) return "This class is outside the member's paid membership period";
     try {
       await requestBooking({ sessionId, studentId, membershipId: membership.membershipId });
       return null;

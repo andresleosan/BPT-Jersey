@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 
 const schedule = vi.hoisted(() => ({
   listSessions: vi.fn(),
@@ -12,6 +13,8 @@ const schedule = vi.hoisted(() => ({
 }));
 const penalties = vi.hoisted(() => ({ listNoShowPenalties: vi.fn() }));
 vi.mock("../schedule-client", () => schedule);
+vi.mock("../membership-client", () => ({ listAvailableMembershipPlans: async () => PLAN_CATALOG }));
+vi.mock("../student-group-access-client", () => ({ getStudentGroupAccess: async (studentId: string) => ({ studentId, programIds: [], revision: 0, dateOfBirth: null }) }));
 const waitlist = vi.hoisted(() => ({ listClientMemberships: vi.fn() }));
 const family = vi.hoisted(() => ({ getFamily: vi.fn() }));
 vi.mock("../waitlist-client", () => waitlist);
@@ -23,7 +26,7 @@ import { createFirebaseCalendarRepository } from "./firebase-calendar-repository
 describe("firebase calendar repository", () => {
   beforeEach(() => {
     waitlist.listClientMemberships.mockResolvedValue([
-      { membershipId: "m-1", studentId: "s-1", planId: "bpt-jersey-adult", status: "active" },
+      { membershipId: "m-1", studentId: "s-1", planId: "bpt-jersey-adult", status: "active", startsAt: "2026-08-01T00:00:00Z", endsAt: "2026-10-01T00:00:00Z" },
     ]);
     schedule.listSessions.mockResolvedValue([{ sessionId: "s1" }]);
     schedule.getScheduleCatalog.mockResolvedValue({
@@ -86,7 +89,7 @@ describe("firebase calendar repository", () => {
     });
     const member = await repo.loadMember();
     expect(member.participants).toEqual([
-      expect.objectContaining({ studentId: "s-1", firstName: "Alex", participantType: "adult" }),
+      expect.objectContaining({ studentId: "s-1", firstName: "Alex", participantType: "adult", membershipStartsAt: "2026-08-01T00:00:00Z", membershipEndsAt: "2026-10-01T00:00:00Z" }),
     ]);
   });
 

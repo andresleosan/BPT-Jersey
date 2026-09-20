@@ -3,6 +3,7 @@ import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import type { UserActorContext } from "@bpt-jersey/domain";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
+import { parseStoredRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import { parseFamilyRecord } from "@bpt-jersey/domain/families";
 import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
@@ -62,7 +63,9 @@ function currentInvoiceFor(invoices: readonly InvoiceRecord[], administration: D
     const id: unknown = administration.get("invoiceId");
     if (
       id === null &&
-      (administration.get("complimentary") === true || administration.get("payAsYouGo") === true)
+      (administration.get("complimentary") === true ||
+        administration.get("payAsYouGo") === true ||
+        typeof administration.get("previousPaymentRecordId") === "string")
     )
       return null;
     const linked = invoices.find((invoice) => invoice.invoiceId === id);
@@ -146,6 +149,36 @@ export async function saveManualSubscription(
         plan.value.classSites[0] !== "West")
     )
       fail("Pay at class is only available for a new West pay-as-you-go subscription.");
+    let previousPayment: { recordId: string; capturedAt: string } | undefined;
+    if (input.settlement.kind === "previously-paid") {
+      const recordId = input.settlement.recordId;
+      const [archive, recoveryLink, officeLink] = await Promise.all([
+        tx.get(ref("regyfitMemberRecords", recordId)),
+        tx.get(ref("regyfitMemberLinks", recordId)),
+        tx.get(ref("regyfitOfficeLinks", recordId)),
+      ]);
+      const parsed = parseStoredRegyfitMemberRecord(archive.data());
+      if (
+        !parsed.ok ||
+        parsed.value.recordId !== recordId ||
+        (archive.get("academyId") !== undefined && archive.get("academyId") !== actor.academyId)
+      )
+        fail("Previous membership record is unavailable.");
+      const links = [recoveryLink, officeLink].filter((link) => link.exists);
+      if (
+        !links.length ||
+        links.some(
+          (link) =>
+            link.get("academyId") !== actor.academyId ||
+            link.get("recordId") !== recordId ||
+            link.get("studentId") !== input.studentId,
+        )
+      )
+        fail("Link this archive to the correct member before confirming its paid period.");
+      if (!input.endsAt || Date.parse(input.startsAt) > Date.now())
+        fail("Confirm the start and end of the previous paid period.");
+      previousPayment = { recordId, capturedAt: parsed.value.capturedAt };
+    }
     // Office may intentionally grant any active plan. Booking/consent checks remain independent.
     const parsedCurrent = currentDoc.exists ? parseMembershipRecord(currentDoc.data()) : null;
     const current = parsedCurrent?.ok ? parsedCurrent.value : null;
@@ -153,7 +186,7 @@ export async function saveManualSubscription(
       if (
         existing.size > 100 ||
         currentDoc.exists ||
-        existing.docs.some((doc) => doc.get("status") !== "cancelled")
+        existing.docs.filter(operationalDocument).some((doc) => doc.get("status") !== "cancelled")
       )
         fail("A subscription already exists. Refresh and edit it.");
     } else if (
@@ -356,6 +389,18 @@ export async function saveManualSubscription(
         updatedBy: actor.userId,
       });
     }
+    if (previousPayment)
+      tx.set(administrationRef, {
+        invoiceId: null,
+        complimentary: false,
+        previousPaymentRecordId: previousPayment.recordId,
+        sourceCapturedAt: previousPayment.capturedAt,
+        confirmedStartsAt: input.startsAt,
+        confirmedEndsAt: input.endsAt,
+        reason: "Previous payment verified by the office; original payment history retained.",
+        updatedAt: now,
+        updatedBy: actor.userId,
+      });
     if (settlement.kind === "pay-as-you-go")
       tx.set(administrationRef, {
         invoiceId: null,
@@ -453,6 +498,9 @@ export async function listSubscriptionBilling(db: Firestore, academyId: string, 
       return subscriptionBillingSchema.parse({
         membershipId: document.id,
         complimentary: administration.get("complimentary") === true,
+        ...(typeof administration.get("previousPaymentRecordId") === "string"
+          ? { previousPaymentRecordId: administration.get("previousPaymentRecordId") }
+          : {}),
         currentInvoiceId: currentInvoice?.invoiceId ?? null,
         reason: administration.get("reason") ?? null,
         invoices: validatedInvoices

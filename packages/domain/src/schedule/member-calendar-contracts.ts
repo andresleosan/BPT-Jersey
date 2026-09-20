@@ -222,11 +222,13 @@ export const calendarSessionStatuses = Object.freeze([
 ] as const);
 export type CalendarSessionStatus = (typeof calendarSessionStatuses)[number];
 
-export type LockedReason = "age_band" | "site" | "open_mat" | "weekly_limit";
+export type LockedReason = "age_band" | "site" | "open_mat" | "weekly_limit" | "paid_period";
 
 export type CalendarMemberContext = Readonly<{
   studentId: string;
   membershipId: string;
+  membershipStartsAt?: string;
+  membershipEndsAt?: string | null | undefined;
   participantType: ParticipantType;
   planClassSites: readonly Site[];
   planOpenMatSites: readonly Site[];
@@ -252,9 +254,10 @@ function lockedReasonFor(
 ): LockedReason | undefined {
   if (member.additionalProgramIds?.includes(program.programId)) return undefined;
   if (member.dateOfBirth === null) return "age_band";
-  const band = member.dateOfBirth === undefined
-    ? member.participantType
-    : participantTypeOn(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
+  const band =
+    member.dateOfBirth === undefined
+      ? member.participantType
+      : participantTypeOn(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
   if (program.ageBand !== "all" && program.ageBand !== band) return "age_band";
   const site = sessionSite(session);
   if (program.discipline === "open-mat") {
@@ -271,7 +274,11 @@ export function participantTypeOn(dateOfBirth: string, dateKey: string): Partici
 }
 
 /** Group/site access is visibility; capacity and temporary limits are session states. */
-export function canViewMemberSession(session: SessionRecord, program: ProgramRecord, member: CalendarMemberContext): boolean {
+export function canViewMemberSession(
+  session: SessionRecord,
+  program: ProgramRecord,
+  member: CalendarMemberContext,
+): boolean {
   return lockedReasonFor(session, program, member) === undefined;
 }
 
@@ -297,9 +304,17 @@ export function deriveSessionStatus(input: {
     input.booking !== undefined &&
     (input.booking.status === "confirmed" || input.booking.status === "requested");
   if (booked) return Object.freeze({ status: "booked" });
+  const sessionTime = Date.parse(input.session.startAt);
+  if (
+    (input.member.membershipStartsAt &&
+      sessionTime < Date.parse(input.member.membershipStartsAt)) ||
+    (input.member.membershipEndsAt && sessionTime >= Date.parse(input.member.membershipEndsAt))
+  )
+    return Object.freeze({ status: "locked", lockedReason: "paid_period" });
 
   const bookable =
-    input.program.active && input.session.status === "scheduled" &&
+    input.program.active &&
+    input.session.status === "scheduled" &&
     isWithinBookingCutoff(input.session.startAt, input.now.toISOString(), calendarCutoffMinutes);
   if (!bookable || input.session.capacity === null) return Object.freeze({ status: "closed" });
   if (
@@ -371,6 +386,7 @@ export function lockedReasonLabel(
       programAgeBand === "kids" ? "Kids" : programAgeBand === "teens" ? "Teens" : "Adults";
     return `${group} only`;
   }
+  if (reason === "paid_period") return "This class is outside your paid membership period";
   if (reason === "site") return `Your plan doesn't cover ${site}`;
   if (reason === "weekly_limit") return "Weekly class limit reached";
   return `Open Mats at ${site} aren't in your plan`;
