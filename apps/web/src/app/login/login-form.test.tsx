@@ -10,6 +10,11 @@ const authOperations = vi.hoisted(() => ({
   signInWithGoogle: vi.fn(),
   signOutFromAuth: vi.fn(),
 }));
+const invitations = vi.hoisted(() => ({
+  acceptStaffInvitation: vi.fn(async () => ({ activated: false })),
+}));
+vi.mock("../../lib/team-access-client", () => invitations);
+
 const staffLogin = vi.hoisted(() => ({ signInWithStaffId: vi.fn() }));
 vi.mock("../../lib/staff-login-client", () => ({
   ...staffLogin,
@@ -47,6 +52,36 @@ describe("LoginForm", () => {
     await waitFor(() => expect(navigation.navigateTo).toHaveBeenCalledWith("/coach"));
     expect(staffLogin.signInWithStaffId).toHaveBeenCalledWith("100001", "password");
     expect(authOperations.signInWithEmail).not.toHaveBeenCalled();
+  });
+  it("activates a pending Google invitation before refreshing staff claims", async () => {
+    const user = userEvent.setup();
+    authOperations.signInWithGoogle.mockResolvedValue({ user: signedInUser });
+    invitations.acceptStaffInvitation.mockResolvedValueOnce({ activated: true });
+    authOperations.refreshAuthToken.mockResolvedValue({
+      claims: { academyId: "demo-academay", role: "administrator" },
+    });
+    render(<LoginForm audience="staff" />);
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await waitFor(() => expect(navigation.navigateTo).toHaveBeenCalledWith("/admin"));
+    expect(invitations.acceptStaffInvitation.mock.invocationCallOrder[0]).toBeLessThan(
+      authOperations.refreshAuthToken.mock.invocationCallOrder[0]!,
+    );
+  });
+  it("preserves existing staff access when the invitation service is unavailable", async () => {
+    const user = userEvent.setup();
+    authOperations.signInWithGoogle.mockResolvedValue({ user: signedInUser });
+    invitations.acceptStaffInvitation.mockRejectedValueOnce(new Error("unavailable"));
+    authOperations.refreshAuthToken.mockResolvedValue({
+      claims: { academyId: "demo-academy", role: "administrator" },
+    });
+    render(<LoginForm audience="staff" />);
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    const proceed = await screen.findByRole("button", {
+      name: "Continue with existing staff access",
+    });
+    expect(navigation.navigateTo).not.toHaveBeenCalled();
+    await user.click(proceed);
+    expect(navigation.navigateTo).toHaveBeenCalledWith("/admin");
   });
   afterEach(() => {
     cleanup();

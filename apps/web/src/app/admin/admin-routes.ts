@@ -24,6 +24,7 @@ export const staffRoutes: Readonly<Record<StaffRouteRole, readonly string[]>> = 
 });
 
 const offMenuStaffRoutes = Object.freeze([
+  "/coach",
   "/admin/waitlists",
   "/admin/lesson-plans",
   // Kept so the mat still reaches the redirect that /admin/classes became on 2026-09-16.

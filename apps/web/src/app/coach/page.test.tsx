@@ -15,8 +15,8 @@ const mockStaffSession = {
   signOut: vi.fn(),
 };
 
-vi.mock("../../lib/staff-auth", () => ({
-  useStaffSession: () => mockStaffSession,
+vi.mock("../admin/admin-gate", () => ({
+  useAdminOrStaffSession: () => mockStaffSession.session,
 }));
 vi.mock("../../lib/levels-client", () => ({
   getLevelCatalog: vi.fn(async () => ({ definitions: [] })),

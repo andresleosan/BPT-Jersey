@@ -279,6 +279,11 @@
       "types": "./src/schedule/member-class-record-contracts.ts",
       "import": "./src/schedule/member-class-record-contracts.ts",
       "default": "./lib/schedule/member-class-record-contracts.js"
+    },
+    "./staff/team-access": {
+      "types": "./src/staff/team-access-contracts.ts",
+      "import": "./src/staff/team-access-contracts.ts",
+      "default": "./lib/staff/team-access-contracts.js"
     }
   },
   "scripts": {

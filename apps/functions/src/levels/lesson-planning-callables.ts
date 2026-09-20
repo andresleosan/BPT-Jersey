@@ -77,8 +77,15 @@ export function createApproveLessonPlanHandler({
 }) {
   return async (request: CallableRequest<unknown>): Promise<{ plan: LessonPlanRecord }> => {
     const actor = await authorization.requireActor(request);
-    if (actor.role !== "headCoach" || actor.staffId === null) {
-      throw new HttpsError("permission-denied", "Only a head coach may approve lesson plans.");
+    if (
+      actor.role !== "owner" &&
+      actor.role !== "administrator" &&
+      (actor.role !== "headCoach" || actor.staffId === null)
+    ) {
+      throw new HttpsError(
+        "permission-denied",
+        "An administrator or owner is required to approve lesson plans.",
+      );
     }
     const planId = parsePlanIdPayload(request.data);
     try {
@@ -87,8 +94,9 @@ export function createApproveLessonPlanHandler({
           academyId: actor.academyId,
           planId,
           input: {
-            staffId: actor.staffId,
-            staffRole: "head_coach",
+            staffId: actor.staffId ?? actor.userId,
+            staffRole:
+              actor.role === "headCoach" ? "head_coach" : (actor.role as "owner" | "administrator"),
             approvedAt: new Date().toISOString(),
           },
         }),

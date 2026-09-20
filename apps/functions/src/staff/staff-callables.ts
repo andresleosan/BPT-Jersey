@@ -103,11 +103,7 @@ function payloadRecord(value: unknown, fields: readonly string[]): Record<string
 
 function parseCreate(value: unknown) {
   const payload = payloadRecord(value, ["userId", "role", "requestId"]);
-  if (
-    !text(payload.userId) ||
-    !text(payload.requestId) ||
-    !staffRoles.includes(payload.role as never)
-  ) {
+  if (!text(payload.userId) || !text(payload.requestId) || payload.role !== "coach") {
     return invalidPayload();
   }
   return {
@@ -119,8 +115,7 @@ function parseCreate(value: unknown) {
 
 function parseUpdate(value: unknown) {
   const payload = payloadRecord(value, ["staffKey", "role"]);
-  if (!text(payload.staffKey) || !staffRoles.includes(payload.role as never))
-    return invalidPayload();
+  if (!text(payload.staffKey) || payload.role !== "coach") return invalidPayload();
   return { staffId: payload.staffKey, role: payload.role as "headCoach" | "coach" };
 }
 

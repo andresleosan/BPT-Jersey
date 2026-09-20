@@ -7,7 +7,7 @@ const identifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u
 const recordIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,383}$/u);
 const dateOnlySchema = z.string().refine(isLevelCalendarDate);
 const countSchema = z.number().int().min(0).max(1_000_000);
-const decisionRoleSchema = z.enum(["headCoach", "owner"]);
+const decisionRoleSchema = z.enum(["headCoach", "owner", "administrator"]);
 const scoreSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
 
 // Tab (0x09) and line feed (0x0a) are allowed in operator free text; every other C0 control and

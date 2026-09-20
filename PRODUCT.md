@@ -46,3 +46,15 @@ Priorizar acceso web responsive. Conservar contraste alto, foco visible, texto l
 objetivos táctiles de al menos 44 px, prevención de desbordamiento y soporte para
 movimiento reducido (DESIGN.md §§3, 4 y 6). El control de autoasistencia conserva
 operación nativa por teclado y anuncios de estado, según su especificación aprobada.
+
+## Team roles (2026-09-20)
+
+The operator unified administrator and head coach: `administrator` combines office, finance and
+sporting decisions. `owner` has all of those capabilities plus administrative role management.
+`coach` retains its limited sporting access and no financial workflows. The historical `headCoach`
+value remains readable while an owner explicitly transitions each existing account to administrator;
+new head-coach assignments are retired. Belt levels are independent of access roles.
+
+Staff includes an office-only list of team names, emails and roles. Only owners change administrative
+roles or authorise an email for administrator/owner access. Email authorisations activate through
+verified Google sign-in at `/staff/login`, expire after seven days and do not send email automatically.

@@ -4866,3 +4866,66 @@ a.admin-birthday-badge:focus-visible,
 .member-live-records p {
   margin-block: 0.4rem;
 }
+
+.staff-team-directory {
+  display: grid;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid var(--color-ink, #1a1a18);
+}
+.staff-team-heading,
+.staff-team-actions,
+.staff-team-invitation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.staff-team-actions {
+  justify-content: flex-start;
+}
+.staff-team-directory h3,
+.staff-team-directory h4,
+.staff-team-directory p {
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+.staff-team-directory .admin-data-table td {
+  overflow-wrap: anywhere;
+}
+.staff-team-invitation {
+  padding: 1rem 0;
+  border-bottom: 1px solid #8a8880;
+}
+.staff-team-invitation > div {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+.staff-role-review {
+  border-left: 0.35rem solid #2f2483;
+}
+@media (max-width: 42rem) {
+  .staff-team-directory .admin-data-table {
+    min-width: 0;
+  }
+  .staff-team-directory .admin-data-table thead {
+    display: none;
+  }
+  .staff-team-directory .admin-data-table tr {
+    display: grid;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #8a8880;
+  }
+  .staff-team-directory .admin-data-table td {
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr);
+    gap: 0.75rem;
+    border: 0;
+  }
+  .staff-team-directory .admin-data-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+  }
+}

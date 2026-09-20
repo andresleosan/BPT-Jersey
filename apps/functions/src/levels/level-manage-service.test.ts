@@ -188,6 +188,26 @@ async function seededStore(extra: [string, Record<string, unknown>][] = []) {
       },
     ],
     [
+      `academies/${academyId}/users/admin-user-1`,
+      {
+        userId: "admin-user-1",
+        academyId,
+        accountType: "staff",
+        displayName: "Synthetic Administrator",
+        email: "administrator@example.test",
+        authProvider: "google",
+        active: true,
+        adminRole: "administrator",
+        lastRoleChangeAuditId: "audit-owner-1",
+        createdAt: Timestamp.fromMillis(0),
+        createdBy: "system",
+        updatedAt: Timestamp.fromMillis(0),
+        updatedBy: "system",
+        status: "active",
+        schemaVersion: 1,
+      },
+    ],
+    [
       `academies/${academyId}/users/owner-user-1`,
       {
         userId: "owner-user-1",
@@ -776,7 +796,7 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
   // G12 narrows G6: an administrator sees the card and the history but never assigns a level. The
   // message is pinned because `assertTransactionalActor` also throws `tenant`, so a code-only
   // assertion would pass for the wrong reason.
-  it.each(["coach", "administrator"])("refuses %s", async (role) => {
+  it.each(["coach", "guardian"])("refuses %s", async (role) => {
     const fixture = await makeFixture();
     await expect(
       fixture.assign(
@@ -929,7 +949,7 @@ describe.each(parityFixtures)("promotion parity — %s (T051V2)", (_label, makeF
   // G12 narrows G6: an administrator sees the record and the history but never voids a promotion.
   // The message is pinned because `assertTransactionalActor` also throws `tenant`, so a code-only
   // assertion would pass for the wrong reason.
-  it.each(["coach", "administrator"])("refuses a void by %s", async (role) => {
+  it.each(["coach", "guardian"])("refuses a void by %s", async (role) => {
     const fixture = await makeFixture();
     const assigned = await fixture.assign({ note: assignmentNote });
     await expect(
@@ -1232,7 +1252,7 @@ describe.each(openParityStores)("open-a-level parity — %s (T051V2)", (_label, 
 
   // G12 narrows G6: an administrator sees the card and the history but never opens a level. The
   // message is pinned so a refusal that happens for some other reason cannot pass for this guard.
-  it.each(["coach", "administrator"])("refuses %s", async (role) => {
+  it.each(["coach", "guardian"])("refuses %s", async (role) => {
     const store = await makeStore();
     await expect(
       store.openStudentLevel(
@@ -2149,7 +2169,7 @@ describe("recordSkillRatings (T051V2)", () => {
     ).toEqual(["headCoach", "headCoach"]);
   });
 
-  it.each(["administrator", "guardian", "student", "owner "])(
+  it.each(["guardian", "student", "owner "])(
     "refuses the role %s by message and writes nothing",
     async (role) => {
       const { store, writes } = await seededStore();
@@ -2361,12 +2381,16 @@ describe.each(openParityStores)("skill-ratings parity — %s (T051V2)", (_label,
     expect(evaluations.every((evaluation) => evaluation.evaluatorRole === "owner")).toBe(true);
   });
 
-  it("refuses the administrator by message", async () => {
+  it("records the administrator's sporting evaluation under their real role", async () => {
     const store = await makeStore();
-    await expect(
-      store.recordSkillRatings(rate({ evaluatorRole: "administrator" as never })),
-    ).rejects.toMatchObject({ code: "tenant", message: "Assessment actor role is invalid" });
-    expect(await store.listStudentEvaluations(academyId, "student-1")).toHaveLength(0);
+    await store.recordSkillRatings(
+      rate({ evaluatorRole: "administrator", evaluatorStaffId: null, evaluatorId: "admin-user-1" }),
+    );
+    const evaluations = await store.listStudentEvaluations(academyId, "student-1");
+    expect(evaluations).toHaveLength(2);
+    expect(evaluations.every((evaluation) => evaluation.evaluatorRole === "administrator")).toBe(
+      true,
+    );
   });
 
   it.each(invalidRatings)("refuses %s", async (_ratingLabel, ratings) => {

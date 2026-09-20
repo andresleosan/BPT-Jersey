@@ -453,7 +453,7 @@ describe("Level Callables", () => {
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/current head coach is required/);
+      ).rejects.toThrow(/administrator or owner is required/);
 
       await expect(
         rejectHandler(
@@ -463,12 +463,12 @@ describe("Level Callables", () => {
               targetDefinitionKey: "white-1",
               decisionNotes: "Not yet ready.",
             },
-            "administrator",
-            "admin-1",
+            "adultStudent",
+            "student-user",
             "demo-academy",
           ),
         ),
-      ).rejects.toThrow(/current head coach is required/);
+      ).rejects.toThrow(/administrator or owner is required/);
     });
   });
 
@@ -531,12 +531,12 @@ describe("Level Callables", () => {
       };
       for (const [role, uid] of [
         ["coach", "coach-1"],
-        ["administrator", "administrator-1"],
+
         ["guardian", "guardian-1"],
         ["adultStudent", "student-1"],
       ] as const) {
         await expect(handler(fakeRequest(payload, role, uid, "demo-academy"))).rejects.toThrow(
-          /head coach or the owner is required/u,
+          /administrator or owner is required/u,
         );
       }
     });

@@ -114,12 +114,27 @@ describe("lesson planning callables", () => {
     });
   });
 
-  it("denies owner approval, malformed payloads and unauthenticated requests", async () => {
+  it.each(["owner", "administrator"])(
+    "allows %s to approve with their real identity",
+    async (role) => {
+      const current = store();
+      await createApproveLessonPlanHandler({ store: current, authorization })(
+        request({ planId: "plan-1" }, role, "office-user"),
+      );
+      expect(current.approvePlan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ staffId: "office-user", staffRole: role }),
+        }),
+      );
+    },
+  );
+
+  it("denies coach approval, malformed payloads and unauthenticated requests", async () => {
     const current = store();
     const approve = createApproveLessonPlanHandler({ store: current, authorization });
     const get = createGetLessonPlanHandler({ store: current, authorization });
 
-    await expect(approve(request({ planId: "plan-1" }, "owner"))).rejects.toMatchObject({
+    await expect(approve(request({ planId: "plan-1" }, "coach"))).rejects.toMatchObject({
       code: "permission-denied",
     });
     await expect(

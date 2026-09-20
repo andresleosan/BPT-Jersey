@@ -323,7 +323,7 @@ describe("member record page", () => {
     expect(screen.getByRole("region", { name: "JIU-JITSU IBJJF" })).toBeTruthy();
   });
 
-  it("lets only an owner or head coach open a level, and points Manage at this record", async () => {
+  it("lets owners and administrators open a level, with legacy head-coach compatibility, and points Manage at this record", async () => {
     open("?id=student-1");
     const owner = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
     expect(owner.getAttribute("data-can-open-level")).toBe("true");
@@ -337,7 +337,9 @@ describe("member record page", () => {
       gate.role = role;
       open("?id=student-1");
       const card = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
-      expect(card.getAttribute("data-can-open-level")).toBe(String(role === "headCoach"));
+      expect(card.getAttribute("data-can-open-level")).toBe(
+        String(role === "headCoach" || role === "administrator"),
+      );
     }
   });
 

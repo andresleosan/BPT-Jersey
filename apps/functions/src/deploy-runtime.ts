@@ -66,6 +66,7 @@ export const domainImportReplacements: Readonly<Record<string, string>> = Object
   "@bpt-jersey/domain/penalties": "../../domain/penalties/no-show-penalty-contracts.js",
   "@bpt-jersey/domain/birthdays": "../../domain/birthdays/upcoming-birthday-contracts.js",
   "@bpt-jersey/domain/consents/disclaimers": "../../domain/consents/disclaimer-contracts.js",
+  "@bpt-jersey/domain/staff/team-access": "../../domain/staff/team-access-contracts.js",
   "@bpt-jersey/domain/staff/permission-grants": "../../domain/staff/permission-grant-contracts.js",
 });
 

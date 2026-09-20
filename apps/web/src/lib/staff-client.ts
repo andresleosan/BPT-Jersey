@@ -176,7 +176,7 @@ function createPayload(input: CreateStaffProfileInput): CreateStaffProfileInput 
     !isPlainRecord(input) ||
     !hasExactFields(input, ["userId", "role", "requestId"]) ||
     !isSafeId(input.userId) ||
-    !staffRoles.includes(input.role) ||
+    input.role !== "coach" ||
     !isSafeId(input.requestId)
   ) {
     throw new Error(safeCreateError);
@@ -189,7 +189,7 @@ function updatePayload(input: UpdateStaffProfileInput): UpdateStaffProfileInput 
     !isPlainRecord(input) ||
     !hasExactFields(input, ["staffKey", "role"]) ||
     !isSafeId(input.staffKey) ||
-    !staffRoles.includes(input.role)
+    input.role !== "coach"
   ) {
     throw new Error(safeUpdateError);
   }
