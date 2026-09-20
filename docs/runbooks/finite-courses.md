@@ -2,9 +2,9 @@
 
 Finite weekly programmes use the ordinary calendar and coach attendance screen, canonical students/families and existing invoices/payments. Each participant receives a separate immutable transfer reference, then sends the reference actually used and a screenshot. Staff retain their roles; office management requires no personal membership.
 
-## Future authorised release
+## Release procedure
 
-Code publication is separate from deployment. No deployment or feature activation is authorised by this document. Keep `academies/<academy>/settings/courseFeatures.coursesEnabled` false or absent; deploy Firestore indexes and compatible backend; configure `COURSES_ACADEMY_ID`; point the web build's `NEXT_PUBLIC_COURSES_API_URL` to the deployed `coursePublic` HTTPS endpoint; deploy the frontend; activate sales only when authorised. Existing bank instructions must be valid. Evidence uses the existing private R2 configuration and canonical identity secrets.
+Code publication is separate from deployment; obtain operator authorisation for each release. Keep `academies/<academy>/settings/courseFeatures.coursesEnabled` false or absent; deploy Firestore indexes and compatible backend; configure `COURSES_ACADEMY_ID`; use the public endpoint derived from `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, or override it with `NEXT_PUBLIC_COURSES_API_URL`; deploy the frontend; activate sales only when authorised. Existing bank instructions must be valid. Evidence uses the existing private R2 configuration and canonical identity secrets.
 
 Routes: `/courses`, `/courses/view?course=<uuid>`, `/account/courses`, `/account/courses/calendar` and `/admin/courses`. The personal course calendar reuses MemberCalendar for eligible account roles. Coach sessions use the existing interface. Drafts provide a paginated preview of exact Jersey dates, including DST validation, and remain hidden until all dates are prepared. Processing shows queued/running/failed jobs and their progress.
 
@@ -39,6 +39,16 @@ Office subject export is paginated at 30, scoped by applicant UID, omits storage
 
 Backup inventory: courses, publicCourses, courseCandidates, courseCandidateKeys, courseParticipantAccounts, courseStudentAliases, courseIdentityReceipts, courseEnrolments, courseParticipantLocks, courseProofs, coursePaymentIncidents, courseRefunds, courseEvidenceKeys, courseOperations, courseAudit, courseRateLimits, courseJobs, courseWorkerState and courseNotices. R2 uses `academies/<academy>/course-proofs/<enrolment>/<proof>.jpg`. Firestore metadata backup does not copy image objects; authorised object backup/restore must preserve references separately. Technical rate buckets expire separately from financial evidence.
 
+## Production release — 2026-09-20
+
+The operator explicitly authorised deployment and activation. Firestore rules and indexes, 42 new course functions and 35 required existing integrations were deployed successfully to `bptjersey-f5a25` in `us-central1`. The other 15 initially considered existing functions were excluded after source review found them unnecessary for this release. No unrelated backup functions were created.
+
+Backend publication used an isolated source archive based on `5fadce0`, with the reviewed production compilation corrections later committed in `baab7be` (the consent, level-authorisation and booking typing corrections were included by the concurrent `606c23c` commit). It did not publish subsequent unrelated working-tree edits. Cloudflare Pages published frontend commit `baab7be` to production, deployment `a7d51d96-6f26-4111-822d-a9106270ce81`.
+
+`COURSES_ACADEMY_ID` is configured for `demo-academy`; the existing payment instructions passed the domain parser without logging banking details. All 22 required course indexes were READY. The operator-authorised feature flag `academies/demo-academy/settings/courseFeatures.coursesEnabled` was enabled at `2026-09-20T22:31:10.857455Z`.
+
+After activation, `/courses/` and `/admin/courses/` returned HTTP 200, the public catalogue returned HTTP 200 with zero courses, an anonymous administrative `listCourses` request returned HTTP 401, and its permitted-origin preflight returned HTTP 204. No real course, member, booking or payment was created during publication. Create and publish the first course through the admin interface to populate the catalogue and promotion bar.
+
 ## Verification status
 
-Source inspection and Git delivery evidence only. Per operator instruction, no tests, browser sessions, Lighthouse, full-workspace type/lint checks or builds have run. No live member data or production actions have been exercised. Runtime behaviour and performance have not been measured. Independent source review found no remaining Critical/Important issues in the course flow after the recorded fixes; the separately reviewed, explicitly authorised participant query also has no Critical/Important findings by source inspection.
+Production backend compilation, scoped web compilation and the static web build completed successfully for this authorised deployment. Deployment metadata, index readiness and the read-only HTTP responses above were checked. Per operator instruction, no automated test suites, browser sessions, Lighthouse, full-workspace lint checks or real payment/approval exercises ran. End-to-end authenticated behaviour and performance have not been measured. Independent source review found no remaining Critical/Important issues in the course flow and publication corrections; this is not a guarantee of runtime behaviour or a security certification.
