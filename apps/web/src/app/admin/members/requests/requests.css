@@ -1,0 +1,335 @@
+/* Enrolment is a working queue: compact rows, progressive review, native controls. */
+.enrolment-admin-page {
+  --request-border: var(--paper-edge, #d9d8d2);
+}
+.enrolment-admin-page [hidden] {
+  display: none !important;
+}
+.enrolment-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.75rem;
+  margin-block: 1.25rem 1.5rem;
+}
+.enrolment-views button {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  color: var(--mat-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 3rem;
+  padding: 0.65rem 1rem;
+}
+.enrolment-views button[aria-pressed="true"] {
+  background: var(--bpt-purple);
+  border-color: var(--bpt-purple);
+  color: var(--gi-white);
+}
+.enrolment-views button:hover {
+  border-color: var(--bpt-purple);
+}
+.enrolment-queue-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.enrolment-admin-page h3,
+.enrolment-admin-page .admin-panel-card h3 {
+  font-family: var(--font-body), Arial, sans-serif;
+  font-size: 1.35rem;
+  line-height: 1.3;
+  letter-spacing: normal;
+  text-transform: none;
+  margin: 0;
+}
+.enrolment-admin-page h4 {
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+.enrolment-queue-heading p {
+  color: var(--muted);
+  margin: 0.35rem 0 0;
+  max-width: 65ch;
+}
+.enrolment-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--gi-white);
+  border: 1px solid var(--request-border);
+}
+.enrolment-toolbar p {
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.enrolment-admin-page :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--mat-ink);
+  font: inherit;
+  min-height: 3rem;
+  padding: 0.65rem 0.75rem;
+  width: 100%;
+  max-width: 100%;
+}
+.enrolment-admin-page input::placeholder,
+.enrolment-admin-page textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.enrolment-admin-page textarea {
+  resize: vertical;
+}
+.enrolment-admin-page :is(button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+}
+.enrolment-admin-page .admin-request-list {
+  gap: 0;
+  border: 1px solid var(--request-border);
+}
+.enrolment-admin-page .admin-request-list:empty {
+  display: none;
+}
+.enrolment-admin-page .admin-request-list > li {
+  padding: 1.25rem;
+  background: var(--gi-white);
+  border: 0;
+}
+.enrolment-admin-page .admin-request-list > li + li {
+  border-top: 1px solid var(--request-border);
+}
+.enrolment-admin-page .admin-request-head > strong {
+  font-size: 1.2rem;
+  overflow-wrap: anywhere;
+}
+.enrolment-admin-page .admin-request-meta {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.enrolment-admin-page .admin-status-badge {
+  border-radius: 0;
+  font-size: 0.85rem;
+}
+.enrolment-return {
+  flex: 1 1 16rem;
+}
+.enrolment-return summary {
+  cursor: pointer;
+  color: var(--bpt-purple);
+  font-weight: 600;
+  min-height: 3rem;
+  padding: 0.75rem 0.25rem;
+  width: fit-content;
+}
+.enrolment-return-fields {
+  display: grid;
+  gap: 0.75rem;
+  padding-block: 0.5rem;
+}
+.enrolment-return-fields p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 65ch;
+}
+.enrolment-return-fields button {
+  justify-self: start;
+}
+.enrolment-review {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+.enrolment-review > h3 {
+  scroll-margin-top: 2rem;
+}
+.enrolment-admin-page .admin-request-detail {
+  border: 0;
+  margin: 1.25rem 0;
+  padding: 0;
+}
+.enrolment-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 2rem;
+  margin: 0;
+}
+.enrolment-facts dt {
+  color: var(--muted);
+  font-size: 1rem;
+}
+.enrolment-facts dd {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.enrolment-admin-page .admin-request-minors {
+  padding-left: 1.25rem;
+  color: var(--mat-ink);
+}
+.enrolment-admin-page .admin-request-minors li {
+  margin-block: 1rem;
+}
+.enrolment-setup {
+  border: 0;
+  padding: 0;
+  margin: 1.5rem 0 0;
+  min-width: 0;
+}
+.enrolment-setup > legend {
+  font-size: 1.2rem;
+  font-weight: 700;
+  padding: 0;
+}
+.enrolment-student-setup {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  border: 1px solid var(--request-border);
+  padding: 1rem;
+  margin: 1rem 0;
+  min-width: 0;
+}
+.enrolment-student-setup legend {
+  padding-inline: 0.4rem;
+  font-weight: 700;
+}
+.enrolment-student-setup > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.enrolment-admin-page .enrol-review-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding-block: 0.75rem;
+  min-height: 2.75rem;
+}
+.enrolment-admin-page input:is([type="checkbox"], [type="radio"]) {
+  accent-color: var(--bpt-purple);
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+}
+.enrolment-admin-page .enrolment-setup > button {
+  margin-top: 1rem;
+}
+.enrolment-loading {
+  min-height: 12rem;
+  padding: 1.25rem;
+  margin-top: 1rem;
+  background: var(--gi-white);
+  border: 1px solid var(--request-border);
+}
+.enrolment-loading::after {
+  content: "";
+  display: block;
+  height: 5rem;
+  margin-top: 1.5rem;
+  background: var(--paper-edge, #e8e7e3);
+}
+.enrolment-empty {
+  padding: 2rem 1.25rem;
+  background: var(--gi-white);
+  margin-top: 1rem;
+}
+.enrolment-admin-page .recovery-guidance {
+  color: var(--muted);
+  max-width: 70ch;
+  margin: 0 0 1rem;
+}
+.enrolment-admin-page .recovery-review {
+  margin-top: 1.5rem;
+  border: 1px solid var(--line);
+}
+.enrolment-admin-page .recovery-review h2 {
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+.enrolment-admin-page .recovery-review fieldset {
+  border-radius: 0;
+}
+.enrolment-admin-page .recovery-review form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+.enrolment-admin-page .recovery-review form label {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0;
+}
+.enrolment-admin-page .recovery-review form input {
+  height: auto;
+}
+.enrolment-admin-page .staff-primary-button,
+.enrolment-admin-page .staff-secondary-button {
+  min-height: 3rem;
+  max-width: 100%;
+  justify-content: center;
+}
+@media (max-width: 50rem) {
+  .enrolment-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .enrolment-toolbar p {
+    margin: 0;
+  }
+  .enrolment-facts,
+  .enrolment-student-setup,
+  .enrolment-admin-page .recovery-review form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .enrolment-admin-page .admin-request-list > li {
+    padding: 1rem;
+  }
+  .enrolment-admin-page .admin-request-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .enrolment-return {
+    flex-basis: auto;
+  }
+  .enrolment-views button {
+    flex: 1 1 auto;
+  }
+}
+.enrolment-admin-page .shop-admin-field {
+  color: var(--mat-ink);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.enrolment-admin-page .staff-primary-button,
+.enrolment-admin-page .staff-secondary-button {
+  font-size: 1rem;
+}
+.enrolment-admin-page button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .enrolment-admin-page button {
+    transition:
+      background-color 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .enrolment-admin-page button:active:not(:disabled) {
+    transform: none;
+  }
+}

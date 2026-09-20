@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { PLAN_CATALOG, type PlanId } from "@bpt-jersey/domain/memberships";
 import { getLevelCatalog } from "../../../../lib/levels-client";
@@ -24,7 +25,18 @@ import { useAdminOrStaffSession } from "../../admin-gate";
 import { AdminSectionHeader, AdminStatusBadge } from "../../admin-ui";
 
 import "../../admin.css";
-import { MemberRecoveryQueue } from "../recovery/recovery-queue";
+import "./requests.css";
+
+const MemberRecoveryQueue = dynamic(
+  () => import("../recovery/recovery-queue").then((module) => module.MemberRecoveryQueue),
+  {
+    loading: () => (
+      <div className="enrolment-loading" role="status">
+        Loading access requests...
+      </div>
+    ),
+  },
+);
 
 type QueueState =
   | Readonly<{ status: "loading" }>
@@ -60,34 +72,59 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
   const { applicant } = detail;
   return (
     <div className="admin-request-detail">
-      <p className="admin-request-meta">
-        <strong>Born</strong> {applicant.dateOfBirth} · <strong>Phone</strong>{" "}
-        {applicant.phoneNumber}
-        {applicant.email ? ` · ${applicant.email}` : ""}
-      </p>
-      <p className="admin-request-meta">
-        <strong>Name:</strong> {applicant.fullName} · <strong>Gender:</strong>{" "}
-        {applicant.gender ?? "Not provided"} · <strong>Centre:</strong> {applicant.trainingCenter} ·{" "}
-        <strong>Training times:</strong>{" "}
-        {applicant.trainingTimePreferences.join(", ") || "Not training"}
-      </p>
-      {applicant.frequencyNote ? <p>Training frequency: {applicant.frequencyNote}</p> : null}
-      {applicant.postalAddress ? (
-        <p className="admin-request-meta">
-          <strong>Address</strong> {applicant.postalAddress.line},{" "}
-          {applicant.postalAddress.postCode}
-        </p>
-      ) : null}
-      {applicant.emergencyContact ? (
-        <p className="admin-request-meta">
-          <strong>In an emergency</strong> {applicant.emergencyContact.fullName} (
-          {applicant.emergencyContact.relationship}) {applicant.emergencyContact.phoneNumber}
-        </p>
-      ) : (
-        <p className="admin-request-meta">
-          <strong>No emergency contact given.</strong>
-        </p>
-      )}
+      <h4>Applicant details</h4>
+      <dl className="enrolment-facts">
+        <div>
+          <dt>Full name</dt>
+          <dd>{applicant.fullName}</dd>
+        </div>
+        <div>
+          <dt>Date of birth</dt>
+          <dd>{applicant.dateOfBirth}</dd>
+        </div>
+        <div>
+          <dt>Email</dt>
+          <dd>{applicant.email || "Not provided"}</dd>
+        </div>
+        <div>
+          <dt>Phone</dt>
+          <dd>{applicant.phoneNumber}</dd>
+        </div>
+        <div>
+          <dt>Gender</dt>
+          <dd>{applicant.gender ?? "Not provided"}</dd>
+        </div>
+        <div>
+          <dt>Centre</dt>
+          <dd>{applicant.trainingCenter}</dd>
+        </div>
+        <div>
+          <dt>Training times</dt>
+          <dd>{applicant.trainingTimePreferences.join(", ") || "Not training"}</dd>
+        </div>
+        {applicant.frequencyNote ? (
+          <div>
+            <dt>Training frequency</dt>
+            <dd>{applicant.frequencyNote}</dd>
+          </div>
+        ) : null}
+        {applicant.postalAddress ? (
+          <div>
+            <dt>Address</dt>
+            <dd>
+              {applicant.postalAddress.line}, {applicant.postalAddress.postCode}
+            </dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>Emergency contact</dt>
+          <dd>
+            {applicant.emergencyContact
+              ? `${applicant.emergencyContact.fullName} (${applicant.emergencyContact.relationship}), ${applicant.emergencyContact.phoneNumber}`
+              : "Not provided"}
+          </dd>
+        </div>
+      </dl>
       {detail.applicantIsStudent ? (
         <PlanPreference planId={detail.planSelections?.applicant} />
       ) : null}
@@ -140,7 +177,8 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
         </section>
       ) : (
         <p>
-          No transfer screenshot supplied. Pay-as-you-go plans do not require payment at registration.
+          No transfer screenshot supplied. Pay-as-you-go plans do not require payment at
+          registration.
         </p>
       )}
       {detail.approvalFailureCode ? (
@@ -163,6 +201,32 @@ function EnrolmentRequestQueueContent() {
   const office = session.role === "owner" || session.role === "administrator";
   const [state, setState] = useState<QueueState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [view, setView] = useState<"new" | "recovery">("new");
+  const [recoveryLoaded, setRecoveryLoaded] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+
+  useEffect(() => {
+    const syncHash = () => {
+      const recovery = office && window.location.hash === "#member-recovery";
+      setView(recovery ? "recovery" : "new");
+      if (recovery) setRecoveryLoaded(true);
+    };
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, [office]);
+
+  function changeView(next: "new" | "recovery") {
+    setView(next);
+    if (next === "recovery") setRecoveryLoaded(true);
+    window.history.replaceState(
+      null,
+      "",
+      next === "recovery" ? "#member-recovery" : "#new-enrolments",
+    );
+  }
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   const [busyId, setBusyId] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
@@ -176,6 +240,10 @@ function EnrolmentRequestQueueContent() {
   const [paymentVerified, setPaymentVerified] = useState<Record<string, boolean>>({});
   const inFlight = useRef(false);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (notice) noticeRef.current?.focus();
+  }, [notice]);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -186,14 +254,23 @@ function EnrolmentRequestQueueContent() {
 
   useEffect(() => {
     let active = true;
-    setState({ status: "loading" });
+    setRefreshing(true);
     void listEnrolmentRequests()
       .then((queue) => {
         if (active)
           setState({ status: "ready", requests: queue.requests, truncated: queue.truncated });
       })
       .catch(() => {
-        if (active) setState({ status: "error" });
+        if (active) {
+          setState((current) => (current.status === "ready" ? current : { status: "error" }));
+          setNotice({
+            tone: "error",
+            text: "Unable to refresh requests. Please try again; any visible requests may be out of date.",
+          });
+        }
+      })
+      .finally(() => {
+        if (active) setRefreshing(false);
       });
     return () => {
       active = false;
@@ -241,6 +318,10 @@ function EnrolmentRequestQueueContent() {
           })),
       }));
       setDetails((current) => ({ ...current, [request.enrolmentRequestId]: detail }));
+      if (refresh) {
+        setVerified((current) => ({ ...current, [request.enrolmentRequestId]: false }));
+        setPaymentVerified((current) => ({ ...current, [request.enrolmentRequestId]: false }));
+      }
       setOpenDetailId(request.enrolmentRequestId);
     } catch (error) {
       setNotice({
@@ -341,330 +422,434 @@ function EnrolmentRequestQueueContent() {
     }
   }
 
+  const visibleRequests =
+    state.status === "ready"
+      ? state.requests.filter(
+          (request) =>
+            (filter === "all" ||
+              (filter === "action"
+                ? isReturnableEnrolmentRequest(request.status)
+                : request.status === filter)) &&
+            `${request.applicantName} ${request.trainingCenter}`
+              .toLowerCase()
+              .includes(search.trim().toLowerCase()),
+        )
+      : [];
+
   return (
     <section className="admin-module-page enrolment-admin-page" aria-label="Enrolment requests">
       <AdminSectionHeader
-        description="Review new enrolment requests and restore access for existing members."
-        eyebrow="People / Enrolment requests"
+        description="Review applications, enrol new students and restore existing member access."
+        eyebrow="People"
         title="Enrolment requests"
       />
-
       {office ? (
-        <section id="member-recovery" aria-label="Member recovery requests">
-          <MemberRecoveryQueue embedded />
-        </section>
+        <nav className="enrolment-views" aria-label="Request type">
+          <button
+            type="button"
+            aria-pressed={view === "new"}
+            aria-controls="new-enrolments"
+            onClick={() => changeView("new")}
+          >
+            New enrolments
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === "recovery"}
+            aria-controls="member-recovery"
+            onClick={() => changeView("recovery")}
+          >
+            Member access recovery
+          </button>
+        </nav>
       ) : null}
-
-      <h2>New enrolment requests</h2>
-
-      <section className="admin-panel-card admin-request-help" aria-labelledby="request-help-title">
-        <h3 id="request-help-title">What the buttons do</h3>
-        <dl>
-          <dt>Read the full request</dt>
-          <dd>
-            Shows the registration details, chosen plans and payment screenshot so you can verify
-            them.
-          </dd>
-          <dt>Send back to applicant</dt>
-          <dd>
-            Needs a note. The request goes back to the applicant, who sees the note in their
-            account, fixes it and sends it again.
-          </dd>
-          <dt>Approve and enrol</dt>
-          <dd>
-            Opens the request for review. Choose the initial level and plan dates, verify the
-            details and any required payment, then select Confirm approval and enrol.
-          </dd>
-        </dl>
-        {office ? null : (
-          <p>
-            Opening the full request and enrolling somebody is office work. You can read the queue
-            and send a request back.
-          </p>
-        )}
-      </section>
-
-      {notice ? (
-        <p
-          className={`admin-panel-card shop-admin-notice shop-admin-notice-${notice.tone}`}
-          role={notice.tone === "error" ? "alert" : "status"}
+      {office ? (
+        <section
+          id="member-recovery"
+          hidden={view !== "recovery"}
+          aria-label="Member recovery requests"
         >
-          {notice.text}
-        </p>
-      ) : null}
-
-      {state.status === "loading" ? (
-        <section className="admin-panel-card" aria-live="polite" role="status">
-          Loading enrolment requests...
+          {recoveryLoaded ? <MemberRecoveryQueue embedded /> : null}
         </section>
       ) : null}
-
-      {state.status === "error" ? (
-        <section className="admin-panel-card" aria-live="assertive" role="alert">
-          <p>Unable to load enrolment requests.</p>
+      <section id="new-enrolments" hidden={view !== "new"} aria-label="New enrolment requests">
+        <div className="enrolment-queue-heading">
+          <div>
+            <h3>New enrolments</h3>
+            <p>
+              Open a request to review the details, set the initial level and confirm enrolment.
+            </p>
+          </div>
           <button
             className="staff-secondary-button"
-            onClick={() => setReloadToken((value) => value + 1)}
             type="button"
+            disabled={refreshing || busyId !== undefined}
+            onClick={() => {
+              setNotice(undefined);
+              setReloadToken((value) => value + 1);
+            }}
           >
-            Retry
+            {refreshing ? "Refreshing..." : "Refresh requests"}
           </button>
-        </section>
-      ) : null}
+        </div>
+        <div className="enrolment-toolbar">
+          <label className="shop-admin-field">
+            Search requests
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name or centre"
+            />
+          </label>
+          <label className="shop-admin-field">
+            Status
+            <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+              <option value="all">All requests</option>
+              <option value="action">Needs review</option>
+              {Object.entries(statusLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p role="status">
+            {state.status === "ready"
+              ? `${visibleRequests.length}${state.truncated ? "+" : ""} requests shown`
+              : state.status === "error"
+                ? "Requests unavailable"
+                : "Loading requests..."}
+          </p>
+        </div>
+        {!office ? (
+          <p>
+            Full details and enrolment are available to the office. You can send a request back with
+            a note.
+          </p>
+        ) : null}
+        {notice ? (
+          <p
+            className={`admin-panel-card shop-admin-notice shop-admin-notice-${notice.tone}`}
+            role={notice.tone === "error" ? "alert" : "status"}
+            ref={noticeRef}
+            tabIndex={-1}
+          >
+            {notice.text}
+          </p>
+        ) : null}
 
-      {state.status === "ready" && state.requests.length === 0 ? (
-        <section className="admin-panel-card">
-          No enrolment requests yet. They appear here as soon as somebody applies from the site.
-        </section>
-      ) : null}
+        {state.status === "loading" ? (
+          <section className="enrolment-loading" aria-live="polite" role="status">
+            Loading enrolment requests...
+          </section>
+        ) : null}
 
-      {state.status === "ready" && state.truncated ? (
-        <p className="admin-panel-card" role="status">
-          This page is full, so older requests are not shown. Resolve what is here before assuming
-          the queue is empty.
-        </p>
-      ) : null}
+        {state.status === "error" ? (
+          <section className="admin-panel-card" aria-live="assertive" role="alert">
+            <p>Unable to load enrolment requests.</p>
+            <button
+              className="staff-secondary-button"
+              disabled={refreshing}
+              onClick={() => {
+                setNotice(undefined);
+                setReloadToken((value) => value + 1);
+              }}
+              type="button"
+            >
+              Retry
+            </button>
+          </section>
+        ) : null}
 
-      {state.status === "ready" && state.requests.length > 0 ? (
-        <ul className="admin-request-list" aria-label="Enrolment requests">
-          {state.requests.map((request) => {
-            // An approval that stopped is handed back the same way, and it has to be: it is the
-            // only way out for an applicant whose enrolment failed for a reason only they can fix.
-            const open = isReturnableEnrolmentRequest(request.status);
-            const noteId = `enrolment-note-${request.enrolmentRequestId}`;
-            return (
-              <li className="admin-panel-card admin-request-card" key={request.enrolmentRequestId}>
-                <div className="admin-request-head">
-                  <strong>{request.applicantName}</strong>
-                  <AdminStatusBadge status={statusLabels[request.status]} />
-                </div>
-                <p className="admin-request-meta">
-                  {request.applicantIsStudent ? "Adult student" : "Parent or guardian"}
-                  {request.minorCount > 0
-                    ? ` · ${request.minorCount} ${request.minorCount === 1 ? "child" : "children"}`
-                    : ""}
-                  {` · ${request.trainingCenter} · sent ${formatDate(request.submittedAt)}`}
-                </p>
-                {open ? (
-                  <div className="admin-request-actions">
-                    {office ? (
+        {state.status === "ready" && state.requests.length === 0 ? (
+          <section className="admin-panel-card">
+            No enrolment requests yet. They appear here as soon as somebody applies from the site.
+          </section>
+        ) : null}
+
+        {state.status === "ready" && state.truncated ? (
+          <p className="admin-panel-card" role="status">
+            This page is full, so older requests are not shown. Resolve what is here before assuming
+            the queue is empty.
+          </p>
+        ) : null}
+
+        {state.status === "ready" && state.requests.length > 0 && visibleRequests.length === 0 ? (
+          <div className="enrolment-empty">
+            <h3>No matching requests</h3>
+            <p>Try another name or status.</p>
+            <button
+              className="staff-secondary-button"
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setFilter("all");
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : null}
+        {state.status === "ready" && visibleRequests.length > 0 ? (
+          <ul className="admin-request-list" aria-label="Enrolment requests">
+            {visibleRequests.map((request) => {
+              // An approval that stopped is handed back the same way, and it has to be: it is the
+              // only way out for an applicant whose enrolment failed for a reason only they can fix.
+              const open = isReturnableEnrolmentRequest(request.status);
+              const noteId = `enrolment-note-${request.enrolmentRequestId}`;
+              return (
+                <li
+                  className="admin-request-card"
+                  key={request.enrolmentRequestId}
+                  aria-busy={busyId === request.enrolmentRequestId}
+                >
+                  <div className="admin-request-head">
+                    <strong>{request.applicantName}</strong>
+                    <AdminStatusBadge status={statusLabels[request.status]} />
+                  </div>
+                  <p className="admin-request-meta">
+                    {request.applicantIsStudent ? "Adult student" : "Parent or guardian"}
+                    {request.minorCount > 0
+                      ? ` · ${request.minorCount} ${request.minorCount === 1 ? "child" : "children"}`
+                      : ""}
+                    {` · ${request.trainingCenter} · sent ${formatDate(request.submittedAt)}`}
+                  </p>
+                  {open ? (
+                    <div className="admin-request-actions">
+                      {office ? (
+                        <button
+                          className={
+                            openDetailId === request.enrolmentRequestId
+                              ? "staff-secondary-button"
+                              : "staff-primary-button"
+                          }
+                          disabled={busyId !== undefined}
+                          onClick={() => void openDetail(request)}
+                          aria-controls={`enrolment-review-${request.enrolmentRequestId}`}
+                          aria-expanded={openDetailId === request.enrolmentRequestId}
+                          type="button"
+                        >
+                          {busyId === request.enrolmentRequestId
+                            ? "Please wait..."
+                            : openDetailId === request.enrolmentRequestId
+                              ? "Close review"
+                              : "Review and enrol"}
+                        </button>
+                      ) : null}
+                      <details className="enrolment-return">
+                        <summary>Request changes</summary>
+                        <div className="enrolment-return-fields">
+                          <label className="shop-admin-field" htmlFor={noteId}>
+                            What needs to change
+                            <textarea
+                              id={noteId}
+                              rows={3}
+                              maxLength={500}
+                              onChange={(event) =>
+                                setNotes((current) => ({
+                                  ...current,
+                                  [request.enrolmentRequestId]: event.target.value,
+                                }))
+                              }
+                              value={notes[request.enrolmentRequestId] ?? ""}
+                            />
+                          </label>
+                          <p>
+                            The applicant will see this note and can send their corrected request
+                            again.
+                          </p>
+                          <button
+                            className="staff-secondary-button"
+                            disabled={busyId !== undefined}
+                            onClick={() => void sendBack(request)}
+                            type="button"
+                          >
+                            Send back to applicant
+                          </button>
+                        </div>
+                      </details>
+                    </div>
+                  ) : null}
+                  {office &&
+                  openDetailId === request.enrolmentRequestId &&
+                  details[request.enrolmentRequestId] ? (
+                    <div
+                      className="enrolment-review"
+                      id={`enrolment-review-${request.enrolmentRequestId}`}
+                    >
+                      <h3 ref={reviewHeading} tabIndex={-1}>
+                        Review and confirm enrolment
+                      </h3>
+                      <DetailPanel
+                        detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
+                      />
                       <button
                         className="staff-secondary-button"
-                        disabled={busyId === request.enrolmentRequestId}
-                        onClick={() => void openDetail(request)}
                         type="button"
-                      >
-                        {openDetailId === request.enrolmentRequestId
-                          ? "Hide detail"
-                          : "Read the full request"}
-                      </button>
-                    ) : null}
-                    <label className="shop-admin-field" htmlFor={noteId}>
-                      What needs to change
-                      <input
-                        id={noteId}
-                        maxLength={500}
-                        onChange={(event) =>
-                          setNotes((current) => ({
-                            ...current,
-                            [request.enrolmentRequestId]: event.target.value,
-                          }))
-                        }
-                        value={notes[request.enrolmentRequestId] ?? ""}
-                      />
-                    </label>
-                    <button
-                      className="staff-secondary-button"
-                      disabled={busyId === request.enrolmentRequestId}
-                      onClick={() => void sendBack(request)}
-                      type="button"
-                    >
-                      Send back to applicant
-                    </button>
-                    {/* The first action opens review; only the confirmation submits approval. */}
-                    {office && openDetailId !== request.enrolmentRequestId ? (
-                      <button
-                        className="staff-primary-button"
                         disabled={busyId !== undefined}
-                        onClick={() => void openDetail(request)}
-                        aria-controls={`enrolment-review-${request.enrolmentRequestId}`}
-                        aria-expanded={false}
-                        type="button"
+                        onClick={() => void openDetail(request, true)}
                       >
-                        Approve and enrol
+                        Reload full request
                       </button>
-                    ) : null}
-                  </div>
-                ) : null}
-                {office &&
-                openDetailId === request.enrolmentRequestId &&
-                details[request.enrolmentRequestId] ? (
-                  <>
-                    <h3
-                      id={`enrolment-review-${request.enrolmentRequestId}`}
-                      ref={reviewHeading}
-                      tabIndex={-1}
-                    >
-                      Review and confirm enrolment
-                    </h3>
-                    <DetailPanel
-                      detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
-                    />
-                    <button
-                      className="staff-secondary-button"
-                      type="button"
-                      disabled={busyId !== undefined}
-                      onClick={() => void openDetail(request, true)}
-                    >
-                      Reload full request
-                    </button>
-                    <fieldset className="admin-request-detail" disabled={busyId !== undefined}>
-                      <legend>Subscription and initial level</legend>
-                      {(setups[request.enrolmentRequestId] ?? []).map((student, index) => {
-                        const change = (patch: Partial<typeof student>) =>
-                          setSetups((current) => ({
-                            ...current,
-                            [request.enrolmentRequestId]: current[request.enrolmentRequestId]!.map(
-                              (item, position) =>
+                      <fieldset className="enrolment-setup" disabled={busyId !== undefined}>
+                        <legend>Subscription and initial level</legend>
+                        {(setups[request.enrolmentRequestId] ?? []).map((student, index) => {
+                          const change = (patch: Partial<typeof student>) =>
+                            setSetups((current) => ({
+                              ...current,
+                              [request.enrolmentRequestId]: current[
+                                request.enrolmentRequestId
+                              ]!.map((item, position) =>
                                 position === index ? { ...item, ...patch } : item,
-                            ),
-                          }));
-                        const fixed = !!details[request.enrolmentRequestId]?.approvalSetup;
-                        return (
-                          <fieldset key={index} disabled={fixed}>
-                            <legend>
-                              {details[request.enrolmentRequestId]?.applicantIsStudent
-                                ? request.applicantName
-                                : details[request.enrolmentRequestId]?.minors[index]?.fullName}
-                            </legend>
-                            {details[request.enrolmentRequestId]?.planSelections ? (
-                              <p>
-                                Plan:{" "}
-                                {
-                                  PLAN_CATALOG.find((plan) => plan.planId === student.planId)
-                                    ?.displayName
-                                }
-                              </p>
-                            ) : (
+                              ),
+                            }));
+                          const fixed = !!details[request.enrolmentRequestId]?.approvalSetup;
+                          return (
+                            <fieldset
+                              className="enrolment-student-setup"
+                              key={index}
+                              disabled={fixed}
+                            >
+                              <legend>
+                                {details[request.enrolmentRequestId]?.applicantIsStudent
+                                  ? request.applicantName
+                                  : details[request.enrolmentRequestId]?.minors[index]?.fullName}
+                              </legend>
+                              {details[request.enrolmentRequestId]?.planSelections ? (
+                                <p>
+                                  Plan:{" "}
+                                  {
+                                    PLAN_CATALOG.find((plan) => plan.planId === student.planId)
+                                      ?.displayName
+                                  }
+                                </p>
+                              ) : (
+                                <label className="shop-admin-field">
+                                  Subscription plan
+                                  <select
+                                    value={student.planId}
+                                    onChange={(event) =>
+                                      change({ planId: event.target.value as PlanId })
+                                    }
+                                  >
+                                    {PLAN_CATALOG.map((plan) => (
+                                      <option key={plan.planId} value={plan.planId}>
+                                        {plan.displayName}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              )}
                               <label className="shop-admin-field">
-                                Subscription plan
+                                Initial level
                                 <select
-                                  value={student.planId}
+                                  value={student.definitionKey}
                                   onChange={(event) =>
-                                    change({ planId: event.target.value as PlanId })
+                                    change({ definitionKey: event.target.value })
                                   }
                                 >
-                                  {PLAN_CATALOG.map((plan) => (
-                                    <option key={plan.planId} value={plan.planId}>
-                                      {plan.displayName}
-                                    </option>
-                                  ))}
+                                  <option value="">Choose a level</option>
+                                  {[...(catalog?.definitions ?? [])]
+                                    .sort((a, b) => a.sequence - b.sequence)
+                                    .map((level) => (
+                                      <option key={level.definitionKey} value={level.definitionKey}>
+                                        {level.name}
+                                      </option>
+                                    ))}
                                 </select>
                               </label>
-                            )}
-                            <label className="shop-admin-field">
-                              Initial level
-                              <select
-                                value={student.definitionKey}
-                                onChange={(event) => change({ definitionKey: event.target.value })}
-                              >
-                                <option value="">Choose a level</option>
-                                {[...(catalog?.definitions ?? [])]
-                                  .sort((a, b) => a.sequence - b.sequence)
-                                  .map((level) => (
-                                    <option key={level.definitionKey} value={level.definitionKey}>
-                                      {level.name}
-                                    </option>
-                                  ))}
-                              </select>
-                            </label>
-                            {student.definitionKey ? (
-                              <p className="enrol-selected-level">
-                                Selected level:{" "}
-                                {
-                                  catalog?.definitions.find(
-                                    (level) => level.definitionKey === student.definitionKey,
-                                  )?.name
-                                }
-                              </p>
-                            ) : null}
-                            <label className="shop-admin-field">
-                              Subscription start
-                              <input
-                                type="date"
-                                max={new Date().toISOString().slice(0, 10)}
-                                value={student.startsOn}
-                                onChange={(event) => change({ startsOn: event.target.value })}
-                              />
-                            </label>
-                            {enrolmentNeedsPayment(student.planId) ? (
+                              {student.definitionKey ? (
+                                <p className="enrol-selected-level">
+                                  Selected level:{" "}
+                                  {
+                                    catalog?.definitions.find(
+                                      (level) => level.definitionKey === student.definitionKey,
+                                    )?.name
+                                  }
+                                </p>
+                              ) : null}
                               <label className="shop-admin-field">
-                                Paid period ends
+                                Subscription start
                                 <input
                                   type="date"
-                                  value={student.endsOn ?? ""}
-                                  min={student.startsOn}
-                                  onChange={(event) =>
-                                    change({ endsOn: event.target.value || null })
-                                  }
+                                  max={new Date().toISOString().slice(0, 10)}
+                                  value={student.startsOn}
+                                  onChange={(event) => change({ startsOn: event.target.value })}
                                 />
                               </label>
-                            ) : (
-                              <p>Pay per class. No initial payment or expiry required.</p>
-                            )}
-                          </fieldset>
-                        );
-                      })}
-                      <label className="enrol-review-check">
-                        <input
-                          type="checkbox"
-                          checked={verified[request.enrolmentRequestId] ?? false}
-                          onChange={(event) =>
-                            setVerified((current) => ({
-                              ...current,
-                              [request.enrolmentRequestId]: event.target.checked,
-                            }))
-                          }
-                        />
-                        I have verified the registration details and selected levels.
-                      </label>
-                      {setups[request.enrolmentRequestId]?.some((student) =>
-                        enrolmentNeedsPayment(student.planId),
-                      ) ? (
+                              {enrolmentNeedsPayment(student.planId) ? (
+                                <label className="shop-admin-field">
+                                  Paid period ends
+                                  <input
+                                    type="date"
+                                    value={student.endsOn ?? ""}
+                                    min={student.startsOn}
+                                    onChange={(event) =>
+                                      change({ endsOn: event.target.value || null })
+                                    }
+                                  />
+                                </label>
+                              ) : (
+                                <p>Pay per class. No initial payment or expiry required.</p>
+                              )}
+                            </fieldset>
+                          );
+                        })}
                         <label className="enrol-review-check">
                           <input
                             type="checkbox"
-                            checked={paymentVerified[request.enrolmentRequestId] ?? false}
+                            checked={verified[request.enrolmentRequestId] ?? false}
                             onChange={(event) =>
-                              setPaymentVerified((current) => ({
+                              setVerified((current) => ({
                                 ...current,
                                 [request.enrolmentRequestId]: event.target.checked,
                               }))
                             }
                           />
-                          I have checked the transfer against the screenshot for the prepaid plans.
+                          I have verified the registration details and selected levels.
                         </label>
-                      ) : (
-                        <p>No payment review is required for Pay as you go.</p>
-                      )}
-                      {open ? (
-                        <button
-                          className="staff-primary-button"
-                          type="button"
-                          disabled={busyId !== undefined}
-                          onClick={() => void approve(request)}
-                        >
-                          Confirm approval and enrol
-                        </button>
-                      ) : null}
-                    </fieldset>
-                  </>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+                        {setups[request.enrolmentRequestId]?.some((student) =>
+                          enrolmentNeedsPayment(student.planId),
+                        ) ? (
+                          <label className="enrol-review-check">
+                            <input
+                              type="checkbox"
+                              checked={paymentVerified[request.enrolmentRequestId] ?? false}
+                              onChange={(event) =>
+                                setPaymentVerified((current) => ({
+                                  ...current,
+                                  [request.enrolmentRequestId]: event.target.checked,
+                                }))
+                              }
+                            />
+                            I have checked the transfer against the screenshot for the prepaid
+                            plans.
+                          </label>
+                        ) : (
+                          <p>No payment review is required for Pay as you go.</p>
+                        )}
+                        {open ? (
+                          <button
+                            className="staff-primary-button"
+                            type="button"
+                            disabled={busyId !== undefined}
+                            onClick={() => void approve(request)}
+                          >
+                            {busyId === request.enrolmentRequestId
+                              ? "Enrolling..."
+                              : "Confirm enrolment"}
+                          </button>
+                        ) : null}
+                      </fieldset>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </section>
     </section>
   );
 }
