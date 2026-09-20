@@ -154,9 +154,9 @@ export function createEnrolmentApprovalService(
   dependencies: EnrolmentApprovalDependencies,
 ): EnrolmentApprovalService {
   /**
-   * Reads the applicant's account and refuses anything the write path cannot represent. The
-   * display name and the email come from Auth rather than from the form: they are what the account
-   * already proves about itself, and the academy's client document will not parse without them.
+   * Account ownership comes from the request's submitting UID. Profile labels come from the
+   * application: password accounts may have no Auth display name. Prefer the account email for
+   * sign-in consistency, falling back to the submitted contact address when it is absent.
    */
   async function readApplicantAccount(
     record: EnrolmentRequestRecord,
@@ -196,13 +196,13 @@ export function createEnrolmentApprovalService(
         "This account does not hold a client role",
       );
     }
-    const displayName = user.displayName?.trim() ?? "";
-    const email = user.email?.trim() ?? "";
+    const displayName = record.applicant.fullName.trim() || user.displayName?.trim() || "";
+    const email = user.email?.trim() || record.applicant.email?.trim() || "";
     if (displayName.length === 0 || email.length === 0) {
       throw new EnrolmentApprovalError(
         "precondition",
         "applicant_account_incomplete",
-        "The applicant account has no name or no email address",
+        "Add a name and contact email to the application before approving it",
       );
     }
     return Object.freeze({ userId: user.uid, displayName, email: email.toLowerCase() });

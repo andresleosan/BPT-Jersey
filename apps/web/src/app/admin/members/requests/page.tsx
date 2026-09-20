@@ -236,8 +236,6 @@ function EnrolmentRequestQueueContent() {
   const [openDetailId, setOpenDetailId] = useState<string>();
   const [catalog, setCatalog] = useState<LevelCatalogProjection>();
   const [setups, setSetups] = useState<Record<string, EnrolmentApprovalSetup["students"]>>({});
-  const [verified, setVerified] = useState<Record<string, boolean>>({});
-  const [paymentVerified, setPaymentVerified] = useState<Record<string, boolean>>({});
   const inFlight = useRef(false);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const noticeRef = useRef<HTMLParagraphElement>(null);
@@ -318,10 +316,6 @@ function EnrolmentRequestQueueContent() {
           })),
       }));
       setDetails((current) => ({ ...current, [request.enrolmentRequestId]: detail }));
-      if (refresh) {
-        setVerified((current) => ({ ...current, [request.enrolmentRequestId]: false }));
-        setPaymentVerified((current) => ({ ...current, [request.enrolmentRequestId]: false }));
-      }
       setOpenDetailId(request.enrolmentRequestId);
     } catch (error) {
       setNotice({
@@ -343,14 +337,11 @@ function EnrolmentRequestQueueContent() {
           !student.definitionKey ||
           !student.startsOn ||
           (enrolmentNeedsPayment(student.planId) && !student.endsOn),
-      ) ||
-      !verified[request.enrolmentRequestId] ||
-      (students.some((student) => enrolmentNeedsPayment(student.planId)) &&
-        !paymentVerified[request.enrolmentRequestId])
+      )
     ) {
       setNotice({
         tone: "error",
-        text: "Choose every student's level and subscription dates, then confirm the details and payment review.",
+        text: "Choose every student's level and subscription dates before approving.",
       });
       return;
     }
@@ -358,6 +349,7 @@ function EnrolmentRequestQueueContent() {
     setBusyId(request.enrolmentRequestId);
     setNotice(undefined);
     try {
+      // The office's Approve action confirms the submitted setup without separate checkboxes.
       const outcome = await approveEnrolmentRequest(request.enrolmentRequestId, {
         students,
         detailsVerified: true,
@@ -796,39 +788,9 @@ function EnrolmentRequestQueueContent() {
                             </fieldset>
                           );
                         })}
-                        <label className="enrol-review-check">
-                          <input
-                            type="checkbox"
-                            checked={verified[request.enrolmentRequestId] ?? false}
-                            onChange={(event) =>
-                              setVerified((current) => ({
-                                ...current,
-                                [request.enrolmentRequestId]: event.target.checked,
-                              }))
-                            }
-                          />
-                          I have verified the registration details and selected levels.
-                        </label>
-                        {setups[request.enrolmentRequestId]?.some((student) =>
-                          enrolmentNeedsPayment(student.planId),
-                        ) ? (
-                          <label className="enrol-review-check">
-                            <input
-                              type="checkbox"
-                              checked={paymentVerified[request.enrolmentRequestId] ?? false}
-                              onChange={(event) =>
-                                setPaymentVerified((current) => ({
-                                  ...current,
-                                  [request.enrolmentRequestId]: event.target.checked,
-                                }))
-                              }
-                            />
-                            I have checked the transfer against the screenshot for the prepaid
-                            plans.
-                          </label>
-                        ) : (
-                          <p>No payment review is required for Pay as you go.</p>
-                        )}
+                        <p>
+                          Approve enrols the student with the level and subscription dates above.
+                        </p>
                         {open ? (
                           <button
                             className="staff-primary-button"
@@ -836,9 +798,7 @@ function EnrolmentRequestQueueContent() {
                             disabled={busyId !== undefined}
                             onClick={() => void approve(request)}
                           >
-                            {busyId === request.enrolmentRequestId
-                              ? "Enrolling..."
-                              : "Confirm enrolment"}
+                            {busyId === request.enrolmentRequestId ? "Enrolling..." : "Approve"}
                           </button>
                         ) : null}
                       </fieldset>
