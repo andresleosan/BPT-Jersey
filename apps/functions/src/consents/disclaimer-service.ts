@@ -304,11 +304,6 @@ export function createDisclaimerService(options: {
         path(academyId, "auditEvents", `disclaimer-published-${identifier}`),
       );
       await options.firestore.runTransaction(async (transaction) => {
-        const currentType = await assertAuthority(academyId, actorId, request.role, studentId, currentTime(), transaction);
-        const currentDisclaimerSnapshot = await transaction.get(options.firestore.doc(path(academyId, "disclaimers", identifier)));
-        const currentDisclaimer = storedDisclaimer(currentDisclaimerSnapshot.data(), academyId);
-        if (currentDisclaimer.status !== "published" || currentDisclaimer.contentHash !== request.input.contentHash ||
-            !appliesToParticipant(currentDisclaimer, currentType)) fail("stale", "The disclaimer changed and must be read again");
         const [current, auditSnapshot] = await Promise.all([
           transaction.get(disclaimerRef),
           transaction.get(auditRef),
@@ -480,6 +475,11 @@ export function createDisclaimerService(options: {
         path(academyId, "auditEvents", `disclaimer-accepted-${acceptanceIdValue}`),
       );
       await options.firestore.runTransaction(async (transaction) => {
+        const currentType = await assertAuthority(academyId, actorId, request.role, studentId, currentTime(), transaction);
+        const currentDisclaimerSnapshot = await transaction.get(options.firestore.doc(path(academyId, "disclaimers", identifier)));
+        const currentDisclaimer = storedDisclaimer(currentDisclaimerSnapshot.data(), academyId);
+        if (currentDisclaimer.status !== "published" || currentDisclaimer.contentHash !== request.input.contentHash ||
+            !appliesToParticipant(currentDisclaimer, currentType)) fail("stale", "The disclaimer changed and must be read again");
         const [current, auditSnapshot] = await Promise.all([
           transaction.get(acceptanceRef),
           transaction.get(auditRef),

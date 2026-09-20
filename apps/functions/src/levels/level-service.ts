@@ -1,3 +1,6 @@
+import type { Firestore } from "firebase-admin/firestore";
+import { readCanonicalMemberHistoryDocuments } from "../members/member-identity-firestore.js";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -49,7 +52,7 @@ import {
   type AgeBandEvaluation,
 } from "@bpt-jersey/domain/levels";
 import { parseAuditEventDraft, type AuditEventDraft } from "@bpt-jersey/domain/audit";
-import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
+import { parseEffectiveStudentProfileAt, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import { parseStaffProfile } from "@bpt-jersey/domain/staff";
 import { appendAuditEventInTransaction, matchesAuditEventReplay } from "../audit/audit-writer.js";
 import { matchesProvisionedMemberDirectoryActor } from "../members/member-directory-actor-authorization.js";
@@ -587,7 +590,7 @@ function storedStudent(
   studentId: string,
 ): StudentProfile {
   if (!snapshot.exists) throw new LevelStoreError("not-found", "Student is not available");
-  const parsed = parseStudentProfile(snapshot.data());
+  const parsed = parseEffectiveStudentProfileAt(snapshot.data(), dateKeyInJersey(new Date()));
   if (!parsed.ok || parsed.value.academyId !== academyId || parsed.value.studentId !== studentId) {
     throw new LevelStoreError("tenant", "Student scope is invalid");
   }
@@ -1155,8 +1158,10 @@ function countedAttendance(
   snapshot: GenericQuerySnapshot,
   academyId: string,
   studentId: string,
+  identityIds: readonly string[] = [studentId],
 ): readonly Record<string, unknown>[] {
-  return withinLimit(snapshot, "Attendance").docs.flatMap((document) => {
+  const countedSessions = new Map<string, Record<string, unknown>>();
+  const records = withinLimit(snapshot, "Attendance").docs.flatMap((document) => {
     const value = document.data();
     if (
       value.academyId !== academyId ||
@@ -1168,7 +1173,7 @@ function countedAttendance(
     }
     if (
       typeof value.courseId === "string" ||
-      value.studentId !== studentId ||
+      !identityIds.includes(value.studentId) ||
       value.correctionOf !== null ||
       (value.state !== "attended" && value.state !== "late")
     ) {
@@ -1181,6 +1186,12 @@ function countedAttendance(
     }
     return [value];
   });
+  // A linked historical identity cannot add a second visit to the same session.
+  for (const record of records.sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))) {
+    const sessionId = String(record.sessionId);
+    if (!countedSessions.has(sessionId)) countedSessions.set(sessionId, record);
+  }
+  return [...countedSessions.values()];
 }
 
 export function createLevelCatalogStore({
@@ -1737,9 +1748,8 @@ export function createLevelCatalogStore({
         academyId,
         studentId,
       );
-      const snapshot = withinLimit(
-        await firestore.collection(`academies/${academyId}/assessments`).get(),
-        "Assessments",
+      const snapshot = await readCanonicalMemberHistoryDocuments(
+        firestore as unknown as Firestore, academyId, studentId, "assessments", MAX_LEVEL_RECORDS,
       );
       return snapshot.docs
         .map((document) => {
@@ -1749,7 +1759,7 @@ export function createLevelCatalogStore({
           }
           return data as unknown as EvaluationRecord;
         })
-        .filter((evaluation) => evaluation.studentId === studentId)
+        .filter((evaluation) => snapshot.ids.includes(evaluation.studentId))
         .sort((left, right) => right.evaluatedAt.localeCompare(left.evaluatedAt));
     },
 
@@ -1790,14 +1800,11 @@ export function createLevelCatalogStore({
       ) {
         throw new LevelStoreError("tenant", "Progress head is invalid");
       }
-      // ponytail: reads the whole attendance and sessions collections under the existing
-      // 400-record ceiling (withinLimit); a per-student query on the existing
-      // (studentId, occurredAt) index replaces it when an academy passes 400 records.
-      const [catalog, evaluations, attendanceSnapshot, sessionsSnapshot] = await Promise.all([
+      // Bound reads to this athlete's linked identities and referenced sessions.
+      const [catalog, evaluations, attendanceSnapshot] = await Promise.all([
         this.listPublished(academyId),
         this.listStudentEvaluations(academyId, studentId),
-        firestore.collection(`academies/${academyId}/attendance`).get(),
-        firestore.collection(`academies/${academyId}/sessions`).get(),
+        readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "attendance", MAX_LEVEL_RECORDS),
       ]);
       if (
         catalog.system.systemId !== headData.systemId ||
@@ -1807,14 +1814,18 @@ export function createLevelCatalogStore({
       ) {
         throw new LevelStoreError("conflict", "Progress definition is not current");
       }
-      const attendance = countedAttendance(attendanceSnapshot, academyId, studentId);
+      const attendance = countedAttendance(attendanceSnapshot, academyId, studentId, attendanceSnapshot.ids);
+      const sessionIds = [...new Set(attendance.map((record) => String(record.sessionId)))];
+      const sessionDocuments = await Promise.all(sessionIds.map(async (id) => ({
+        id, snapshot: await firestore.doc(`academies/${academyId}/sessions/${id}`).get(),
+      })));
       const sessions = new Map(
-        withinLimit(sessionsSnapshot, "Sessions").docs.map((document) => {
-          const value = document.data();
-          if (value.academyId !== academyId || value.sessionId !== document.id) {
+        sessionDocuments.map(({ id, snapshot }) => {
+          const value = snapshot.data();
+          if (!snapshot.exists || !value || value.academyId !== academyId || value.sessionId !== id) {
             throw new LevelStoreError("tenant", "Session scope is invalid");
           }
-          return [document.id, value] as const;
+          return [id, value] as const;
         }),
       );
       let totalMinutes = 0;
@@ -1917,9 +1928,8 @@ export function createLevelCatalogStore({
         academyId,
         studentId,
       );
-      const snapshot = withinLimit(
-        await firestore.collection(`academies/${academyId}/medicalLeaves`).get(),
-        "Medical leaves",
+      const snapshot = await readCanonicalMemberHistoryDocuments(
+        firestore as unknown as Firestore, academyId, studentId, "medicalLeaves", MAX_LEVEL_RECORDS,
       );
       return snapshot.docs
         .map((document) => {
@@ -1929,7 +1939,7 @@ export function createLevelCatalogStore({
           }
           return data as unknown as MedicalLeaveRecord;
         })
-        .filter((record) => record.studentId === studentId)
+        .filter((record) => snapshot.ids.includes(record.studentId))
         .sort((a, b) => b.startDate.localeCompare(a.startDate));
     },
 
@@ -2279,9 +2289,9 @@ export function createLevelCatalogStore({
       const [catalog, evaluations, attendanceSnapshot] = await Promise.all([
         this.listPublished(academyId),
         this.listStudentEvaluations(academyId, input.studentId),
-        firestore.collection(`academies/${academyId}/attendance`).get(),
+        readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, input.studentId, "attendance", MAX_LEVEL_RECORDS),
       ]);
-      const attendedAt = countedAttendance(attendanceSnapshot, academyId, input.studentId).map(
+      const attendedAt = countedAttendance(attendanceSnapshot, academyId, input.studentId, attendanceSnapshot.ids).map(
         (record) => record.occurredAt as string,
       );
       return firestore.runTransaction(async (transaction) => {
@@ -2511,12 +2521,9 @@ export function createLevelCatalogStore({
         academyId,
         studentId,
       );
-      // ponytail: the whole promotions collection, filtered in memory, exactly as
-      // `listGraduations` already reads it — the same 400-record ceiling (`withinLimit`), no new
-      // composite index and no second restricted read per record open.
       const [head, snapshot] = await Promise.all([
         firestore.doc(`academies/${academyId}/studentLevelProgress/${studentId}`).get(),
-        firestore.collection(`academies/${academyId}/levelPromotions`).get(),
+        readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "levelPromotions", MAX_LEVEL_RECORDS),
       ]);
       const headData = head.data();
       if (head.exists && (headData?.academyId !== academyId || headData.studentId !== studentId)) {
@@ -2527,7 +2534,7 @@ export function createLevelCatalogStore({
         if (data.academyId !== academyId || data.promotionId !== document.id) {
           throw new LevelStoreError("tenant", "Promotion scope is invalid");
         }
-        return data.studentId === studentId ? [data] : [];
+        return snapshot.ids.includes(String(data.studentId)) ? [data] : [];
       });
       return buildLevelHistory(studentId, head.exists ? headData : undefined, promotions);
     },
@@ -2634,9 +2641,11 @@ export function createLevelCatalogStore({
           studentId,
         );
       }
-      const snapshot = withinLimit(
-        await firestore.collection(`academies/${academyId}/levelPromotions`).get(),
-        "Level promotions",
+      const scoped = studentId === undefined ? undefined : await readCanonicalMemberHistoryDocuments(
+        firestore as unknown as Firestore, academyId, studentId, "levelPromotions", MAX_LEVEL_RECORDS,
+      );
+      const snapshot = scoped ?? withinLimit(
+        await firestore.collection(`academies/${academyId}/levelPromotions`).get(), "Level promotions",
       );
       return snapshot.docs
         .flatMap((document) => {
@@ -2648,7 +2657,7 @@ export function createLevelCatalogStore({
           // existing reader of this list would read it as one.
           return data.kind === "void" ? [] : [data as unknown as GraduationRecord];
         })
-        .filter((record) => studentId === undefined || record.studentId === studentId)
+        .filter((record) => scoped === undefined || scoped.ids.includes(record.studentId))
         .sort((left, right) => right.decidedAt.localeCompare(left.decidedAt));
     },
   };

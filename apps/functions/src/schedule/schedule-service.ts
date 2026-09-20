@@ -1,3 +1,4 @@
+import { readCanonicalMemberHistoryDocuments } from "../members/member-identity-firestore.js";
 import { ensureCourseBooking } from "../courses/course-access.js";
 import { filterPublishedCourseSessions } from "../courses/course-publication.js";
 import type { Firestore } from "firebase-admin/firestore";
@@ -915,18 +916,21 @@ export function createFirestoreScheduleStore(options: {
       studentId: string,
       now?: string,
     ): Promise<readonly Readonly<{ title: string; startAt: string; reason: string }>[]> {
-      const bookings = await firestore
-        .collection(`academies/${academyId}/bookings`)
-        .where("studentId", "==", studentId)
-        .get();
+      const bookings = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "bookings");
       const studentBookings = bookings.docs
         .map((document) => document.data() as BookingRecord)
         .filter((booking) => typeof booking.sessionId === "string");
       if (studentBookings.length === 0) return Object.freeze([]);
 
-      const sessions = await firestore.collection(`academies/${academyId}/sessions`).get();
+      const sessionIds = [...new Set(studentBookings.map((booking) => booking.sessionId))];
+      const sessions = await Promise.all(sessionIds.map((id) => firestore.collection(`academies/${academyId}/sessions`).doc(id).get()));
+      const sessionRecords = sessions.filter((document) => document.exists).map((document) => {
+        const record = document.data() as SessionRecord;
+        if (record.academyId !== academyId || record.sessionId !== document.id) throw new Error("Session scope is invalid");
+        return record;
+      });
       return cancelledSessionNotices(
-        sessions.docs.map((document) => document.data() as SessionRecord),
+        sessionRecords,
         studentBookings,
         Date.parse(now ?? new Date().toISOString()),
       );
@@ -1430,10 +1434,7 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       studentId: string,
     ): Promise<readonly BookingRecord[]> {
-      const snapshot = await firestore
-        .collection(`academies/${academyId}/bookings`)
-        .where("studentId", "==", studentId)
-        .get();
+      const snapshot = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "bookings");
 
       return snapshot.docs
         .map((d) => d.data() as BookingRecord)
@@ -1528,10 +1529,7 @@ export function createFirestoreScheduleStore(options: {
       academyId: string,
       studentId: string,
     ): Promise<readonly AttendanceRecord[]> {
-      const snapshot = await firestore
-        .collection(`academies/${academyId}/attendance`)
-        .where("studentId", "==", studentId)
-        .get();
+      const snapshot = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "attendance");
 
       return snapshot.docs
         .map((d) => d.data() as AttendanceRecord)
@@ -1627,16 +1625,13 @@ export function createFirestoreScheduleStore(options: {
       sessionId: string,
       studentId: string,
     ): Promise<readonly AttendanceRecord[]> {
-      const canonicalId = buildAttendanceId(sessionId, studentId);
-      const snapshot = await firestore
-        .collection(`academies/${academyId}/attendance`)
-        .where("sessionId", "==", sessionId)
-        .where("studentId", "==", studentId)
-        .get();
+      const snapshot = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "attendance");
+      const canonicalIds = new Set(snapshot.ids.map((id) => buildAttendanceId(sessionId, id)));
 
       return snapshot.docs
         .map((d) => d.data() as AttendanceRecord)
-        .filter((a) => a.attendanceId === canonicalId || a.correctionOf === canonicalId)
+        .filter((record) => record.sessionId === sessionId)
+        .filter((a) => canonicalIds.has(a.attendanceId) || (a.correctionOf !== null && canonicalIds.has(a.correctionOf)))
         .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
     },
 
@@ -1677,17 +1672,10 @@ export function createFirestoreScheduleStore(options: {
       sessionId: string,
       studentId: string,
     ): Promise<CheckoutRecord | null> {
-      const checkoutId = buildCheckoutId(sessionId, studentId);
-      const doc = await firestore
-        .collection(`academies/${academyId}/checkouts`)
-        .doc(checkoutId)
-        .get();
-
-      if (!doc.exists) {
-        return null;
-      }
-
-      return doc.data() as CheckoutRecord;
+      const snapshot = await readCanonicalMemberHistoryDocuments(firestore as unknown as Firestore, academyId, studentId, "checkouts");
+      const matches = snapshot.docs.map((doc) => doc.data() as CheckoutRecord).filter((record) => record.sessionId === sessionId);
+      if (matches.length > 1) throw new Error("Checkout identity requires office review");
+      return matches[0] ?? null;
     },
 
     async getSessionOperationalView(

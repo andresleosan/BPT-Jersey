@@ -1,6 +1,7 @@
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { z } from "zod";
 import { HttpsError } from "firebase-functions/v2/https";
-import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
+import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import { attendanceStates, bookingStatuses, checkInMethods } from "@bpt-jersey/domain/schedule";
 import {
   memberClassPageSchema,
@@ -17,6 +18,7 @@ export type ClassDocument = Readonly<{ id: string; data: unknown }>;
 export type MemberClassReader = {
   getState(): Promise<unknown>;
   getStudent(studentId: string): Promise<unknown>;
+  getIdentityIds(studentId: string): Promise<readonly string[]>;
   getRecord(kind: MemberClassQuery["kind"], recordId: string): Promise<ClassDocument>;
   queryRecords(input: MemberClassQuery, limit: 26): Promise<readonly ClassDocument[]>;
   getSessions(ids: readonly string[]): Promise<readonly ClassDocument[]>;
@@ -49,14 +51,14 @@ function fail(): never {
     "Class history is unavailable. Refresh to try again.",
   );
 }
-function scope(document: ClassDocument, academyId: string, input: MemberClassQuery) {
+function scope(document: ClassDocument, academyId: string, input: MemberClassQuery, ids: readonly string[]) {
   const raw = z.record(z.string(), z.unknown()).safeParse(document.data);
   if (!raw.success) return fail();
   const data = raw.data;
   const at = input.kind === "bookings" ? data.requestedAt : data.occurredAt;
   if (
     data.academyId !== academyId ||
-    data.studentId !== input.studentId ||
+    !ids.includes(String(data.studentId)) ||
     (input.kind === "bookings" ? data.bookingId : data.attendanceId) !== document.id ||
     !z.iso.datetime().safeParse(at).success ||
     (input.kind === "attendance" && data.correctionOf !== null)
@@ -89,7 +91,8 @@ export async function listMemberClassRecordsPage(
     } catch {
       fail();
     }
-    const student = parseStudentProfile(studentData);
+    const ids = await reader.getIdentityIds(input.studentId);
+    const student = parseEffectiveStudentProfileAt(studentData, dateKeyInJersey(new Date()));
     if (
       !student.ok ||
       student.value.studentId !== input.studentId ||
@@ -102,6 +105,7 @@ export async function listMemberClassRecordsPage(
           await reader.getRecord(input.kind, input.cursor.recordId),
           actor.academyId,
           input,
+          ids,
         );
         if (cursor.at !== input.cursor.at) fail();
       } catch {
@@ -112,7 +116,7 @@ export async function listMemberClassRecordsPage(
     if (documents.length > 26) fail();
     const scanned = documents
       .slice(0, 25)
-      .map((doc) => ({ doc, ...scope(doc, actor.academyId, input) }));
+      .map((doc) => ({ doc, ...scope(doc, actor.academyId, input, ids) }));
     const live = scanned.filter((row) => row.data.source !== "legacy-import");
     const records = live.map(({ data }) => {
       const parsed =

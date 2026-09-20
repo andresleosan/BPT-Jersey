@@ -143,6 +143,12 @@ async function targetStudent(
   return (await authorization.resolveStudent(actor, requestedStudentId)).studentId;
 }
 
+async function requireCurrentTarget(dependencies: HandlerDependencies, actor: AuthorizedLevelActor, studentId: string): Promise<void> {
+  if (await targetStudent(dependencies.authorization, actor, studentId) !== studentId) {
+    throw new HttpsError("failed-precondition", "Member identity changed. Reload the profile.");
+  }
+}
+
 export function createListLevelCatalogHandler(dependencies: HandlerDependencies) {
   return async (request: CallableRequest<unknown>): Promise<LevelCatalogProjection> => {
     const actor = await dependencies.authorization.requireActor(request);
@@ -218,6 +224,7 @@ export function createListStudentEvaluationsHandler(dependencies: HandlerDepende
       ]);
       // T051V2 review fix (Major-2): the RESOLVED student is echoed, so a caller that asked about
       // one member can refuse a summary that belongs to another (or to the caller themselves).
+      await requireCurrentTarget(dependencies, actor, studentId);
       return { studentId, evaluations, summary };
     } catch (error) {
       return mapStoreError(error, "retrieve assessments");
@@ -233,9 +240,9 @@ export function createGetStudentProgressSummaryHandler(dependencies: HandlerDepe
     const requested = targetPayload(request.data, actor);
     const studentId = await targetStudent(dependencies.authorization, actor, requested);
     try {
-      return {
-        progress: await dependencies.store.getStudentProgressSummary(actor.academyId, studentId),
-      };
+      const progress = await dependencies.store.getStudentProgressSummary(actor.academyId, studentId);
+      await requireCurrentTarget(dependencies, actor, studentId);
+      return { progress };
     } catch (error) {
       return mapStoreError(error, "retrieve student progress");
     }
@@ -287,9 +294,9 @@ export function createListMedicalLeavesHandler(dependencies: HandlerDependencies
     const requested = targetPayload(request.data, actor);
     const studentId = await targetStudent(dependencies.authorization, actor, requested);
     try {
-      return {
-        medicalLeaves: await dependencies.store.listMedicalLeaves(actor.academyId, studentId),
-      };
+      const medicalLeaves = await dependencies.store.listMedicalLeaves(actor.academyId, studentId);
+      await requireCurrentTarget(dependencies, actor, studentId);
+      return { medicalLeaves };
     } catch (error) {
       return mapStoreError(error, "retrieve medical leaves");
     }
@@ -424,7 +431,9 @@ export function createListGraduationsHandler(dependencies: HandlerDependencies) 
         ? undefined
         : await targetStudent(dependencies.authorization, actor, requested);
     try {
-      return { graduations: await dependencies.store.listGraduations(actor.academyId, studentId) };
+      const graduations = await dependencies.store.listGraduations(actor.academyId, studentId);
+      if (studentId !== undefined) await requireCurrentTarget(dependencies, actor, studentId);
+      return { graduations };
     } catch (error) {
       return mapStoreError(error, "retrieve promotion history");
     }
