@@ -14,8 +14,11 @@ export function createFirestoreMemberMigrationStore(firestore: Firestore): Membe
           "memberMigrationDecisions",
           "regyfitOfficeLinks",
           "regyfitMemberLinks",
-        ].map((name) => firestore.collection(`${root}/${name}`).get()),
+        ].map((name) => firestore.collection(`${root}/${name}`).limit(501).get()),
       );
+      if ([members, records, decisions, officeLinks, memberLinks].some((page) => !page || page.size > 500)) {
+        throw new Error("The migration preview exceeds its bounded window. Use paginated inventory review.");
+      }
       // Fail loud: a row we cannot parse would silently vanish from the queue.
       const parsedMembers = members!.docs.map((document) => {
         const parsed = parseMemberRecord(document.data());
@@ -28,6 +31,10 @@ export function createFirestoreMemberMigrationStore(firestore: Firestore): Membe
         return parsed.value;
       });
       return {
+        versions: {
+          members: Object.fromEntries(members!.docs.map((doc) => [doc.id, `${doc.updateTime.seconds}:${doc.updateTime.nanoseconds}`])),
+          records: Object.fromEntries(records!.docs.map((doc) => [doc.id, `${doc.updateTime.seconds}:${doc.updateTime.nanoseconds}`])),
+        },
         members: parsedMembers,
         records: parsedRecords,
         decidedMemberIds: new Set(decisions!.docs.map((document) => document.id)),

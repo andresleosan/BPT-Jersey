@@ -62,6 +62,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Evidence, decisions and aliases are available only through audited staff callables.
+    match /academies/{academyId}/memberReconciliationCases/{studentId} {
+      allow read, write: if false;
+    }
+    match /academies/{academyId}/memberReconciliationDecisions/{requestId} {
+      allow read, write: if false;
+    }
+    match /academies/{academyId}/memberIdentityAliases/{studentId} {
+      allow read, write: if false;
+    }
+
     match /academies/{academyId}/memberDirectoryCursorStates/{cursorId} {
       allow read, write: if false;
     }

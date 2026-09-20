@@ -38,6 +38,7 @@ function toWriterSnapshot(snapshot: DocumentSnapshot): MemberDirectoryDocumentSn
   return Object.freeze({
     id: snapshot.id,
     exists: snapshot.exists,
+    ...(snapshot.updateTime ? { version: `${snapshot.updateTime.seconds}:${snapshot.updateTime.nanoseconds}` } : {}),
     data: () => data,
   });
 }
@@ -92,13 +93,20 @@ function readerTransaction(
       const snapshot = await transaction.get(query);
       return Object.freeze(snapshot.docs.map((document) => toReaderSnapshot(document)));
     },
-    async listCollection({ academyId, collection, afterDocumentId, limit }) {
+    async listCollection({ academyId, collection, equal, afterDocumentId, limit }) {
       if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(academyId) ||
           !/^[A-Za-z][A-Za-z0-9]*$/u.test(collection) || limit < 1 || limit > 101) {
         throw new Error("Invalid bounded directory query");
       }
       let query = firestore.collection(`academies/${academyId}/${collection}`)
         .orderBy(FieldPath.documentId());
+      if (equal !== undefined) {
+        if (!["studentId", "canonicalStudentId"].includes(equal.field) ||
+            !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(equal.value)) {
+          throw new Error("Invalid directory query filter");
+        }
+        query = query.where(equal.field, "==", equal.value);
+      }
       if (afterDocumentId !== undefined) query = query.startAfter(afterDocumentId);
       const result = await transaction.get(query.limit(limit));
       return result.docs.map(toReaderSnapshot);

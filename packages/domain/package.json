@@ -35,6 +35,11 @@
       "import": "./src/members/member-contracts.ts",
       "default": "./lib/members/member-contracts.js"
     },
+    "./members/reconciliation": {
+      "types": "./src/members/member-reconciliation-contracts.ts",
+      "import": "./src/members/member-reconciliation-contracts.ts",
+      "default": "./lib/members/member-reconciliation-contracts.js"
+    },
     "./members/directory": {
       "types": "./src/members/member-directory-contracts.ts",
       "import": "./src/members/member-directory-contracts.ts",

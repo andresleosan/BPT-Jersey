@@ -6,6 +6,7 @@ import type {
   MemberMigrationDecisionInput,
   MemberMigrationQueueResponse,
   MemberMigrationRejectionCode,
+  MigrationIdentityField,
 } from "@bpt-jersey/domain/members/migration";
 import {
   decideMemberMigration,
@@ -138,6 +139,9 @@ export function MigrationQueue() {
   const [tab, setTab] = useState<Tab>("strong");
   const [centre, setCentre] = useState<Enrolment["trainingCenter"] | "">("");
   const [preferences, setPreferences] = useState<Enrolment["trainingTimePreferences"]>([]);
+  const [identityEvidence, setIdentityEvidence] = useState("");
+  const [reviewReason, setReviewReason] = useState("");
+  const [fieldChoices, setFieldChoices] = useState<Record<string, "legacy" | "regyfit">>({});
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const [summary, setSummary] = useState<string>();
@@ -148,7 +152,11 @@ export function MigrationQueue() {
   const [skipRow, setSkipRow] = useState<Row>();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const rows = queue?.rows.filter((row) => inTab(row, tab)) ?? [];
-  const canEnrol = centre !== "" && preferences.length > 0;
+  const canEnrol = centre !== "" && preferences.length > 0 && identityEvidence.trim().length >= 3 && reviewReason.trim().length >= 3;
+  const compatibleRows = rows.filter((row) => row.category === "strong" && row.candidates.length === 1 && row.candidates[0]!.conflicts.length === 0).slice(0, 50);
+  const choiceKey = (row: Row, recordId: string, field: MigrationIdentityField) => `${row.legacyMemberId}:${recordId}:${field}`;
+  const reviewedCandidate = (row: Row, recordId: string) => row.candidates.find((candidate) => candidate.recordId === recordId);
+  const choicesComplete = (row: Row, recordId: string) => reviewedCandidate(row, recordId)?.conflicts.every((field) => fieldChoices[choiceKey(row, recordId, field)]) === true;
   const disabled = busy || loading || loadFailed;
 
   useEffect(() => {
@@ -222,10 +230,18 @@ export function MigrationQueue() {
   }
 
   function enrol(row: Row, recordId?: string) {
-    if (!canEnrol) return;
+    if (!canEnrol || (recordId && !choicesComplete(row, recordId))) return;
+    const candidate = recordId ? reviewedCandidate(row, recordId) : undefined;
     const training = {
       legacyMemberId: row.legacyMemberId,
       requestId: crypto.randomUUID(),
+      review: {
+        legacyVersion: row.sourceVersion,
+        ...(candidate ? { recordVersion: candidate.sourceVersion } : {}),
+        identityEvidence: identityEvidence.trim(),
+        choices: (candidate?.conflicts ?? []).map((field) => ({ field,
+          source: fieldChoices[choiceKey(row, candidate!.recordId, field)]!, evidence: identityEvidence.trim(), reason: reviewReason.trim() })),
+      },
       trainingCenter: centre,
       trainingTimePreferences: preferences,
     };
@@ -239,7 +255,7 @@ export function MigrationQueue() {
   function approveVisible() {
     if (!canEnrol || tab !== "strong") return;
     void submit(
-      rows.flatMap((row): MemberMigrationDecisionInput[] => {
+      compatibleRows.flatMap((row): MemberMigrationDecisionInput[] => {
         const candidate = row.candidates[0];
         if (row.candidates.length !== 1 || !candidate) return [];
         return [
@@ -248,6 +264,8 @@ export function MigrationQueue() {
             legacyMemberId: row.legacyMemberId,
             recordId: candidate.recordId,
             requestId: crypto.randomUUID(),
+            review: { legacyVersion: row.sourceVersion, recordVersion: candidate.sourceVersion,
+              identityEvidence: identityEvidence.trim(), choices: [] },
             trainingCenter: centre,
             trainingTimePreferences: preferences,
           },
@@ -264,6 +282,16 @@ export function MigrationQueue() {
         description="Review each member against the imported archive before creating their academy record."
       />
       <section className="admin-panel-card member-migration" aria-label="Member migration queue">
+        <div className="member-record-form">
+          <label className="login-field">Identity evidence
+            <textarea value={identityEvidence} onChange={(event) => setIdentityEvidence(event.target.value)} minLength={3} maxLength={1000}
+              disabled={busy} placeholder="Describe the independent evidence you checked" />
+          </label>
+          <label className="login-field">Reason for the reviewed choices
+            <textarea value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} minLength={3} maxLength={300} disabled={busy} />
+          </label>
+          <p className="member-record-hint">Names, shared email addresses and matching dates of birth are suggestions. Confirm identity before linking. Plans and historical payments remain subject to their own review.</p>
+        </div>
         {summary ? <p role="status">{summary}</p> : null}
         {saveError ? (
           <p role="alert" className="member-record-notice">
@@ -395,10 +423,10 @@ export function MigrationQueue() {
                 <button
                   type="button"
                   className="member-record-button"
-                  disabled={disabled || !canEnrol || rows.length === 0}
+                  disabled={disabled || !canEnrol || compatibleRows.length === 0}
                   onClick={approveVisible}
                 >
-                  Approve all visible ({rows.length})
+                  Approve compatible matches ({compatibleRows.length}, up to 50)
                 </button>
               ) : null}
               {tab === "minors" ? (
@@ -452,11 +480,26 @@ export function MigrationQueue() {
                                             : "Name and birth date match"
                                       }
                                     />
+                                    {candidate.conflicts.length > 0 ? <fieldset disabled={busy}>
+                                      <legend>Resolve each difference</legend>
+                                      {candidate.conflicts.map((field) => <label className="login-field" key={field}>
+                                        {field.replace(/([A-Z])/g, " $1")}
+                                        <select value={fieldChoices[choiceKey(row, candidate.recordId, field)] ?? ""}
+                                          onChange={(event) => {
+                                            const value = event.target.value;
+                                            if (value === "legacy" || value === "regyfit") setFieldChoices((current) => ({ ...current, [choiceKey(row, candidate.recordId, field)]: value }));
+                                          }}>
+                                          <option value="" disabled>Choose after checking the evidence</option>
+                                          <option value="legacy">Keep the BPT source value</option>
+                                          <option value="regyfit">Use the Regyfit source value</option>
+                                        </select>
+                                      </label>)}
+                                    </fieldset> : null}
                                     {
                                       <button
                                         type="button"
                                         className="member-record-button"
-                                        disabled={disabled || !canEnrol}
+                                        disabled={disabled || !canEnrol || !choicesComplete(row, candidate.recordId)}
                                         onClick={() => enrol(row, candidate.recordId)}
                                       >
                                         Link to this record

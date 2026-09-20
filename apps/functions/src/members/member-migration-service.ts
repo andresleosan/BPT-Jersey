@@ -1,6 +1,8 @@
 import type { MemberRecord } from "@bpt-jersey/domain/members";
 import {
   buildMemberMigrationQueue,
+  migrationIdentityValues,
+  reviewedMigrationValues,
   decideMemberMigrationInputSchema,
   toMemberMigrationQueueResponse,
   type ArchiveRecordInput,
@@ -20,6 +22,7 @@ import {
 } from "./canonical-member-directory-service.js";
 
 export type MemberMigrationSnapshot = Readonly<{
+  versions: Readonly<{ members: Readonly<Record<string, string>>; records: Readonly<Record<string, string>> }>;
   members: readonly MemberRecord[];
   records: readonly RegyfitMemberRecord[];
   decidedMemberIds: ReadonlySet<string>;
@@ -88,6 +91,8 @@ export function createMemberMigrationService(
         members,
         records,
         snapshot.decidedMemberIds.size,
+        snapshot.versions,
+        (memberId, recordId) => migrationIdentityValues(snapshot.members.find((member) => member.memberId === memberId)!, snapshot.records.find((record) => record.recordId === recordId)).conflicts,
       );
     },
 
@@ -116,6 +121,20 @@ export function createMemberMigrationService(
           reject("already-decided");
           continue;
         }
+        if (decision.kind !== "skip") {
+          const record = decision.kind === "link" ? records.get(decision.recordId) : undefined;
+          if (snapshot.versions.members[member.memberId] !== decision.review.legacyVersion ||
+              (decision.kind === "link" && snapshot.versions.records[decision.recordId] !== decision.review.recordVersion)) {
+            reject("identity-changed"); continue;
+          }
+          const conflicts = migrationIdentityValues(member, record).conflicts;
+          if (parsed.data.decisions.length > 1 && (decision.kind !== "link" || row.category !== "strong" || conflicts.length)) {
+            reject("batch-requires-compatible-identity"); continue;
+          }
+          if (conflicts.some((field) => !decision.review.choices.some((choice) => choice.field === field))) {
+            reject("conflicts-require-review"); continue;
+          }
+        }
         try {
           if (decision.kind === "skip") {
             await deps.writer.skipLegacyMember({
@@ -134,7 +153,6 @@ export function createMemberMigrationService(
                 row.candidates,
                 records,
                 deps.now(),
-                row.category === "strong",
               ),
             );
             results.push({
@@ -164,61 +182,24 @@ function registrationFor(
   candidates: readonly Readonly<{ recordId: string }>[],
   records: ReadonlyMap<string, RegyfitMemberRecord>,
   now: string,
-  strongMatch: boolean,
 ) {
-  const recoveredDate = strongMatch
-    ? records.get(candidates[0]?.recordId ?? "")?.birthDate
-    : undefined;
-  const training = {
-    trainingCenter: decision.trainingCenter,
-    trainingTimePreferences: [...decision.trainingTimePreferences],
-  };
-  if (decision.kind === "link") {
-    const record = records.get(decision.recordId);
-    if (
-      record === undefined ||
-      !candidates.some((candidate) => candidate.recordId === decision.recordId)
-    ) {
-      throw new MemberMigrationInputError("not-a-candidate");
-    }
-    const dateOfBirth = member.birthDate ?? recoveredDate;
-    return {
-      actor,
-      now,
-      legacyMemberId: member.memberId,
-      recordId: record.recordId,
-      ...training,
-      value: {
-        requestId: decision.requestId,
-        fullName: record.fullName,
-        dateOfBirth,
-        ...training,
-        ...(record.memberNumber
-          ? { membershipNumber: normalizeAdministrativeIdentifier(record.memberNumber) }
-          : {}),
-        ...(member.idCardNumber ? { idCardNumber: member.idCardNumber } : {}),
-        ...((record.mobile ?? member.mobileNumber)
-          ? { phoneNumber: record.mobile ?? member.mobileNumber }
-          : {}),
-        gender: record.gender,
-      },
-    };
+  const record = decision.kind === "link" ? records.get(decision.recordId) : undefined;
+  if (decision.kind === "link" && (!record || !candidates.some((candidate) => candidate.recordId === decision.recordId))) {
+    throw new MemberMigrationInputError("not-a-candidate");
   }
+  const chosen = reviewedMigrationValues(member, record, decision.review);
+  const training = { trainingCenter: decision.trainingCenter, trainingTimePreferences: [...decision.trainingTimePreferences] };
   return {
-    actor,
-    now,
-    legacyMemberId: member.memberId,
-    ...training,
+    actor, now, legacyMemberId: member.memberId, ...(record ? { recordId: record.recordId } : {}),
+    review: decision.review, ...training,
     value: {
-      requestId: decision.requestId,
-      fullName: member.fullName,
-      dateOfBirth: member.birthDate ?? recoveredDate,
-      ...training,
-      ...(member.membershipNumber ? { membershipNumber: member.membershipNumber } : {}),
-      ...(member.idCardNumber ? { idCardNumber: member.idCardNumber } : {}),
-      ...(member.vatNumber ? { vatNumber: member.vatNumber } : {}),
-      ...(member.mobileNumber ? { phoneNumber: member.mobileNumber } : {}),
-      gender: member.gender,
+      requestId: decision.requestId, fullName: chosen.fullName!,
+      ...(chosen.birthDate ? { dateOfBirth: chosen.birthDate } : {}), ...training,
+      ...(chosen.membershipNumber ? { membershipNumber: normalizeAdministrativeIdentifier(chosen.membershipNumber) } : {}),
+      ...(chosen.idCardNumber ? { idCardNumber: normalizeAdministrativeIdentifier(chosen.idCardNumber) } : {}),
+      ...(chosen.vatNumber ? { vatNumber: normalizeAdministrativeIdentifier(chosen.vatNumber) } : {}),
+      ...(chosen.email ? { email: chosen.email } : {}),
+      ...(chosen.mobileNumber ? { phoneNumber: chosen.mobileNumber } : {}), gender: chosen.gender,
     },
   };
 }

@@ -1,3 +1,4 @@
+import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { parseMemberRecord } from "@bpt-jersey/domain/members";
@@ -53,7 +54,9 @@ function validRecord(collection: InventoryCollection, value: Record<string, unkn
     case "regyfitMemberRecords": return parseStoredRegyfitMemberRecord(value).ok;
     case "students": return parseStudentProfileAt(value, today).ok;
     case "studentAdminProfiles": return studentAdminProfileSchema.safeParse(value).success;
-    case "users": return parseUserProfile(value).ok;
+    case "users": return parseUserProfile(value).ok ||
+      ((value.adminRole === "owner" || value.adminRole === "administrator") && typeof value.userId === "string" && typeof value.academyId === "string" &&
+        matchesProvisionedMemberDirectoryActor(value, { actorId: value.userId, academyId: value.academyId, role: value.adminRole }));
     case "families": return parseFamilyRecord(value).ok;
     case "relationships": return parseFamilyRelationship(value).ok;
     case "memberships": return parseMembershipRecord(value).ok;

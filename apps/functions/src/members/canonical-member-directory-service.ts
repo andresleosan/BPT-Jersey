@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 
+import { parseMemberRecord } from "@bpt-jersey/domain/members";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
   MEMBER_MIGRATION_ID,
+  migrationIdentityReviewSchema,
+  migrationIdentityValues,
+  reviewedMigrationValues,
+  type MigrationIdentityReview,
   memberMigrationDecisionRecordSchema,
   legacyStudentInputSchema,
   memberReviewInputSchema,
@@ -51,6 +56,7 @@ export type MemberDirectoryDocumentReference = Readonly<{ id: string; path: stri
 export type MemberDirectoryDocumentSnapshot = Readonly<{
   id: string;
   exists: boolean;
+  version?: string;
   data: () => MemberDirectoryDocumentData | undefined;
 }>;
 export type MemberDirectoryTransaction = Readonly<{
@@ -90,6 +96,7 @@ export type LegacyMemberRegistrationCommand = CreateAdminAdultCommand &
   Readonly<{
     legacyMemberId: string;
     recordId?: string;
+    review: MigrationIdentityReview;
     trainingCenter: "Town" | "West";
     trainingTimePreferences: readonly ("morning" | "afternoon" | "evening")[];
   }>;
@@ -322,6 +329,7 @@ function requestMac(
   input: LegacyStudentInput,
   secretMaterial: string,
   recordId?: string,
+  review?: MigrationIdentityReview,
 ): string {
   return createMemberDirectoryIntegrityMac({
     domain: "bpt-member-directory-write-request-v1",
@@ -332,6 +340,7 @@ function requestMac(
         Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
       ),
       ...(recordId ? [recordId] : []),
+      ...(review ? [canonicalizeMemberDirectoryValue(review)] : []),
     ],
     secretMaterial,
   });
@@ -857,6 +866,7 @@ export function createCanonicalMemberDirectoryService(
     sourceRecordId?: string,
     legacy?: Readonly<{
       legacyMemberId: string;
+      review: MigrationIdentityReview;
       trainingCenter: string;
       trainingTimePreferences: readonly string[];
     }>,
@@ -920,6 +930,7 @@ export function createCanonicalMemberDirectoryService(
       parsedInput.value,
       dependencies.integritySecretMaterial,
       sourceRecordId,
+      legacy?.review,
     );
     const receiptId = requestReceiptId(
       academyId,
@@ -944,6 +955,36 @@ export function createCanonicalMemberDirectoryService(
         const candidate = (await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseCandidates/${requiredIdentifier(participant.candidateId, "course candidate")}`))).data();
         if (!candidate || candidate.applicantUid !== account?.userId || candidate.kind !== "adult" || candidate.fullName !== parsedInput.value.fullName || candidate.dateOfBirth !== parsedInput.value.dateOfBirth)
           throw new CanonicalMemberDirectoryError("conflict", "Course candidate details do not match");
+      }
+      // A legacy retry is bound to the same reviewed body before any later source or link changes.
+      if (legacy) {
+        const prior = await transaction.get(receiptRef);
+        if (prior.exists) return resolveReplay(transaction, dependencies, prior.data(), receiptId, academyId, actorId, expectedRequestMac);
+      }
+      let reviewedSourceValues: ReturnType<typeof migrationIdentityValues> | undefined;
+      if (legacy) {
+        const review = migrationIdentityReviewSchema.parse(legacy.review);
+        const memberDoc = await transaction.get(dependencies.firestore.doc(`academies/${academyId}/members/${requiredIdentifier(legacy.legacyMemberId, "legacy member")}`));
+        const member = parseMemberRecord(memberDoc.data());
+        const recordDoc = sourceRecordId ? await transaction.get(dependencies.firestore.doc(`academies/${academyId}/regyfitMemberRecords/${sourceRecordId}`)) : undefined;
+        const record = recordDoc ? parseStoredRegyfitMemberRecord(recordDoc.data()) : undefined;
+        if (!member.ok || member.value.academyId !== academyId || member.value.memberId !== legacy.legacyMemberId ||
+            memberDoc.version !== review.legacyVersion || (sourceRecordId && (!record?.ok || recordDoc?.version !== review.recordVersion))) {
+          throw new CanonicalMemberDirectoryError("invalid", "Imported identity changed. Refresh before registering.");
+        }
+        const archive = record?.ok ? record.value : undefined;
+        const chosen = reviewedMigrationValues(member.value, archive, review);
+        const expected = {
+          fullName: chosen.fullName, dateOfBirth: chosen.birthDate ?? undefined, email: chosen.email ?? undefined,
+          phoneNumber: chosen.mobileNumber ?? undefined, gender: chosen.gender,
+          membershipNumber: chosen.membershipNumber ? normalizeAdministrativeIdentifier(chosen.membershipNumber) : undefined,
+          idCardNumber: chosen.idCardNumber ? normalizeAdministrativeIdentifier(chosen.idCardNumber) : undefined,
+          vatNumber: chosen.vatNumber ? normalizeAdministrativeIdentifier(chosen.vatNumber) : undefined,
+        };
+        if (Object.entries(expected).some(([field, value]) => (parsedInput.value as Record<string, unknown>)[field] !== value)) {
+          throw new CanonicalMemberDirectoryError("invalid", "Imported identity changed. Refresh before registering.");
+        }
+        reviewedSourceValues = migrationIdentityValues(member.value, archive);
       }
       const officeLinkRef = sourceRecordId
         ? dependencies.firestore.doc(`academies/${academyId}/regyfitOfficeLinks/${sourceRecordId}`)
@@ -979,13 +1020,13 @@ export function createCanonicalMemberDirectoryService(
           !source.ok ||
           source.value.recordId !== sourceRecordId ||
           (storedSource?.academyId !== undefined && storedSource.academyId !== academyId) ||
-          source.value.fullName !== parsedInput.value.fullName ||
+          (!legacy && source.value.fullName !== parsedInput.value.fullName) ||
           (!legacy &&
             source.value.birthDate &&
             source.value.birthDate !== parsedInput.value.dateOfBirth) ||
-          (source.value.memberNumber
+          (!legacy && (source.value.memberNumber
             ? normalizeAdministrativeIdentifier(source.value.memberNumber)
-            : undefined) !== parsedInput.value.membershipNumber
+            : undefined) !== parsedInput.value.membershipNumber)
         )
           throw new CanonicalMemberDirectoryError(
             "invalid",
@@ -1298,6 +1339,8 @@ export function createCanonicalMemberDirectoryService(
           trainingTimePreferences: [...legacy.trainingTimePreferences],
           decidedAt: now,
           decidedBy: actorId,
+          review: legacy.review,
+          ...(reviewedSourceValues ? { sourceValues: { legacy: reviewedSourceValues.legacy, archive: reviewedSourceValues.archive } } : {}),
           schemaVersion: "1",
         });
         transaction.create(decisionRef, decision);
@@ -1581,6 +1624,7 @@ export function createCanonicalMemberDirectoryService(
         throw new CanonicalMemberDirectoryError("invalid", "Invalid imported record ID");
       return createAdult(command, undefined, command.recordId, {
         legacyMemberId: command.legacyMemberId,
+        review: command.review,
         trainingCenter: command.trainingCenter,
         trainingTimePreferences: command.trainingTimePreferences,
       });

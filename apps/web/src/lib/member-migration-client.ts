@@ -35,6 +35,8 @@ const messages: Readonly<Record<MemberMigrationRejectionCode, string>> = {
   "record-already-linked": "That record already belongs to another member.",
   "identifier-reserved": "Another member already holds this membership or ID number.",
   "invalid-member-data": "This member's ID or member number is not in a format the directory accepts. Correct the legacy record or skip.",
+  "conflicts-require-review": "Choose and explain how to resolve every source difference before linking.",
+  "batch-requires-compatible-identity": "Batch approval requires a compatible unique identifier and no unresolved differences.",
   "identity-changed": "The archive record changed. Refresh before linking.",
   "write-failed": "Could not save this decision. Try again.",
 };

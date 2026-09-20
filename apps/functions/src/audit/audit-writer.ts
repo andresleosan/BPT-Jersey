@@ -71,6 +71,7 @@ function sameValue(left: unknown, right: unknown): boolean {
 function storedResult(draft: AuditEventDraft): string {
   if (
     draft.action === "member.detail.read" ||
+    draft.action === "member.inventory.read" ||
     draft.action === "member.identity.lookup" ||
     draft.action === "enrolment.request.detail.read" ||
     draft.action === "regyfit.record.field.read" ||

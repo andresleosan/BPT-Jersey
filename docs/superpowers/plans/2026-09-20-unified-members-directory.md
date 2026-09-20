@@ -146,7 +146,7 @@ const complete = fetched.docs.length <= 100;
 - Produce `ReconciliationDecision`, `ReconciliationField`, `ReconciliationCase`; `MemberReconciliationService.getCase(academyId: string, studentId: string): Promise<ReconciliationCase>`, `.decide(actor: CanonicalMemberDirectoryActor, input: ReconciliationDecisionInput): Promise<ReconciliationCase>` and `.close(actor: CanonicalMemberDirectoryActor, input: CloseReconciliationInput): Promise<ReconciliationCase>`.
 - Produce `resolveCanonicalStudentId(academyId: string, studentId: string): Promise<string>` in the reconciliation service, for approved aliases only.
 
-- [ ] Define decision values as bounded scalars/string lists, with protected source references rather than unrestricted document paths. Complex historical movements remain source-linked and go through their typed billing/progression writer rather than an arbitrary JSON patch. Define exact versions and independent states:
+- [x] Define decision values as bounded scalars/string lists, with protected source references rather than unrestricted document paths. Complex historical movements remain source-linked and go through their typed billing/progression writer rather than an arbitrary JSON patch. Define exact versions and independent states:
 
 ```ts
 export type ReviewValue = null | boolean | number | string | readonly string[];
@@ -190,8 +190,8 @@ export type CloseReconciliationInput = Readonly<{
 }>;
 ```
 
-- [ ] Build a server field allowlist with per-field parsers and writer dispatch: personal fields use the canonical editor; relationships use Task 5; plans and financial evidence use Task 3; progression uses existing staff-level operations. Reject unknown fields, overlong evidence/reasons and values inconsistent with the selected field. Never spread applicant JSON into a student or payment document.
-- [ ] Store decisions in `memberReconciliationCases/{studentId}` and `memberReconciliationDecisions/{requestId}` under the academy. Keep both original values and their source versions in the protected decision record. Use existing audit/receipt infrastructure and include actor, evidence, time, before/after and body digest. In the same transaction recheck actor, case revision and every source version. A same-ID/same-body retry returns its receipt; same ID/different body rejects.
+- [x] Build a server field allowlist with per-field parsers and writer dispatch: personal fields use the canonical editor; relationships use Task 5; plans and financial evidence use Task 3; progression uses existing staff-level operations. Reject unknown fields, overlong evidence/reasons and values inconsistent with the selected field. Never spread applicant JSON into a student or payment document.
+- [x] Store decisions in `memberReconciliationCases/{studentId}` and `memberReconciliationDecisions/{requestId}` under the academy. Keep both original values and their source versions in the protected decision record. Use existing audit/receipt infrastructure and include actor, evidence, time, before/after and body digest. In the same transaction recheck actor, case revision and every source version. A same-ID/same-body retry returns its receipt; same ID/different body rejects.
 
 ```ts
 if (currentCase.revision !== input.expectedRevision) {
@@ -202,10 +202,12 @@ if (currentCase.unresolvedFields.length !== 0) {
 }
 ```
 
-- [ ] Extend the existing migration preview to show the proposed canonical athlete, identity evidence, all conflicts and affected references. Strong compatible matches may be explicitly batch-approved, at most 50 per existing migration decision boundary. Names, shared emails and name/date pairs only suggest candidates. A conflicting unique identifier blocks batch application.
-- [ ] For an approved duplicate canonical identity, retain the chosen stable athlete ID and record the other ID in `memberIdentityAliases`. Reject cycles and competing targets. Preserve original payment/attendance references; all relevant readers resolve the alias and deduplicate stable event IDs. Transfer account/guardian links only as separately reviewed link decisions. Preview the union of affected records before alias creation; unresolved ownership or relationship conflicts block it. Canonical lists exclude approved aliases; alias targets retain all confirmed source identities. New source changes reopen affected closed cases rather than silently marking the new discrepancy resolved. Recheck uniqueness in the transaction, including existing source-link collections.
-- [ ] Inspect stale source updates, unchanged retries, contradictory member numbers, same-name siblings and closure with one unresolved field. Expected: no silent source winner, no duplicate athlete, no stale overwrite and no premature closure. Inspect alias resolution for cycles and two concurrent target claims.
-- [ ] Commit with message `Add explicit member reconciliation decisions`.
+- [x] Extend the existing migration preview to show the proposed canonical athlete, identity evidence, all conflicts and affected references. Strong compatible matches may be explicitly batch-approved, at most 50 per existing migration decision boundary. Names, shared emails and name/date pairs only suggest candidates. A conflicting unique identifier blocks batch application.
+- [x] For an approved duplicate canonical identity, retain the chosen stable athlete ID and record the other ID in `memberIdentityAliases`. Reject cycles and competing targets. Preserve original payment/attendance references; all relevant readers resolve the alias and deduplicate stable event IDs. Transfer account/guardian links only as separately reviewed link decisions. Preview the union of affected records before alias creation; unresolved ownership or relationship conflicts block it. Canonical lists exclude approved aliases; alias targets retain all confirmed source identities. New source changes reopen affected closed cases rather than silently marking the new discrepancy resolved. Recheck uniqueness in the transaction, including existing source-link collections.
+- [x] Inspect stale source updates, unchanged retries, contradictory member numbers, same-name siblings and closure with one unresolved field. Expected: no silent source winner, no duplicate athlete, no stale overwrite and no premature closure. Inspect alias resolution for cycles and two concurrent target claims.
+- [x] Commit with message `Add explicit member reconciliation decisions`.
+
+Implementation note (20 September): review decisions and typed application are separate; a changed value remains pending until its existing editor applies it. Canonical lists/details resolve aliases now; all historical/account readers are coordinated in Tasks 3–7 before release. The aggregate legacy preview has a 500-record ceiling and directs larger datasets to paginated inventory; Task 16 prepares bounded application.
 
 ## Task 3: Preserve payments, paid periods and progression provenance
 
