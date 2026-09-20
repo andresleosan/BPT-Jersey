@@ -32,7 +32,9 @@ export async function resolveCoursePaymentIncident(db: Firestore, actor: CourseA
   const input = courseMutationSchema.extend({incidentId: courseIdSchema, received: z.boolean(), reason: courseLabel(1000)}).parse(value);
   const replay = operationResult<CoursePaymentIncident>(await courseOperation(db, actor, "resolve-incident", input.requestId).get(), input);
   if (replay) return replay;
-  const identity = input.received ? await ensureApprovedCourseStudent(db, actor, input.enrolmentId, dependencies) : null;
+  const initial = courseData<CourseEnrolment>(await courseCollection(db, actor.academyId, "courseEnrolments").doc(input.enrolmentId).get());
+  assertCourseRevision(initial.revision, input.expectedRevision);
+  const identity = input.received && initial.receivedMinor === 0 ? await ensureApprovedCourseStudent(db, actor, input.enrolmentId, dependencies) : initial.studentId ? {studentId: initial.studentId} : null;
   return db.runTransaction(async tx => {
     await assertCourseActorLive(db, tx, actor);
     const ref = courseCollection(db, actor.academyId, "courseEnrolments").doc(input.enrolmentId);
@@ -43,6 +45,7 @@ export async function resolveCoursePaymentIncident(db: Firestore, actor: CourseA
     const incident = courseData<CoursePaymentIncident>(incidentSnapshot);
     assertCourseRevision(enrolment.revision, input.expectedRevision);
     if (incident.enrolmentId !== enrolment.enrolmentId || incident.state !== "open") courseFailure("conflict", "This payment incident has already changed.");
+    if (input.received && enrolment.receivedMinor > 0 && incident.proofId !== enrolment.proofId) courseFailure("conflict", "A payment is already recorded. Reconcile additional transfers separately before confirming this evidence.");
     const now = new Date().toISOString();
     const course = courseData<Course>(await tx.get(courseCollection(db, actor.academyId, "courses").doc(enrolment.courseId)));
     const proof = (await tx.get(courseCollection(db, actor.academyId, "courseProofs").doc(incident.proofId))).data();

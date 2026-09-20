@@ -1,3 +1,4 @@
+import { ensureCourseBooking } from "../courses/course-access.js";
 import { filterPublishedCourseSessions } from "../courses/course-publication.js";
 import type { Firestore } from "firebase-admin/firestore";
 import {
@@ -714,7 +715,7 @@ async function copyWeekWith(
     if (!input.copyBookings) continue;
 
     for (const booking of await store.listSessionBookings(academyId, session.sessionId)) {
-      if (booking.status !== "confirmed") continue;
+      if (booking.status !== "confirmed" || booking.membershipId === null) continue;
       try {
         await store.requestBooking(
           academyId,
@@ -1477,6 +1478,8 @@ export function createFirestoreScheduleStore(options: {
       actorRole?: ScheduleMutationActorRole,
       actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
+      const courseSession = await firestore.doc(`academies/${academyId}/sessions/${input.sessionId}`).get();
+      if (courseSession.data()?.courseId) await ensureCourseBooking(firestore as unknown as Firestore, {uid: actorId, academyId, role: requireAttendanceActorRole(actorRole)}, input.sessionId, input.studentId);
       return attendanceTransactions.recordCheckIn({
         academyId,
         input,
@@ -1495,6 +1498,8 @@ export function createFirestoreScheduleStore(options: {
       actorRole?: ScheduleMutationActorRole,
       actorIp: string | null = null,
     ): Promise<AttendanceRecord> {
+      const courseSession = await firestore.doc(`academies/${academyId}/sessions/${input.sessionId}`).get();
+      if (courseSession.data()?.courseId) await ensureCourseBooking(firestore as unknown as Firestore, {uid: actorId, academyId, role: requireAttendanceActorRole(actorRole)}, input.sessionId, input.studentId);
       return attendanceTransactions.recordSelfCheckIn({
         academyId,
         input,
@@ -2211,7 +2216,7 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
       const bMap = bookingsMap.get(academyId);
       if (bMap) {
         for (const booking of bMap.values()) {
-          if (booking.status !== "confirmed") continue;
+          if (booking.status !== "confirmed" || booking.membershipId === null) continue;
           if (!(booking.sessionId in counts)) continue;
           counts[booking.sessionId] = (counts[booking.sessionId] ?? 0) + 1;
         }

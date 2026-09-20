@@ -159,11 +159,12 @@ export function InvoiceRowActions({
   onVoid: (view: InvoiceView) => void;
 }) {
   const canReceivePayment =
-    (view.invoice.status === "open" || view.invoice.status === "partially_paid") &&
+    view.invoice.schemaVersion !== 2 && (view.invoice.status === "open" || view.invoice.status === "partially_paid") &&
     view.balanceMinor > 0;
-  const canVoid = view.invoice.status === "open" && view.payments.length === 0;
+  const canVoid = view.invoice.schemaVersion !== 2 && view.invoice.status === "open" && view.payments.length === 0;
   return (
     <div className="admin-table-actions">
+      {view.invoice.schemaVersion === 2 ? <a href="/admin/courses">Course payment</a> : null}
       {canReceivePayment ? (
         <button
           aria-label={`Record payment for ${view.invoice.invoiceReference}`}

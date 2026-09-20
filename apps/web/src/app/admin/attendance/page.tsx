@@ -1,5 +1,7 @@
 "use client";
 
+import { courseApi } from "../../../lib/courses/course-client";
+
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type {
   AttendanceState as CanonicalAttendanceState,
@@ -185,15 +187,15 @@ export function AttendancePage() {
     [siteSessions],
   );
 
-  const loadRoster = useCallback(async (sessionId: string) => {
+  const loadRoster = useCallback(async (sessionId: string, cursor?: string) => {
     const seq = (rosterRequests.current[sessionId] = (rosterRequests.current[sessionId] ?? 0) + 1);
     const isCurrent = () => mountedRef.current && rosterRequests.current[sessionId] === seq;
     try {
-      const view = await getPreClassView(sessionId);
+      const view = cursor ? await courseApi.roster({sessionId, cursor}) : await getPreClassView(sessionId);
       if (!isCurrent()) return;
       setRosters((current) => ({
         ...current,
-        [sessionId]: { status: "ready", attendees: view.attendees },
+        [sessionId]: { status: "ready", attendees: cursor && current[sessionId]?.status === "ready" ? [...current[sessionId].attendees, ...view.attendees] : view.attendees, cursor: view.cursor ?? null },
       }));
     } catch {
       if (!isCurrent()) return;
@@ -563,6 +565,7 @@ export function AttendancePage() {
             }
             roster={rosters[s.sessionId] ?? { status: "loading" }}
             session={s}
+            onLoadMore={() => {const roster = rosters[s.sessionId]; if (roster?.status === "ready" && roster.cursor) void loadRoster(s.sessionId, roster.cursor);}}
           />
         ))}
       </div>

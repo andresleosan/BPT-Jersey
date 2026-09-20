@@ -9,7 +9,7 @@ import {
 
 export type SessionRosterState =
   | Readonly<{ status: "loading" }>
-  | Readonly<{ status: "ready"; attendees: readonly PreClassAttendee[] }>
+  | Readonly<{ status: "ready"; attendees: readonly PreClassAttendee[]; cursor?: string | null }>
   | Readonly<{ status: "error" }>;
 
 const tagLabels: Readonly<Record<RosterTag, string>> = {
@@ -31,12 +31,14 @@ function timeOf(iso: string): string {
  */
 export function SessionRoster({
   busyStudentId,
+  onLoadMore,
   nowMs,
   onClockIn,
   roster,
   session,
 }: {
   busyStudentId?: string;
+  onLoadMore?: () => void;
   nowMs: number;
   onClockIn: (studentId: string, displayName: string) => void;
   roster: SessionRosterState;
@@ -59,7 +61,7 @@ export function SessionRoster({
       <div className="attendance-session-block-heading">
         <div>
           <h3 id={titleId}>
-            {session.title} · Coach {session.instructorId}
+            {session.title} · Coach {session.instructorName ?? session.instructorId}
           </h3>
           <p>
             {timeOf(session.startAt)} - {timeOf(session.endAt)} · {booked.length} booked
@@ -74,6 +76,7 @@ export function SessionRoster({
           <span className="attendance-counter-late">{`${late} late`}</span>
         </p>
       </div>
+      {roster.status === "ready" && roster.cursor && onLoadMore ? <button className="button" onClick={onLoadMore} type="button">Load more participants</button> : null}
       {roster.status === "loading" ? <p role="status">Loading roster...</p> : null}
       {roster.status === "error" ? (
         <p role="alert">Unable to load this roster. It will retry shortly.</p>

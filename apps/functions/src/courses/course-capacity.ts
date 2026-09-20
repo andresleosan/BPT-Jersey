@@ -19,12 +19,12 @@ export function writeCourseSeats(db: Firestore, tx: Transaction, course: Course,
   if (!Number.isSafeInteger(count) || count < 0 || (delta > 0 && count > course.capacity)) courseFailure("conflict", "Course capacity needs office review.");
   tx.update(courseCollection(db, course.academyId, "courses").doc(course.courseId), {committedSeats: count, updatedAt: now});
   // Merge only into an already published projection; callers require publication.
-  tx.set(courseCollection(db, course.academyId, "publicCourses").doc(course.courseId), {availability: course.status !== "published" || !course.nextSessionAt ? "closed" : count >= course.capacity ? "waitlist" : "available"}, {merge: true});
+  if (course.status === "published" || course.status === "completed") tx.set(courseCollection(db, course.academyId, "publicCourses").doc(course.courseId), {availability: course.status !== "published" || !course.nextSessionAt ? "closed" : count >= course.capacity ? "waitlist" : "available"}, {merge: true});
 }
-export async function advanceCourseCapacity(db: Firestore, academyId: string, courseId: string, _now?: string): Promise<{changed: number; more: boolean}> {
+export async function advanceCourseCapacity(db: Firestore, academyId: string, courseId: string, _now?: string, deadline = Date.now() + 35_000): Promise<{changed: number; more: boolean}> {
   let changed = 0;
   // At most twelve small transactions per invocation, each with fewer than 100 writes.
-  for (let index = 0; index < 12; index++) {
+  for (let index = 0; index < 12 && Date.now() < deadline; index++) {
     const advanced = await db.runTransaction(async tx => {
       const now = new Date().toISOString();
       const course = courseData<Course>(await tx.get(courseCollection(db, academyId, "courses").doc(courseId)));

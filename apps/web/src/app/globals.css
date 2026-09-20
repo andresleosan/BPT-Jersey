@@ -3607,3 +3607,5 @@ button:focus-visible {
   display: grid;
   gap: 1rem;
 }
+
+.client-course-nav{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;padding:.75rem clamp(1.25rem,4vw,4.5rem);background:#F2F1ED;border-bottom:1px solid #D9D8D2}.client-course-nav a{color:#2F2483;min-height:2.75rem;display:inline-flex;align-items:center;font-weight:600}.client-course-nav a:focus-visible{outline:3px solid #2F2483;outline-offset:3px}

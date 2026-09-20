@@ -24,6 +24,26 @@ export const BACKUP_V3_LIMITS = Object.freeze({
 } as const);
 
 export const TENANT_BACKUP_V3_DIRECT_COLLECTIONS = Object.freeze([
+  "courses",
+  "publicCourses",
+  "courseCandidates",
+  "courseCandidateKeys",
+  "courseParticipantAccounts",
+  "courseStudentAliases",
+  "courseIdentityReceipts",
+  "courseEnrolments",
+  "courseParticipantLocks",
+  "courseProofs",
+  "coursePaymentIncidents",
+  "courseRefunds",
+  "courseEvidenceKeys",
+  "courseOperations",
+  "courseAudit",
+  "courseRateLimits",
+  "courseJobs",
+  "courseWorkerState",
+  "courseNotices",
+
   "users",
   "families",
   "students",

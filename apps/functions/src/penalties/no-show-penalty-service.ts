@@ -169,6 +169,7 @@ export function createNoShowPenaltyService(options: {
       if (sessionValue.academyId !== academyId || !validDateTime(sessionValue.startAt)) {
         fail("tenant", "Session tenant binding is invalid");
       }
+      if (sessionValue.courseId) return Object.freeze({sessionId, proposed: [], skipped: [], alreadyProposed: 0});
       const locationId = String(sessionValue.locationId ?? "");
       const sessionStartAt = sessionValue.startAt as string;
 

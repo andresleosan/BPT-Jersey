@@ -909,7 +909,7 @@ export function createCanonicalMemberDirectoryService(
       // document is denied by levels and by the family projection: half-enrolled, in silence.
       throw new CanonicalMemberDirectoryError("invalid", "A linked enrolment needs a phone number");
     }
-    const accountLink =
+    const accountLinkDraft =
       account === undefined
         ? undefined
         : {
@@ -943,6 +943,8 @@ export function createCanonicalMemberDirectoryService(
     const receiptRef = dependencies.firestore.doc(receiptPath(academyId, receiptId));
 
     return dependencies.firestore.runTransaction(async (transaction) => {
+      const accountLink = accountLinkDraft ? {...accountLinkDraft} : undefined;
+      let reuseCourseFamily = false;
       await assertProvisionedActor(transaction, dependencies, command.actor);
       if (courseEnrolmentId !== undefined) {
         const courseRequest = await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseEnrolments/${requiredIdentifier(courseEnrolmentId, "course enrolment")}`));
@@ -955,6 +957,11 @@ export function createCanonicalMemberDirectoryService(
         const candidate = (await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseCandidates/${requiredIdentifier(participant.candidateId, "course candidate")}`))).data();
         if (!candidate || candidate.applicantUid !== account?.userId || candidate.kind !== "adult" || candidate.fullName !== parsedInput.value.fullName || candidate.dateOfBirth !== parsedInput.value.dateOfBirth)
           throw new CanonicalMemberDirectoryError("conflict", "Course candidate details do not match");
+        const identityPlan = (await transaction.get(dependencies.firestore.doc(`academies/${academyId}/courseIdentityReceipts/${participant.candidateId}`))).data();
+        if (accountLink && typeof identityPlan?.familyId === "string") {
+          accountLink.familyId = requiredIdentifier(identityPlan.familyId, "existing course family");
+          reuseCourseFamily = true;
+        }
       }
       // A legacy retry is bound to the same reviewed body before any later source or link changes.
       if (legacy) {
@@ -1207,13 +1214,13 @@ export function createCanonicalMemberDirectoryService(
           transaction.get(linkedRefs.family),
           transaction.get(linkedRefs.user),
         ]);
-        if (familySnapshot.exists || (userSnapshot.exists && courseEnrolmentId === undefined)) {
+        if ((familySnapshot.exists && !reuseCourseFamily) || (reuseCourseFamily && (!familySnapshot.exists || familySnapshot.data()?.primaryContactUserId !== accountLink.userId || familySnapshot.data()?.active !== true || familySnapshot.data()?.status !== "active")) || (userSnapshot.exists && courseEnrolmentId === undefined)) {
           throw new CanonicalMemberDirectoryError(
             "conflict",
             "This account already holds a member record",
           );
         }
-        const family = parseFamilyRecord({
+        const family = parseFamilyRecord(reuseCourseFamily ? familySnapshot.data() : {
           familyId: accountLink.familyId,
           academyId,
           primaryContactUserId: accountLink.userId,
@@ -1353,7 +1360,7 @@ export function createCanonicalMemberDirectoryService(
         transaction.create(reference, key);
       });
       if (linkedRefs !== undefined && linkedRecords !== undefined) {
-        transaction.create(linkedRefs.family, linkedRecords.family);
+        if (!reuseCourseFamily) transaction.create(linkedRefs.family, linkedRecords.family);
         if (courseEnrolmentId === undefined) transaction.create(linkedRefs.user, linkedRecords.user);
         else transaction.set(linkedRefs.user, linkedRecords.user);
       }

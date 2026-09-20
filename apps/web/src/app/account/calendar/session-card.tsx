@@ -47,7 +47,10 @@ export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }:
   const site = sessionSite(session);
 
   let action: React.ReactNode;
-  if (status === "open") {
+  if (session.courseId && status === "booked") {
+    const absent = entry.booking?.schemaVersion === "2" && entry.booking.absent;
+    action = <><span className="session-note">Course included · session {session.courseOrdinal}/{session.courseSessionCount}</span>{Date.parse(session.startAt) > now.getTime() ? <button className="session-action" disabled={busy} onClick={() => onCancelRequest(entry)} type="button">{absent ? "Absent · I can attend" : "Included · Mark absent"}</button> : <span className="session-action session-action--static">{absent ? "Marked absent" : "Course included"}</span>}</>;
+  } else if (status === "open") {
     action = (
       <button
         className="session-action"

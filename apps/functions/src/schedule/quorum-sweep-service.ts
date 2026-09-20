@@ -168,6 +168,7 @@ export function createQuorumSweepService(options: {
             ]);
 
           const session = storedSession(sessionSnapshot, academyId, sessionId);
+          if (session.courseId) return Object.freeze({outcome: "quorumMet" as const, cancels: false, confirmedCount: 0, minParticipants: 0, sessionId, releasedBookings: 0});
           const confirmed = confirmedBookings(bookingSnapshots.docs, academyId, sessionId);
           const decision = decideQuorumSweep({
             session: {

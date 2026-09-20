@@ -1,3 +1,5 @@
+import { getCourseRoster } from "../courses/course-roster.js";
+import { requireCourseActor } from "../courses/course-authorization.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
@@ -62,6 +64,11 @@ function getService(): PreClassService {
   return service;
 }
 
-export const getPreClassView = onCall(scheduleCallableOptions, async (request) =>
-  createGetPreClassViewHandler({ service: getService() })(request),
-);
+export const getPreClassView = onCall(scheduleCallableOptions, async (request) => {
+  const parsed = parsePreClassViewQuery(request.data);
+  if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+  const actor = requireUserActor(request);
+  const session = await getFirestore().doc(`academies/${actor.academyId}/sessions/${parsed.value.sessionId}`).get();
+  if (session.data()?.courseId) return {view: await getCourseRoster(getFirestore(), await requireCourseActor(request), parsed.value.sessionId)};
+  return createGetPreClassViewHandler({service: getService()})(request);
+});

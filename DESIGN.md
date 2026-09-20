@@ -129,3 +129,15 @@ pulgar **BPT Lime** con aro Mat Ink. Incluye una línea de metadatos (clase · h
 línea para la ventana y una línea de estado. Una negativa es una banda con regla izquierda roja y
 una frase sencilla. Tras el registro, la tarjeta sustituye el control por "YOU'RE IN" y la hora.
 No hay indicadores giratorios ni animación fuera del relleno de 220 ms.
+
+## Course catalogue and enrolment surfaces
+
+The course catalogue uses the existing BPT display type, purple actions, warm canvas and ruled rows.
+Office tools reuse AdminGate, AdminShell and the established controls. Personal course requests use
+clear status bands, labelled bank details and progressively loaded payment panels. The normal member
+calendar and coach roster retain their visual language, adding course-session and absence labels.
+
+The requested landing promotion is one exception to the restrained-motion rule: a CSS-only scrolling
+course band, with a visible pause button, pause on focus/hover, an inert duplicate and a static wrapped
+list for reduced-motion users. It loads public JSON without importing Firebase authentication. Course
+forms, images and review panels load only when opened; motion never blocks the page content.

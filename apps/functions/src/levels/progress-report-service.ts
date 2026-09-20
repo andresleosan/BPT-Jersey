@@ -117,6 +117,7 @@ export function createFirestoreProgressReportStore(params: {
           throw new ProgressReportStoreError("tenant", "Attendance tenant mismatch");
         }
         if (
+          typeof data.courseId === "string" ||
           !activeStudentIds.has(data.studentId) ||
           data.correctionOf !== null ||
           (data.state !== "attended" && data.state !== "late")

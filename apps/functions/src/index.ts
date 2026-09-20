@@ -306,3 +306,47 @@ export { getMemberInventoryPage } from "./members/member-inventory-callables.js"
 export { getMemberReconciliationCase, decideMemberReconciliation, closeMemberReconciliation, previewMemberIdentityAlias, approveMemberIdentityAlias } from "./members/member-reconciliation-callables.js";
 
 export { getMemberHistory, reviewMemberHistoryEntry, saveMemberAttendanceBaseline } from "./members/member-history-callables.js";
+
+export {
+  getCourseSession,
+  saveCourse,
+  publishCourse,
+  reviseCourseSession,
+  saveCourseCandidate,
+  reserveCourse,
+  joinCourseWaitlist,
+  cancelUnapprovedCourseEnrolment,
+  uploadCourseProof,
+  submitCoursePayment,
+  getCourseProofUrl,
+  approveCourseEnrolment,
+  reviewCourseEnrolment,
+  requestCourseWithdrawal,
+  decideCourseWithdrawal,
+  recordCourseRefund,
+  resolveCoursePaymentIncident,
+  listCourses,
+  getCourse,
+  listCourseEnrolments,
+  getCourseEnrolment,
+  listCourseParticipants,
+  getCoursePaymentInstructions,
+  listCourseNotices,
+  markCourseNoticeRead,
+  listCourseRefunds,
+  listCoursePaymentIncidents,
+  setCourseAbsence,
+  courseSelfCheckIn,
+  cancelCourse,
+  retryCourseJob,
+  listCourseJobs,
+  getCourseEnrolmentDetail,
+  listCourseSessionDates,
+  listCourseCoaches,
+  reviseCourseLocalSession,
+  getCourseCalendar,
+  listCourseRoster,
+  exportCourseSubject
+} from "./courses/course-callables.js";
+export { coursePublic } from "./courses/course-public-http.js";
+export { courseScheduler, courseProofCleanup } from "./courses/course-scheduler.js";

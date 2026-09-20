@@ -31,6 +31,7 @@ export function CalendarHeader(props: CalendarHeaderProps) {
       </div>
       <h1 className="member-name">{firstName}</h1>
       <nav aria-label="Account" className="member-links">
+        <Link href="/account/courses">Courses</Link>
         <Link href="/account/progress">Progress</Link>
         <Link href="/account/competitors">Competitors</Link>
         <Link href="/account/settings">Settings</Link>

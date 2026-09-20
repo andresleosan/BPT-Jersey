@@ -26,8 +26,8 @@ export type CalendarRole = "guardian" | "adultStudent" | "teenStudent";
 export type CalendarParticipant = Readonly<{
   studentId: string;
   firstName: string;
-  membershipId: string;
-  planId: PlanId;
+  membershipId: string | null;
+  planId: PlanId | null;
   membershipStartsAt?: string;
   membershipEndsAt?: string | null;
   participantType: ParticipantType;
@@ -37,12 +37,13 @@ export type CalendarParticipant = Readonly<{
 }>;
 
 export type CalendarMember = Readonly<{
-  role: CalendarRole;
+  role: CalendarRole | "owner" | "administrator" | "coach" | "headCoach" | "shopper";
   displayName: string;
   participants: readonly CalendarParticipant[];
 }>;
 
 export type CalendarWeekData = Readonly<{
+  courseSessionIds?: readonly string[];
   groupAccess?: StudentGroupAccess;
   sessions: readonly SessionRecord[];
   programs: readonly ProgramRecord[];
@@ -53,6 +54,7 @@ export type CalendarWeekData = Readonly<{
 }>;
 
 export interface CalendarRepository {
+  setCourseAbsence?(sessionId: string, studentId: string, absent: boolean): Promise<BookingRecord>;
   loadMember(): Promise<CalendarMember>;
   loadWeek(studentId: string, fromIso: string, toIso: string): Promise<CalendarWeekData>;
   book(input: RequestBookingInput): Promise<BookingRecord>;

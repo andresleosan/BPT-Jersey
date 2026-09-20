@@ -2,19 +2,25 @@ import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { courseDraftSchema, courseSlot, type Course, type CourseDraft, type CourseJob } from "@bpt-jersey/domain/courses";
 import { assertCourseActorLive, assertCourseOffice, assertCourseRevision, courseCollection, courseData, courseFailure, courseOperation, newCourseJob, operationResult, requireCourseSales, saveOperation, type CourseActor } from "./course-store.js";
-export async function saveCourse(db: Firestore, actor: CourseActor, draft: CourseDraft, courseId: string | null, expectedRevision: number | null): Promise<Course> {
+export async function saveCourse(db: Firestore, actor: CourseActor, draft: CourseDraft, courseId: string | null, expectedRevision: number | null, requestId: string): Promise<Course> {
   assertCourseOffice(actor);
   const parsed = courseDraftSchema.safeParse(draft);
   if (!parsed.success) courseFailure("invalid", parsed.error.issues[0]?.message ?? "Check the course details.");
   const id = courseId ?? randomUUID();
   courseSlot({...parsed.data, courseId: id}, parsed.data.sessionCount);
   const ref = courseCollection(db, actor.academyId, "courses").doc(id);
+  const payload = {draft: parsed.data, courseId, expectedRevision};
   return db.runTransaction(async tx => {
     await assertCourseActorLive(db, tx, actor);
+    const receipt = await tx.get(courseOperation(db, actor, "save_course", requestId));
+    const replay = operationResult<Course>(receipt, payload); if (replay) return replay;
     const [existing, location, staff] = await Promise.all([tx.get(ref), tx.get(courseCollection(db, actor.academyId, "locations").doc(parsed.data.locationId)),
       parsed.data.instructor.kind === "staff" ? tx.get(courseCollection(db, actor.academyId, "staff").doc(parsed.data.instructor.staffId)) : Promise.resolve(null)]);
     if (!location.exists || location.data()?.active === false) courseFailure("invalid", "Choose an active location.");
-    if (staff && (!staff.exists || staff.data()?.active === false)) courseFailure("invalid", "Choose an active coach.");
+    if (staff && (!staff.exists || staff.data()?.active !== true || staff.data()?.status !== "active")) courseFailure("invalid", "Choose an active coach.");
+    const coachProfile = staff ? await tx.get(courseCollection(db, actor.academyId, "users").doc(String(staff.data()?.userId))) : null;
+    const canonicalCoachName = coachProfile ? String(coachProfile.data()?.displayName ?? coachProfile.data()?.fullName ?? "").trim() : null;
+    if (staff && (!coachProfile?.exists || !canonicalCoachName)) courseFailure("invalid", "The coach needs an active named profile.");
     const old = existing.exists ? existing.data() as Course : null;
     if (old) assertCourseRevision(old.revision, expectedRevision ?? -1);
     if (!old && courseId !== null) courseFailure("not_found", "Course not found.");
@@ -26,12 +32,14 @@ export async function saveCourse(db: Firestore, actor: CourseActor, draft: Cours
     }
     if (old && parsed.data.capacity < old.committedSeats) courseFailure("full", "Capacity cannot be below committed places.");
     const now = new Date().toISOString();
-    const course: Course = {...parsed.data, courseId: id, academyId: actor.academyId, revision: (old?.revision ?? 0) + 1,
+    const canonicalInstructor = parsed.data.instructor.kind === "staff" ? {...parsed.data.instructor, name: canonicalCoachName!} : parsed.data.instructor;
+    const course: Course = {...parsed.data, instructor: canonicalInstructor, courseId: id, academyId: actor.academyId, revision: (old?.revision ?? 0) + 1,
       status: old?.status ?? "draft", timezone: "Europe/Jersey", currency: "GBP", committedSeats: old?.committedSeats ?? 0,
       nextSessionAt: old?.nextSessionAt ?? null, publicationRevision: old?.publicationRevision ?? null,
       createdAt: old?.createdAt ?? now, updatedAt: now};
     tx.set(ref, course);
     if (course.status === "published") tx.set(courseCollection(db, actor.academyId, "publicCourses").doc(id), publicCourseProjection(course, String(location.data()?.name ?? "")));
+    saveOperation(tx, db, actor, "save_course", requestId, payload, course);
     return course;
   });
 }
@@ -49,9 +57,10 @@ export async function publishCourse(db: Firestore, actor: CourseActor, courseId:
   return db.runTransaction(async tx => {
     await assertCourseActorLive(db, tx, actor);
     const ref = courseCollection(db, actor.academyId, "courses").doc(courseId);
-    const [snapshot, receipt] = await Promise.all([tx.get(ref), tx.get(courseOperation(db, actor, "publish", requestId))]);
+    const [snapshot, receipt, features] = await Promise.all([tx.get(ref), tx.get(courseOperation(db, actor, "publish", requestId)), tx.get(db.doc(`academies/${actor.academyId}/settings/courseFeatures`))]);
     const replay = operationResult<Course>(receipt, payload); if (replay) return replay;
     const course = courseData<Course>(snapshot); assertCourseRevision(course.revision, expectedRevision);
+    if (features.data()?.coursesEnabled !== true) courseFailure("unavailable", "Course publication is currently disabled.");
     if (course.status !== "draft") courseFailure("conflict", "Only a draft can be published.");
     if (Date.parse(courseSlot(course, 1).startAt) <= Date.now()) courseFailure("invalid", "Start the new course in the future.");
     const job = newCourseJob(course, "publish");
@@ -62,13 +71,15 @@ export async function publishCourse(db: Firestore, actor: CourseActor, courseId:
     return course;
   });
 }
-export async function runCoursePublicationBatch(db: Firestore, job: CourseJob): Promise<boolean> {
+export async function runCoursePublicationBatch(db: Firestore, job: CourseJob & {leaseToken?: string}): Promise<boolean> {
   return db.runTransaction(async tx => {
     const ref = courseCollection(db, job.academyId, "courses").doc(job.courseId);
     const jobRef = courseCollection(db, job.academyId, "courseJobs").doc(job.jobId);
-    const [snapshot, progress] = await Promise.all([tx.get(ref), tx.get(jobRef)]);
-    const course = courseData<Course>(snapshot); const live = courseData<CourseJob>(progress);
+    const [snapshot, progress, flags] = await Promise.all([tx.get(ref), tx.get(jobRef), tx.get(db.doc(`academies/${job.academyId}/settings/courseFeatures`))]);
+    const course = courseData<Course>(snapshot); const live = courseData<CourseJob & {leaseToken?: string}>(progress);
     if (live.state === "done") return true;
+    if (live.state !== "running" || !job.leaseToken || live.leaseToken !== job.leaseToken || !live.leaseUntil || live.leaseUntil <= new Date().toISOString()) return false;
+    if (flags.data()?.coursesEnabled !== true) {tx.update(jobRef, {state: "queued", leaseUntil: null, leaseToken: null, nextAttemptAt: new Date(Date.now() + 60_000).toISOString()}); return false;}
     if (course.revision !== job.expectedRevision || course.status !== "draft") {tx.update(jobRef, {state: "failed", lastError: "revision_changed"}); return true;}
     const end = Math.min(course.sessionCount, live.nextOrdinal + 89);
     const slots = Array.from({length: end - live.nextOrdinal + 1}, (_, i) => courseSlot(course, live.nextOrdinal + i));
@@ -89,7 +100,7 @@ export async function runCoursePublicationBatch(db: Firestore, job: CourseJob): 
         repeatWeekly: false, createdAt: now, createdBy: "course-publication", updatedAt: now, updatedBy: "course-publication"});
     });
     const done = end === course.sessionCount;
-    tx.update(jobRef, {nextOrdinal: end + 1, state: done ? "done" : "queued", leaseUntil: null});
+    tx.update(jobRef, {nextOrdinal: end + 1, state: done ? "done" : "queued", leaseUntil: null, leaseToken: null, attempts: 0, nextAttemptAt: null});
     if (done) {
       const published: Course = {...course, status: "published", publicationRevision: job.expectedRevision, nextSessionAt: courseSlot(course, 1).startAt, updatedAt: now};
       tx.set(ref, published); tx.set(courseCollection(db, job.academyId, "publicCourses").doc(course.courseId), publicCourseProjection(published, String(location.data()?.name ?? "")));
@@ -105,7 +116,7 @@ export async function filterPublishedCourseSessions<T extends {courseId?: string
     const snapshots = await db.getAll(...ids.slice(offset, offset + 100).map(id => courseCollection(db, academyId, "courses").doc(id)));
     for (const s of snapshots) if (s.exists) courses.set(s.id, s.data() as Course);
   }
-  return sessions.filter(s => !s.courseId || (courses.has(s.courseId) && courses.get(s.courseId)?.status !== "draft" && courses.get(s.courseId)?.publicationRevision === s.coursePublicationRevision));
+  return sessions.filter(s => !s.courseId || (courses.has(s.courseId) && ["published", "completed"].includes(courses.get(s.courseId)!.status) && courses.get(s.courseId)?.publicationRevision === s.coursePublicationRevision));
 }
 
 export async function reviseCourseSession(db: Firestore, actor: CourseActor, courseId: string, sessionId: string,

@@ -87,7 +87,7 @@ export function nextSelfCheckInSession(input: {
 }): SelfCheckInCandidate | undefined {
   const programs = new Map(input.programs.map((p) => [p.programId, p]));
   const confirmed = new Set(
-    input.bookings.filter((b) => b.status === "confirmed").map((b) => b.sessionId),
+    input.bookings.filter((b) => b.status === "confirmed" && !(b.schemaVersion === "2" && b.absent)).map((b) => b.sessionId),
   );
   const attendance = new Map(input.attendance.map((a) => [a.sessionId, a]));
   const open = input.sessions
