@@ -316,6 +316,16 @@ function MemberRecordSession({
    */
   useEffect(() => {
     if (load.status !== "ready" || location === null || location.studentId === null) return;
+    // Navigation can happen after this render commits but before its passive effects run.
+    // Only repair the location this effect belongs to; otherwise an old record can rewrite
+    // the new URL and make the next student's data commit under the previous student's ID.
+    const current = readRecordLocation(window.location.search);
+    if (
+      current.studentId !== location.studentId ||
+      current.tab !== location.tab ||
+      current.manage !== location.manage
+    )
+      return;
     const href = recordHref(location.studentId, activeTab, location.manage);
     if (window.location.search === href.slice(href.indexOf("?"))) return;
     window.history.replaceState(null, "", href);

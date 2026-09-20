@@ -221,6 +221,53 @@ describe("member record page", () => {
     expect(leaks).toEqual([]);
   });
 
+  it("does not let a pending URL repair undo a newer student navigation", async () => {
+    const profiles = ["student-1", "student-2"].map((studentId) => ({
+      ...full,
+      header: { ...full.header, studentId, fullName: studentId },
+      details: {
+        ...full.details,
+        studentId,
+        details: { internalNotes: `Private note for ${studentId}` },
+      },
+    }));
+    client.getMemberProfile.mockImplementation(async (id) =>
+      profiles.find((profile) => profile.header.studentId === id),
+    );
+    window.history.replaceState(null, "", recordHref("student-1", "notes"));
+    const leaks: string[] = [];
+    let navigated = false;
+    render(
+      <Profiler
+        id="record"
+        onRender={() => {
+          const id = new URLSearchParams(window.location.search).get("id");
+          for (const profile of profiles) {
+            if (
+              profile.header.studentId !== id &&
+              screen.queryByText(profile.details.details.internalNotes)
+            )
+              leaks.push(`${profile.header.studentId} rendered under ${id}`);
+          }
+          if (!navigated && screen.queryByText("Private note for student-1")) {
+            navigated = true;
+            // Force the observed ordering: A commits, navigation selects B, then A's pending
+            // passive URL-normalisation effect runs. The Profiler is a deterministic boundary
+            // before passive effects; no sleeps or retries decide whether we exercise the race.
+            window.history.pushState(null, "", recordHref("student-2", "notes"));
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          }
+        }}
+      >
+        <MemberRecord />
+      </Profiler>,
+    );
+    await screen.findByText("Private note for student-2");
+    expect(navigated).toBe(true);
+    expect(leaks).toEqual([]);
+    expect(window.location.search).toBe("?id=student-2&tab=notes");
+  });
+
   it("refuses an invalid id without calling the backend", async () => {
     open("?id=../student");
     expect((await screen.findByRole("alert")).textContent).toContain(
@@ -363,6 +410,8 @@ describe("member record page", () => {
   it("moves between tabs with arrow, Home and End keys and keeps the URL in step", async () => {
     const user = open("?id=student-1");
     const profileTab = await screen.findByRole("tab", { name: "Profile" });
+    // Loading focuses the heading in a passive effect; finish that before moving focus.
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2 })).toHaveFocus());
     profileTab.focus();
     await user.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "Details" }).getAttribute("aria-selected")).toBe("true");
@@ -603,11 +652,12 @@ it.each(["plan", "payments", "classes", "notes"])(
     client.getMemberProfile.mockResolvedValue({ view: "coach", header });
     open(`?id=student-1&tab=${tab}`);
     await screen.findByRole("tab", { name: "Profile" });
+    // The visible tab commits before the passive effect normalises its URL.
+    await waitFor(() => expect(window.location.search).toBe("?id=student-1"));
     expect(screen.getAllByRole("tab").map((element) => element.textContent)).toEqual(["Profile"]);
     expect(live.getMemberSubscriptions).not.toHaveBeenCalled();
     expect(live.getMemberSubscriptionBilling).not.toHaveBeenCalled();
     expect(live.getMemberClassRecords).not.toHaveBeenCalled();
-    expect(window.location.search).toBe("?id=student-1");
   },
 );
 it("discards a late profile response after rapid student navigation", async () => {
