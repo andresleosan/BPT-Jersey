@@ -284,6 +284,11 @@
       "types": "./src/staff/team-access-contracts.ts",
       "import": "./src/staff/team-access-contracts.ts",
       "default": "./lib/staff/team-access-contracts.js"
+    },
+    "./courses": {
+      "types": "./src/courses/index.ts",
+      "import": "./src/courses/index.ts",
+      "default": "./lib/courses/index.js"
     }
   },
   "scripts": {
