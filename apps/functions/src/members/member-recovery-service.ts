@@ -190,7 +190,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     if (!record) conflict();
     return archiveForLegacyMember(record, sources);
   }
-  async function account(uid: string) {
+  async function account(uid: string, purpose: "recovery" | "history" = "recovery") {
     safeSegment(uid);
     const user = await d.auth.getUser(uid);
     const claims = user.customClaims ?? {};
@@ -198,7 +198,8 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       user.uid !== uid ||
       user.disabled ||
       (claims.academyId !== undefined && claims.academyId !== academyId) ||
-      (claims.role !== undefined && !["shopper", "adultStudent"].includes(String(claims.role)))
+      (claims.role !== undefined && !(purpose === "history"
+        ? ["guardian", "adultStudent", "teenStudent"] : ["shopper", "adultStudent"]).includes(String(claims.role)))
     )
       throw new HttpsError("permission-denied", "This account cannot recover a member profile");
     return user;
@@ -1013,7 +1014,7 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
     },
     complete,
     async history(uid: string, studentId?: string, cursor?: string) {
-      const user = await account(uid);
+      const user = await account(uid, "history");
       if (!user.emailVerified || !["guardian", "adultStudent", "teenStudent"].includes(String(user.customClaims?.role))) {
         throw new HttpsError("permission-denied", "Member access is required.");
       }

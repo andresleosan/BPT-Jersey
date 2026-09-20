@@ -63,6 +63,7 @@ async function preview(
   const references: AliasPreview["references"] = [];
   let totalReferences = 0;
   const activePlans = new Map<string, number>();
+  const bookingSessions = new Map<string, string>();
   for (const collection of referenceCollections) for (const id of [studentId, canonicalStudentId]) {
     const docs = await boundedMemberReferences(tx, actor.academyId, collection, id, 51);
     const complete = docs.length <= 50;
@@ -72,6 +73,15 @@ async function preview(
     for (const doc of docs) {
       if (!doc.version || doc.data?.academyId !== actor.academyId || doc.data?.studentId !== id) blockers.add("A referenced record needs inventory review");
       versions.push([collection, id, doc.id, doc.version ?? "unavailable"]);
+      if (collection === "bookings") {
+        const sessionId = doc.data?.sessionId;
+        if (typeof sessionId !== "string") blockers.add("A booking needs inventory review");
+        else {
+          const previous = bookingSessions.get(sessionId);
+          if (previous && previous !== doc.id) blockers.add("Duplicate session bookings require reconciliation before combining identities");
+          bookingSessions.set(sessionId, doc.id);
+        }
+      }
       if (collection === "relationships" && id === studentId && doc.data?.status === "active") blockers.add("An active source relationship needs a separate link decision");
       if (collection === "memberships" && ["trial", "active", "paused", "overdue"].includes(String(doc.data?.status))) activePlans.set(id, (activePlans.get(id) ?? 0) + 1);
     }
