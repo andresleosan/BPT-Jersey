@@ -36,16 +36,25 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [reload, setReload] = useState(0);
+  const [refreshing, setRefreshing] = useState(true);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    reviewHeading.current?.focus();
+  }, [detail?.request.requestId]);
   const inFlight = useRef(false);
   useEffect(() => {
     if (!office) return;
     let active = true;
+    setRefreshing(true);
     void listMemberRecoveryRequests()
       .then((result) => {
         if (active) setQueue(result);
       })
       .catch(() => {
         if (active) setError("Unable to load recovery requests. Please try again.");
+      })
+      .finally(() => {
+        if (active) setRefreshing(false);
       });
     return () => {
       active = false;
@@ -91,7 +100,6 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
               ? "Access restored. The member can continue from their recovery page."
               : "Identity reviewed. Further office follow-up is required before access can be restored.",
       );
-      window.dispatchEvent(new Event("bpt-recovery-reviewed"));
       setDetail(undefined);
       setConfirmed(false);
       setCandidateId(undefined);
@@ -102,33 +110,24 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
   return (
     <section className="admin-module-page" aria-label="Member access recovery">
       {embedded ? (
-        <div role="status">
-          <h2>Member access recovery</h2>
-          <p>
-            {queue
-              ? `${queue.requests.length}${queue.truncated ? "+" : ""} recovery requests need attention.`
-              : "Loading recovery notifications..."}
-          </p>
+        <div className="enrolment-queue-heading">
+          <div>
+            <h3>Member access recovery</h3>
+            <p>Review existing members who need help accessing their account.</p>
+          </div>
         </div>
       ) : (
         <AdminSectionHeader
           title="Member access recovery"
           eyebrow="Members / Access recovery"
-          description="Check requests from existing members whose account details need office review."
-          actions={
-            <a className="admin-home-link" href="/admin/members/requests">
-              Back to enrolment requests
-            </a>
-          }
+          description="Review existing members who need help accessing their account."
         />
       )}
-      <div className="admin-panel-card">
-        <p>
-          Verify identity independently using academy records or a direct conversation. A matching
-          name alone does not establish ownership. For children or inactive memberships, follow the
-          existing guardian or membership process.
-        </p>
-      </div>
+      <p className="recovery-guidance">
+        Verify identity using academy records or a direct conversation. A matching name alone does
+        not establish ownership. For children or inactive memberships, follow the guardian or
+        membership process.
+      </p>
       {error ? (
         <p role="alert" className="admin-panel-card">
           {error}
@@ -141,16 +140,26 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
       ) : null}
       <button
         type="button"
-        className="button button-secondary"
-        disabled={busy}
+        className="staff-secondary-button"
+        disabled={busy || refreshing}
         onClick={() => {
           setError(undefined);
           setReload((value) => value + 1);
         }}
       >
-        Refresh requests
+        {refreshing ? "Refreshing..." : "Refresh requests"}
       </button>
-      {!queue && !error ? <p>Loading recovery requests...</p> : null}
+      {!queue && !error ? (
+        <div className="enrolment-loading" role="status">
+          Loading recovery requests...
+        </div>
+      ) : null}
+      {queue ? (
+        <p role="status">
+          {queue.requests.length}
+          {queue.truncated ? "+" : ""} requests awaiting review
+        </p>
+      ) : null}
       {queue?.truncated ? (
         <p>
           Showing the oldest 50 account-bound recovery requests. Resolve requests, then refresh to
@@ -158,7 +167,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
         </p>
       ) : null}
       {queue?.requests.length === 0 ? <p>No recovery requests awaiting review.</p> : null}
-      <ul className="admin-request-list">
+      <ul className="admin-request-list" aria-label="Member access requests">
         {queue?.requests.map((request) => (
           <li className="admin-panel-card" key={request.requestId}>
             <strong>{request.fullName}</strong>
@@ -167,7 +176,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
             </p>
             <button
               type="button"
-              className="button button-secondary"
+              className="staff-secondary-button"
               disabled={busy}
               onClick={() => open(request.requestId)}
             >
@@ -182,7 +191,9 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
           aria-labelledby="recovery-review-title"
           aria-busy={busy}
         >
-          <h2 id="recovery-review-title">Review {detail.request.fullName}</h2>
+          <h2 id="recovery-review-title" ref={reviewHeading} tabIndex={-1}>
+            Review {detail.request.fullName}
+          </h2>
           <dl>
             <dt>Previous email supplied</dt>
             <dd>{detail.request.previousEmail || "Not supplied"}</dd>
@@ -213,7 +224,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
                 placeholder="Name, email or membership number"
               />
             </label>
-            <button type="submit" className="button button-secondary" disabled={busy}>
+            <button type="submit" className="staff-secondary-button" disabled={busy}>
               Find member record
             </button>
           </form>
@@ -263,7 +274,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
           <div className="admin-request-actions">
             <button
               type="button"
-              className="button button-primary"
+              className="staff-primary-button"
               disabled={
                 busy ||
                 !detail.request.accountVerified ||
@@ -278,7 +289,7 @@ export function MemberRecoveryQueue({ embedded = false }: { embedded?: boolean }
             </button>
             <button
               type="button"
-              className="button button-secondary"
+              className="staff-secondary-button"
               disabled={
                 busy || detail.request.status === "linked" || detail.request.status === "rejected"
               }
