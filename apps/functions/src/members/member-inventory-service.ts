@@ -1,3 +1,5 @@
+import { memberAgeOn } from "@bpt-jersey/domain/members/access";
+import { resolveCanonicalStudentIdInTransaction } from "./member-identity-resolution.js";
 import { matchesProvisionedMemberDirectoryActor } from "./member-directory-actor-authorization.js";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -5,7 +7,7 @@ import { parseMemberRecord } from "@bpt-jersey/domain/members";
 import { studentAdminProfileSchema } from "@bpt-jersey/domain/members/directory";
 import { parseStoredRegyfitMemberRecord } from "@bpt-jersey/domain/members/regyfit-records";
 import { memberMigrationDecisionRecordSchema } from "@bpt-jersey/domain/members/migration";
-import { parseStudentProfileAt, parseUserProfile } from "@bpt-jersey/domain/profiles";
+import { parseEffectiveStudentProfileAt, parseUserProfile } from "@bpt-jersey/domain/profiles";
 import { parseFamilyRecord, parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import { parseMembershipRecord } from "@bpt-jersey/domain/memberships/lifecycle";
 import { parseInvoiceRecord, parseManualPaymentRecord } from "@bpt-jersey/domain/finance";
@@ -52,7 +54,7 @@ function validRecord(collection: InventoryCollection, value: Record<string, unkn
   switch (collection) {
     case "members": return parseMemberRecord(value).ok;
     case "regyfitMemberRecords": return parseStoredRegyfitMemberRecord(value).ok;
-    case "students": return parseStudentProfileAt(value, today).ok;
+    case "students": return parseEffectiveStudentProfileAt(value, today).ok;
     case "studentAdminProfiles": return studentAdminProfileSchema.safeParse(value).success;
     case "users": return parseUserProfile(value).ok ||
       ((value.adminRole === "owner" || value.adminRole === "administrator") && typeof value.userId === "string" && typeof value.academyId === "string" &&
@@ -110,6 +112,30 @@ async function inspectRow(
   if (collection === "students") {
     if (!raw.dateOfBirth) issues.add("missing-date-of-birth");
     if (raw.guardianStatus === "pending") issues.add("guardian-review-required");
+    if (identifier.test(document.id) && transaction.listCollection) {
+      const links = await transaction.listCollection({ academyId, collection: "relationships", equal: { field: "studentId", value: document.id }, limit: 101 });
+      const active = links.filter((link) => link.data?.active === true && link.data?.status === "active" &&
+        typeof link.data.validFrom === "string" && Date.parse(link.data.validFrom) <= Date.parse(now) &&
+        (link.data.validTo === undefined || (typeof link.data.validTo === "string" && Date.parse(now) < Date.parse(link.data.validTo))));
+      if (links.length > 100 || links.some((link) => !parseFamilyRelationship(link.data).ok) || active.length > 1) issues.add("conflicting-links");
+      const age = memberAgeOn(typeof raw.dateOfBirth === "string" ? raw.dateOfBirth : undefined, dateKeyInJersey(new Date(now)));
+      if (age !== null && age < 16 && active.length === 0) {
+        const family = typeof raw.familyId === "string" && identifier.test(raw.familyId)
+          ? await transaction.get(`academies/${academyId}/families/${raw.familyId}`) : undefined;
+        const parsedFamily = family ? parseFamilyRecord(family.data) : undefined;
+        if (!parsedFamily?.ok || !parsedFamily.value.guardianContact) issues.add("guardian-review-required");
+      }
+      if (typeof raw.userId === "string" && identifier.test(raw.userId)) {
+        const own = await transaction.listCollection({ academyId, collection: "students", equal: { field: "userId", value: raw.userId }, limit: 101 });
+        const ids = new Set<string>();
+        for (const match of own) {
+          if (match.data?.active !== true || match.data?.status !== "active") continue;
+          try { ids.add(await resolveCanonicalStudentIdInTransaction(transaction, academyId, match.id)); }
+          catch { issues.add("conflicting-links"); }
+        }
+        if (own.length > 100 || ids.size > 1) issues.add("conflicting-links");
+      }
+    }
   }
   if (collection === "regyfitMemberRecords" && identifier.test(document.id)) {
     const links = await Promise.all(["regyfitOfficeLinks", "regyfitMemberLinks"].map((name) =>

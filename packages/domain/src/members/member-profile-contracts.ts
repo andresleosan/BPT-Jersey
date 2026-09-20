@@ -1,13 +1,14 @@
 import { z } from "zod";
 
 import { deriveUpcomingBirthdays } from "../birthdays/upcoming-birthday-contracts";
-import { ageInCompletedYears } from "../levels/level-contracts";
 import { currentMembershipStatuses } from "../memberships/membership-contracts";
 import { participantTypes, studentReviewFields } from "../profiles/profile-contracts";
 import {
   adminUpdateStudentInputSchema,
   memberRecordMaintenanceDetailSchema,
 } from "./member-directory-contracts";
+
+export { memberAgeOn } from "./member-access-contracts";
 
 /**
  * T051V2 (E1): what the canonical member record derives instead of storing. Nothing here reads a
@@ -82,10 +83,6 @@ const jerseyDay = new Intl.DateTimeFormat("en-CA", {
 /** The calendar day at the academy for an instant (spec §5.3: Europe/Jersey). */
 export function academyDateOf(nowIso: string): string {
   return jerseyDay.format(new Date(nowIso));
-}
-
-export function memberAgeOn(dateOfBirth: string | undefined, today: string): number | null {
-  return dateOfBirth === undefined ? null : ageInCompletedYears(dateOfBirth, today);
 }
 
 /** Whole calendar months from one date-only value to another; 0 when `to` is before `from`. */
