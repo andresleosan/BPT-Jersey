@@ -27,6 +27,7 @@ export const auditActions = Object.freeze([
   "level.promotion.voided",
   "member.import.confirmed",
   "member.detail.read",
+  "member.inventory.read",
   "member.identity.lookup",
   "regyfit.access.imported",
   "retention.alerts.generated",
@@ -209,6 +210,7 @@ export type MemberIdentityLookupAuditResult = (typeof memberIdentityLookupAuditR
 export type ClassHistoryReadAuditResult = (typeof classHistoryReadAuditResults)[number];
 
 type RestrictedMemberReadAuditVariant =
+  | Readonly<{ action: "member.inventory.read"; result: MemberDetailReadAuditResult }>
   | Readonly<{
       action: "member.detail.read";
       result: MemberDetailReadAuditResult;
@@ -446,6 +448,7 @@ const classActorRoles = Object.freeze([...userRoles, "system", "regyfit"] as con
  */
 const restrictedReadPurposes = Object.freeze({
   "member.detail.read": "member-record-maintenance",
+  "member.inventory.read": "member-inventory-review",
   "member.identity.lookup": "member-identity-lookup",
   "enrolment.request.detail.read": "enrolment-request-review",
   "regyfit.record.field.read": "regyfit-record-review",
@@ -474,6 +477,7 @@ const fieldsByAction: Readonly<Record<AuditAction, readonly string[]>> = Object.
   "level.opened": commonFields,
   "level.promotion.voided": commonFields,
   "member.detail.read": restrictedMemberReadFields,
+  "member.inventory.read": restrictedMemberReadFields,
   "member.identity.lookup": restrictedMemberReadFields,
   "membership.subscription.updated": commonFields,
   "membership.created": commonFields,
@@ -744,6 +748,7 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
     }
 
     if (
+      parsedAction === "member.inventory.read" ||
       parsedAction === "member.detail.read" ||
       parsedAction === "member.identity.lookup" ||
       parsedAction === "enrolment.request.detail.read" ||
@@ -1185,6 +1190,10 @@ export function parseAuditEventDraft(value: unknown): Result<AuditEventDraft, Va
       purpose: snapshot.purpose as string,
       correlationId: snapshot.correlationId as CorrelationId,
     };
+    if (parsedAction === "member.inventory.read") {
+      return ok(Object.freeze({ ...base, action: parsedAction,
+        result: snapshot.result as MemberDetailReadAuditResult }));
+    }
     if (parsedAction === "member.detail.read") {
       return ok(
         Object.freeze({
