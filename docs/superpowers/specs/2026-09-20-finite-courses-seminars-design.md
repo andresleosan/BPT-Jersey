@@ -1,9 +1,12 @@
 # Cursos y seminarios con sesiones finitas: especificación
 
 Fecha: 2026-09-20.
-Estado: propuesta escrita para revisión del operador. El flujo funcional y la integración
-con el calendario habitual se han acordado en conversación; los detalles técnicos y
-valores de diseño de este documento se proponen para su aprobación conjunta.
+Estado: aprobada por el operador en conversación después de su publicación en `ccc9209`.
+El plan de implementación se encuentra en
+[2026-09-20-finite-courses-seminars.md](../plans/2026-09-20-finite-courses-seminars.md).
+Ese plan propone para revisión un ajuste de URL/renderizado público debido a la
+exportación estática actual; los apartados 8/10 de esta especificación se conservan
+como referencia de lo aprobado hasta aceptar expresamente ese ajuste.
 Alcance: especificación, sin cambios de aplicación ni despliegue.
 
 ## 1. Objetivo y resultado observable
