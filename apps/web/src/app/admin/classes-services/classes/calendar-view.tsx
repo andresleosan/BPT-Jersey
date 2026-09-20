@@ -2,11 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
-import { countSessionDays, layoutWeek, localParts, mondayOf, nowMarker } from "./week-grid";
+import type { LocationRecord } from "@bpt-jersey/domain/schedule";
+import { useCompactCalendar } from "./use-compact-calendar";
+import {
+  countSessionDays,
+  dayLabel,
+  weekDays,
+  layoutWeek,
+  localParts,
+  mondayOf,
+  nowMarker,
+} from "./week-grid";
 import type { GridSession, PlacedSession } from "./week-grid";
 
 export type CalendarViewProps = Readonly<{
   view: "week" | "month" | "day";
+  loading?: boolean;
+  selectedDate?: string | undefined;
+  onSelectDate?: ((date: string) => void) | undefined;
+  locations?: readonly LocationRecord[];
   weekStart: string;
   sessions: readonly GridSession[];
   timezone: string;
@@ -84,7 +98,9 @@ function EventButton({
         {timeLabel(session.startAt, timezone)} - {timeLabel(session.endAt, timezone)}
       </span>
       <span className="cs-event-chip">
-        {session.capacity === null ? "Set capacity" : `${session.booked} / ${session.capacity}`}
+        {session.capacity === null
+          ? "Set capacity"
+          : `${session.booked ?? "—"} / ${session.capacity}`}
       </span>
       {/* `data-status` only paints; the state has to reach a screen reader as words too. */}
       {cancelled ? <span className="visually-hidden">Cancelled</span> : null}
@@ -110,7 +126,7 @@ function DayColumn({
   label: string;
   sessions: readonly PlacedSession[];
   classes: number;
-  registrations: number;
+  registrations: number | null;
   hours: readonly number[];
   timezone: string;
   canEdit: boolean;
@@ -126,7 +142,7 @@ function DayColumn({
       <div className="cs-day-header" aria-current={today ? "date" : undefined}>
         <span>{label}</span>
         <span className="cs-day-counts">
-          {classes} classes &middot; {registrations} registrations
+          {classes} classes &middot; {registrations ?? "—"} registrations
         </span>
       </div>
       <div
@@ -236,6 +252,103 @@ function WeekOrDay({
   );
 }
 
+function DayAgenda({
+  selectedDate,
+  onSelectDate,
+  weekStart,
+  sessions,
+  timezone,
+  canEdit,
+  onOpen,
+  onCreate,
+  view,
+  loading,
+  locations = [],
+}: CalendarViewProps): ReactElement {
+  const [selected, setSelected] = useState("");
+  const dates = view === "day" ? [weekStart] : weekDays(mondayOf(weekStart));
+  const today = localParts(useNow(), timezone).date;
+  const requested = selectedDate ?? selected;
+  const date = dates.includes(requested) ? requested : dates.includes(today) ? today : dates[0]!;
+  const byDate = useMemo(() => {
+    const grouped = new Map<string, GridSession[]>();
+    for (const row of sessions) {
+      const day = localParts(row.startAt, timezone).date;
+      const rows = grouped.get(day) ?? [];
+      rows.push(row);
+      grouped.set(day, rows);
+    }
+    for (const rows of grouped.values())
+      rows.sort((a, b) => a.startAt.localeCompare(b.startAt) || a.title.localeCompare(b.title));
+    return grouped;
+  }, [sessions, timezone]);
+  const own = byDate.get(date) ?? [];
+  return (
+    <div className="cs-agenda">
+      {view === "week" ? (
+        <label className="cs-field">
+          <span>Day to show</span>
+          <select
+            value={date}
+            onChange={(event) => {
+              setSelected(event.target.value);
+              onSelectDate?.(event.target.value);
+            }}
+          >
+            {dates.map((day) => (
+              <option key={day} value={day}>
+                {dayLabel(day)}
+                {loading ? "" : ` · ${byDate.get(day)?.length ?? 0} classes`}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <h3>{dayLabel(date)}</h3>
+      )}
+      {canEdit ? (
+        <button type="button" className="cs-button" onClick={() => onCreate(date, "17:00")}>
+          Add a class
+        </button>
+      ) : null}
+      {loading && own.length === 0 ? (
+        <div className="cs-agenda-skeleton" aria-hidden="true">
+          <div />
+          <div />
+          <div />
+        </div>
+      ) : null}
+      {own.map((row) => (
+        <button
+          key={row.sessionId}
+          type="button"
+          className="cs-event cs-agenda-event"
+          data-status={row.status === "cancelled" ? "cancelled" : undefined}
+          onClick={() => onOpen(row.sessionId)}
+        >
+          <span className="cs-event-time">
+            {timeLabel(row.startAt, timezone)} – {timeLabel(row.endAt, timezone)}
+          </span>
+          <span className="cs-event-title">{row.title}</span>
+          <span>
+            {locations.find((location) => location.locationId === row.locationId)?.name ??
+              "Location loading…"}
+          </span>
+          <span>
+            {row.capacity === null
+              ? "Set capacity"
+              : `${row.booked ?? "—"} / ${row.capacity} registered`}
+          </span>
+          {row.status === "cancelled" ? <span>Cancelled</span> : null}
+        </button>
+      ))}
+      {!loading && own.length === 0 ? (
+        <p className="cs-placeholder">No classes match this day and these filters.</p>
+      ) : null}
+    </div>
+  );
+}
+
 function MonthView({
   weekStart,
   sessions,
@@ -266,6 +379,31 @@ function MonthView({
     days.push(new Date(t).toISOString().slice(0, 10));
   }
   const counts = useMemo(() => countSessionDays(sessions, timezone), [sessions, timezone]);
+  const compact = useCompactCalendar();
+  if (compact)
+    return (
+      <div className="cs-month-weeks">
+        {days
+          .filter((_, index) => index % 7 === 0)
+          .map((date) => {
+            const dates = weekDays(date);
+            const classes = dates.reduce((sum, day) => sum + (counts.get(day)?.classes ?? 0), 0);
+            return (
+              <button
+                key={date}
+                type="button"
+                className="cs-month-week cs-button"
+                onClick={() => onSelectWeek(date)}
+              >
+                <span>
+                  {dayLabel(date)} – {dayLabel(dates[6]!)}
+                </span>
+                <span>{classes} classes · Open week</span>
+              </button>
+            );
+          })}
+      </div>
+    );
 
   return (
     <div className="cs-month">
@@ -287,7 +425,7 @@ function MonthView({
           >
             <span className="cs-month-day">{d.getUTCDate()}</span>
             <span className="cs-month-counts">
-              {count.classes} classes &middot; {count.registrations} registrations
+              {count.classes} classes &middot; {count.registrations ?? "—"} registrations
             </span>
           </button>
         );
@@ -297,6 +435,10 @@ function MonthView({
 }
 
 export function CalendarView({
+  selectedDate,
+  onSelectDate,
+  loading = false,
+  locations = [],
   view,
   weekStart,
   sessions,
@@ -307,6 +449,7 @@ export function CalendarView({
   onCreate,
   onSelectWeek,
 }: CalendarViewProps): ReactElement {
+  const compact = useCompactCalendar();
   if (view === "month") {
     return (
       <MonthView
@@ -317,6 +460,24 @@ export function CalendarView({
       />
     );
   }
+  if (compact)
+    return (
+      <DayAgenda
+        selectedDate={selectedDate}
+        onSelectDate={onSelectDate}
+        view={view}
+        weekStart={weekStart}
+        sessions={sessions}
+        timezone={timezone}
+        window={window}
+        canEdit={canEdit}
+        onOpen={onOpen}
+        onCreate={onCreate}
+        onSelectWeek={onSelectWeek}
+        loading={loading}
+        locations={locations}
+      />
+    );
   const onlyDate: string | undefined = view === "day" ? weekStart : undefined;
   return (
     <WeekOrDay

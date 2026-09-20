@@ -6,7 +6,7 @@ export type GridSession = Readonly<{
   startAt: string;
   endAt: string;
   colour: string;
-  booked: number;
+  booked: number | null;
   capacity: number | null;
   status: SessionStatus;
   locationId: string;
@@ -20,7 +20,7 @@ export type DayLayout = Readonly<{
   label: string;
   sessions: readonly PlacedSession[];
   classes: number;
-  registrations: number;
+  registrations: number | null;
 }>;
 
 const dayNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -129,7 +129,9 @@ export function layoutWeek(
       label: dayLabel(date),
       sessions: Object.freeze(placed),
       classes: own.filter(({ s }) => s.status !== "cancelled").length,
-      registrations: own.reduce((sum, { s }) => sum + (s.status === "cancelled" ? 0 : s.booked), 0),
+      registrations: own.some(({ s }) => s.status !== "cancelled" && s.booked === null)
+        ? null
+        : own.reduce((sum, { s }) => sum + (s.status === "cancelled" ? 0 : (s.booked ?? 0)), 0),
     });
   });
   return Object.freeze({ days: Object.freeze(days), hours: Object.freeze(hours) });
@@ -158,14 +160,17 @@ export function nowMarker(
 export function countSessionDays(
   sessions: readonly GridSession[],
   timezone: string,
-): ReadonlyMap<string, { classes: number; registrations: number }> {
-  const counts = new Map<string, { classes: number; registrations: number }>();
+): ReadonlyMap<string, { classes: number; registrations: number | null }> {
+  const counts = new Map<string, { classes: number; registrations: number | null }>();
   for (const session of sessions) {
     if (session.status === "cancelled") continue;
     const date = localParts(session.startAt, timezone).date;
     const count = counts.get(date) ?? { classes: 0, registrations: 0 };
     count.classes += 1;
-    count.registrations += session.booked;
+    count.registrations =
+      count.registrations === null || session.booked === null
+        ? null
+        : count.registrations + session.booked;
     counts.set(date, count);
   }
   return counts;

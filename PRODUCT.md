@@ -78,7 +78,6 @@ Administrator has full operational member/coach management; granting or removing
 access remains owner-only. Medical administration uses current office authority and App Check;
 other roles keep their existing restrictions. See ADR-013; production publication is separate.
 
-
 ## Office calendar management (2026-09-20)
 
 Owner and administrator can create sessions without a per-user count quota and correct session
@@ -87,3 +86,11 @@ it leaves the active calendar while bookings and attendance remain in history. E
 series has no application-imposed 400-occurrence ceiling. Member booking rules, authentication,
 academy boundaries and coach restrictions remain in force. Calendar summaries and recent date
 navigation avoid repeated work; users can refresh explicitly. See ADR-014; publication is separate.
+
+## Progressive calendar loading and mobile agenda (2026-09-20)
+
+Sessions appear independently of registration counts. Pending or unavailable counts are unknown,
+not zero; retrying counts leaves the classes usable. The annual total is available on demand.
+Mobile week/day views show a readable daily agenda; selecting another day in the loaded week
+requires no new query. The mobile month opens weeks from full-width rows. Secondary controls and
+section navigation collapse on small screens; desktop retains its timetable. See ADR-015.

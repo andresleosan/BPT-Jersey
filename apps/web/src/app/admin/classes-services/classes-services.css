@@ -973,3 +973,150 @@ body:has(.cs-session-dialog[open]) {
 .cs-session-repeat {
   margin-top: 0.75rem;
 }
+
+/* Calendar: keep the visible day readable on phones; secondary controls stay available. */
+.cs-calendar-options {
+  margin: 0 0 1rem;
+}
+.cs-calendar-options > summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 0.65rem 0;
+  font-weight: 600;
+  color: var(--bpt-purple);
+}
+.cs-calendar-options-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+.cs-calendar-options-body .cs-filter-row {
+  flex-basis: 100%;
+}
+.cs-agenda,
+.cs-month-weeks {
+  display: grid;
+  gap: 0.75rem;
+}
+.cs-agenda-event {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.85rem;
+  background: var(--gi-white);
+  border: 1px solid var(--line);
+  border-left: 0.3rem solid var(--bpt-purple);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+.cs-agenda-event .cs-event-title,
+.cs-agenda-event .cs-event-time {
+  white-space: normal;
+  overflow: visible;
+  font-size: 1rem;
+  color: var(--mat-ink);
+}
+.cs-agenda-event .cs-event-time {
+  font-variant-numeric: tabular-nums;
+}
+.cs-agenda-event:focus-visible,
+.cs-calendar-options > summary:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 2px;
+}
+.cs-month-week {
+  display: grid;
+  gap: 0.35rem;
+  text-align: left;
+  font-size: 1rem;
+}
+@media (max-width: 50rem) {
+  .cs-calendar-page {
+    padding: 0.75rem;
+  }
+  .cs-calendar-page .cs-classes-header {
+    gap: 0.75rem;
+  }
+  .cs-calendar-page .cs-counters {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .cs-calendar-page .cs-counters dt {
+    font-size: 0.7rem;
+    letter-spacing: 0.025em;
+  }
+  .cs-calendar-page .cs-counters dd {
+    font-size: 1.5rem;
+  }
+  .cs-calendar-page .cs-toolbar {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+  .cs-calendar-page .cs-toolbar > .cs-field {
+    grid-column: 1 / -1;
+  }
+  .cs-calendar-page .cs-range-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    margin: 0 0 0.25rem;
+  }
+  .cs-calendar-page .cs-range-buttons {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cs-calendar-page .cs-toolbar > .cs-button-primary {
+    grid-column: 1 / -1;
+  }
+  .cs-calendar-page .cs-button {
+    padding-inline: 0.45rem;
+  }
+  .cs-calendar-page .cs-filter-row {
+    align-items: stretch;
+  }
+  .cs-calendar-page .cs-dropdown-panel {
+    min-width: 0;
+    width: min(16rem, 70vw);
+  }
+  .cs-calendar-page .cs-field select,
+  .cs-calendar-page .cs-field input {
+    font-size: 1rem;
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+.cs-agenda-skeleton {
+  display: grid;
+  gap: 0.75rem;
+}
+.cs-agenda-skeleton > div {
+  height: 7rem;
+  background: var(--paper-edge);
+}
+
+.cs-section-navigation > summary {
+  display: none;
+}
+@media (max-width: 50rem) {
+  .cs-section-navigation {
+    margin-bottom: 0.75rem;
+  }
+  .cs-section-navigation > summary {
+    display: list-item;
+    cursor: pointer;
+    min-height: 44px;
+    padding-block: 0.65rem;
+    font-weight: 600;
+    color: var(--bpt-purple);
+  }
+  .cs-title {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+}

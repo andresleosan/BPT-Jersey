@@ -64,6 +64,26 @@ describe("week grid", () => {
     expect(layout.hours).toEqual([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
   });
 
+  it("keeps missing registration totals unknown in both week and month summaries", () => {
+    const rows = [
+      {
+        ...base,
+        sessionId: "pending",
+        title: "Pending counts",
+        startAt: "2026-09-14T16:00:00.000Z",
+        endAt: "2026-09-14T17:00:00.000Z",
+        booked: null,
+      },
+    ];
+    expect(
+      layoutWeek(rows, "2026-09-14", "Europe/Jersey", { fromHour: 6, toHour: 23 }).days[0],
+    ).toMatchObject({ classes: 1, registrations: null });
+    expect(countSessionDays(rows, "Europe/Jersey").get("2026-09-14")).toEqual({
+      classes: 1,
+      registrations: null,
+    });
+  });
+
   it("gives every overlapping session a separate column", () => {
     const at = (h: string) => `2026-09-14T${h}:00.000Z`;
     const layout = layoutWeek(

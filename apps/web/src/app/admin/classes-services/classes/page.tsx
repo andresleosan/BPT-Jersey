@@ -13,6 +13,7 @@ import {
 } from "../../../../lib/schedule-client";
 import { listStaffProfiles } from "../../../../lib/staff-client";
 import { useAdminOrStaffSession } from "../../admin-gate";
+import { useCompactCalendar } from "./use-compact-calendar";
 import { CalendarView } from "./calendar-view";
 import {
   ClassesFilters,
@@ -24,7 +25,7 @@ import { ListView, type DateRange } from "./list-view";
 import { SessionPanel, type StaffOption } from "./session-panel";
 import { trainerOptions } from "./trainer-options";
 import { WeekActions, addDays } from "./week-actions";
-import { dayLabel, localParts, mondayOf, type GridSession } from "./week-grid";
+import { dayLabel, localParts, mondayOf, weekDays, type GridSession } from "./week-grid";
 
 type View = "calendar" | "list";
 type StaffStatus = "loading" | "ready" | "unavailable";
@@ -93,10 +94,7 @@ function queryFor(
  * `parseListSessionsQuery` refuses a range wider than 90 days, so a wider one is asked for in
  * consecutive windows and put back together. A range that already fits makes exactly one call.
  */
-async function loadRange(
-  query: { from: string; to: string },
-  withCounts: boolean,
-): Promise<{ sessions: readonly SessionRecord[]; booked: Readonly<Record<string, number>> }> {
+function windowsFor(query: { from: string; to: string }): { from: string; to: string }[] {
   const windows: { from: string; to: string }[] = [];
   const to = Date.parse(query.to);
   for (let from = Date.parse(query.from); from <= to;) {
@@ -104,23 +102,14 @@ async function loadRange(
     windows.push({ from: new Date(from).toISOString(), to: new Date(end).toISOString() });
     from = end + 1;
   }
-  const loaded = await Promise.all(
-    windows.map(async (window) => {
-      // Each call waits on its own App Check token, so the two reads go out together.
-      const [sessions, booked] = await Promise.all([
-        listSessions(window),
-        withCounts ? listSessionBookedCounts(window) : Promise.resolve({}),
-      ]);
-      return { sessions, booked };
-    }),
-  );
-  // A class that straddles a window edge can come back twice; the session id is the identity.
+  return windows;
+}
+
+async function loadRange(query: { from: string; to: string }): Promise<readonly SessionRecord[]> {
+  const loaded = await Promise.all(windowsFor(query).map((window) => listSessions(window)));
   const byId = new Map<string, SessionRecord>();
-  for (const part of loaded) for (const row of part.sessions) byId.set(row.sessionId, row);
-  return {
-    sessions: [...byId.values()],
-    booked: Object.assign({}, ...loaded.map((part) => part.booked)) as Record<string, number>,
-  };
+  for (const rows of loaded) for (const row of rows) byId.set(row.sessionId, row);
+  return [...byId.values()];
 }
 
 function boundsOf(from: string, to: string, timezone: string): { from: string; to: string } {
@@ -153,8 +142,9 @@ function titleOf(range: Range, anchor: string): string {
   return `${head} – ${endDay} ${monthNames[endParts.month]} ${endParts.year}`;
 }
 
-export function ClassesPage(): ReactElement {
+function ClassesContent(): ReactElement {
   const session = useAdminOrStaffSession();
+  const compact = useCompactCalendar();
   const canEdit = session.role !== "coach";
   // `listMemberships` is reserved for the office: a head coach may edit a class but not enrol.
   const canReadMemberships = session.role === "owner" || session.role === "administrator";
@@ -163,6 +153,9 @@ export function ClassesPage(): ReactElement {
   const [range, setRange] = useState<Range>("week");
   const [weekStart, setWeekStart] = useState(() =>
     mondayOf(localParts(new Date().toISOString(), fallbackTimezone).date),
+  );
+  const [agendaDate, setAgendaDate] = useState(
+    () => localParts(new Date().toISOString(), fallbackTimezone).date,
   );
   const [catalog, setCatalog] = useState<ScheduleCatalogResponse | null>(null);
   const [staff, setStaff] = useState<readonly StaffOption[]>([]);
@@ -174,15 +167,22 @@ export function ClassesPage(): ReactElement {
   const [panel, setPanel] = useState<Panel>(null);
   const [loading, setLoading] = useState(true);
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
+  const [countsStatus, setCountsStatus] = useState<StaffStatus>("loading");
+  const [countsReload, setCountsReload] = useState(0);
+  const [totalRequested, setTotalRequested] = useState(false);
+  const [totalLoading, setTotalLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [catalogReload, setCatalogReload] = useState(0);
   const lastRangeKey = useRef("");
   const [filters, setFilters] = useState<ClassFilters>(emptyClassFilters);
 
-  const totalRef = useRef<number | null>(null);
   const rangeCache = useRef(
     new Map<string, { at: number; value: Awaited<ReturnType<typeof loadRange>> }>(),
+  );
+  const countsCache = useRef(
+    new Map<string, { at: number; value: Readonly<Record<string, number>> }>(),
   );
   const timezone = catalog?.locations[0]?.timezone ?? fallbackTimezone;
 
@@ -191,18 +191,20 @@ export function ClassesPage(): ReactElement {
     void (async () => {
       try {
         const loaded = await getScheduleCatalog();
-        if (!abandoned) setCatalog(loaded);
+        if (!abandoned) {
+          setCatalog(loaded);
+          setCatalogError(null);
+        }
       } catch (failure) {
         if (!abandoned) {
-          setError(messageOf(failure, "Unable to load the schedule catalogue"));
-          setLoading(false);
+          setCatalogError(messageOf(failure, "Unable to load the schedule catalogue"));
         }
       }
     })();
     return () => {
       abandoned = true;
     };
-  }, [catalogReload]);
+  }, [catalogReload, session.uid, session.academyId, session.role]);
 
   // Load staff after the first week. The public academy roster is available immediately.
   useEffect(() => {
@@ -223,7 +225,7 @@ export function ClassesPage(): ReactElement {
     return () => {
       abandoned = true;
     };
-  }, [scheduleLoaded]);
+  }, [scheduleLoaded, session.uid, session.academyId, session.role]);
 
   const listRange = view === "list" ? dateRange : null;
 
@@ -243,7 +245,7 @@ export function ClassesPage(): ReactElement {
         }
         const cached = rangeCache.current.get(key);
         const loaded =
-          cached && Date.now() - cached.at < 30000 ? cached.value : await loadRange(query, true);
+          cached && Date.now() - cached.at < 30000 ? cached.value : await loadRange(query);
         if (!abandoned) {
           if (rangeCache.current.size >= 8)
             rangeCache.current.delete(rangeCache.current.keys().next().value!);
@@ -253,15 +255,14 @@ export function ClassesPage(): ReactElement {
           });
         }
         if (abandoned) return;
-        setSessions(loaded.sessions);
-        setBooked(loaded.booked);
+        setSessions(loaded);
+        setScheduleLoaded(true);
         setError(null);
       } catch (failure) {
         if (!abandoned) setError(messageOf(failure, "Unable to load the classes"));
       } finally {
         if (!abandoned) {
           setLoading(false);
-          setScheduleLoaded(true);
         }
       }
     })();
@@ -270,30 +271,78 @@ export function ClassesPage(): ReactElement {
     };
   }, [range, weekStart, timezone, listRange, reload, session.uid, session.academyId, session.role]);
 
+  // Registration counts are independent: slow or failed counts must never hide the classes.
   useEffect(() => {
-    // The year TOTAL is a nicety: it waits for the week to be on screen instead of competing with it.
-    if (catalog === null || !scheduleLoaded || totalRef.current !== null) return undefined;
     let abandoned = false;
+    setCountsStatus("loading");
     void (async () => {
       try {
-        const year = localParts(new Date().toISOString(), timezone).date.slice(0, 4);
-        const loaded = await loadRange(yearQueryFor(year, timezone), false);
-        if (!abandoned) {
-          totalRef.current = loaded.sessions.length;
-          setTotal(loaded.sessions.length);
-        }
+        const query = queryFor(range, weekStart, timezone, listRange);
+        const key = JSON.stringify([session.uid, session.academyId, session.role, query]);
+        const cached = countsCache.current.get(key);
+        const counts =
+          cached && Date.now() - cached.at < 30000
+            ? cached.value
+            : (Object.assign(
+                {},
+                ...(await Promise.all(
+                  windowsFor(query).map((window) => listSessionBookedCounts(window)),
+                )),
+              ) as Record<string, number>);
+        if (abandoned) return;
+        if (countsCache.current.size >= 8)
+          countsCache.current.delete(countsCache.current.keys().next().value!);
+        countsCache.current.set(key, {
+          at: cached?.value === counts ? cached.at : Date.now(),
+          value: counts,
+        });
+        setBooked(counts);
+        setCountsStatus("ready");
       } catch {
-        // TOTAL is a nicety: its failure must never disturb the calendar the office is reading.
-        if (!abandoned) setTotal(null);
+        if (!abandoned) setCountsStatus("unavailable");
       }
     })();
     return () => {
       abandoned = true;
     };
-  }, [catalog, scheduleLoaded, timezone, reload]);
+  }, [
+    range,
+    weekStart,
+    timezone,
+    listRange,
+    reload,
+    countsReload,
+    session.uid,
+    session.academyId,
+    session.role,
+  ]);
+
+  useEffect(() => {
+    if (!totalRequested || catalog === null) {
+      setTotalLoading(false);
+      return undefined;
+    }
+    let abandoned = false;
+    setTotalLoading(true);
+    void (async () => {
+      try {
+        const year = localParts(new Date().toISOString(), timezone).date.slice(0, 4);
+        const rows = await loadRange(yearQueryFor(year, timezone));
+        if (!abandoned) setTotal(rows.length);
+      } catch {
+        if (!abandoned) setTotalRequested(false);
+      } finally {
+        if (!abandoned) setTotalLoading(false);
+      }
+    })();
+    return () => {
+      abandoned = true;
+    };
+  }, [catalog, totalRequested, timezone, session.uid, session.academyId, session.role]);
 
   const trainers = trainerOptions(staff);
-  const canCreate = canEdit && trainers.some((row) => row.active && row.status === "active");
+  const canCreate =
+    canEdit && catalog !== null && trainers.some((row) => row.active && row.status === "active");
   const locations = catalog?.locations ?? [];
   const programs = useMemo(() => catalog?.programs ?? [], [catalog]);
   const today = localParts(new Date().toISOString(), timezone).date;
@@ -313,14 +362,14 @@ export function ClassesPage(): ReactElement {
         endAt: row.endAt,
         colour:
           programs.find((program) => program.programId === row.programId)?.colour ?? fallbackColour,
-        booked: booked[row.sessionId] ?? 0,
+        booked: countsStatus === "ready" ? (booked[row.sessionId] ?? 0) : null,
         capacity: row.capacity,
         status: row.status,
         locationId: row.locationId,
         programId: row.programId,
         instructorIds: row.instructorIds ?? [row.instructorId],
       })),
-    [sessions, programs, booked],
+    [sessions, programs, booked, countsStatus],
   );
 
   const visible = useMemo(
@@ -341,9 +390,10 @@ export function ClassesPage(): ReactElement {
   );
 
   const live = visible.filter((row) => row.status !== "cancelled");
-  const registrations = live.reduce((sum, row) => sum + row.booked, 0);
+  const registrations = live.reduce((sum, row) => sum + (row.booked ?? 0), 0);
   const seats = live.reduce((sum, row) => sum + (row.capacity ?? 0), 0);
-  const occupancy = seats > 0 ? `${Math.round((100 * registrations) / seats)}%` : "—";
+  const occupancy =
+    countsStatus === "ready" && seats > 0 ? `${Math.round((100 * registrations) / seats)}%` : "—";
 
   /** Week and month always sit on a Monday; the month keeps its own month when the two disagree. */
   function anchorFor(date: string): string {
@@ -363,7 +413,13 @@ export function ClassesPage(): ReactElement {
 
   function selectRange(next: Range): void {
     setRange(next);
-    setWeekStart(next === "week" ? mondayOf(weekStart) : weekStart);
+    setWeekStart(
+      next === "week"
+        ? mondayOf(weekStart)
+        : compact && next === "day" && weekDays(mondayOf(weekStart)).includes(agendaDate)
+          ? agendaDate
+          : weekStart,
+    );
   }
 
   function afterChange(changed?: SessionRecord): void {
@@ -374,8 +430,10 @@ export function ClassesPage(): ReactElement {
         changed,
       ]);
     // A create, a cancellation or a whole week moved: the year's count is no longer valid.
-    totalRef.current = null;
+    setTotal(null);
+    setTotalRequested(false);
     rangeCache.current.clear();
+    countsCache.current.clear();
     setReload((previous) => previous + 1);
   }
 
@@ -384,13 +442,14 @@ export function ClassesPage(): ReactElement {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date))) return;
     setDateRange(null);
     setWeekStart(date);
+    setAgendaDate(date);
   }
 
   const edited =
     panel?.mode === "edit" ? sessions.find((row) => row.sessionId === panel.sessionId) : undefined;
 
   return (
-    <section className="cs-card">
+    <section className="cs-card cs-calendar-page">
       <h2>Classes &amp; Services 2.0</h2>
       <div className="cs-classes-header">
         <div role="tablist" aria-label="View" className="cs-subtabs">
@@ -411,19 +470,15 @@ export function ClassesPage(): ReactElement {
         <dl className="cs-counters">
           <div>
             <dt>Classes</dt>
-            <dd>{live.length}</dd>
+            <dd>{loading ? "—" : live.length}</dd>
           </div>
           <div>
             <dt>Registrations</dt>
-            <dd>{registrations}</dd>
+            <dd>{countsStatus === "ready" ? registrations : "—"}</dd>
           </div>
           <div>
             <dt>Occupancy %</dt>
             <dd>{occupancy}</dd>
-          </div>
-          <div>
-            <dt>Total</dt>
-            <dd>{total ?? "—"}</dd>
           </div>
         </dl>
       </div>
@@ -436,7 +491,14 @@ export function ClassesPage(): ReactElement {
         >
           ‹
         </button>
-        <button type="button" className="cs-button" onClick={() => goTo(anchorFor(today))}>
+        <button
+          type="button"
+          className="cs-button"
+          onClick={() => {
+            goTo(anchorFor(today));
+            setAgendaDate(today);
+          }}
+        >
           Today
         </button>
         <button
@@ -453,20 +515,13 @@ export function ClassesPage(): ReactElement {
             type="date"
             value={weekStart}
             onChange={(event) => {
-              if (event.target.value) goTo(anchorFor(event.target.value));
+              if (event.target.value) {
+                goTo(anchorFor(event.target.value));
+                setAgendaDate(event.target.value);
+              }
             }}
           />
         </label>
-        <button
-          type="button"
-          className="cs-button"
-          onClick={() => {
-            rangeCache.current.clear();
-            setReload((value) => value + 1);
-          }}
-        >
-          Refresh schedule
-        </button>
         <p className="cs-range-title">{titleOf(range, weekStart)}</p>
         <div className="cs-range-buttons">
           {ranges.map((option) => (
@@ -481,8 +536,7 @@ export function ClassesPage(): ReactElement {
             </button>
           ))}
         </div>
-        {canEdit ? <WeekActions weekStart={mondayOf(weekStart)} onChanged={afterChange} /> : null}
-        {canCreate ? (
+        {canCreate && (!compact || range === "month" || view === "list") ? (
           <button
             type="button"
             className="cs-button cs-button-primary"
@@ -494,16 +548,77 @@ export function ClassesPage(): ReactElement {
           </button>
         ) : null}
       </div>
-      <ClassesFilters
-        locations={locations}
-        programs={programs}
-        staff={trainers}
-        filters={filters}
-        onChange={setFilters}
-      />
+      <details className="cs-calendar-options" open={!compact}>
+        <summary>Filters and options</summary>
+        <div className="cs-calendar-options-body">
+          <ClassesFilters
+            locations={locations}
+            programs={programs}
+            staff={trainers}
+            filters={filters}
+            onChange={setFilters}
+          />
+          <button
+            type="button"
+            className="cs-button"
+            onClick={() => {
+              rangeCache.current.clear();
+              countsCache.current.clear();
+              setReload((value) => value + 1);
+            }}
+          >
+            Refresh schedule
+          </button>
+          {canEdit ? <WeekActions weekStart={mondayOf(weekStart)} onChanged={afterChange} /> : null}
+          <button
+            type="button"
+            className="cs-button"
+            disabled={totalRequested || !catalog}
+            onClick={() => setTotalRequested(true)}
+          >
+            {totalLoading
+              ? "Counting this year…"
+              : total !== null
+                ? `Year total: ${total}`
+                : "Calculate year total"}
+          </button>
+        </div>
+      </details>
       {canEdit && staffStatus === "unavailable" ? (
         <p className="cs-notice" data-kind="error" role="status">
           Staff profiles unavailable. Academy trainers are still available.
+        </p>
+      ) : null}
+      {catalogError ? (
+        <p className="cs-notice" data-kind="error" role="alert">
+          {catalogError}{" "}
+          <button
+            type="button"
+            className="cs-button"
+            onClick={() => setCatalogReload((value) => value + 1)}
+          >
+            Retry catalogue
+          </button>
+        </p>
+      ) : null}
+      {countsStatus === "loading" && !loading ? (
+        <p className="cs-placeholder" role="status">
+          Loading registrations…
+        </p>
+      ) : null}
+      {countsStatus === "unavailable" ? (
+        <p className="cs-notice" data-kind="error" role="status">
+          Registration counts unavailable. Classes are still available.
+          <button
+            type="button"
+            className="cs-button"
+            onClick={() => {
+              countsCache.current.clear();
+              setCountsReload((value) => value + 1);
+            }}
+          >
+            Retry registrations
+          </button>
         </p>
       ) : null}
       {error === null ? null : (
@@ -529,6 +644,10 @@ export function ClassesPage(): ReactElement {
       <div id={viewPanelId} role="tabpanel" aria-label={view === "calendar" ? "Calendar" : "List"}>
         {view === "calendar" ? (
           <CalendarView
+            loading={loading || error !== null}
+            locations={locations}
+            selectedDate={agendaDate}
+            onSelectDate={setAgendaDate}
             view={range}
             weekStart={weekStart}
             sessions={visible}
@@ -574,6 +693,12 @@ export function ClassesPage(): ReactElement {
       ) : null}
     </section>
   );
+}
+
+/** An identity/role change discards private state and in-flight responses together. */
+export function ClassesPage(): ReactElement {
+  const session = useAdminOrStaffSession();
+  return <ClassesContent key={JSON.stringify([session.uid, session.academyId, session.role])} />;
 }
 
 export default function ClassesRoute(): ReactElement {

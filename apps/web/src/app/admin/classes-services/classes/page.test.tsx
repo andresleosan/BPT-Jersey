@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -166,6 +166,77 @@ describe("Classes & Services 2.0 page", () => {
     vi.useRealTimers();
   });
 
+  it("shows sessions while booking counts are pending, without inventing zero bookings", async () => {
+    let releaseCounts!: (counts: Record<string, number>) => void;
+    mocks.listSessionBookedCounts.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseCounts = resolve;
+        }),
+    );
+    render(<ClassesPage />);
+    const card = await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    expect(card).toHaveTextContent("— / 40");
+    expect(screen.queryByText("Loading the schedule…")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading registrations…")).toBeInTheDocument();
+    expect(mocks.listSessions).toHaveBeenCalledTimes(1);
+    releaseCounts({ s1: 3, s2: 1 });
+    await waitFor(() => expect(card).toHaveTextContent("3 / 40"));
+  });
+
+  it("keeps sessions usable when booking counts fail and retries the missing counts", async () => {
+    mocks.listSessionBookedCounts.mockRejectedValueOnce(new Error("Synthetic unavailable"));
+    render(<ClassesPage />);
+    expect(await screen.findByRole("button", { name: /GI All Levels Evenings/ })).toHaveTextContent(
+      "— / 40",
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Retry registrations" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /GI All Levels Evenings/ })).toHaveTextContent(
+        "3 / 40",
+      ),
+    );
+    expect(mocks.listSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores late counts from a week the user has left", async () => {
+    let releaseOld!: (counts: Record<string, number>) => void;
+    mocks.listSessionBookedCounts.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseOld = resolve;
+        }),
+    );
+    render(<ClassesPage />);
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    fireEvent.click(screen.getByRole("button", { name: "Next week" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous week" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /GI All Levels Evenings/ })).toHaveTextContent(
+        "3 / 40",
+      ),
+    );
+    await act(async () => {
+      releaseOld({ s1: 99 });
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /GI All Levels Evenings/ })).not.toHaveTextContent(
+        "99 / 40",
+      ),
+    );
+  });
+
+  it("keeps catalogue errors independent from successful session reads", async () => {
+    mocks.getScheduleCatalog.mockRejectedValueOnce(new Error("Catalogue unavailable"));
+    render(<ClassesPage />);
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    fireEvent.click(await screen.findByRole("button", { name: "Retry catalogue" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Catalogue unavailable")).not.toBeInTheDocument(),
+    );
+    expect(mocks.listSessions).toHaveBeenCalledTimes(1);
+  });
+
   it("reuses a recently visited week and ignores an empty date", async () => {
     render(<ClassesPage />);
     await screen.findByRole("button", { name: /GI All Levels Evenings/ });
@@ -264,7 +335,7 @@ describe("Classes & Services 2.0 page", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("asks for the week's counts alongside its sessions and the year total only once the week is on screen", async () => {
+  it("asks for the week's counts alongside its sessions and the year total only when requested", async () => {
     let releaseWeek: (rows: readonly unknown[]) => void = () => undefined;
     mocks.listSessions.mockImplementation((query: { from: string }) =>
       query.from.startsWith("2026-01")
@@ -281,6 +352,8 @@ describe("Classes & Services 2.0 page", () => {
     expect(
       await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
     ).toBeInTheDocument();
+    expect(mocks.listSessions).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Calculate year total" }));
     await waitFor(() =>
       expect(mocks.listSessions.mock.calls.some(([q]) => q.from.startsWith("2026-01"))).toBe(true),
     );
@@ -305,7 +378,10 @@ describe("Classes & Services 2.0 page", () => {
     await waitFor(() => expect(mocks.listStaffProfiles).toHaveBeenCalledTimes(1));
     releaseCatalog(catalog);
     // The catalogue arriving later colours the cards but does not ask for the week again.
-    await waitFor(() => expect(mocks.listSessions.mock.calls.length).toBeGreaterThan(1));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Calculate year total" })).toBeEnabled(),
+    );
+    expect(mocks.listSessions).toHaveBeenCalledTimes(1);
     expect(
       mocks.listSessions.mock.calls.filter(([q]) => q.from.startsWith("2026-09-13")).length,
     ).toBe(1);
@@ -394,7 +470,11 @@ describe("Classes & Services 2.0 page", () => {
       await screen.findByRole("button", { name: /GI All Levels Evenings/ }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument(); // TOTAL
+    fireEvent.click(screen.getByRole("button", { name: "Calculate year total" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Calculate year total" })).toBeEnabled(),
+    );
+    expect(screen.getByRole("button", { name: /GI All Levels Evenings/ })).toBeInTheDocument();
   });
 
   it("asks for a range wider than 90 days in windows the callable accepts", async () => {
@@ -406,7 +486,7 @@ describe("Classes & Services 2.0 page", () => {
       expect(
         mocks.listSessions.mock.calls.filter(([query]) => query.from.startsWith("2026-01-01"))
           .length,
-      ).toBe(2),
+      ).toBe(1),
     );
     const spans = mocks.listSessions.mock.calls.map(
       ([query]) => Date.parse(query.to) - Date.parse(query.from),
