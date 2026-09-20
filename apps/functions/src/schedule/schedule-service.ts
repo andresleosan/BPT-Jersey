@@ -924,10 +924,11 @@ export function createFirestoreScheduleStore(options: {
 
       const sessionIds = [...new Set(studentBookings.map((booking) => booking.sessionId))];
       const sessions = await Promise.all(sessionIds.map((id) => firestore.collection(`academies/${academyId}/sessions`).doc(id).get()));
-      const sessionRecords = sessions.filter((document) => document.exists).map((document) => {
+      const sessionRecords = sessions.flatMap((document, index) => {
+        if (!document.exists) return [];
         const record = document.data() as SessionRecord;
-        if (record.academyId !== academyId || record.sessionId !== document.id) throw new Error("Session scope is invalid");
-        return record;
+        if (record.academyId !== academyId || record.sessionId !== sessionIds[index]) throw new Error("Session scope is invalid");
+        return [record];
       });
       return cancelledSessionNotices(
         sessionRecords,
