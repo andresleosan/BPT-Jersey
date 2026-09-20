@@ -13,19 +13,11 @@ import { staffRoutes } from "./admin-routes";
 
 import "./admin.css";
 
-type NavigationItem = Readonly<{ label: string; href: string }>;
+type NavigationItem = Readonly<{ label: string; href: string; ownerOnly?: boolean }>;
 type NavigationGroup = Readonly<{ label: string; items: readonly NavigationItem[] }>;
 
-/**
- * The pilot navigation: what the office and the coaches use in a normal day, grouped by job.
- * Working modules outside the pilot scope (class waitlists, CRM, retention, lesson plans) keep
- * their routes, callables and tests but are not listed here; Families is reached from Members and
- * the finance dashboard from Billing. Waivers keeps its route (`/admin/waivers`) and tests but
- * left the menu on 2026-09-12 at the operator's request; Memberships left with it and came back
- * on 2026-09-17, when the operator had no way to reach the plan catalogue. Classes and Levels
- * were added to the coach menu on 2026-09-14 (ADR-010 amendment); see Classes read-only and
- * Levels powers in ADR-010. Member search was added for office and coaches on 2026-09-17
- * (ADR-010 amendment, member record).
+/** Owners can reach every implemented administrative module without a member subscription.
+ * Other roles retain their existing navigation and server-side restrictions.
  */
 const navigationGroups: readonly NavigationGroup[] = [
   {
@@ -39,6 +31,10 @@ const navigationGroups: readonly NavigationGroup[] = [
     label: "People",
     items: [
       { label: "Members", href: "/admin/members" },
+      { label: "Families", href: "/admin/families", ownerOnly: true },
+      { label: "CRM", href: "/admin/crm", ownerOnly: true },
+      { label: "Retention", href: "/admin/retention", ownerOnly: true },
+      { label: "Member recovery", href: "/admin/members/recovery", ownerOnly: true },
       { label: "Member search", href: "/admin/members/search" },
       { label: "Member migration", href: "/admin/members/migration" },
       { label: "Memberships", href: "/admin/memberships" },
@@ -51,12 +47,15 @@ const navigationGroups: readonly NavigationGroup[] = [
     items: [
       { label: "Classes / Services", href: "/admin/classes-services" },
       { label: "Levels", href: "/admin/levels" },
+      { label: "Waitlists", href: "/admin/waitlists", ownerOnly: true },
+      { label: "Lesson plans", href: "/admin/lesson-plans", ownerOnly: true },
     ],
   },
   {
     label: "Money",
     items: [
       { label: "Billing", href: "/admin/billing" },
+      { label: "Financial dashboard", href: "/admin/finance", ownerOnly: true },
       { label: "Shop", href: "/admin/shop" },
     ],
   },
@@ -65,6 +64,7 @@ const navigationGroups: readonly NavigationGroup[] = [
     items: [
       { label: "Staff", href: "/admin/staff" },
       { label: "Reports", href: "/admin/reports" },
+      { label: "Waivers and disclaimers", href: "/admin/waivers", ownerOnly: true },
     ],
   },
 ];
@@ -105,9 +105,11 @@ export function AdminShell({
   const visibleGroups = navigationGroups
     .map((group) => ({
       ...group,
-      items: allowedRoutes
-        ? group.items.filter((item) => allowedRoutes.includes(item.href))
-        : group.items,
+      items: group.items.filter(
+        (item) =>
+          (!item.ownerOnly || session.role === "owner") &&
+          (allowedRoutes === undefined || allowedRoutes.includes(item.href)),
+      ),
     }))
     .filter((group) => group.items.length > 0);
   if (coachWorkspace) {
