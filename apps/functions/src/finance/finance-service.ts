@@ -9,6 +9,7 @@ import {
   calculateInvoiceBalance,
   calculatePaygDebt,
   parseInvoiceRecord,
+  sameInvoicePayer,
   parseManualPaymentRecord,
   parsePaymentInstructionsRecord,
   paymentInstructionsSettingId,
@@ -356,7 +357,7 @@ function parseScopedStoredPayment(
 function assertPaymentInvoiceScope(payment: ManualPaymentRecord, invoice: InvoiceRecord): void {
   if (
     payment.academyId !== invoice.academyId ||
-    payment.familyId !== invoice.familyId ||
+    !sameInvoicePayer(invoice, payment) ||
     payment.invoiceId !== invoice.invoiceId
   ) {
     throw new FinanceStoreError("tenant", "Payment invoice scope is invalid");
@@ -435,6 +436,7 @@ function paymentPayload(
   id: string,
   now: string,
 ): ManualPaymentRecord {
+  if (invoice.schemaVersion === 2) throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
   const record: ManualPaymentRecord = {
     paymentId: id,
     academyId: invoice.academyId,
@@ -551,7 +553,7 @@ export async function readFinancialAccountInTransaction(input: {
     .docs.map((document) => parseScopedStoredInvoice(document, academy))
     .filter(
       (invoice) =>
-        input.scope.familyIds === undefined || input.scope.familyIds.includes(invoice.familyId),
+        input.scope.familyIds === undefined || (invoice.familyId !== null && input.scope.familyIds.includes(invoice.familyId)),
     );
   const scopedInvoices: InvoiceRecord[] = [];
   for (const invoice of invoices) {
@@ -751,6 +753,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         ),
         input.academyId,
       );
+      if (invoice.schemaVersion === 2) throw new FinanceStoreError("precondition", "Manage course payments in Courses & Seminars");
       const existingByReference = await paymentByReference(
         transaction,
         input.academyId,
@@ -897,6 +900,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         ),
         input.academyId,
       );
+      if (invoice.schemaVersion === 2) throw new FinanceStoreError("precondition", "Manage course refunds in Courses & Seminars");
       const payments = await paymentsFor(transaction, input.academyId, invoice);
       if (invoice.status !== "open" || payments.length > 0) {
         throw new FinanceStoreError("precondition", "Invoice cannot be voided");
@@ -939,7 +943,7 @@ export function createFinanceStore(dependencies: FinanceStoreDependencies): Fina
         ),
         academy,
       );
-      if (scope.familyIds !== undefined && !scope.familyIds.includes(invoice.familyId)) {
+      if (scope.familyIds !== undefined && (invoice.familyId === null || !scope.familyIds.includes(invoice.familyId))) {
         throw new FinanceStoreError("not-found", "Invoice not found");
       }
       if (!(await matchesStudentScope(transaction, scope, invoice))) {

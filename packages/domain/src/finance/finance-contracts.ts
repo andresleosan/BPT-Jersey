@@ -14,7 +14,7 @@ export type ChargeKind = (typeof chargeKinds)[number];
 export const manualPaymentMethods = Object.freeze(["cash", "bank_transfer", "other"] as const);
 export type ManualPaymentMethod = (typeof manualPaymentMethods)[number];
 
-export type InvoiceRecord = Readonly<{
+export type LegacyInvoiceRecord = Readonly<{
   invoiceId: string;
   academyId: string;
   familyId: string;
@@ -35,7 +35,7 @@ export type InvoiceRecord = Readonly<{
   description: string;
 }>;
 
-export type ManualPaymentRecord = Readonly<{
+export type LegacyManualPaymentRecord = Readonly<{
   paymentId: string;
   academyId: string;
   familyId: string;
@@ -53,6 +53,16 @@ export type ManualPaymentRecord = Readonly<{
   updatedAt: string;
   updatedBy: string;
 }>;
+
+export type CoursePayer = {kind: "user"; userId: string} | {kind: "family"; familyId: string};
+export type CourseInvoiceRecord = Omit<LegacyInvoiceRecord, "schemaVersion" | "familyId" | "membershipId" | "chargeKind" | "sourceRef"> & {
+  schemaVersion: 2; familyId: string | null; membershipId: null; chargeKind: "course"; sourceRef: string; payer: CoursePayer;
+};
+export type CourseManualPaymentRecord = Omit<LegacyManualPaymentRecord, "schemaVersion" | "familyId"> & {
+  schemaVersion: 2; familyId: string | null; payer: CoursePayer;
+};
+export type InvoiceRecord = LegacyInvoiceRecord | CourseInvoiceRecord;
+export type ManualPaymentRecord = LegacyManualPaymentRecord | CourseManualPaymentRecord;
 
 const invoiceFields = Object.freeze([
   "invoiceId",
@@ -172,7 +182,7 @@ function validEnum<T extends string>(value: unknown, values: readonly T[]): valu
 
 function parseInvoiceValues(
   data: Record<string, unknown>,
-): Result<InvoiceRecord, readonly ValidationIssue[]> {
+): Result<LegacyInvoiceRecord, readonly ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   const identifiers = [
     "invoiceId",
@@ -213,12 +223,12 @@ function parseInvoiceValues(
     issues.push(issue(["paidAt"], "must_be_null"));
   return issues.length > 0
     ? err(Object.freeze(issues))
-    : ok(Object.freeze({ ...data }) as InvoiceRecord);
+    : ok(Object.freeze({ ...data }) as LegacyInvoiceRecord);
 }
 
 function parsePaymentValues(
   data: Record<string, unknown>,
-): Result<ManualPaymentRecord, readonly ValidationIssue[]> {
+): Result<LegacyManualPaymentRecord, readonly ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   for (const field of [
     "paymentId",
@@ -245,13 +255,43 @@ function parsePaymentValues(
   if (!validDateTime(data.updatedAt)) issues.push(issue(["updatedAt"], "invalid_datetime"));
   return issues.length > 0
     ? err(Object.freeze(issues))
-    : ok(Object.freeze({ ...data }) as ManualPaymentRecord);
+    : ok(Object.freeze({ ...data }) as LegacyManualPaymentRecord);
+}
+
+function coursePayerValid(value: unknown, familyId: unknown): value is CoursePayer {
+  if (!isPlainRecord(value)) return false;
+  if (value.kind === "user") return Object.keys(value).length === 2 && validString(value.userId, 128, identifierPattern) && familyId === null;
+  return value.kind === "family" && Object.keys(value).length === 2 && validString(value.familyId, 128, identifierPattern) && value.familyId === familyId;
+}
+function parseCourseInvoice(value: Record<string, unknown>): Result<CourseInvoiceRecord, readonly ValidationIssue[]> {
+  const fields = readExactFields(value, [...invoiceFields, "payer"]);
+  if (!fields.ok) return fields;
+  if (!coursePayerValid(value.payer, value.familyId) || value.membershipId !== null || value.chargeKind !== "course" || !validString(value.sourceRef, 512, referencePattern) || !Number.isSafeInteger(value.totalMinor) || Number(value.totalMinor) <= 0) return err([issue([], "invalid_course_invoice")]);
+  const {payer, ...common} = value;
+  // Reuse v1 scalar validation, while checking the v2 payer separately above.
+  const legacy = parseInvoiceValues({...common, schemaVersion: 1, familyId: value.familyId ?? (payer as {userId: string}).userId, chargeKind: "manual_adjustment"});
+  return legacy.ok ? ok(Object.freeze({...value}) as CourseInvoiceRecord) : legacy;
+}
+function parseCoursePayment(value: Record<string, unknown>): Result<CourseManualPaymentRecord, readonly ValidationIssue[]> {
+  const fields = readExactFields(value, [...paymentFields, "payer"]);
+  if (!fields.ok) return fields;
+  if (!coursePayerValid(value.payer, value.familyId) || !validString(value.manualReference, 160) || !Number.isSafeInteger(value.amountMinor) || Number(value.amountMinor) <= 0 || value.method !== "bank_transfer") return err([issue([], "invalid_course_payment")]);
+  const {payer, ...common} = value;
+  const legacy = parsePaymentValues({...common, schemaVersion: 1, familyId: value.familyId ?? (payer as {userId: string}).userId, manualReference: "validated-course-reference"});
+  return legacy.ok ? ok(Object.freeze({...value}) as CourseManualPaymentRecord) : legacy;
+}
+export function sameInvoicePayer(invoice: InvoiceRecord, payment: ManualPaymentRecord): boolean {
+  if (invoice.schemaVersion !== payment.schemaVersion) return false;
+  if (invoice.schemaVersion === 1 && payment.schemaVersion === 1) return invoice.familyId === payment.familyId;
+  if (invoice.schemaVersion !== 2 || payment.schemaVersion !== 2 || invoice.payer.kind !== payment.payer.kind) return false;
+  return invoice.payer.kind === "user" && payment.payer.kind === "user" ? invoice.payer.userId === payment.payer.userId : invoice.payer.kind === "family" && payment.payer.kind === "family" && invoice.payer.familyId === payment.payer.familyId;
 }
 
 export function parseInvoiceRecord(
   value: unknown,
 ): Result<InvoiceRecord, readonly ValidationIssue[]> {
   if (!isPlainRecord(value)) return err(Object.freeze([issue([], "expected_plain_object")]));
+  if (value.schemaVersion === 2) return parseCourseInvoice(value);
   const fields = readExactFields(value, invoiceFields);
   return fields.ok ? parseInvoiceValues(fields.value) : fields;
 }
@@ -260,6 +300,7 @@ export function parseManualPaymentRecord(
   value: unknown,
 ): Result<ManualPaymentRecord, readonly ValidationIssue[]> {
   if (!isPlainRecord(value)) return err(Object.freeze([issue([], "expected_plain_object")]));
+  if (value.schemaVersion === 2) return parseCoursePayment(value);
   const fields = readExactFields(value, paymentFields);
   return fields.ok ? parsePaymentValues(fields.value) : fields;
 }
@@ -274,7 +315,7 @@ export type RecentPaymentRow = Readonly<{
   manualReference: string;
   invoiceReference: string;
   description: string;
-  familyId: string;
+  familyId: string | null;
   memberName: string | null;
 }>;
 
@@ -300,10 +341,10 @@ export function isRecentPaymentRow(value: unknown): value is RecentPaymentRow {
     validDateTime(row.occurredAt) &&
     validAmount(row.amountMinor) &&
     validEnum(row.method, manualPaymentMethods) &&
-    validString(row.manualReference, 128, manualReferencePattern) &&
+    validString(row.manualReference, 160) &&
     validString(row.invoiceReference, 128, identifierPattern) &&
     validString(row.description, 200) &&
-    validString(row.familyId, 128, identifierPattern) &&
+    (row.familyId === null || validString(row.familyId, 128, identifierPattern)) &&
     (row.memberName === null || validString(row.memberName, 160))
   );
 }
@@ -318,7 +359,7 @@ export function calculateInvoiceBalance(
       (payment) =>
         payment.status === "recorded" &&
         payment.academyId === invoice.academyId &&
-        payment.familyId === invoice.familyId &&
+        sameInvoicePayer(invoice, payment) &&
         payment.invoiceId === invoice.invoiceId,
     )
     .reduce((total, payment) => total + payment.amountMinor, 0);

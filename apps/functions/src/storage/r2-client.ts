@@ -31,6 +31,7 @@ export type R2Client = Readonly<{
     input: PdfUploadMetadata & { objectKey: string; expiresInSeconds: number },
   ) => Promise<string>;
   createPdfDownloadUrl: (input: { objectKey: string; expiresInSeconds: number }) => Promise<string>;
+  createPrivateImageUrl?: (input: {objectKey: string; expiresInSeconds: number; contentType: "image/jpeg" | "image/png"}) => Promise<string>;
   putObject: (objectKey: string, body: Uint8Array, contentType: string) => Promise<void>;
   readObject: (objectKey: string) => Promise<Uint8Array>;
   deleteObject: (objectKey: string) => Promise<void>;
@@ -225,11 +226,16 @@ export function createR2Client(options: R2ClientOptions): R2Client {
       );
       return assertHttpsAbsoluteUrl(signedUrl);
     },
+    createPrivateImageUrl: async (input) => {
+      assertObjectKey(input.objectKey);
+      if (!input.objectKey.includes("/course-proofs/") || input.expiresInSeconds !== 60 || !["image/jpeg", "image/png"].includes(input.contentType)) throw new Error("Invalid private image request");
+      return assertHttpsAbsoluteUrl(await getSigner(new GetObjectCommand({Bucket: options.bucket, Key: input.objectKey, ResponseContentType: input.contentType, ResponseCacheControl: "private, no-store, max-age=0", ResponseContentDisposition: "inline"}), {expiresIn: 60}));
+    },
     putObject: async (objectKey, body, contentType) => {
       assertObjectKey(objectKey);
       if (contentType !== "application/pdf") {
         if (
-          !objectKey.includes("/enrolment-proofs/") ||
+          (!objectKey.includes("/enrolment-proofs/") && !objectKey.includes("/course-proofs/")) ||
           !["image/png", "image/jpeg"].includes(contentType) ||
           body.byteLength > 2 * 1024 * 1024
         )
@@ -356,11 +362,16 @@ export function createEmulatorR2Client(
       assertExpiry(input.expiresInSeconds);
       return assertHttpsAbsoluteUrl(signedUrl(input.objectKey, "download"));
     },
+    createPrivateImageUrl: async (input) => {
+      assertObjectKey(input.objectKey);
+      if (!input.objectKey.includes("/course-proofs/") || input.expiresInSeconds !== 60 || !["image/jpeg", "image/png"].includes(input.contentType)) throw new Error("Invalid private image request");
+      return assertHttpsAbsoluteUrl(await getSigner(new GetObjectCommand({Bucket: options.bucket, Key: input.objectKey, ResponseContentType: input.contentType, ResponseCacheControl: "private, no-store, max-age=0", ResponseContentDisposition: "inline"}), {expiresIn: 60}));
+    },
     putObject: async (objectKey, body, contentType) => {
       assertObjectKey(objectKey);
       if (contentType !== "application/pdf") {
         if (
-          !objectKey.includes("/enrolment-proofs/") ||
+          (!objectKey.includes("/enrolment-proofs/") && !objectKey.includes("/course-proofs/")) ||
           !["image/png", "image/jpeg"].includes(contentType) ||
           body.byteLength > 2 * 1024 * 1024
         )

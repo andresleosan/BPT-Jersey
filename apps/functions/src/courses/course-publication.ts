@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { courseDraftSchema, courseSlot, type Course, type CourseDraft, type CourseJob } from "@bpt-jersey/domain/courses";
-import { assertCourseOffice, assertCourseRevision, courseCollection, courseData, courseFailure, courseOperation, newCourseJob, operationResult, requireCourseSales, saveOperation, type CourseActor } from "./course-store.js";
+import { assertCourseActorLive, assertCourseOffice, assertCourseRevision, courseCollection, courseData, courseFailure, courseOperation, newCourseJob, operationResult, requireCourseSales, saveOperation, type CourseActor } from "./course-store.js";
 export async function saveCourse(db: Firestore, actor: CourseActor, draft: CourseDraft, courseId: string | null, expectedRevision: number | null): Promise<Course> {
   assertCourseOffice(actor);
   const parsed = courseDraftSchema.safeParse(draft);
@@ -10,6 +10,7 @@ export async function saveCourse(db: Firestore, actor: CourseActor, draft: Cours
   courseSlot({...parsed.data, courseId: id}, parsed.data.sessionCount);
   const ref = courseCollection(db, actor.academyId, "courses").doc(id);
   return db.runTransaction(async tx => {
+    await assertCourseActorLive(db, tx, actor);
     const [existing, location, staff] = await Promise.all([tx.get(ref), tx.get(courseCollection(db, actor.academyId, "locations").doc(parsed.data.locationId)),
       parsed.data.instructor.kind === "staff" ? tx.get(courseCollection(db, actor.academyId, "staff").doc(parsed.data.instructor.staffId)) : Promise.resolve(null)]);
     if (!location.exists || location.data()?.active === false) courseFailure("invalid", "Choose an active location.");
@@ -46,6 +47,7 @@ export async function publishCourse(db: Firestore, actor: CourseActor, courseId:
   assertCourseOffice(actor); await requireCourseSales(db, actor.academyId);
   const payload = {courseId, expectedRevision};
   return db.runTransaction(async tx => {
+    await assertCourseActorLive(db, tx, actor);
     const ref = courseCollection(db, actor.academyId, "courses").doc(courseId);
     const [snapshot, receipt] = await Promise.all([tx.get(ref), tx.get(courseOperation(db, actor, "publish", requestId))]);
     const replay = operationResult<Course>(receipt, payload); if (replay) return replay;
@@ -112,10 +114,11 @@ export async function reviseCourseSession(db: Firestore, actor: CourseActor, cou
   if (!reason.trim() || reason.length > 500 || !Number.isFinite(Date.parse(startAt)) || Date.parse(endAt) <= Date.parse(startAt)) courseFailure("invalid", "Give a reason and a valid start and finish.");
   const payload = {courseId, sessionId, startAt, endAt, expectedRevision, reason, cancel};
   await db.runTransaction(async tx => {
+    await assertCourseActorLive(db, tx, actor);
     const courseRef = courseCollection(db, actor.academyId, "courses").doc(courseId);
     const sessionRef = courseCollection(db, actor.academyId, "sessions").doc(sessionId);
     const [cs, ss, receipt, futures] = await Promise.all([tx.get(courseRef), tx.get(sessionRef), tx.get(courseOperation(db, actor, "session", requestId)),
-      tx.get(courseCollection(db, actor.academyId, "sessions").where("courseId", "==", courseId).where("startAt", ">", new Date().toISOString()).orderBy("startAt").limit(2))]);
+      tx.get(courseCollection(db, actor.academyId, "sessions").where("courseId", "==", courseId).where("status", "==", "scheduled").where("startAt", ">", new Date().toISOString()).orderBy("startAt").limit(2))]);
     if (operationResult<boolean>(receipt, payload)) return;
     const course = courseData<Course>(cs); const session = courseData<Record<string, unknown>>(ss);
     assertCourseRevision(course.revision, expectedRevision);

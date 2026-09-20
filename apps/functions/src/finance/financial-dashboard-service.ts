@@ -4,6 +4,7 @@ import {
 } from "@bpt-jersey/domain/finance/dashboard";
 import {
   parseInvoiceRecord,
+  sameInvoicePayer,
   parseManualPaymentRecord,
   type InvoiceRecord,
   type ManualPaymentRecord,
@@ -154,7 +155,7 @@ function validateRelationships(
 
   for (const payment of payments) {
     const invoice = invoiceById.get(payment.invoiceId);
-    if (invoice === undefined || invoice.familyId !== payment.familyId) {
+    if (invoice === undefined || !sameInvoicePayer(invoice, payment)) {
       throw new FinancialDashboardStoreError("tenant", "Payment relationship mismatch");
     }
     const total = (totalsByInvoice.get(payment.invoiceId) ?? 0) + payment.amountMinor;

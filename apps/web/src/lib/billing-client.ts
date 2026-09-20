@@ -1,6 +1,7 @@
 import {
   manualPaymentMethods,
   parseInvoiceRecord,
+  sameInvoicePayer,
   parseManualPaymentRecord,
   type ChargeKind,
   type InvoiceRecord,
@@ -128,7 +129,7 @@ function parseInvoiceView(value: unknown, message = safeReadError): InvoiceView 
   if (
     payments.some(
       (payment) =>
-        payment.invoiceId !== invoice.invoiceId || payment.familyId !== invoice.familyId,
+        payment.invoiceId !== invoice.invoiceId || !sameInvoicePayer(invoice, payment),
     )
   ) {
     throw new Error(message);

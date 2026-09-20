@@ -1264,7 +1264,7 @@ export function createFirestoreScheduleStore(options: {
         .where("startAt", "<=", query.to)
         .get();
 
-      const published = await filterPublishedCourseSessions(firestore, academyId, snapshot.docs.map(doc => doc.data() as SessionRecord));
+      const published = await filterPublishedCourseSessions(firestore as unknown as Firestore, academyId, snapshot.docs.map(doc => doc.data() as SessionRecord));
       return published.filter((session) => {
           if (query.locationId && session.locationId !== query.locationId) {
             return false;
@@ -1307,7 +1307,7 @@ export function createFirestoreScheduleStore(options: {
 
       if (!doc.exists) return null;
       const record = doc.data() as SessionRecord;
-      return (await filterPublishedCourseSessions(firestore, academyId, [record]))[0] ?? null;
+      return (await filterPublishedCourseSessions(firestore as unknown as Firestore, academyId, [record]))[0] ?? null;
     },
 
     async createSession(

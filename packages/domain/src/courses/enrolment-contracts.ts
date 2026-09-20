@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { courseIdSchema, courseLabel } from "./course-contracts";
+import { courseIdSchema, courseLabel, courseRecordIdSchema } from "./course-contracts";
 export const participantRefSchema = z.discriminatedUnion("kind", [
-  z.strictObject({kind: z.literal("student"), studentId: courseLabel(128)}),
+  z.strictObject({kind: z.literal("student"), studentId: courseRecordIdSchema}),
   z.strictObject({kind: z.literal("candidate"), candidateId: courseIdSchema}),
 ]);
 export type ParticipantRef = z.infer<typeof participantRefSchema>;
@@ -23,13 +23,16 @@ export type CourseEnrolment = {
 };
 export type CourseCandidate = {
   candidateId: string; academyId: string; applicantUid: string; kind: "adult" | "minor";
-  fullName: string; dateOfBirth: string; contactEmail: string; contactPhone: string;
+  fullName: string; dateOfBirth: string; contactEmail: string; contactPhone: string; applicantName: string;
+  trainingCenter: "Town" | "West"; trainingTimePreferences: ("morning" | "afternoon" | "evening")[]; frozen: boolean;
   revision: number; canonicalStudentId: string | null;
 };
 export const courseCandidateInputSchema = z.strictObject({
   candidateId: courseIdSchema, kind: z.enum(["adult", "minor"]), fullName: courseLabel(160),
-  dateOfBirth: z.iso.date(), contactEmail: z.string().trim().max(254),
-  contactPhone: z.string().trim().max(80), revision: z.number().int().nonnegative(),
+  dateOfBirth: z.iso.date(), contactEmail: z.email().max(254),
+  contactPhone: courseLabel(64), applicantName: courseLabel(160),
+  trainingCenter: z.enum(["Town", "West"]),
+  trainingTimePreferences: z.array(z.enum(["morning", "afternoon", "evening"])).min(1).max(3), revision: z.number().int().nonnegative(),
   guardianDeclaration: z.boolean(),
 });
 export type ParticipantScope = {participant: ParticipantRef; participantKey: string; fullName: string; dateOfBirth: string; studentId: string | null};
@@ -57,3 +60,5 @@ export type CourseRefund = {refundId: string; academyId: string; enrolmentId: st
   amountMinor: number; currency: "GBP"; reason: string; status: "pending" | "recorded" | "cancelled";
   reference: string | null; occurredAt: string | null; createdBy: string; updatedBy: string; revision: number};
 export type CourseAccess = {courseId: string; enrolmentId: string; studentId: string; accessFrom: string; revision: number};
+
+export type PaymentSubmission = CourseMutation & {proofId: string; reference: string};
