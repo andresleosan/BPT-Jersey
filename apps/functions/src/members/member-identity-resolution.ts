@@ -25,7 +25,7 @@ export async function resolveCanonicalStudentIdInTransaction(
 
 /** Canonical identity plus the bounded set of approved historical IDs; permissions stay per subject. */
 export async function canonicalMemberIdentityIds(
-  tx: CanonicalDirectoryReadTransaction, academyId: string, studentId: string,
+  tx: Pick<CanonicalDirectoryReadTransaction, "get" | "listCollection">, academyId: string, studentId: string,
 ): Promise<readonly string[]> {
   const canonicalId = await resolveCanonicalStudentIdInTransaction(tx, academyId, studentId);
   if (!tx.listCollection) throw new HttpsError("failed-precondition", "Member identity queries are unavailable");

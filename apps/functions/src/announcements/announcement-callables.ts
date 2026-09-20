@@ -1,3 +1,5 @@
+import { createFirestoreMemberAccessService } from "../members/member-access-service.js";
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
@@ -284,12 +286,10 @@ export function createSendMinorNoticeHandler({
         .where("studentId", "==", minorStudentId)
         .get();
 
-      return selectActiveGuardianIds({
-        academyId,
-        minorStudentId,
-        student: studentSnapshot.data(),
-        relationships: relationshipSnapshot.docs.map((doc) => doc.data()),
-      });
+      const candidates = selectActiveGuardianIds({ academyId, minorStudentId, student: studentSnapshot.data(), relationships: relationshipSnapshot.docs.map((doc) => doc.data()) });
+      const access = createFirestoreMemberAccessService({ firestore });
+      const current = await Promise.all(candidates.map(async (id) => ({ id, decision: await access.authorise(academyId, id, minorStudentId) })));
+      return current.filter((item) => item.decision.allowed && item.decision.via === "guardian").map((item) => item.id);
     };
 
     const resolver = resolveGuardians ?? defaultResolver;
@@ -333,9 +333,7 @@ export function createListGuardianNoticesHandler({ store }: { store: Announcemen
 
     const isStaff = staffRoles.includes(actor.role as (typeof staffRoles)[number]);
 
-    if (actor.role === "adultStudent") {
-      return { notices: [] };
-    }
+    if (!isStaff) await requireMemberAccountActor(request);
 
     const rawData = request.data === null || request.data === undefined ? {} : request.data;
     if (typeof rawData !== "object" || Array.isArray(rawData)) {
@@ -353,7 +351,7 @@ export function createListGuardianNoticesHandler({ store }: { store: Announcemen
     let targetGuardianId = actor.userId;
     if (isStaff && typeof requestedGuardianId === "string") {
       targetGuardianId = requestedGuardianId.trim() as typeof actor.userId;
-    } else if (actor.role === "guardian") {
+    } else if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
       if (typeof requestedGuardianId === "string" && requestedGuardianId.trim() !== actor.userId) {
         throw new HttpsError("permission-denied", "A guardian can only view their own notices");
       }
@@ -364,6 +362,7 @@ export function createListGuardianNoticesHandler({ store }: { store: Announcemen
     const notices = await store.listNoticesForGuardian({
       academyId: actor.academyId,
       guardianId: targetGuardianId,
+      staffReader: isStaff,
     });
 
     return {
@@ -378,12 +377,7 @@ export function createMarkNoticeAsReadHandler({ store }: { store: AnnouncementSt
   ): Promise<{ notice: SafeguardingNoticeRecord }> => {
     const actor = requireUserActor(request);
 
-    if (actor.role !== "guardian") {
-      throw new HttpsError(
-        "permission-denied",
-        "Only the guardian recipient can mark a notice as read",
-      );
-    }
+    await requireMemberAccountActor(request);
 
     const rawData = request.data === null || request.data === undefined ? {} : request.data;
     if (typeof rawData !== "object" || Array.isArray(rawData)) {

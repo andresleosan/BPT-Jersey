@@ -12,6 +12,7 @@ import {
   type StaffFamilyProjection,
 } from "@bpt-jersey/domain/families";
 
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { matchesProvisionedMemberDirectoryActor } from "../members/member-directory-actor-authorization.js";
 import {
@@ -29,7 +30,7 @@ const integritySecretVersion = "integrity-v1";
 type FamilyActorStatusInput = Readonly<{
   uid: string;
   academyId: string;
-  role: "owner" | "administrator" | "guardian";
+  role: "owner" | "administrator" | "guardian" | "adultStudent" | "teenStudent";
 }>;
 
 type FamilyAdministrativeActor = Readonly<{
@@ -169,11 +170,12 @@ export function createFamilyActorActivityCheck(
         authUser.disabled ||
         !isPlainRecord(claims) ||
         claims.academyId !== academyId ||
-        claims.role !== role
+        (claims.role !== role && !( ["guardian", "adultStudent", "teenStudent"].includes(role) &&
+          ["guardian", "adultStudent", "teenStudent"].includes(String(claims.role))))
       ) {
         return false;
       }
-      if (role === "guardian") return true;
+      if (["guardian", "adultStudent", "teenStudent"].includes(role)) return true;
 
       const [adminDocument, roleLock] = await Promise.all([
         dependencies.getDocument(`academies/${academyId}/users/${uid}`),
@@ -275,13 +277,14 @@ export async function getFamilyHandler(
   }
   const actor = requireUserActor(request);
   try {
-    if (actor.role === "guardian") {
+    if (actor.role === "guardian" || actor.role === "adultStudent" || actor.role === "teenStudent") {
+      await requireMemberAccountActor(request);
       if (request.data !== null) invalidPayload();
       if (
         !(await services.isActorActive({
           uid: actor.userId,
           academyId: actor.academyId,
-          role: "guardian",
+          role: actor.role,
         }))
       ) {
         throw new HttpsError("permission-denied", "Family access is not permitted");

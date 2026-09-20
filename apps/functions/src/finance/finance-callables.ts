@@ -1,3 +1,5 @@
+import { listPayerFamilyIds } from "./payer-scope-service.js";
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
@@ -33,6 +35,7 @@ export type FinanceStudentScope = Readonly<{
 
 export type FinanceCallableServices = Readonly<{
   store: FinanceStore;
+  payerFamilyIds: (academyId: string, actorId: string) => Promise<readonly string[]>;
   familyStore: FinanceFamilyStore;
   findStudentByUserId: (
     academyId: string,
@@ -234,25 +237,11 @@ async function readerScope(
   if (actor.role === "owner" || actor.role === "administrator") {
     return Object.freeze({ academyId: actor.academyId });
   }
-  if (actor.role === "guardian") {
-    const projection = await services.familyStore.getGuardianFamily(actor.academyId, actor.userId);
-    if (
-      projection === undefined ||
-      !projection.family.active ||
-      projection.family.status !== "active"
-    ) {
-      permissionDenied();
-    }
-    return Object.freeze({ academyId: actor.academyId, familyIds: [projection.family.familyId] });
-  }
-  if (actor.role === "adultStudent") {
-    const student = await services.findStudentByUserId(actor.academyId, actor.userId);
-    if (student === undefined || !student.active || student.status !== "active") permissionDenied();
-    return Object.freeze({
-      academyId: actor.academyId,
-      familyIds: [student.familyId],
-      studentIds: [student.studentId],
-    });
+  if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
+    await requireMemberAccountActor(request);
+    // A relationship grants child profile access, never the previous payer's account.
+    const familyIds = await services.payerFamilyIds(actor.academyId, actor.userId);
+    return Object.freeze({ academyId: actor.academyId, familyIds });
   }
   permissionDenied();
 }
@@ -453,6 +442,7 @@ function financeCallableServices(): FinanceCallableServices {
       },
       firestore: firestore as unknown as Parameters<typeof createFamilyStore>[0]["firestore"],
     }),
+    payerFamilyIds: (academyId, actorId) => listPayerFamilyIds(academyId, actorId, firestore),
     findStudentByUserId,
     isActorActive: async (actor) => !(await getAuth().getUser(actor.userId)).disabled,
   };

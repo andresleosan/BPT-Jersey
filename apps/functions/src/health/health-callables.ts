@@ -1,3 +1,4 @@
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
@@ -22,7 +23,7 @@ export type HealthCallableServices = Readonly<{
   pilotEnabled?: boolean;
   now?: () => string;
 }>;
-const roles = ["owner", "administrator", "headCoach", "coach", "guardian"] as const;
+const roles = ["owner", "administrator", "headCoach", "coach", "guardian", "adultStudent", "teenStudent"] as const;
 const staffRoles = ["owner", "administrator", "headCoach", "coach"] as const;
 
 function pilot(services: HealthCallableServices): void {
@@ -114,6 +115,7 @@ async function requireHealthActor(
     return services.authorizeOffice(request);
   }
   pilot(services);
+  if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) return requireMemberAccountActor(request);
   return actor;
 }
 

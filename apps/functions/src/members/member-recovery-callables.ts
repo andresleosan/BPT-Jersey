@@ -1,3 +1,5 @@
+import { requireMemberAccountActor } from "./member-access-callables.js";
+import { memberHistoryInputSchema } from "@bpt-jersey/domain/members/history";
 import { getApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
@@ -110,12 +112,11 @@ export async function reviewMemberRecoveryHandler(
   const result = await handled(() => s.service.review(request.data, actor));
   return { status: result.status };
 }
-export const getMemberRecoveryHistory = onCall(options, (request) => {
-  appCheck(request);
-  if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in to view your history.");
-  if (request.data !== null && request.data !== undefined)
-    throw new HttpsError("invalid-argument", "No member identifier is accepted.");
-  return handled(() => services().service.history(request.auth!.uid));
+export const getMemberRecoveryHistory = onCall(options, async (request) => {
+  const actor = await requireMemberAccountActor(request);
+  const input = request.data === null || request.data === undefined ? undefined : memberHistoryInputSchema.safeParse(request.data);
+  if (input && !input.success) throw new HttpsError("invalid-argument", "Select a member to view their history");
+  return handled(() => services().service.history(actor.userId, input?.data?.studentId, input?.data?.cursor));
 });
 export const beginMemberRecovery = onCall(options, (request) =>
   beginMemberRecoveryHandler(request, services()),

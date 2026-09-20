@@ -315,6 +315,7 @@ function WaiverContent() {
                   <a
                     className="waiver-evidence-link"
                     href={evidenceUrl}
+                    download={evidenceUrl.startsWith("data:application/pdf;base64,") ? "BPT-waiver-evidence.pdf" : undefined}
                     rel="noreferrer noopener"
                     target="_blank"
                   >
@@ -357,6 +358,7 @@ function WaiverContent() {
                       <a
                         className="waiver-evidence-link"
                         href={evidenceUrl}
+                    download={evidenceUrl.startsWith("data:application/pdf;base64,") ? "BPT-waiver-evidence.pdf" : undefined}
                         rel="noreferrer noopener"
                         target="_blank"
                       >

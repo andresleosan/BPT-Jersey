@@ -1,3 +1,4 @@
+import { readAccountMemberHistory } from "./account-member-history-service.js";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
@@ -8,7 +9,6 @@ import {
   reviewMemberRecoveryInputSchema,
   getMemberRecoveryDetailInputSchema,
   memberRecoveryProfileSchema,
-  memberRecoveryHistorySchema,
   type MemberRecoveryProfile,
   type CompleteMemberRecoveryResult,
   type MemberRecoveryDetail,
@@ -1012,79 +1012,12 @@ export function createMemberRecoveryService(d: MemberRecoveryDependencies) {
       return { recoveryId, expiresAt };
     },
     complete,
-    async history(uid: string) {
+    async history(uid: string, studentId?: string, cursor?: string) {
       const user = await account(uid);
-      if (!user.emailVerified || user.customClaims?.role !== "adultStudent")
+      if (!user.emailVerified || !["guardian", "adultStudent", "teenStudent"].includes(String(user.customClaims?.role))) {
         throw new HttpsError("permission-denied", "Member access is required.");
-      return d.firestore.runTransaction(async (t) => {
-        const spend = await quota(t, "history:" + uid, 30, now());
-        const profile = parseUserProfile((await t.get(ref("users", uid))).data());
-        if (
-          !profile.ok ||
-          profile.value.academyId !== academyId ||
-          profile.value.userId !== uid ||
-          !profile.value.active ||
-          profile.value.status !== "active"
-        )
-          conflict();
-        const owned = await t.get(
-          d.firestore
-            .collection(root + "students")
-            .where("userId", "==", uid)
-            .limit(2),
-        );
-        if (owned.docs.length !== 1) conflict();
-        const student = parseStudentProfileAt(owned.docs[0]!.data(), now().slice(0, 10));
-        if (
-          !student.ok ||
-          student.value.academyId !== academyId ||
-          student.value.studentId !== owned.docs[0]!.id ||
-          !student.value.active ||
-          student.value.status !== "active"
-        )
-          conflict();
-        const snapshots = await Promise.all(
-          ["regyfitMemberLinks", "regyfitOfficeLinks"].map((collection) =>
-            t.get(
-              d.firestore
-                .collection(root + collection)
-                .where("studentId", "==", student.value.studentId)
-                .limit(21),
-            ),
-          ),
-        );
-        const ids = new Set<string>();
-        for (const snapshot of snapshots)
-          for (const doc of snapshot.docs) {
-            const link = doc.data();
-            if (
-              link.academyId !== academyId ||
-              link.studentId !== student.value.studentId ||
-              link.recordId !== doc.id ||
-              (link.userId !== undefined && link.userId !== uid)
-            )
-              conflict();
-            ids.add(doc.id);
-          }
-        if (ids.size > 20) conflict();
-        const records = await Promise.all(
-          [...ids].map(async (recordId) => {
-            const stored = (await t.get(ref("regyfitMemberRecords", recordId))).data();
-            const parsed = parseStoredRegyfitMemberRecord(stored);
-            if (
-              !parsed.ok ||
-              parsed.value.recordId !== recordId ||
-              (stored?.academyId !== undefined && stored.academyId !== academyId)
-            )
-              conflict();
-            const { fullName, capturedAt, graduation, plan, attendance, payments } = parsed.value;
-            return { recordId, fullName, capturedAt, graduation, plan, attendance, payments };
-          }),
-        );
-        const result = memberRecoveryHistorySchema.parse({ records });
-        spend();
-        return result;
-      });
+      }
+      return readAccountMemberHistory(d.firestore, academyId, uid, studentId, cursor);
     },
     async list(actor: CanonicalMemberDirectoryActor) {
       return d.firestore.runTransaction(async (t) => {

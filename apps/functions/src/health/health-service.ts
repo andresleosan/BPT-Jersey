@@ -1,6 +1,6 @@
+import { memberAccessInStoreTransaction } from "../members/member-access-service.js";
 import { randomUUID } from "node:crypto";
 
-import { parseFamilyRelationship } from "@bpt-jersey/domain/families";
 import { parseStudentProfile, type StudentProfile } from "@bpt-jersey/domain/profiles";
 import {
   parseHealthProfile,
@@ -47,7 +47,7 @@ export type HealthFirestore = Readonly<{
   runTransaction: <T>(callback: (transaction: HealthTransaction) => Promise<T>) => Promise<T>;
 }>;
 
-export type HealthActorRole = "owner" | "administrator" | "headCoach" | "coach" | "guardian";
+export type HealthActorRole = "owner" | "administrator" | "headCoach" | "coach" | "guardian" | "adultStudent" | "teenStudent";
 export type HealthAssignmentChecker = (
   input: Readonly<{ academyId: string; actorId: string; studentId: string }>,
 ) => Promise<boolean>;
@@ -204,45 +204,9 @@ function storedRequest(
     throw new HealthStoreError("tenant", "Health request scope is not permitted");
   return parsed.value;
 }
-function activeGuardianRelationship(
-  snapshot: HealthDocumentSnapshot,
-  academyId: string,
-  studentId: string,
-  actorId: string,
-  now: string,
-): boolean {
-  if (!snapshot.exists) return false;
-  const parsed = parseFamilyRelationship(snapshot.data());
-  if (!parsed.ok) return false;
-  return (
-    parsed.value.academyId === academyId &&
-    parsed.value.studentId === studentId &&
-    parsed.value.adultUserId === actorId &&
-    parsed.value.active &&
-    parsed.value.status === "active" &&
-    parsed.value.validFrom <= now &&
-    (parsed.value.validTo === undefined || parsed.value.validTo > now)
-  );
-}
-async function assertGuardian(
-  transaction: HealthTransaction,
-  firestore: HealthFirestore,
-  academyId: string,
-  actorId: string,
-  studentId: string,
-  now: string,
-): Promise<void> {
-  const query = firestore
-    .collection(relationshipsCollection(academyId))
-    .where("studentId", "==", studentId)
-    .limit(MAX_RECORDS);
-  const relationships = asQuery(await transaction.get(query));
-  if (
-    !relationships.docs.some((snapshot) =>
-      activeGuardianRelationship(snapshot, academyId, studentId, actorId, now),
-    )
-  )
-    throw new HealthStoreError("forbidden", "Guardian relationship is not permitted");
+async function assertGuardian(transaction: HealthTransaction, firestore: HealthFirestore, academyId: string, actorId: string, studentId: string, now: string): Promise<void> {
+  const access = await memberAccessInStoreTransaction(firestore, transaction, now).authorise(academyId, actorId, studentId);
+  if (!access.allowed) throw new HealthStoreError("forbidden", "Member health access is not permitted");
 }
 async function assertStudent(
   transaction: HealthTransaction,
@@ -365,7 +329,7 @@ export function createHealthStore(dependencies: HealthStoreDependencies): Health
       const studentId = segment(input.studentId, "student");
       const timestamp = new Date().toISOString();
       return dependencies.firestore.runTransaction(async (transaction) => {
-        if (input.role === "guardian") {
+        if (input.role === "guardian" || input.role === "adultStudent" || input.role === "teenStudent") {
           await assertGuardian(
             transaction,
             dependencies.firestore,
@@ -392,7 +356,7 @@ export function createHealthStore(dependencies: HealthStoreDependencies): Health
             await pendingRequest(transaction, dependencies.firestore, academyId, studentId),
           );
         }
-        if (input.role === "guardian") return toHealthProfileProjection(profile, "guardian");
+        if (input.role === "guardian" || input.role === "adultStudent" || input.role === "teenStudent") return toHealthProfileProjection(profile, "guardian");
         return toHealthProfileProjection(profile, "staff");
       });
     },

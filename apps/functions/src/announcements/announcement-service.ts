@@ -1,3 +1,5 @@
+import type { Firestore } from "firebase-admin/firestore";
+import { createMemberAccessService, memberAccessDependenciesInTransaction } from "../members/member-access-service.js";
 import {
   buildAnnouncementId,
   buildNoticeId,
@@ -77,6 +79,7 @@ export type AnnouncementStore = Readonly<{
   listNoticesForGuardian: (params: {
     academyId: string;
     guardianId: string;
+    staffReader?: boolean;
   }) => Promise<readonly SafeguardingNoticeRecord[]>;
   markNoticeAsRead: (params: {
     academyId: string;
@@ -100,27 +103,7 @@ function assertValidIdentifier(value: string, field: string): void {
   }
 }
 
-export type GenericFirestore = {
-  doc: (path: string) => {
-    get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>;
-    set: (data: Record<string, unknown>, options?: unknown) => Promise<unknown>;
-    delete: () => Promise<unknown>;
-  };
-  collection: (path: string) => {
-    get: () => Promise<{
-      docs: readonly {
-        id: string;
-        data: () => Record<string, unknown>;
-        ref: { delete: () => Promise<unknown> };
-      }[];
-    }>;
-  };
-  batch: () => {
-    set: (ref: unknown, data: unknown, options?: unknown) => void;
-    delete: (ref: unknown) => void;
-    commit: () => Promise<unknown>;
-  };
-};
+export type GenericFirestore = Firestore;
 
 export function createFirestoreAnnouncementStore({
   firestore,
@@ -365,43 +348,32 @@ export function createFirestoreAnnouncementStore({
         createdBy: authorId,
       });
 
-      const batch = firestore.batch();
-      batch.set(
-        firestore.doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`),
-        record,
-      );
-
-      const auditEventId = `evt_not_${noticeId}`;
-      batch.set(firestore.doc(`academies/${academyId}/auditEvents/${auditEventId}`), {
-        eventId: auditEventId,
-        academyId,
-        action: "minor_notice_safeguarded",
-        actorId: authorId,
-        timestamp: now,
-        details: {
-          noticeId,
-          minorStudentId: input.minorStudentId,
-          guardianId,
-          category: input.category,
-        },
+      await firestore.runTransaction(async (tx) => {
+        const access = await createMemberAccessService(memberAccessDependenciesInTransaction(firestore, tx)).authorise(academyId, guardianId, input.minorStudentId);
+        if (!access.allowed || access.via !== "guardian") throw new AnnouncementStoreError("conflict", "The guardian changed before delivery");
+        tx.create(firestore.doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`), record);
+        tx.create(firestore.doc(`academies/${academyId}/auditEvents/evt_not_${noticeId}`), {
+          eventId: `evt_not_${noticeId}`, academyId, action: "minor_notice_safeguarded", actorId: authorId, timestamp: now,
+          details: { noticeId, minorStudentId: input.minorStudentId, guardianId, category: record.category },
+        });
       });
-
-      await batch.commit();
       return record;
     },
 
     async listNoticesForGuardian(params) {
       const { academyId, guardianId } = params;
-      assertValidAcademyId(academyId);
-      assertValidIdentifier(guardianId, "guardianId");
-
-      const snap = await firestore
-        .collection(`academies/${academyId}/guardians/${guardianId}/notices`)
-        .get();
-
-      return snap.docs
-        .map((d) => d.data() as unknown as SafeguardingNoticeRecord)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      assertValidAcademyId(academyId); assertValidIdentifier(guardianId, "guardianId");
+      return firestore.runTransaction(async (tx) => {
+        const profiles = params.staffReader ? null : await createMemberAccessService(memberAccessDependenciesInTransaction(firestore, tx)).listProfiles(academyId, guardianId);
+        const allowed = profiles ? new Set(profiles.filter((profile) => profile.via === "guardian").map((profile) => profile.studentId)) : null;
+        const snap = await tx.get(firestore.collection(`academies/${academyId}/guardians/${guardianId}/notices`).limit(101));
+        if (snap.size > 100) throw new AnnouncementStoreError("conflict", "Notice history needs a bounded review");
+        return snap.docs.map((doc) => {
+          const record = doc.data() as SafeguardingNoticeRecord;
+          if (record.academyId !== academyId || record.guardianId !== guardianId || record.noticeId !== doc.id || !safeIdentifierPattern.test(record.minorStudentId)) throw new AnnouncementStoreError("tenant", "Notice ownership is invalid");
+          return record;
+        }).filter((record) => allowed === null || allowed.has(record.minorStudentId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      });
     },
 
     async markNoticeAsRead(params) {
@@ -410,29 +382,18 @@ export function createFirestoreAnnouncementStore({
       assertValidIdentifier(noticeId, "noticeId");
       assertValidIdentifier(guardianId, "guardianId");
 
-      const snap = await firestore
-        .doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`)
-        .get();
-
-      if (!snap.exists) {
-        throw new AnnouncementStoreError("not-found", `Notice not found: ${noticeId}`);
-      }
-
-      const existing = snap.data() as unknown as SafeguardingNoticeRecord;
-      if (existing.readAt) {
-        return existing;
-      }
-
-      const updatedRecord: SafeguardingNoticeRecord = Object.freeze({
-        ...existing,
-        readAt: now,
+      return firestore.runTransaction(async (tx) => {
+        const reference = firestore.doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`);
+        const snap = await tx.get(reference);
+        if (!snap.exists) throw new AnnouncementStoreError("not-found", "Notice is unavailable");
+        const existing = snap.data() as SafeguardingNoticeRecord;
+        if (existing.academyId !== academyId || existing.guardianId !== guardianId || existing.noticeId !== noticeId || !safeIdentifierPattern.test(existing.minorStudentId)) throw new AnnouncementStoreError("tenant", "Notice ownership is invalid");
+        const access = await createMemberAccessService(memberAccessDependenciesInTransaction(firestore, tx)).authorise(academyId, guardianId, existing.minorStudentId);
+        if (!access.allowed || access.via !== "guardian") throw new AnnouncementStoreError("not-found", "Notice is unavailable");
+        const updated = { ...existing, readAt: existing.readAt ?? now };
+        tx.set(reference, updated);
+        return updated;
       });
-
-      await firestore
-        .doc(`academies/${academyId}/guardians/${guardianId}/notices/${noticeId}`)
-        .set(updatedRecord);
-
-      return updatedRecord;
     },
   };
 }

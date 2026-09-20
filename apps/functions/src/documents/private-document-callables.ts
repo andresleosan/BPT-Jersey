@@ -1,3 +1,4 @@
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
@@ -151,8 +152,9 @@ export async function getPrivateWaiverDownloadHandler(
 ) {
   pilot(services);
   const actor = requireUserActor(request);
-  if (actor.role !== "owner" && actor.role !== "administrator" && actor.role !== "guardian")
+  if (actor.role !== "owner" && actor.role !== "administrator" && actor.role !== "guardian" && actor.role !== "adultStudent" && actor.role !== "teenStudent")
     throw new HttpsError("permission-denied", "Private document access is not permitted");
+  if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) await requireMemberAccountActor(request);
   const studentId = parseStudent(request.data);
   try {
     return await services.store.getWaiverDownload({

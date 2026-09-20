@@ -1,3 +1,4 @@
+import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 
@@ -80,8 +81,9 @@ async function requireOfferResponseScope(
   resolver: CanonicalClientStudentScopeResolver = defaultClientStudentScopeResolver,
 ): Promise<void> {
   const actor = requireUserActor(request);
+  await requireMemberAccountActor(request);
   if (
-    (actor.role === "guardian" || actor.role === "adultStudent") &&
+    (actor.role === "guardian" || actor.role === "adultStudent" || actor.role === "teenStudent") &&
     (await resolver({
       academyId: actor.academyId,
       actorUserId: actor.userId,
@@ -108,8 +110,9 @@ async function requireWaitlistStudentScope(
 ): Promise<void> {
   const actor = requireUserActor(request);
   if (offerIssuerRoles.has(actor.role)) return;
+  await requireMemberAccountActor(request);
   if (
-    (actor.role === "guardian" || actor.role === "adultStudent") &&
+    (actor.role === "guardian" || actor.role === "adultStudent" || actor.role === "teenStudent") &&
     (await resolver({
       academyId: actor.academyId,
       actorUserId: actor.userId,
@@ -170,6 +173,7 @@ export function createJoinWaitlistHandler(options: ScopeOptions) {
         academyId: actor.academyId,
         request: parsed.value,
         actorId: actor.userId,
+        memberActor: ["guardian", "adultStudent", "teenStudent"].includes(actor.role),
       });
       return { entry: studentItem(entry) };
     } catch (error) {
@@ -193,6 +197,7 @@ export function createCancelWaitlistHandler(options: ScopeOptions) {
         sessionId,
         studentId,
         actorId: actor.userId,
+        memberActor: ["guardian", "adultStudent", "teenStudent"].includes(actor.role),
       });
       return { entry: studentItem(entry) };
     } catch (error) {
@@ -257,6 +262,7 @@ function createRespondToWaitlistOfferHandler(
         studentId: parsed.value.studentId,
         response,
         actorId: actor.userId,
+        memberActor: ["guardian", "adultStudent", "teenStudent"].includes(actor.role),
         auditActor: { ip: clientIpFromRequest(request), role: actor.role },
       });
       return { entry: studentItem(entry) };

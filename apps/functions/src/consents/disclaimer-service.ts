@@ -16,7 +16,9 @@ import {
   type OutstandingDisclaimer,
   type ParticipantType,
 } from "@bpt-jersey/domain/consents/disclaimers";
-import { parseFamilyRelationship } from "@bpt-jersey/domain/families";
+import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
+import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
+import { createMemberAccessService } from "../members/member-access-service.js";
 
 import { appendAuditEventInTransaction } from "../audit/audit-writer.js";
 
@@ -75,7 +77,7 @@ export type DisclaimerFirestore = Readonly<{
   runTransaction: <T>(update: (transaction: DisclaimerTransaction) => Promise<T>) => Promise<T>;
 }>;
 
-export type DisclaimerClientRole = "guardian" | "adultStudent";
+export type DisclaimerClientRole = "guardian" | "adultStudent" | "teenStudent";
 
 export type DisclaimerAdoption = Readonly<{
   disclaimer: Disclaimer;
@@ -131,7 +133,6 @@ const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
 const maxDisclaimers = 200;
 const maxAcceptancesPerStudent = 500;
 const maxAcceptancesPerDisclaimer = 5_000;
-const maxRelationships = 100;
 
 function fail(code: DisclaimerErrorCode, message: string): never {
   throw new DisclaimerError(code, message);
@@ -234,55 +235,33 @@ export function createDisclaimerService(options: {
       .map((parsed) => (parsed as { value: DisclaimerAcceptance }).value);
   }
 
-  /**
-   * The participant this actor may act for. Identical in spirit to the waiver of T090: an adult acts
-   * only for themselves, a guardian only for a minor they hold a live relationship with.
-   */
   async function assertAuthority(
-    academyId: string,
-    actorId: string,
-    role: DisclaimerClientRole,
-    studentId: string,
-    now: string,
+    academyId: string, actorId: string, _role: DisclaimerClientRole,
+    studentId: string, now: string, transaction?: DisclaimerTransaction,
   ): Promise<ParticipantType> {
-    const snapshot = await options.firestore.doc(path(academyId, "students", studentId)).get();
-    const student = snapshot.exists ? snapshot.data() : undefined;
-    if (student === undefined) fail("not-found", "Participant is unavailable");
-    if (student.academyId !== academyId || student.studentId !== studentId) {
-      fail("tenant", "Participant tenant binding is invalid");
-    }
-    const participantType = student.participantType;
-    if (participantType !== "adult" && participantType !== "minor") {
-      fail("invalid", "Participant type is unknown");
-    }
-
-    if (role === "adultStudent") {
-      if (participantType !== "adult" || student.userId !== actorId) {
-        fail("denied", "Disclaimer scope is not permitted");
-      }
-      return "adult";
-    }
-    if (participantType !== "minor") fail("denied", "Disclaimer scope is not permitted");
-    const relationships = await options.firestore
-      .collection(`academies/${academyId}/relationships`)
-      .where("studentId", "==", studentId)
-      .limit(maxRelationships)
-      .get();
-    const permitted = relationships.docs.some((document) => {
-      const parsed = parseFamilyRelationship(document.data());
-      return (
-        parsed.ok &&
-        parsed.value.academyId === academyId &&
-        parsed.value.studentId === studentId &&
-        parsed.value.adultUserId === actorId &&
-        parsed.value.active &&
-        parsed.value.status === "active" &&
-        parsed.value.validFrom <= now &&
-        (parsed.value.validTo === undefined || parsed.value.validTo > now)
-      );
+    if (!transaction) return options.firestore.runTransaction((tx) =>
+      assertAuthority(academyId, actorId, _role, studentId, now, tx));
+    const access = createMemberAccessService({ now: () => now,
+      getDocument: async (path) => {
+        const doc = await transaction.get(options.firestore.doc(path));
+        return { id: doc.id, exists: doc.exists, data: doc.data() };
+      },
+      queryDocuments: async (path, field, value, limit) => {
+        const result = await transaction.get(options.firestore.collection(path).where(field, "==", value).limit(limit));
+        return result.docs.map((doc) => ({ id: doc.id, exists: doc.exists, data: doc.data() }));
+      },
     });
-    if (!permitted) fail("denied", "Disclaimer scope is not permitted");
-    return "minor";
+    const decision = await access.authorise(academyId, actorId, studentId);
+    if (!decision.allowed) fail("denied", "Disclaimer scope is not permitted");
+    const snapshot = await transaction.get(options.firestore.doc(path(academyId, "students", studentId)));
+    const student = parseEffectiveStudentProfileAt(snapshot.data(), dateKeyInJersey(new Date(now)));
+    if (!student.ok || student.value.studentId !== studentId || student.value.academyId !== academyId) {
+      fail("denied", "Participant is unavailable");
+    }
+    if (decision.via === "self" && student.value.participantType !== "adult") {
+      fail("denied", "An adult or current guardian must accept this disclaimer");
+    }
+    return student.value.participantType;
   }
 
   return {
@@ -325,6 +304,11 @@ export function createDisclaimerService(options: {
         path(academyId, "auditEvents", `disclaimer-published-${identifier}`),
       );
       await options.firestore.runTransaction(async (transaction) => {
+        const currentType = await assertAuthority(academyId, actorId, request.role, studentId, currentTime(), transaction);
+        const currentDisclaimerSnapshot = await transaction.get(options.firestore.doc(path(academyId, "disclaimers", identifier)));
+        const currentDisclaimer = storedDisclaimer(currentDisclaimerSnapshot.data(), academyId);
+        if (currentDisclaimer.status !== "published" || currentDisclaimer.contentHash !== request.input.contentHash ||
+            !appliesToParticipant(currentDisclaimer, currentType)) fail("stale", "The disclaimer changed and must be read again");
         const [current, auditSnapshot] = await Promise.all([
           transaction.get(disclaimerRef),
           transaction.get(auditRef),
@@ -429,6 +413,7 @@ export function createDisclaimerService(options: {
         readDisclaimers(academyId),
         readAcceptances(academyId, "studentId", studentId, maxAcceptancesPerStudent),
       ]);
+      await assertAuthority(academyId, actorId, request.role, studentId, currentTime());
       return deriveOutstandingDisclaimers({
         disclaimers,
         acceptances,
@@ -557,6 +542,12 @@ export function createDisclaimerService(options: {
         ),
       );
       await options.firestore.runTransaction(async (transaction) => {
+        const currentSnapshot = await transaction.get(acceptanceRef);
+        const current = parseDisclaimerAcceptance(currentSnapshot.data());
+        if (!current.ok || current.value.academyId !== academyId || current.value.acceptanceId !== acceptanceIdValue ||
+            current.value.status !== "accepted" || current.value.acceptedAt !== existing.value.acceptedAt ||
+            current.value.acceptedBy !== existing.value.acceptedBy) fail("stale", "The acceptance changed; refresh before continuing");
+        await assertAuthority(academyId, actorId, request.role, current.value.studentId, currentTime(), transaction);
         transaction.set(acceptanceRef, next as unknown as DisclaimerDocumentData);
         appendAuditEventInTransaction(
           transaction as never,
