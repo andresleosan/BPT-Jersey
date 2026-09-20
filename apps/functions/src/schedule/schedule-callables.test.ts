@@ -1727,7 +1727,7 @@ describe("session update, class removal and booked counts callables", () => {
     ).rejects.toMatchObject({ code: "unauthenticated" });
   });
 
-  it("rejects updateSession on a cancelled session with failed-precondition", async () => {
+  it("keeps historical session editing restricted for legacy head coaches", async () => {
     const store = createInMemoryScheduleStore();
     const session = await store.createSession(
       "demo-academy",
@@ -1745,7 +1745,7 @@ describe("session update, class removal and booked counts callables", () => {
     await store.cancelSession("demo-academy", session.sessionId, "Test cancellation", "owner-1");
     const handler = createUpdateSessionHandler({ store });
     await expect(
-      handler(fakeRequest({ sessionId: session.sessionId, title: "New Title" }, "owner")),
+      handler(fakeRequest({ sessionId: session.sessionId, title: "New Title" }, "headCoach")),
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
 
@@ -2011,4 +2011,111 @@ describe("weekly repetition callable boundaries", () => {
       ),
     ).rejects.toMatchObject({ code: "failed-precondition" });
   });
+});
+
+describe("unrestricted office session management", () => {
+  it("keeps office fields protected from legacy head coaches", async () => {
+    const store = createInMemoryScheduleStore();
+    const handler = createUpdateSessionHandler({ store });
+    for (const field of ["locationId", "programId"]) {
+      await expect(
+        handler(fakeRequest({ sessionId: "session", [field]: "new-value" }, "headCoach")),
+      ).rejects.toMatchObject({ code: "permission-denied" });
+    }
+  });
+  it.each(["active", "completed"] as const)(
+    "allows office correction of a %s session without changing status or academy",
+    async (status) => {
+      const store = createInMemoryScheduleStore();
+      const record = await store.createSession(
+        "demo-academy",
+        {
+          programId: "gi",
+          locationId: "town",
+          instructorId: "coach",
+          title: "Synthetic class",
+          startAt: "2020-01-01T10:00:00.000Z",
+          endAt: "2020-01-01T11:00:00.000Z",
+          capacity: 20,
+        },
+        "owner",
+      );
+      await store.__seedSessionId!("demo-academy", { ...record, status }, record.sessionId);
+      const update = createUpdateSessionHandler({ store });
+      for (const role of ["owner", "administrator"]) {
+        const result = await update(
+          fakeRequest({ sessionId: record.sessionId, title: `Corrected by ${role}` }, role),
+        );
+        expect(result.session).toMatchObject({ status, updatedBy: "user-1" });
+      }
+      await expect(
+        update(
+          fakeRequest(
+            { sessionId: record.sessionId, title: "Spoofed", allowHistorical: true },
+            "headCoach",
+          ),
+        ),
+      ).rejects.toMatchObject({ code: "failed-precondition" });
+      await expect(
+        update(
+          fakeRequest(
+            { sessionId: record.sessionId, title: "Foreign" },
+            "owner",
+            "other-owner",
+            "other-academy",
+          ),
+        ),
+      ).rejects.toMatchObject({ code: "not-found" });
+    },
+  );
+  it.each(["owner", "administrator"])(
+    "allows %s repeated creation, historical editing and cancellation with history intact",
+    async (role) => {
+      const store = createInMemoryScheduleStore();
+      const create = createSaveSessionHandler({ store });
+      const update = createUpdateSessionHandler({ store });
+      const cancel = createCancelSessionHandler({ store });
+      const ids = new Set<string>();
+      for (let i = 0; i < 450; i++) {
+        const { session } = await create(
+          fakeRequest(
+            {
+              programId: "gi",
+              locationId: "town",
+              instructorId: "coach",
+              title: "Synthetic class",
+              startAt: "2020-01-01T10:00:00.000Z",
+              endAt: "2020-01-01T11:00:00.000Z",
+              capacity: 20,
+            },
+            role,
+          ),
+        );
+        ids.add(session.sessionId);
+        await cancel(
+          fakeRequest({ sessionId: session.sessionId, reason: "Removed by office" }, role),
+        );
+        const result = await update(
+          fakeRequest(
+            {
+              sessionId: session.sessionId,
+              title: "Corrected history",
+              programId: "nogi",
+              locationId: "west",
+            },
+            role,
+          ),
+        );
+        expect(result.session).toMatchObject({
+          status: "cancelled",
+          title: "Corrected history",
+          programId: "nogi",
+          locationId: "west",
+          cancellationReason: "Removed by office",
+        });
+        expect(await store.getSession("demo-academy", session.sessionId)).not.toBeNull();
+      }
+      expect(ids.size).toBe(450);
+    },
+  );
 });

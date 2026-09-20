@@ -166,6 +166,56 @@ describe("Classes & Services 2.0 page", () => {
     vi.useRealTimers();
   });
 
+  it("reuses a recently visited week and ignores an empty date", async () => {
+    render(<ClassesPage />);
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    fireEvent.change(screen.getByLabelText("Go to date"), { target: { value: "" } });
+    expect(screen.getByText("14 – 20 SEP 2026")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next week" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Loading the schedule…")).not.toBeInTheDocument(),
+    );
+    const before = mocks.listSessions.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Previous week" }));
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    expect(mocks.listSessions).toHaveBeenCalledTimes(before);
+  });
+
+  it("allows retry after a failed range load without showing the previous week's sessions", async () => {
+    render(<ClassesPage />);
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    mocks.listSessions.mockRejectedValueOnce(new Error("Unable to load the classes"));
+    fireEvent.click(screen.getByRole("button", { name: "Next week" }));
+    await screen.findByRole("alert");
+    expect(
+      screen.queryByRole("button", { name: /GI All Levels Evenings/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry schedule" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("does not reuse a window across academies and refresh bypasses the cache", async () => {
+    mocks.useAdminOrStaffSession.mockReturnValue({
+      role: "owner",
+      uid: "same-owner",
+      academyId: "first",
+    });
+    const { rerender } = render(<ClassesPage />);
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    await waitFor(() => expect(mocks.listStaffProfiles).toHaveBeenCalled());
+    const before = mocks.listSessionBookedCounts.mock.calls.length;
+    mocks.useAdminOrStaffSession.mockReturnValue({
+      role: "owner",
+      uid: "same-owner",
+      academyId: "second",
+    });
+    rerender(<ClassesPage />);
+    await waitFor(() => expect(mocks.listSessionBookedCounts).toHaveBeenCalledTimes(before + 1));
+    await screen.findByRole("button", { name: /GI All Levels Evenings/ });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh schedule" }));
+    await waitFor(() => expect(mocks.listSessionBookedCounts).toHaveBeenCalledTimes(before + 2));
+  });
+
   it("loads the week and shows counters and one card per session", async () => {
     render(<ClassesPage />);
     expect(
@@ -328,7 +378,7 @@ describe("Classes & Services 2.0 page", () => {
     render(<ClassesPage />);
     await screen.findByRole("button", { name: /Owner Drills/ });
     fireEvent.click(screen.getByRole("checkbox", { name: "Mine" }));
-    expect(screen.getByRole("button", { name: /Owner Drills/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Owner Drills/ })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /GI All Levels Evenings/ }),
     ).not.toBeInTheDocument();

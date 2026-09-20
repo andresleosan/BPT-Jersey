@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import type { SessionRecord } from "@bpt-jersey/domain/schedule";
 import { localMidnightUtc, weekRangeFor } from "@bpt-jersey/domain/schedule/classes-services";
@@ -176,9 +176,14 @@ export function ClassesPage(): ReactElement {
   const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [catalogReload, setCatalogReload] = useState(0);
+  const lastRangeKey = useRef("");
   const [filters, setFilters] = useState<ClassFilters>(emptyClassFilters);
 
   const totalRef = useRef<number | null>(null);
+  const rangeCache = useRef(
+    new Map<string, { at: number; value: Awaited<ReturnType<typeof loadRange>> }>(),
+  );
   const timezone = catalog?.locations[0]?.timezone ?? fallbackTimezone;
 
   useEffect(() => {
@@ -197,7 +202,7 @@ export function ClassesPage(): ReactElement {
     return () => {
       abandoned = true;
     };
-  }, []);
+  }, [catalogReload]);
 
   // Load staff after the first week. The public academy roster is available immediately.
   useEffect(() => {
@@ -229,7 +234,24 @@ export function ClassesPage(): ReactElement {
     setLoading(true);
     void (async () => {
       try {
-        const loaded = await loadRange(queryFor(range, weekStart, timezone, listRange), true);
+        const query = queryFor(range, weekStart, timezone, listRange);
+        const key = JSON.stringify([session.uid, session.academyId, session.role, query]);
+        if (lastRangeKey.current !== key) {
+          setSessions([]);
+          setBooked({});
+          lastRangeKey.current = key;
+        }
+        const cached = rangeCache.current.get(key);
+        const loaded =
+          cached && Date.now() - cached.at < 30000 ? cached.value : await loadRange(query, true);
+        if (!abandoned) {
+          if (rangeCache.current.size >= 8)
+            rangeCache.current.delete(rangeCache.current.keys().next().value!);
+          rangeCache.current.set(key, {
+            at: cached?.value === loaded ? cached.at : Date.now(),
+            value: loaded,
+          });
+        }
         if (abandoned) return;
         setSessions(loaded.sessions);
         setBooked(loaded.booked);
@@ -246,18 +268,20 @@ export function ClassesPage(): ReactElement {
     return () => {
       abandoned = true;
     };
-  }, [range, weekStart, timezone, listRange, reload]);
+  }, [range, weekStart, timezone, listRange, reload, session.uid, session.academyId, session.role]);
 
   useEffect(() => {
     // The year TOTAL is a nicety: it waits for the week to be on screen instead of competing with it.
-    if (catalog === null || loading || totalRef.current !== null) return undefined;
+    if (catalog === null || !scheduleLoaded || totalRef.current !== null) return undefined;
     let abandoned = false;
     void (async () => {
       try {
         const year = localParts(new Date().toISOString(), timezone).date.slice(0, 4);
         const loaded = await loadRange(yearQueryFor(year, timezone), false);
-        totalRef.current = loaded.sessions.length;
-        if (!abandoned) setTotal(loaded.sessions.length);
+        if (!abandoned) {
+          totalRef.current = loaded.sessions.length;
+          setTotal(loaded.sessions.length);
+        }
       } catch {
         // TOTAL is a nicety: its failure must never disturb the calendar the office is reading.
         if (!abandoned) setTotal(null);
@@ -266,42 +290,54 @@ export function ClassesPage(): ReactElement {
     return () => {
       abandoned = true;
     };
-  }, [catalog, loading, timezone, reload]);
+  }, [catalog, scheduleLoaded, timezone, reload]);
 
   const trainers = trainerOptions(staff);
   const canCreate = canEdit && trainers.some((row) => row.active && row.status === "active");
   const locations = catalog?.locations ?? [];
-  const programs = catalog?.programs ?? [];
+  const programs = useMemo(() => catalog?.programs ?? [], [catalog]);
   const today = localParts(new Date().toISOString(), timezone).date;
   // Sessions name their trainers by staffKey, never by auth uid, so "Mine" matches on the keys the
   // server flagged as the actor's own.
-  const mineKeys = staff.filter((row) => row.self).map((row) => row.staffKey);
+  const mineKeys = useMemo(
+    () => staff.filter((row) => row.self).map((row) => row.staffKey),
+    [staff],
+  );
 
-  const grid: readonly GridSession[] = sessions.map((row) => ({
-    sessionId: row.sessionId,
-    title: row.title,
-    startAt: row.startAt,
-    endAt: row.endAt,
-    colour:
-      programs.find((program) => program.programId === row.programId)?.colour ?? fallbackColour,
-    booked: booked[row.sessionId] ?? 0,
-    capacity: row.capacity,
-    status: row.status,
-    locationId: row.locationId,
-    programId: row.programId,
-    instructorIds: row.instructorIds ?? [row.instructorId],
-  }));
+  const grid: readonly GridSession[] = useMemo(
+    () =>
+      sessions.map((row) => ({
+        sessionId: row.sessionId,
+        title: row.title,
+        startAt: row.startAt,
+        endAt: row.endAt,
+        colour:
+          programs.find((program) => program.programId === row.programId)?.colour ?? fallbackColour,
+        booked: booked[row.sessionId] ?? 0,
+        capacity: row.capacity,
+        status: row.status,
+        locationId: row.locationId,
+        programId: row.programId,
+        instructorIds: row.instructorIds ?? [row.instructorId],
+      })),
+    [sessions, programs, booked],
+  );
 
-  const visible = grid.filter(
-    (row) =>
-      (filters.locations.length === 0 || filters.locations.includes(row.locationId)) &&
-      (filters.programs.length === 0 || filters.programs.includes(row.programId)) &&
-      (filters.staff.length === 0 || row.instructorIds.some((id) => filters.staff.includes(id))) &&
-      (!filters.mine || row.instructorIds.some((id) => mineKeys.includes(id))) &&
-      statusMatches(row.status, filters.status) &&
-      (range !== "day" ||
-        listRange !== null ||
-        localParts(row.startAt, timezone).date === weekStart),
+  const visible = useMemo(
+    () =>
+      grid.filter(
+        (row) =>
+          (filters.locations.length === 0 || filters.locations.includes(row.locationId)) &&
+          (filters.programs.length === 0 || filters.programs.includes(row.programId)) &&
+          (filters.staff.length === 0 ||
+            row.instructorIds.some((id) => filters.staff.includes(id))) &&
+          (!filters.mine || row.instructorIds.some((id) => mineKeys.includes(id))) &&
+          statusMatches(row.status, filters.status) &&
+          (range !== "day" ||
+            listRange !== null ||
+            localParts(row.startAt, timezone).date === weekStart),
+      ),
+    [grid, filters, mineKeys, range, listRange, timezone, weekStart],
   );
 
   const live = visible.filter((row) => row.status !== "cancelled");
@@ -330,15 +366,22 @@ export function ClassesPage(): ReactElement {
     setWeekStart(next === "week" ? mondayOf(weekStart) : weekStart);
   }
 
-  function afterChange(): void {
+  function afterChange(changed?: SessionRecord): void {
     setPanel(null);
+    if (changed)
+      setSessions((previous) => [
+        ...previous.filter((row) => row.sessionId !== changed.sessionId),
+        changed,
+      ]);
     // A create, a cancellation or a whole week moved: the year's count is no longer valid.
     totalRef.current = null;
+    rangeCache.current.clear();
     setReload((previous) => previous + 1);
   }
 
   /** Moving the calendar drops any list date-range preset, so the query follows the title again. */
   function goTo(date: string): void {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date))) return;
     setDateRange(null);
     setWeekStart(date);
   }
@@ -409,9 +452,21 @@ export function ClassesPage(): ReactElement {
           <input
             type="date"
             value={weekStart}
-            onChange={(event) => goTo(anchorFor(event.target.value))}
+            onChange={(event) => {
+              if (event.target.value) goTo(anchorFor(event.target.value));
+            }}
           />
         </label>
+        <button
+          type="button"
+          className="cs-button"
+          onClick={() => {
+            rangeCache.current.clear();
+            setReload((value) => value + 1);
+          }}
+        >
+          Refresh schedule
+        </button>
         <p className="cs-range-title">{titleOf(range, weekStart)}</p>
         <div className="cs-range-buttons">
           {ranges.map((option) => (
@@ -454,6 +509,16 @@ export function ClassesPage(): ReactElement {
       {error === null ? null : (
         <p className="cs-notice" data-kind="error" role="alert">
           {error}
+          <button
+            type="button"
+            className="cs-button"
+            onClick={() => {
+              if (!catalog) setCatalogReload((value) => value + 1);
+              setReload((value) => value + 1);
+            }}
+          >
+            Retry schedule
+          </button>
         </p>
       )}
       {loading ? (

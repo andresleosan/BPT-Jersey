@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
-import { layoutWeek, localParts, mondayOf, nowMarker } from "./week-grid";
+import { countSessionDays, layoutWeek, localParts, mondayOf, nowMarker } from "./week-grid";
 import type { GridSession, PlacedSession } from "./week-grid";
 
 export type CalendarViewProps = Readonly<{
@@ -68,7 +68,7 @@ function EventButton({
   const cancelled = session.status === "cancelled";
   const style: CSSProperties = {
     gridRow: `${session.rowStart + 1} / span ${session.rowSpan}`,
-    gridColumn: session.columns === 2 ? `${session.column + 1}` : "1 / span 2",
+    gridColumn: session.columns > 1 ? `${session.column + 1}` : "1 / -1",
     ...(cancelled ? {} : { background: session.colour }),
   };
   return (
@@ -119,6 +119,7 @@ function DayColumn({
   onOpen: (sessionId: string) => void;
   onCreate: (date: string, startTime: string) => void;
 }): ReactElement {
+  const columns = Math.max(1, ...sessions.map((session) => session.columns));
   const halfHours = (hours.length - 1) * 2;
   return (
     <div className="cs-day" data-today={today ? "true" : undefined}>
@@ -134,7 +135,7 @@ function DayColumn({
           {
             display: "grid",
             gridTemplateRows: `repeat(${halfHours}, 1.6rem)`,
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
             // The now line is painted by the grid background (see `.cs-day-grid[style*="--now"]`).
             ...(nowTop === null ? {} : { "--now": String(nowTop) }),
           } as CSSProperties
@@ -143,7 +144,7 @@ function DayColumn({
         {Array.from({ length: halfHours }, (_, row) => {
           const hour = hours[0]! + row / 2;
           const time = hhmm(hour);
-          const style: CSSProperties = { gridRow: `${row + 1} / span 1`, gridColumn: "1 / span 2" };
+          const style: CSSProperties = { gridRow: `${row + 1} / span 1`, gridColumn: "1 / -1" };
           return canEdit ? (
             <button
               key={time}
@@ -190,11 +191,19 @@ function WeekOrDay({
   onCreate: (date: string, startTime: string) => void;
   onlyDate: string | undefined;
 }): ReactElement {
-  const layout = layoutWeek(sessions, mondayOf(weekStart), timezone, window);
+  const layout = useMemo(
+    () => layoutWeek(sessions, mondayOf(weekStart), timezone, window),
+    [sessions, weekStart, timezone, window],
+  );
   const marker = nowMarker(useNow(), mondayOf(weekStart), timezone, window);
   const days = onlyDate ? layout.days.filter((d) => d.date === onlyDate) : layout.days;
   return (
-    <div className="cs-week">
+    <div
+      className="cs-week"
+      style={{
+        gridTemplateColumns: `3.5rem ${days.map((day) => `minmax(${Math.max(8, ...day.sessions.map((session) => session.columns * 5))}rem, 1fr)`).join(" ")}`,
+      }}
+    >
       <div className="cs-hours">
         <div className="cs-day-header" aria-hidden="true" />
         <div
@@ -231,13 +240,11 @@ function MonthView({
   weekStart,
   sessions,
   timezone,
-  window,
   onSelectWeek,
 }: {
   weekStart: string;
   sessions: readonly GridSession[];
   timezone: string;
-  window: { fromHour: number; toHour: number };
   onSelectWeek: (weekStart: string) => void;
 }): ReactElement {
   const anchor = new Date(`${weekStart}T00:00:00.000Z`);
@@ -258,14 +265,7 @@ function MonthView({
   ) {
     days.push(new Date(t).toISOString().slice(0, 10));
   }
-  const counts = new Map<string, { classes: number; registrations: number }>();
-  // build counts via layoutWeek per distinct Monday covered by the grid
-  const mondays = new Set(days.map((d) => mondayOf(d)));
-  for (const m of mondays) {
-    const layout = layoutWeek(sessions, m, timezone, window);
-    for (const d of layout.days)
-      counts.set(d.date, { classes: d.classes, registrations: d.registrations });
-  }
+  const counts = useMemo(() => countSessionDays(sessions, timezone), [sessions, timezone]);
 
   return (
     <div className="cs-month">
@@ -313,7 +313,6 @@ export function CalendarView({
         weekStart={weekStart}
         sessions={sessions}
         timezone={timezone}
-        window={window}
         onSelectWeek={onSelectWeek}
       />
     );

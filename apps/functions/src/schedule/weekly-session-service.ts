@@ -20,7 +20,13 @@ export function newWeeklySeries(session: SessionRecord, timezone: string): Weekl
     seriesId: session.sessionId,
     academyId: session.academyId,
     timezone,
-    revisions: [{ fromIndex: 0, enabled: true, template: session }],
+    revisions: [
+      {
+        fromIndex: 0,
+        enabled: true,
+        template: { ...session, status: "scheduled", cancellationReason: null },
+      },
+    ],
   };
 }
 
@@ -85,7 +91,13 @@ export function reviseWeeklySeries(
       {
         fromIndex,
         enabled,
-        template: { ...updated, weeklyOverride: false, repeatWeekly: enabled },
+        template: {
+          ...updated,
+          status: "scheduled",
+          cancellationReason: null,
+          weeklyOverride: false,
+          repeatWeekly: enabled,
+        },
       },
     ],
   };
@@ -151,13 +163,14 @@ export function createWeeklySessionStore(firestore: Firestore) {
       actor: string,
       timezone: string,
       merge: MergeUpdate,
+      allowHistorical = false,
     ): Promise<SessionRecord> {
       const sessionRef = sessionsCollection(academy).doc(input.sessionId);
       return firestore.runTransaction(async (tx) => {
         const snapshot = await tx.get(sessionRef);
         if (!snapshot.exists) throw new Error("Session does not exist");
         const current = snapshot.data() as SessionRecord;
-        if (current.status !== "scheduled")
+        if (!allowHistorical && current.status !== "scheduled")
           throw new Error("Only scheduled sessions can be edited");
         const updated = merge(current, input, actor, new Date().toISOString());
         if (!current.weeklySeriesId) {
@@ -166,7 +179,11 @@ export function createWeeklySessionStore(firestore: Firestore) {
             return updated;
           }
           const series = newWeeklySeries(updated, timezone);
-          const first = weeklyOccurrence(series, 0)!;
+          const first = {
+            ...weeklyOccurrence(series, 0)!,
+            status: updated.status,
+            cancellationReason: updated.cancellationReason,
+          };
           tx.create(seriesCollection(academy).doc(series.seriesId), series);
           tx.set(sessionRef, first);
           return first;
@@ -189,8 +206,6 @@ export function createWeeklySessionStore(firestore: Firestore) {
         const future = existing.docs
           .map((doc) => doc.data() as SessionRecord)
           .filter((row) => (row.weeklyIndex ?? 0) >= (current.weeklyIndex ?? 0));
-        if (future.length > 400)
-          throw new Error("Too many saved occurrences to edit together; contact the office");
         const next = reviseWeeklySeries(
           series,
           current,
