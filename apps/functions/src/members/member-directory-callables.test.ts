@@ -203,6 +203,49 @@ describe("member directory administrative activity gate", () => {
     );
   });
 
+  it("accepts a provisioned password owner with matching live authority", async () => {
+    await expect(
+      activityHarness({
+        adminDocument: provisionedAdminDocument({ authProvider: "password" }),
+      }).check(actorStatusInput),
+    ).resolves.toBe(true);
+  });
+
+  it.each(["anonymous", "unknown", "", null])(
+    "rejects an unsupported administrative provider %s",
+    async (authProvider) => {
+      await expect(
+        activityHarness({ adminDocument: provisionedAdminDocument({ authProvider }) }).check(
+          actorStatusInput,
+        ),
+      ).resolves.toBe(false);
+    },
+  );
+
+  it("does not let password provisioning bypass live claims or active status", async () => {
+    for (const overrides of [
+      { active: false },
+      { adminRole: "administrator" },
+      { academyId: "other" },
+    ]) {
+      await expect(
+        activityHarness({
+          adminDocument: provisionedAdminDocument({ authProvider: "password", ...overrides }),
+        }).check(actorStatusInput),
+      ).resolves.toBe(false);
+    }
+    await expect(
+      activityHarness({
+        adminDocument: provisionedAdminDocument({ authProvider: "password" }),
+        authUser: {
+          uid: "owner-1",
+          disabled: false,
+          customClaims: { academyId: "academy-1", role: "coach" },
+        },
+      }).check(actorStatusInput),
+    ).resolves.toBe(false);
+  });
+
   it("rejects a different provisioned role or tenant", async () => {
     await expect(
       activityHarness({

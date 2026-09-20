@@ -7,7 +7,9 @@ const provisionedAdminDocumentSchema = z.strictObject({
   accountType: z.literal("staff"),
   displayName: z.string().min(1).max(160),
   email: z.string().email().max(320),
-  authProvider: z.literal("google"),
+  // Provisioned office accounts may use either supported email sign-in method.
+  // Authority still comes from the active profile and matching live Auth claims.
+  authProvider: z.enum(["google", "password"]),
   active: z.literal(true),
   adminRole: z.enum(["owner", "administrator"]),
   lastRoleChangeAuditId: z.string().min(1).max(128),
