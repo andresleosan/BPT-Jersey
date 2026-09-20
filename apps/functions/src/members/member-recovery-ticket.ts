@@ -30,6 +30,7 @@ export const recoveryTicketV2Schema = z.strictObject({
   createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(), expiresAt: z.iso.datetime(),
   status: memberRecoveryV2StatusSchema, accountVerified: z.boolean(),
   userId: recordId.optional(), accountEmail: z.email().max(320).optional(),
+  accountPhoneNumber: z.string().trim().min(7).max(40).optional(),
   subjects: z.array(storedRecoverySubjectSchema).min(1).max(11),
   candidates: z.array(recoveryCandidateBindingSchema).max(220),
   legacyAdapted: z.boolean().optional(),
@@ -37,7 +38,8 @@ export const recoveryTicketV2Schema = z.strictObject({
   const ids = ticket.subjects.map((subject) => subject.subjectId);
   const children = ticket.subjects.filter((subject) => subject.kind === "child").length;
   const own = ticket.subjects.length - children;
-  if (new Set(ids).size !== ids.length || own > 1 || children > 10 ||
+  const identities = ticket.subjects.map((subject) => `${subject.kind}:${subject.fullName.normalize("NFKC").toLowerCase().replace(/\s+/gu, " ")}:${subject.dateOfBirth ?? ""}`);
+  if (new Set(ids).size !== ids.length || new Set(identities).size !== identities.length || own > 1 || children > 10 ||
       (ticket.mode === "athlete" && (children !== 0 || own !== 1)) ||
       (ticket.mode === "guardian" && children === 0) ||
       ticket.candidates.some((candidate) => !ids.includes(candidate.subjectId)) ||
