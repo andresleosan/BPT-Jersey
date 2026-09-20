@@ -269,8 +269,8 @@ const settlement: ManualSubscriptionInput["settlement"] = {
 - Consume existing `StudentProfile`, `FamilyRelationship`, `dateKeyInJersey` and the approved canonical-ID resolver.
 - Produce `MemberAccessFacts`, `MemberAccessDecision`, `decideMemberAccess(facts: MemberAccessFacts): MemberAccessDecision`, `MemberAccessService.authorise(academyId: string, actorUserId: string, studentId: string): Promise<MemberAccessDecision>` and `.listProfiles(academyId: string, actorUserId: string): Promise<readonly AccountMemberProfile[]>`.
 
-- [ ] Implement calendar-date age calculation, including strict real-date validation, leap dates and future-date rejection. Use `dateKeyInJersey(now)`. Export `memberAgeOn(dateOfBirth: string, academyDate: string): number | null` here; keep subscription age classification in its existing module.
-- [ ] Define the facts gathered by the server and a pure access decision. Role permits entry to the member area; it does not select a single personal-versus-guardian relationship.
+- [x] Implement calendar-date age calculation, including strict real-date validation, leap dates and future-date rejection. Use `dateKeyInJersey(now)`. Export `memberAgeOn(dateOfBirth: string, academyDate: string): number | null` here; keep subscription age classification in its existing module.
+- [x] Define the facts gathered by the server and a pure access decision. Role permits entry to the member area; it does not select a single personal-versus-guardian relationship.
 
 ```ts
 export type MemberAccessFacts = Readonly<{
@@ -300,7 +300,7 @@ export type AccountMemberProfile = Readonly<{
 }>;
 ```
 
-- [ ] Adapt stored-profile parsing before the access decision. The current `parseStudentProfileAt` rejects an old `minor` classification after the eighteenth birthday. Validate the signed original at its recorded write date, using the existing strict `parseStudentProfileAt(value, effectiveDate)` parser, then derive an effective current projection using the confirmed birth date. Do not overwrite the raw document before MAC verification or weaken unrelated field validation. Use this projection in every Task 6 reader; a guarded maintenance write may refresh the stored classification later. For adult projections omit minor-only `guardianStatus`; retain historical relationship/family references without deriving access from them.
+- [x] Adapt stored-profile parsing before the access decision. The current `parseStudentProfileAt` rejects an old `minor` classification after the eighteenth birthday. Validate the signed original at its recorded write date, using the existing strict `parseStudentProfileAt(value, effectiveDate)` parser, then derive an effective current projection using the confirmed birth date. Do not overwrite the raw document before MAC verification or weaken unrelated field validation. Use this projection in every Task 6 reader; a guarded maintenance write may refresh the stored classification later. For adult projections omit minor-only `guardianStatus`; retain historical relationship/family references without deriving access from them.
 
 ```ts
 const effectiveType = deriveParticipantType(confirmedDateOfBirth, academyDate);
@@ -310,11 +310,11 @@ const effectiveProfile: StudentProfile = effectiveType === "adult"
   : { ...validatedStoredProfile, participantType: "minor" };
 ```
 
-- [ ] Read current actor/account state, exact student link and current per-child relationship from Firestore; never accept those facts from the browser. A suspended/expired subscription does not itself make the profile inaccessible. A disputed proposed birth date does not replace a confirmed date. Unknown confirmed age needs office review before granting access. Duplicate active relationships or competing personal links deny a new link and create a review issue.
-- [ ] Replace the resolver's current `teenAccountMinimumAge = 12` rule with the approved 16 policy. Make the existing `CanonicalClientStudentScopeResolver` delegate to this service, preserving its signature. Use approved links for both `guardian` and personal account roles, so an adult athlete who is a guardian can manage both. A stale `teenStudent` claim at 18 must not block an already approved personal link; a stale `guardian` claim cannot bypass the per-child decision.
-- [ ] List the union of approved own and child profiles with bounded pagination through the underlying queries; deduplicate canonical IDs. Do not limit an account to a single family result. Do not store child IDs in unvalidated custom claims. Keep pending account `shopper` privileges unchanged until a reviewed link is committed.
-- [ ] Inspect ages 15/16/17/18 at Jersey midnight, a leap birthday, missing date, guardian plus own profile, stale teen claims and a suspended plan. Expected: policy above, no new role powers, no loss of confirmed history merely due to unpaid/uncertain coverage.
-- [ ] Commit with message `Centralise member access by approved athlete relationship`.
+- [x] Read current actor/account state, exact student link and current per-child relationship from Firestore; never accept those facts from the browser. A suspended/expired subscription does not itself make the profile inaccessible. A disputed proposed birth date does not replace a confirmed date. Unknown confirmed age needs office review before granting access. Duplicate active relationships or competing personal links deny a new link and create a review issue.
+- [x] Replace the resolver's current `teenAccountMinimumAge = 12` rule with the approved 16 policy. Make the existing `CanonicalClientStudentScopeResolver` delegate to this service, preserving its signature. Use approved links for both `guardian` and personal account roles, so an adult athlete who is a guardian can manage both. A stale `teenStudent` claim at 18 must not block an already approved personal link; a stale `guardian` claim cannot bypass the per-child decision.
+- [x] List the union of approved own and child profiles with bounded pagination through the underlying queries; deduplicate canonical IDs. Do not limit an account to a single family result. Do not store child IDs in unvalidated custom claims. Keep pending account `shopper` privileges unchanged until a reviewed link is committed.
+- [x] Inspect ages 15/16/17/18 at Jersey midnight, a leap birthday, missing date, guardian plus own profile, stale teen claims and a suspended plan. Expected: policy above, no new role powers, no loss of confirmed history merely due to unpaid/uncertain coverage.
+- [x] Commit with message `Centralise member access by approved athlete relationship`.
 
 ## Task 5: Replace a guardian for one child and enforce adulthood
 

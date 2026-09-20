@@ -35,6 +35,11 @@
       "import": "./src/members/member-contracts.ts",
       "default": "./lib/members/member-contracts.js"
     },
+    "./members/access": {
+      "types": "./src/members/member-access-contracts.ts",
+      "import": "./src/members/member-access-contracts.ts",
+      "default": "./lib/members/member-access-contracts.js"
+    },
     "./members/history": {
       "types": "./src/members/member-history-contracts.ts",
       "import": "./src/members/member-history-contracts.ts",

@@ -354,6 +354,24 @@ export function parseStudentProfileAt(
   return parseProfileResult(parsed, issues);
 }
 
+/** Validate the original at its recorded date before deriving a read-only current-age projection.
+ * Integrity callers must still authenticate the ORIGINAL stored value, never this projection. */
+export function parseEffectiveStudentProfileAt(value: unknown, academyDate: string): Result<StudentProfile, readonly ValidationIssue[]> {
+  if (!isPlainRecord(value) || typeof value.updatedAt !== "string" ||
+      !dateOnlyPattern.test(academyDate) || !isValidCalendarDate(academyDate)) return err([issue(["updatedAt"], "invalid_date")]);
+  const writtenDate = value.updatedAt.slice(0, 10);
+  if (writtenDate > academyDate) return err([issue(["updatedAt"], "invalid_date")]);
+  const original = parseStudentProfileAt(value, writtenDate);
+  if (!original.ok) return original;
+  if (!original.value.dateOfBirth) return original;
+  const participantType = deriveParticipantType(original.value.dateOfBirth, academyDate);
+  if (participantType === "adult") {
+    const { guardianStatus: _guardianStatus, ...profile } = original.value;
+    return ok(Object.freeze({ ...profile, participantType }));
+  }
+  return ok(Object.freeze({ ...original.value, participantType }));
+}
+
 export function deriveParticipantType(dateOfBirth: string, today: string): ParticipantType {
   if (
     !dateOnlyPattern.test(dateOfBirth) ||

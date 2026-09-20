@@ -101,7 +101,7 @@ export function createMemberDirectoryReadTransaction(
       let query = firestore.collection(`academies/${academyId}/${collection}`)
         .orderBy(FieldPath.documentId());
       if (equal !== undefined) {
-        if (!["studentId", "canonicalStudentId", "membershipId", "invoiceId"].includes(equal.field) ||
+        if (!["studentId", "canonicalStudentId", "membershipId", "invoiceId", "userId"].includes(equal.field) ||
             !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(equal.value)) {
           throw new Error("Invalid directory query filter");
         }
