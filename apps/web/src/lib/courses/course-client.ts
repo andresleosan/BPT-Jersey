@@ -13,8 +13,8 @@ export const courseApi = {
   calendar: call<{studentId: string; from: string; to: string; cursor?: string}, {sessions: SessionRecord[]; bookings: BookingRecord[]; attendance: AttendanceRecord[]; cursor: string | null}>("getCourseCalendar"),
   absence: call<{requestId: string; sessionId: string; studentId: string; absent: boolean}, BookingRecord>("setCourseAbsence"),
   checkIn: call<SelfCheckInInput, {attendance: AttendanceRecord}>("courseSelfCheckIn"),
-  detail: call<{enrolmentId: string}, {enrolment: CourseEnrolment; participant: {fullName: string; dateOfBirth: string}; courseTitle: string}>("getCourseEnrolmentDetail"),
-  dates: call<Page & {courseId: string; enrolmentId?: string}, CoursePage<PublicCourseSlot>>("listCourseSessionDates"),
+  detail: call<{enrolmentId: string}, {enrolment: CourseEnrolment; participant: {fullName: string; dateOfBirth: string}; courseTitle: string; waitlistPosition: number | null}>("getCourseEnrolmentDetail"),
+  dates: call<Page & {courseId: string; enrolmentId?: string; draft?: CourseDraft}, CoursePage<PublicCourseSlot>>("listCourseSessionDates"),
   coaches: call<Page, CoursePage<{staffId: string; name: string}>>("listCourseCoaches"),
   session: call<Record<string, never>, {uid: string; role: string; canApply: boolean}>("getCourseSession"),
   courses: call<Page, CoursePage<Course>>("listCourses"),
@@ -43,9 +43,9 @@ export const courseApi = {
   readNotice: call<{noticeId: string}, {ok: true}>("markCourseNoticeRead"),
   refunds: call<Page & {enrolmentId: string}, CoursePage<CourseRefund>>("listCourseRefunds"),
   refund: call<Mutation & {refundId: string; amountMinor: number; status: CourseRefund["status"]; reason: string; reference: string | null; occurredAt: string | null}, CourseRefund>("recordCourseRefund"),
-  incidents: call<Page & {enrolmentId?: string}, CoursePage<CoursePaymentIncident>>("listCoursePaymentIncidents"),
+  incidents: call<Page & {enrolmentId?: string; openOnly?: boolean}, CoursePage<CoursePaymentIncident & {participantName?: string; courseTitle?: string}>>("listCoursePaymentIncidents"),
   resolveIncident: call<Mutation & {incidentId: string; received: boolean; reason: string}, CoursePaymentIncident>("resolveCoursePaymentIncident"),
-  jobs: call<Page, CoursePage<CourseJob>>("listCourseJobs"),
+  jobs: call<Page & {state?: "failed" | "queued" | "running"}, CoursePage<CourseJob>>("listCourseJobs"),
   retryJob: call<{jobId: string; requestId: string}, CourseJob>("retryCourseJob"),
 };
 export function courseError(error: unknown): string {

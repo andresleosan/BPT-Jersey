@@ -7,5 +7,5 @@ import { signOutFromAuth } from "../../../../lib/auth-client";
 import { MemberCalendar } from "../../calendar/member-calendar";
 import "../../account.css";
 import "../../../courses/courses.css";
-function CourseCalendar({session}:{session:CourseSession}) {const role=session.role as CalendarMember["role"];const repository=useMemo(()=>createFirebaseCalendarRepository({role,displayName:"My training"}),[role,session.uid]);return <MemberCalendar repository={repository} session={{role,displayName:"My training"}} onSignOut={()=>void signOutFromAuth()}/>;}
+function CourseCalendar({session}:{session:CourseSession}) {const role=session.role as CalendarMember["role"];const repository=useMemo(()=>createFirebaseCalendarRepository({role,displayName:"My training",scope:"courses"}),[role,session.uid]);return <MemberCalendar repository={repository} session={{role,displayName:"My training"}} onSignOut={()=>void signOutFromAuth()}/>;}
 export default function CourseCalendarPage(){return <CourseSessionGate>{session=><CourseCalendar session={session}/>}</CourseSessionGate>;}

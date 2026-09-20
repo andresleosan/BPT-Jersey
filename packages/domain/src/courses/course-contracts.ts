@@ -29,7 +29,7 @@ export type CourseDraft = z.infer<typeof courseDraftSchema>;
 export type Instructor = CourseDraft["instructor"];
 export type CourseStatus = "draft" | "published" | "completed" | "cancelled";
 export type Course = CourseDraft & {
-  courseId: string; academyId: string; revision: number; status: CourseStatus;
+  courseId: string; academyId: string; revision: number; status: CourseStatus; accessClosedAt?: string | null;
   timezone: typeof courseTimeZone; currency: "GBP"; committedSeats: number;
   nextSessionAt: string | null; publicationRevision: number | null;
   createdAt: string; updatedAt: string;

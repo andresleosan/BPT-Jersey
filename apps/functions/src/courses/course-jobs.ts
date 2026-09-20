@@ -22,7 +22,7 @@ export async function cancelCourse(db: Firestore, actor: CourseActor, input: {co
     const replay = operationResult<Course>(receipt, input); if (replay) return replay;
     const course = courseData<Course>(snapshot); assertCourseRevision(course.revision, input.expectedRevision);
     if (!["draft", "published"].includes(course.status)) courseFailure("conflict", "This course is already closed.");
-    const next: Course = {...course, status: "cancelled", revision: course.revision + 1, nextSessionAt: null, updatedAt: new Date().toISOString()};
+    const next: Course = {...course, status: "cancelled", accessClosedAt: new Date().toISOString(), revision: course.revision + 1, nextSessionAt: null, updatedAt: new Date().toISOString()};
     tx.set(ref, next);
     tx.delete(courseCollection(db, actor.academyId, "publicCourses").doc(course.courseId));
     const job = newCourseJob(next, "cancel_course");
@@ -116,7 +116,7 @@ async function closeBatch(db: Firestore, job: LeasedJob): Promise<boolean> {
       const active = e.seatCommitted || e.status === "waitlisted";
       if (e.seatCommitted) released++;
       if (active) {
-        tx.update(doc.ref, {status: "cancelled", seatCommitted: false, expiresAt: null, revision: e.revision + 1, decisionReason: live.message ?? "Course finished", updatedAt: now});
+        tx.update(doc.ref, {status: "cancelled", accessUntil: course.accessClosedAt ?? now, seatCommitted: false, expiresAt: null, revision: e.revision + 1, decisionReason: live.message ?? "Course finished", updatedAt: now});
         const revoke = newCourseJob(course, "revoke_enrolment", e.enrolmentId, e.revision + 1);
         tx.set(jobs(db, job.academyId).doc(revoke.jobId), revoke);
         appendCourseNotice(tx, db, job.academyId, {eventId: `${job.jobId}:${doc.id}`, recipientUid: e.applicantUid, courseId: job.courseId, enrolmentId: doc.id, kind: "cancelled", title: course.status === "cancelled" ? "Course cancelled" : "Course enrolment closed", message: live.message ?? "The course has finished. The office will review any payment evidence separately.", href: "/account/courses", createdAt: now});

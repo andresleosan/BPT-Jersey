@@ -759,6 +759,24 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "publicCourses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nextSessionAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "courseId",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

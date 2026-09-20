@@ -1,7 +1,7 @@
 import { FieldPath, type Firestore, type Query, type DocumentData } from "firebase-admin/firestore";
 import { z } from "zod";
 import { parsePaymentInstructionsRecord } from "@bpt-jersey/domain/finance";
-import { courseIdSchema, courseRecordIdSchema, enrolmentStatuses, type Course, type CourseEnrolment, type CourseNotice, type CoursePage, type CoursePaymentIncident, type CourseRefund, type ParticipantScope } from "@bpt-jersey/domain/courses";
+import { courseDraftSchema, courseSlot, courseIdSchema, courseRecordIdSchema, enrolmentStatuses, type Course, type CourseDraft, type CourseEnrolment, type CourseNotice, type CoursePage, type CoursePaymentIncident, type CourseRefund, type ParticipantScope } from "@bpt-jersey/domain/courses";
 import { assertCourseOffice, courseCollection, courseData, courseFailure, type CourseActor } from "./course-store.js";
 import { resolveCourseParticipant } from "./course-participants.js";
 export const courseCursorSchema = z.string().max(256).regex(/^[A-Za-z0-9._:-]+$/u);
@@ -62,12 +62,20 @@ export async function listCourseRefunds(db: Firestore, actor: CourseActor, enrol
   if (!["owner", "administrator"].includes(actor.role)) result.items = result.items.map(r => ({...r, reason: "", createdBy: "", updatedBy: ""}));
   return result;
 }
-export async function listCoursePaymentIncidents(db: Firestore, actor: CourseActor, filter: {enrolmentId?: string | undefined; cursor?: string | undefined}): Promise<CoursePage<CoursePaymentIncident>> {
+export async function listCoursePaymentIncidents(db: Firestore, actor: CourseActor, filter: {enrolmentId?: string | undefined; cursor?: string | undefined; openOnly?: boolean | undefined}): Promise<CoursePage<CoursePaymentIncident & {participantName?: string; courseTitle?: string}>> {
   let query: Query<DocumentData> = courseCollection(db, actor.academyId, "coursePaymentIncidents");
   if (filter.enrolmentId) {await getCourseEnrolment(db, actor, filter.enrolmentId); query = query.where("enrolmentId", "==", filter.enrolmentId);}
   else assertCourseOffice(actor);
+  if (filter.openOnly) query = query.where("state", "==", "open");
   const result = await coursePage<CoursePaymentIncident>(query, filter.cursor);
   if (!["owner", "administrator"].includes(actor.role)) result.items = result.items.map(i => ({...i, resolution: i.state === "resolved" ? "Reviewed by the office. Contact us for the outcome." : null}));
+  if (!filter.enrolmentId) {
+    const items = await Promise.all(result.items.map(async incident => {
+      const detail = await getCourseEnrolmentDetail(db, actor, incident.enrolmentId);
+      return {...incident, participantName: detail.participant.fullName, courseTitle: detail.courseTitle};
+    }));
+    return {...result, items};
+  }
   return result;
 }
 
@@ -101,12 +109,15 @@ export async function getCourseEnrolmentDetail(db: Firestore, actor: CourseActor
   const ref = enrolment.studentId ? courseCollection(db, actor.academyId, "students").doc(enrolment.studentId) : enrolment.participant.kind === "candidate" ? courseCollection(db, actor.academyId, "courseCandidates").doc(enrolment.participant.candidateId) : courseCollection(db, actor.academyId, "students").doc(enrolment.participant.studentId);
   const [participant, course] = await Promise.all([ref.get(), courseCollection(db, actor.academyId, "courses").doc(enrolment.courseId).get()]);
   const data = participant.data() ?? {};
-  return {enrolment, participant: {fullName: String(data.fullName ?? data.displayName ?? "Participant"), dateOfBirth: String(data.dateOfBirth ?? "")}, courseTitle: String(course.data()?.title ?? "Course")};
+  const position = enrolment.status === "waitlisted" && enrolment.queuedAt ? (await courseCollection(db, actor.academyId, "courseEnrolments").where("courseId", "==", enrolment.courseId).where("status", "==", "waitlisted").orderBy("queuedAt").orderBy("enrolmentId").endAt(enrolment.queuedAt, enrolment.enrolmentId).count().get()).data().count : null;
+  return {waitlistPosition: position, enrolment, participant: {fullName: String(data.fullName ?? data.displayName ?? "Participant"), dateOfBirth: String(data.dateOfBirth ?? "")}, courseTitle: String(course.data()?.title ?? "Course")};
 }
-export async function listCourseSessionDates(db: Firestore, actor: CourseActor, filter: {courseId: string; enrolmentId?: string | undefined; cursor?: string | undefined}) {
+export async function listCourseSessionDates(db: Firestore, actor: CourseActor, filter: {courseId: string; enrolmentId?: string | undefined; cursor?: string | undefined; draft?: CourseDraft | undefined}) {
+  if (filter.draft) {assertCourseOffice(actor); return previewCourseDates(filter.courseId, courseDraftSchema.parse(filter.draft), filter.cursor);}
   if (filter.enrolmentId) {const e = await getCourseEnrolment(db, actor, filter.enrolmentId); if (e.courseId !== filter.courseId) courseFailure("forbidden", "This course is not part of the enrolment.");}
   else assertCourseOffice(actor);
   const course = courseData<Course>(await courseCollection(db, actor.academyId, "courses").doc(filter.courseId).get());
+  if (course.status === "draft") {assertCourseOffice(actor); return previewCourseDates(course.courseId, course, filter.cursor);}
   let query = courseCollection(db, actor.academyId, "sessions").where("courseId", "==", course.courseId).where("coursePublicationRevision", "==", course.publicationRevision).orderBy("courseOrdinal");
   if (filter.cursor) {const ordinal = Number(filter.cursor); if (!Number.isSafeInteger(ordinal) || ordinal < 1) courseFailure("invalid", "Refresh the session dates."); query = query.startAfter(ordinal);}
   const page = await query.limit(31).get(); const docs = page.docs.slice(0, 30);
@@ -119,4 +130,15 @@ export async function courseCoachOptions(db: Firestore, actor: CourseActor, curs
   const page = await query.limit(31).get(); const docs = page.docs.slice(0, 30);
   const users = await Promise.all(docs.map(d => courseCollection(db, actor.academyId, "users").doc(String(d.data().userId)).get()));
   return {items: docs.flatMap((d,i) => d.data().status === "active" ? [{staffId: d.id, name: String(users[i]?.data()?.displayName ?? users[i]?.data()?.fullName ?? "Coach")}] : []), cursor: page.size > 30 ? docs[29]!.id : null};
+}
+
+function previewCourseDates(courseId: string, draft: CourseDraft, cursor?: string) {
+  const after = cursor ? Number(cursor) : 0;
+  if (!Number.isSafeInteger(after) || after < 0 || after >= draft.sessionCount) courseFailure("invalid", "Refresh the date preview.");
+  const items = [];
+  for (let ordinal = after + 1; ordinal <= Math.min(after + 30, draft.sessionCount); ordinal++) {
+    try {items.push({...courseSlot({...draft, courseId}, ordinal), status: "draft"});}
+    catch (error) {courseFailure("invalid", `Session ${ordinal}: ${error instanceof Error ? error.message : "Check the Jersey date and time."}`);}
+  }
+  return {items, cursor: after + 30 < draft.sessionCount ? String(after + 30) : null};
 }

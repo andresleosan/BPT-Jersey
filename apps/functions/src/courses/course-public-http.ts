@@ -27,8 +27,12 @@ export const coursePublic = onRequest({cors: browserOrigins, invoker: "public", 
     const {view, courseId, cursor} = input.data;
     let body: unknown;
     if (view === "list") {
-      let query = courseCollection(db, academyId, "publicCourses").where("status", "==", "published").orderBy("courseId");
-      if (cursor) query = query.startAfter(cursor);
+      let query = courseCollection(db, academyId, "publicCourses").where("status", "==", "published").where("nextSessionAt", ">", new Date().toISOString()).orderBy("nextSessionAt").orderBy("courseId");
+      if (cursor) {
+        const anchor = await courseCollection(db, academyId, "publicCourses").doc(cursor).get();
+        if (!anchor.exists || anchor.data()?.status !== "published") {response.status(400).json({error: "refresh_catalogue"}); return;}
+        query = query.startAfter(anchor.data()!.nextSessionAt, anchor.id);
+      }
       const snapshot = await query.limit(31).get();
       const docs = snapshot.docs.slice(0, 30);
       body = {items: docs.map(d => publicView(d.data())), cursor: snapshot.size > 30 ? docs[29]!.id : null};

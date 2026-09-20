@@ -1,3 +1,4 @@
+import { createMemberAccessService, memberAccessDependenciesInTransaction } from "../members/member-access-service.js";
 import { createHmac } from "node:crypto";
 import { getAuth } from "firebase-admin/auth";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
@@ -5,7 +6,7 @@ import { courseAge, courseCandidateInputSchema, participantRefSchema, type Cours
 import { parseUserProfile } from "@bpt-jersey/domain/profiles";
 import { createCanonicalMemberDirectoryService } from "../members/canonical-member-directory-service.js";
 import { createMemberDirectoryFirestoreAdapters } from "../members/member-directory-firestore.js";
-import { createFamilyStore } from "../families/family-service.js";
+import { createFamilyStore, FamilyStoreError } from "../families/family-service.js";
 import { requireCourseApplicant } from "./course-authorization.js";
 import { assertCourseActorLive, assertCourseOffice, assertCourseRevision, courseCollection, courseData, courseFailure, type CourseActor } from "./course-store.js";
 
@@ -38,15 +39,20 @@ export async function resolveCourseParticipantInTransaction(db: Firestore, tx: T
   }
   const student = (await tx.get(courseCollection(db, actor.academyId, "students").doc(ref.studentId))).data();
   if (!student || student.academyId !== actor.academyId || student.active !== true || student.status !== "active" || typeof student.dateOfBirth !== "string") courseFailure("forbidden", "An active participant with a date of birth is required.");
-  if (student.userId !== actor.uid) {
-    const relationships = await tx.get(courseCollection(db, actor.academyId, "relationships").where("adultUserId", "==", actor.uid).where("studentId", "==", ref.studentId).limit(30));
-    const now = new Date().toISOString();
-    const relation = relationships.docs.map(d => d.data()).find(r => r.academyId === actor.academyId && r.active === true && r.status === "active" && r.validFrom <= now && (!r.validTo || r.validTo >= now));
-    if (!relation || relation.familyId !== student.familyId) courseFailure("forbidden", "An active family relationship is required.");
-    const family = (await tx.get(courseCollection(db, actor.academyId, "families").doc(relation.familyId))).data();
-    if (!family || family.active !== true || family.status !== "active" || family.primaryContactUserId !== actor.uid) courseFailure("forbidden", "This family is not available to your account.");
+  const dependencies = memberAccessDependenciesInTransaction(db, tx);
+  const accountPath = `academies/${actor.academyId}/users/${actor.uid}`;
+  const access = createMemberAccessService({...dependencies, getDocument: async path => {
+    const record = await dependencies.getDocument(path);
+    if (path !== accountPath) return record;
+    // Course purchasers retain staff roles; a shopper may have no ordinary member profile.
+    // Only the validated private course contact may supply the actor-profile context.
+    if (!record.exists || (record.data?.accountType === "staff" && record.data.active === true && record.data.status === "active"))
+      return dependencies.getDocument(`academies/${actor.academyId}/courseParticipantAccounts/${actor.uid}`);
+    return record;
+  }});
+  if (!(await access.authorise(actor.academyId, actor.uid, ref.studentId)).allowed) {
+    courseFailure("forbidden", "Current member access is required for this participant.");
   }
-  // Canonical aliases survive candidate conversion, so neither form can buy a second seat.
   const alias = (await tx.get(courseCollection(db, actor.academyId, "courseStudentAliases").doc(ref.studentId))).data();
   return {participant: ref, participantKey: typeof alias?.participantKey === "string" ? alias.participantKey : student.userId ? `account:${student.userId}` : `student:${ref.studentId}`, fullName: String(student.fullName), dateOfBirth: student.dateOfBirth, studentId: ref.studentId};
 }
@@ -71,15 +77,24 @@ export async function saveCourseCandidate(db: Firestore, actor: CourseActor, val
     const id = index.data()?.candidateId ?? input.candidateId;
     const ref = courseCollection(db, actor.academyId, "courseCandidates").doc(id);
     const old = await tx.get(ref);
+    const contactRef = courseCollection(db, actor.academyId, "courseParticipantAccounts").doc(actor.uid);
+    const previousContact = await tx.get(contactRef);
+    const saveContact = (details: Pick<CourseCandidate, "applicantName" | "contactEmail" | "contactPhone">) => {
+      const now = new Date().toISOString();
+      const contact = parseUserProfile({userId: actor.uid, academyId: actor.academyId, accountType: "client", displayName: details.applicantName, email: details.contactEmail, phoneNumber: details.contactPhone, active: true, status: "active", schemaVersion: "1", createdAt: previousContact.data()?.createdAt ?? now, createdBy: previousContact.data()?.createdBy ?? actor.uid, updatedAt: now, updatedBy: actor.uid});
+      if (!contact.ok) courseFailure("invalid", "Complete your course contact details.");
+      tx.set(contactRef, contact.value);
+    };
     if (old.exists) {
       const candidate = courseData<CourseCandidate>(old);
       if (candidate.applicantUid !== actor.uid) courseFailure("forbidden", "This participant is not available.");
-      if (candidate.candidateId !== input.candidateId || candidate.frozen) return candidate;
+      if (candidate.candidateId !== input.candidateId || candidate.frozen) {saveContact(candidate); return candidate;}
       assertCourseRevision(candidate.revision, input.revision);
       if (candidate.kind !== input.kind || candidate.fullName !== input.fullName || candidate.dateOfBirth !== input.dateOfBirth) courseFailure("conflict", "Contact the office to correct an existing participant's identity.");
     } else if (input.revision !== 0) courseFailure("conflict", "Refresh the participant form.");
     const {guardianDeclaration: _declaration, ...details} = input;
     const candidate: CourseCandidate = {...details, candidateId: id, academyId: actor.academyId, applicantUid: actor.uid, revision: (old.data()?.revision ?? 0) + 1, frozen: false, canonicalStudentId: null};
+    saveContact(candidate);
     tx.set(ref, candidate);
     tx.set(indexRef, {candidateId: id, applicantUid: actor.uid});
     return candidate;
@@ -106,7 +121,7 @@ export async function ensureApprovedCourseStudent(db: Firestore, office: CourseA
   const receiptRef = courseCollection(db, office.academyId, "courseIdentityReceipts").doc(candidate.candidateId);
   const plan = await db.runTransaction(async tx => {
     const receipt = await tx.get(receiptRef);
-    if (receipt.exists) return receipt.data() as IdentityPlan;
+    if (receipt.exists && receipt.data()?.state === "complete") return receipt.data() as IdentityPlan;
     const families = await tx.get(courseCollection(db, office.academyId, "families").where("primaryContactUserId", "==", account.uid).where("active", "==", true).limit(2));
     if (families.size > 1) courseFailure("conflict", "Multiple family records require office review.");
     const familyId = families.docs[0]?.id ?? null;
@@ -119,7 +134,7 @@ export async function ensureApprovedCourseStudent(db: Firestore, office: CourseA
     const matching = matches[0];
     if (matching && (matching.data().active !== true || matching.data().status !== "active")) courseFailure("conflict", "The existing participant requires office review.");
     const next: IdentityPlan = {state: "planned", mode: matching ? "existing" : candidate.kind === "adult" ? "adult" : familyId ? "addStudent" : "createFamily", studentId: matching?.id ?? null, familyId: matching?.data().familyId ?? familyId};
-    tx.create(receiptRef, next);
+    tx.set(receiptRef, next);
     return next;
   });
   let result: {studentId: string; familyId: string | null};
@@ -138,9 +153,16 @@ export async function ensureApprovedCourseStudent(db: Firestore, office: CourseA
     await courseCollection(db, office.academyId, "courseParticipantAccounts").doc(account.uid).set(contact.value);
     const families = createFamilyStore({firestore: db as unknown as Parameters<typeof createFamilyStore>[0]["firestore"], canonicalControl: control, auth: {getUser: uid => getAuth().getUser(uid)}});
     const common = {academyId: office.academyId, actorId: office.uid, actorRole: office.role as "owner" | "administrator", courseEnrolmentId: enrolmentId, now};
+    const addStudent = (familyId: string) => families.updateFamily({...common, familyId, operation: {kind: "addStudent", requestId: candidate.candidateId, student: draft}});
     const created = plan.mode === "addStudent" && plan.familyId
-      ? await families.updateFamily({...common, familyId: plan.familyId, operation: {kind: "addStudent", requestId: candidate.candidateId, student: draft}})
-      : await families.createFamily({...common, requestId: candidate.candidateId, tutorUserId: account.uid, students: [draft]});
+      ? await addStudent(plan.familyId)
+      : await families.createFamily({...common, requestId: candidate.candidateId, tutorUserId: account.uid, students: [draft]}).catch(async error => {
+        // Only a definite transactional conflict permits switching writers. Unknown outcomes retry the original receipt.
+        if (!(error instanceof FamilyStoreError) || error.code !== "duplicate" || error.message !== "Course applicant already has a family") throw error;
+        const current = await courseCollection(db, office.academyId, "families").where("primaryContactUserId", "==", account.uid).where("active", "==", true).limit(2).get();
+        if (current.size !== 1 || current.docs[0]!.data().status !== "active") throw error;
+        return addStudent(current.docs[0]!.id);
+      });
     const matches = created.students.filter(s => normalizedName(s.fullName) === normalizedName(candidate.fullName) && s.dateOfBirth === candidate.dateOfBirth);
     if (matches.length !== 1) courseFailure("conflict", "Participant identity requires office review.");
     result = {studentId: matches[0]!.studentId, familyId: created.family.familyId};
