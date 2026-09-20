@@ -97,7 +97,17 @@ export function LoginForm({ audience }: LoginFormProps) {
 
   async function completeSignIn(credential: UserCredential, googleSignIn = false): Promise<void> {
     if (!isStaff) {
-      navigateTo(memberDestination(sanitizeReturnPath(queryReturnTo)));
+      // Owners can use the public sign-in without being sent to the subscriber portal.
+      // Authority comes from the refreshed token, never from the entered email or URL.
+      const token = await refreshAuthToken(credential.user);
+      const ownerDestination =
+        token.claims.role === "owner"
+          ? resolveStaffDestination(
+              { academyId: token.claims.academyId, role: token.claims.role },
+              sanitizeStaffReturnPath(queryReturnTo),
+            )
+          : undefined;
+      navigateTo(ownerDestination ?? memberDestination(sanitizeReturnPath(queryReturnTo)));
       return;
     }
 
