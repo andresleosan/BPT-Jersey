@@ -14,6 +14,8 @@ export const memberDirectoryTransitionKinds = Object.freeze([
   "initialize",
   "canonical-identity-create",
   "canonical-identity-update",
+  "member-data-review",
+  "member-identity-alias",
   "adult-auth-link",
   "family-minor-create",
   "identity-key-bootstrap",

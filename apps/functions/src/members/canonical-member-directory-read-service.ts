@@ -1,3 +1,4 @@
+import { resolveCanonicalStudentIdInTransaction } from "./member-identity-resolution.js";
 import { timingSafeEqual } from "node:crypto";
 
 import type { RestrictedMemberReadAuditEventDraft } from "@bpt-jersey/domain/audit";
@@ -56,6 +57,7 @@ export type CanonicalDirectoryReadTransaction = Readonly<{
   listCollection?: (input: Readonly<{
     academyId: string;
     collection: string;
+    equal?: Readonly<{ field: "studentId" | "canonicalStudentId"; value: string }>;
     afterDocumentId?: string;
     limit: number;
   }>) => Promise<readonly DirectoryReadDocument[]>;
@@ -838,7 +840,10 @@ export function createCanonicalMemberDirectoryReadService(
             transaction.get(profilePath(command.actor.academyId, document.id)),
           ),
         );
-        const rows = pageDocuments.map((document, index) => {
+        const canonicalIds = await Promise.all(pageDocuments.map((document) =>
+          resolveCanonicalStudentIdInTransaction(transaction, command.actor.academyId, document.id)));
+        const rows = pageDocuments.flatMap((document, index) => {
+          if (canonicalIds[index] !== document.id) return [];
           try {
             const student = parseStudent(
               document,
@@ -855,7 +860,7 @@ export function createCanonicalMemberDirectoryReadService(
               command.actor.academyId,
               document.id,
             );
-            return toAdminDirectoryRow(student, profile);
+            return [toAdminDirectoryRow(student, profile)];
           } catch {
             throw new CanonicalMemberDirectoryReadError(
               "unavailable",
@@ -890,9 +895,10 @@ export function createCanonicalMemberDirectoryReadService(
         purpose: value.purpose,
         dependencies,
         operation: async (transaction) => {
+          const studentId = await resolveCanonicalStudentIdInTransaction(transaction, command.actor.academyId, value.studentId);
           const [studentDocument, profileDocument] = await Promise.all([
-            transaction.get(studentPath(command.actor.academyId, value.studentId)),
-            transaction.get(profilePath(command.actor.academyId, value.studentId)),
+            transaction.get(studentPath(command.actor.academyId, studentId)),
+            transaction.get(profilePath(command.actor.academyId, studentId)),
           ]);
           if (!studentDocument.exists || !profileDocument.exists) {
             return Object.freeze({
@@ -904,13 +910,13 @@ export function createCanonicalMemberDirectoryReadService(
           const student = parseStudent(
             studentDocument,
             command.actor.academyId,
-            value.studentId,
+            studentId,
             now.slice(0, 10),
           );
           const profile = parseAdminProfile(
             profileDocument,
             command.actor.academyId,
-            value.studentId,
+            studentId,
           );
           return Object.freeze({
             kind: "success",
@@ -931,9 +937,10 @@ export function createCanonicalMemberDirectoryReadService(
         purpose: "member-record-maintenance",
         dependencies,
         operation: async (transaction) => {
+          const studentId = await resolveCanonicalStudentIdInTransaction(transaction, command.actor.academyId, value.studentId);
           const [studentDocument, profileDocument] = await Promise.all([
-            transaction.get(studentPath(command.actor.academyId, value.studentId)),
-            transaction.get(profilePath(command.actor.academyId, value.studentId)),
+            transaction.get(studentPath(command.actor.academyId, studentId)),
+            transaction.get(profilePath(command.actor.academyId, studentId)),
           ]);
           if (!studentDocument.exists) {
             return Object.freeze({ kind: "failure", code: "not-found", auditResult: "not-found" });
@@ -941,13 +948,13 @@ export function createCanonicalMemberDirectoryReadService(
           const student = parseStudent(
             studentDocument,
             command.actor.academyId,
-            value.studentId,
+            studentId,
             now.slice(0, 10),
           );
           const adminProfile = parseOptionalAdminProfile(
             profileDocument,
             command.actor.academyId,
-            value.studentId,
+            studentId,
           );
           return Object.freeze({
             kind: "success",

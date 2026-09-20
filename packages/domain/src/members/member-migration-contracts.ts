@@ -1,3 +1,5 @@
+import type { MemberRecord } from "./member-contracts";
+import type { RegyfitMemberRecord } from "./regyfit-member-record-contracts";
 import { guardianContactSchema } from "../families/family-contracts";
 import { z } from "zod";
 import { deriveParticipantType } from "../profiles/profile-contracts";
@@ -118,7 +120,13 @@ export function buildMemberMigrationQueue(
       let category: MemberMigrationCategory;
       let candidates: MemberMigrationRow["candidates"];
       if (strong.size > 0) {
-        category = strong.size === 1 && !shared ? "strong" : "ambiguous";
+        const conflictingIdentifier = [...strong.keys()].some((id) => {
+          const record = open.find((candidate) => candidate.recordId === id)!;
+          const recordNumber = strongKey(record.memberNumber), recordCard = strongKey(record.idCardNumber);
+          return (number !== undefined && recordNumber !== undefined && number !== recordNumber) ||
+            (idCard !== undefined && recordCard !== undefined && idCard !== recordCard);
+        });
+        category = strong.size === 1 && !shared && !conflictingIdentifier ? "strong" : "ambiguous";
         candidates = [...strong].map(([recordId, reason]) => ({ recordId, reason }));
       } else {
         const name = normalizeMemberName(member.fullName);
@@ -172,18 +180,59 @@ const trainingFields = {
     .refine((values) => new Set(values).size === values.length),
 };
 
+export const migrationIdentityFields = ["fullName", "birthDate", "email", "mobileNumber", "membershipNumber", "idCardNumber", "vatNumber", "gender"] as const;
+export type MigrationIdentityField = (typeof migrationIdentityFields)[number];
+const sourceVersionSchema = z.string().regex(/^\d+:\d+$/u);
+export const migrationFieldChoiceSchema = z.strictObject({
+  field: z.enum(migrationIdentityFields), source: z.enum(["legacy", "regyfit"]),
+  evidence: z.string().trim().min(3).max(1000), reason: z.string().trim().min(3).max(300),
+});
+export const migrationIdentityReviewSchema = z.strictObject({
+  legacyVersion: sourceVersionSchema, recordVersion: sourceVersionSchema.optional(),
+  identityEvidence: z.string().trim().min(3).max(1000),
+  choices: z.array(migrationFieldChoiceSchema).max(8).refine((choices) => new Set(choices.map((choice) => choice.field)).size === choices.length),
+});
+export type MigrationIdentityReview = z.infer<typeof migrationIdentityReviewSchema>;
+
+export function migrationIdentityValues(member: MemberRecord, record?: RegyfitMemberRecord) {
+  const legacy = Object.fromEntries(migrationIdentityFields.map((field) => [field, member[field] ?? null])) as Record<MigrationIdentityField, string | null>;
+  const archive: Record<MigrationIdentityField, string | null> = {
+    fullName: record?.fullName ?? null, birthDate: record?.birthDate ?? null, email: record?.email ?? null,
+    mobileNumber: record?.mobile ?? null, membershipNumber: record?.memberNumber ?? null,
+    idCardNumber: record?.idCardNumber ?? null, vatNumber: record?.vatNumber ?? null, gender: record?.gender ?? null,
+  };
+  const conflicts = record === undefined ? [] : migrationIdentityFields.filter((field) =>
+    legacy[field] !== archive[field]);
+  return { legacy, archive, conflicts };
+}
+
+/** Called again inside the canonical transaction. The applicant cannot supply an arbitrary patch. */
+export function reviewedMigrationValues(member: MemberRecord, record: RegyfitMemberRecord | undefined, review: MigrationIdentityReview) {
+  const { legacy, archive, conflicts } = migrationIdentityValues(member, record);
+  if (conflicts.some((field) => !review.choices.some((choice) => choice.field === field)) ||
+      review.choices.some((choice) => !conflicts.includes(choice.field))) throw new Error("Every source conflict requires an explicit decision");
+  const chosen = { ...legacy };
+  for (const field of migrationIdentityFields) {
+    const choice = review.choices.find((candidate) => candidate.field === field);
+    chosen[field] = choice ? (choice.source === "legacy" ? legacy[field] : archive[field]) : legacy[field] ?? archive[field];
+  }
+  return chosen;
+}
+
 export const memberMigrationDecisionInputSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("link"),
     legacyMemberId: legacyMemberIdSchema,
     recordId: recordIdSchema,
     requestId: z.uuid(),
+    review: migrationIdentityReviewSchema,
     ...trainingFields,
   }),
   z.strictObject({
     kind: z.literal("create-unlinked"),
     legacyMemberId: legacyMemberIdSchema,
     requestId: z.uuid(),
+    review: migrationIdentityReviewSchema,
     ...trainingFields,
   }),
   z.strictObject({
@@ -206,6 +255,8 @@ export const memberMigrationRejectionCodes = [
   "identifier-reserved",
   "invalid-member-data",
   "identity-changed",
+  "conflicts-require-review",
+  "batch-requires-compatible-identity",
   "write-failed",
 ] as const;
 export type MemberMigrationRejectionCode = (typeof memberMigrationRejectionCodes)[number];
@@ -240,6 +291,8 @@ export const memberMigrationDecisionRecordSchema = z.strictObject({
   trainingTimePreferences: z.array(z.enum(["morning", "afternoon", "evening"])).optional(),
   decidedAt: z.string().min(1),
   decidedBy: z.string().min(1),
+  review: migrationIdentityReviewSchema.optional(),
+  sourceValues: z.strictObject({ legacy: z.record(z.enum(migrationIdentityFields), z.string().max(320).nullable()), archive: z.record(z.enum(migrationIdentityFields), z.string().max(320).nullable()) }).optional(),
   schemaVersion: z.literal("1"),
 });
 export type MemberMigrationDecisionRecord = z.infer<typeof memberMigrationDecisionRecordSchema>;
@@ -254,12 +307,15 @@ export const memberMigrationQueueResponseSchema = z.strictObject({
   rows: z.array(
     z.strictObject({
       legacyMemberId: legacyMemberIdSchema,
+      sourceVersion: sourceVersionSchema,
       category: z.enum(["strong", "suggested", "ambiguous", "none"]),
       isMinor: z.union([z.boolean(), z.literal("unknown")]),
       member: sideSchema,
       candidates: z.array(
         z.strictObject({
           recordId: recordIdSchema,
+          sourceVersion: sourceVersionSchema,
+          conflicts: z.array(z.enum(migrationIdentityFields)).max(8),
           reason: z.enum(["member-number", "id-card", "name-and-birth-date"]),
           record: sideSchema,
         }),
@@ -276,6 +332,8 @@ export function toMemberMigrationQueueResponse(
   members: readonly LegacyMemberInput[],
   records: readonly ArchiveRecordInput[],
   decided: number,
+  versions: Readonly<{ members: Readonly<Record<string, string>>; records: Readonly<Record<string, string>> }>,
+  conflictsFor: (memberId: string, recordId: string) => readonly MigrationIdentityField[],
 ): MemberMigrationQueueResponse {
   const memberById = new Map(members.map((member) => [member.memberId, member]));
   const recordById = new Map(records.map((record) => [record.recordId, record]));
@@ -299,6 +357,7 @@ export function toMemberMigrationQueueResponse(
       return [
         {
           legacyMemberId: row.legacyMemberId,
+          sourceVersion: versions.members[row.legacyMemberId]!,
           category: row.category,
           isMinor: row.isMinor,
           member: side(member),
@@ -306,7 +365,7 @@ export function toMemberMigrationQueueResponse(
             const record = recordById.get(candidate.recordId);
             return record === undefined
               ? []
-              : [{ recordId: candidate.recordId, reason: candidate.reason, record: side(record) }];
+              : [{ recordId: candidate.recordId, sourceVersion: versions.records[candidate.recordId]!, conflicts: [...conflictsFor(row.legacyMemberId, candidate.recordId)], reason: candidate.reason, record: side(record) }];
           }),
         },
       ];
