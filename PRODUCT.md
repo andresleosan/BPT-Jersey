@@ -98,7 +98,9 @@ section navigation collapse on small screens; desktop retains its timetable. See
 ## Public enrolment and staff access (2026-09-20)
 
 Public enrolment collects details, suggests eligible plans by age and centre, then asks for bank
-transfer evidence. Only West per-session plans are exempt, including teen PAYG. Office reviews all
+transfer evidence for prepaid plans. All per-session (Pay as you go) plans are exempt: no upfront
+payment, screenshot or payment-review checkbox is required, including teen PAYG. Mixed family
+registrations require payment evidence only for prepaid plans. Office reviews all
 submitted details and payment evidence, chooses any published initial level, and confirms the paid
 subscription period. Approval completes the member, level and subscription; retries preserve the
 same decision and avoid duplicate payments. Staff creation uses one email-and-role form; only owners

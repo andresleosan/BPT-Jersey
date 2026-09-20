@@ -176,14 +176,10 @@ export const enrolmentApprovalSetupSchema = z
   .readonly();
 export type EnrolmentApprovalSetup = z.infer<typeof enrolmentApprovalSetupSchema>;
 
-/** Only West per-session plans are paid at class, never at registration. */
+/** Pay-as-you-go plans are paid per class, with no payment or proof required at registration. */
 export function enrolmentNeedsPayment(planId: string): boolean {
   const plan = PLAN_CATALOG.find((item) => item.planId === planId);
-  return !(
-    plan?.billingPeriod === "per-session" &&
-    plan.classSites.length === 1 &&
-    plan.classSites[0] === "West"
-  );
+  return plan?.billingPeriod !== "per-session";
 }
 export function enrolmentPaymentTotal(selections: EnrolmentPlanSelections): number {
   return [selections.applicant, ...selections.minors].reduce<number>(

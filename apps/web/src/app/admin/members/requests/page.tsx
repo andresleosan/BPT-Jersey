@@ -139,7 +139,9 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
           )}
         </section>
       ) : (
-        <p>No transfer screenshot supplied. Only West pay-as-you-go plans are exempt.</p>
+        <p>
+          No transfer screenshot supplied. Pay-as-you-go plans do not require payment at registration.
+        </p>
       )}
       {detail.approvalFailureCode ? (
         <p className="admin-request-meta">
@@ -257,7 +259,8 @@ function EnrolmentRequestQueueContent() {
           (enrolmentNeedsPayment(student.planId) && !student.endsOn),
       ) ||
       !verified[request.enrolmentRequestId] ||
-      !paymentVerified[request.enrolmentRequestId]
+      (students.some((student) => enrolmentNeedsPayment(student.planId)) &&
+        !paymentVerified[request.enrolmentRequestId])
     ) {
       setNotice({
         tone: "error",
@@ -624,20 +627,25 @@ function EnrolmentRequestQueueContent() {
                         />
                         I have verified the registration details and selected levels.
                       </label>
-                      <label className="enrol-review-check">
-                        <input
-                          type="checkbox"
-                          checked={paymentVerified[request.enrolmentRequestId] ?? false}
-                          onChange={(event) =>
-                            setPaymentVerified((current) => ({
-                              ...current,
-                              [request.enrolmentRequestId]: event.target.checked,
-                            }))
-                          }
-                        />
-                        I have checked the transfer against the screenshot, or confirmed that all
-                        plans are West pay as you go.
-                      </label>
+                      {setups[request.enrolmentRequestId]?.some((student) =>
+                        enrolmentNeedsPayment(student.planId),
+                      ) ? (
+                        <label className="enrol-review-check">
+                          <input
+                            type="checkbox"
+                            checked={paymentVerified[request.enrolmentRequestId] ?? false}
+                            onChange={(event) =>
+                              setPaymentVerified((current) => ({
+                                ...current,
+                                [request.enrolmentRequestId]: event.target.checked,
+                              }))
+                            }
+                          />
+                          I have checked the transfer against the screenshot for the prepaid plans.
+                        </label>
+                      ) : (
+                        <p>No payment review is required for Pay as you go.</p>
+                      )}
                       {open ? (
                         <button
                           className="staff-primary-button"
