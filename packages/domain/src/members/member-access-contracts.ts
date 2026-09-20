@@ -32,5 +32,5 @@ export interface MemberAccessService {
 export const memberGuardianStateSchema = z.strictObject({
   academyId: reviewIdentifierSchema, studentId: reviewIdentifierSchema,
   relationshipId: reviewIdentifierSchema.nullable(), guardianUserId: reviewIdentifierSchema.nullable(),
-  revision: z.uuid(), updatedAt: z.iso.datetime(), updatedBy: reviewIdentifierSchema, schemaVersion: z.literal("1"),
+  integrityMac: z.string().regex(/^[a-f0-9]{64}$/u), revision: z.uuid(), updatedAt: z.iso.datetime(), updatedBy: reviewIdentifierSchema, schemaVersion: z.literal("1"),
 }).refine((state) => (state.relationshipId === null) === (state.guardianUserId === null));

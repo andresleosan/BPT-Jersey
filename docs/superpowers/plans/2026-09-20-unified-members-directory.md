@@ -325,7 +325,7 @@ const effectiveProfile: StudentProfile = effectiveType === "adult"
 - Consume `memberAgeOn`, `MemberAccessService` and existing family audit/transaction/control-plane utilities.
 - Produce `ChildGuardianChange` and `FamilyStore.changeChildGuardian(input: ChildGuardianChange & {academyId: string; actorId: string; actorRole: "owner" | "administrator"; now: string}): Promise<StaffFamilyProjection>`.
 
-- [ ] Add an explicit per-child command; a null proposed guardian removes an optional guardian only when age is 16 or above. An online guardian link below 18 needs a verified account and reviewed relationship evidence. Preserve existing office-managed guardian contact records for children whose guardian has no login; a required guardian contact does not itself create or prove account access.
+- [x] Add an explicit per-child command; a null proposed guardian removes an optional guardian only when age is 16 or above. An online guardian link below 18 needs a verified account and reviewed relationship evidence. Preserve existing office-managed guardian contact records for children whose guardian has no login; a required guardian contact does not itself create or prove account access.
 
 ```ts
 export type ChildGuardianChange = Readonly<{
@@ -339,8 +339,8 @@ export type ChildGuardianChange = Readonly<{
 }>;
 ```
 
-- [ ] Use `memberGuardianStates/{studentId}` as the transaction's per-child uniqueness/version anchor, not as a second source of relationship truth. Seed it only after inspecting all existing active relationships; conflicting existing guardians go to review. All writers, including create-family, add-student, old replacement and recovery approval, must honour it. Preserve existing writer guards and MAC coverage for the new state.
-- [ ] In one transaction re-read the child, academy/actor, anchor and expected relationship. End only that relationship, create a new uniquely versioned relationship rather than overwriting its history, then update the anchor, audit and receipt. Preserve `familyId`, billing contacts, sibling relationships, memberships and historical payer. One transaction cannot leave two guardians or an ended link without its approved replacement.
+- [x] Use `memberGuardianStates/{studentId}` as the transaction's per-child uniqueness/version anchor, not as a second source of relationship truth. Seed it only after inspecting all existing active relationships; conflicting existing guardians go to review. All writers, including create-family, add-student, old replacement and recovery approval, must honour it. Preserve existing writer guards and MAC coverage for the new state.
+- [x] In one transaction re-read the child, academy/actor, anchor and expected relationship. End only that relationship, create a new uniquely versioned relationship rather than overwriting its history, then update the anchor, audit and receipt. Preserve `familyId`, billing contacts, sibling relationships, memberships and historical payer. One transaction cannot leave two guardians or an ended link without its approved replacement.
 
 ```ts
 if (activeRelationshipId !== input.expectedRelationshipId ||
@@ -352,11 +352,11 @@ if (age !== null && age >= 18 && input.proposedGuardianUserId !== null) {
 }
 ```
 
-- [ ] Prevent the old whole-family `replaceTutor` path from bypassing child-specific review. Keep its historical reader compatibility; replace office actions with explicit per-child commands. Family deactivation may only affect the relationships explicitly within its authorised scope and must not remove an account's independent own/other-family links.
-- [ ] Effective guardian access ends on the eighteenth birthday in Task 4 even before persistence catches up. Preserve relationship history; store effective end date/reason through a guarded, idempotent maintenance operation when the record is next reviewed or the existing birthday workflow runs. A missing or invalid recorded write date is a review issue, not permission to skip strict parsing. Changing a confirmed birth date recomputes authorisation immediately; extending an ended relationship requires a reviewed new link, not automatic reactivation.
-- [ ] Add the approaching-18 marker to authorised staff projections, showing whether own access is prepared. Do not create an Auth user, renew a plan or extend guardian access when no personal account exists.
-- [ ] Inspect two simultaneous replacements of child A, sibling B retained, old tutor's own account, removal at 15 versus 16, and birthday with maintenance delayed. Expected: one winning child change; invariant and access boundary enforced in the transaction/server, not only the UI.
-- [ ] Commit with message `Manage guardian access per child and end it at adulthood`.
+- [x] Prevent the old whole-family `replaceTutor` path from bypassing child-specific review. Keep its historical reader compatibility; replace office actions with explicit per-child commands. Family deactivation may only affect the relationships explicitly within its authorised scope and must not remove an account's independent own/other-family links.
+- [x] Effective guardian access ends on the eighteenth birthday in Task 4 even before persistence catches up. Preserve relationship history; store effective end date/reason through a guarded, idempotent maintenance operation when the record is next reviewed or the existing birthday workflow runs. A missing or invalid recorded write date is a review issue, not permission to skip strict parsing. Changing a confirmed birth date recomputes authorisation immediately; extending an ended relationship requires a reviewed new link, not automatic reactivation.
+- [x] Add the approaching-18 marker to authorised staff projections, showing whether own access is prepared. Do not create an Auth user, renew a plan or extend guardian access when no personal account exists.
+- [x] Inspect two simultaneous replacements of child A, sibling B retained, old tutor's own account, removal at 15 versus 16, and birthday with maintenance delayed. Expected: one winning child change; invariant and access boundary enforced in the transaction/server, not only the UI.
+- [x] Commit with message `Manage guardian access per child and end it at adulthood`.
 
 ## Task 6: Apply athlete scope to every dependent reader and mutation
 

@@ -425,6 +425,7 @@ function officeCallableServices(): EnrolmentOfficeCallableServices {
             const user = await auth.getUser(userId);
             return {
               uid: user.uid,
+              emailVerified: user.emailVerified,
               ...(user.disabled !== undefined ? { disabled: user.disabled } : {}),
               ...(user.customClaims
                 ? { customClaims: user.customClaims as Readonly<Record<string, unknown>> }

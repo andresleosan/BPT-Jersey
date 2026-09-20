@@ -350,3 +350,5 @@ export {
 } from "./courses/course-callables.js";
 export { coursePublic } from "./courses/course-public-http.js";
 export { courseScheduler, courseProofCleanup } from "./courses/course-scheduler.js";
+
+export { changeChildGuardian } from "./families/family-callables.js";
