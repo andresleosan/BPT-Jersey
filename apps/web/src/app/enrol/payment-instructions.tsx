@@ -3,25 +3,43 @@ import { useEffect, useState } from "react";
 import type { PaymentInstructionsInput } from "@bpt-jersey/domain/finance";
 import { getEnrolmentPaymentInstructions } from "../../lib/enrolment-client";
 
-export function EnrolmentBankDetails() {
-  const [details, setDetails] = useState<PaymentInstructionsInput | null>();
-  const [error, setError] = useState(false);
+// Keep the request with the form so changing steps does not fetch the same details again.
+export function useEnrolmentBankDetails(sessionKey: string | undefined) {
+  const [result, setResult] = useState<{
+    sessionKey: string;
+    details?: PaymentInstructionsInput | null;
+    error: boolean;
+  }>();
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    setResult(undefined);
+    if (!sessionKey) return;
     let active = true;
-    setError(false);
     void getEnrolmentPaymentInstructions().then(
-      (result) => {
-        if (active) setDetails(result);
+      (details) => {
+        if (active) setResult({ sessionKey, details, error: false });
       },
       () => {
-        if (active) setError(true);
+        if (active) setResult({ sessionKey, error: true });
       },
     );
     return () => {
       active = false;
     };
-  }, [attempt]);
+  }, [sessionKey, attempt]);
+  const current = result?.sessionKey === sessionKey ? result : undefined;
+  return {
+    details: current?.details,
+    error: current?.error ?? false,
+    onRetry: () => setAttempt((value) => value + 1),
+  };
+}
+
+export function EnrolmentBankDetails({
+  details,
+  error,
+  onRetry,
+}: ReturnType<typeof useEnrolmentBankDetails>) {
   if (error)
     return (
       <div role="alert">
@@ -29,7 +47,7 @@ export function EnrolmentBankDetails() {
         <button
           className="button button-secondary"
           type="button"
-          onClick={() => setAttempt((value) => value + 1)}
+          onClick={onRetry}
         >
           Retry bank details
         </button>
