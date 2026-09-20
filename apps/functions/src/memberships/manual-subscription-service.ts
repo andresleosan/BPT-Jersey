@@ -60,7 +60,11 @@ function memberInvoices(
 function currentInvoiceFor(invoices: readonly InvoiceRecord[], administration: DocumentSnapshot) {
   if (administration.exists) {
     const id: unknown = administration.get("invoiceId");
-    if (id === null && administration.get("complimentary") === true) return null;
+    if (
+      id === null &&
+      (administration.get("complimentary") === true || administration.get("payAsYouGo") === true)
+    )
+      return null;
     const linked = invoices.find((invoice) => invoice.invoiceId === id);
     if (!linked) fail("Billing link is invalid.");
     return linked;
@@ -134,6 +138,14 @@ export async function saveManualSubscription(
       !plan.value.active
     )
       fail("Choose an active catalogue plan.");
+    if (
+      input.settlement.kind === "pay-as-you-go" &&
+      (input.operation !== "assign" ||
+        plan.value.billingPeriod !== "per-session" ||
+        plan.value.classSites.length !== 1 ||
+        plan.value.classSites[0] !== "West")
+    )
+      fail("Pay at class is only available for a new West pay-as-you-go subscription.");
     // Office may intentionally grant any active plan. Booking/consent checks remain independent.
     const parsedCurrent = currentDoc.exists ? parseMembershipRecord(currentDoc.data()) : null;
     const current = parsedCurrent?.ok ? parsedCurrent.value : null;
@@ -344,6 +356,14 @@ export async function saveManualSubscription(
         updatedBy: actor.userId,
       });
     }
+    if (settlement.kind === "pay-as-you-go")
+      tx.set(administrationRef, {
+        invoiceId: null,
+        complimentary: false,
+        payAsYouGo: true,
+        updatedAt: now,
+        updatedBy: actor.userId,
+      });
     tx.set(membershipRef, record);
     if (oldNoticeRef && oldNotice?.exists && input.endsAt !== current?.endsAt)
       tx.set(oldNoticeRef, { ...oldNotice.data(), resolvedAt: now, readAt: now });

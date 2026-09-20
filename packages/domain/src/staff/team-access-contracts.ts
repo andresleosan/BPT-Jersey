@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const teamRoleSchema = z.enum(["owner", "administrator", "headCoach", "coach"]);
+export const assignableTeamRoleSchema = z.enum(["coach", "administrator", "owner"]);
 export const administrativeTeamRoleSchema = z.enum(["administrator", "owner"]);
 export const teamRoleLabels = {
   owner: "Owner",
@@ -29,14 +30,14 @@ export const changeTeamRoleSchema = z.strictObject({
 });
 export const staffInvitationInputSchema = z.strictObject({
   email: teamEmailSchema,
-  role: administrativeTeamRoleSchema,
+  role: assignableTeamRoleSchema,
 });
 export const staffInvitationSchema = z.strictObject({
   id: z.string().min(1).max(128),
   version: z.string().min(1).max(128),
   academyId: z.string().min(1),
   email: teamEmailSchema,
-  role: administrativeTeamRoleSchema,
+  role: assignableTeamRoleSchema,
   invitedBy: z.string().min(1),
   createdAt: z.iso.datetime(),
   expiresAt: z.iso.datetime(),

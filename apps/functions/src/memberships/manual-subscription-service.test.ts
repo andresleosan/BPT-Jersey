@@ -156,6 +156,36 @@ const paid = {
   occurredAt: time,
 } as const;
 describe("office subscription settlements", () => {
+  it("activates West PAYG without an invoice or complimentary access and replays once", async () => {
+    const h = harness();
+    const command = { ...input({ kind: "pay-as-you-go" }), endsAt: null };
+    const saved = await saveManualSubscription(h.db, actor, command);
+    expect(saved.status).toBe("active");
+    expect(h.records.get(base + "membershipAdministration/" + saved.membershipId)).toMatchObject({
+      invoiceId: null,
+      complimentary: false,
+      payAsYouGo: true,
+    });
+    expect(
+      [...h.records.keys()].some(
+        (path) => path.includes("/payments/") || path.includes("/invoices/"),
+      ),
+    ).toBe(false);
+    const count = h.records.size;
+    expect(await saveManualSubscription(h.db, actor, command)).toEqual(saved);
+    expect(h.records.size).toBe(count);
+  });
+  it("does not accept the PAYG exception for a monthly plan", async () => {
+    const h = harness();
+    const before = h.records.size;
+    await expect(
+      saveManualSubscription(h.db, actor, {
+        ...input({ kind: "pay-as-you-go" }),
+        planId: "town-adult",
+      }),
+    ).rejects.toThrow();
+    expect(h.records.size).toBe(before);
+  });
   it.each(["owner", "administrator"] as const)(
     "%s assigns membership and records payment without a member login",
     async (role) => {

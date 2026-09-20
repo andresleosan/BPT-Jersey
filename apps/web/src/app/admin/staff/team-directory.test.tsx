@@ -36,7 +36,11 @@ describe("team directory", () => {
     expect(within(table).getByText("coach@example.test")).toBeVisible();
     expect(within(table).getByText("Coach")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Change role/ })).toBeNull();
-    expect(screen.queryByLabelText("Invitation email")).toBeNull();
+    expect(screen.getByLabelText("Staff email")).toBeVisible();
+    expect(screen.getByLabelText("Staff role")).toHaveValue("coach");
+    expect(
+      within(screen.getByLabelText("Staff role")).queryByRole("option", { name: "Owner" }),
+    ).toBeNull();
     expect(api.listStaffInvitations).not.toHaveBeenCalled();
   });
   it("requires review before changing a role and never offers self-promotion", async () => {
@@ -62,9 +66,9 @@ describe("team directory", () => {
     const user = userEvent.setup();
     render(<TeamDirectoryContent session={session} />);
     await screen.findByRole("table");
-    await user.type(screen.getByLabelText("Invitation email"), "NEW@example.test");
-    await user.selectOptions(screen.getByLabelText("Invitation role"), "owner");
-    await user.click(screen.getByRole("button", { name: "Review invitation" }));
+    await user.type(screen.getByLabelText("Staff email"), "NEW@example.test");
+    await user.selectOptions(screen.getByLabelText("Staff role"), "owner");
+    await user.click(screen.getByRole("button", { name: "Review staff access" }));
     expect(api.createStaffInvitation).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Confirm access" }));
     await waitFor(() =>

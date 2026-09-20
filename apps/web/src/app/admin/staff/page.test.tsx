@@ -110,25 +110,12 @@ describe("admin staff page", () => {
     expect(screen.queryByText("private backend details")).not.toBeInTheDocument();
   });
 
-  it("creates a profile with the exact editable fields", async () => {
-    const user = userEvent.setup();
+  it("removes the duplicate user-ID provisioning form", async () => {
     staffApi.listStaffProfiles.mockResolvedValue([]);
-    staffApi.createStaffProfile.mockResolvedValue(coach);
     render(<StaffAdminPage />);
-
     await screen.findByText("No staff profiles found.");
-    await user.type(screen.getByLabelText("User ID"), "user-1");
-    await user.selectOptions(screen.getByLabelText("Role"), "coach");
-    await user.type(screen.getByLabelText("Request ID"), "request-1");
-    await user.click(screen.getByRole("button", { name: "Create staff profile" }));
-
-    await waitFor(() => expect(staffApi.createStaffProfile).toHaveBeenCalledOnce());
-    expect(staffApi.createStaffProfile).toHaveBeenCalledWith({
-      userId: "user-1",
-      role: "coach",
-      requestId: "request-1",
-    });
-    expect(screen.getByRole("status")).toHaveTextContent("Staff profile created.");
+    expect(screen.queryByLabelText("User ID")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Request ID")).not.toBeInTheDocument();
   });
 
   it("updates role and activation while restoring focus to the selected row action", async () => {
@@ -141,15 +128,10 @@ describe("admin staff page", () => {
     await screen.findByRole("table", { name: "Staff profiles" });
     const rowAction = screen.getByRole("button", { name: "Select staff staff-1" });
     await user.click(rowAction);
-    await user.selectOptions(screen.getByLabelText("Selected staff role"), "coach");
-    await user.click(screen.getByRole("button", { name: "Update role" }));
-    await waitFor(() =>
-      expect(staffApi.updateStaffProfile).toHaveBeenCalledWith({
-        staffKey: "staff-1",
-        role: "coach",
-      }),
+    expect(screen.getByRole("link", { name: "team directory" })).toHaveAttribute(
+      "href",
+      "#staff-account-roles",
     );
-    expect(rowAction).toHaveFocus();
 
     await user.click(screen.getByRole("button", { name: "Deactivate staff profile" }));
     await waitFor(() =>
@@ -237,7 +219,7 @@ describe("admin staff page", () => {
     const user = userEvent.setup();
     let resolveUpdate!: (profile: typeof coach) => void;
     staffApi.listStaffProfiles.mockResolvedValue([coach]);
-    staffApi.updateStaffProfile.mockReturnValue(
+    staffApi.setStaffActive.mockReturnValue(
       new Promise((resolve) => {
         resolveUpdate = resolve;
       }),
@@ -246,9 +228,7 @@ describe("admin staff page", () => {
 
     await screen.findByRole("table", { name: "Staff profiles" });
     await user.click(screen.getByRole("button", { name: "Select staff staff-1" }));
-    await user.selectOptions(screen.getByLabelText("Selected staff role"), "coach");
-    await user.click(screen.getByRole("button", { name: "Update role" }));
-    expect(screen.getByRole("button", { name: "Update role" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Deactivate staff profile" }));
     expect(screen.getByRole("button", { name: "Deactivate staff profile" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Replace availability" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Replace assignment" })).toBeDisabled();

@@ -10,6 +10,11 @@ const enrolmentApi = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../../lib/enrolment-client", () => enrolmentApi);
+vi.mock("../../../../lib/levels-client", () => ({
+  getLevelCatalog: vi.fn().mockResolvedValue({
+    definitions: [{ definitionKey: "yellow-2", name: "Yellow Belt 2 Stripes", sequence: 2 }],
+  }),
+}));
 
 const gate = vi.hoisted(() => ({
   role: "owner" as "owner" | "administrator" | "headCoach" | "coach",
@@ -62,6 +67,7 @@ const detail = {
     postalAddress: { line: "2 Synthetic Lane", postCode: "JE2 4XY" },
   },
   minors: [],
+  planSelections: { applicant: "town-adult" as const, minors: [] },
   submittedBy: "client-1",
   submittedAt: "2026-09-06T10:00:00.000Z",
 };
@@ -192,7 +198,7 @@ describe("enrolment request queue", () => {
 
     await userEvent.click(firstButton(/read the full request/i));
 
-    await waitFor(() => expect(approve).toBeEnabled());
+    await waitFor(() => expect(firstButton(/approve and enrol/i)).toBeEnabled());
     expect(enrolmentApi.getEnrolmentRequestDetail).toHaveBeenCalledWith("enrolment-1");
   });
 
@@ -231,10 +237,20 @@ describe("enrolment request queue", () => {
     await userEvent.click(firstButton(/read the full request/i));
     await waitFor(() => expect(firstButton(/approve and enrol/i)).toBeEnabled());
 
+    await userEvent.selectOptions(screen.getByLabelText("Initial level"), "yellow-2");
+    await userEvent.click(screen.getByLabelText(/I have verified/));
+    await userEvent.click(screen.getByLabelText(/I have checked/));
     await userEvent.click(firstButton(/approve and enrol/i));
 
     expect(await screen.findByText(/Alex Adult is enrolled and can now sign in/i)).toBeVisible();
-    expect(enrolmentApi.approveEnrolmentRequest).toHaveBeenCalledWith("enrolment-1");
+    expect(enrolmentApi.approveEnrolmentRequest).toHaveBeenCalledWith(
+      "enrolment-1",
+      expect.objectContaining({
+        detailsVerified: true,
+        paymentVerified: true,
+        students: [expect.objectContaining({ definitionKey: "yellow-2", planId: "town-adult" })],
+      }),
+    );
     // The approval touched the directory and the account, so the queue is re-read rather than
     // patched from what was asked for.
     expect(enrolmentApi.listEnrolmentRequests).toHaveBeenCalledTimes(2);
@@ -249,6 +265,9 @@ describe("enrolment request queue", () => {
     await userEvent.click(firstButton(/read the full request/i));
     await waitFor(() => expect(firstButton(/approve and enrol/i)).toBeEnabled());
 
+    await userEvent.selectOptions(screen.getByLabelText("Initial level"), "yellow-2");
+    await userEvent.click(screen.getByLabelText(/I have verified/));
+    await userEvent.click(screen.getByLabelText(/I have checked/));
     await userEvent.click(firstButton(/approve and enrol/i));
 
     expect(await screen.findByText(/applicant_account_incomplete/)).toBeVisible();
@@ -260,7 +279,7 @@ describe("enrolment request queue", () => {
     expect(help).toHaveTextContent("Read the full request");
     expect(help).toHaveTextContent("Send back to applicant");
     expect(help).toHaveTextContent("Approve and enrol");
-    expect(help).toHaveTextContent("audited");
+    expect(help).toHaveTextContent("payment screenshot");
   });
 
   it("lets a coach see the queue and send a request back, but not open or approve it", async () => {
@@ -280,6 +299,9 @@ describe("enrolment request queue", () => {
 
 describe("requested enrolment plans", () => {
   it("keeps requests submitted before plan selection reviewable", async () => {
+    const { planSelections, ...legacyDetail } = detail;
+    expect(planSelections).toBeDefined();
+    enrolmentApi.getEnrolmentRequestDetail.mockResolvedValueOnce(legacyDetail);
     const user = userEvent.setup();
     render(<EnrolmentRequestQueuePage />);
     await user.click(

@@ -5,6 +5,7 @@ import {
   isReturnableEnrolmentRequest,
   parseEnrolmentRequestRecord,
   type EnrolmentRequestRecord,
+  type EnrolmentApprovalSetup,
   type EnrolmentRequestSubmission,
 } from "@bpt-jersey/domain/members/enrolment-requests";
 import { enrolmentWaiverTermsContentHash } from "@bpt-jersey/domain/consents/enrolment-waiver";
@@ -101,6 +102,7 @@ export type BeginEnrolmentApprovalInput = Readonly<{
   actorId: string;
   now: string;
   enrolmentRequestId: string;
+  setup?: EnrolmentApprovalSetup;
   /** The reviewer's idempotency key, used only if the request does not already carry one. */
   requestId: string;
 }>;
@@ -136,6 +138,10 @@ export type EnrolmentRequestPage = Readonly<{
 }>;
 
 export type EnrolmentRequestStore = Readonly<{
+  getForApproval: (
+    academyId: string,
+    enrolmentRequestId: string,
+  ) => Promise<EnrolmentRequestRecord>;
   submit: (input: SubmitEnrolmentRequestInput) => Promise<EnrolmentRequestRecord>;
   listForAcademy: (academyId: string) => Promise<EnrolmentRequestPage>;
   listForSubmitter: (
@@ -405,6 +411,20 @@ export function createEnrolmentRequestStore(
   }
 
   return Object.freeze({
+    async getForApproval(academyId, requestId) {
+      return firestore.runTransaction(async (transaction) => {
+        const snapshot = asDocument(
+          await transaction.get(
+            firestore.doc(
+              `${collectionPath(id(academyId, "academy"), "enrolmentRequests")}/${id(requestId, "enrolment request")}`,
+            ),
+          ),
+        );
+        if (!snapshot.exists)
+          throw new EnrolmentRequestStoreError("not-found", "Enrolment request not found");
+        return stored(snapshot, academyId);
+      });
+    },
     async submit(input) {
       const academyId = id(input.academyId, "academy");
       const actorId = id(input.actorId, "actor");
@@ -453,6 +473,7 @@ export function createEnrolmentRequestStore(
           applicant: input.submission.applicant,
           minors: input.submission.minors,
           planSelections: input.submission.planSelections,
+          ...(input.submission.payment ? { payment: input.submission.payment } : {}),
           submittedBy: actorId,
           submittedAt: now,
           // The client sends only the version it displayed. The hash and the timestamp are the
@@ -527,6 +548,16 @@ export function createEnrolmentRequestStore(
         // Whoever got here first pinned the key. A retry - by the same reviewer or another - runs
         // against that key, so the canonical writer answers with the student it already created
         // instead of creating a second one.
+        if (
+          existing.status === "approving" &&
+          Date.parse(now) -
+            Date.parse(existing.reviewedAt ?? existing.approvalStartedAt ?? existing.submittedAt) <
+            120_000
+        )
+          throw new EnrolmentRequestStoreError(
+            "precondition",
+            "Approval is already running. Wait two minutes before retrying.",
+          );
         const approvalRequestId = existing.approvalRequestId ?? requestId;
         const candidate = parseEnrolmentRequestRecord({
           ...existing,
@@ -534,6 +565,11 @@ export function createEnrolmentRequestStore(
           reviewedBy: actorId,
           reviewedAt: now,
           approvalRequestId,
+          ...((existing.approvalSetup ?? input.setup)
+            ? { approvalSetup: existing.approvalSetup ?? input.setup }
+            : {}),
+          approvalStartedAt: existing.approvalStartedAt ?? now,
+          approvalActorId: existing.approvalActorId ?? actorId,
         });
         if (!candidate.ok)
           throw new EnrolmentRequestStoreError("invalid", "Enrolment request contract rejected");

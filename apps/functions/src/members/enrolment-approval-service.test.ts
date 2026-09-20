@@ -9,6 +9,18 @@ import {
 } from "./enrolment-approval-service.js";
 import type { CanonicalMemberDirectoryActor } from "./canonical-member-directory-service.js";
 
+const setup = {
+  students: [
+    {
+      planId: "town-adult" as const,
+      definitionKey: "yellow-2",
+      startsOn: "2026-09-01",
+      endsOn: "2026-10-01",
+    },
+  ],
+  detailsVerified: true as const,
+  paymentVerified: true as const,
+};
 const now = "2026-09-06T12:00:00.000Z";
 const approvalKey = "1f2e3d4c-5b6a-4978-8695-a4b3c2d1e0f9";
 const reviewerKey = "9e8d7c6b-5a49-4382-9176-0f1e2d3c4b5a";
@@ -91,7 +103,12 @@ function harness(
   const stored = options.record ?? record();
 
   const dependencies: EnrolmentApprovalDependencies = {
+    registration: {
+      validate: vi.fn().mockResolvedValue(undefined),
+      complete: vi.fn().mockResolvedValue(undefined),
+    },
     store: {
+      getForApproval: vi.fn().mockResolvedValue(stored),
       submit: vi.fn(),
       listForAcademy: vi.fn(),
       listForSubmitter: vi.fn(),
@@ -170,6 +187,7 @@ function approve(dependencies: EnrolmentApprovalDependencies) {
     actor,
     enrolmentRequestId: "enrolment-1",
     requestId: reviewerKey,
+    setup,
     now,
   });
 }
@@ -278,6 +296,17 @@ describe("enrolment approval", () => {
     expect(claims.role).toBe("shopper");
   });
 
+  it("does not approve or grant adult access if the subscription or level cannot be saved", async () => {
+    const h = harness();
+    vi.mocked(h.dependencies.registration.complete).mockRejectedValueOnce(
+      new Error("Synthetic write failure"),
+    );
+    await expect(approve(h.dependencies)).rejects.toBeInstanceOf(EnrolmentApprovalError);
+    expect(h.calls).not.toContain("completeApproval");
+    expect(h.claims.role).toBe("shopper");
+    expect(h.dependencies.store.failApproval).toHaveBeenCalledOnce();
+  });
+
   it("parks the request and grants no role when the canonical write fails", async () => {
     const { dependencies, calls } = harness({ directoryFails: true });
 
@@ -349,6 +378,7 @@ describe("enrolment approval", () => {
         actor: { ...actor, role: "coach" },
         enrolmentRequestId: "enrolment-1",
         requestId: reviewerKey,
+        setup,
         now,
       }),
     ).rejects.toMatchObject({ code: "unauthorized", failureCode: "actor_not_office" });

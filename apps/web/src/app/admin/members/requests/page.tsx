@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PLAN_CATALOG, type PlanId } from "@bpt-jersey/domain/memberships";
+import { getLevelCatalog } from "../../../../lib/levels-client";
+import type { LevelCatalogProjection } from "@bpt-jersey/domain/levels";
+import { addSubscriptionMonth } from "@bpt-jersey/domain/memberships/admin";
 import { formatPlanPrice } from "../../../../lib/plan-copy";
 
 import {
   isReturnableEnrolmentRequest,
+  type EnrolmentApprovalSetup,
+  enrolmentNeedsPayment,
   type EnrolmentRequestDetail,
   type EnrolmentRequestRow,
 } from "@bpt-jersey/domain/members/enrolment-requests";
@@ -59,6 +64,13 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
         {applicant.phoneNumber}
         {applicant.email ? ` · ${applicant.email}` : ""}
       </p>
+      <p className="admin-request-meta">
+        <strong>Name:</strong> {applicant.fullName} · <strong>Gender:</strong>{" "}
+        {applicant.gender ?? "Not provided"} · <strong>Centre:</strong> {applicant.trainingCenter} ·{" "}
+        <strong>Training times:</strong>{" "}
+        {applicant.trainingTimePreferences.join(", ") || "Not training"}
+      </p>
+      {applicant.frequencyNote ? <p>Training frequency: {applicant.frequencyNote}</p> : null}
       {applicant.postalAddress ? (
         <p className="admin-request-meta">
           <strong>Address</strong> {applicant.postalAddress.line},{" "}
@@ -84,11 +96,50 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
             <li key={`${minor.fullName}-${minor.dateOfBirth}`}>
               {minor.fullName} · born {minor.dateOfBirth} · {minor.trainingCenter}
               {minor.frequencyNote ? ` · ${minor.frequencyNote}` : ""}
+              <p>
+                Gender: {minor.gender ?? "Not provided"} · Training times:{" "}
+                {minor.trainingTimePreferences.join(", ")}
+              </p>
+              {minor.emergencyContact ? (
+                <p>
+                  Emergency contact: {minor.emergencyContact.fullName} (
+                  {minor.emergencyContact.relationship}) {minor.emergencyContact.phoneNumber}
+                </p>
+              ) : null}
               <PlanPreference planId={detail.planSelections?.minors[index]} />
             </li>
           ))}
         </ul>
       ) : null}
+      <p>
+        Waiver:{" "}
+        {detail.waiverAcceptance
+          ? `accepted on ${detail.waiverAcceptance.acceptedAt.slice(0, 10)}, version ${detail.waiverAcceptance.version}`
+          : "Not recorded on this older request"}
+      </p>
+      {detail.payment ? (
+        <section aria-label="Payment evidence">
+          <h4>Transfer evidence</h4>
+          <p>
+            £{(detail.payment.amountMinor / 100).toFixed(2)} · {detail.payment.paidOn} · Reference:{" "}
+            {detail.payment.reference}
+          </p>
+          {detail.paymentProofUrl ? (
+            <a
+              className="staff-secondary-button"
+              href={detail.paymentProofUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open payment screenshot
+            </a>
+          ) : (
+            <p role="alert">Payment screenshot unavailable. Reload the full request.</p>
+          )}
+        </section>
+      ) : (
+        <p>No transfer screenshot supplied. Only West pay-as-you-go plans are exempt.</p>
+      )}
       {detail.approvalFailureCode ? (
         <p className="admin-request-meta">
           <strong>An earlier approval stopped:</strong> {detail.approvalFailureCode}
@@ -100,6 +151,12 @@ function DetailPanel({ detail }: Readonly<{ detail: EnrolmentRequestDetail }>) {
 
 export default function EnrolmentRequestQueuePage() {
   const session = useAdminOrStaffSession();
+  return (
+    <EnrolmentRequestQueueContent key={`${session.uid}:${session.academyId}:${session.role}`} />
+  );
+}
+function EnrolmentRequestQueueContent() {
+  const session = useAdminOrStaffSession();
   const office = session.role === "owner" || session.role === "administrator";
   const [state, setState] = useState<QueueState>({ status: "loading" });
   const [reloadToken, setReloadToken] = useState(0);
@@ -110,6 +167,18 @@ export default function EnrolmentRequestQueuePage() {
   // per-actor budget as reading a member record. Reopening a panel must not cost a second read.
   const [details, setDetails] = useState<Readonly<Record<string, EnrolmentRequestDetail>>>({});
   const [openDetailId, setOpenDetailId] = useState<string>();
+  const [catalog, setCatalog] = useState<LevelCatalogProjection>();
+  const [setups, setSetups] = useState<Record<string, EnrolmentApprovalSetup["students"]>>({});
+  const [verified, setVerified] = useState<Record<string, boolean>>({});
+  const [paymentVerified, setPaymentVerified] = useState<Record<string, boolean>>({});
+  const inFlight = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -127,19 +196,42 @@ export default function EnrolmentRequestQueuePage() {
     };
   }, [reloadToken]);
 
-  async function openDetail(request: EnrolmentRequestRow): Promise<void> {
-    if (openDetailId === request.enrolmentRequestId) {
+  async function openDetail(request: EnrolmentRequestRow, refresh = false): Promise<void> {
+    if (!refresh && openDetailId === request.enrolmentRequestId) {
       setOpenDetailId(undefined);
       return;
     }
-    if (details[request.enrolmentRequestId]) {
+    if (!refresh && details[request.enrolmentRequestId]) {
       setOpenDetailId(request.enrolmentRequestId);
       return;
     }
     setBusyId(request.enrolmentRequestId);
     setNotice(undefined);
     try {
-      const detail = await getEnrolmentRequestDetail(request.enrolmentRequestId);
+      const [detail, loadedCatalog] = await Promise.all([
+        getEnrolmentRequestDetail(request.enrolmentRequestId),
+        catalog ? Promise.resolve(catalog) : getLevelCatalog(),
+      ]);
+      if (!mounted.current) return;
+      setCatalog(loadedCatalog);
+      const today = new Date().toISOString().slice(0, 10);
+      setSetups((current) => ({
+        ...current,
+        [request.enrolmentRequestId]:
+          detail.approvalSetup?.students ??
+          (detail.applicantIsStudent
+            ? [detail.planSelections?.applicant]
+            : detail.minors.map((_, index) => detail.planSelections?.minors[index])
+          ).map((planId) => ({
+            planId: planId ?? "town-adult",
+            definitionKey: "",
+            startsOn: today,
+            endsOn:
+              PLAN_CATALOG.find((plan) => plan.planId === planId)?.billingPeriod === "monthly"
+                ? addSubscriptionMonth(`${today}T00:00:00.000Z`).slice(0, 10)
+                : null,
+          })),
+      }));
       setDetails((current) => ({ ...current, [request.enrolmentRequestId]: detail }));
       setOpenDetailId(request.enrolmentRequestId);
     } catch (error) {
@@ -153,10 +245,35 @@ export default function EnrolmentRequestQueuePage() {
   }
 
   async function approve(request: EnrolmentRequestRow): Promise<void> {
+    if (inFlight.current) return;
+    const students = setups[request.enrolmentRequestId];
+    if (
+      !students ||
+      students.some(
+        (student) =>
+          !student.definitionKey ||
+          !student.startsOn ||
+          (enrolmentNeedsPayment(student.planId) && !student.endsOn),
+      ) ||
+      !verified[request.enrolmentRequestId] ||
+      !paymentVerified[request.enrolmentRequestId]
+    ) {
+      setNotice({
+        tone: "error",
+        text: "Choose every student's level and subscription dates, then confirm the details and payment review.",
+      });
+      return;
+    }
+    inFlight.current = true;
     setBusyId(request.enrolmentRequestId);
     setNotice(undefined);
     try {
-      const outcome = await approveEnrolmentRequest(request.enrolmentRequestId);
+      const outcome = await approveEnrolmentRequest(request.enrolmentRequestId, {
+        students,
+        detailsVerified: true,
+        paymentVerified: true,
+      });
+      if (!mounted.current) return;
       setNotice({
         tone: "success",
         text: outcome.alreadyApproved
@@ -177,6 +294,7 @@ export default function EnrolmentRequestQueuePage() {
         text: error instanceof Error ? error.message : "Unable to approve this request.",
       });
     } finally {
+      inFlight.current = false;
       setBusyId(undefined);
     }
   }
@@ -227,9 +345,8 @@ export default function EnrolmentRequestQueuePage() {
         <dl>
           <dt>Read the full request</dt>
           <dd>
-            Loads the confidential detail: date of birth, phone, address, emergency contact and the
-            children. Every read is audited and counted, so the detail is kept on screen once
-            loaded.
+            Shows the registration details, chosen plans and payment screenshot so you can verify
+            them.
           </dd>
           <dt>Send back to applicant</dt>
           <dd>
@@ -238,8 +355,8 @@ export default function EnrolmentRequestQueuePage() {
           </dd>
           <dt>Approve and enrol</dt>
           <dd>
-            Creates the member record (and the children&apos;s), links the account to its role and
-            marks the request approved. Only available after the detail has been read.
+            Saves the member record, chosen subscription, verified payment and initial level. Review
+            all details and payment evidence first.
           </dd>
         </dl>
         {office ? null : (
@@ -269,7 +386,7 @@ export default function EnrolmentRequestQueuePage() {
         <section className="admin-panel-card" aria-live="assertive" role="alert">
           <p>Unable to load enrolment requests.</p>
           <button
-            className="button button-secondary"
+            className="staff-secondary-button"
             onClick={() => setReloadToken((value) => value + 1)}
             type="button"
           >
@@ -315,7 +432,7 @@ export default function EnrolmentRequestQueuePage() {
                   <div className="admin-request-actions">
                     {office ? (
                       <button
-                        className="button button-secondary"
+                        className="staff-secondary-button"
                         disabled={busyId === request.enrolmentRequestId}
                         onClick={() => void openDetail(request)}
                         type="button"
@@ -340,7 +457,7 @@ export default function EnrolmentRequestQueuePage() {
                       />
                     </label>
                     <button
-                      className="button button-secondary"
+                      className="staff-secondary-button"
                       disabled={busyId === request.enrolmentRequestId}
                       onClick={() => void sendBack(request)}
                       type="button"
@@ -353,9 +470,9 @@ export default function EnrolmentRequestQueuePage() {
                       previously able to approve somebody while looking at a name and a centre,
                       which is the gap this slice exists to close.
                     */}
-                    {office ? (
+                    {office && openDetailId !== request.enrolmentRequestId ? (
                       <button
-                        className="button"
+                        className="staff-primary-button"
                         disabled={
                           busyId === request.enrolmentRequestId ||
                           !details[request.enrolmentRequestId]
@@ -376,9 +493,154 @@ export default function EnrolmentRequestQueuePage() {
                 {office &&
                 openDetailId === request.enrolmentRequestId &&
                 details[request.enrolmentRequestId] ? (
-                  <DetailPanel
-                    detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
-                  />
+                  <>
+                    <DetailPanel
+                      detail={details[request.enrolmentRequestId] as EnrolmentRequestDetail}
+                    />
+                    <button
+                      className="staff-secondary-button"
+                      type="button"
+                      disabled={busyId !== undefined}
+                      onClick={() => void openDetail(request, true)}
+                    >
+                      Reload full request
+                    </button>
+                    <fieldset className="admin-request-detail" disabled={busyId !== undefined}>
+                      <legend>Subscription and initial level</legend>
+                      {(setups[request.enrolmentRequestId] ?? []).map((student, index) => {
+                        const change = (patch: Partial<typeof student>) =>
+                          setSetups((current) => ({
+                            ...current,
+                            [request.enrolmentRequestId]: current[request.enrolmentRequestId]!.map(
+                              (item, position) =>
+                                position === index ? { ...item, ...patch } : item,
+                            ),
+                          }));
+                        const fixed = !!details[request.enrolmentRequestId]?.approvalSetup;
+                        return (
+                          <fieldset key={index} disabled={fixed}>
+                            <legend>
+                              {details[request.enrolmentRequestId]?.applicantIsStudent
+                                ? request.applicantName
+                                : details[request.enrolmentRequestId]?.minors[index]?.fullName}
+                            </legend>
+                            {details[request.enrolmentRequestId]?.planSelections ? (
+                              <p>
+                                Plan:{" "}
+                                {
+                                  PLAN_CATALOG.find((plan) => plan.planId === student.planId)
+                                    ?.displayName
+                                }
+                              </p>
+                            ) : (
+                              <label className="shop-admin-field">
+                                Subscription plan
+                                <select
+                                  value={student.planId}
+                                  onChange={(event) =>
+                                    change({ planId: event.target.value as PlanId })
+                                  }
+                                >
+                                  {PLAN_CATALOG.map((plan) => (
+                                    <option key={plan.planId} value={plan.planId}>
+                                      {plan.displayName}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
+                            <label className="shop-admin-field">
+                              Initial level
+                              <select
+                                value={student.definitionKey}
+                                onChange={(event) => change({ definitionKey: event.target.value })}
+                              >
+                                <option value="">Choose a level</option>
+                                {[...(catalog?.definitions ?? [])]
+                                  .sort((a, b) => a.sequence - b.sequence)
+                                  .map((level) => (
+                                    <option key={level.definitionKey} value={level.definitionKey}>
+                                      {level.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </label>
+                            {student.definitionKey ? (
+                              <p className="enrol-selected-level">
+                                Selected level:{" "}
+                                {
+                                  catalog?.definitions.find(
+                                    (level) => level.definitionKey === student.definitionKey,
+                                  )?.name
+                                }
+                              </p>
+                            ) : null}
+                            <label className="shop-admin-field">
+                              Subscription start
+                              <input
+                                type="date"
+                                max={new Date().toISOString().slice(0, 10)}
+                                value={student.startsOn}
+                                onChange={(event) => change({ startsOn: event.target.value })}
+                              />
+                            </label>
+                            {enrolmentNeedsPayment(student.planId) ? (
+                              <label className="shop-admin-field">
+                                Paid period ends
+                                <input
+                                  type="date"
+                                  value={student.endsOn ?? ""}
+                                  min={student.startsOn}
+                                  onChange={(event) =>
+                                    change({ endsOn: event.target.value || null })
+                                  }
+                                />
+                              </label>
+                            ) : (
+                              <p>Pay per class. No initial payment or expiry required.</p>
+                            )}
+                          </fieldset>
+                        );
+                      })}
+                      <label className="enrol-review-check">
+                        <input
+                          type="checkbox"
+                          checked={verified[request.enrolmentRequestId] ?? false}
+                          onChange={(event) =>
+                            setVerified((current) => ({
+                              ...current,
+                              [request.enrolmentRequestId]: event.target.checked,
+                            }))
+                          }
+                        />
+                        I have verified the registration details and selected levels.
+                      </label>
+                      <label className="enrol-review-check">
+                        <input
+                          type="checkbox"
+                          checked={paymentVerified[request.enrolmentRequestId] ?? false}
+                          onChange={(event) =>
+                            setPaymentVerified((current) => ({
+                              ...current,
+                              [request.enrolmentRequestId]: event.target.checked,
+                            }))
+                          }
+                        />
+                        I have checked the transfer against the screenshot, or confirmed that all
+                        plans are West pay as you go.
+                      </label>
+                      {open ? (
+                        <button
+                          className="staff-primary-button"
+                          type="button"
+                          disabled={busyId !== undefined}
+                          onClick={() => void approve(request)}
+                        >
+                          Approve and enrol
+                        </button>
+                      ) : null}
+                    </fieldset>
+                  </>
                 ) : null}
               </li>
             );

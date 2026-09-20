@@ -227,7 +227,14 @@ export function createR2Client(options: R2ClientOptions): R2Client {
     },
     putObject: async (objectKey, body, contentType) => {
       assertObjectKey(objectKey);
-      if (contentType !== "application/pdf") throw new Error("Only PDF objects are accepted");
+      if (contentType !== "application/pdf") {
+        if (
+          !objectKey.includes("/enrolment-proofs/") ||
+          !["image/png", "image/jpeg"].includes(contentType) ||
+          body.byteLength > 2 * 1024 * 1024
+        )
+          throw new Error("Only PDF objects are accepted");
+      }
       if (body.byteLength > MAX_MEMBER_IMPORT_PDF_BYTES) {
         throw new Error("Private object exceeds the maximum allowed size");
       }
@@ -351,7 +358,14 @@ export function createEmulatorR2Client(
     },
     putObject: async (objectKey, body, contentType) => {
       assertObjectKey(objectKey);
-      if (contentType !== "application/pdf") throw new Error("Only PDF objects are accepted");
+      if (contentType !== "application/pdf") {
+        if (
+          !objectKey.includes("/enrolment-proofs/") ||
+          !["image/png", "image/jpeg"].includes(contentType) ||
+          body.byteLength > 2 * 1024 * 1024
+        )
+          throw new Error("Only PDF objects are accepted");
+      }
       if (body.byteLength > MAX_MEMBER_IMPORT_PDF_BYTES) {
         throw new Error("Private object exceeds the maximum allowed size");
       }

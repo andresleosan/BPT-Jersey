@@ -1,4 +1,7 @@
-import type { EnrolmentRequestRecord } from "@bpt-jersey/domain/members/enrolment-requests";
+import type {
+  EnrolmentApprovalSetup,
+  EnrolmentRequestRecord,
+} from "@bpt-jersey/domain/members/enrolment-requests";
 import type { FamilyStudentDraft } from "@bpt-jersey/domain/families";
 import type { FamilyStore } from "../families/family-service.js";
 import type { GuardianProfileStore } from "../profiles/guardian-profile-service.js";
@@ -53,6 +56,14 @@ export type EnrolmentApprovalDependencies = Readonly<{
   guardianProfiles: GuardianProfileStore;
   families: FamilyStore;
   auth: EnrolmentApprovalAuth;
+  registration: {
+    validate(record: EnrolmentRequestRecord): Promise<void>;
+    complete(
+      record: EnrolmentRequestRecord,
+      studentIds: readonly string[],
+      actor: CanonicalMemberDirectoryActor,
+    ): Promise<void>;
+  };
 }>;
 
 export type ApproveEnrolmentRequestInput = Readonly<{
@@ -60,6 +71,7 @@ export type ApproveEnrolmentRequestInput = Readonly<{
   enrolmentRequestId: string;
   /** The reviewer's idempotency key. Ignored when the request already carries one. */
   requestId: string;
+  setup: EnrolmentApprovalSetup;
   now: string;
   /**
    * The reviewer's display name, read from their provisioned administrative document. It fills the
@@ -245,11 +257,11 @@ export function createEnrolmentApprovalService(
   ): Promise<readonly string[]> {
     const written = await dependencies.directory.createAdminAdultForAccount({
       actor: input.actor,
+      enrolmentRequestId: record.enrolmentRequestId,
       value: { requestId: approvalRequestId, ...record.applicant },
       account,
       now: input.now,
     });
-    await promoteClaim(account.userId, input.actor.academyId, "adultStudent");
     return Object.freeze([written.studentId]);
   }
 
@@ -275,6 +287,7 @@ export function createEnrolmentApprovalService(
       academyId: input.actor.academyId,
       actorId: input.actor.actorId,
       actorRole: input.actor.role === "owner" ? "owner" : "administrator",
+      enrolmentRequestId: record.enrolmentRequestId,
       requestId: approvalRequestId,
       tutorUserId: account.userId,
       students: record.minors.map(toFamilyStudentDraft),
@@ -292,12 +305,23 @@ export function createEnrolmentApprovalService(
           "Office access is required",
         );
       }
+      const preview = await dependencies.store.getForApproval(
+        input.actor.academyId,
+        input.enrolmentRequestId,
+      );
+      if (preview.status !== "approved")
+        await dependencies.registration.validate({
+          ...preview,
+          approvalSetup: preview.approvalSetup ?? input.setup,
+          approvalStartedAt: preview.approvalStartedAt ?? input.now,
+        });
       const begun = await dependencies.store.beginApproval({
         academyId: input.actor.academyId,
         actorId: input.actor.actorId,
         now: input.now,
         enrolmentRequestId: input.enrolmentRequestId,
         requestId: input.requestId,
+        setup: input.setup,
       });
       const record = begun.record;
       if (begun.alreadyApproved) {
@@ -320,11 +344,23 @@ export function createEnrolmentApprovalService(
       const role = targetRoleFor(record);
       let studentIds: readonly string[];
       try {
+        await dependencies.registration.validate(record);
         const account = await readApplicantAccount(record, input.actor.academyId);
         studentIds =
           role === "adultStudent"
             ? await approveAdult(input, record, approvalRequestId, account)
             : await approveGuardian(input, record, approvalRequestId, account);
+        await dependencies.registration.complete(record, studentIds, input.actor);
+        if (role === "adultStudent")
+          await promoteClaim(account.userId, input.actor.academyId, role);
+        await dependencies.store.completeApproval({
+          academyId: input.actor.academyId,
+          actorId: input.actor.actorId,
+          now: input.now,
+          enrolmentRequestId: record.enrolmentRequestId,
+          studentIds,
+          ...(input.instructorName === undefined ? {} : { instructorName: input.instructorName }),
+        });
       } catch (error) {
         const failureCode =
           error instanceof EnrolmentApprovalError ? error.failureCode : "approval_write_failed";
@@ -349,14 +385,6 @@ export function createEnrolmentApprovalService(
         );
       }
 
-      await dependencies.store.completeApproval({
-        academyId: input.actor.academyId,
-        actorId: input.actor.actorId,
-        now: input.now,
-        enrolmentRequestId: record.enrolmentRequestId,
-        studentIds,
-        ...(input.instructorName === undefined ? {} : { instructorName: input.instructorName }),
-      });
       return Object.freeze({
         enrolmentRequestId: record.enrolmentRequestId,
         role,

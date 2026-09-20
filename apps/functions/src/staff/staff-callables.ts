@@ -524,7 +524,7 @@ export async function listStaffProfilesHandler(
   }
 }
 
-function callableServices(): StaffCallableServices {
+export function staffCallableServices(): StaffCallableServices {
   const firestore = getFirestore() as unknown as SyntheticFirestore;
   return {
     store: createStaffStore({
@@ -546,20 +546,20 @@ function callableServices(): StaffCallableServices {
 }
 
 export const createStaffProfile = onCall(browserAdminCallableOptions, async (request) =>
-  createStaffProfileHandler(request, callableServices()),
+  createStaffProfileHandler(request, staffCallableServices()),
 );
 export const updateStaffProfile = onCall(browserAdminCallableOptions, async (request) =>
-  updateStaffProfileHandler(request, callableServices()),
+  updateStaffProfileHandler(request, staffCallableServices()),
 );
 export const setStaffActive = onCall(browserAdminCallableOptions, async (request) =>
-  setStaffActiveHandler(request, callableServices()),
+  setStaffActiveHandler(request, staffCallableServices()),
 );
 export const replaceStaffAvailability = onCall(browserAdminCallableOptions, async (request) =>
-  replaceStaffAvailabilityHandler(request, callableServices()),
+  replaceStaffAvailabilityHandler(request, staffCallableServices()),
 );
 export const replaceStaffAssignments = onCall(browserAdminCallableOptions, async (request) =>
-  replaceStaffAssignmentsHandler(request, callableServices()),
+  replaceStaffAssignmentsHandler(request, staffCallableServices()),
 );
 export const listStaffProfiles = onCall(browserAdminCallableOptions, async (request) =>
-  listStaffProfilesHandler(request, callableServices()),
+  listStaffProfilesHandler(request, staffCallableServices()),
 );

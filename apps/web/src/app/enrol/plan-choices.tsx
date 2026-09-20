@@ -22,6 +22,9 @@ export function EnrolmentPlanChoices({
   onChange: (plan: PlanId) => void;
 }>) {
   const plans = getEnrolmentPlans(dateOfBirth, trainingCenter, effectiveDate);
+  const recommended =
+    plans.find((plan) => plan.classSites.length === 1 && plan.billingPeriod !== "per-session") ??
+    plans[0];
   return (
     <fieldset className="enrol-plan-choices" disabled={disabled}>
       <legend>
@@ -45,6 +48,11 @@ export function EnrolmentPlanChoices({
             />
             <span>
               <strong>{plan.displayName}</strong>
+              {plan.planId === recommended?.planId ? (
+                <span className="enrol-plan-access">
+                  Suggested for your age group and {trainingCenter} training centre
+                </span>
+              ) : null}
               <span className="enrol-plan-access" id={`enrol-plan-${id}-${plan.planId}-access`}>
                 {describePlanAccess(plan)}
               </span>

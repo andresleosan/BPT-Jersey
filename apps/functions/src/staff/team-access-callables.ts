@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { createStaffProfileHandler, staffCallableServices } from "./staff-callables.js";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
@@ -32,9 +34,31 @@ function services(request: CallableRequest): TeamAccessServices {
         auth: { uid: actor.uid, token: { academyId: actor.academyId, role: actor.role } },
         data: { action: "grant" },
       } as unknown as CallableRequest;
+      if (target.role === "coach") {
+        const user = await auth.getUser(target.uid);
+        if (user.disabled || user.email?.toLowerCase() !== target.email.toLowerCase())
+          throw new HttpsError("failed-precondition", "Account details changed.");
+        if (["owner", "administrator"].includes(String(user.customClaims?.role)))
+          throw new HttpsError(
+            "failed-precondition",
+            "Use the team directory to review this account's administrative access.",
+          );
+        await createStaffProfileHandler(
+          {
+            ...delegatedRequest,
+            data: {
+              userId: target.uid,
+              role: "coach",
+              requestId: `invite-${createHash("sha256").update(target.uid).digest("hex")}`,
+            },
+          } as CallableRequest,
+          staffCallableServices(),
+        );
+        return;
+      }
       await provisionAdminRoleWithServices(
         delegatedRequest,
-        target,
+        { ...target, role: target.role },
         {
           firestore: firestore as unknown as SyntheticFirestore,
           auth: {

@@ -130,6 +130,19 @@ describe("team directory and administrative invitations", () => {
     );
     expect(s.grant).not.toHaveBeenCalled();
   });
+  it("allows an administrator to invite a coach without granting administrative access", async () => {
+    const s = services();
+    s.current.customClaims.role = "administrator";
+    await createStaffInvitationHandler(
+      request({ email: "coach@example.test", role: "coach" }, "administrator"),
+      s,
+    );
+    expect(s.invitations.save).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "coach@example.test", role: "coach", invitedBy: "actor" }),
+    );
+    expect(s.grant).not.toHaveBeenCalled();
+  });
+
   it("does not let administrators invite or promote themselves", async () => {
     const s = services();
     s.current.customClaims.role = "administrator";

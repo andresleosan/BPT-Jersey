@@ -5,12 +5,10 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import type { DelegablePermission } from "@bpt-jersey/domain/staff/permission-grants";
 
 import {
-  createStaffProfile,
   listStaffProfiles,
   replaceStaffAssignments,
   replaceStaffAvailability,
   setStaffActive,
-  updateStaffProfile,
   type StaffAssignmentInput,
   type StaffAvailabilityWindowInput,
   type StaffProfileProjection,
@@ -30,17 +28,11 @@ import { TeamDirectory } from "./team-directory";
 
 import "../admin.css";
 
-type Mutation =
-  "create" | "role" | "active" | "availability" | "assignment" | "grant" | "revoke" | "";
+type Mutation = "active" | "availability" | "assignment" | "grant" | "revoke" | "";
 type StaffRole = StaffProfileProjection["role"];
 type AssignmentType = StaffAssignmentInput["targetType"];
-type StaffField =
-  "createUserId" | "requestId" | "startLocal" | "endLocal" | "timezone" | "targetId";
+type StaffField = "startLocal" | "endLocal" | "timezone" | "targetId";
 type StaffFieldElement = HTMLInputElement | HTMLSelectElement;
-
-const roleOptions: readonly { value: StaffRole; label: string }[] = [
-  { value: "coach", label: "Coach" },
-];
 
 /**
  * T116: the closed list office may delegate, mirrored from the domain so the form can never offer
@@ -88,10 +80,6 @@ function isValidTimezone(value: string): boolean {
 export function StaffAdminPage() {
   const [profiles, setProfiles] = useState<readonly StaffProfileProjection[]>([]);
   const [selectedStaffKey, setSelectedStaffKey] = useState<string>();
-  const [createUserId, setCreateUserId] = useState("");
-  const [createRole, setCreateRole] = useState<StaffRole>("coach");
-  const [requestId, setRequestId] = useState("");
-  const [selectedRole, setSelectedRole] = useState<StaffRole>("coach");
   const [weekday, setWeekday] = useState("1");
   const [startLocal, setStartLocal] = useState("");
   const [endLocal, setEndLocal] = useState("");
@@ -203,7 +191,6 @@ export function StaffAdminPage() {
 
   function selectProfile(profile: StaffProfileProjection): void {
     setSelectedStaffKey(profile.staffKey);
-    setSelectedRole(profile.role);
     setError("");
     setStatus("");
     setInvalidField(undefined);
@@ -243,47 +230,6 @@ export function StaffAdminPage() {
       if (selectedStaffKey) restoreFocusRef.current = selectedStaffKey;
       setMutation("");
     }
-  }
-
-  async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (busy) return;
-    const userId = createUserId.trim();
-    const trimmedRequestId = requestId.trim();
-    if (!userId) {
-      failValidation("createUserId", "Enter a user ID and request ID to create a staff profile.");
-      return;
-    }
-    if (!trimmedRequestId) {
-      failValidation("requestId", "Enter a user ID and request ID to create a staff profile.");
-      return;
-    }
-
-    await runMutation(
-      "create",
-      () => createStaffProfile({ userId, role: createRole, requestId: trimmedRequestId }),
-      "Staff profile created.",
-      "Unable to create staff profile. Please try again.",
-      (profile) => setProfiles((current) => [...current, profile]),
-    );
-  }
-
-  async function handleRoleUpdate(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (busy || !selectedProfile) return;
-
-    await runMutation(
-      "role",
-      () => updateStaffProfile({ staffKey: selectedProfile.staffKey, role: selectedRole }),
-      "Staff role updated.",
-      "Unable to update staff profile. Please try again.",
-      (profile) =>
-        setProfiles((current) =>
-          current.map((candidate) =>
-            candidate.staffKey === profile.staffKey ? profile : candidate,
-          ),
-        ),
-    );
   }
 
   async function handleActiveUpdate(): Promise<void> {
@@ -424,97 +370,16 @@ export function StaffAdminPage() {
         />
       )}
 
-      <form
-        className="staff-card staff-create-form"
-        noValidate
-        onSubmit={(event) => void handleCreate(event)}
-      >
-        <p className="admin-eyebrow">Provisioning</p>
-        <h3>Create staff profile</h3>
-        <div className="staff-form-grid">
-          <label className="staff-field" htmlFor="staff-user-id">
-            User ID
-            <input
-              aria-describedby={invalidField === "createUserId" ? "staff-error-message" : undefined}
-              aria-invalid={invalidField === "createUserId" || undefined}
-              id="staff-user-id"
-              onChange={(event) => {
-                setCreateUserId(event.target.value);
-                clearFieldError("createUserId");
-              }}
-              ref={(element) => {
-                fieldRefs.current.createUserId = element;
-              }}
-              value={createUserId}
-            />
-          </label>
-          <label className="staff-field" htmlFor="staff-create-role">
-            Role
-            <select
-              id="staff-create-role"
-              onChange={(event) => setCreateRole(event.target.value as StaffRole)}
-              value={createRole}
-            >
-              {roleOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="staff-field" htmlFor="staff-request-id">
-            Request ID
-            <input
-              aria-describedby={invalidField === "requestId" ? "staff-error-message" : undefined}
-              aria-invalid={invalidField === "requestId" || undefined}
-              id="staff-request-id"
-              onChange={(event) => {
-                setRequestId(event.target.value);
-                clearFieldError("requestId");
-              }}
-              ref={(element) => {
-                fieldRefs.current.requestId = element;
-              }}
-              value={requestId}
-            />
-          </label>
-        </div>
-        <button className="staff-primary-button" disabled={busy} type="submit">
-          {mutation === "create" ? "Creating staff profile..." : "Create staff profile"}
-        </button>
-      </form>
-
       {selectedProfile ? (
         <section className="staff-selected-panel" aria-labelledby="staff-selected-title">
           <p className="admin-eyebrow">Selected profile</p>
           <h3 id="staff-selected-title">{selectedProfile.staffKey}</h3>
 
-          <form
-            className="staff-card staff-operation-card"
-            onSubmit={(event) => void handleRoleUpdate(event)}
-          >
-            <label className="staff-field" htmlFor="staff-selected-role">
-              Selected staff role
-              <select
-                id="staff-selected-role"
-                onChange={(event) => setSelectedRole(event.target.value as StaffRole)}
-                value={selectedRole}
-              >
-                {selectedRole === "headCoach" && (
-                  <option disabled value="headCoach">
-                    Head coach (legacy — move to Administrator above)
-                  </option>
-                )}
-                {roleOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button className="staff-secondary-button" disabled={busy} type="submit">
-              Update role
-            </button>
+          <section className="staff-card staff-operation-card">
+            <p>
+              Change account roles in the <a href="#staff-account-roles">team directory</a>.
+              Coaching availability and assignments are managed below.
+            </p>
             <button
               className="staff-secondary-button"
               disabled={busy}
@@ -523,7 +388,7 @@ export function StaffAdminPage() {
             >
               {selectedProfile.active ? "Deactivate staff profile" : "Activate staff profile"}
             </button>
-          </form>
+          </section>
 
           <form
             className="staff-card staff-operation-card"

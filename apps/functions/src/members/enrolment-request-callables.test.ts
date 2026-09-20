@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { createEmulatorR2Client } from "../storage/r2-client.js";
 import { describe, expect, it, vi } from "vitest";
 import type { CallableRequest } from "firebase-functions/v2/https";
 
@@ -16,6 +18,20 @@ import {
 } from "./enrolment-request-callables.js";
 import { EnrolmentRequestStoreError } from "./enrolment-request-service.js";
 
+const setup = {
+  students: [
+    {
+      planId: "town-adult" as const,
+      definitionKey: "yellow-2",
+      startsOn: "2026-09-01",
+      endsOn: "2026-10-01",
+    },
+  ],
+  detailsVerified: true as const,
+  paymentVerified: true as const,
+};
+const proofBytes = Buffer.from("synthetic screenshot");
+const proofId = createHash("sha256").update(proofBytes).digest("hex");
 const now = "2026-09-06T10:00:00.000Z";
 const requestId = "6f1d2f66-6f4f-4a2e-9a0e-2b6f0a4a1c11";
 
@@ -34,6 +50,7 @@ const submission = {
   applicant,
   minors: [],
   planSelections: { applicant: "town-adult", minors: [] },
+  payment: { proofId, amountMinor: 8500, paidOn: "2026-09-05", reference: "TEST" },
   waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
 } as const;
 
@@ -53,7 +70,9 @@ const record: EnrolmentRequestRecord = {
 function services() {
   return {
     now: () => now,
+    storage: { ...createEmulatorR2Client(), readObject: vi.fn().mockResolvedValue(proofBytes) },
     store: {
+      getForApproval: vi.fn().mockResolvedValue(record),
       submit: vi.fn().mockResolvedValue(record),
       listForAcademy: vi.fn().mockResolvedValue({ requests: [record], truncated: false }),
       listForSubmitter: vi.fn().mockResolvedValue([record]),
@@ -331,6 +350,7 @@ describe("enrolment office callables", () => {
   const approvalPayload = {
     enrolmentRequestId: "enrolment-1",
     requestId: approvalKey,
+    setup,
     purpose: "enrolment-request-review",
   };
 

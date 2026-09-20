@@ -46,3 +46,48 @@
 .enrol-plan-price {
   font-weight: 700;
 }
+
+.enrol-bank-details dd {
+  margin: 0 0 0.75rem;
+  overflow-wrap: anywhere;
+}
+.enrol-bank-details dt {
+  font-weight: 700;
+}
+.enrol-field input[type="file"] {
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+}
+
+.enrol-page .button-primary {
+  background: var(--bpt-purple);
+  color: var(--gi-white);
+}
+.enrol-page .button-secondary {
+  background: transparent;
+  border-color: var(--bpt-purple);
+  color: var(--bpt-purple-dark);
+}
+.enrol-page .button:hover {
+  background: var(--bpt-purple-dark);
+  color: var(--gi-white);
+}
+.enrol-page .button:focus-visible {
+  outline: 3px solid var(--bpt-purple);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+.enrol-page .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+.enrol-field input,
+.enrol-field select {
+  font-size: 1rem;
+}
+
+.enrol-form fieldset {
+  min-inline-size: 0;
+}

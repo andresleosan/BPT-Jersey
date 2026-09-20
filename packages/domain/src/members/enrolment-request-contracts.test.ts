@@ -15,6 +15,7 @@ import {
   parseEnrolmentRequestRecord,
   parseEnrolmentRequestReview,
   parseEnrolmentRequestSubmission,
+  enrolmentPaymentTotal,
   toEnrolmentRequestClientView,
   toEnrolmentRequestDetail,
   toEnrolmentRequestRow,
@@ -49,7 +50,7 @@ const minor = {
 } as const;
 
 function submission(overrides: Record<string, unknown> = {}) {
-  return {
+  const result = {
     requestId,
     applicantIsStudent: true,
     applicant,
@@ -60,6 +61,15 @@ function submission(overrides: Record<string, unknown> = {}) {
         : { applicant: "town-adult", minors: [] },
     waiverAcceptance: { version: enrolmentWaiverTermsVersion, accepted: true },
     ...overrides,
+  };
+  return {
+    ...result,
+    payment: {
+      proofId: "a".repeat(64),
+      amountMinor: Math.max(1, enrolmentPaymentTotal(result.planSelections as never)),
+      paidOn: "2026-09-01",
+      reference: "TEST",
+    },
   };
 }
 
@@ -77,6 +87,36 @@ const record: EnrolmentRequestRecord = {
 };
 
 describe("enrolment request submission", () => {
+  it("requires evidence for paid plans and checks the exact total", () => {
+    const value = submission();
+    expect(
+      parseEnrolmentRequestSubmission(
+        Object.fromEntries(Object.entries(value).filter(([key]) => key !== "payment")),
+        effectiveDate,
+      ).ok,
+    ).toBe(false);
+    expect(
+      parseEnrolmentRequestSubmission(
+        { ...value, payment: { ...value.payment, amountMinor: 1 } },
+        effectiveDate,
+      ).ok,
+    ).toBe(false);
+  });
+  it("exempts adult West PAYG and excludes teen PAYG from a mixed family's transfer total", () => {
+    const value = submission({
+      applicant: { ...applicant, trainingCenter: "West" },
+      planSelections: { applicant: "payg", minors: [] },
+    });
+    expect(
+      parseEnrolmentRequestSubmission(
+        Object.fromEntries(Object.entries(value).filter(([key]) => key !== "payment")),
+        effectiveDate,
+      ).ok,
+    ).toBe(true);
+    expect(enrolmentPaymentTotal({ minors: ["west-teens-payg", "town-kids-1x"] })).toBe(9500);
+    expect(enrolmentPaymentTotal({ minors: ["west-teens-payg"] })).toBe(0);
+  });
+
   it("accepts an adult enrolling themselves", () => {
     const parsed = parseEnrolmentRequestSubmission(submission(), effectiveDate);
 
@@ -317,6 +357,18 @@ describe("enrolment request approval", () => {
         enrolmentRequestId: "enrolment-1",
         requestId: approvalKey,
         purpose: "enrolment-request-review",
+        setup: {
+          students: [
+            {
+              planId: "town-adult",
+              definitionKey: "yellow-2",
+              startsOn: "2026-09-01",
+              endsOn: "2026-10-01",
+            },
+          ],
+          detailsVerified: true,
+          paymentVerified: true,
+        },
       }).ok,
     ).toBe(true);
     // A key chosen by the applicant's browser has no business inside the write receipt's MAC, and
@@ -375,7 +427,7 @@ describe("enrolment plan preferences", () => {
   });
 
   it("allows a non-training guardian to complete details without training times", () => {
-    const { planSelections, ...details } = submission({
+    const { planSelections, payment, ...details } = submission({
       applicantIsStudent: false,
       applicant: { ...applicant, trainingTimePreferences: [] },
       minors: [minor],
@@ -384,7 +436,7 @@ describe("enrolment plan preferences", () => {
     expect(parseEnrolmentRequestDetails(details, effectiveDate).ok).toBe(true);
     expect(
       parseEnrolmentRequestSubmission(
-        { ...details, planSelections: { minors: ["town-kids-1x"] } },
+        { ...details, payment, planSelections: { minors: ["town-kids-1x"] } },
         effectiveDate,
       ).ok,
     ).toBe(true);
