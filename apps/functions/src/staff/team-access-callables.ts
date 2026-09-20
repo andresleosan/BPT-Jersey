@@ -36,7 +36,11 @@ function services(request: CallableRequest): TeamAccessServices {
       } as unknown as CallableRequest;
       if (target.role === "coach") {
         const user = await auth.getUser(target.uid);
-        if (user.disabled || user.email?.toLowerCase() !== target.email.toLowerCase())
+        if (
+          !target.email ||
+          user.disabled ||
+          user.email?.toLowerCase() !== target.email.toLowerCase()
+        )
           throw new HttpsError("failed-precondition", "Account details changed.");
         if (["owner", "administrator"].includes(String(user.customClaims?.role)))
           throw new HttpsError(
@@ -64,14 +68,9 @@ function services(request: CallableRequest): TeamAccessServices {
           auth: {
             async getUser(uid) {
               const user = await auth.getUser(uid);
-              if (!user.email)
-                throw new HttpsError(
-                  "failed-precondition",
-                  "The account must have an email address.",
-                );
               return {
                 uid: user.uid,
-                email: user.email,
+                email: user.email ?? null,
                 displayName: user.displayName ?? null,
                 disabled: user.disabled,
                 providerData: user.providerData,

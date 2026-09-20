@@ -14,7 +14,7 @@ import type { FirestoreDocumentData } from "./admin-provisioning.js";
 
 type SyntheticUser = {
   uid: string;
-  email: string;
+  email: string | null;
   displayName: string | null;
   disabled: boolean;
   customClaims: Record<string, unknown>;
@@ -242,6 +242,95 @@ const googleUser = (): SyntheticUser => ({
 });
 
 describe("administrative role provisioning", () => {
+  it.each([
+    { role: "coach", academyId: "other", disabled: false, uid: "target-1" },
+    { role: "adultStudent", academyId: "academy-1", disabled: false, uid: "target-1" },
+    { role: "coach", academyId: "academy-1", disabled: true, uid: "target-1" },
+    { role: "owner", academyId: "academy-1", disabled: false, uid: "owner-1" },
+  ])("rejects ineligible email-less team target %j", async ({ role, academyId, disabled, uid }) => {
+    const target = {
+      ...googleUser(),
+      uid,
+      email: null,
+      providerData: [],
+      disabled,
+      customClaims: { academyId, role },
+    };
+    const services = createSyntheticServices([target]);
+    await expect(
+      provisionAdminRoleWithServices(
+        callableRequest("owner", "academy-1"),
+        { uid, email: null, role: "owner" },
+        services,
+        "team",
+      ),
+    ).rejects.toThrow();
+    expect(target.customClaims).toEqual({ academyId, role });
+    expect(
+      [...services.firestore.records.values()].some(
+        (record) => record.action === "admin.role.granted",
+      ),
+    ).toBe(false);
+  });
+  it.each([undefined, "invitation"] as const)(
+    "still requires Google outside existing team changes (%s)",
+    async (transition) => {
+      const target = {
+        ...googleUser(),
+        providerData: [],
+        customClaims: { academyId: "academy-1", role: "coach" },
+      };
+      const services = createSyntheticServices([target]);
+      await expect(
+        provisionAdminRoleWithServices(
+          callableRequest("owner", "academy-1"),
+          { uid: target.uid, email: target.email, role: "owner" },
+          services,
+          transition,
+        ),
+      ).rejects.toMatchObject({ code: "failed-precondition" });
+      expect(target.customClaims.role).toBe("coach");
+    },
+  );
+
+  it.each(["administrator", "owner"] as const)(
+    "promotes email-less team accounts to %s and retains their identity",
+    async (role) => {
+      const target = googleUser();
+      target.email = null;
+      target.providerData = [];
+      target.customClaims = { academyId: "academy-1", role: "coach", locale: "en-GB" };
+      const services = createSyntheticServices([target]);
+      services.firestore.records.set(`academies/academy-1/staff/${target.uid}`, {
+        role: "coach",
+        active: true,
+      });
+      await provisionAdminRoleWithServices(
+        callableRequest("owner", "academy-1"),
+        { uid: target.uid, email: null, role },
+        services,
+        "team",
+      );
+      expect(target.customClaims).toEqual({ academyId: "academy-1", role, locale: "en-GB" });
+      expect(
+        services.firestore.records.get(`academies/academy-1/users/${target.uid}`),
+      ).toMatchObject({
+        userId: target.uid,
+        email: null,
+        adminRole: role,
+        authProvider: "custom",
+      });
+      expect(services.firestore.records.get(`academies/academy-1/staff/${target.uid}`)).toEqual({
+        role: "coach",
+        active: true,
+      });
+      expect(
+        [...services.firestore.records.values()].some(
+          (record) => record.action === "admin.role.granted",
+        ),
+      ).toBe(true);
+    },
+  );
   it("shares the administrative lock and retains a compensating phase on failure", async () => {
     const services = createSyntheticServices([]);
 

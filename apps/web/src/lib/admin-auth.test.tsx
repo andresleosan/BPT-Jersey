@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 type SyntheticUser = {
   uid: string;
-  email: string;
+  email: string | null;
   displayName: string;
   getIdTokenResult: () => Promise<{ claims: Record<string, unknown> }>;
 };
@@ -74,6 +74,12 @@ function renderSessionProbe() {
 }
 
 describe("AdminAuthProvider", () => {
+  it.each(["owner", "administrator"])("authorizes an email-less staff account with %s claims", async (role) => {
+    renderSessionProbe();
+    firebaseBoundary.emitUser({ ...syntheticUser(role), email: null });
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("authorized"));
+    expect(screen.getByTestId("admin-content")).toBeVisible();
+  });
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();

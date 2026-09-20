@@ -25,7 +25,7 @@ export const teamDirectoryResponseSchema = z.strictObject({
 });
 export const changeTeamRoleSchema = z.strictObject({
   userId: z.string().min(1).max(128),
-  email: teamEmailSchema,
+  email: teamEmailSchema.nullable(),
   role: administrativeTeamRoleSchema,
 });
 export const staffInvitationInputSchema = z.strictObject({

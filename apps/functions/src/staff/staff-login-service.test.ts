@@ -78,12 +78,25 @@ describe("staff numeric login", () => {
     await expect(service.signIn(input, "test-ip")).resolves.toEqual({ token: "test-custom-token" });
     expect(auth.createCustomToken).toHaveBeenCalledWith("coach-miro");
   });
+  it.each(["administrator", "owner"])(
+    "keeps Staff ID sign-in working after promotion to %s",
+    async (role) => {
+      const { service, records, user, auth } = fixture();
+      user.customClaims.role = role;
+      records.get("academies/academy/users/coach-miro")!.adminRole = role;
+      await service.signIn(input, "test-ip");
+      expect(auth.createCustomToken).toHaveBeenCalledWith(user.uid);
+      expect(records.get("academies/academy/staff/coach-miro")!.role).toBe("coach");
+    },
+  );
   it.each([
     "wrong password",
     "missing ID",
     "disabled auth",
     "inactive staff",
-    "wrong role",
+    "unconfirmed administrative role",
+    "member role",
+    "inactive canonical profile",
     "wrong academy",
     "invalid stored path",
   ])("rejects %s", async (reason) => {
@@ -94,7 +107,10 @@ describe("staff numeric login", () => {
     if (reason === "disabled auth") user.disabled = true;
     if (reason === "inactive staff")
       records.get("academies/academy/staff/coach-miro")!.active = false;
-    if (reason === "wrong role") user.customClaims.role = "administrator";
+    if (reason === "unconfirmed administrative role") user.customClaims.role = "administrator";
+    if (reason === "member role") user.customClaims.role = "adultStudent";
+    if (reason === "inactive canonical profile")
+      records.get("academies/academy/users/coach-miro")!.active = false;
     if (reason === "wrong academy") user.customClaims.academyId = "other";
     if (reason === "invalid stored path")
       records.get("staffLoginCredentials/100001")!.userId = "bad/path";

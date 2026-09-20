@@ -66,6 +66,15 @@ function services() {
 }
 
 describe("team directory and administrative invitations", () => {
+  it("changes the role of an existing team UID without an email", async () => {
+    const s = services();
+    await changeTeamRoleHandler(request({ userId: "coach", email: null, role: "owner" }), s);
+    expect(s.grant).toHaveBeenCalledWith(
+      expect.objectContaining({ uid: "actor" }),
+      { uid: "coach", email: null, role: "owner" },
+      "team",
+    );
+  });
   it.each(["coach", "headCoach", "guardian", "adultStudent", "teenStudent", "shopper"])(
     "denies directory access to %s before reading accounts",
     async (role) => {

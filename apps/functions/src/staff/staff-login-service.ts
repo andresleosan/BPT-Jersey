@@ -85,7 +85,8 @@ export function createStaffLoginService(firestore: Firestore, auth: Auth) {
       !user ||
       user.disabled ||
       user.customClaims?.academyId !== record.academyId ||
-      user.customClaims?.role !== "coach" ||
+      !["coach", "administrator", "owner"].includes(String(user.customClaims?.role)) ||
+      (user.customClaims?.role !== "coach" && profile?.adminRole !== user.customClaims?.role) ||
       profile?.accountType !== "staff" ||
       profile.active !== true ||
       profile.status !== "active" ||

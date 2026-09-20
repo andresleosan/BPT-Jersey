@@ -5,6 +5,12 @@ vi.mock("./firebase-client", () => ({ getFirebaseFunctions: () => ({}) }));
 import { listTeamDirectory, changeTeamRole, acceptStaffInvitation } from "./team-access-client";
 beforeEach(() => vi.resetAllMocks());
 describe("team access client", () => {
+  it("sends the UID with a null email for an existing staff account", async () => {
+    invoke.mockResolvedValue({ data: { changed: true } });
+    await expect(changeTeamRole({ userId: "coach", email: null, role: "owner" })).resolves.toEqual({ changed: true });
+    expect(invoke).toHaveBeenCalledWith({ userId: "coach", email: null, role: "owner" });
+  });
+
   it("validates the projection and refuses additional account data", async () => {
     invoke.mockResolvedValue({ data: { people: [{ userId: "coach", name: "Coach", email: "coach@example.test", role: "coach", privateField: "unexpected" }], nextPageToken: null } });
     await expect(listTeamDirectory()).rejects.toThrow("Unable to load the team directory");
