@@ -954,14 +954,14 @@ function EnrolContent() {
                   Back to details
                 </button>
                 <button className="button button-primary" disabled={busy} type="submit">
-                  Continue to payment
+                  {paymentTotal > 0 ? "Continue to payment" : "Continue to review"}
                 </button>
               </div>
             </>
           ) : (
             <>
               <h2 ref={stepHeading} tabIndex={-1}>
-                Payment and review
+                {paymentTotal > 0 ? "Payment and review" : "Review your registration"}
               </h2>
               {paymentTotal > 0 ? (
                 <fieldset disabled={busy} className="enrol-applicant">
@@ -969,7 +969,7 @@ function EnrolContent() {
                   <EnrolmentBankDetails />
                   <p>
                     Transfer total: <strong>£{(paymentTotal / 100).toFixed(2)}</strong>. Upload one
-                    screenshot covering the selected plans. West pay-as-you-go classes are paid
+                    screenshot covering the prepaid plans. Pay-as-you-go classes are paid
                     separately at class.
                   </p>
                   <label className="enrol-field">
@@ -1013,8 +1013,8 @@ function EnrolContent() {
                 </fieldset>
               ) : (
                 <p>
-                  No payment screenshot is needed for West Pay as you go. Pay for each class when
-                  you attend.
+                  No payment or screenshot is required to register for Pay as you go. You can send
+                  your request now and pay for each class when you attend.
                 </p>
               )}
               <div className="hero-actions">

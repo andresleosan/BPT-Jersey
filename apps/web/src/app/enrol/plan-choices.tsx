@@ -57,6 +57,11 @@ export function EnrolmentPlanChoices({
                 {describePlanAccess(plan)}
               </span>
               <span className="enrol-plan-price">{formatPlanPrice(plan)}</span>
+              {plan.billingPeriod === "per-session" ? (
+                <span className="enrol-plan-access">
+                  No payment or screenshot required at registration. Pay when you attend.
+                </span>
+              ) : null}
             </span>
           </label>
         ))
