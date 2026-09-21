@@ -1820,6 +1820,18 @@ describe("session update, class removal and booked counts callables", () => {
     ).rejects.toMatchObject({ code: "not-found" });
   });
 
+  it("lets only the office write a session curriculum", async () => {
+    const handler = createUpdateSessionHandler({ store: createInMemoryScheduleStore() });
+    const curriculum = { title: "Guard retention", techniques: ["Knee shield"], details: "" };
+    // The role guard runs before the store lookup: headCoach is denied, the office reaches not-found.
+    await expect(
+      handler(fakeRequest({ sessionId: "unknown-session", curriculum }, "headCoach")),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    await expect(
+      handler(fakeRequest({ sessionId: "unknown-session", curriculum }, "administrator")),
+    ).rejects.toMatchObject({ code: "not-found" });
+  });
+
   it("rejects removeClass on unknown class with not-found", async () => {
     const store = createInMemoryScheduleStore();
     const handler = createRemoveClassHandler({ store });
