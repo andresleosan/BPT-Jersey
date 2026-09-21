@@ -4,7 +4,7 @@ initializeApp();
 
 export { sweepSessionQuorumsSchedule } from "./schedule/quorum-sweep-schedule.js";
 
-export { signInStaffWithId, changeStaffIdPassword } from "./staff/staff-login-callables.js";
+export { signInStaffWithId, changeStaffIdPassword, completeInitialStaffAccess } from "./staff/staff-login-callables.js";
 
 export {
   assertAcademyScope,
@@ -284,6 +284,8 @@ export {
   setMemberDateOfBirth,
 } from "./members/member-migration-callables.js";
 export { listMemberClassRecords } from "./schedule/member-class-records-callables.js";
+
+export { createStaffWithPassword } from "./staff/direct-staff-creation.js";
 
 export {
   listTeamDirectory,

@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   changeStaffPassword,
+  completeInitialStaffPassword,
   currentStaffAccess,
   isStaffNumber,
   linkStaffGoogle,
@@ -17,8 +18,10 @@ export default function CoachAccessPage() {
   const [password, setPassword] = useState("");
   const [next, setNext] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [initialRequired, setInitialRequired] = useState(false);
   useEffect(() => {
     setLinked(currentStaffAccess().googleLinked);
+    setInitialRequired(new URLSearchParams(window.location.search).get("required") === "1");
   }, []);
   async function linkGoogle() {
     setBusy(true);
@@ -35,6 +38,11 @@ export default function CoachAccessPage() {
     } finally {
       setBusy(false);
     }
+  }
+  async function completeInitial(event: FormEvent) {
+    event.preventDefault(); setError("");
+    if (next.length < 12 || next.length > 128 || next !== confirmation) { setError("Your new password must have 12 to 128 characters and both copies must match."); return; }
+    setBusy(true); try { const token = await completeInitialStaffPassword(next); const role = token.claims.role; window.location.assign(role === "owner" || role === "administrator" ? "/admin" : "/coach"); } catch (cause) { setError(staffAccessError(cause)); } finally { setBusy(false); }
   }
   async function changePassword(event: FormEvent) {
     event.preventDefault();
@@ -85,6 +93,7 @@ export default function CoachAccessPage() {
         </p>
       )}
       <div className="coach-access-grid">
+        {initialRequired ? <section className="admin-panel-card coach-card" aria-labelledby="initial-password-title"><h2 id="initial-password-title">Replace your initial password</h2><p>Choose a private password before continuing, or link Google above.</p><form className="coach-access-form" onSubmit={(event) => void completeInitial(event)}><label htmlFor="initial-new">New password</label><input className="coach-input" id="initial-new" type="password" minLength={12} maxLength={128} value={next} onChange={(event) => setNext(event.target.value)} required /><label htmlFor="initial-confirm">Confirm new password</label><input className="coach-input" id="initial-confirm" type="password" minLength={12} maxLength={128} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required /><button className="admin-auth-button coach-button" disabled={busy} type="submit">Replace initial password</button></form></section> : null}
         <section className="admin-panel-card coach-card" aria-labelledby="google-title">
           <h2 id="google-title">Google account</h2>
           <p>

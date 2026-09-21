@@ -137,6 +137,10 @@ export function LoginForm({ audience }: LoginFormProps) {
 
     // The staff page never trusts the form: the ID token claims decide where this person works.
     const token = await refreshAuthToken(credential.user);
+    if (!googleSignIn && token.claims.passwordChangeRequired === true) {
+      navigateTo("/coach/access?required=1");
+      return;
+    }
     const destination = resolveStaffDestination(
       { academyId: token.claims.academyId, role: token.claims.role },
       sanitizeStaffReturnPath(queryReturnTo),
