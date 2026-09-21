@@ -44,7 +44,7 @@ const now = "2026-09-21T12:00:00.000Z";
 const audit = { schemaVersion: "1", createdAt: now, createdBy: "seed", updatedAt: now, updatedBy: "seed" };
 function seeded(accessMode: "intro" | "membership" = "intro", state: "attended" | "no_show" = "attended") {
   return fakeFirestore({
-    [`academies/${academyId}/attendance/attendance-1`]: { attendanceId: "attendance-1", academyId, sessionId: "session-1", studentId: "student-1", method: "manual", state, occurredAt: now, notes: null, correctionOf: null, schemaVersion: "1", ...audit },
+    [`academies/${academyId}/attendance/attendance-1`]: { attendanceId: "attendance-1", academyId, sessionId: "session-1", studentId: "student-1", method: "manual", state, occurredAt: now, notes: null, correctionOf: null, ...audit },
     [`academies/${academyId}/sessions/session-1`]: { sessionId: "session-1", academyId, accessMode, ...audit },
     [`academies/${academyId}/students/student-1`]: { studentId: "student-1", academyId, userId: "user-1", fullName: "Synthetic Adult", dateOfBirth: "1990-01-01", trainingCenter: "Town", trainingTimePreferences: ["evening"], participantType: "adult", active: true, status: "active", ...audit },
     [`academies/${academyId}/users/user-1`]: { userId: "user-1", academyId, accountType: "client", displayName: "Synthetic Adult", email: "adult@example.test", phoneNumber: "+441534000000", active: true, status: "active", ...audit },

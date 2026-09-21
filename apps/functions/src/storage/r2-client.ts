@@ -228,14 +228,14 @@ export function createR2Client(options: R2ClientOptions): R2Client {
     },
     createPrivateImageUrl: async (input) => {
       assertObjectKey(input.objectKey);
-      if (!input.objectKey.includes("/course-proofs/") || input.expiresInSeconds !== 60 || !["image/jpeg", "image/png"].includes(input.contentType)) throw new Error("Invalid private image request");
+      if ((!input.objectKey.includes("/course-proofs/") && !input.objectKey.includes("/membership-application-proofs/")) || input.expiresInSeconds !== 60 || !["image/jpeg", "image/png"].includes(input.contentType)) throw new Error("Invalid private image request");
       return assertHttpsAbsoluteUrl(await getSigner(new GetObjectCommand({Bucket: options.bucket, Key: input.objectKey, ResponseContentType: input.contentType, ResponseCacheControl: "private, no-store, max-age=0", ResponseContentDisposition: "inline"}), {expiresIn: 60}));
     },
     putObject: async (objectKey, body, contentType) => {
       assertObjectKey(objectKey);
       if (contentType !== "application/pdf") {
         if (
-          (!objectKey.includes("/enrolment-proofs/") && !objectKey.includes("/course-proofs/")) ||
+          (!objectKey.includes("/enrolment-proofs/") && !objectKey.includes("/course-proofs/") && !objectKey.includes("/membership-application-proofs/")) ||
           !["image/png", "image/jpeg"].includes(contentType) ||
           body.byteLength > 2 * 1024 * 1024
         )
