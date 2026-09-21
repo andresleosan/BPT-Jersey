@@ -480,7 +480,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     await ratingRequest.dispose();
   });
 
-  test("Plan B: search, record header, birthday badge and DETAILS save @critical", async ({
+  test("Plan B: search, record header, birthday badge and DETAILS save @critical @member-data-foundation", async ({
     page,
   }) => {
     test.setTimeout(240_000);
@@ -514,6 +514,10 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     await expect(page.getByText("29 years")).toBeVisible();
 
     await page.getByRole("tab", { name: "Details" }).click();
+    await expect(page.getByLabel("Address", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("City", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Post code", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Country", { exact: true })).toHaveCount(0);
     await page.getByLabel("Nickname").fill(`Nick ${suffix}`);
     await auditAxe(page, "record DETAILS tab at 1440px");
     await page.screenshot({ path: "screenshots/t051-record-details-desktop.png", fullPage: true });
@@ -525,7 +529,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     expect(session.errors, "no uncaught page errors").toEqual([]);
   });
 
-  test("Plan C: the IBJJF card, assign, the modal, void and the history @critical", async ({
+  test("Plan C: the IBJJF card, assign, the modal, void and the history @critical @member-data-foundation", async ({
     page,
   }) => {
     test.setTimeout(300_000);
@@ -544,11 +548,11 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     });
     // The two criteria, and the imported / BPT split: the class on day -20 sits before the
     // baseline cutoff, so it is inside the imported nine rather than counted twice.
-    await expect(card.getByText("12/25")).toBeVisible();
+    await expect(card.getByText("12/20")).toBeVisible();
     await expect(card.getByText("9 imported + 3 in BPT")).toBeVisible();
-    // The days criterion is the TARGET level's (White - 1st Stripe requires 75), not the 90 the
+    // The days criterion is the TARGET level's (White - 1st Stripe requires 60), not the 90 the
     // held WHITE BELT itself carries.
-    await expect(card.getByText("30/75")).toBeVisible();
+    await expect(card.getByText("30/60")).toBeVisible();
     // One progress value, and the number beside the bar is the bar's own value.
     const progress = card.getByRole("progressbar");
     const value = await progress.evaluate((element) => (element as HTMLProgressElement).value);
@@ -580,7 +584,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     );
     const notMet = promote.getByRole("list", { name: "Criteria not met" });
     await expect(notMet).toContainText("Skips 1 stripe");
-    await expect(notMet).toContainText("Classes 12/25 not met");
+    await expect(notMet).toContainText("Classes 12/20 not met");
     await expect(
       promote.getByRole("button", { name: "Confirm promotion" }),
       "An owner can confirm unmet criteria without a note",

@@ -210,7 +210,7 @@ async function signIn(page: Page) {
   await page.goto("/login?returnTo=%2Fenrol");
   await page.getByLabel("Email address").fill("applicant@example.test");
   await page.getByLabel("Password", { exact: true }).fill("Synthetic-only-2026!");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.locator("#login-form").getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/enrol/u);
   await page.getByLabel("Full name", { exact: true }).fill(applicant.fullName);
   await page.getByLabel("Date of birth", { exact: true }).fill(applicant.dateOfBirth);
@@ -264,6 +264,9 @@ test("registration requires evidence and retains details on upload failure", asy
 test("West PAYG submits without a screenshot", async ({ page }, info) => {
   const calls = await harness(page);
   await signIn(page);
+  await expect(page.getByLabel("Address", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Post code", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel(/Medical conditions/i)).toHaveCount(0);
   await page.getByRole("combobox", { name: "Training centre", exact: true }).selectOption("West");
   await page.getByRole("button", { name: "Continue to plans" }).click();
   await page.getByRole("radio", { name: /West Pay as you go/ }).check();

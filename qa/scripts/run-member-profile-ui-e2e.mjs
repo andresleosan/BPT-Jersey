@@ -79,7 +79,7 @@ run([
   "apps/functions/scripts/seed-levels.mjs",
   "--target=emulator",
   `--academy-id=${academyId}`,
-  "--system-id=ibjjf-v2",
+  "--system-id=ibjjf-v3",
 ]);
 run([
   "qa/run-e2e.mjs",

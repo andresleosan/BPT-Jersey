@@ -28,7 +28,12 @@ type Definition = Readonly<{
   kind: string;
   name: string;
   sequence: number;
-  criteria: Readonly<{ minAge: number | null; maxAge: number | null }>;
+  criteria: Readonly<{
+    minAge: number | null;
+    maxAge: number | null;
+    minClasses: number | null;
+    minimumTime: Readonly<{ days: number }> | null;
+  }>;
 }>;
 type Catalog = Readonly<{
   system: Readonly<{ skillCatalog: readonly Readonly<{ key: string }>[] }>;
@@ -188,7 +193,7 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
     expect(academyId).toMatch(/^[a-z][a-z0-9-]{2,60}$/u);
   });
 
-  test("opens a level, records attendance and evaluation, lists the candidate and approves the first promotion @critical", async ({
+  test("opens a level, records attendance and evaluation, lists the candidate and approves the first promotion @critical @member-data-foundation", async ({
     request,
   }) => {
     test.setTimeout(180_000);
@@ -201,6 +206,9 @@ test.describe("T097 progress and promotions with Firebase Emulators", () => {
     const catalog = await ok<Catalog>(request, "listLevelCatalog", null, headCoach);
     expect(catalog.definitions.length).toBeGreaterThan(100);
     const { belt, next } = startingLevel(catalog, adultAge);
+    expect(next.definitionKey).toBe("white-1st-stripe");
+    expect(next.criteria.minClasses).toBe(20);
+    expect(next.criteria.minimumTime?.days).toBe(60);
     const skillKey = catalog.system.skillCatalog[0]?.key;
     expect(typeof skillKey).toBe("string");
 
