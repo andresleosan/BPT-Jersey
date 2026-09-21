@@ -3,7 +3,10 @@
     "source": ".firebase-functions",
     "codebase": "default",
     "runtime": "nodejs22",
-    "predeploy": ["node apps/functions/scripts/build-deploy-artifact.mjs"]
+    "predeploy": [
+      "node apps/functions/scripts/assert-deployable-tree.mjs",
+      "node apps/functions/scripts/build-deploy-artifact.mjs"
+    ]
   },
   "firestore": {
     "rules": "firestore.rules",
