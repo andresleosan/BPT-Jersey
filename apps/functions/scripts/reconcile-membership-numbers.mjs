@@ -193,6 +193,10 @@ try {
   process.stderr.write(
     `${error instanceof CliError ? error.message : "Membership number reconciliation failed."}\n`,
   );
+  // The cause stays hidden by default (it may name record paths); the operator can opt in.
+  if (!(error instanceof CliError) && process.env.BPT_OPERATOR_DEBUG === "1") {
+    process.stderr.write(`cause: ${error?.code ?? ""} ${error?.message ?? error}\n`);
+  }
   process.exitCode = 1;
 } finally {
   if (app !== undefined) await deleteApp(app);

@@ -203,13 +203,18 @@ export async function applyMembershipNumberReconciliation(
         return replayRows(existingReceipt.data);
       }
 
+      // Firestore rejects any read after the first write of a transaction, so every row is read and
+      // decided first; the writes follow in a second pass.
       const appliedRows: MembershipNumberReconciliationResultRow[] = [];
+      const writes: (() => void)[] = [];
+      const reservedInChunk = new Map<string, string>();
       for (const [index, row] of rows.entries()) {
         if (row.action === "manual_review") {
           appliedRows.push({ recordRef: row.recordRef, status: "manual_review" });
           continue;
         }
         if (row.proposed === undefined) throw new Error("Membership number proposal is missing");
+        const proposed = row.proposed;
         const reference = store.firestore.doc(sourcePath(plan.academyId, row));
         const snapshot = await transaction.get(reference);
         if (!snapshot.exists || snapshot.version !== row.sourceVersion) {
@@ -230,7 +235,7 @@ export async function applyMembershipNumberReconciliation(
         const identity = buildStudentIdentityKey({
           academyId: plan.academyId,
           kind: "membership-number",
-          value: row.proposed,
+          value: proposed,
           ownerStudentId: row.ownerId,
           secretMaterial: store.identitySecretMaterial,
           secretVersion: store.identitySecretVersion,
@@ -238,35 +243,44 @@ export async function applyMembershipNumberReconciliation(
           now: confirmation.appliedAt,
         });
         const identityReference = store.firestore.doc(identityPath(plan.academyId, identity.keyId));
-        const identitySnapshot = await transaction.get(identityReference);
-        if (identitySnapshot.exists) {
-          const existingIdentity = studentIdentityKeySchema.safeParse(identitySnapshot.data());
-          if (!existingIdentity.success) {
-            throw new Error("Membership number identity reservation conflict");
+        // A pending reservation from an earlier row of this chunk is invisible to transaction reads.
+        let reservedBy = reservedInChunk.get(identity.keyId);
+        if (reservedBy === undefined) {
+          const identitySnapshot = await transaction.get(identityReference);
+          if (identitySnapshot.exists) {
+            const existingIdentity = studentIdentityKeySchema.safeParse(identitySnapshot.data());
+            if (!existingIdentity.success) {
+              throw new Error("Membership number identity reservation conflict");
+            }
+            reservedBy = existingIdentity.data.ownerStudentId;
           }
-          if (existingIdentity.data.ownerStudentId !== row.ownerId) {
-            appliedRows.push({ recordRef: row.recordRef, status: "manual_review" });
-            continue;
-          }
-        } else {
-          transaction.create(identityReference, identity);
         }
+        if (reservedBy !== undefined && reservedBy !== row.ownerId) {
+          appliedRows.push({ recordRef: row.recordRef, status: "manual_review" });
+          continue;
+        }
+        const createReservation = reservedBy === undefined;
+        reservedInChunk.set(identity.keyId, row.ownerId);
 
-        transaction.set(reference, { ...current, membershipNumber: row.proposed });
-        appendAuditEventInTransaction(
-          transaction,
-          store.firestore.doc(auditPath(plan.academyId, confirmation.operationId, chunk, index)),
-          {
-            academyId: plan.academyId,
-            actorId: confirmation.actorId,
-            action: "member.updated",
-            targetRef: "academies/" + plan.academyId + "/students/" + row.ownerId,
-            purpose: "member-record-maintenance",
-            correlationId: "write-" + plan.contentHash,
-          } as AuditEventDraft,
-        );
+        writes.push(() => {
+          if (createReservation) transaction.create(identityReference, identity);
+          transaction.set(reference, { ...current, membershipNumber: proposed });
+          appendAuditEventInTransaction(
+            transaction,
+            store.firestore.doc(auditPath(plan.academyId, confirmation.operationId, chunk, index)),
+            {
+              academyId: plan.academyId,
+              actorId: confirmation.actorId,
+              action: "member.updated",
+              targetRef: "academies/" + plan.academyId + "/students/" + row.ownerId,
+              purpose: "member-record-maintenance",
+              correlationId: "write-" + plan.contentHash,
+            } as AuditEventDraft,
+          );
+        });
         appliedRows.push({ recordRef: row.recordRef, status: "applied" });
       }
+      for (const write of writes) write();
 
       transaction.create(
         receiptReference,
