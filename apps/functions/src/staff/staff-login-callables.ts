@@ -37,6 +37,9 @@ export const completeInitialStaffAccess = onCall(options, async (request) => {
   const provider = String(request.auth.token.firebase?.sign_in_provider ?? "");
   const authTime = Number(request.auth.token.auth_time) * 1000;
   if (!Number.isFinite(authTime) || Date.now() - authTime > 5 * 60_000 || (method === "google" ? provider !== "google.com" || !user.providerData.some((item) => item.providerId === "google.com") : provider !== "password")) throw new HttpsError("permission-denied", "Sign in again before completing initial access.");
-  await getAuth().setCustomUserClaims(user.uid, { ...claims, passwordChangeRequired: false });
+  // The claim is removed, never set to false: requireUserActor rejects any unknown custom claim.
+  const remaining = { ...claims };
+  delete remaining.passwordChangeRequired;
+  await getAuth().setCustomUserClaims(user.uid, remaining);
   return { completed: true };
 });

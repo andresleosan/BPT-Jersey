@@ -123,7 +123,12 @@ export function createStaffLoginService(firestore: Firestore, auth: Auth) {
         tx.update(ref, { ...hashed, updatedAt: new Date().toISOString() });
       });
       const user = await auth.getUser(userId);
-      await auth.setCustomUserClaims(userId, { ...(user.customClaims ?? {}), passwordChangeRequired: false });
+      // Only strip the flag; adding it to staff-ID accounts would fail requireUserActor's claim check.
+      const remaining = { ...(user.customClaims ?? {}) };
+      if ("passwordChangeRequired" in remaining) {
+        delete remaining.passwordChangeRequired;
+        await auth.setCustomUserClaims(userId, remaining);
+      }
       return { changed: true };
     },
   };
