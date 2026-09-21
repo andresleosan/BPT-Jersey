@@ -17,11 +17,9 @@ type LevelState =
 
 export function RegistrationCompletion({
   studentId,
-  healthComplete,
   onRestart,
 }: {
   studentId: string;
-  healthComplete: boolean;
   onRestart: () => void;
 }) {
   const [level, setLevel] = useState<LevelState>({ status: "loading" });
@@ -46,7 +44,7 @@ export function RegistrationCompletion({
     level.status === "ready" && level.card.state === "initialized"
       ? level.card.currentDefinition.definitionKey
       : null;
-  const complete = levelSaved && subscriptionSaved && healthComplete;
+  const complete = levelSaved && subscriptionSaved;
   function refreshLevel() {
     setLevel({ status: "loading" });
     setAttempt((value) => value + 1);
@@ -62,7 +60,6 @@ export function RegistrationCompletion({
         </p>
         <ul>
           <li>Personal details: saved</li>
-          <li>Medical information: {healthComplete ? "saved or not provided" : "not saved"}</li>
           <li>Initial level: {levelSaved ? "saved" : "pending"}</li>
           <li>Subscription: {subscriptionSaved ? "saved" : "pending"}</li>
         </ul>
