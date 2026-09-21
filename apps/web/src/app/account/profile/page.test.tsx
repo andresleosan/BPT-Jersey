@@ -83,6 +83,19 @@ describe("client profile page", () => {
     expect(screen.getByText("Choose at least one training time.")).toBeVisible();
   });
 
+  it("keeps location out of profile editing and links membership changes", async () => {
+    profileApi.getClientProfile.mockResolvedValue(savedProjection);
+    render(<ProfilePage />);
+
+    await screen.findByDisplayValue("Synthetic Adult");
+    expect(screen.queryByLabelText(/^Address/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^City/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Manage membership/i })).toHaveAttribute(
+      "href",
+      "/account/membership",
+    );
+  });
+
   it("saves the editable fields and reports success without exposing authority data", async () => {
     profileApi.getClientProfile.mockResolvedValue(savedProjection);
     profileApi.saveClientProfile.mockResolvedValue(savedProjection);

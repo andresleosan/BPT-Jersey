@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const health = vi.hoisted(() => ({
   getHealthAdminProfile: vi.fn(),
-  saveHealthProfile: vi.fn(),
   listHealthReferences: vi.fn(),
   saveHealthReferenceLabel: vi.fn(),
 }));
@@ -48,13 +47,25 @@ afterEach(() => {
 });
 
 describe("medical conditions route", () => {
-  it("keeps the lookup and label form", () => {
+  it("keeps the office lookup without editable medical fields", () => {
     render(<MedicalConditionsRoute />);
     expect(screen.getByRole("heading", { name: "Medical conditions" })).toBeVisible();
     expect(screen.getByLabelText("Student ID")).toBeVisible();
-    expect(screen.getByLabelText(/Staff reference label/)).toBeVisible();
-    expect(screen.getByLabelText(/Condition summary/)).toBeVisible();
+    expect(screen.queryByLabelText(/Staff reference label/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Condition summary/)).not.toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows historical medical text to office without editable condition controls", async () => {
+    render(<MedicalConditionsRoute />);
+    await userEvent.type(screen.getByLabelText("Student ID"), "student-1");
+    await userEvent.click(screen.getByRole("button", { name: "Look up Medical Record" }));
+
+    expect(await screen.findByText("Inhaler in bag.")).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: /Condition summary/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Save Staff Reference Label/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows every reference label on demand, sorted by name, and fills the lookup from a row", async () => {
@@ -113,7 +124,6 @@ describe("medical conditions route", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Save reference label" }));
     expect(health.saveHealthReferenceLabel).toHaveBeenCalledWith("student-1", "ASTHMA-INHALER");
-    expect(health.saveHealthProfile).not.toHaveBeenCalled();
     expect(await screen.findByText("Reference label saved for student student-1.")).toBeVisible();
   });
 });

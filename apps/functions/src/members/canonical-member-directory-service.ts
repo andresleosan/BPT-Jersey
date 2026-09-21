@@ -586,9 +586,16 @@ function buildUpdatedAdminProfile(
   actorId: string,
   now: string,
 ): StudentAdminProfile {
-  // T051V2: `details` is the one block an older caller does not know about, so "not sent" keeps it
-  // and an empty object clears it. Every other field keeps its full-replacement meaning.
-  const nextDetails = input.details ?? existing.details;
+  // Current writers no longer collect postal location. Preserve historical location fields even when
+  // another editable detail is replaced, so routine saves cannot erase legacy records.
+  const preservedLocation = {
+    ...(existing.details?.city === undefined ? {} : { city: existing.details.city }),
+    ...(existing.details?.country === undefined ? {} : { country: existing.details.country }),
+  };
+  const nextDetails =
+    input.details === undefined
+      ? existing.details
+      : { ...input.details, ...preservedLocation };
   const parsed = studentAdminProfileSchema.safeParse({
     studentId: existing.studentId,
     academyId: existing.academyId,
@@ -600,7 +607,9 @@ function buildUpdatedAdminProfile(
     ...(input.emergencyContact === undefined
       ? {}
       : { emergencyContact: { ...input.emergencyContact } }),
-    ...(input.postalAddress === undefined ? {} : { postalAddress: { ...input.postalAddress } }),
+    ...(existing.postalAddress === undefined
+      ? {}
+      : { postalAddress: { ...existing.postalAddress } }),
     ...(nextDetails === undefined || Object.keys(nextDetails).length === 0
       ? {}
       : { details: { ...nextDetails } }),

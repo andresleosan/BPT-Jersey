@@ -21,7 +21,6 @@ import {
   searchMemberNames,
 } from "../../../../lib/member-profile-client";
 import {
-  countryOptions,
   dialCodes,
   draftFromDetails,
   idExpiryNotice,
@@ -422,33 +421,6 @@ export function DetailsTab({
           label="Emergency contact alternate phone"
         >
           {text("emergencyContactAlternatePhoneNumber", 64, "tel")}
-        </Field>
-      </fieldset>
-
-      <fieldset>
-        <legend>Address</legend>
-        <Field field="addressLine" label="Address" wide>
-          {text("addressLine", 240)}
-        </Field>
-        <Field field="city" label="City">
-          {text("city", 120)}
-        </Field>
-        <Field field="postCode" label="Postal code">
-          {text("postCode", 16)}
-        </Field>
-        <Field field="country" label="Country">
-          <select
-            id={fieldId("country")}
-            onChange={(event) => update("country", event.target.value)}
-            value={draft.country}
-          >
-            <option value="">Not set</option>
-            {countryOptions().map((option) => (
-              <option key={option.code} value={option.code}>
-                {option.name}
-              </option>
-            ))}
-          </select>
         </Field>
       </fieldset>
 

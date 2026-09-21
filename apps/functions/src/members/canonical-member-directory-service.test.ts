@@ -341,6 +341,30 @@ describe("canonical administrative member writer", () => {
     expect(harness.committedWritePaths).toHaveLength(writesAfterFirst);
   });
 
+  it("preserves omitted historical location fields during an update", async () => {
+    const profilePath = "academies/academy-1/studentAdminProfiles/student-existing-1";
+    const seeded = existingMemberSeed();
+    seeded[profilePath] = {
+      ...(seeded[profilePath] ?? {}),
+      postalAddress: { line: "1 Historical Street", postCode: "JE2 3AB" },
+      details: { city: "St Helier", country: "JE" },
+    };
+    const harness = fakeFirestore(seeded);
+
+    await service(harness.firestore).updateAdminMember({
+      actor: actor(),
+      value: { ...updateInput(), details: { profession: "Coach" } },
+      now,
+    });
+
+    expect(harness.records.get(profilePath)).toEqual(
+      expect.objectContaining({
+        postalAddress: { line: "1 Historical Street", postCode: "JE2 3AB" },
+        details: { city: "St Helier", country: "JE", profession: "Coach" },
+      }),
+    );
+  });
+
   it("rejects an identifier owned by another student without partial writes", async () => {
     const conflictKey = buildStudentIdentityKey({
       academyId: "academy-1",

@@ -83,15 +83,7 @@ describe("DETAILS tab", () => {
     renderTab();
     expect(
       screen.getAllByRole("group").map((group) => group.querySelector("legend")?.textContent),
-    ).toEqual([
-      "Identification",
-      "Contacts",
-      "Address",
-      "Documents",
-      "Personal",
-      "Registration",
-      "Notes",
-    ]);
+    ).toEqual(["Identification", "Contacts", "Documents", "Personal", "Registration", "Notes"]);
     for (const label of [
       "Full name",
       "Short name",
@@ -103,10 +95,6 @@ describe("DETAILS tab", () => {
       "Emergency contact name",
       "Emergency contact relationship",
       "Emergency contact phone",
-      "Address",
-      "City",
-      "Postal code",
-      "Country",
       "ID card no.",
       "ID expiry",
       "Health number",
@@ -128,6 +116,15 @@ describe("DETAILS tab", () => {
         labelElement!.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     }
+  });
+
+  it("does not render legacy location fields", () => {
+    renderTab();
+    expect(screen.queryByRole("group", { name: "Address" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Address/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^City/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Postal code/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Country/i)).not.toBeInTheDocument();
   });
 
   it("warns that the registration date is what Profile shows as Member since", () => {
