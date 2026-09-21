@@ -5,7 +5,6 @@ import { useState, type FormEvent } from "react";
 import {
   getHealthAdminProfile,
   listHealthReferences,
-  saveHealthProfile,
   saveHealthReferenceLabel,
   type HealthReferenceRow,
 } from "../../../../lib/health-client";
@@ -17,7 +16,11 @@ export function MedicalReviewSection() {
   const office = session.role === "owner" || session.role === "administrator";
   const [studentId, setStudentId] = useState("");
   const [referenceLabel, setReferenceLabel] = useState("");
-  const [conditionSummary, setConditionSummary] = useState("");
+  const [historicalProfile, setHistoricalProfile] = useState<
+    | Readonly<{ conditionSummary: string | null; staffReferenceLabel: string | null }>
+    | null
+    | undefined
+  >(undefined);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -36,13 +39,14 @@ export function MedicalReviewSection() {
     try {
       const profile = await getHealthAdminProfile(id);
       if (profile) {
-        setReferenceLabel(profile.staffReferenceLabel ?? "");
-        setConditionSummary(profile.conditionSummary ?? "");
-        setSuccess(`Loaded medical record for student ${id}.`);
+        setHistoricalProfile({
+          conditionSummary: profile.conditionSummary ?? null,
+          staffReferenceLabel: profile.staffReferenceLabel ?? null,
+        });
+        setSuccess(`Loaded historical medical record for student ${id}.`);
       } else {
-        setReferenceLabel("");
-        setConditionSummary("");
-        setSuccess(`No existing medical profile for student ${id}. You may assign one below.`);
+        setHistoricalProfile(null);
+        setSuccess(`No historical medical profile exists for student ${id}.`);
       }
     } catch {
       setError("Unable to load student health record. Check student ID.");
@@ -55,34 +59,6 @@ export function MedicalReviewSection() {
     e.preventDefault();
     const id = studentId.trim();
     if (id) await loadProfile(id);
-  }
-
-  async function handleSave(e: FormEvent) {
-    e.preventDefault();
-    const id = studentId.trim();
-    if (!id) return;
-    const label = referenceLabel.trim();
-    if (label.length > 25) {
-      setError("Staff reference label must be 25 characters or fewer.");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    setSuccess("");
-    try {
-      await saveHealthProfile({
-        studentId: id,
-        minimumOperationalSupport: ["none"],
-        conditionSummary: conditionSummary.trim() || null,
-        staffReferenceLabel: label || null,
-        expiresAt: null,
-      });
-      setSuccess(`Staff reference label updated for student ${id}.`);
-    } catch {
-      setError("Unable to save staff reference. Please try again.");
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function handleSaveLabel(e: FormEvent) {
@@ -155,7 +131,7 @@ export function MedicalReviewSection() {
       </div>
       <p className="admin-medical-intro">
         {office
-          ? "Review declared medical conditions for students and assign a short staff reference label (max 25 characters) for mat coaches."
+          ? "Historical medical declarations are read-only and visible to office roles only. Operational coach labels remain separate."
           : "Maintain the short staff reference label (max 25 characters) coaches read on the mat. Declared medical conditions stay with the office."}
       </p>
 
@@ -193,8 +169,24 @@ export function MedicalReviewSection() {
         </form>
       ) : null}
 
-      <form className="admin-medical-form" onSubmit={office ? handleSave : handleSaveLabel}>
-        {office ? null : (
+      {office ? (
+        historicalProfile ? (
+          <section className="admin-medical-form" aria-labelledby="historical-medical-title">
+            <h4 id="historical-medical-title">Historical medical record</h4>
+            <dl>
+              <div>
+                <dt>Condition summary</dt>
+                <dd>{historicalProfile.conditionSummary ?? "Not recorded"}</dd>
+              </div>
+              <div>
+                <dt>Staff reference label</dt>
+                <dd>{historicalProfile.staffReferenceLabel ?? "Not recorded"}</dd>
+              </div>
+            </dl>
+          </section>
+        ) : null
+      ) : (
+        <form className="admin-medical-form" onSubmit={handleSaveLabel}>
           <label className="admin-filter-control admin-medical-field" htmlFor="medical-student-id">
             Student ID
             <input
@@ -206,45 +198,29 @@ export function MedicalReviewSection() {
               value={studentId}
             />
           </label>
-        )}
-
-        <label className="admin-filter-control admin-medical-field" htmlFor="medical-ref-label">
-          Staff reference label (max 25 characters)
-          <input
-            id="medical-ref-label"
-            maxLength={25}
-            onChange={(e) => setReferenceLabel(e.target.value)}
-            placeholder="e.g. ASTHMA-INHALER, KNEE-BRACE"
-            type="text"
-            value={referenceLabel}
-          />
-          <span className="admin-medical-count">{referenceLabel.length} / 25 characters</span>
-        </label>
-
-        {office ? (
-          <label className="admin-filter-control admin-medical-field" htmlFor="medical-summary">
-            Condition summary (max 1000 characters)
-            <textarea
-              id="medical-summary"
-              maxLength={1000}
-              onChange={(e) => setConditionSummary(e.target.value)}
-              placeholder="Operational notes regarding member medical conditions or emergency precautions."
-              rows={3}
-              value={conditionSummary}
+          <label className="admin-filter-control admin-medical-field" htmlFor="medical-ref-label">
+            Staff reference label (max 25 characters)
+            <input
+              id="medical-ref-label"
+              maxLength={25}
+              onChange={(e) => setReferenceLabel(e.target.value)}
+              placeholder="e.g. ASTHMA-INHALER, KNEE-BRACE"
+              type="text"
+              value={referenceLabel}
             />
+            <span className="admin-medical-count">{referenceLabel.length} / 25 characters</span>
           </label>
-        ) : null}
-
-        <div>
-          <button
-            className="button button-primary text-sm"
-            disabled={saving || !studentId.trim()}
-            type="submit"
-          >
-            {saving ? "Saving..." : office ? "Save Staff Reference Label" : "Save reference label"}
-          </button>
-        </div>
-      </form>
+          <div>
+            <button
+              className="button button-primary text-sm"
+              disabled={saving || !studentId.trim()}
+              type="submit"
+            >
+              {saving ? "Saving..." : "Save reference label"}
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="admin-medical-references">
         <button

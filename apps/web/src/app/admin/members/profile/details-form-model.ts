@@ -34,10 +34,6 @@ export type DetailsDraft = Readonly<{
   emergencyContactRelationship: string;
   emergencyContactPhoneNumber: string;
   emergencyContactAlternatePhoneNumber: string;
-  addressLine: string;
-  city: string;
-  postCode: string;
-  country: string;
   idCardNumber: string;
   idCardExpiresOn: string;
   healthNumber: string;
@@ -95,10 +91,6 @@ export function draftFromDetails(details: MemberDetails): DetailsDraft {
     emergencyContactRelationship: details.emergencyContact?.relationship ?? "",
     emergencyContactPhoneNumber: details.emergencyContact?.phoneNumber ?? "",
     emergencyContactAlternatePhoneNumber: details.emergencyContact?.alternatePhoneNumber ?? "",
-    addressLine: details.postalAddress?.line ?? "",
-    city: extra?.city ?? "",
-    postCode: details.postalAddress?.postCode ?? "",
-    country: extra?.country ?? "",
     idCardNumber: details.idCardNumber ?? "",
     idCardExpiresOn: extra?.idCardExpiresOn ?? "",
     healthNumber: extra?.healthNumber ?? "",
@@ -160,7 +152,6 @@ function fieldForIssuePath(path: readonly PropertyKey[]): DetailsDraftField {
   }
   if (head === "phoneNumber") return "phoneLocalNumber";
   if (head === "emergencyContact") return "emergencyContactFullName";
-  if (head === "postalAddress") return "addressLine";
   if (typeof head === "string" && draftFieldNames.has(head)) return head as DetailsDraftField;
   return "fullName";
 }
@@ -187,11 +178,6 @@ export function payloadFromDraft(
     if (contact.phoneNumber === undefined) missing.push("emergencyContactPhoneNumber");
   }
 
-  const line = optionalText(draft.addressLine);
-  const postCode = optionalText(draft.postCode);
-  if (line !== undefined && postCode === undefined) missing.push("postCode");
-  if (line === undefined && postCode !== undefined) missing.push("addressLine");
-
   if (missing.length > 0) return { ok: false, fields: missing };
 
   const candidate = {
@@ -213,12 +199,9 @@ export function payloadFromDraft(
     gender: draft.gender,
     ...defined({ frequencyNote: details.frequencyNote }),
     ...(contactStarted ? { emergencyContact: defined(contact) } : {}),
-    ...(line !== undefined && postCode !== undefined ? { postalAddress: { line, postCode } } : {}),
     details: defined({
       shortName: optionalText(draft.shortName),
       nickname: optionalText(draft.nickname),
-      city: optionalText(draft.city),
-      country: optionalText(draft.country),
       idCardExpiresOn: optionalText(draft.idCardExpiresOn),
       healthNumber: optionalText(draft.healthNumber),
       profession: optionalText(draft.profession),
@@ -236,37 +219,6 @@ export function payloadFromDraft(
   if (parsed.success) return { ok: true, payload: parsed.data };
   const fields = [...new Set(parsed.error.issues.map((issue) => fieldForIssuePath(issue.path)))];
   return { ok: false, fields };
-}
-
-const excludedRegionCodes = new Set(["EU", "EZ", "QO", "UN", "XA", "XB", "ZZ"]);
-let cachedCountries: readonly { code: string; name: string }[] | undefined;
-
-/**
- * ISO 3166 alpha-2 codes named by the browser's own region names, so no country list ships in the
- * bundle. ponytail: a few withdrawn codes that ICU still names (for example "AN") may appear; the
- * stored value is only ever a two-letter code.
- */
-export function countryOptions(): readonly { code: string; name: string }[] {
-  if (cachedCountries !== undefined) return cachedCountries;
-  const names = new Intl.DisplayNames(["en-GB"], { type: "region" });
-  const options: { code: string; name: string }[] = [];
-  for (let first = 65; first <= 90; first += 1) {
-    for (let second = 65; second <= 90; second += 1) {
-      const code = String.fromCharCode(first, second);
-      if (excludedRegionCodes.has(code)) continue;
-      let name: string | undefined;
-      try {
-        name = names.of(code);
-      } catch {
-        name = undefined;
-      }
-      if (name !== undefined && name !== code) options.push({ code, name });
-    }
-  }
-  cachedCountries = Object.freeze(
-    options.sort((left, right) => left.name.localeCompare(right.name, "en-GB")),
-  );
-  return cachedCountries;
 }
 
 function dayNumber(date: string): number {
