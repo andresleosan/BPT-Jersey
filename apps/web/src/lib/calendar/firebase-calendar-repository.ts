@@ -81,7 +81,9 @@ export function createFirebaseCalendarRepository(session: {
           : getClientProfile().then((profile) => profile ? [profile.student] : []);
       const [memberships, plans, subjects] = await Promise.all([
         ordinaryRole ? listClientMemberships() : Promise.resolve([]),
-        ordinaryRole ? listAvailableMembershipPlans() : Promise.resolve([]),
+        ordinaryRole
+          ? listAvailableMembershipPlans({ includeAdministrative: true })
+          : Promise.resolve([]),
         subjectsPromise,
       ]);
       const current = memberships.filter((membership) =>

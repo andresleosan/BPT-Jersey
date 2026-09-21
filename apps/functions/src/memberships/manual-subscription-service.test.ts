@@ -34,6 +34,7 @@ type Ref = {
   op?: string;
   value?: unknown;
   cap?: number;
+  after?: string;
   collection: (name: string) => ReturnType<typeof collection>;
 };
 function collection(path: string) {
@@ -49,6 +50,14 @@ function reference(path: string): Ref {
 }
 function harness() {
   const records = new Map<string, Data>([
+    [
+      base + "users/owner-1",
+      {
+        ...envelope,
+        userId: "owner-1",
+        adminRole: "owner",
+      },
+    ],
     [
       base + "students/student-1",
       {
@@ -79,6 +88,7 @@ function harness() {
     exists: data.has(r.path),
     data: () => data.get(r.path),
     get: (key: string) => data.get(r.path)?.[key],
+    updateTime: { seconds: 1_700_000_000, nanoseconds: 0 },
   });
   const read = (r: Ref, data = records) => {
     if (!r.field) return snapshot(r, data);
@@ -86,6 +96,7 @@ function harness() {
       .filter(
         ([path, value]) =>
           path.startsWith(r.path + "/") &&
+          (r.after === undefined || path.split("/").at(-1)! > r.after) &&
           (r.op === "in"
             ? (r.value as unknown[]).includes(value[r.field!])
             : value[r.field!] === r.value),
@@ -109,6 +120,33 @@ function harness() {
   }
   const db = {
     doc: (path: string) => readable(reference(path)),
+
+    collection: (path: string) => {
+      const query = {
+        ...reference(path),
+        orderBy: () => query,
+        where: (field: string, op: string, value: unknown) => {
+          query.field = field;
+          query.op = op;
+          query.value = value;
+          return query;
+        },
+        startAfter: (after: string) => {
+          query.after = after;
+          return query;
+        },
+        limit: (cap: number) => {
+          query.cap = cap;
+          return query;
+        },
+      } as Ref & {
+        orderBy: () => unknown;
+        where: (field: string, op: string, value: unknown) => unknown;
+        startAfter: (after: string) => unknown;
+        limit: (cap: number) => unknown;
+      };
+      return query;
+    },
     runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
       const staged = new Map(records);
       let wrote = false;
@@ -190,6 +228,7 @@ describe("office subscription settlements", () => {
     "%s assigns membership and records payment without a member login",
     async (role) => {
       const h = harness();
+      h.records.get(base + "users/owner-1")!.adminRole = role;
       const family = h.records.get(base + "families/family-1")!;
       h.records.set(base + "families/family-1", {
         ...family,
@@ -488,9 +527,9 @@ describe("previous membership payment linkage", () => {
         invoices: [],
       }),
     ]);
-    await expect(
-      saveManualSubscription(h.db, actor, { ...command, requestId: randomUUID() }),
-    ).rejects.toMatchObject({ code: "failed-precondition" });
+    expect(
+      await saveManualSubscription(h.db, actor, { ...command, requestId: randomUUID() }),
+    ).toEqual(result);
   });
   it.each([
     "unlinked",
@@ -518,5 +557,39 @@ describe("previous membership payment linkage", () => {
     const before = new Map(h.records);
     await expect(saveManualSubscription(h.db, actor, command)).rejects.toThrow();
     expect(h.records).toEqual(before);
+  });
+});
+
+describe("Transit Free subscription", () => {
+  it("requires complimentary indefinite coverage and creates no charge", async () => {
+    const h = harness();
+    const transit = PLAN_CATALOG.find((plan) => plan.planId === "transit-free")!;
+    h.records.set(base + "plans/transit-free", { ...transit, ...envelope });
+    delete h.records.get(base + "plans/transit-free")!.status;
+    const command = {
+      ...input({ kind: "complimentary", reason: "Transit Free indefinite access" }),
+      planId: "transit-free" as const,
+      endsAt: null,
+    };
+    const saved = await saveManualSubscription(h.db, actor, command);
+    expect(saved).toMatchObject({ planId: "transit-free", status: "active", endsAt: null });
+    expect(h.records.get(base + "membershipAdministration/" + saved.membershipId)).toMatchObject({
+      invoiceId: null,
+      complimentary: true,
+      transitFree: true,
+    });
+    expect(
+      [...h.records.keys()].some(
+        (path) => path.includes("/invoices/") || path.includes("/payments/"),
+      ),
+    ).toBe(false);
+
+    for (const invalid of [
+      { ...command, requestId: randomUUID(), endsAt: "2027-01-01T00:00:00.000Z" },
+      { ...command, requestId: randomUUID(), settlement: paid },
+      { ...command, requestId: randomUUID(), operation: "renew" as const },
+    ]) {
+      await expect(saveManualSubscription(h.db, actor, invalid)).rejects.toThrow();
+    }
   });
 });

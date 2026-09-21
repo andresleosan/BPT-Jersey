@@ -99,13 +99,28 @@ export async function saveManualSubscription(
     .update(JSON.stringify({ actorId: actor.userId, input }))
     .digest("hex");
   return db.runTransaction(async (tx) => {
-    const [staff, roleLock] = await Promise.all([tx.get(ref("users", actor.userId)), tx.get(ref("adminRoleLocks", actor.userId))]);
-    if (!staff.exists || roleLock.exists || staff.get("userId") !== actor.userId || staff.get("academyId") !== actor.academyId ||
-        staff.get("active") !== true || staff.get("status") !== "active" || staff.get("adminRole") !== actor.role) {
+    const [staff, roleLock] = await Promise.all([
+      tx.get(ref("users", actor.userId)),
+      tx.get(ref("adminRoleLocks", actor.userId)),
+    ]);
+    if (
+      !staff.exists ||
+      roleLock.exists ||
+      staff.get("userId") !== actor.userId ||
+      staff.get("academyId") !== actor.academyId ||
+      staff.get("active") !== true ||
+      staff.get("status") !== "active" ||
+      staff.get("adminRole") !== actor.role
+    ) {
       throw new HttpsError("permission-denied", "Current office access is required.");
     }
-    const identityIds = await canonicalMemberIdentityIds(createMemberDirectoryReadTransaction(db, tx), actor.academyId, input.studentId);
-    if (identityIds[0] !== input.studentId) fail("Open the canonical member before editing subscriptions.");
+    const identityIds = await canonicalMemberIdentityIds(
+      createMemberDirectoryReadTransaction(db, tx),
+      actor.academyId,
+      input.studentId,
+    );
+    if (identityIds[0] !== input.studentId)
+      fail("Open the canonical member before editing subscriptions.");
     const receiptRef = ref("membershipChanges", input.requestId);
     const receipt = await tx.get(receiptRef);
     if (receipt.exists) {
@@ -115,8 +130,15 @@ export async function saveManualSubscription(
     }
     const membershipRef = ref("memberships", membershipId);
     const administrationRef = ref("membershipAdministration", membershipId);
-    const existingPages = await Promise.all(identityIds.map((id) => tx.get(base.collection("memberships").where("studentId", "==", id).limit(101))));
-    const existing = { docs: existingPages.flatMap((page) => page.docs), size: existingPages.reduce((count, page) => count + page.size, 0) };
+    const existingPages = await Promise.all(
+      identityIds.map((id) =>
+        tx.get(base.collection("memberships").where("studentId", "==", id).limit(101)),
+      ),
+    );
+    const existing = {
+      docs: existingPages.flatMap((page) => page.docs),
+      size: existingPages.reduce((count, page) => count + page.size, 0),
+    };
     const [studentDoc, planDoc, currentDoc, administrationDoc] = await Promise.all([
       tx.get(ref("students", input.studentId)),
       tx.get(ref("plans", input.planId)),
@@ -152,6 +174,14 @@ export async function saveManualSubscription(
       !plan.value.active
     )
       fail("Choose an active catalogue plan.");
+    const transitFree = input.planId === "transit-free";
+    if (
+      transitFree &&
+      (input.endsAt !== null ||
+        input.operation === "renew" ||
+        input.settlement.kind !== "complimentary")
+    )
+      fail("Transit Free must be indefinite and complimentary.");
     if (
       input.settlement.kind === "pay-as-you-go" &&
       (input.operation !== "assign" ||
@@ -160,8 +190,16 @@ export async function saveManualSubscription(
         plan.value.classSites[0] !== "West")
     )
       fail("Pay at class is only available for a new West pay-as-you-go subscription.");
-    let previousPayment: { recordId: string; capturedAt: string; sourceVersion: string;
-      review: Extract<ManualSubscriptionInput["settlement"], { kind: "previously-paid" }>["review"] | null } | undefined;
+    let previousPayment:
+      | {
+          recordId: string;
+          capturedAt: string;
+          sourceVersion: string;
+          review:
+            | Extract<ManualSubscriptionInput["settlement"], { kind: "previously-paid" }>["review"]
+            | null;
+        }
+      | undefined;
     if (input.settlement.kind === "previously-paid") {
       const recordId = input.settlement.recordId;
       const [archive, recoveryLink, officeLink] = await Promise.all([
@@ -194,43 +232,100 @@ export async function saveManualSubscription(
       if (review) {
         const decision = await tx.get(ref("memberHistoryDecisions", review.decisionId));
         const approved = memberHistoryEntrySchema.safeParse(decision.get("result")?.entry);
-        if (review.sourceVersion !== sourceVersion || decision.get("academyId") !== actor.academyId || !approved.success ||
-            !identityIds.includes(approved.data.studentId) || approved.data.kind !== "payment" || approved.data.confirmation !== "confirmed" ||
-            approved.data.sourceRecordId !== recordId || !review.sourceItemIds.includes(approved.data.sourceItemId)) fail("Refresh the confirmed payment evidence before linking coverage.");
+        if (
+          review.sourceVersion !== sourceVersion ||
+          decision.get("academyId") !== actor.academyId ||
+          !approved.success ||
+          !identityIds.includes(approved.data.studentId) ||
+          approved.data.kind !== "payment" ||
+          approved.data.confirmation !== "confirmed" ||
+          approved.data.sourceRecordId !== recordId ||
+          !review.sourceItemIds.includes(approved.data.sourceItemId)
+        )
+          fail("Refresh the confirmed payment evidence before linking coverage.");
         for (const sourceItemId of review.sourceItemIds) {
           const entryId = `archive-${createHash("sha256").update(`${recordId}:${sourceVersion}:${sourceItemId}`).digest("hex")}`;
           const entryDoc = await tx.get(ref("memberHistoryEntries", entryId));
           const entry = memberHistoryEntrySchema.safeParse(entryDoc.get("entry"));
-          if (!entry.success || entryDoc.get("academyId") !== actor.academyId || !identityIds.includes(entry.data.studentId) ||
-              entry.data.kind !== "payment" || entry.data.confirmation !== "confirmed" || entry.data.sourceRecordId !== recordId ||
-              entry.data.sourceVersion !== sourceVersion || (entry.data.sourceItemId === approved.data.sourceItemId && entryDoc.get("decisionId") !== review.decisionId)) fail("A selected historical payment is no longer confirmed.");
+          if (
+            !entry.success ||
+            entryDoc.get("academyId") !== actor.academyId ||
+            !identityIds.includes(entry.data.studentId) ||
+            entry.data.kind !== "payment" ||
+            entry.data.confirmation !== "confirmed" ||
+            entry.data.sourceRecordId !== recordId ||
+            entry.data.sourceVersion !== sourceVersion ||
+            (entry.data.sourceItemId === approved.data.sourceItemId &&
+              entryDoc.get("decisionId") !== review.decisionId)
+          )
+            fail("A selected historical payment is no longer confirmed.");
         }
       }
-      previousPayment = { recordId, capturedAt: parsed.value.capturedAt, sourceVersion, review: review ?? null };
+      previousPayment = {
+        recordId,
+        capturedAt: parsed.value.capturedAt,
+        sourceVersion,
+        review: review ?? null,
+      };
       // A new request ID must not create a second copy of the same already confirmed paid coverage.
       if (existing.size > 100) fail("Review this member's billing history in bounded pages first.");
       const compatible = [];
       for (const doc of existing.docs.filter(operationalDocument)) {
         const candidate = parseMembershipRecord(doc.data());
-        if (!candidate.ok || candidate.value.academyId !== actor.academyId || !identityIds.includes(candidate.value.studentId)) fail("Existing coverage needs review.");
-        if (candidate.value.planId !== input.planId || candidate.value.startsAt !== input.startsAt || candidate.value.endsAt !== input.endsAt) continue;
+        if (
+          !candidate.ok ||
+          candidate.value.academyId !== actor.academyId ||
+          !identityIds.includes(candidate.value.studentId)
+        )
+          fail("Existing coverage needs review.");
+        if (
+          candidate.value.planId !== input.planId ||
+          candidate.value.startsAt !== input.startsAt ||
+          candidate.value.endsAt !== input.endsAt
+        )
+          continue;
         const administration = await tx.get(ref("membershipAdministration", doc.id));
-        if (administration.get("previousPaymentRecordId") === recordId && administration.get("confirmedStartsAt") === input.startsAt &&
-            administration.get("confirmedEndsAt") === input.endsAt) compatible.push(candidate.value);
+        if (
+          administration.get("previousPaymentRecordId") === recordId &&
+          administration.get("confirmedStartsAt") === input.startsAt &&
+          administration.get("confirmedEndsAt") === input.endsAt
+        )
+          compatible.push(candidate.value);
       }
       if (compatible.length > 1) fail("Duplicate paid coverage requires reconciliation.");
       if (compatible.length === 1) {
         const retained = compatible[0]!;
-        if (input.operation !== "assign" && (retained.membershipId !== input.membershipId ||
-            new Date(retained.updatedAt).toISOString() !== input.expectedUpdatedAt)) {
+        if (
+          input.operation !== "assign" &&
+          (retained.membershipId !== input.membershipId ||
+            new Date(retained.updatedAt).toISOString() !== input.expectedUpdatedAt)
+        ) {
           throw new HttpsError("aborted", "Paid coverage changed. Refresh before saving.");
         }
-        const result = editableSubscriptionSchema.parse({ membershipId: retained.membershipId, studentId: input.studentId,
-          planId: retained.planId, status: retained.status, startsAt: retained.startsAt, endsAt: retained.endsAt, updatedAt: retained.updatedAt });
-        tx.create(receiptRef, { fingerprint, result, previousPayment, reusedMembershipId: retained.membershipId, createdAt: new Date().toISOString() });
-        appendAuditEventInTransaction(tx, base.collection("auditEvents").doc(), { academyId: actor.academyId, actorId: actor.userId,
-          action: "membership.subscription.updated", targetRef: ref("memberships", retained.membershipId).path,
-          purpose: "confirmed paid coverage retained", correlationId: input.requestId } as AuditEventDraft);
+        const result = editableSubscriptionSchema.parse({
+          membershipId: retained.membershipId,
+          studentId: input.studentId,
+          planId: retained.planId,
+          status: retained.status,
+          startsAt: retained.startsAt,
+          endsAt: retained.endsAt,
+          updatedAt: retained.updatedAt,
+        });
+        tx.create(receiptRef, {
+          fingerprint,
+          result,
+          previousPayment,
+          reusedMembershipId: retained.membershipId,
+          createdAt: new Date().toISOString(),
+        });
+        appendAuditEventInTransaction(tx, base.collection("auditEvents").doc(), {
+          academyId: actor.academyId,
+          actorId: actor.userId,
+          action: "membership.subscription.updated",
+          targetRef: ref("memberships", retained.membershipId).path,
+          purpose: "confirmed paid coverage retained",
+          correlationId: input.requestId,
+        } as AuditEventDraft);
         return result;
       }
     }
@@ -262,6 +357,12 @@ export async function saveManualSubscription(
     } else if (new Date(current.updatedAt).toISOString() !== input.expectedUpdatedAt) {
       throw new HttpsError("aborted", "Subscription changed. Refresh before saving.");
     }
+    if (
+      current?.planId === "transit-free" &&
+      input.planId !== "transit-free" &&
+      input.settlement.kind === "unchanged"
+    )
+      fail("Choose the payment status when replacing Transit Free.");
     const now = new Date(
       Math.max(Date.now(), current ? Date.parse(current.updatedAt) + 1 : 0),
     ).toISOString();
@@ -281,6 +382,7 @@ export async function saveManualSubscription(
     if (
       input.operation === "update" &&
       settlement.kind !== "unchanged" &&
+      !transitFree &&
       (oldInvoice?.status === "paid" || oldInvoice?.status === "partially_paid")
     )
       fail("Recorded payments are preserved. Renew for a new billing period.");
@@ -291,6 +393,7 @@ export async function saveManualSubscription(
       fail("Settle the current amount due before renewing.");
     if (
       settlement.kind !== "unchanged" &&
+      !transitFree &&
       invoices.some(
         (invoice) =>
           invoice.invoiceId !== oldInvoice?.invoiceId &&
@@ -428,6 +531,7 @@ export async function saveManualSubscription(
       tx.set(administrationRef, {
         invoiceId,
         complimentary: false,
+        transitFree: false,
         updatedAt: now,
         updatedBy: actor.userId,
       });
@@ -448,6 +552,7 @@ export async function saveManualSubscription(
       tx.set(administrationRef, {
         invoiceId: null,
         complimentary: true,
+        transitFree,
         reason: settlement.reason,
         updatedAt: now,
         updatedBy: actor.userId,
@@ -487,12 +592,19 @@ export async function saveManualSubscription(
       endsAt: record.endsAt,
       updatedAt: now,
     });
-    tx.create(receiptRef, { fingerprint, result, ...(previousPayment ? { previousPayment } : {}), createdAt: now });
+    tx.create(receiptRef, {
+      fingerprint,
+      result,
+      ...(previousPayment ? { previousPayment } : {}),
+      createdAt: now,
+    });
     audit(
       current ? "membership.subscription.updated" : "membership.created",
       membershipRef.path,
       settlement.kind === "complimentary"
-        ? `complimentary: ${settlement.reason}`
+        ? transitFree
+          ? "transit free: " + settlement.reason
+          : "complimentary: " + settlement.reason
         : `manual subscription ${input.operation}`,
     );
     return result;

@@ -821,6 +821,7 @@ async function executeBookingInTransaction(
   const quotaSnapshot = await input.transaction.get(quotaRef);
   const quotaRevision = revision(quotaSnapshot, academyId, quotaKey, "quotaId");
 
+  const transitFree = storedMembership.planId === "transit-free";
   const [used, occupied, account] = await Promise.all([
     additionalAccess
       ? Promise.resolve(0)
@@ -845,17 +846,21 @@ async function executeBookingInTransaction(
       currentIds: target.ids,
       ...(reservationWaitlistId === undefined ? {} : { reservationWaitlistId }),
     }),
-    readFinancialAccountInTransaction({
-      firestore: input.firestore as unknown as FinanceFirestore,
-      transaction: input.transaction as unknown as FinanceTransaction,
-      scope: {
-        academyId,
-        familyIds: [storedMembership.familyId],
-        studentIds: identityIds,
-      },
-    }),
+    transitFree
+      ? Promise.resolve(null)
+      : readFinancialAccountInTransaction({
+          firestore: input.firestore as unknown as FinanceFirestore,
+          transaction: input.transaction as unknown as FinanceTransaction,
+          scope: {
+            academyId,
+            familyIds: [storedMembership.familyId],
+            studentIds: identityIds,
+          },
+        }),
   ]);
   if (
+    !transitFree &&
+    account !== null &&
     !evaluateFinancialAccess({
       membershipStatus: storedMembership.status,
       paygDebtMinor: account.paygDebtMinor,
@@ -863,8 +868,8 @@ async function executeBookingInTransaction(
   ) {
     return invalid("financial", "Financial access is not eligible");
   }
-  // Additional groups waive age, site and plan quotas only. Membership, financial standing,
-  // active programs, booking cutoff and capacity are still required.
+  // Additional groups waive age, site and plan quotas only. Transit Free alone waives financial standing;
+  // membership status, active programs, booking cutoff and capacity are still required.
   const access =
     additionalAccess && storedPlan.active
       ? { allowed: true as const }
