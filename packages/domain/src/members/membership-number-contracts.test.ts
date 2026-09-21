@@ -4,6 +4,8 @@ import { ok } from "../result";
 import {
   canonicalMembershipNumberSchema,
   canonicaliseMembershipNumber,
+  membershipNumberPlanPayloadSchema,
+  membershipNumberPlanSchema,
   nextMonotonicMembershipNumber,
 } from "./membership-number-contracts";
 
@@ -15,7 +17,7 @@ describe("membership number contracts", () => {
   });
 
   it("rejects non-positive, non-decimal and out-of-range values", () => {
-    for (const value of ["0", "-1", "3.3", "A33", "#", "1000000000"]) {
+    for (const value of ["0", "-1", "3.3", "A33", "#", "1000000000", "1".repeat(65)]) {
       expect(canonicaliseMembershipNumber(value).ok).toBe(false);
       expect(canonicalMembershipNumberSchema.safeParse(value).success).toBe(false);
     }
@@ -27,5 +29,41 @@ describe("membership number contracts", () => {
     expect(() => nextMonotonicMembershipNumber(["999999999"])).toThrow(
       "Membership number sequence is exhausted",
     );
+  });
+});
+
+describe("membership number reconciliation artefact", () => {
+  const payload = {
+    academyId: "academy-1",
+    generatedAt: "2026-09-21T04:00:00.000Z",
+    rows: [
+      {
+        recordRef: "members/legacy-a",
+        sourceKind: "legacy",
+        ownerId: "legacy-a",
+        sourceVersion: "version-1",
+        currentMasked: "******33",
+        action: "reassign",
+        proposed: "34",
+      },
+    ],
+    schemaVersion: "1",
+  } as const;
+
+  it("keeps the payload and hashed plan closed", () => {
+    expect(membershipNumberPlanPayloadSchema.safeParse(payload).success).toBe(true);
+    expect(
+      membershipNumberPlanSchema.safeParse({ ...payload, contentHash: "a".repeat(64) }).success,
+    ).toBe(true);
+    expect(
+      membershipNumberPlanSchema.safeParse({
+        ...payload,
+        contentHash: "a".repeat(64),
+        membershipNumber: "33",
+      }).success,
+    ).toBe(false);
+    expect(
+      membershipNumberPlanSchema.safeParse({ ...payload, contentHash: "not-a-hash" }).success,
+    ).toBe(false);
   });
 });
