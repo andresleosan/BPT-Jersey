@@ -320,6 +320,45 @@ describe("booking transaction audit trail", () => {
     expect(new Set(events.map((event) => event.auditEventId)).size).toBe(3);
   });
 
+  it("cancels a confirmed Intro booking without requiring a membership", async () => {
+    const store = createFirestore();
+    seedAcademy(store, { accessMode: "intro" });
+    const bookingId = buildBookingId("sess1", "s1");
+    store.seed(`${bookingsPath}/${bookingId}`, {
+      bookingId,
+      academyId,
+      sessionId: "sess1",
+      studentId: "s1",
+      membershipId: null,
+      source: { kind: "intro" },
+      status: "confirmed",
+      requestedAt: now,
+      cancelledAt: null,
+      cancellationReason: null,
+      schemaVersion: "3",
+      createdAt: now,
+      createdBy: "s1",
+      updatedAt: now,
+      updatedBy: "s1",
+    });
+
+    const cancelled = await createService(store).cancelBooking(
+      academyId,
+      cancelRequest,
+      "s1",
+      false,
+      { ip: null, role: "adultStudent" },
+    );
+
+    expect(cancelled).toMatchObject({
+      bookingId,
+      schemaVersion: "3",
+      membershipId: null,
+      source: { kind: "intro" },
+      status: "cancelled",
+    });
+  });
+
   it("writes the cancellation with the staff group when staff cancels", async () => {
     const store = createFirestore();
     seedAcademy(store);

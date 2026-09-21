@@ -316,7 +316,12 @@ function booking(snapshot: BookingDocumentSnapshot, academyId: string): BookingR
         (value.source as { kind?: string }).kind === "course" &&
         typeof (value.source as { courseId?: string }).courseId === "string" &&
         typeof (value.source as { enrolmentId?: string }).enrolmentId === "string" &&
-        typeof value.absent === "boolean")
+        typeof value.absent === "boolean") ||
+      (value.schemaVersion === "3" &&
+        value.membershipId === null &&
+        typeof value.source === "object" &&
+        value.source !== null &&
+        (value.source as { kind?: string }).kind === "intro")
     ) ||
     !["requested", "confirmed", "cancelled"].includes(value.status as string) ||
     !validDate(value.requestedAt) ||
