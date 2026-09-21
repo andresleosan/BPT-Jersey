@@ -1354,20 +1354,20 @@ export const listSessions = onCall(scheduleCallableOptions, async (request) => {
   const actor = requireUserActor(request);
   if (!["coach", "headCoach"].includes(actor.role)) return result;
   const courseActor = await requireCourseActor(request);
-  const visible = [];
-  for (const session of result.sessions) {
-    if (!session.courseId) {
-      visible.push(session);
-      continue;
-    }
-    try {
-      await requireCourseRosterAccess(getFirestore(), courseActor, session.sessionId);
-      visible.push(session);
-    } catch (error) {
-      if (!(error instanceof HttpsError) || error.code !== "permission-denied") throw error;
-    }
-  }
-  return { sessions: visible };
+  // Course sessions are checked concurrently; a denied roster hides that session, order is kept.
+  const allowed = await Promise.all(
+    result.sessions.map(async (session) => {
+      if (!session.courseId) return true;
+      try {
+        await requireCourseRosterAccess(getFirestore(), courseActor, session.sessionId);
+        return true;
+      } catch (error) {
+        if (!(error instanceof HttpsError) || error.code !== "permission-denied") throw error;
+        return false;
+      }
+    }),
+  );
+  return { sessions: result.sessions.filter((_, index) => allowed[index]) };
 });
 
 export const getDailyOperationsDashboard = onCall(scheduleCallableOptions, async (request) =>
