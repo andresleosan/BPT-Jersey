@@ -27,12 +27,11 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-it("requires saved level, subscription and medical information before declaring completion", async () => {
+it("requires saved level and subscription before declaring completion", async () => {
   const user = userEvent.setup();
   const restart = vi.fn();
-  const view = render(
-    <RegistrationCompletion studentId="student-1" healthComplete={false} onRestart={restart} />,
-  );
+  render(<RegistrationCompletion studentId="student-1" onRestart={restart} />);
+  expect(screen.queryByText(/Medical information:/i)).not.toBeInTheDocument();
   await user.selectOptions(await screen.findByLabelText("Level"), "white-belt");
   await user.type(screen.getByLabelText("Start date"), "2026-01-01");
   await user.type(screen.getByLabelText("Notes"), "Initial registration");
@@ -51,10 +50,6 @@ it("requires saved level, subscription and medical information before declaring 
   });
   expect(screen.queryByRole("heading", { name: "Registration complete" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Save synthetic subscription" }));
-  expect(screen.queryByRole("button", { name: "Add another member" })).not.toBeInTheDocument();
-  view.rerender(
-    <RegistrationCompletion studentId="student-1" healthComplete onRestart={restart} />,
-  );
   expect(screen.getByRole("heading", { name: "Registration complete" })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Add another member" }));
   expect(restart).toHaveBeenCalledOnce();
@@ -63,7 +58,7 @@ it("requires saved level, subscription and medical information before declaring 
 it("recovers from a read failure without creating another student or level", async () => {
   const user = userEvent.setup();
   api.getStudentLevelCard.mockRejectedValueOnce(new Error("internal detail"));
-  render(<RegistrationCompletion studentId="student-1" healthComplete onRestart={vi.fn()} />);
+  render(<RegistrationCompletion studentId="student-1" onRestart={vi.fn()} />);
   expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load the level");
   expect(screen.queryByText("internal detail")).not.toBeInTheDocument();
   api.getStudentLevelCard.mockResolvedValue({
@@ -77,7 +72,7 @@ it("recovers from a read failure without creating another student or level", asy
 
 it("keeps completion pending if saving succeeds but verifying the level fails", async () => {
   const user = userEvent.setup();
-  render(<RegistrationCompletion studentId="student-1" healthComplete onRestart={vi.fn()} />);
+  render(<RegistrationCompletion studentId="student-1" onRestart={vi.fn()} />);
   await user.selectOptions(await screen.findByLabelText("Level"), "white-belt");
   await user.type(screen.getByLabelText("Start date"), "2026-01-01");
   await user.type(screen.getByLabelText("Notes"), "Initial registration");

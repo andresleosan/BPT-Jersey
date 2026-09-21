@@ -179,6 +179,31 @@ describe("enrolment request store", () => {
     ]);
   });
 
+  it("reads historical postal data but stores new submissions without it", async () => {
+    const historical = record({
+      applicant: {
+        ...applicant,
+        postalAddress: { line: "1 Historical Street", postCode: "JE2 3AB" },
+      },
+    });
+    const historicalDouble = firestoreDouble({ [requestPath]: historical });
+
+    await expect(
+      historicalDouble.store.getForApproval("academy-1", enrolmentRequestId(requestId)),
+    ).resolves.toMatchObject({
+      applicant: { postalAddress: { line: "1 Historical Street", postCode: "JE2 3AB" } },
+    });
+
+    const currentDouble = firestoreDouble();
+    await currentDouble.store.submit({
+      academyId: "academy-1",
+      actorId: "visitor-1",
+      now,
+      submission,
+    });
+    expect(currentDouble.documents.get(requestPath)?.applicant).not.toHaveProperty("postalAddress");
+  });
+
   it("treats a retry of the same submission as the same request", async () => {
     const { store, audits } = firestoreDouble();
 

@@ -12,7 +12,6 @@ import {
   type TrainingTimePreference,
 } from "@bpt-jersey/domain";
 import { createMember, type CreateMemberInput } from "../../../../lib/members-client";
-import { saveHealthProfile } from "../../../../lib/health-client";
 
 import { RegistrationCompletion } from "./registration-completion";
 
@@ -24,7 +23,6 @@ type FieldErrors = Readonly<{
   trainingCenter?: string;
   trainingTimePreferences?: string;
   emergencyContact?: string;
-  postalAddress?: string;
 }>;
 
 type FormValues = Readonly<{
@@ -39,13 +37,10 @@ type FormValues = Readonly<{
   gender: "" | MemberGender;
   trainingCenter: "" | TrainingCenter;
   trainingTimePreferences: readonly TrainingTimePreference[];
-  medicalConditions: string;
   emergencyContactFullName: string;
   emergencyContactRelationship: string;
   emergencyContactPhoneNumber: string;
   emergencyContactAlternatePhoneNumber: string;
-  addressLine: string;
-  postCode: string;
 }>;
 
 const initialValues: FormValues = {
@@ -60,13 +55,10 @@ const initialValues: FormValues = {
   gender: "",
   trainingCenter: "",
   trainingTimePreferences: [],
-  medicalConditions: "",
   emergencyContactFullName: "",
   emergencyContactRelationship: "",
   emergencyContactPhoneNumber: "",
   emergencyContactAlternatePhoneNumber: "",
-  addressLine: "",
-  postCode: "",
 };
 
 const genericFormError = "Unable to add member. Please try again.";
@@ -76,8 +68,7 @@ function optionalText(value: string): string | undefined {
   return normalized.length === 0 ? undefined : normalized;
 }
 
-// The official waiver form captures the emergency contact and the postal address at enrolment.
-// Both blocks are optional as a whole, but once started they must be complete.
+// The emergency contact is optional as a whole, but once started it must be complete.
 function emergencyContactFromValues(values: FormValues): CreateMemberInput["emergencyContact"] {
   const fullName = optionalText(values.emergencyContactFullName);
   const relationship = optionalText(values.emergencyContactRelationship);
@@ -102,17 +93,8 @@ function emergencyContactFromValues(values: FormValues): CreateMemberInput["emer
   };
 }
 
-function postalAddressFromValues(values: FormValues): CreateMemberInput["postalAddress"] {
-  const line = optionalText(values.addressLine);
-  const postCode = optionalText(values.postCode);
-  if (line === undefined && postCode === undefined) return undefined;
-  if (line === undefined || postCode === undefined) throw new Error("incomplete postal address");
-  return { line, postCode };
-}
-
 function inputFromValues(values: FormValues, requestId: string): CreateMemberInput {
   const emergencyContact = emergencyContactFromValues(values);
-  const postalAddress = postalAddressFromValues(values);
   return {
     requestId,
     fullName: values.fullName.trim(),
@@ -133,7 +115,6 @@ function inputFromValues(values: FormValues, requestId: string): CreateMemberInp
     ...(optionalText(values.vatNumber) ? { vatNumber: values.vatNumber.trim() } : {}),
     ...(values.gender === "" ? {} : { gender: values.gender }),
     ...(emergencyContact === undefined ? {} : { emergencyContact }),
-    ...(postalAddress === undefined ? {} : { postalAddress }),
   };
 }
 
@@ -147,8 +128,6 @@ export function AddMemberPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState("");
   const [createdMember, setCreatedMember] = useState<string | null>(null);
-  const [healthStatus, setHealthStatus] = useState<"none" | "saving" | "pending" | "saved">("none");
-  const healthInFlight = useRef(false);
   const completionHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (createdMember) completionHeading.current?.focus();
@@ -157,24 +136,13 @@ export function AddMemberPage() {
     const studentId = new URLSearchParams(window.location.search).get("studentId");
     if (studentId && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(studentId)) {
       setCreatedMember(studentId);
-      if (new URLSearchParams(window.location.search).has("healthPending"))
-        setHealthStatus("pending");
     }
   }, []);
-  useEffect(() => {
-    if (healthStatus !== "pending" && healthStatus !== "saving") return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [healthStatus]);
   const [busy, setBusy] = useState(false);
   const fullNameRef = useRef<HTMLInputElement>(null);
   const dateOfBirthRef = useRef<HTMLInputElement>(null);
   const trainingCenterRef = useRef<HTMLSelectElement>(null);
   const emergencyContactRef = useRef<HTMLInputElement>(null);
-  const addressLineRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
 
   function updateField<K extends keyof FormValues>(field: K, value: FormValues[K]): void {
@@ -237,13 +205,6 @@ export function AddMemberPage() {
       emergencyContactRef.current?.focus();
       return false;
     }
-    try {
-      postalAddressFromValues(values);
-    } catch {
-      setFieldErrors({ postalAddress: "Enter both the address and the post code." });
-      addressLineRef.current?.focus();
-      return false;
-    }
     setFieldErrors({});
     return true;
   }
@@ -261,9 +222,7 @@ export function AddMemberPage() {
       setCreatedMember(result.studentId);
       const url = new URL(window.location.href);
       url.searchParams.set("studentId", result.studentId);
-      if (values.medicalConditions.trim()) url.searchParams.set("healthPending", "1");
       window.history.replaceState(null, "", url);
-      if (values.medicalConditions.trim()) await saveMedicalInformation(result.studentId);
     } catch {
       setError(genericFormError);
     } finally {
@@ -272,38 +231,13 @@ export function AddMemberPage() {
     }
   }
 
-  async function saveMedicalInformation(studentId: string): Promise<void> {
-    if (healthInFlight.current || !values.medicalConditions.trim()) return;
-    healthInFlight.current = true;
-    setHealthStatus("saving");
-    try {
-      await saveHealthProfile({
-        studentId,
-        minimumOperationalSupport: ["none"],
-        conditionSummary: values.medicalConditions.trim(),
-        staffReferenceLabel: null,
-        expiresAt: null,
-      });
-      setHealthStatus("saved");
-      const url = new URL(window.location.href);
-      url.searchParams.delete("healthPending");
-      window.history.replaceState(null, "", url);
-    } catch {
-      setHealthStatus("pending");
-    } finally {
-      healthInFlight.current = false;
-    }
-  }
-
   function restart() {
     setCreatedMember(null);
     setValues(initialValues);
-    setHealthStatus("none");
     setRequestId(globalThis.crypto.randomUUID());
     setError("");
     const url = new URL(window.location.href);
     url.searchParams.delete("studentId");
-    url.searchParams.delete("healthPending");
     window.history.replaceState(null, "", url);
   }
 
@@ -321,41 +255,7 @@ export function AddMemberPage() {
             manual membership.
           </p>
         </header>
-        {healthStatus === "pending" || healthStatus === "saving" ? (
-          <section
-            className="member-subscription-editor ibjjf-form"
-            aria-label="Medical information pending"
-          >
-            <p role={healthStatus === "pending" ? "alert" : "status"}>
-              {healthStatus === "pending"
-                ? "Medical information has not been saved. Your member record is saved. Keep this page open and retry."
-                : "Saving medical information…"}
-            </p>
-            <label htmlFor="pending-medical">Medical information to save</label>
-            <textarea
-              id="pending-medical"
-              value={values.medicalConditions}
-              maxLength={1000}
-              disabled={healthStatus === "saving"}
-              onChange={(event) => updateField("medicalConditions", event.target.value)}
-              rows={3}
-            />
-            <button
-              className="admin-auth-button"
-              type="button"
-              disabled={healthStatus === "saving" || !values.medicalConditions.trim()}
-              onClick={() => void saveMedicalInformation(createdMember)}
-            >
-              Retry saving medical information
-            </button>
-          </section>
-        ) : null}
-        <RegistrationCompletion
-          key={createdMember}
-          studentId={createdMember}
-          healthComplete={healthStatus === "saved" || healthStatus === "none"}
-          onRestart={restart}
-        />
+        <RegistrationCompletion key={createdMember} studentId={createdMember} onRestart={restart} />
       </section>
     );
 
@@ -558,53 +458,6 @@ export function AddMemberPage() {
             </p>
           ) : null}
         </fieldset>
-
-        <fieldset className="login-field">
-          <legend>Postal address (optional)</legend>
-          <div className="login-field">
-            <label htmlFor="member-address-line">Address</label>
-            <input
-              aria-invalid={fieldErrors.postalAddress ? "true" : "false"}
-              autoComplete="off"
-              id="member-address-line"
-              maxLength={240}
-              onChange={(event) => updateField("addressLine", event.target.value)}
-              ref={addressLineRef}
-              type="text"
-              value={values.addressLine}
-            />
-          </div>
-          <div className="login-field">
-            <label htmlFor="member-post-code">Post code</label>
-            <input
-              autoComplete="off"
-              id="member-post-code"
-              maxLength={16}
-              onChange={(event) => updateField("postCode", event.target.value)}
-              type="text"
-              value={values.postCode}
-            />
-          </div>
-          {fieldErrors.postalAddress ? (
-            <p className="login-field-error" role="alert">
-              {fieldErrors.postalAddress}
-            </p>
-          ) : null}
-        </fieldset>
-
-        <div className="login-field">
-          <label htmlFor="member-medical-conditions">
-            Medical conditions or special support needs (optional, max 1000 characters)
-          </label>
-          <textarea
-            id="member-medical-conditions"
-            maxLength={1000}
-            onChange={(event) => updateField("medicalConditions", event.target.value)}
-            placeholder="e.g. Asthma (carries inhaler in kit bag), previous joint injury, etc."
-            rows={3}
-            value={values.medicalConditions}
-          />
-        </div>
 
         {error ? (
           <p aria-live="assertive" className="login-message login-message-error" role="alert">
