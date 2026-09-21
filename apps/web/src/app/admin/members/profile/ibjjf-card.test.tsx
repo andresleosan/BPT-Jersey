@@ -29,8 +29,8 @@ const initialized = {
   currentLevelStartedAt: "2026-07-01T00:00:00.000Z",
   progressPercent: 44,
   criteria: {
-    classes: { required: 25, completed: 12, imported: 9, met: false },
-    time: { requiredDays: 75, elapsedDays: 80, met: true },
+    classes: { required: 20, completed: 12, imported: 9, met: false },
+    time: { requiredDays: 60, elapsedDays: 60, met: true },
   },
 } as const;
 
@@ -69,12 +69,12 @@ describe("IbjjfCard", () => {
     expect(within(region).getByText("44%")).toBeInTheDocument();
     const classes = within(region).getByText("Classes since last promotion").closest("div")!;
     expect(classes).toHaveClass("ibjjf-unmet");
-    expect(within(classes).getByText("12/25")).toBeInTheDocument();
+    expect(within(classes).getByText("12/20")).toBeInTheDocument();
     expect(within(classes).getByText("Not met")).toBeInTheDocument();
     expect(within(classes).getByText("9 imported + 3 in BPT")).toBeInTheDocument();
     const days = within(region).getByText("Days at this level").closest("div")!;
     expect(days).toHaveClass("ibjjf-met");
-    expect(within(days).getByText("80/75")).toBeInTheDocument();
+    expect(within(days).getByText("60/60")).toBeInTheDocument();
     expect(within(days).getByText("Met")).toBeInTheDocument();
     expect(within(region).getByRole("link", { name: "Manage" })).toHaveAttribute(
       "href",
@@ -148,7 +148,7 @@ describe("IbjjfCard", () => {
     );
     render(<IbjjfCard canOpenLevel manageHref={manageHref} studentId="student-1" />);
     const region = await screen.findByRole("region", { name: "JIU-JITSU IBJJF" });
-    expect(within(region).getByText("12/25")).toBeInTheDocument();
+    expect(within(region).getByText("12/20")).toBeInTheDocument();
     expect(region.textContent).not.toMatch(/Regyfit/u);
   });
 

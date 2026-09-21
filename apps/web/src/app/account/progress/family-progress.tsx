@@ -128,6 +128,15 @@ export function FamilyProgressPanel() {
                     </span>
                   </div>
                   <div className="peer-stat-box">
+                    <span className="peer-stat-label">Days at current level</span>
+                    <span className="peer-stat-value">
+                      {child.progress.criteria.time.elapsedDays}
+                      {child.progress.criteria.time.requiredDays === null
+                        ? " days"
+                        : ` / ${child.progress.criteria.time.requiredDays} days towards the next level`}
+                    </span>
+                  </div>
+                  <div className="peer-stat-box">
                     <span className="peer-stat-label">Time on the mat</span>
                     <span className="peer-stat-value">
                       {formatHours(child.progress.totalHours)}

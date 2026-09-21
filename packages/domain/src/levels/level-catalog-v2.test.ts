@@ -161,17 +161,17 @@ describe("ibjjf-v3 catalogue sources", () => {
     expect(v3.value.definitions.map(({ definitionKey }) => definitionKey)).toEqual(
       v2.value.definitions.map(({ definitionKey }) => definitionKey),
     );
-    const v2White = v2.value.definitions.find(
-      ({ definitionKey }) => definitionKey === "white-belt",
+    const v2FirstStripe = v2.value.definitions.find(
+      ({ definitionKey }) => definitionKey === "white-1st-stripe",
     );
-    const v3White = v3.value.definitions.find(
-      ({ definitionKey }) => definitionKey === "white-belt",
+    const v3FirstStripe = v3.value.definitions.find(
+      ({ definitionKey }) => definitionKey === "white-1st-stripe",
     );
-    expect(v2White?.criteria).toMatchObject({
+    expect(v2FirstStripe?.criteria).toMatchObject({
       minClasses: 25,
-      minimumTime: { days: 90 },
+      minimumTime: { days: 75 },
     });
-    expect(v3White?.criteria).toMatchObject({
+    expect(v3FirstStripe?.criteria).toMatchObject({
       minClasses: 20,
       minimumTime: { days: 60 },
     });
@@ -179,8 +179,9 @@ describe("ibjjf-v3 catalogue sources", () => {
       catalog.definitions.map(
         ({ systemId: _systemId, criteria, observedCriteria, ...definition }) => ({
           ...definition,
-          criteria: definition.definitionKey === "white-belt" ? null : criteria,
-          observedCriteria: definition.definitionKey === "white-belt" ? null : observedCriteria,
+          criteria: definition.definitionKey === "white-1st-stripe" ? null : criteria,
+          observedCriteria:
+            definition.definitionKey === "white-1st-stripe" ? null : observedCriteria,
         }),
       );
     expect(comparable(v3.value)).toEqual(comparable(v2.value));
