@@ -1,5 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import * as memberDirectoryContracts from "./member-directory-contracts";
+
 import {
   adminUpdateStudentInputSchema,
   adminDirectoryReadPurposes,
@@ -58,7 +60,36 @@ const adminProfile = {
   updatedBy: "owner-1",
 } as const;
 
+const postalAddress = { line: "1 Synthetic Street, St Helier", postCode: "JE2 3AB" } as const;
+
 describe("canonical member directory contracts", () => {
+  it("separates historical postal data from current mutation inputs", () => {
+    expect(memberDirectoryContracts.legacyPostalAddressInputSchema).toBeDefined();
+    expect(
+      studentAdminProfileSchema.safeParse({ ...adminProfile, postalAddress }).success,
+    ).toBe(true);
+
+    const currentCreate = {
+      requestId: "request-current",
+      fullName: "Current Student",
+      dateOfBirth: "2000-01-02",
+      trainingCenter: "Town",
+      trainingTimePreferences: ["evening"],
+    } as const;
+    const currentUpdate = {
+      ...currentCreate,
+      studentId: "student-current",
+      requestId: "41cbb1aa-7020-4bb5-88a4-dbc73c5f0123",
+      gender: "unknown",
+    } as const;
+
+    expect(adminCreateStudentInputSchema.safeParse(currentCreate).success).toBe(true);
+    expect(adminUpdateStudentInputSchema.safeParse(currentUpdate).success).toBe(true);
+    expect(
+      adminCreateStudentInputSchema.safeParse({ ...currentCreate, postalAddress }).success,
+    ).toBe(true);
+  });
+
   it("accepts only the closed admin provenance combinations", () => {
     expect(studentAdminProfileSchema.safeParse(adminProfile).success).toBe(true);
     expect(

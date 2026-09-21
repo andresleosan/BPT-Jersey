@@ -38,8 +38,9 @@ const applicant = {
     relationship: "Partner",
     phoneNumber: "07700900124",
   },
-  postalAddress: { line: "9 Library Place", postCode: "JE2 4WW" },
 } as const;
+
+const historicalPostalAddress = { line: "9 Library Place", postCode: "JE2 4WW" } as const;
 
 const minor = {
   fullName: "Robin Minor",
@@ -79,7 +80,7 @@ const record: EnrolmentRequestRecord = {
   requestId,
   status: "submitted",
   applicantIsStudent: false,
-  applicant,
+  applicant: { ...applicant, postalAddress: historicalPostalAddress },
   minors: [minor],
   submittedBy: "visitor-1",
   submittedAt: "2026-09-06T10:00:00.000Z",
@@ -87,6 +88,15 @@ const record: EnrolmentRequestRecord = {
 };
 
 describe("enrolment request submission", () => {
+  it("keeps historical postal data readable while current submissions omit it", () => {
+    expect(parseEnrolmentRequestRecord(record).ok).toBe(true);
+
+    const parsed = parseEnrolmentRequestSubmission(submission(), effectiveDate);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.applicant).not.toHaveProperty("postalAddress");
+  });
+
   it("requires evidence for paid plans and checks the exact total", () => {
     const value = submission();
     expect(

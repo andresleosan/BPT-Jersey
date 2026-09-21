@@ -118,6 +118,9 @@ export const postalAddressSchema = z
 
 export type PostalAddress = Readonly<z.infer<typeof postalAddressSchema>>;
 
+// Deprecated input-only compatibility for bounded older clients. Current forms omit this field.
+export const legacyPostalAddressInputSchema = postalAddressSchema.optional();
+
 const administrativeIdentifierInputSchema = z
   .string()
   .min(1)
@@ -514,7 +517,7 @@ export const adminCreateStudentInputShape = Object.freeze({
   gender: z.enum(memberGenders).optional(),
   frequencyNote: canonicalText(256).optional(),
   emergencyContact: emergencyContactSchema.optional(),
-  postalAddress: postalAddressSchema.optional(),
+  postalAddress: legacyPostalAddressInputSchema,
 });
 
 export const adminCreateStudentInputSchema = z
@@ -539,7 +542,7 @@ export const adminUpdateStudentInputSchema = z
     gender: z.enum(memberGenders),
     frequencyNote: canonicalText(256).optional(),
     emergencyContact: emergencyContactSchema.optional(),
-    postalAddress: postalAddressSchema.optional(),
+    postalAddress: legacyPostalAddressInputSchema,
     /** Absent = keep the stored block; present = replace it (T051V2). */
     details: studentAdminDetailsInputSchema.optional(),
   })
