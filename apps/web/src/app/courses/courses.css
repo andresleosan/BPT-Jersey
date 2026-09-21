@@ -135,8 +135,20 @@
   list-style: none;
 }
 
+/* Office and member rows: content plus a trailing action. */
 .course-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+  align-items: center;
   border-top: 2px solid #1a1a18;
+}
+
+/* The public catalogue lays out its own <article> inside the row. */
+.course-catalogue .course-row {
+  display: block;
+  padding: 0;
 }
 
 .course-row article {
@@ -421,15 +433,22 @@
 }
 
 .course-slots li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  align-items: center;
+  border-top: 1px solid #8a8880;
+}
+
+/* Only the public detail page renders the four-part session row. */
+.course-detail .course-slots li {
   display: grid;
   grid-template-columns: minmax(6rem, 0.55fr) minmax(10rem, 1fr) minmax(5rem, 0.5fr) minmax(
       8rem,
       0.65fr
     );
-  gap: 1rem;
-  padding: 1rem 0;
-  align-items: center;
-  border-top: 1px solid #8a8880;
 }
 
 .course-slot-number {
@@ -730,6 +749,7 @@
 
 @media (max-width: 50rem) {
   .course-section-heading,
+  .course-row,
   .course-row article,
   .course-detail,
   .course-form-grid {
@@ -761,7 +781,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .course-slots li {
+  .course-detail .course-slots li {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
