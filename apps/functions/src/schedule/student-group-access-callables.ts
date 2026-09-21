@@ -7,6 +7,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
 import {
+  effectiveGroupProgramIds,
   saveStudentGroupAccessSchema,
   studentGroupAccessQuerySchema,
   studentGroupAccessSchema,
@@ -35,9 +36,19 @@ function readAccess(data: FirebaseFirestore.DocumentData | undefined, academyId:
     programIds: data?.programIds ?? [],
     revision: data?.revision ?? 0,
     dateOfBirth: dateOfBirth ?? null,
+    ...(typeof data?.reason === "string" ? { reason: data.reason } : {}),
+    ...(data?.expiresOn === undefined ? {} : { expiresOn: data.expiresOn }),
   });
   if (!result.success) throw new HttpsError("failed-precondition", "Group access is unavailable.");
   return result.data;
+}
+
+/** Members only learn which groups are open to them today, never the office's reason or dates. */
+function memberView(access: ReturnType<typeof readAccess>) {
+  return {
+    studentId: access.studentId, revision: access.revision, dateOfBirth: access.dateOfBirth,
+    programIds: [...effectiveGroupProgramIds(access, dateKeyInJersey(new Date()))],
+  };
 }
 
 export const getStudentGroupAccess = onCall(browserAdminCallableOptions, async (request) => {
@@ -66,7 +77,8 @@ export const getStudentGroupAccess = onCall(browserAdminCallableOptions, async (
     const [student, access] = await tx.getAll(db.doc(`${base}/students/${studentId}`),
       db.doc(`${base}/studentGroupAccess/${studentId}`));
     const profile = readStudent(student!.data(), actor.academyId, studentId);
-    return readAccess(access!.data(), actor.academyId, profile.studentId, profile.dateOfBirth);
+    const stored = readAccess(access!.data(), actor.academyId, profile.studentId, profile.dateOfBirth);
+    return member ? memberView(stored) : stored;
   });
 });
 
@@ -97,16 +109,22 @@ export const saveStudentGroupAccess = onCall(browserAdminCallableOptions, async 
         throw new HttpsError("failed-precondition", "One of the selected groups is no longer available.");
       }
     }
-    const next = { ...previous, programIds: [...input.programIds].sort(), revision: previous.revision + 1 };
+    const granted = input.programIds.length > 0;
+    const next = {
+      ...previous, programIds: [...input.programIds].sort(), revision: previous.revision + 1,
+      reason: granted ? input.reason : undefined, expiresOn: granted ? (input.expiresOn ?? null) : null,
+    };
     const changedAt = new Date().toISOString();
     transaction.set(accessRef, {
       academyId: actor.academyId, studentId: input.studentId,
       programIds: next.programIds, revision: next.revision,
+      ...(next.reason === undefined ? {} : { reason: next.reason }), expiresOn: next.expiresOn,
       updatedBy: actor.userId, updatedAt: changedAt,
     });
     transaction.create(eventRef, {
       academyId: actor.academyId, studentId: input.studentId,
       before: previous.programIds, after: next.programIds,
+      reason: next.reason ?? null, expiresOn: next.expiresOn,
       revision: next.revision, actorId: actor.userId, actorRole: actor.role,
       occurredAt: changedAt, action: "member.group-access.updated",
     });

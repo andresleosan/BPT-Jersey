@@ -1,7 +1,10 @@
 import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
 import { dateKeyInJersey } from "@bpt-jersey/domain/schedule/member-calendar";
 import { createMemberAccessService } from "../members/member-access-service.js";
-import { studentGroupAccessSchema } from "@bpt-jersey/domain/schedule/member-calendar";
+import {
+  effectiveGroupProgramIds,
+  studentGroupAccessSchema,
+} from "@bpt-jersey/domain/schedule/member-calendar";
 import {
   classActorGroup,
   type AuditEventDraft,
@@ -816,9 +819,13 @@ async function executeBookingInTransaction(
     programIds: groupData?.programIds ?? [],
     revision: groupData?.revision ?? 0,
     dateOfBirth: storedStudent.dateOfBirth ?? null,
+    expiresOn: groupData?.expiresOn ?? null,
   });
   if (!groupAccess.success) return invalid("invalid", "Group access is invalid");
-  const additionalProgramIds = groupAccess.data.programIds;
+  const additionalProgramIds = effectiveGroupProgramIds(
+    groupAccess.data,
+    dateKeyInJersey(new Date()),
+  );
   const additionalAccess = additionalProgramIds.includes(storedSession.programId);
   const week = weekStart(storedSession.startAt);
   const quotaKey = quotaId(studentId, week);

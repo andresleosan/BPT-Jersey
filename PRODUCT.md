@@ -122,6 +122,8 @@ administrators manage additional program access from Members → profile → Cla
 adds to normal access and waives age, site and class allowance/weekly limits for that program;
 additional-group bookings do not consume the normal weekly allowance while the grant is active.
 Active membership and plan, payment standing, session capacity and booking deadlines still apply.
+Since 2026-09-21 granting any additional group requires an office reason, and an optional end date
+(Jersey calendar day, inclusive) after which the grant authorises nothing; members never see either.
 Full or temporarily blocked sessions within accessible groups remain visible without a booking
 action. Grant changes are recorded with actor, revision and before/after groups, and are checked
 inside booking transactions, including waitlist offers. Member/guardian reads are scoped to the
