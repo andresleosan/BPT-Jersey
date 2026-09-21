@@ -10,6 +10,7 @@ vi.mock("firebase-admin/auth", () => ({
 import { browserOrigins } from "../auth/callable-options.js";
 
 import {
+  createBulkBookEligibleSessionsHandler,
   createCancelBookingHandler,
   createCancelSessionHandler,
   createCheckInHandler,
@@ -379,20 +380,24 @@ describe("Schedule Callables", () => {
         requestIntroBooking,
       });
 
-      const result = await handler(fakeRequest(
-        { kind: "intro", sessionId: "intro-1", studentId: "student-1" },
-        "adultStudent",
-        "student-1",
-        "demo-academy",
-      ));
+      const result = await handler(
+        fakeRequest(
+          { kind: "intro", sessionId: "intro-1", studentId: "student-1" },
+          "adultStudent",
+          "student-1",
+          "demo-academy",
+        ),
+      );
 
       expect(result.booking).toMatchObject({ membershipId: null, source: { kind: "intro" } });
-      expect(requestIntroBooking).toHaveBeenCalledWith(expect.objectContaining({
-        academyId: "demo-academy",
-        actorId: "student-1",
-        studentId: "student-1",
-        sessionId: "intro-1",
-      }));
+      expect(requestIntroBooking).toHaveBeenCalledWith(
+        expect.objectContaining({
+          academyId: "demo-academy",
+          actorId: "student-1",
+          studentId: "student-1",
+          sessionId: "intro-1",
+        }),
+      );
     });
 
     it("allows student to request and cancel their own booking", async () => {
@@ -2176,4 +2181,85 @@ describe("unrestricted office session management", () => {
       expect(ids.size).toBe(450);
     },
   );
+});
+
+describe("bulk eligible booking", () => {
+  it("books uncovered membership sessions and skips confirmed sessions", async () => {
+    const base = createInMemoryScheduleStore();
+    const session = (sessionId: string) =>
+      ({
+        sessionId,
+        academyId: "demo-academy",
+        classId: null,
+        programId: "adult-bjj",
+        locationId: "town",
+        instructorId: "coach-1",
+        title: "Adults BJJ",
+        startAt: "2099-09-10T18:00:00.000Z",
+        endAt: "2099-09-10T19:00:00.000Z",
+        capacity: 20,
+        minParticipants: 0,
+        status: "scheduled",
+        isSeminar: false,
+        cancellationReason: null,
+        accessMode: "membership",
+        schemaVersion: "1",
+        createdAt: "2099-01-01T00:00:00.000Z",
+        createdBy: "owner-1",
+        updatedAt: "2099-01-01T00:00:00.000Z",
+        updatedBy: "owner-1",
+      }) as const;
+    const requestBooking = vi.fn().mockImplementation(async (_academyId, input) => ({
+      bookingId: `booking-${input.sessionId}`,
+      academyId: "demo-academy",
+      sessionId: input.sessionId,
+      studentId: input.studentId,
+      membershipId: input.membershipId,
+      status: "confirmed",
+      requestedAt: "2099-09-01T00:00:00.000Z",
+      cancelledAt: null,
+      cancellationReason: null,
+      schemaVersion: "1",
+      createdAt: "2099-09-01T00:00:00.000Z",
+      createdBy: "owner-1",
+      updatedAt: "2099-09-01T00:00:00.000Z",
+      updatedBy: "owner-1",
+    }));
+    const store = {
+      ...base,
+      listSessions: vi.fn().mockResolvedValue([session("session-1"), session("session-2")]),
+      listStudentBookings: vi.fn().mockResolvedValue([
+        {
+          sessionId: "session-1",
+          status: "confirmed",
+        },
+      ]),
+      requestBooking,
+    };
+    const result = await createBulkBookEligibleSessionsHandler({ store })(
+      fakeRequest(
+        {
+          studentId: "student-1",
+          membershipId: "membership-1",
+          from: "2099-09-01T00:00:00.000Z",
+          to: "2099-09-30T00:00:00.000Z",
+        },
+        "owner",
+        "owner-1",
+      ),
+    );
+    expect(result).toMatchObject({
+      bookedCount: 1,
+      alreadyBookedCount: 1,
+      skippedCount: 0,
+      limited: false,
+    });
+    expect(requestBooking).toHaveBeenCalledTimes(1);
+    expect(requestBooking.mock.calls[0]?.[1]).toMatchObject({
+      kind: "membership",
+      sessionId: "session-2",
+      studentId: "student-1",
+      membershipId: "membership-1",
+    });
+  });
 });

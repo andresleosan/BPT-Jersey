@@ -6,6 +6,7 @@ import { courseRecordIdSchema } from "@bpt-jersey/domain/courses";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import {
+  parseBulkBookEligibleSessionsInput,
   parseCancelBookingInput,
   parseCheckInInput,
   parseCorrectAttendanceInput,
@@ -19,7 +20,9 @@ import {
   parseSaveLocationGeofenceInput,
   parseUpdateClassInput,
   parseUpdateSessionInput,
+  sessionAccessMode,
   type AttendanceRecord,
+  type BulkBookEligibleSessionsResult,
 } from "@bpt-jersey/domain/schedule";
 import { parseSelfCheckInInput } from "@bpt-jersey/domain/schedule/self-check-in";
 import {
@@ -35,7 +38,10 @@ import {
 import { clientIpFromRequest } from "../audit/client-ip.js";
 import { requireUserActor } from "../auth/user-authorization.js";
 import { BookingTransactionError, type BookingFirestore } from "./booking-transaction-service.js";
-import { requestIntroBooking as requestIntroBookingTransaction, type IntroBookingCommand } from "./intro-booking-service.js";
+import {
+  requestIntroBooking as requestIntroBookingTransaction,
+  type IntroBookingCommand,
+} from "./intro-booking-service.js";
 import { SessionQuorumSweepError } from "./quorum-sweep-service.js";
 import {
   ScheduleAttendanceError,
@@ -63,7 +69,9 @@ export type GuardianStudentScopeResolver = (input: GuardianStudentScopeInput) =>
 type StudentScopeOptions = Readonly<{
   store: ScheduleStore;
   resolveClientStudentScope?: CanonicalClientStudentScopeResolver;
-  requestIntroBooking?: (command: IntroBookingCommand) => ReturnType<typeof requestIntroBookingTransaction>;
+  requestIntroBooking?: (
+    command: IntroBookingCommand,
+  ) => ReturnType<typeof requestIntroBookingTransaction>;
 }>;
 
 export function createFirestoreGuardianStudentScopeResolver(
@@ -83,11 +91,15 @@ export function createFirestoreGuardianStudentScopeResolver(
 }
 
 const resolveCanonicalClientStudent = createFirestoreCanonicalClientStudentScopeResolver();
-async function requestedMemberStudentId(request: CallableRequest<unknown>, value: unknown): Promise<string> {
+async function requestedMemberStudentId(
+  request: CallableRequest<unknown>,
+  value: unknown,
+): Promise<string> {
   if (typeof value === "string" && value.trim()) return value.trim();
   const actor = await requireMemberAccountActor(request);
-  const own = (await createFirestoreMemberAccessService().listProfiles(actor.academyId, actor.userId))
-    .find((profile) => profile.via === "self");
+  const own = (
+    await createFirestoreMemberAccessService().listProfiles(actor.academyId, actor.userId)
+  ).find((profile) => profile.via === "self");
   if (!own) throw new HttpsError("invalid-argument", "Select a member profile");
   return own.studentId;
 }
@@ -709,27 +721,114 @@ export function createRequestBookingHandler(options: StudentScopeOptions) {
     await requireStudentScope(request, parsed.value.studentId, options);
 
     try {
-      const booking = parsed.value.kind === "intro"
-        ? await (options.requestIntroBooking ?? ((command) =>
-            requestIntroBookingTransaction(getFirestore() as unknown as BookingFirestore, command)))({
-            academyId: actor.academyId,
-            actorId: actor.userId,
-            actorRole: actor.role,
-            actorIp: clientIpFromRequest(request),
-            studentId: parsed.value.studentId,
-            sessionId: parsed.value.sessionId,
-            now: new Date().toISOString(),
-          })
-        : await store.requestBooking(actor.academyId, parsed.value, actor.userId, {
-            ip: clientIpFromRequest(request),
-            role: actor.role,
-          });
+      const booking =
+        parsed.value.kind === "intro"
+          ? await (
+              options.requestIntroBooking ??
+              ((command) =>
+                requestIntroBookingTransaction(
+                  getFirestore() as unknown as BookingFirestore,
+                  command,
+                ))
+            )({
+              academyId: actor.academyId,
+              actorId: actor.userId,
+              actorRole: actor.role,
+              actorIp: clientIpFromRequest(request),
+              studentId: parsed.value.studentId,
+              sessionId: parsed.value.sessionId,
+              now: new Date().toISOString(),
+            })
+          : await store.requestBooking(actor.academyId, parsed.value, actor.userId, {
+              ip: clientIpFromRequest(request),
+              role: actor.role,
+            });
       return {
         booking,
       };
     } catch (error) {
       return mapBookingError(error);
     }
+  };
+}
+
+const bulkBookingCandidateLimit = 200;
+const skippableBulkBookingCodes = new Set([
+  "capacity",
+  "capacity-not-set",
+  "conflict",
+  "financial",
+  "ineligible",
+  "not-found",
+  "weekly-limit",
+]);
+
+export function createBulkBookEligibleSessionsHandler(options: StudentScopeOptions) {
+  const { store } = options;
+  return async (request: CallableRequest<unknown>) => {
+    const actor = requireUserActor(request);
+    const parsed = parseBulkBookEligibleSessionsInput(request.data);
+    if (!parsed.ok) throw new HttpsError("invalid-argument", parsed.error);
+    await requireStudentScope(request, parsed.value.studentId, options);
+
+    const [sessions, existing] = await Promise.all([
+      store.listSessions(actor.academyId, { from: parsed.value.from, to: parsed.value.to }),
+      store.listStudentBookings(actor.academyId, parsed.value.studentId),
+    ]);
+    const confirmed = new Set(
+      existing
+        .filter((booking) => booking.status === "confirmed")
+        .map((booking) => booking.sessionId),
+    );
+    const candidates = sessions
+      .filter(
+        (session) =>
+          !session.courseId &&
+          sessionAccessMode(session) === "membership" &&
+          (session.status === "scheduled" || session.status === "active") &&
+          Date.parse(session.startAt) >= Date.parse(parsed.value.from),
+      )
+      .sort((left, right) => left.startAt.localeCompare(right.startAt));
+    const selected = candidates.slice(0, bulkBookingCandidateLimit);
+    const booked = [];
+    let alreadyBookedCount = 0;
+    let skippedCount = 0;
+
+    for (const session of selected) {
+      if (confirmed.has(session.sessionId)) {
+        alreadyBookedCount += 1;
+        continue;
+      }
+      try {
+        booked.push(
+          await store.requestBooking(
+            actor.academyId,
+            {
+              kind: "membership",
+              sessionId: session.sessionId,
+              studentId: parsed.value.studentId,
+              membershipId: parsed.value.membershipId,
+            },
+            actor.userId,
+            { ip: clientIpFromRequest(request), role: actor.role },
+          ),
+        );
+      } catch (error) {
+        if (error instanceof BookingTransactionError && skippableBulkBookingCodes.has(error.code)) {
+          skippedCount += 1;
+          continue;
+        }
+        return mapBookingError(error);
+      }
+    }
+
+    return {
+      booked: Object.freeze(booked),
+      bookedCount: booked.length,
+      alreadyBookedCount,
+      skippedCount,
+      limited: candidates.length > bulkBookingCandidateLimit,
+    } satisfies BulkBookEligibleSessionsResult;
   };
 }
 
@@ -1244,23 +1343,31 @@ export const listClasses = onCall(scheduleCallableOptions, async (request) =>
 async function guardCourseStaffSession(request: CallableRequest<unknown>): Promise<void> {
   const actor = requireUserActor(request);
   if (!["owner", "administrator", "coach", "headCoach"].includes(actor.role)) return;
-  const id = (request.data as {sessionId?: unknown} | null)?.sessionId;
+  const id = (request.data as { sessionId?: unknown } | null)?.sessionId;
   if (!courseRecordIdSchema.safeParse(id).success) return;
   const session = await getFirestore().doc(`academies/${actor.academyId}/sessions/${id}`).get();
-  if (session.data()?.courseId) await requireCourseRosterAccess(getFirestore(), await requireCourseActor(request), String(id));
+  if (session.data()?.courseId)
+    await requireCourseRosterAccess(getFirestore(), await requireCourseActor(request), String(id));
 }
 export const listSessions = onCall(scheduleCallableOptions, async (request) => {
-  const result = await createListSessionsHandler({store: getStore()})(request);
+  const result = await createListSessionsHandler({ store: getStore() })(request);
   const actor = requireUserActor(request);
   if (!["coach", "headCoach"].includes(actor.role)) return result;
   const courseActor = await requireCourseActor(request);
   const visible = [];
   for (const session of result.sessions) {
-    if (!session.courseId) {visible.push(session); continue;}
-    try {await requireCourseRosterAccess(getFirestore(), courseActor, session.sessionId); visible.push(session);}
-    catch (error) {if (!(error instanceof HttpsError) || error.code !== "permission-denied") throw error;}
+    if (!session.courseId) {
+      visible.push(session);
+      continue;
+    }
+    try {
+      await requireCourseRosterAccess(getFirestore(), courseActor, session.sessionId);
+      visible.push(session);
+    } catch (error) {
+      if (!(error instanceof HttpsError) || error.code !== "permission-denied") throw error;
+    }
   }
-  return {sessions: visible};
+  return { sessions: visible };
 });
 
 export const getDailyOperationsDashboard = onCall(scheduleCallableOptions, async (request) =>
@@ -1301,6 +1408,10 @@ export const listSessionBookedCounts = onCall(scheduleCallableOptions, async (re
 
 export const requestBooking = onCall(scheduleCallableOptions, async (request) =>
   createRequestBookingHandler(getStudentScopeOptions())(request),
+);
+
+export const bulkBookEligibleSessions = onCall(scheduleCallableOptions, async (request) =>
+  createBulkBookEligibleSessionsHandler(getStudentScopeOptions())(request),
 );
 
 export const cancelBooking = onCall(scheduleCallableOptions, async (request) =>

@@ -7,6 +7,7 @@ const schedule = vi.hoisted(() => ({
   listStudentBookings: vi.fn(),
   listStudentAttendance: vi.fn(),
   requestBooking: vi.fn(),
+  bulkBookEligibleSessions: vi.fn(),
   cancelBooking: vi.fn(),
   selfCheckIn: vi.fn(),
   listSessionBookedCounts: vi.fn(),

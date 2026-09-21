@@ -361,3 +361,20 @@
 .coach-button.admin-home-link:hover {
   background: var(--bpt-purple);
 }
+
+.coach-curriculum {
+  background: color-mix(in srgb, var(--bpt-lime) 14%, var(--gi-white));
+  border-left: 0.3rem solid var(--bpt-purple);
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+}
+
+.coach-curriculum h3,
+.coach-curriculum p {
+  margin: 0;
+}
+
+.coach-curriculum ul {
+  margin: 0.5rem 0;
+  padding-left: 1.2rem;
+}

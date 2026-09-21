@@ -12,6 +12,7 @@ const schedule = vi.hoisted(() => ({
   listStudentBookings: vi.fn(),
   listStudentAttendance: vi.fn(),
   requestBooking: vi.fn(),
+  bulkBookEligibleSessions: vi.fn(),
   cancelBooking: vi.fn(),
   listSessionBookedCounts: vi.fn(),
   selfCheckIn: vi.fn(),
@@ -21,14 +22,12 @@ vi.mock("../../../lib/membership-client", () => ({
   listAvailableMembershipPlans: vi.fn().mockResolvedValue(PLAN_CATALOG),
 }));
 vi.mock("../../../lib/student-group-access-client", () => ({
-  getStudentGroupAccess: vi
-    .fn()
-    .mockResolvedValue({
-      studentId: "s-1",
-      programIds: [],
-      revision: 0,
-      dateOfBirth: "1990-01-01",
-    }),
+  getStudentGroupAccess: vi.fn().mockResolvedValue({
+    studentId: "s-1",
+    programIds: [],
+    revision: 0,
+    dateOfBirth: "1990-01-01",
+  }),
 }));
 vi.mock("../../../lib/waitlist-client", () => ({
   listClientMemberships: vi
@@ -758,5 +757,34 @@ describe("MemberCalendar", () => {
       );
       expect(screen.queryByRole("heading", { name: "You're in" })).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("bulk booking calendar action", () => {
+  it("books every covered class in the visible range and reports the outcome", async () => {
+    stubViewport(false);
+    const bookEligible = vi.fn().mockResolvedValue({
+      booked: [],
+      bookedCount: 2,
+      alreadyBookedCount: 1,
+      skippedCount: 1,
+      limited: false,
+    });
+    const repository = {
+      ...createFixtureCalendarRepository("teenStudent"),
+      bookEligible,
+    };
+    render(<MemberCalendar onSignOut={vi.fn()} repository={repository} session={teen} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Book all covered classes" }));
+    await waitFor(() => expect(bookEligible).toHaveBeenCalledTimes(1));
+    expect(bookEligible.mock.calls[0]?.[0]).toMatchObject({
+      studentId: "sam",
+      membershipId: expect.any(String),
+      from: expect.any(String),
+      to: expect.any(String),
+    });
+    expect(
+      screen.getByText("2 classes booked · 1 already booked · 1 unavailable."),
+    ).toBeInTheDocument();
   });
 });

@@ -14,6 +14,7 @@ vi.mock("./firebase-client", () => ({
 }));
 
 import {
+  bulkBookEligibleSessions,
   cancelBooking,
   cancelSession,
   copyWeek,
@@ -568,5 +569,23 @@ describe("Schedule Client", () => {
     expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), "deleteWeek", {
       limitedUseAppCheckTokens: true,
     });
+  });
+});
+
+describe("bulk booking client", () => {
+  it("calls the protected bulk booking function", async () => {
+    mockHttpsCallable.mockReturnValue(mockCallable);
+    mockCallable.mockResolvedValueOnce({
+      data: { booked: [], bookedCount: 0, alreadyBookedCount: 0, skippedCount: 0, limited: false },
+    });
+    const input = {
+      studentId: "student-1", membershipId: "membership-1",
+      from: "2026-09-01T00:00:00Z", to: "2026-09-30T00:00:00Z",
+    };
+    await expect(bulkBookEligibleSessions(input)).resolves.toMatchObject({ bookedCount: 0 });
+    expect(mockHttpsCallable).toHaveBeenCalledWith(
+      {}, "bulkBookEligibleSessions", scheduleCallableClientOptions,
+    );
+    expect(mockCallable).toHaveBeenCalledWith(input);
   });
 });

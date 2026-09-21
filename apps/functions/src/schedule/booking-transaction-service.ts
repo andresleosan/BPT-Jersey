@@ -30,7 +30,7 @@ import {
   type BookingRecord,
   type CancelBookingInput,
   type ProgramRecord,
-  type RequestBookingInput,
+  type RequestMembershipBookingInput,
   type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 import {
@@ -107,7 +107,7 @@ export type ConfirmBookingInTransactionInput = Readonly<{
   firestore: BookingFirestore;
   transaction: BookingTransaction;
   academyId: string;
-  request: RequestBookingInput;
+  request: RequestMembershipBookingInput;
   actorId: string;
   actorIp: string | null;
   actorRole: ClassActorRole;
@@ -278,7 +278,10 @@ function student(
   academyId: string,
   studentId: string,
 ): StudentProfile {
-  const parsed = parseEffectiveStudentProfileAt(data(snapshot, "student"), dateKeyInJersey(new Date()));
+  const parsed = parseEffectiveStudentProfileAt(
+    data(snapshot, "student"),
+    dateKeyInJersey(new Date()),
+  );
   if (!parsed.ok) return invalid("invalid", "Stored student is invalid");
   if (
     snapshot.id !== studentId ||
@@ -302,7 +305,19 @@ function booking(snapshot: BookingDocumentSnapshot, academyId: string): BookingR
     !identifierPattern.test(value.sessionId) ||
     typeof value.studentId !== "string" ||
     !identifierPattern.test(value.studentId) ||
-    !(value.schemaVersion === "1" && typeof value.membershipId === "string" && identifierPattern.test(value.membershipId) || value.schemaVersion === "2" && value.membershipId === null && typeof value.source === "object" && value.source !== null && (value.source as {kind?: string}).kind === "course" && typeof (value.source as {courseId?: string}).courseId === "string" && typeof (value.source as {enrolmentId?: string}).enrolmentId === "string" && typeof value.absent === "boolean") ||
+    !(
+      (value.schemaVersion === "1" &&
+        typeof value.membershipId === "string" &&
+        identifierPattern.test(value.membershipId)) ||
+      (value.schemaVersion === "2" &&
+        value.membershipId === null &&
+        typeof value.source === "object" &&
+        value.source !== null &&
+        (value.source as { kind?: string }).kind === "course" &&
+        typeof (value.source as { courseId?: string }).courseId === "string" &&
+        typeof (value.source as { enrolmentId?: string }).enrolmentId === "string" &&
+        typeof value.absent === "boolean")
+    ) ||
     !["requested", "confirmed", "cancelled"].includes(value.status as string) ||
     !validDate(value.requestedAt) ||
     !validDate(value.createdAt) ||
@@ -426,20 +441,32 @@ async function isOpenMatProgram(
 }
 
 async function bookingIdentityIds(input: {
-  firestore: BookingFirestore; transaction: BookingTransaction; academyId: string; studentId: string;
+  firestore: BookingFirestore;
+  transaction: BookingTransaction;
+  academyId: string;
+  studentId: string;
 }): Promise<readonly string[]> {
-  return canonicalMemberIdentityIds({
-    get: async (path) => {
-      const doc = await input.transaction.get(input.firestore.doc(path));
-      return { id: doc.id, exists: doc.exists, data: doc.data() };
+  return canonicalMemberIdentityIds(
+    {
+      get: async (path) => {
+        const doc = await input.transaction.get(input.firestore.doc(path));
+        return { id: doc.id, exists: doc.exists, data: doc.data() };
+      },
+      listCollection: async ({ academyId, collection, equal, limit }) => {
+        if (!equal || collection !== "memberIdentityAliases")
+          return invalid("invalid", "Invalid identity query");
+        const docs = await input.transaction.get(
+          input.firestore
+            .collection(`academies/${academyId}/${collection}`)
+            .where(equal.field, "==", equal.value)
+            .limit(limit),
+        );
+        return docs.docs.map((doc) => ({ id: doc.id, exists: doc.exists, data: doc.data() }));
+      },
     },
-    listCollection: async ({ academyId, collection, equal, limit }) => {
-      if (!equal || collection !== "memberIdentityAliases") return invalid("invalid", "Invalid identity query");
-      const docs = await input.transaction.get(input.firestore.collection(`academies/${academyId}/${collection}`)
-        .where(equal.field, "==", equal.value).limit(limit));
-      return docs.docs.map((doc) => ({ id: doc.id, exists: doc.exists, data: doc.data() }));
-    },
-  }, input.academyId, input.studentId);
+    input.academyId,
+    input.studentId,
+  );
 }
 
 async function weeklyUsage(input: {
@@ -490,7 +517,10 @@ async function weeklyUsage(input: {
       .filter((snapshot) => snapshot.exists)
       .map((snapshot) => booking(snapshot, input.academyId));
     for (const existing of found) {
-      if (existing.sessionId !== sessionSnapshot.id || !input.identityIds.includes(existing.studentId)) {
+      if (
+        existing.sessionId !== sessionSnapshot.id ||
+        !input.identityIds.includes(existing.studentId)
+      ) {
         return invalid("conflict", "Booking identity collision");
       }
     }
@@ -715,7 +745,8 @@ async function executeBookingInTransaction(
       input.transaction.get(capacityRef),
     ]);
   const storedSession = session(sessionSnapshot, academyId, sessionId);
-  if (sessionSnapshot.data()?.courseId) return invalid("ineligible", "Course sessions are included through a course enrolment");
+  if (sessionSnapshot.data()?.courseId)
+    return invalid("ineligible", "Course sessions are included through a course enrolment");
   const storedMembership = membership(
     membershipSnapshot,
     academyId,
@@ -926,7 +957,7 @@ export async function readConfirmedBookingReplayInTransaction(input: {
   firestore: BookingFirestore;
   transaction: BookingTransaction;
   academyId: string;
-  request: RequestBookingInput;
+  request: RequestMembershipBookingInput;
 }): Promise<BookingRecord> {
   const academyId = segment(input.academyId, "academyId");
   const sessionId = segment(input.request.sessionId, "sessionId");
@@ -981,7 +1012,8 @@ async function cancelBookingInTransaction(input: {
     }),
   ]);
   const storedSession = data(sessionSnapshot, "session");
-  if (storedSession.courseId) return invalid("ineligible", "Use course absence instead of cancelling this booking");
+  if (storedSession.courseId)
+    return invalid("ineligible", "Use course absence instead of cancelling this booking");
   if (
     sessionSnapshot.id !== sessionId ||
     storedSession.sessionId !== sessionId ||
@@ -1045,7 +1077,7 @@ export function createBookingTransactionService(options: {
   return Object.freeze({
     requestBooking(
       academyId: string,
-      request: RequestBookingInput,
+      request: RequestMembershipBookingInput,
       actorId: string,
       auditActor: BookingAuditActor = systemBookingAuditActor,
     ): Promise<BookingRecord> {
@@ -1089,13 +1121,21 @@ export function createBookingTransactionService(options: {
 }
 
 /** Shared permission reads join the booking write, so guardian changes race safely with it. */
-export async function assertBookingMemberAccess(input: Readonly<{
-  firestore: { doc: BookingFirestore["doc"]; collection: (path: string) => BookingQuery }; transaction: Pick<BookingTransaction, "get">;
-  academyId: string; actorId: string; studentId: string; actorRole: string; now: string;
-  requireVia?: "self" | "guardian";
-}>): Promise<void> {
+export async function assertBookingMemberAccess(
+  input: Readonly<{
+    firestore: { doc: BookingFirestore["doc"]; collection: (path: string) => BookingQuery };
+    transaction: Pick<BookingTransaction, "get">;
+    academyId: string;
+    actorId: string;
+    studentId: string;
+    actorRole: string;
+    now: string;
+    requireVia?: "self" | "guardian";
+  }>,
+): Promise<void> {
   if (!["guardian", "adultStudent", "teenStudent"].includes(input.actorRole)) return;
-  const service = createMemberAccessService({ now: () => input.now,
+  const service = createMemberAccessService({
+    now: () => input.now,
     getDocument: async (path) => {
       const doc = await input.transaction.get(input.firestore.doc(path));
       return { id: doc.id, exists: doc.exists, data: doc.data() };

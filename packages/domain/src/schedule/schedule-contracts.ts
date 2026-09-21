@@ -1456,7 +1456,7 @@ export function isIntroBooking(value: BookingRecord): value is IntroBookingRecor
 }
 
 export type RequestMembershipBookingInput = Readonly<{
-  kind: "membership";
+  kind?: "membership";
   sessionId: string;
   studentId: string;
   membershipId: string;
@@ -1469,6 +1469,21 @@ export type RequestIntroBookingInput = Readonly<{
 }>;
 
 export type RequestBookingInput = RequestMembershipBookingInput | RequestIntroBookingInput;
+
+export type BulkBookEligibleSessionsInput = Readonly<{
+  studentId: string;
+  membershipId: string;
+  from: string;
+  to: string;
+}>;
+
+export type BulkBookEligibleSessionsResult = Readonly<{
+  booked: readonly BookingRecord[];
+  bookedCount: number;
+  alreadyBookedCount: number;
+  skippedCount: number;
+  limited: boolean;
+}>;
 
 export type CancelBookingInput = Readonly<{
   sessionId: string;
@@ -1562,6 +1577,29 @@ export function parseRequestBookingInput(input: unknown): Result<RequestBookingI
       sessionId: sessionId.trim(),
       studentId: studentId.trim(),
       membershipId: membershipId.trim(),
+    }),
+  );
+}
+
+export function parseBulkBookEligibleSessionsInput(
+  input: unknown,
+): Result<BulkBookEligibleSessionsInput, string> {
+  if (!isRecord(input)) return err("Bulk booking input must be an object");
+  const { studentId, membershipId, from, to } = input;
+  if (typeof studentId !== "string" || studentId.trim().length === 0) {
+    return err("studentId is required");
+  }
+  if (typeof membershipId !== "string" || membershipId.trim().length === 0) {
+    return err("membershipId is required");
+  }
+  const range = parseListSessionsQuery({ from, to });
+  if (!range.ok) return err(range.error);
+  return ok(
+    Object.freeze({
+      studentId: studentId.trim(),
+      membershipId: membershipId.trim(),
+      from: range.value.from,
+      to: range.value.to,
     }),
   );
 }

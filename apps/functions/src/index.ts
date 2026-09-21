@@ -4,7 +4,11 @@ initializeApp();
 
 export { sweepSessionQuorumsSchedule } from "./schedule/quorum-sweep-schedule.js";
 
-export { signInStaffWithId, changeStaffIdPassword, completeInitialStaffAccess } from "./staff/staff-login-callables.js";
+export {
+  signInStaffWithId,
+  changeStaffIdPassword,
+  completeInitialStaffAccess,
+} from "./staff/staff-login-callables.js";
 
 export {
   assertAcademyScope,
@@ -109,6 +113,7 @@ export { approveLessonPlan, getLessonPlan } from "./levels/lesson-planning-calla
 export { getOperationalReport } from "./reports/operational-report-callables.js";
 export { prepareAggregateReportExport } from "./exports/aggregate-report-export-callables.js";
 export {
+  bulkBookEligibleSessions,
   cancelBooking,
   cancelSession,
   checkIn,
@@ -301,16 +306,38 @@ export {
   getEnrolmentPaymentInstructions,
 } from "./members/enrolment-payment-proof.js";
 
-export { getStudentGroupAccess, saveStudentGroupAccess } from "./schedule/student-group-access-callables.js";
+export {
+  getStudentGroupAccess,
+  saveStudentGroupAccess,
+} from "./schedule/student-group-access-callables.js";
 
-export { listMemberNotifications, markMemberNotificationRead, getIntroMembershipContext, uploadIntroMembershipProof, submitIntroMembershipApplication, listIntroMembershipApplications, getIntroMembershipProofUrl, reviewIntroMembershipApplication } from "./memberships/intro-conversion-callables.js";
+export {
+  listMemberNotifications,
+  markMemberNotificationRead,
+  getIntroMembershipContext,
+  uploadIntroMembershipProof,
+  submitIntroMembershipApplication,
+  listIntroMembershipApplications,
+  getIntroMembershipProofUrl,
+  reviewIntroMembershipApplication,
+} from "./memberships/intro-conversion-callables.js";
 export { introAttendanceCreated } from "./memberships/intro-conversion-trigger.js";
 
 export { getMemberInventoryPage } from "./members/member-inventory-callables.js";
 
-export { getMemberReconciliationCase, decideMemberReconciliation, closeMemberReconciliation, previewMemberIdentityAlias, approveMemberIdentityAlias } from "./members/member-reconciliation-callables.js";
+export {
+  getMemberReconciliationCase,
+  decideMemberReconciliation,
+  closeMemberReconciliation,
+  previewMemberIdentityAlias,
+  approveMemberIdentityAlias,
+} from "./members/member-reconciliation-callables.js";
 
-export { getMemberHistory, reviewMemberHistoryEntry, saveMemberAttendanceBaseline } from "./members/member-history-callables.js";
+export {
+  getMemberHistory,
+  reviewMemberHistoryEntry,
+  saveMemberAttendanceBaseline,
+} from "./members/member-history-callables.js";
 
 export {
   getCourseSession,
@@ -351,7 +378,7 @@ export {
   reviseCourseLocalSession,
   getCourseCalendar,
   listCourseRoster,
-  exportCourseSubject
+  exportCourseSubject,
 } from "./courses/course-callables.js";
 export { coursePublic } from "./courses/course-public-http.js";
 export { courseScheduler, courseProofCleanup } from "./courses/course-scheduler.js";
