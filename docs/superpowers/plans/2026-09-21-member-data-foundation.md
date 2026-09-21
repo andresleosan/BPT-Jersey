@@ -74,12 +74,14 @@
 ### Task 1: Separate historical profile data from current mutation inputs
 
 **Files:**
+
 - Modify: `packages/domain/src/members/member-directory-contracts.ts`
 - Modify: `packages/domain/src/members/member-directory-contracts.test.ts`
 - Modify: `packages/domain/src/members/enrolment-request-contracts.ts`
 - Modify: `packages/domain/src/members/enrolment-request-contracts.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing `studentAdminProfileSchema`, `adminCreateStudentInputShape`, `adminUpdateStudentInputSchema`.
 - Produces: `legacyPostalAddressInputSchema`, create/update schemas that accept both omission and the deprecated optional property, and record parsers that keep historical requests readable.
 
@@ -87,7 +89,9 @@
 
 ```ts
 it("reads a historical admin profile with postal data", () => {
-  expect(studentAdminProfileSchema.safeParse({ ...storedProfile, postalAddress }).success).toBe(true);
+  expect(studentAdminProfileSchema.safeParse({ ...storedProfile, postalAddress }).success).toBe(
+    true,
+  );
 });
 
 it("accepts current create and update inputs without postal location", () => {
@@ -96,11 +100,13 @@ it("accepts current create and update inputs without postal location", () => {
 });
 
 it("accepts an old client payload but current submission omits postalAddress", () => {
-  expect(adminCreateStudentInputSchema.safeParse({ ...currentCreate, postalAddress }).success)
-    .toBe(true);
+  expect(adminCreateStudentInputSchema.safeParse({ ...currentCreate, postalAddress }).success).toBe(
+    true,
+  );
   expect(enrolmentRequestRecordSchema.safeParse(historicalRequest).success).toBe(true);
-  expect(enrolmentRequestSubmissionSchema.parse(currentRequest).applicant)
-    .not.toHaveProperty("postalAddress");
+  expect(enrolmentRequestSubmissionSchema.parse(currentRequest).applicant).not.toHaveProperty(
+    "postalAddress",
+  );
 });
 ```
 
@@ -144,12 +150,14 @@ git commit -m "Refine current member profile inputs"
 ### Task 2: Remove postal capture from public enrolment without losing venue or plans
 
 **Files:**
+
 - Modify: `apps/web/src/app/enrol/page.tsx`
 - Modify: `apps/web/src/app/enrol/page.test.tsx`
 - Modify: `apps/web/src/app/enrol/enrolment-steps.css`
 - Modify: `apps/web/src/lib/enrolment-client.test.ts`
 
 **Interfaces:**
+
 - Consumes: current `EnrolmentRequestSubmission`, `PlanChoices`, existing payment evidence flow.
 - Produces: a form model without `addressLine`/`postCode` that still sends `trainingCenter` and `planSelections`.
 
@@ -214,6 +222,7 @@ git commit -m "Simplify public member enrolment fields"
 ### Task 3: Simplify administrative enrolment and keep completion controls
 
 **Files:**
+
 - Modify: `apps/web/src/app/admin/members/add/page.tsx`
 - Modify: `apps/web/src/app/admin/members/add/page.test.tsx`
 - Modify: `apps/web/src/app/admin/members/add/registration-completion.tsx`
@@ -222,6 +231,7 @@ git commit -m "Simplify public member enrolment fields"
 - Modify: `apps/functions/src/members/enrolment-request-service.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 current create/submission schemas and existing completion result.
 - Produces: administrative create payload without postal/medical fields and unchanged venue, initial-level, plan and payment completion.
 
@@ -265,6 +275,7 @@ git commit -m "Simplify administrative member enrolment"
 ### Task 4: Simplify member/admin profile surfaces and protect historical data
 
 **Files:**
+
 - Modify: `apps/web/src/app/admin/members/profile/details-form-model.ts`
 - Modify: `apps/web/src/app/admin/members/profile/details-form-model.test.ts`
 - Modify: `apps/web/src/app/admin/members/profile/details-tab.tsx`
@@ -277,6 +288,7 @@ git commit -m "Simplify administrative member enrolment"
 - Modify: `apps/functions/src/members/canonical-member-directory-service.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 update schema and existing `/account/membership` route.
 - Produces: `DetailsDraft` without location fields; backend merge semantics that preserve omitted legacy data; read-only legacy medical rendering.
 
@@ -294,8 +306,10 @@ it("builds an update without postal location and preserves stored legacy values"
 ```tsx
 expect(screen.queryByLabelText(/^Address$/i)).not.toBeInTheDocument();
 expect(screen.queryByLabelText(/^City$/i)).not.toBeInTheDocument();
-expect(screen.getByRole("link", { name: /Manage membership/i }))
-  .toHaveAttribute("href", "/account/membership");
+expect(screen.getByRole("link", { name: /Manage membership/i })).toHaveAttribute(
+  "href",
+  "/account/membership",
+);
 ```
 
 Add a medical test asserting existing text is visible but no textbox, textarea or Save button is rendered; assert a coach receives no restricted medical projection.
@@ -334,6 +348,7 @@ git commit -m "Remove postal and medical profile capture"
 ### Task 5: Canonicalise membership numbers at every write boundary
 
 **Files:**
+
 - Create: `packages/domain/src/members/membership-number-contracts.ts`
 - Create: `packages/domain/src/members/membership-number-contracts.test.ts`
 - Modify: `packages/domain/src/members/member-directory-contracts.ts`
@@ -345,6 +360,7 @@ git commit -m "Remove postal and medical profile capture"
 - Modify: `apps/functions/src/members/canonical-member-directory-service.test.ts`
 
 **Interfaces:**
+
 - Produces: `canonicalMembershipNumberSchema`, `canonicaliseMembershipNumber(value): Result<string, MembershipNumberIssue>`, `nextMonotonicMembershipNumber(values): string`.
 - Consumes: existing `studentIdentityKeys` HMAC reservation writer.
 
@@ -397,12 +413,14 @@ git commit -m "Canonicalise member numbers transactionally"
 ### Task 6: Build the deterministic reconciliation plan
 
 **Files:**
+
 - Extend: `packages/domain/src/members/membership-number-contracts.ts`
 - Extend: `packages/domain/src/members/membership-number-contracts.test.ts`
 - Create: `apps/functions/src/members/membership-number-reconciliation.ts`
 - Create: `apps/functions/src/members/membership-number-reconciliation.test.ts`
 
 **Interfaces:**
+
 - Consumes: `canonicaliseMembershipNumber`, immutable source rows `{recordRef, sourceKind, ownerId, sourceVersion, membershipNumber}`.
 - Produces: `buildMembershipNumberReconciliationPlan(input): MembershipNumberPlan`, plan-row statuses, stable SHA-256 content payload.
 
@@ -419,7 +437,11 @@ const plan = buildMembershipNumberReconciliationPlan({
   ],
 });
 expect(plan.rows).toEqual([
-  expect.objectContaining({ recordRef: "studentAdminProfiles/canonical", action: "already_canonical", proposed: "33" }),
+  expect.objectContaining({
+    recordRef: "studentAdminProfiles/canonical",
+    action: "already_canonical",
+    proposed: "33",
+  }),
   expect.objectContaining({ recordRef: "members/legacy-a", action: "reassign", proposed: "34" }),
   expect.objectContaining({ recordRef: "members/legacy-b", action: "reassign", proposed: "35" }),
 ]);
@@ -454,12 +476,14 @@ git commit -m "Plan member number reconciliation safely"
 ### Task 7: Add the Firestore applicator and dry-run-first operator CLI
 
 **Files:**
+
 - Create: `apps/functions/src/members/membership-number-reconciliation-firestore.ts`
 - Create: `apps/functions/src/members/membership-number-reconciliation-firestore.test.ts`
 - Create: `apps/functions/scripts/reconcile-membership-numbers.mjs`
 - Modify: `apps/functions/package.json`
 
 **Interfaces:**
+
 - Consumes: Task 6 `MembershipNumberPlan`, existing `buildStudentIdentityKey`, audit writer and member-directory transaction abstractions.
 - Produces: `planMembershipNumberReconciliation(store, scope)`, `applyMembershipNumberReconciliation(store, plan, confirmation)`, chunk receipt statuses.
 
@@ -487,7 +511,8 @@ Follow `member-directory-forward-runner.ts` and `member-directory-frozen-plan.ts
 ```js
 const apply = options["apply"] === true;
 if (!apply) console.log(JSON.stringify(await planOnly(scope), null, 2));
-else if (options["confirmation"] !== expectedConfirmation(plan)) throw new Error("Confirmation required");
+else if (options["confirmation"] !== expectedConfirmation(plan))
+  throw new Error("Confirmation required");
 ```
 
 Require `--project`, `--academy-id`; default to dry-run. Reject production when emulator variables are present and reject emulator when the known production project is selected. Never print raw membership numbers.
@@ -514,6 +539,7 @@ git commit -m "Add idempotent member number reconciliation"
 ### Task 8: Introduce immutable ibjjf-v3 catalogue data
 
 **Files:**
+
 - Modify: `packages/domain/src/levels/level-catalog-v2.ts`
 - Modify: `packages/domain/src/levels/level-catalog-v2.test.ts`
 - Modify: `apps/functions/src/levels/level-source.ts`
@@ -521,6 +547,7 @@ git commit -m "Add idempotent member number reconciliation"
 - Modify: `apps/functions/src/levels/level-catalog-integrity.test.ts`
 
 **Interfaces:**
+
 - Produces: `LevelCatalogVersion` including `ibjjf-v3`, `buildIbjjfV3CatalogSources()`, approved v3 source hashes.
 - Consumes: committed v2 structural sources and stable definition keys.
 
@@ -572,6 +599,7 @@ git commit -m "Add immutable IBJJF v3 criteria"
 ### Task 9: Guard v3 publication and migrate progress heads idempotently
 
 **Files:**
+
 - Modify: `apps/functions/src/levels/level-seed.ts`
 - Modify: `apps/functions/src/levels/level-seed.test.ts`
 - Modify: `apps/functions/scripts/level-seed-target.mjs`
@@ -585,8 +613,11 @@ git commit -m "Add immutable IBJJF v3 criteria"
 - Modify: `apps/functions/package.json`
 
 **Interfaces:**
+
 - Consumes: Task 8 v3 catalogue and existing guarded seed environment.
-- Produces: dry-run/apply head decisions `{migrate, already_v3, stale, manual_review}` and CLI.
+- Produces: dry-run/apply head decisions `{migrate, already_v3, stale, manual_review}`, staged
+  version-qualified catalogue documents, an academy active-catalogue pointer and an explicit
+  idempotent activation CLI step.
 
 - [ ] **Step 1: Write failing seed and migration-decision tests**
 
@@ -611,9 +642,14 @@ Expected: FAIL because v3 loading/migration are absent.
 
 Extend `loadApprovedLevelCatalog` to dispatch by exact system ID. Preserve production project checks and require a new literal confirmation for v3. The pure decision must never infer White Belt for a missing or unknown head.
 
-- [ ] **Step 4: Implement transactional head updates and CLI**
+- [ ] **Step 4: Implement transactional head updates, staged publication and activation CLI**
 
 Inside one transaction, re-read the head, verify academy/student/system/version, verify the v3 definition exists, update only `systemId`, `updatedAt`, `updatedBy` and migration metadata, append audit/receipt, and leave promotions untouched. CLI defaults to dry-run and masks student IDs in summary output.
+
+Store v3 definitions and requirements under version-qualified physical IDs so immutable v2 can
+remain alongside v3. Keep v2 selected by an academy-scoped active pointer until every head is v3.
+`--activate` requires `--apply` plus a second exact confirmation bound to the dry-run hash; the
+activation transaction refuses unresolved heads, switches only the pointer and preserves v2.
 
 - [ ] **Step 5: Run tests and emulator dry run**
 
@@ -633,6 +669,7 @@ git commit -m "Prepare guarded IBJJF v3 migration"
 ### Task 10: Verify catalogue-driven progress in backend and account widgets
 
 **Files:**
+
 - Modify: `packages/domain/src/levels/level-contracts.test.ts`
 - Modify: `packages/domain/src/levels/level-progress.test.ts`
 - Modify: `apps/functions/src/levels/level-service.test.ts`
@@ -642,6 +679,7 @@ git commit -m "Prepare guarded IBJJF v3 migration"
 - Modify: `apps/web/src/app/admin/members/profile/ibjjf-card.test.tsx`
 
 **Interfaces:**
+
 - Consumes: v3 criteria returned by existing progress summaries.
 - Produces: UI rendering that uses `criteria.classes.required` and `criteria.time.requiredDays`, with no local 20/60 constants.
 
@@ -682,6 +720,7 @@ git commit -m "Use IBJJF v3 progress thresholds"
 ### Task 11: Add focused emulator-backed Playwright coverage
 
 **Files:**
+
 - Create: `qa/tests/member-data-foundation.spec.ts`
 - Modify: `qa/tests/enrolment-payment-staff.spec.ts`
 - Modify: `qa/tests/member-profile.spec.ts`
@@ -691,6 +730,7 @@ git commit -m "Use IBJJF v3 progress thresholds"
 - Modify: `qa/scripts/seed-onboarding-emulator.mjs`
 
 **Interfaces:**
+
 - Consumes: Tasks 1–10 and existing emulator fixtures.
 - Produces: tag `@member-data-foundation` covering approved browser journeys and role boundaries.
 
@@ -755,10 +795,12 @@ git commit -m "Cover member data foundation end to end"
 ### Task 12: Run requested verification, review scope and publish code to GitHub main
 
 **Files:**
+
 - Modify only files from Tasks 1–11 if verification exposes a regression caused by this delivery.
 - Do not modify unrelated fixtures or restore automatic GitHub workflow triggers.
 
 **Interfaces:**
+
 - Consumes: complete delivery.
 - Produces: fresh evidence, clean scoped diff, local/GitHub SHA equality.
 
@@ -821,8 +863,10 @@ The implementation stops before production effects. A later operator-authorised 
 2. Approve/apply reconciliation and verify receipts.
 3. Build and publish compatible Functions.
 4. Seed `ibjjf-v3` with its exact production confirmation.
-5. Review/apply the progress-head migration.
-6. Publish the web application in a coordinated window.
-7. Re-read representative synthetic/authorised records and compare audit receipts.
+5. Review/apply the progress-head migration and resolve every stale/manual-review row.
+6. Activate `ibjjf-v3` with `--activate` and its exact dry-run activation confirmation; verify the
+   immutable activation receipt and that v2 remains stored.
+7. Publish the web application in a coordinated window.
+8. Re-read representative synthetic/authorised records and compare audit receipts.
 
 None of these steps is implied by approval of this implementation plan.

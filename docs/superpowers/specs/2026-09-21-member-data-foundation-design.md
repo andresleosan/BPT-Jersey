@@ -160,12 +160,19 @@ sources as `ibjjf-v2`, with stable definition keys and a new operator-override t
 
 Version shapes and approved hashes become version-aware for v3. Seed guards continue to fail closed
 for unknown targets, mismatched projects, emulator/production confusion, unapproved hashes and absent
-confirmation strings.
+confirmation strings. Because v2 and v3 intentionally reuse logical definition keys, v3 definition
+and requirement documents use version-qualified storage IDs while retaining their logical keys in
+document data. A single academy-scoped active-catalogue pointer keeps v2 authoritative while v3 is
+staged; all runtime reads resolve through that pointer.
 
 An independent dry-run migration identifies active `studentLevelProgress` heads on `ibjjf-v2` whose
 definition keys exist unchanged in v3. Apply updates only the mutable head's `systemId`, version and
 audit metadata with a concurrency precondition. Historical promotions and assessments retain their
 original system references. An unknown or changed definition key requires manual review.
+
+Activation is a separate, idempotent transaction after migration. It requires an exact confirmation
+bound to academy, operation and migration-plan hash; refuses any progress head not on v3; preserves
+the immutable v2 catalogue; and writes an immutable activation receipt before v3 becomes active.
 
 Backend summaries and frontend progress widgets consume the catalogue criteria already returned by
 the progress service. Neither layer gets a second hard-coded 20/60 rule. Eligibility uses `>=`, so it
@@ -217,6 +224,7 @@ operation, 44px touch targets and mobile overflow protection remain required.
 - A migration precondition mismatch returns `stale`; it does not retry with a newly invented result.
 - Invalid legacy numbers remain unchanged under `manual_review`.
 - Catalogue hash, target or confirmation mismatch aborts before any write.
+- Catalogue activation refuses unresolved or stale progress heads and never deletes v2.
 - UI errors use the established safe, plain-language messages and retain the user's non-sensitive
   form state.
 

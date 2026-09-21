@@ -103,8 +103,6 @@ const emergencyContact = {
   phoneNumber: "+441534000121",
 } as const;
 
-const postalAddress = { line: "2 Synthetic Lane, St Helier", postCode: "JE2 4XY" } as const;
-
 function adultSubmission(requestId: string) {
   return {
     requestId,
@@ -117,7 +115,6 @@ function adultSubmission(requestId: string) {
       trainingTimePreferences: ["evening"],
       gender: "female",
       emergencyContact,
-      postalAddress,
     },
     minors: [],
     planSelections: { applicant: "town-adult", minors: [] },
@@ -174,7 +171,7 @@ test.describe("T121 enrolment approval with Firebase Emulators", () => {
     };
     expect(detailResult.applicant.dateOfBirth).toBe("1991-03-04");
     expect(detailResult.applicant.emergencyContact).toEqual(emergencyContact);
-    expect(detailResult.applicant.postalAddress).toEqual(postalAddress);
+    expect(detailResult.applicant.postalAddress).toBeUndefined();
 
     const approved = await call(
       request,
@@ -204,7 +201,7 @@ test.describe("T121 enrolment approval with Firebase Emulators", () => {
     const member = memberDetail.body.result as Record<string, unknown>;
     expect(member.dateOfBirth).toBe("1991-03-04");
     expect(member.emergencyContact).toEqual(emergencyContact);
-    expect(member.postalAddress).toEqual(postalAddress);
+    expect(member.postalAddress).toBeUndefined();
     expect(member.gender).toBe("female");
     expect(await countMembers(request, ownerToken)).toBe(membersBefore + 1);
 
