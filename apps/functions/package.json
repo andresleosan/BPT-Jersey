@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json --module ESNext --moduleResolution Bundler --rootDir .",
+    "reconcile:membership-numbers": "node scripts/reconcile-membership-numbers.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json --module ESNext --moduleResolution Bundler --rootDir ."
   },
   "dependencies": {
