@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { parseMemberRecord } from "@bpt-jersey/domain/members";
+import { canonicaliseMembershipNumber } from "@bpt-jersey/domain/members/membership-number";
 import type { AuditEventDraft } from "@bpt-jersey/domain/audit";
 import {
   MEMBER_MIGRATION_ID,
@@ -216,6 +217,14 @@ function requiredIdentifier(value: string, label: string): string {
     throw new CanonicalMemberDirectoryError("invalid", `Invalid ${label}`);
   }
   return value;
+}
+
+function requiredMembershipNumber(value: string): string {
+  const result = canonicaliseMembershipNumber(value);
+  if (!result.ok) {
+    throw new CanonicalMemberDirectoryError("invalid", "Member number requires manual review");
+  }
+  return result.value;
 }
 
 function requiredTimestamp(value: string): string {
@@ -993,7 +1002,7 @@ export function createCanonicalMemberDirectoryService(
         const expected = {
           fullName: chosen.fullName, dateOfBirth: chosen.birthDate ?? undefined, email: chosen.email ?? undefined,
           phoneNumber: chosen.mobileNumber ?? undefined, gender: chosen.gender,
-          membershipNumber: chosen.membershipNumber ? normalizeAdministrativeIdentifier(chosen.membershipNumber) : undefined,
+          membershipNumber: chosen.membershipNumber ? requiredMembershipNumber(chosen.membershipNumber) : undefined,
           idCardNumber: chosen.idCardNumber ? normalizeAdministrativeIdentifier(chosen.idCardNumber) : undefined,
           vatNumber: chosen.vatNumber ? normalizeAdministrativeIdentifier(chosen.vatNumber) : undefined,
         };
@@ -1041,7 +1050,7 @@ export function createCanonicalMemberDirectoryService(
             source.value.birthDate &&
             source.value.birthDate !== parsedInput.value.dateOfBirth) ||
           (!legacy && (source.value.memberNumber
-            ? normalizeAdministrativeIdentifier(source.value.memberNumber)
+            ? requiredMembershipNumber(source.value.memberNumber)
             : undefined) !== parsedInput.value.membershipNumber)
         )
           throw new CanonicalMemberDirectoryError(

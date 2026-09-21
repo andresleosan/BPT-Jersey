@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 import { memberGenders } from "./member-contracts";
+import { canonicalMembershipNumberSchema } from "./membership-number-contracts";
 import {
   deriveParticipantType,
   participantTypes,
@@ -511,7 +512,7 @@ export const adminCreateStudentInputShape = Object.freeze({
   email: z.string().email().max(320).refine(isCanonicalText).optional(),
   trainingCenter: z.enum(trainingCenters),
   trainingTimePreferences: createTrainingPreferencesSchema,
-  membershipNumber: administrativeIdentifierInputSchema.optional(),
+  membershipNumber: canonicalMembershipNumberSchema.optional(),
   idCardNumber: administrativeIdentifierInputSchema.optional(),
   vatNumber: administrativeIdentifierInputSchema.optional(),
   gender: z.enum(memberGenders).optional(),
@@ -536,7 +537,7 @@ export const adminUpdateStudentInputSchema = z
     email: z.string().email().max(320).refine(isCanonicalText).optional(),
     trainingCenter: z.enum(trainingCenters),
     trainingTimePreferences: createTrainingPreferencesSchema,
-    membershipNumber: administrativeIdentifierInputSchema.optional(),
+    membershipNumber: canonicalMembershipNumberSchema.optional(),
     idCardNumber: administrativeIdentifierInputSchema.optional(),
     vatNumber: administrativeIdentifierInputSchema.optional(),
     gender: z.enum(memberGenders),

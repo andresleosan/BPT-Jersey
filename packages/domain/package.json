@@ -55,6 +55,11 @@
       "import": "./src/members/member-directory-contracts.ts",
       "default": "./lib/members/member-directory-contracts.js"
     },
+    "./members/membership-number": {
+      "types": "./src/members/membership-number-contracts.ts",
+      "import": "./src/members/membership-number-contracts.ts",
+      "default": "./lib/members/membership-number-contracts.js"
+    },
     "./members/migration": {
       "types": "./src/members/member-migration-contracts.ts",
       "import": "./src/members/member-migration-contracts.ts",

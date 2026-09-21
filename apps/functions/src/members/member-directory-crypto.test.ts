@@ -10,6 +10,7 @@ import {
   createMemberDirectoryOutputLeafMac,
   buildStudentIdentityKeyTuple,
   decodeMemberDirectorySecret,
+  deriveStudentIdentityKeyId,
   encodeLengthPrefixedUtf8,
   parseStudentIdentityKeyTuple,
 } from "./member-directory-crypto.js";
@@ -19,6 +20,19 @@ const integritySecret = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8";
 const cursorSecret = "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8";
 
 describe("member directory cryptographic boundaries", () => {
+  it("derives one membership identity for prefixed, padded and plain values", () => {
+    const common = {
+      academyId: "academy-1",
+      kind: "membership-number" as const,
+      secretMaterial: identitySecret,
+    };
+    expect(deriveStudentIdentityKeyId({ ...common, value: "#0033" })).toBe(
+      deriveStudentIdentityKeyId({ ...common, value: "33" }),
+    );
+    expect(deriveStudentIdentityKeyId({ ...common, value: "0033" })).toBe(
+      deriveStudentIdentityKeyId({ ...common, value: "33" }),
+    );
+  });
   it("publishes the approved length-prefixed HMAC golden vector", () => {
     const encoded = encodeLengthPrefixedUtf8([
       "bpt-student-identity-v1",
