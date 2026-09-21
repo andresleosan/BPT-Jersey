@@ -296,6 +296,7 @@ export function AccountClassesContent() {
     setFeedback(undefined);
     try {
       const booking = await requestBooking({
+        kind: "membership",
         sessionId: sessionRecord.sessionId,
         studentId: selectedMembership.studentId,
         membershipId: selectedMembership.membershipId,

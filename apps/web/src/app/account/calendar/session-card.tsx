@@ -14,6 +14,7 @@ import {
   levelRangeLabel,
   type BookingRecord,
   type ProgramRecord,
+  sessionAccessMode,
   type SessionRecord,
 } from "@bpt-jersey/domain/schedule";
 
@@ -45,11 +46,32 @@ export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }:
   const { session, program, derived } = entry;
   const status = derived.status;
   const site = sessionSite(session);
+  const isIntro = sessionAccessMode(session) === "intro";
 
   let action: React.ReactNode;
   if (session.courseId && status === "booked") {
     const absent = entry.booking?.schemaVersion === "2" && entry.booking.absent;
-    action = <><span className="session-note">Course included · session {session.courseOrdinal}/{session.courseSessionCount}</span>{Date.parse(session.startAt) > now.getTime() ? <button className="session-action" disabled={busy} onClick={() => onCancelRequest(entry)} type="button">{absent ? "Absent · I can attend" : "Included · Mark absent"}</button> : <span className="session-action session-action--static">{absent ? "Marked absent" : "Course included"}</span>}</>;
+    action = (
+      <>
+        <span className="session-note">
+          Course included · session {session.courseOrdinal}/{session.courseSessionCount}
+        </span>
+        {Date.parse(session.startAt) > now.getTime() ? (
+          <button
+            className="session-action"
+            disabled={busy}
+            onClick={() => onCancelRequest(entry)}
+            type="button"
+          >
+            {absent ? "Absent · I can attend" : "Included · Mark absent"}
+          </button>
+        ) : (
+          <span className="session-action session-action--static">
+            {absent ? "Marked absent" : "Course included"}
+          </span>
+        )}
+      </>
+    );
   } else if (status === "open") {
     action = (
       <button
@@ -58,7 +80,7 @@ export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }:
         onClick={() => onBook(entry)}
         type="button"
       >
-        Book
+        {isIntro ? "Book free intro" : "Book"}
       </button>
     );
   } else if (status === "booked") {
@@ -107,7 +129,10 @@ export function SessionCard({ entry, now, busy, note, onBook, onCancelRequest }:
     >
       <span className="session-time">{formatSessionTimeRange(session)}</span>
       <p className="session-title">{session.title}</p>
-      <p className="session-site">{site}</p>
+      <p className="session-site">
+        {site}
+        {isIntro ? " · Free Intro Class" : ""}
+      </p>
       {session.levelRange || session.ageRange ? (
         <p className="session-detail">{`${levelRangeLabel(session.levelRange)} · ${ageRangeLabel(session.ageRange)}`}</p>
       ) : null}

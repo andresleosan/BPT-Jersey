@@ -155,7 +155,12 @@ export function RegistrationsPanel({
     );
     if (!membership) return "This class is outside the member's paid membership period";
     try {
-      await requestBooking({ sessionId, studentId, membershipId: membership.membershipId });
+      await requestBooking({
+        kind: "membership",
+        sessionId,
+        studentId,
+        membershipId: membership.membershipId,
+      });
       return null;
     } catch (failure) {
       return messageOf(failure, "Unable to enrol this member");

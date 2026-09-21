@@ -34,6 +34,9 @@ export type CalendarParticipant = Readonly<{
   planClassSites: readonly Site[];
   planOpenMatSites: readonly Site[];
   weeklyClassLimit: WeeklyClassLimit;
+  introSite?: Site;
+  hasAttendedIntro?: boolean;
+  hasActiveMembership?: boolean;
 }>;
 
 export type CalendarMember = Readonly<{
