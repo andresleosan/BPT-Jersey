@@ -1,10 +1,139 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import type { CoursePage, PublicCourse } from "@bpt-jersey/domain/courses";
-import { publicCourses, courseDate, courseMoney } from "../../lib/courses/course-public-client";
+
+import { courseDate, courseMoney, publicCourses } from "../../lib/courses/course-public-client";
+
+function participantAges(course: PublicCourse): string {
+  return course.maxAge === null ? `${course.minAge}+` : `${course.minAge}-${course.maxAge}`;
+}
+
+function courseAvailability(course: PublicCourse): string {
+  if (course.availability === "waitlist") return "Waitlist open";
+  if (course.availability === "closed") return "Enrolment closed";
+  return "Places available";
+}
+
 export function CourseCatalogue() {
-  const [page, setPage] = useState<CoursePage<PublicCourse> | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const controller = useRef<AbortController | null>(null);
-  async function load(cursor?: string) {controller.current?.abort(); const next = new AbortController(); controller.current = next; setBusy(true); setError(""); try {const value = await publicCourses(next.signal, cursor); if (!next.signal.aborted) setPage(old => ({...value, items: cursor ? [...(old?.items ?? []), ...value.items] : value.items}));} catch(e) {if (!next.signal.aborted) setError((e as Error).message);} finally {if (!next.signal.aborted) setBusy(false);}}
-  useEffect(() => {void load(); return () => controller.current?.abort();}, []);
-  return <section aria-label="Course catalogue">{error && <div className="course-error" role="alert">{error} <button className="course-link" onClick={() => void load()}>Try again</button></div>}{!page && busy && <div className="course-loading" role="status">Loading upcoming courses…</div>}{page?.items.length === 0 && <div className="course-panel"><h2>New courses are on the way</h2><p>Check back for the next programme or <a href="/#contact">contact the academy</a>.</p></div>}<ul className="course-list">{page?.items.map(c => <li className="course-row" key={c.courseId}><div><p className="course-meta">{c.kind === "seminar" ? "Seminar" : "Weekly course"} · Ages {c.minAge}{c.maxAge === null ? "+" : `–${c.maxAge}`}</p><h2><a href={`/courses/view?course=${c.courseId}`}>{c.title}</a></h2><p>{c.instructorName} · {c.locationName}</p><p className="course-meta">{c.nextSessionAt ? `Next session: ${courseDate(c.nextSessionAt)}` : "Enrolment closed"} · {c.sessionCount} sessions in total</p></div><div><p className="course-price">{courseMoney(c.priceMinor)}</p><p className="course-meta">One payment</p><a className="course-button secondary" href={`/courses/view?course=${c.courseId}`}>{c.availability === "waitlist" ? "View waitlist details" : "View course"}</a></div></li>)}</ul>{page?.cursor && <button className="course-button secondary" disabled={busy} onClick={() => void load(page.cursor!)}>{busy ? "Loading…" : "Load more courses"}</button>}</section>;
+  const [page, setPage] = useState<CoursePage<PublicCourse> | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const controller = useRef<AbortController | null>(null);
+
+  async function load(cursor?: string) {
+    controller.current?.abort();
+    const next = new AbortController();
+    controller.current = next;
+    setBusy(true);
+    setError("");
+
+    try {
+      const value = await publicCourses(next.signal, cursor);
+      if (next.signal.aborted) return;
+      setPage((current) => ({
+        ...value,
+        items: cursor ? [...(current?.items ?? []), ...value.items] : value.items,
+      }));
+    } catch (failure) {
+      if (!next.signal.aborted) {
+        setError(failure instanceof Error ? failure.message : "Unable to load courses.");
+      }
+    } finally {
+      if (!next.signal.aborted) setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    return () => controller.current?.abort();
+  }, []);
+
+  return (
+    <section className="course-catalogue" aria-labelledby="course-catalogue-title">
+      <header className="course-section-heading">
+        <h2 id="course-catalogue-title">Upcoming programmes</h2>
+        <p>Choose the dates and focus that fit your training.</p>
+      </header>
+
+      {error ? (
+        <div className="course-error" role="alert">
+          <p>{error}</p>
+          <button className="course-link" type="button" onClick={() => void load()}>
+            Try loading courses again
+          </button>
+        </div>
+      ) : null}
+
+      {!page && busy ? (
+        <div className="course-loading" role="status" aria-label="Loading upcoming courses">
+          <span />
+          <span />
+          <span />
+        </div>
+      ) : null}
+
+      {page?.items.length === 0 ? (
+        <div className="course-panel course-empty">
+          <h2>New courses are on the way</h2>
+          <p>Ask the academy about the next programme.</p>
+          <a className="course-button" href="/#contact">
+            Contact the academy
+          </a>
+        </div>
+      ) : null}
+
+      <ul className="course-list">
+        {page?.items.map((course) => (
+          <li className="course-row" key={course.courseId}>
+            <article>
+              <div className="course-row-copy">
+                <p className="course-meta">
+                  <span>{course.kind === "seminar" ? "Seminar" : "Weekly course"}</span>
+                  <span>Ages {participantAges(course)}</span>
+                </p>
+                <h3>
+                  <a href={`/courses/view?course=${course.courseId}`}>{course.title}</a>
+                </h3>
+                <p className="course-byline">
+                  {course.instructorName}
+                  <span aria-hidden="true">/</span>
+                  {course.locationName}
+                </p>
+                <p className="course-schedule">
+                  {course.nextSessionAt
+                    ? `Next session: ${courseDate(course.nextSessionAt)}`
+                    : "No future session is scheduled"}
+                  <span>{course.sessionCount} sessions</span>
+                </p>
+              </div>
+
+              <div className="course-row-action">
+                <p className="course-availability">{courseAvailability(course)}</p>
+                <p className="course-price">{courseMoney(course.priceMinor)}</p>
+                <p className="course-meta">One payment</p>
+                <a
+                  className="course-button secondary"
+                  href={`/courses/view?course=${course.courseId}`}
+                >
+                  {course.availability === "waitlist" ? "View waitlist" : "View programme"}
+                </a>
+              </div>
+            </article>
+          </li>
+        ))}
+      </ul>
+
+      {page?.cursor ? (
+        <button
+          className="course-button secondary"
+          type="button"
+          disabled={busy}
+          onClick={() => void load(page.cursor!)}
+        >
+          {busy ? "Loading more courses" : "Load more courses"}
+        </button>
+      ) : null}
+    </section>
+  );
 }
