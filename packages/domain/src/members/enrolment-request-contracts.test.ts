@@ -495,13 +495,14 @@ describe("enrolment plan preferences", () => {
     }
   });
 
-  it("filters sites, retired plans, and the exact 12th and 18th birthdays", () => {
+  it("filters sites, retired and administrative plans, and the exact 12th and 18th birthdays", () => {
     const ids = (dob: string, site: "Town" | "West") =>
       getEnrolmentPlans(dob, site, effectiveDate).map((plan) => plan.planId);
     expect(ids("2014-09-07", "West")).toEqual(["west-kids-1x", "west-kids-2x"]);
     expect(ids("2014-09-06", "West")).toEqual(["west-teens", "west-teens-payg"]);
     expect(ids("2008-09-07", "Town")).toEqual(["town-kids-1x", "town-kids-2x"]);
     expect(ids("2008-09-06", "Town")).toEqual(["bpt-jersey-adult", "town-adult"]);
+    expect(ids("2008-09-06", "Town")).not.toContain("transit-free");
     expect(ids("bad-date", "West")).toEqual([]);
   });
 });

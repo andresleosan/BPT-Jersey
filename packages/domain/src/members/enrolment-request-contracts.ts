@@ -5,6 +5,7 @@ import { enrolmentWaiverTermsVersion } from "../consents/enrolment-waiver-terms"
 import type { ValidationIssue } from "../errors";
 import { err, ok, type Result } from "../result";
 import {
+  administrativePlanIds,
   PLAN_CATALOG,
   planIds,
   retiredPlanIds,
@@ -463,6 +464,7 @@ export function getEnrolmentPlans(
   return PLAN_CATALOG.filter(
     (plan) =>
       !retiredPlanIds.includes(plan.planId) &&
+      !administrativePlanIds.includes(plan.planId) &&
       plan.classSites.includes(trainingCenter) &&
       plan.eligibleParticipantTypes.includes(participantType),
   );
