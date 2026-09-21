@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import businessCriteriaJson from "../../../../docs/data/ibjjf-levels-business-criteria.sanitized.json";
 import observedJson from "../../../../docs/data/ibjjf-levels-observed.sanitized.json";
 import regyfitJson from "../../../../docs/data/ibjjf-skills-observed.sanitized.json";
-import { buildIbjjfV2CatalogSources } from "@bpt-jersey/domain/levels";
+import { buildIbjjfV2CatalogSources, buildIbjjfV3CatalogSources } from "@bpt-jersey/domain/levels";
 import {
   approvedLevelCatalogSourceHashes,
   approvedLevelCatalogSourceHashesBySystem,
@@ -70,5 +70,21 @@ describe("approved ibjjf-v2 source hashes", () => {
       businessCriteria: normalized.sourceHashes.businessCriteria,
       combined: normalized.sourceHash,
     }).toEqual(approvedLevelCatalogSourceHashesBySystem["ibjjf-v2"]);
+  });
+});
+
+describe("approved ibjjf-v3 source hashes", () => {
+  it("pins v3 independently while preserving the v2 golden hash", () => {
+    const sources = buildIbjjfV3CatalogSources(observedJson, regyfitJson);
+    const normalized = normalizeLevelCatalogSource(sources.observed, sources.business);
+    expect({
+      observed: normalized.sourceHashes.observed,
+      businessCriteria: normalized.sourceHashes.businessCriteria,
+      combined: normalized.sourceHash,
+    }).toEqual(approvedLevelCatalogSourceHashesBySystem["ibjjf-v3"]);
+    expect(() => assertApprovedLevelCatalogSource(normalized)).not.toThrow();
+    expect(approvedLevelCatalogSourceHashesBySystem["ibjjf-v2"].combined).toBe(
+      "7b3d072ce9e61b3b24edd6c76a5e221c1f3c1deb886be74de4b74182d31df98c",
+    );
   });
 });

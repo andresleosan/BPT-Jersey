@@ -44,6 +44,11 @@ export const approvedLevelCatalogSourceHashesBySystem: Readonly<
     businessCriteria: "ad45b5a754ac898858e7a3a734377e1b7201d82812af34605e68c3581f4154cf",
     combined: "7b3d072ce9e61b3b24edd6c76a5e221c1f3c1deb886be74de4b74182d31df98c",
   }),
+  "ibjjf-v3": Object.freeze({
+    observed: "a0ba65ad2e0af61d3e5e0d1e1a11fa1eb015378bb7b6d56f7a92b1ea57b639ef",
+    businessCriteria: "2a004063ebef47c417ca269179bf67689f68703a46577cbf0d12c91d04e9c724",
+    combined: "fe160a98352209a56dc13602e326ff80a26f2a0b32051f88170fce6255b1a14c",
+  }),
 });
 
 export function assertApprovedLevelCatalogSource(normalized: NormalizedLevelCatalog): void {
