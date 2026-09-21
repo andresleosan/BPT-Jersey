@@ -1629,12 +1629,14 @@ export function createLevelCatalogStore({
           definitionsSnapshot,
           requirementsSnapshot,
           stateSnapshot,
+          systemsSnapshot,
         ] = await Promise.all([
           transaction.get(systemRef),
           transaction.get(manifestRef),
           transaction.get(definitionsCollection),
           transaction.get(requirementsCollection),
           transaction.get(stateRef),
+          transaction.get(firestore.collection(`academies/${academyId}/levelSystems`)),
         ]);
         const referenceSnapshots = await Promise.all(
           referenceCollections.map((collection) => transaction.get(collection)),
@@ -1647,6 +1649,12 @@ export function createLevelCatalogStore({
         }
         if (!manifestSnapshot.exists) {
           throw new LevelStoreError("conflict", "Stored level catalog manifest is missing.");
+        }
+        if (systemsSnapshot.docs.some((document) => document.id !== systemId)) {
+          throw new LevelStoreError(
+            "conflict",
+            "Published catalogues cannot be deleted while versions coexist.",
+          );
         }
 
         const storedDefinitions = catalogDocumentsForSystem(
@@ -3251,6 +3259,16 @@ export function createInMemoryLevelStore(): LevelCatalogLifecycleStore {
       }
       if (manifest === undefined) {
         throw new LevelStoreError("conflict", "Stored level catalog manifest is missing.");
+      }
+      if (
+        [...systems.values()].some(
+          (candidate) => candidate["academyId"] === academyId && candidate["systemId"] !== systemId,
+        )
+      ) {
+        throw new LevelStoreError(
+          "conflict",
+          "Published catalogues cannot be deleted while versions coexist.",
+        );
       }
       const storedPublication = publicationFromStoredManifest({
         academyId,
