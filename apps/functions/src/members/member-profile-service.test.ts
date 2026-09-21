@@ -174,6 +174,28 @@ describe("member profile service (T051V2)", () => {
     );
   });
 
+  it("keeps historical location server-side and omits it from the ordinary profile response", async () => {
+    const historicalProfile: StudentAdminProfile = {
+      ...profileA,
+      postalAddress: { line: "Historical address", postCode: "JE1 1AA" },
+      details: { ...profileA.details, city: "St Helier", country: "JE" },
+    };
+
+    const profile = await createMemberProfileService({ store: store() }).fullProfile({
+      academyId: "academy-1",
+      record: { student: adult(), adminProfile: historicalProfile },
+      now,
+    });
+
+    expect(profile.details).not.toHaveProperty("postalAddress");
+    expect(profile.details.details).not.toHaveProperty("city");
+    expect(profile.details.details).not.toHaveProperty("country");
+    expect(historicalProfile.postalAddress).toEqual({
+      line: "Historical address",
+      postCode: "JE1 1AA",
+    });
+  });
+
   it("names a minor's current guardians and proposes a member number when there is none", async () => {
     const service = createMemberProfileService({
       store: store({
