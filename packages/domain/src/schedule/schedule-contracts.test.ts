@@ -23,6 +23,7 @@ import {
   legacySessionId,
   levelRangeLabel,
   parseAgeRange,
+  parseBulkBookEligibleSessionsInput,
   parseCancelBookingInput,
   parseCheckInInput,
   parseCheckInProximityMeasurement,
@@ -1941,6 +1942,46 @@ describe("session curriculum", () => {
       parseCreateSessionInput({
         ...session,
         curriculum: { title: "Guard", techniques: ["Frames", "frames"], details: "" },
+      }).ok,
+    ).toBe(false);
+  });
+});
+
+describe("bulk booking input", () => {
+  it("accepts a bounded range and trims member identifiers", () => {
+    expect(
+      parseBulkBookEligibleSessionsInput({
+        studentId: " student-1 ",
+        membershipId: " membership-1 ",
+        from: "2026-09-01T00:00:00Z",
+        to: "2026-09-30T00:00:00Z",
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        studentId: "student-1",
+        membershipId: "membership-1",
+        from: "2026-09-01T00:00:00Z",
+        to: "2026-09-30T00:00:00Z",
+      },
+    });
+  });
+
+  it("rejects an empty membership and ranges longer than 90 days", () => {
+    expect(
+      parseBulkBookEligibleSessionsInput({
+        studentId: "student-1",
+        membershipId: "",
+        from: "2026-09-01T00:00:00Z",
+        to: "2026-09-30T00:00:00Z",
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseBulkBookEligibleSessionsInput({
+        studentId: "student-1",
+        membershipId: "membership-1",
+        from: "2026-09-01T00:00:00Z",
+        to: "2027-01-01T00:00:00Z",
       }).ok,
     ).toBe(false);
   });

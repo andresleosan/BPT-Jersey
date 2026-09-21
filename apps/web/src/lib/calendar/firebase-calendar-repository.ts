@@ -11,6 +11,7 @@ import { getClientProfile } from "../profile-client";
 import { participantBand } from "../participant-band";
 import { listNoShowPenalties } from "../no-show-penalties-client";
 import {
+  bulkBookEligibleSessions,
   cancelBooking,
   getScheduleCatalog,
   listSessionBookedCounts,
@@ -206,6 +207,7 @@ export function createFirebaseCalendarRepository(session: {
     },
     async setCourseAbsence(sessionId, studentId, absent) {return courseApi.absence({sessionId, studentId, absent, requestId: crypto.randomUUID()});},
     book: requestBooking,
+    bookEligible: bulkBookEligibleSessions,
     cancel: cancelBooking,
     async clockIn(input) {return courseSessions.has(input.sessionId) ? (await courseApi.checkIn(input)).attendance : selfCheckIn(input);},
     async loadPenalties(studentId) {

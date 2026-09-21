@@ -121,6 +121,7 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
   const [weekState, setWeekState] = useState<LoadState>("loading");
   const [penalties, setPenalties] = useState<readonly NoShowPenaltyRecord[]>([]);
   const [busyKey, setBusyKey] = useState("");
+  const [bulkNotice, setBulkNotice] = useState("");
   const [notes, setNotes] = useState<Readonly<Record<string, string>>>({});
   const [cancelling, setCancelling] = useState<CalendarEntry>();
   const [reloadToken, setReloadToken] = useState(0);
@@ -467,6 +468,31 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     [participant, repository, applyBooking, flashNote],
   );
 
+  const handleBookEligible = useCallback(async () => {
+    if (!participant?.membershipId || !rangeFrom || !rangeTo) return;
+    setBusyKey("bulk");
+    setBulkNotice("");
+    try {
+      const result = await repository.bookEligible({
+        studentId: participant.studentId,
+        membershipId: participant.membershipId,
+        from: rangeFrom,
+        to: rangeTo,
+      });
+      for (const booking of result.booked) applyBooking(booking);
+      const parts = [
+        `${result.bookedCount} class${result.bookedCount === 1 ? "" : "es"} booked`,
+        result.alreadyBookedCount > 0 ? `${result.alreadyBookedCount} already booked` : "",
+        result.skippedCount > 0 ? `${result.skippedCount} unavailable` : "",
+      ].filter(Boolean);
+      setBulkNotice(`${parts.join(" · ")}.`);
+    } catch (error) {
+      setBulkNotice(bookingFailureMessage(error));
+    } finally {
+      setBusyKey("");
+    }
+  }, [participant, rangeFrom, rangeTo, repository, applyBooking]);
+
   const handleConfirmCancel = useCallback(
     async (entry: CalendarEntry) => {
       if (!participant) return;
@@ -542,6 +568,23 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
         selectedStudentId={selectedStudentId}
       />
       {!failed && weekState === "ready" && hasPendingPenalty(penalties) ? <PenaltyBanner /> : null}
+      {!failed && weekState === "ready" && participant?.membershipId ? (
+        <section className="calendar-bulk-booking" aria-label="Book covered classes">
+          <button
+            className="session-action"
+            disabled={busyKey !== ""}
+            onClick={() => void handleBookEligible()}
+            type="button"
+          >
+            {busyKey === "bulk" ? "Booking covered classes…" : "Book all covered classes"}
+          </button>
+          <p className="session-note">
+            Reserve every eligible class shown in this calendar range. Capacity, level and weekly
+            limits still apply.
+          </p>
+          {bulkNotice ? <p role="status">{bulkNotice}</p> : null}
+        </section>
+      ) : null}
       <div className="member-body">
         {failed ? (
           <div className="calendar-error" role="alert">

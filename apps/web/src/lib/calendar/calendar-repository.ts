@@ -2,6 +2,8 @@ import type { StudentGroupAccess } from "@bpt-jersey/domain/schedule/member-cale
 import type {
   AttendanceRecord,
   BookingRecord,
+  BulkBookEligibleSessionsInput,
+  BulkBookEligibleSessionsResult,
   CancelBookingInput,
   ProgramRecord,
   RequestBookingInput,
@@ -61,6 +63,7 @@ export interface CalendarRepository {
   loadMember(): Promise<CalendarMember>;
   loadWeek(studentId: string, fromIso: string, toIso: string): Promise<CalendarWeekData>;
   book(input: RequestBookingInput): Promise<BookingRecord>;
+  bookEligible(input: BulkBookEligibleSessionsInput): Promise<BulkBookEligibleSessionsResult>;
   cancel(input: CancelBookingInput): Promise<BookingRecord>;
   /** T040V2: member self check-in. Refusals preserve `code` and `details.reason`. */
   clockIn(input: SelfCheckInInput): Promise<AttendanceRecord>;

@@ -3,6 +3,8 @@ import type {
   AttendanceRecord,
   DailyOperationsDashboard,
   BookingRecord,
+  BulkBookEligibleSessionsInput,
+  BulkBookEligibleSessionsResult,
   CancelBookingInput,
   CheckInInput,
   CheckoutRecord,
@@ -344,6 +346,18 @@ export async function requestBooking(input: RequestBookingInput): Promise<Bookin
 
   const result = await callable(input);
   return result.data.booking;
+}
+
+export async function bulkBookEligibleSessions(
+  input: BulkBookEligibleSessionsInput,
+): Promise<BulkBookEligibleSessionsResult> {
+  const functions = getFirebaseFunctions();
+  const callable = httpsCallable<BulkBookEligibleSessionsInput, BulkBookEligibleSessionsResult>(
+    functions,
+    "bulkBookEligibleSessions",
+  );
+  const result = await callable(input);
+  return result.data;
 }
 
 export async function cancelBooking(input: CancelBookingInput): Promise<BookingRecord> {

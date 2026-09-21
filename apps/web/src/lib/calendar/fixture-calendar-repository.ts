@@ -641,6 +641,68 @@ export function createFixtureCalendarRepository(
       replaceBooking(existing, record);
       return record;
     },
+    async bookEligible(input) {
+      const participant = participantFor(input.studentId);
+      if (!participant || participant.membershipId !== input.membershipId) {
+        throw failure("functions/failed-precondition", "membership");
+      }
+      const from = Date.parse(input.from);
+      const to = Date.parse(input.to);
+      const eligible = sessions
+        .filter((session) => {
+          const start = Date.parse(session.startAt);
+          const program = programs.find((candidate) => candidate.programId === session.programId);
+          const site = session.locationId === "town" ? "Town" : "West";
+          const coveredSites =
+            program?.discipline === "open-mat"
+              ? participant.planOpenMatSites
+              : participant.planClassSites;
+          return (
+            start >= from &&
+            start <= to &&
+            session.status === "scheduled" &&
+            !session.courseId &&
+            coveredSites.includes(site)
+          );
+        })
+        .sort((left, right) => left.startAt.localeCompare(right.startAt));
+      const created: BookingRecord[] = [];
+      let alreadyBookedCount = 0;
+      let skippedCount = 0;
+      for (const session of eligible) {
+        const existing = bookings.find(
+          (booking) =>
+            booking.sessionId === session.sessionId && booking.studentId === input.studentId,
+        );
+        if (existing?.status === "confirmed") {
+          alreadyBookedCount += 1;
+          continue;
+        }
+        if (
+          session.capacity !== null &&
+          (bookedCounts[session.sessionId] ?? 0) >= session.capacity
+        ) {
+          skippedCount += 1;
+          continue;
+        }
+        const record: BookingRecord = {
+          ...(existing ?? bookingFor(session, participant)),
+          status: "confirmed",
+          cancelledAt: null,
+          cancellationReason: null,
+          requestedAt: new Date().toISOString(),
+        };
+        replaceBooking(existing, record);
+        created.push(record);
+      }
+      return {
+        booked: created,
+        bookedCount: created.length,
+        alreadyBookedCount,
+        skippedCount,
+        limited: false,
+      };
+    },
     async clockIn(input) {
       const session = sessions.find((candidate) => candidate.sessionId === input.sessionId);
       if (!session) throw failure("functions/not-found");

@@ -41,7 +41,7 @@ import {
   type SaveLocationGeofenceInput,
   type ProgramRecord,
   type RecordCheckoutInput,
-  type RequestBookingInput,
+  type RequestMembershipBookingInput,
   type SessionOperationalView,
   type SessionRecord,
   type UpdateClassInput,
@@ -286,7 +286,7 @@ export type ScheduleStore = Readonly<{
   ) => Promise<SessionRecord>;
   requestBooking: (
     academyId: string,
-    input: RequestBookingInput,
+    input: RequestMembershipBookingInput,
     actorId: string,
     auditActor?: BookingAuditActor,
   ) => Promise<BookingRecord>;
@@ -494,7 +494,7 @@ function mergeSessionUpdate(
     endAt,
     capacity,
     minParticipants,
-    accessMode: input.accessMode ?? current.accessMode,
+    accessMode: input.accessMode ?? current.accessMode ?? "membership",
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.instructorIds !== undefined ? { instructorIds: input.instructorIds } : {}),
     ...(input.bookingRules !== undefined ? { bookingRules: input.bookingRules } : {}),
@@ -1426,7 +1426,7 @@ export function createFirestoreScheduleStore(options: {
 
     async requestBooking(
       academyId: string,
-      input: RequestBookingInput,
+      input: RequestMembershipBookingInput,
       actorId: string,
       auditActor?: BookingAuditActor,
     ): Promise<BookingRecord> {
@@ -2436,7 +2436,7 @@ export function createInMemoryScheduleStore(): ScheduleStore & {
 
     async requestBooking(
       academyId: string,
-      input: RequestBookingInput,
+      input: RequestMembershipBookingInput,
       actorId: string,
     ): Promise<BookingRecord> {
       const sMap = sessionsMap.get(academyId);
