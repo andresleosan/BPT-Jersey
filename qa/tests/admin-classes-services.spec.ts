@@ -252,10 +252,11 @@ test.describe("@classes-services", () => {
     await expect(page.getByText("14 – 20 SEP 2026")).toBeVisible();
 
     await page.getByRole("button", { name: /GI All Levels Evenings/ }).click();
-    const sessionDialog = page.getByRole("dialog", { name: /Create classes\/services/i });
+    const sessionDialog = page.getByRole("dialog", { name: "Edit session" });
     await expect(sessionDialog).toBeVisible();
-    // The registrations panel is the dialog's real content for an existing session: every read it
-    // fires on mount is stubbed above, so this proves it rendered instead of a degraded fallback.
+    // Registrations load on demand since the editor became responsive; every read they fire is
+    // stubbed above, so this proves the panel rendered instead of a degraded fallback.
+    await sessionDialog.getByRole("button", { name: "Registrations" }).click();
     await expect(sessionDialog.getByRole("heading", { name: "Registrations" })).toBeVisible();
     await expect(sessionDialog.getByText("Membership list unavailable")).toHaveCount(0);
 
