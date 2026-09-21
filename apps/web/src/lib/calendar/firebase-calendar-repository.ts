@@ -1,8 +1,8 @@
 import { courseApi } from "../courses/course-client";
 import type { CalendarWeekData } from "./calendar-repository";
-import { isIntroBooking, sessionAccessMode, type ProgramRecord } from "@bpt-jersey/domain/schedule";
+import { isIntroBooking, type ProgramRecord } from "@bpt-jersey/domain/schedule";
 /** Firebase-backed member calendar. Access grants are refreshed with every week load. */
-import { getStudentGroupAccess } from "../student-group-access-client";
+import { studentGroupAccessSchema } from "@bpt-jersey/domain/schedule/member-calendar";
 import type { PlanDraft } from "@bpt-jersey/domain/memberships";
 import { listAvailableMembershipPlans } from "../membership-client";
 
@@ -13,9 +13,7 @@ import { listNoShowPenalties } from "../no-show-penalties-client";
 import {
   bulkBookEligibleSessions,
   cancelBooking,
-  getScheduleCatalog,
-  listSessionBookedCounts,
-  listSessions,
+  getMemberCalendarWeek,
   listStudentAttendance,
   listStudentBookings,
   requestBooking,
@@ -53,6 +51,7 @@ function participantFromPlan(
     membershipId,
     planId: plan.planId,
     participantType,
+    planParticipantTypes: plan.eligibleParticipantTypes,
     planClassSites: plan.classSites,
     planOpenMatSites: plan.openMatSites,
     weeklyClassLimit: plan.weeklyClassLimit,
@@ -65,20 +64,29 @@ export function createFirebaseCalendarRepository(session: {
   scope?: "all" | "courses";
 }): CalendarRepository {
   const ordinaryRole = session.scope !== "courses" && ["guardian", "adultStudent", "teenStudent"].includes(session.role);
-  const membershipStudents = new Set<string>();
+  const membershipIds = new Map<string, string>();
   const canonicalStudents = new Set<string>();
-  const introSites = new Map<string, "Town" | "West">();
   const courseSessions = new Set<string>();
   return {
     async loadMember(): Promise<CalendarMember> {
-      membershipStudents.clear();
+      membershipIds.clear();
       canonicalStudents.clear();
-      introSites.clear();
       const subjectsPromise = !ordinaryRole
         ? Promise.resolve([])
         : session.role === "guardian"
           ? getFamily().then((family) => family?.students ?? [])
           : getClientProfile().then((profile) => profile ? [profile.student] : []);
+      const loadCourseParticipants = async () => {
+        const rows: Awaited<ReturnType<typeof courseApi.participants>>["items"][number][] = [];
+        let cursor: string | undefined;
+        do {
+          const page = await courseApi.participants(cursor ? {cursor} : {});
+          rows.push(...page.items);
+          cursor = page.cursor ?? undefined;
+        } while (cursor);
+        return rows;
+      };
+      const courseParticipantsPromise = loadCourseParticipants();
       const [memberships, plans, subjects] = await Promise.all([
         ordinaryRole ? listClientMemberships() : Promise.resolve([]),
         ordinaryRole
@@ -90,7 +98,10 @@ export function createFirebaseCalendarRepository(session: {
         membership.status === "active" || membership.status === "trial"
       );
       const introAttendance = new Map<string, boolean>();
-      await Promise.all(subjects.map(async (subject) => {
+      // Only a member without a membership can still be offered an Intro Class.
+      await Promise.all(subjects.filter((subject) =>
+        !current.some((membership) => membership.studentId === subject.studentId)
+      ).map(async (subject) => {
         const [bookings, attendance] = await Promise.all([
           listStudentBookings(subject.studentId),
           listStudentAttendance(subject.studentId),
@@ -105,7 +116,6 @@ export function createFirebaseCalendarRepository(session: {
       const participants: CalendarParticipant[] = [];
       for (const subject of subjects) {
         canonicalStudents.add(subject.studentId);
-        introSites.set(subject.studentId, subject.trainingCenter);
         const membership = current.find((candidate) => candidate.studentId === subject.studentId);
         const plan = membership
           ? plans.find((candidate) => candidate.planId === membership.planId)
@@ -138,27 +148,22 @@ export function createFirebaseCalendarRepository(session: {
           hasAttendedIntro: introAttendance.get(subject.studentId) ?? false,
           hasActiveMembership: false,
         });
-        if (membership) membershipStudents.add(subject.studentId);
+        if (fromPlan) membershipIds.set(subject.studentId, fromPlan.membershipId!);
       }
-      let cursor: string | undefined;
-      do {
-        const page = await courseApi.participants(cursor ? {cursor} : {});
-        for (const participant of page.items) {
-          if (!participant.studentId || participants.some((row) => row.studentId === participant.studentId)) continue;
-          participants.push({
-            studentId: participant.studentId,
-            firstName: firstName(participant.fullName),
-            membershipId: null,
-            planId: null,
-            participantType: participantBand(participant.dateOfBirth) ?? "adult",
-            planClassSites: [],
-            planOpenMatSites: [],
-            weeklyClassLimit: null,
-            hasActiveMembership: false,
-          });
-        }
-        cursor = page.cursor ?? undefined;
-      } while (cursor);
+      for (const participant of await courseParticipantsPromise) {
+        if (!participant.studentId || participants.some((row) => row.studentId === participant.studentId)) continue;
+        participants.push({
+          studentId: participant.studentId,
+          firstName: firstName(participant.fullName),
+          membershipId: null,
+          planId: null,
+          participantType: participantBand(participant.dateOfBirth) ?? "adult",
+          planClassSites: [],
+          planOpenMatSites: [],
+          weeklyClassLimit: null,
+          hasActiveMembership: false,
+        });
+      }
       return { role: session.role, displayName: session.displayName, participants };
     },
     async loadWeek(studentId, fromIso, toIso) {
@@ -179,28 +184,17 @@ export function createFirebaseCalendarRepository(session: {
         if (!canonicalStudents.has(studentId)) {
           return {sessions: [], programs: [], bookings: [], attendance: [], bookedCounts: {}};
         }
-        const hasMembership = membershipStudents.has(studentId);
-        const [sessions, catalog, bookings, attendance, bookedCounts, groupAccess] = await Promise.all([
-          listSessions({from: fromIso, to: toIso}),
-          getScheduleCatalog(),
-          listStudentBookings(studentId),
-          listStudentAttendance(studentId),
-          listSessionBookedCounts({from: fromIso, to: toIso}).catch(() => ({})),
-          hasMembership ? getStudentGroupAccess(studentId) : Promise.resolve(undefined),
-        ]);
-        const introLocationId = introSites.get(studentId)?.toLowerCase();
-        const visibleSessions = sessions.filter((record) =>
-          !record.courseId && (hasMembership || (
-            sessionAccessMode(record) === "intro" && record.locationId === introLocationId
-          ))
-        );
+        // The server narrows the week to the plan and group access; nothing else is downloaded.
+        const week = await getMemberCalendarWeek({
+          studentId, membershipId: membershipIds.get(studentId) ?? null, from: fromIso, to: toIso,
+        });
         return {
-          sessions: visibleSessions,
-          programs: catalog.programs,
-          bookings: bookings.filter((booking) => booking.schemaVersion !== "2"),
-          attendance: attendance.filter((record) => !record.courseId),
-          bookedCounts,
-          ...(groupAccess ? {groupAccess} : {}),
+          sessions: week.sessions,
+          programs: week.programs,
+          bookings: week.bookings.filter((booking) => booking.schemaVersion !== "2"),
+          attendance: week.attendance.filter((record) => !record.courseId),
+          bookedCounts: week.bookedCounts,
+          ...(week.groupAccess ? {groupAccess: studentGroupAccessSchema.parse(week.groupAccess)} : {}),
         };
       };
       const [ordinary] = await Promise.all([loadOrdinary(), loadCourses()]);

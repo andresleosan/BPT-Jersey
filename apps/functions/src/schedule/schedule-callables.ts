@@ -104,7 +104,7 @@ async function requestedMemberStudentId(
   return own.studentId;
 }
 
-async function requireStudentScope(
+export async function requireStudentScope(
   request: CallableRequest<unknown>,
   studentId: string,
   options: StudentScopeOptions,
@@ -1070,7 +1070,7 @@ export function createListSessionAttendanceHandler(options: { store: ScheduleSto
  * The proximity signal describes the staff device that recorded the check-in and may carry the
  * coach's free-text override reason. Members and guardians see the attendance, never the signal.
  */
-function attendanceForActor(
+export function attendanceForActor(
   actor: Readonly<{ role: string }>,
   records: readonly AttendanceRecord[],
 ): readonly AttendanceRecord[] {
@@ -1329,7 +1329,7 @@ function getStore(): ScheduleStore {
   return defaultStore;
 }
 
-function getStudentScopeOptions(): StudentScopeOptions {
+export function getStudentScopeOptions(): StudentScopeOptions {
   return {
     store: getStore(),
     resolveClientStudentScope: resolveCanonicalClientStudent,

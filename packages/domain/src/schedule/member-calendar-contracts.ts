@@ -232,6 +232,8 @@ export type CalendarMemberContext = Readonly<{
   membershipStartsAt?: string;
   membershipEndsAt?: string | null | undefined;
   participantType: ParticipantType;
+  /** The plan's eligible participant types; undefined keeps older contexts unrestricted. */
+  planParticipantTypes?: readonly ParticipantType[];
   planClassSites: readonly Site[];
   planOpenMatSites: readonly Site[];
   weeklyClassLimit: WeeklyClassLimit;
@@ -272,6 +274,8 @@ function lockedReasonFor(
       ? member.participantType
       : participantTypeOn(member.dateOfBirth, dateKeyInJersey(new Date(session.startAt)));
   if (program.ageBand !== "all" && program.ageBand !== band) return "age_band";
+  // Same rule as the booking transaction: the plan itself must cover the member's band.
+  if (member.planParticipantTypes && !member.planParticipantTypes.includes(band)) return "age_band";
   const site = sessionSite(session);
   if (program.discipline === "open-mat") {
     return member.planOpenMatSites.includes(site) ? undefined : "open_mat";

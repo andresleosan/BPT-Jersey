@@ -71,7 +71,7 @@ const authEmulatorUrl =
 
 let authEmulatorConnected = false;
 let firestoreEmulatorConnected = false;
-let functionsEmulatorConnected = false;
+const functionsEmulatorConnected = new Set<string | undefined>();
 let firebaseAppCheck: AppCheck | undefined;
 let firebaseAuth: Auth | undefined;
 
@@ -208,14 +208,19 @@ export function getFirebaseFirestore(): Firestore {
   return firestore;
 }
 
-export function getFirebaseFunctions(): Functions {
+/** The member calendar's hot path runs beside Firestore; see member-calendar-week-callables.ts. */
+export const memberFunctionsRegion = "europe-west9";
+
+export function getFirebaseFunctions(region?: string): Functions {
   const useFirebaseEmulators = shouldUseFirebaseEmulators();
   initializeFirebaseAppCheck(useFirebaseEmulators);
-  const functions = getFunctions(getFirebaseClient());
+  const functions = region
+    ? getFunctions(getFirebaseClient(), region)
+    : getFunctions(getFirebaseClient());
 
-  if (useFirebaseEmulators && !functionsEmulatorConnected) {
+  if (useFirebaseEmulators && !functionsEmulatorConnected.has(region)) {
     connectFunctionsEmulator(functions, firestoreEmulatorHost, functionsEmulatorPort);
-    functionsEmulatorConnected = true;
+    functionsEmulatorConnected.add(region);
   }
 
   return functions;

@@ -6,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFixtureCalendarRepository } from "../../../lib/calendar/fixture-calendar-repository";
 import { MemberCalendar } from "./member-calendar";
 
-const schedule = vi.hoisted(() => ({
+const schedule = vi.hoisted(() => {
+  const mocks = {
+  getMemberCalendarWeek: vi.fn(),
   listSessions: vi.fn(),
   getScheduleCatalog: vi.fn(),
   listStudentBookings: vi.fn(),
@@ -16,7 +18,19 @@ const schedule = vi.hoisted(() => ({
   cancelBooking: vi.fn(),
   listSessionBookedCounts: vi.fn(),
   selfCheckIn: vi.fn(),
-}));
+};
+  // Stands in for the server's single week call by composing the older per-resource mocks.
+  mocks.getMemberCalendarWeek.mockImplementation(async ({ studentId, from, to }) => ({
+    sessions: await mocks.listSessions({ from, to }),
+    programs: (await mocks.getScheduleCatalog()).programs,
+    bookings: await mocks.listStudentBookings(studentId),
+    attendance: await mocks.listStudentAttendance(studentId),
+    bookedCounts: await Promise.resolve()
+      .then(() => mocks.listSessionBookedCounts({ from, to }))
+      .catch(() => ({})),
+  }));
+  return mocks;
+});
 vi.mock("../../../lib/schedule-client", () => schedule);
 vi.mock("../../../lib/membership-client", () => ({
   listAvailableMembershipPlans: vi.fn().mockResolvedValue(PLAN_CATALOG),

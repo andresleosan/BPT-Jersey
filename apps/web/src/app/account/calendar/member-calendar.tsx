@@ -255,6 +255,9 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
           }
         : {}),
       participantType: participant.participantType,
+      ...(participant.planParticipantTypes
+        ? { planParticipantTypes: participant.planParticipantTypes }
+        : {}),
       planClassSites: participant.planClassSites,
       planOpenMatSites: participant.planOpenMatSites,
       weeklyClassLimit: participant.weeklyClassLimit,
@@ -375,6 +378,15 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
     });
   }, []);
 
+  /** Undo an optimistic change: put back what the session held before, or nothing. */
+  const restoreBooking = useCallback((sessionId: string, previous: BookingRecord | undefined) => {
+    setWeek((current) => {
+      if (!current) return current;
+      const others = current.bookings.filter((b) => b.sessionId !== sessionId);
+      return { ...current, bookings: previous ? [previous, ...others] : others };
+    });
+  }, []);
+
   const handleCheckedIn = useCallback((scope: WeekScope, record: AttendanceRecord) => {
     if (
       !sameWeekScope(scope, activeWeekScope.current) ||
@@ -442,6 +454,27 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
       const isIntro = sessionAccessMode(entry.session) === "intro";
       if (!isIntro && !participant.membershipId) return;
       setBusyKey(entry.session.sessionId);
+      // Show the place as taken at once; the server's answer confirms it or puts things back.
+      if (!isIntro) {
+        const at = new Date().toISOString();
+        applyBooking({
+          bookingId: "pending:" + entry.session.sessionId,
+          academyId: entry.session.academyId,
+          sessionId: entry.session.sessionId,
+          studentId: participant.studentId,
+          membershipId: participant.membershipId!,
+          status: "confirmed",
+          requestedAt: at,
+          cancelledAt: null,
+          cancellationReason: null,
+          schemaVersion: "1",
+          createdAt: at,
+          createdBy: participant.studentId,
+          updatedAt: at,
+          updatedBy: participant.studentId,
+        });
+        flashNote(entry.session.sessionId, bookedNote);
+      }
       try {
         const booking = await repository.book(
           isIntro
@@ -458,14 +491,15 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
               },
         );
         applyBooking(booking);
-        flashNote(entry.session.sessionId, isIntro ? "Intro Class booked." : bookedNote);
+        if (isIntro) flashNote(entry.session.sessionId, "Intro Class booked.");
       } catch (error) {
+        if (!isIntro) restoreBooking(entry.session.sessionId, entry.booking);
         flashNote(entry.session.sessionId, bookingFailureMessage(error));
       } finally {
         setBusyKey("");
       }
     },
-    [participant, repository, applyBooking, flashNote],
+    [participant, repository, applyBooking, restoreBooking, flashNote],
   );
 
   const handleBookEligible = useCallback(async () => {
@@ -509,6 +543,9 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
           );
           return;
         }
+        // Close the dialog and free the place on screen at once; a refusal puts the booking back.
+        setCancelling(undefined);
+        if (entry.booking) applyBooking({ ...entry.booking, status: "cancelled" });
         const booking = await repository.cancel({
           sessionId: entry.session.sessionId,
           studentId: participant.studentId,
@@ -516,13 +553,14 @@ export function MemberCalendar({ repository, session, onSignOut, topSlot }: Memb
         });
         applyBooking(booking);
       } catch (error) {
+        if (!entry.session.courseId) restoreBooking(entry.session.sessionId, entry.booking);
         flashNote(entry.session.sessionId, cancellationFailureMessage(error));
       } finally {
         setBusyKey("");
         setCancelling(undefined);
       }
     },
-    [participant, repository, applyBooking, flashNote],
+    [participant, repository, applyBooking, restoreBooking, flashNote],
   );
 
   const next = nextOffset(viewport, offset, now, true);

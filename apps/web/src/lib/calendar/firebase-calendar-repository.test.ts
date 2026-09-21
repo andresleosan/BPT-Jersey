@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PLAN_CATALOG } from "@bpt-jersey/domain/memberships";
 
-const schedule = vi.hoisted(() => ({
+const schedule = vi.hoisted(() => {
+  const mocks = {
+  getMemberCalendarWeek: vi.fn(),
   listSessions: vi.fn(),
   getScheduleCatalog: vi.fn(),
   listStudentBookings: vi.fn(),
@@ -11,7 +13,19 @@ const schedule = vi.hoisted(() => ({
   cancelBooking: vi.fn(),
   selfCheckIn: vi.fn(),
   listSessionBookedCounts: vi.fn(),
-}));
+};
+  // Stands in for the server's single week call by composing the older per-resource mocks.
+  mocks.getMemberCalendarWeek.mockImplementation(async ({ studentId, from, to }) => ({
+    sessions: await mocks.listSessions({ from, to }),
+    programs: (await mocks.getScheduleCatalog()).programs,
+    bookings: await mocks.listStudentBookings(studentId),
+    attendance: await mocks.listStudentAttendance(studentId),
+    bookedCounts: await Promise.resolve()
+      .then(() => mocks.listSessionBookedCounts({ from, to }))
+      .catch(() => ({})),
+  }));
+  return mocks;
+});
 const penalties = vi.hoisted(() => ({ listNoShowPenalties: vi.fn() }));
 const profile = vi.hoisted(() => ({ getClientProfile: vi.fn() }));
 const courses = vi.hoisted(() => ({
@@ -154,7 +168,11 @@ describe("firebase calendar repository", () => {
     expect(member.participants[0]).toMatchObject({
       studentId: "s-1", membershipId: null, introSite: "Town", hasActiveMembership: false,
     });
-    expect(week.sessions).toEqual([{ sessionId: "intro-town", accessMode: "intro", locationId: "town" }]);
+    // The server narrows the week now; the repository must ask for it without a membership.
+    expect(schedule.getMemberCalendarWeek).toHaveBeenCalledWith(
+      expect.objectContaining({ studentId: "s-1", membershipId: null }),
+    );
+    expect(week.sessions).toHaveLength(3);
   });
 
   it("delegates member clock-in to the selfCheckIn callable", async () => {

@@ -43,7 +43,7 @@ import type {
   WeekPreview,
 } from "@bpt-jersey/domain/schedule/classes-services";
 
-import { getFirebaseFunctions } from "./firebase-client";
+import { getFirebaseFunctions, memberFunctionsRegion } from "./firebase-client";
 
 export const scheduleCallableClientOptions = Object.freeze({
   limitedUseAppCheckTokens: true,
@@ -337,11 +337,34 @@ export async function listSessionBookedCounts(
   return Object.freeze({ ...(counts as Record<string, number>) });
 }
 
+export type MemberCalendarWeek = Readonly<{
+  sessions: readonly SessionRecord[];
+  programs: readonly ProgramRecord[];
+  bookings: readonly BookingRecord[];
+  attendance: readonly AttendanceRecord[];
+  bookedCounts: Readonly<Record<string, number>>;
+  groupAccess?: unknown;
+}>;
+
+/**
+ * The member's week in one call, already narrowed server-side to the plan and group access.
+ * A read: it reuses the cached App Check token rather than minting a limited-use one.
+ */
+export async function getMemberCalendarWeek(
+  input: Readonly<{ studentId: string; membershipId: string | null; from: string; to: string }>,
+): Promise<MemberCalendarWeek> {
+  const callable = firebaseHttpsCallable<typeof input, MemberCalendarWeek>(
+    getFirebaseFunctions(memberFunctionsRegion),
+    "getMemberCalendarWeek",
+  );
+  return (await callable(input)).data;
+}
+
 export async function requestBooking(input: RequestBookingInput): Promise<BookingRecord> {
-  const functions = getFirebaseFunctions();
+  const functions = getFirebaseFunctions(memberFunctionsRegion);
   const callable = httpsCallable<RequestBookingInput, { booking: BookingRecord }>(
     functions,
-    "requestBooking",
+    "requestBookingEu",
   );
 
   const result = await callable(input);
@@ -361,10 +384,10 @@ export async function bulkBookEligibleSessions(
 }
 
 export async function cancelBooking(input: CancelBookingInput): Promise<BookingRecord> {
-  const functions = getFirebaseFunctions();
+  const functions = getFirebaseFunctions(memberFunctionsRegion);
   const callable = httpsCallable<CancelBookingInput, { booking: BookingRecord }>(
     functions,
-    "cancelBooking",
+    "cancelBookingEu",
   );
 
   const result = await callable(input);
