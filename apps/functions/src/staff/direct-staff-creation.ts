@@ -5,10 +5,12 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { z } from "zod";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
+import { isWeakStaffPassword } from "./staff-password-policy.js";
 
 export const directStaffInputSchema = z.strictObject({ displayName: z.string().trim().min(2).max(160), email: z.email().trim().toLowerCase().max(320), password: z.string().min(12).max(128), role: z.enum(["coach","administrator","owner"]) });
 export async function createStaffWithPasswordService(auth: Auth, db: Firestore, actor: Awaited<ReturnType<typeof requireActiveOfficeActor>>, raw: unknown) {
   const input = directStaffInputSchema.safeParse(raw); if (!input.success) throw new HttpsError("invalid-argument", "Enter a name, email, role and password of 12 to 128 characters.");
+  if (isWeakStaffPassword(input.data.password, input.data.email)) throw new HttpsError("invalid-argument", "Choose a password that does not contain the email and is not a repeated character.");
   if (actor.role !== "owner" && input.data.role !== "coach") throw new HttpsError("permission-denied", "Only an owner can create office access.");
   let uid: string | undefined;
   try {

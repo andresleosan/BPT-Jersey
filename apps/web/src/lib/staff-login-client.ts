@@ -36,6 +36,7 @@ export function staffAccessError(error: unknown): string {
     return "The Google window was closed. You can try again.";
   if (code === "auth/requires-recent-login") return "Sign out, sign in again, and retry.";
   if (code === "functions/resource-exhausted") return "Too many attempts. Try again in 15 minutes.";
+  if (code === "functions/invalid-argument") return "Use 12 to 128 characters, without your email and not a single repeated character.";
   if (code === "functions/unauthenticated") return "Check your staff ID and current password.";
   return "We could not update your access. Please try again or contact the office.";
 }
