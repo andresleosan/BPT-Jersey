@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
@@ -91,7 +91,7 @@ test.describe("T093 canonical member directory with Firebase Emulators", () => {
   }) => {
     const idToken = await signIn(request);
     const suffix = randomUUID().replace(/-/gu, "").slice(0, 8).toUpperCase();
-    const membershipNumber = `BPT T093 ${suffix}`;
+    const membershipNumber = String(randomInt(100_000_000, 1_000_000_000));
     const requestId = `t093-create-${suffix}`;
     const createInput = {
       requestId,
@@ -108,7 +108,6 @@ test.describe("T093 canonical member directory with Firebase Emulators", () => {
         relationship: "Spouse",
         phoneNumber: "+441534000094",
       },
-      postalAddress: { line: "1 Synthetic Street, St Helier", postCode: "JE2 3AB" },
     };
 
     const created = await call(request, "createMember", createInput, { idToken });
@@ -141,7 +140,7 @@ test.describe("T093 canonical member directory with Firebase Emulators", () => {
     expect(JSON.stringify(lookupResult.row)).not.toContain(membershipNumber);
     expect(JSON.stringify(lookupResult.row)).not.toMatch(/emergency|postCode|dateOfBirth|email/u);
 
-    // Purpose-bound detail carries the waiver blocks exactly as captured.
+    // Purpose-bound detail carries the emergency contact but omits legacy location data.
     const detail = await call(
       request,
       "getMemberDetail",
@@ -151,7 +150,7 @@ test.describe("T093 canonical member directory with Firebase Emulators", () => {
     expect(detail.status, JSON.stringify(detail.body)).toBe(200);
     const detailResult = detail.body.result as Record<string, unknown>;
     expect(detailResult.emergencyContact).toEqual(createInput.emergencyContact);
-    expect(detailResult.postalAddress).toEqual(createInput.postalAddress);
+    expect(detailResult.postalAddress).toBeUndefined();
     expect(detailResult.membershipNumber).toBe(membershipNumber);
     expect(JSON.stringify(detailResult)).not.toMatch(/academyId|source|createdBy/u);
 
