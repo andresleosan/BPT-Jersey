@@ -13,6 +13,7 @@ import {
   type ClientMembership,
 } from "../../../lib/membership-client";
 import { participantBand } from "../../../lib/participant-band";
+import { IntroApplicationForm } from "./intro-application-form";
 import { describePlanAccess, formatPlanPrice } from "../../../lib/plan-copy";
 import { getClientProfile } from "../../../lib/profile-client";
 
@@ -39,6 +40,7 @@ function MembershipContent() {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [selectedPlanId, setSelectedPlanId] = useState<PlanId | "">("");
   const [busy, setBusy] = useState(false);
+  const [introFlow, setIntroFlow] = useState(false);
   const [notice, setNotice] = useState<Readonly<{ kind: "success" | "error"; text: string }>>();
 
   const load = useCallback(async () => {
@@ -104,6 +106,7 @@ function MembershipContent() {
 
   useEffect(() => {
     void load();
+    setIntroFlow(new URLSearchParams(window.location.search).get("from") === "intro");
   }, [load]);
   const selectedSubject = workspace?.subjects.find(
     (subject) => subject.studentId === selectedStudentId,
@@ -263,7 +266,7 @@ function MembershipContent() {
                   </>
                 )}
               </section>
-              <form className="client-trial-form" onSubmit={(event) => void startTrial(event)}>
+              {introFlow ? <IntroApplicationForm /> : <form className="client-trial-form" onSubmit={(event) => void startTrial(event)}>
                 <label htmlFor="trial-plan">Trial plan</label>
                 <select
                   disabled={busy || hasCurrentMembership || eligiblePlans.length === 0}
@@ -294,7 +297,7 @@ function MembershipContent() {
                     Review waiver
                   </a>
                 </div>
-              </form>
+              </form>}
             </>
           )}
           {notice ? (

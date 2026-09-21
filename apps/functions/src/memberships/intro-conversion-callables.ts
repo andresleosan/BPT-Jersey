@@ -56,3 +56,32 @@ export const listMemberNotifications = onCall(browserAdminCallableOptions, (requ
   createListMemberNotificationsHandler(firestoreStore())(request));
 export const markMemberNotificationRead = onCall(browserAdminCallableOptions, (request) =>
   createMarkMemberNotificationReadHandler(firestoreStore())(request));
+
+import { defineSecret } from "firebase-functions/params";
+import { membershipApplicationSubmitSchema } from "@bpt-jersey/domain";
+import { createPrivateStorageR2Client } from "../storage/r2-client.js";
+import { getIntroMembershipContext as loadIntroMembershipContext, submitIntroMembershipApplication as submitApplication } from "./intro-application-service.js";
+import { uploadIntroProof } from "./intro-payment-proof.js";
+
+const introStorageSecrets = ["R2_ACCOUNT_ID", "R2_BUCKET_NAME", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_JURISDICTION"].map((name) => defineSecret(name));
+const proofUploadSchema = z.strictObject({ requestId: z.uuid(), contentType: z.enum(["image/png", "image/jpeg"]), base64: z.string().min(4).max(Math.ceil((2 * 1024 * 1024) / 3) * 4).regex(/^[A-Za-z0-9+/]+={0,2}$/u) });
+
+export const getIntroMembershipContext = onCall(browserAdminCallableOptions, async (request) => {
+  const actor = await requireMemberAccountActor(request);
+  if (request.data !== null) throw new HttpsError("invalid-argument", "Invalid membership request");
+  return loadIntroMembershipContext(getFirestore(), actor);
+});
+
+export const uploadIntroMembershipProof = onCall({ ...browserAdminCallableOptions, secrets: introStorageSecrets }, async (request) => {
+  const actor = await requireMemberAccountActor(request);
+  const input = proofUploadSchema.safeParse(request.data);
+  if (!input.success) throw new HttpsError("invalid-argument", "Choose a PNG or JPEG screenshot up to 2 MB.");
+  return uploadIntroProof({ academyId: actor.academyId, userId: actor.userId, ...input.data }, createPrivateStorageR2Client());
+});
+
+export const submitIntroMembershipApplication = onCall({ ...browserAdminCallableOptions, secrets: introStorageSecrets }, async (request) => {
+  const actor = await requireMemberAccountActor(request);
+  const input = membershipApplicationSubmitSchema.safeParse(request.data);
+  if (!input.success) throw new HttpsError("invalid-argument", "Invalid membership application");
+  return submitApplication(getFirestore(), actor, input.data, createPrivateStorageR2Client());
+});
