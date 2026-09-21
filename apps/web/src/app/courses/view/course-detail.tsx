@@ -140,7 +140,7 @@ export function CourseDetail() {
                 <li key={slot.sessionId}>
                   <span className="course-slot-number">Session {slot.ordinal}</span>
                   <strong>{courseDate(slot.startAt)}</strong>
-                  <span>{courseEndTime(slot.endAt)}</span>
+                  <span>Ends {courseEndTime(slot.endAt)}</span>
                   <span className="course-slot-status">{slotStatus(slot)}</span>
                 </li>
               ))}
