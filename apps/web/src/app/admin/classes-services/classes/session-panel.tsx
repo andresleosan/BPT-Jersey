@@ -227,6 +227,8 @@ export function SessionPanel({
 
   const editing = current === "edit" && session !== undefined;
   const locked = editing && !canReadMemberships;
+  // Operator decision 2026-09-21: only the office (owner/administrator) writes the curriculum.
+  const curriculumLocked = !canReadMemberships;
   const mutationInFlight = useRef(false);
 
   function patch(change: Partial<Draft>): void {
@@ -681,7 +683,7 @@ export function SessionPanel({
                   type="text"
                   maxLength={160}
                   value={draft.curriculumTitle}
-                  disabled={readOnly}
+                  disabled={readOnly || curriculumLocked}
                   onChange={(event) => patch({ curriculumTitle: event.target.value })}
                 />
               </label>
@@ -691,7 +693,7 @@ export function SessionPanel({
                   rows={4}
                   maxLength={3_219}
                   value={draft.curriculumTechniques}
-                  disabled={readOnly}
+                  disabled={readOnly || curriculumLocked}
                   onChange={(event) => patch({ curriculumTechniques: event.target.value })}
                 />
               </label>
@@ -701,7 +703,7 @@ export function SessionPanel({
                   rows={4}
                   maxLength={1_000}
                   value={draft.curriculumDetails}
-                  disabled={readOnly}
+                  disabled={readOnly || curriculumLocked}
                   onChange={(event) => patch({ curriculumDetails: event.target.value })}
                 />
               </label>

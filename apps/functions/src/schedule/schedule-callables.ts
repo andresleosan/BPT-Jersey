@@ -597,6 +597,12 @@ export function createSaveSessionHandler(options: { store: ScheduleStore }) {
     if (!parsed.ok) {
       throw new HttpsError("invalid-argument", parsed.error);
     }
+    if (
+      parsed.value.curriculum !== undefined &&
+      actor.role !== "owner" &&
+      actor.role !== "administrator"
+    )
+      throw new HttpsError("permission-denied", "Office access required to edit the curriculum");
 
     const created = await store.createSession(actor.academyId, parsed.value, actor.userId);
     return {
@@ -654,6 +660,12 @@ export function createUpdateSessionHandler(options: { store: ScheduleStore }) {
         "permission-denied",
         "Office access required to change session type or site",
       );
+    if (
+      parsed.value.curriculum !== undefined &&
+      actor.role !== "owner" &&
+      actor.role !== "administrator"
+    )
+      throw new HttpsError("permission-denied", "Office access required to edit the curriculum");
     try {
       return {
         session: await store.updateSession(
