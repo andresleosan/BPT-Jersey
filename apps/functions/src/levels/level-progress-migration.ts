@@ -328,7 +328,7 @@ export async function applyLevelProgressMigration(
         `academies/${plan.academyId}/studentLevelProgress/${row.recordId}`,
       );
       const definitionRef = store.firestore.doc(
-        `academies/${plan.academyId}/levelDefinitions/${levelCatalogStorageId("ibjjf-v3", row.currentDefinitionKey)}`,
+        `academies/${plan.academyId}/levelDefinitions/${levelCatalogStorageId("ibjjf-v3", row.currentDefinitionKey!)}`,
       );
       const systemRef = store.firestore.doc(`academies/${plan.academyId}/levelSystems/ibjjf-v3`);
       const id = receiptId(plan.academyId, plan.operationId, row.recordId);

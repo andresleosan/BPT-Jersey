@@ -55,8 +55,8 @@ export type MemberDirectoryOperationEnvironmentBinding = Readonly<{
   target: "emulator";
   projectId: "demo-bpt-jersey";
   targetProjectClassification: "emulator";
-  firestoreEmulatorHost: "127.0.0.1:8080";
-  authEmulatorHost: "127.0.0.1:9099";
+  firestoreEmulatorHost: `127.0.0.1:${number}`;
+  authEmulatorHost: `127.0.0.1:${number}`;
 }>;
 
 const sourceProjectId = "demo-bpt-jersey" as const;
@@ -81,6 +81,13 @@ function unsafeOperationEnvironment(): never {
   throw new Error("Member directory operation environment is not safe.");
 }
 
+function loopbackEmulatorHost(value: string | undefined): `127.0.0.1:${number}` | undefined {
+  const match = /^127\.0\.0\.1:([1-9]\d{3,4})$/u.exec(value ?? "");
+  const port = Number(match?.[1] ?? 0);
+  if (port < 1_024 || port > 65_535 || value !== `127.0.0.1:${port}`) return undefined;
+  return value as `127.0.0.1:${number}`;
+}
+
 function operationFirebaseConfigProjectId(value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
   try {
@@ -101,12 +108,16 @@ function operationFirebaseConfigProjectId(value: string | undefined): string | u
 export function assertMemberDirectoryOperationEnvironment(
   input: MemberDirectoryOperationEnvironmentInput,
 ): MemberDirectoryOperationEnvironmentBinding {
+  const operationFirestoreHost = loopbackEmulatorHost(
+    input.environment.FIRESTORE_EMULATOR_HOST,
+  );
+  const operationAuthHost = loopbackEmulatorHost(input.environment.FIREBASE_AUTH_EMULATOR_HOST);
   if (
     input.target !== "emulator" ||
     input.explicitProjectId !== sourceProjectId ||
     input.app.projectId !== sourceProjectId ||
-    input.environment.FIRESTORE_EMULATOR_HOST !== firestoreEmulatorHost ||
-    input.environment.FIREBASE_AUTH_EMULATOR_HOST !== authEmulatorHost
+    operationFirestoreHost === undefined ||
+    operationAuthHost === undefined
   ) {
     unsafeOperationEnvironment();
   }
@@ -128,8 +139,8 @@ export function assertMemberDirectoryOperationEnvironment(
     target: "emulator",
     projectId: sourceProjectId,
     targetProjectClassification: "emulator",
-    firestoreEmulatorHost,
-    authEmulatorHost,
+    firestoreEmulatorHost: operationFirestoreHost,
+    authEmulatorHost: operationAuthHost,
   });
 }
 

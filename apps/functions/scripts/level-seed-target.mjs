@@ -1,5 +1,4 @@
 const demoProjectId = "demo-bpt-jersey";
-const demoFirestoreEmulatorHost = "127.0.0.1:8080";
 const knownProductionProjectIds = new Set(["bptjersey-f5a25"]);
 // Operator decision 2026-09-19 (T051V2): production only in this project, no emulator host, and
 // behind its own confirmation. Mirrors apps/functions/src/levels/level-seed.ts.
@@ -17,6 +16,12 @@ const allowedOptionNames = new Set([
 
 function unsafeTarget() {
   throw new Error("Level seed target is not safe.");
+}
+
+function isSafeDemoFirestoreEmulatorHost(value) {
+  const match = /^127\.0\.0\.1:([1-9]\d{3,4})$/u.exec(value ?? "");
+  const port = Number(match?.[1] ?? 0);
+  return port >= 1_024 && port <= 65_535 && value === `127.0.0.1:${port}`;
 }
 
 function normalizeProjectId(value) {
@@ -138,7 +143,7 @@ export function assertLevelSeedTargetEnvironment(target, environment) {
   if (
     target === "emulator" &&
     (projectId !== demoProjectId ||
-      environment.firestoreEmulatorHost?.trim() !== demoFirestoreEmulatorHost)
+      !isSafeDemoFirestoreEmulatorHost(environment.firestoreEmulatorHost))
   ) {
     unsafeTarget();
   }
