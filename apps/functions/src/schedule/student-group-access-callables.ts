@@ -128,6 +128,14 @@ export const saveStudentGroupAccess = onCall(browserAdminCallableOptions, async 
       revision: next.revision, actorId: actor.userId, actorRole: actor.role,
       occurredAt: changedAt, action: "member.group-access.updated",
     });
+    // General audit trail: who changed which member's exception. The free-text reason stays in the
+    // access document and its event, because audit events carry no personal data in clear.
+    transaction.create(db.collection(`${base}/auditEvents`).doc(), {
+      eventId: eventRef.id, academyId: actor.academyId, actorId: actor.userId,
+      action: "member.group-access.updated", targetRef: accessRef.path,
+      purpose: "additional group access", correlationId: eventRef.id,
+      occurredAt: changedAt, schemaVersion: "1",
+    });
     return next;
   });
 });
