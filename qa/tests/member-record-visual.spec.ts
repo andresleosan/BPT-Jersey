@@ -41,9 +41,8 @@ const fullProfile = {
     active: true,
     status: "active",
     gender: "unknown",
-    membershipNumber: "00000000",
-    postalAddress: { line: "1 Test Street", postCode: "JE0 0AA" },
-    details: { country: "JE", weightKg: 70, heightCm: 175, idCardExpiresOn: "2026-10-01" },
+    membershipNumber: "33",
+    details: { weightKg: 70, heightCm: 175, idCardExpiresOn: "2026-10-01" },
   },
 };
 

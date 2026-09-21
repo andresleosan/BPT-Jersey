@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 
 import { deleteApp, initializeApp, type App } from "firebase-admin/app";
@@ -314,6 +314,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     const birthday = new Date(Date.parse(`${today}T00:00:00.000Z`) + 3 * dayMs);
     // A leap birth year also accepts February 29; subtracting 30 years did not.
     const adultDateOfBirth = `2000-${birthday.toISOString().slice(5, 10)}`;
+    let nextMembershipNumber = randomInt(100_000_000, 999_999_996);
 
     async function createMember(label: string, dateOfBirth: string): Promise<Member> {
       const localSuffix = `${suffix}${label.toUpperCase()}`;
@@ -326,14 +327,13 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
         email: `t051-${localSuffix.toLowerCase()}@example.test`,
         trainingCenter: "Town",
         trainingTimePreferences: ["evening"],
-        membershipNumber: `BPT T051 ${localSuffix}`,
+        membershipNumber: String(nextMembershipNumber++),
         gender: "unknown",
         emergencyContact: {
           fullName: "Synthetic T051 Contact",
           relationship: "Spouse",
           phoneNumber: "+441534000052",
         },
-        postalAddress: { line: "1 Synthetic Street, St Helier", postCode: "JE2 3AB" },
       })) as { studentId: string };
       return { studentId: result.studentId, fullName };
     }
@@ -363,7 +363,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
         await firestore.doc(`${root}/studentLevelProgress/${member.studentId}`).set({
           academyId,
           studentId: member.studentId,
-          systemId: "ibjjf-v2",
+          systemId: "ibjjf-v3",
           lastApprovedPromotionId: null,
           openedByStaffId: null,
           openedByRole: null,
