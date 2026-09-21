@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { installAdminFixture, type CallableCall } from "./admin-fixture";
+import { installAdminFixture, type CallableCall, type CallableResponder } from "./admin-fixture";
 
 const audit = {
   schemaVersion: 1,
@@ -87,7 +87,10 @@ const members = [
   { studentId: "student-carla", fullName: "Carla Dias", familyId: "f3" },
 ];
 
-function billingCallables(calls: CallableCall[]) {
+function billingCallables(calls: CallableCall[]): {
+  calls: CallableCall[];
+  callables: Record<string, unknown | CallableResponder>;
+} {
   return {
     calls,
     callables: {
@@ -98,6 +101,7 @@ function billingCallables(calls: CallableCall[]) {
       listMemberNames: { members },
       getFamilyFinancialAccount: financialAccount,
       listNoShowPenalties: { penalties: [] },
+      listIntroMembershipApplications: { applications: [] },
       issueManualInvoice: (body: unknown) => {
         const data = (body as { data: Record<string, unknown> }).data;
         return {
@@ -139,6 +143,66 @@ function billingCallables(calls: CallableCall[]) {
 }
 
 test.describe("admin billing home", () => {
+  test("reviews an Intro Class payment application before granting membership", async ({
+    page,
+  }) => {
+    const calls: CallableCall[] = [];
+    const fixture = billingCallables(calls);
+    const application = {
+      applicationId: "intro-application-1",
+      requestId: "00112233-4455-4677-8899-aabbccddeeff",
+      academyId: "synthetic-academy",
+      applicantUid: "member-1",
+      studentId: "student-1",
+      conversionId: "intro-student-1",
+      site: "Town",
+      planId: "town-adult",
+      planName: "Town Adult",
+      priceMinor: 8500,
+      currency: "GBP",
+      billingPeriod: "monthly",
+      planUpdatedAt: "2026-09-20T00:00:00.000Z",
+      proofId: "a".repeat(64),
+      bankReference: "INTRO-33",
+      status: "pending_review",
+      revision: 0,
+      decisionReason: null,
+      approvedMembershipId: null,
+      createdAt: "2026-09-21T12:00:00.000Z",
+      updatedAt: "2026-09-21T12:00:00.000Z",
+      schemaVersion: "1",
+    };
+    let pending = true;
+    fixture.callables.listIntroMembershipApplications = () => ({
+      applications: pending ? [application] : [],
+    });
+    fixture.callables.getIntroMembershipProofUrl = {
+      url: "https://evidence.example.test/receipt",
+      expiresAt: "2026-09-21T12:01:00.000Z",
+    };
+    fixture.callables.reviewIntroMembershipApplication = () => {
+      pending = false;
+      return { status: "approved", membershipId: "membership-1" };
+    };
+    await installAdminFixture(page, fixture);
+    await page.goto("/admin/billing?adminTestRole=owner");
+
+    const panel = page.getByRole("region", { name: "Membership applications" });
+    await expect(panel.getByText("Town Adult")).toBeVisible();
+    await expect(panel.getByText(/Town · £85.00 · INTRO-33/u)).toBeVisible();
+    await panel.getByRole("button", { name: "View evidence" }).click();
+    await expect(panel.getByRole("link", { name: "Open payment evidence" })).toHaveAttribute(
+      "href",
+      "https://evidence.example.test/receipt",
+    );
+    page.once("dialog", (dialog) => void dialog.accept());
+    await panel.getByRole("button", { name: "Approve" }).click();
+    await expect(panel.getByText("No Intro Class applications are waiting.")).toBeVisible();
+    await expect
+      .poll(() => calls.find((call) => call.name === "reviewIntroMembershipApplication")?.body)
+      .toMatchObject({ data: { applicationId: application.applicationId, decision: "approve" } });
+  });
+
   test("shows the metrics and latest payments", async ({ page }, testInfo) => {
     const browserErrors: string[] = [];
     page.on("console", (message) => {

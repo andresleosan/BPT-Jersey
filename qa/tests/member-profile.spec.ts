@@ -17,10 +17,20 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from "@
  */
 const enabled = process.env.MEMBER_PROFILE_UI_EMULATOR_E2E === "true";
 const projectId = "demo-bpt-jersey";
+function emulatorPort(name: string, fallback: number): number {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+  if (!/^[1-9]\d{3,4}$/u.test(value)) throw new Error(`${name} must be a valid emulator port.`);
+  const port = Number(value);
+  if (port < 1_024 || port > 65_535) throw new Error(`${name} must be a non-privileged port.`);
+  return port;
+}
+const functionsPort = emulatorPort("NEXT_PUBLIC_FIREBASE_FUNCTIONS_EMULATOR_PORT", 5_001);
+const authPort = emulatorPort("NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT", 9_099);
 const academyId = process.env.MEMBER_PROFILE_E2E_ACADEMY_ID ?? "member-profile-e2e";
-const functionsBaseUrl = `http://127.0.0.1:5001/${projectId}/us-central1`;
+const functionsBaseUrl = `http://127.0.0.1:${functionsPort}/${projectId}/us-central1`;
 const authUrl =
-  "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo";
+  `http://127.0.0.1:${authPort}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo`;
 const require = createRequire(import.meta.url);
 const dayMs = 86_400_000;
 
@@ -58,6 +68,7 @@ type Member = Readonly<{ studentId: string; fullName: string }>;
 const members: Record<string, Member> = {};
 let suffix = "";
 let ownerToken = "";
+let adultExpectedAge = 0;
 
 async function idTokenFor(
   request: APIRequestContext,
@@ -107,7 +118,7 @@ async function signIn(page: Page, email: string, password: string): Promise<Sess
     confirms.push(dialog.message());
     void (accept ? dialog.accept() : dialog.dismiss());
   });
-  await page.route("http://127.0.0.1:5001/**", (route) => {
+  await page.route(`http://127.0.0.1:${functionsPort}/**`, (route) => {
     const request = route.request();
     const name = new URL(request.url()).pathname.split("/").pop() ?? "";
     let payload: Record<string, unknown> = {};
@@ -125,8 +136,8 @@ async function signIn(page: Page, email: string, password: string): Promise<Sess
   await page.goto("/login");
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/account/u, { timeout: 30_000 });
+  await page.locator("#login-form").getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/(?:account|admin)/u, { timeout: 30_000 });
   return {
     sent,
     confirms,
@@ -298,6 +309,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
   );
 
   test.beforeAll(async ({ playwright }) => {
+    test.setTimeout(180_000);
     const request = await playwright.request.newContext();
     ownerToken = await idTokenFor(
       request,
@@ -311,6 +323,7 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     // Reading the UTC day instead made this read "Birthday in 2 days" between 23:00 and midnight
     // UTC under BST, when the Jersey day has already turned over and the UTC one has not.
     const today = jerseyDay(new Date());
+    adultExpectedAge = Number(today.slice(0, 4)) - 2001;
     const birthday = new Date(Date.parse(`${today}T00:00:00.000Z`) + 3 * dayMs);
     // A leap birth year also accepts February 29; subtracting 30 years did not.
     const adultDateOfBirth = `2000-${birthday.toISOString().slice(5, 10)}`;
@@ -355,6 +368,16 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     try {
       const firestore = getFirestore(app);
       const root = `academies/${academyId}`;
+      await firestore.doc(`${root}/programs/cross-level-fundamentals`).set({
+        programId: "cross-level-fundamentals",
+        academyId,
+        name: "Cross-level fundamentals",
+        ageBand: "adult",
+        discipline: "bjj",
+        level: "fundamentals",
+        active: true,
+        schemaVersion: "1",
+      });
 
       async function head(
         member: Member,
@@ -510,8 +533,8 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
       timeout: 60_000,
     });
     await expect(page.getByText("Birthday in 3 days")).toBeVisible();
-    // The birthday is three days away, so thirty years since birth is still an age of 29.
-    await expect(page.getByText("29 years")).toBeVisible();
+    // The fixed 2000 birth year remains deterministic while the expected age follows the Jersey year.
+    await expect(page.getByText(`${adultExpectedAge} years`)).toBeVisible();
 
     await page.getByRole("tab", { name: "Details" }).click();
     await expect(page.getByLabel("Address", { exact: true })).toHaveCount(0);
@@ -950,6 +973,26 @@ test.describe("T051V2 member record and JIU-JITSU IBJJF on Firebase Emulators", 
     await expect(page.getByRole("form", { name: "Assign next level" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Level history" })).toBeVisible();
     await page.screenshot({ path: "screenshots/t051-ibjjf-manage-administrator-desktop.png" });
+  });
+
+  test("owner grants explicit access to another training group @critical", async ({ page }) => {
+    test.setTimeout(180_000);
+    await signIn(
+      page,
+      process.env.AUTH_EMULATOR_E2E_EMAIL!,
+      process.env.AUTH_EMULATOR_E2E_PASSWORD!,
+    );
+    const adult = members.adult!;
+    await page.goto(recordUrl(adult.studentId));
+    await page.getByRole("tab", { name: "Classes" }).click();
+    await expect(page.getByRole("heading", { name: "Additional group access" })).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByLabel("Cross-level fundamentals").check();
+    await page.getByRole("button", { name: "Save group access" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Group access saved" })).toBeVisible();
+    await page.getByRole("button", { name: "Reload saved access" }).click();
+    await expect(page.getByLabel("Cross-level fundamentals")).toBeChecked();
   });
 
   test("the record and the Manage view fit a 390px phone @critical", async ({ page }) => {
