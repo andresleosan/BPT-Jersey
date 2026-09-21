@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
-import { introConversionStateSchema, memberNotificationSchema } from "@bpt-jersey/domain";
+import { introConversionStateSchema, memberNotificationSchema } from "@bpt-jersey/domain/memberships/intro-conversion";
 import {
   isIntroBooking,
   sessionAccessMode,

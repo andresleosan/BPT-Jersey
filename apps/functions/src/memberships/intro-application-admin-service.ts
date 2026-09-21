@@ -7,7 +7,7 @@ import {
   membershipApplicationDecisionSchema,
   membershipApplicationSchema,
   type MembershipApplicationDecision,
-} from "@bpt-jersey/domain";
+} from "@bpt-jersey/domain/memberships/intro-conversion";
 import { parsePlanRecord } from "@bpt-jersey/domain/memberships";
 import { addSubscriptionMonth } from "@bpt-jersey/domain/memberships/admin";
 import type { UserActorContext } from "@bpt-jersey/domain";

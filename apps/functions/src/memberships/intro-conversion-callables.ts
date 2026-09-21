@@ -1,7 +1,7 @@
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { z } from "zod";
-import { memberNotificationSchema } from "@bpt-jersey/domain";
+import { memberNotificationSchema } from "@bpt-jersey/domain/memberships/intro-conversion";
 import { requireMemberAccountActor } from "../members/member-access-callables.js";
 import { browserAdminCallableOptions } from "../auth/callable-options.js";
 
@@ -58,7 +58,7 @@ export const markMemberNotificationRead = onCall(browserAdminCallableOptions, (r
   createMarkMemberNotificationReadHandler(firestoreStore())(request));
 
 import { defineSecret } from "firebase-functions/params";
-import { membershipApplicationSubmitSchema } from "@bpt-jersey/domain";
+import { membershipApplicationSubmitSchema } from "@bpt-jersey/domain/memberships/intro-conversion";
 import { createPrivateStorageR2Client } from "../storage/r2-client.js";
 import { getIntroMembershipContext as loadIntroMembershipContext, submitIntroMembershipApplication as submitApplication } from "./intro-application-service.js";
 import { uploadIntroProof } from "./intro-payment-proof.js";
@@ -87,7 +87,7 @@ export const submitIntroMembershipApplication = onCall({ ...browserAdminCallable
 });
 
 import { requireActiveOfficeActor } from "../auth/office-actor.js";
-import { membershipApplicationDecisionSchema } from "@bpt-jersey/domain";
+import { membershipApplicationDecisionSchema } from "@bpt-jersey/domain/memberships/intro-conversion";
 import { getIntroProofUrl, listIntroApplications, reviewIntroApplication } from "./intro-application-admin-service.js";
 const applicationIdSchema = z.strictObject({ applicationId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u) });
 export const listIntroMembershipApplications = onCall(browserAdminCallableOptions, async (request) => { const actor = await requireActiveOfficeActor(request); if (request.data !== null) throw new HttpsError("invalid-argument", "Invalid application query"); return { applications: await listIntroApplications(getFirestore(), actor) }; });

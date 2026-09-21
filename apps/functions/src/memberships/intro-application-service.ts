@@ -5,7 +5,7 @@ import {
   membershipApplicationSubmitSchema,
   introConversionStateSchema,
   type MembershipApplicationSubmit,
-} from "@bpt-jersey/domain";
+} from "@bpt-jersey/domain/memberships/intro-conversion";
 import { parsePaymentInstructionsRecord } from "@bpt-jersey/domain/finance";
 import { administrativePlanIds, parsePlanRecord } from "@bpt-jersey/domain/memberships";
 import { parseEffectiveStudentProfileAt } from "@bpt-jersey/domain/profiles";
