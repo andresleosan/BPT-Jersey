@@ -3,6 +3,7 @@ import type { CallableRequest } from "firebase-functions/v2/https";
 
 import type { FamilyStore } from "../families/family-service.js";
 import {
+  MembershipStoreError,
   createMembershipStore,
   type MembershipDocumentData,
   type MembershipFirestore,
@@ -21,6 +22,24 @@ import {
   type MembershipCallableServices,
   type MembershipStudentScope,
 } from "./membership-callables.js";
+
+vi.mock("firebase-admin/auth", () => ({
+  getAuth: () => ({
+    getUser: async (uid: string) => ({
+      disabled: false,
+      emailVerified: true,
+      customClaims: {
+        academyId: "academy-1",
+        role:
+          uid === "guardian-1"
+            ? "guardian"
+            : uid === "adult-user-1"
+              ? "adultStudent"
+              : "teenStudent",
+      },
+    }),
+  }),
+}));
 
 const now = "2026-08-19T10:00:00.000Z";
 const academyId = "academy-1";
@@ -177,7 +196,11 @@ function request(
 ): CallableRequest<unknown> {
   return {
     data,
-    auth: role === undefined ? undefined : { uid, token: { academyId: requestAcademyId, role } },
+    app: role === undefined ? undefined : { appId: "verified-test-app" },
+    auth:
+      role === undefined
+        ? undefined
+        : { uid, token: { academyId: requestAcademyId, role, auth_time: 1_754_633_600 } },
   } as unknown as CallableRequest<unknown>;
 }
 
@@ -236,16 +259,19 @@ function services(overrides: Partial<MembershipCallableServices> = {}): Membersh
     store: {
       listMemberships: vi.fn(async () => [membership()]),
       getMembership: vi.fn(async () => membership()),
-      createMembership: vi.fn(async (input) =>
-        membership({
+      createMembership: vi.fn(async (input) => {
+        const canonicalFamily = input.studentId === adultStudentId ? "adult-family-1" : familyId;
+        if (input.familyId !== undefined && input.familyId !== canonicalFamily)
+          throw new MembershipStoreError("tenant", "Synthetic student family mismatch");
+        return membership({
           membershipId: "membership-created",
-          familyId: input.familyId ?? input.scope.familyIds?.[0] ?? familyId,
+          familyId: input.familyId ?? input.scope.familyIds?.[0] ?? canonicalFamily,
           studentId: input.studentId,
           status: input.status,
           createdBy: input.actorId,
           updatedBy: input.actorId,
-        }),
-      ),
+        });
+      }),
       transitionMembership: vi.fn(async (input) =>
         membership({
           membershipId: input.membershipId,
@@ -255,6 +281,9 @@ function services(overrides: Partial<MembershipCallableServices> = {}): Membersh
         }),
       ),
     },
+    memberStudentIds: vi.fn(async (_academyId, actorId) =>
+      actorId === "adult-user-1" ? [adultStudentId] : [minorStudentId],
+    ),
     familyStore: guardianFamilyStore(),
     findStudentByUserId: vi.fn(async () => adultStudentScope()),
     isActorActive: vi.fn(async () => true),
@@ -294,12 +323,17 @@ describe("membership callables", () => {
       expect(current.store.createMembership).toHaveBeenCalledWith({
         academyId,
         actorId: "admin-1",
+        memberActor: false,
         now,
         familyId,
         studentId: minorStudentId,
         planId: "bpt-jersey-adult",
         status: "trial",
-        scope: { academyId, familyIds: [familyId], studentIds: [minorStudentId] },
+        scope: {
+          academyId,
+          familyIds: [familyId],
+          studentIds: [minorStudentId],
+        },
       });
       await expect(
         createMembershipHandler(request({ ...createPayload, status: "active" }, role), current),
@@ -324,6 +358,7 @@ describe("membership callables", () => {
     expect(current.store.createMembership).toHaveBeenCalledWith({
       academyId,
       actorId: "admin-1",
+      memberActor: false,
       now,
       studentId: minorStudentId,
       planId: "bpt-jersey-adult",
@@ -344,7 +379,7 @@ describe("membership callables", () => {
     const lastInput = vi.mocked(current.store.createMembership).mock.lastCall?.[0];
     expect(lastInput).toMatchObject({
       studentId: adultStudentId,
-      scope: { academyId, familyIds: ["adult-family-1"], studentIds: [adultStudentId] },
+      scope: { academyId, memberActorId: "adult-user-1", studentIds: [adultStudentId] },
     });
     expect(lastInput).not.toHaveProperty("familyId");
 
@@ -366,7 +401,7 @@ describe("membership callables", () => {
     ).resolves.toEqual([expect.objectContaining({ membershipId: "membership-1" })]);
     expect(current.store.listMemberships).toHaveBeenCalledWith({
       academyId,
-      familyIds: [familyId],
+      memberActorId: "guardian-1",
       studentIds: [minorStudentId],
     });
 
@@ -376,28 +411,24 @@ describe("membership callables", () => {
     expect(current.store.createMembership).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "trial",
-        scope: { academyId, familyIds: [familyId], studentIds: [minorStudentId] },
+        scope: {
+          academyId,
+          memberActorId: "guardian-1",
+          familyIds: [familyId],
+          studentIds: [minorStudentId],
+        },
       }),
     );
   });
 
   it("denies an unrelated guardian family, inactive relation, adult target, and active creation", async () => {
     const current = services();
-    vi.mocked(current.familyStore!.getGuardianFamily).mockResolvedValueOnce(undefined);
+    vi.mocked(current.memberStudentIds).mockResolvedValueOnce([]);
     await expect(
       createMembershipHandler(request(createPayload, "guardian", "guardian-1"), current),
     ).rejects.toMatchObject({ code: "permission-denied" });
 
-    vi.mocked(current.familyStore!.getGuardianFamily).mockResolvedValueOnce({
-      family: { familyId: "family-1", active: false, status: "inactive" },
-      tutor: {
-        userId: "guardian-1",
-        displayName: "Synthetic Guardian",
-        email: "guardian@example.test",
-        phoneNumber: "+441234567890",
-      },
-      students: [],
-    });
+    vi.mocked(current.memberStudentIds).mockResolvedValueOnce([]);
     await expect(
       createMembershipHandler(request(createPayload, "guardian", "guardian-1"), current),
     ).rejects.toMatchObject({ code: "permission-denied" });
@@ -414,6 +445,17 @@ describe("membership callables", () => {
         current,
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
+  });
+
+  it("keeps Transit Free administrative-only", async () => {
+    const current = services();
+    await expect(
+      createMembershipHandler(
+        request({ ...createPayload, planId: "transit-free" }, "guardian", "guardian-1"),
+        current,
+      ),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(current.store.createMembership).not.toHaveBeenCalled();
   });
 
   it("resolves an adult student to only the linked adult student", async () => {
@@ -433,7 +475,7 @@ describe("membership callables", () => {
     ).resolves.toHaveLength(1);
     expect(current.store.listMemberships).toHaveBeenCalledWith({
       academyId,
-      familyIds: ["adult-family-1"],
+      memberActorId: "adult-user-1",
       studentIds: [adultStudentId],
     });
     await expect(
@@ -444,7 +486,12 @@ describe("membership callables", () => {
         familyId: "adult-family-1",
         studentId: adultStudentId,
         status: "trial",
-        scope: { academyId, familyIds: ["adult-family-1"], studentIds: [adultStudentId] },
+        scope: {
+          academyId,
+          memberActorId: "adult-user-1",
+          familyIds: ["adult-family-1"],
+          studentIds: [adultStudentId],
+        },
       }),
     );
 
@@ -468,9 +515,7 @@ describe("membership callables", () => {
       ),
     ).rejects.toMatchObject({ code: "permission-denied" });
 
-    vi.mocked(current.familyStore!.getStaffFamily).mockResolvedValueOnce(
-      staffFamilyProjection("adult-family-1", { active: false, status: "inactive" }),
-    );
+    vi.mocked(current.memberStudentIds).mockResolvedValueOnce([]);
     await expect(
       listMembershipsHandler(request(null, "adultStudent", "adult-user-1"), current),
     ).rejects.toMatchObject({ code: "permission-denied" });
@@ -485,7 +530,7 @@ describe("membership callables", () => {
     ).resolves.toEqual([expect.objectContaining({ studentId: minorStudentId, familyId })]);
     expect(current.store.listMemberships).toHaveBeenCalledWith({
       academyId,
-      familyIds: [familyId],
+      memberActorId: "teen-user-1",
       studentIds: [minorStudentId],
     });
   });
@@ -514,17 +559,18 @@ describe("membership callables", () => {
       teenStudentScope({ participantType: "adult" }),
       teenStudentScope({ active: false, status: "inactive" }),
     ]) {
-      const current = services({ findStudentByUserId: vi.fn(async () => scope) });
+      const current = services({
+        memberStudentIds: vi.fn(async () =>
+          scope && scope.participantType === "minor" && scope.active ? [minorStudentId] : [],
+        ),
+      });
       await expect(
         listMembershipsHandler(request(null, "teenStudent", "teen-user-1"), current),
       ).rejects.toMatchObject({ code: "permission-denied" });
       expect(current.store.listMemberships).not.toHaveBeenCalled();
     }
 
-    const inactiveFamily = services({ findStudentByUserId: vi.fn(async () => teenStudentScope()) });
-    vi.mocked(inactiveFamily.familyStore!.getStaffFamily).mockResolvedValue(
-      staffFamilyProjection(familyId, { active: false, status: "inactive" }),
-    );
+    const inactiveFamily = services({ memberStudentIds: vi.fn(async () => []) });
     await expect(
       listMembershipsHandler(request(null, "teenStudent", "teen-user-1"), inactiveFamily),
     ).rejects.toMatchObject({ code: "permission-denied" });
@@ -730,7 +776,7 @@ describe("membership callables", () => {
       code: "permission-denied",
     });
 
-    vi.mocked(current.familyStore!.getGuardianFamily).mockResolvedValueOnce(undefined);
+    vi.mocked(current.memberStudentIds).mockResolvedValueOnce([]);
     await expect(
       listMembershipsHandler(request(null, "guardian", "guardian-1"), current),
     ).rejects.toMatchObject({

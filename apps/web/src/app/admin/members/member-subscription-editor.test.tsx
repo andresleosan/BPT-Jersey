@@ -16,7 +16,10 @@ vi.mock("../../../lib/membership-admin-client", () => api);
 import { MemberSubscriptionEditor } from "./member-subscription-editor";
 import { ProfileSubscriptionEditor } from "./search/profile-subscription-editor";
 
-const plans = PLAN_CATALOG.slice(0, 2).map((plan) => ({ ...plan, active: true }));
+const plans = [
+  ...PLAN_CATALOG.slice(0, 2),
+  PLAN_CATALOG.find((plan) => plan.planId === "transit-free")!,
+].map((plan) => ({ ...plan, active: true }));
 const current = {
   membershipId: "membership-1",
   studentId: "student-1",
@@ -95,6 +98,24 @@ describe("manual subscription profile", () => {
       "amountMinor",
     );
   });
+  it("assigns Transit Free as complimentary indefinite access", async () => {
+    const user = userEvent.setup();
+    render(<MemberSubscriptionEditor studentId="student-1" />);
+    await user.selectOptions(await screen.findByLabelText("Subscription plan"), "transit-free");
+    expect(screen.getByLabelText("No end date")).toBeChecked();
+    expect(screen.getByLabelText("No end date")).toBeDisabled();
+    expect(screen.getByLabelText("Payment for this period")).toHaveValue("complimentary");
+    expect(screen.getByLabelText("Payment for this period")).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Assign subscription" }));
+    await waitFor(() => expect(api.manageManualSubscription).toHaveBeenCalledOnce());
+    expect(api.manageManualSubscription.mock.calls[0]![0]).toMatchObject({
+      operation: "assign",
+      planId: "transit-free",
+      endsAt: null,
+      settlement: { kind: "complimentary", reason: "Transit Free indefinite access" },
+    });
+  });
+
   it("changes to any active plan while preserving a recorded payment", async () => {
     const user = userEvent.setup();
     api.getMemberSubscriptions.mockResolvedValue({

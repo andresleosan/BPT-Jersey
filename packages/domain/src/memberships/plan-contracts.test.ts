@@ -58,6 +58,17 @@ const expectedCatalog = [
     null,
   ],
   ["town-teens", "Town Teens", 4500, "monthly", ["teens"], ["Town"], 2, ["Town"], 750],
+  [
+    "transit-free",
+    "Transit Free",
+    0,
+    "monthly",
+    ["adult", "kids", "teens"],
+    ["Town", "West"],
+    null,
+    ["Town", "West"],
+    0,
+  ],
 ] as const;
 
 function record(overrides: Partial<PlanDraft> = {}, active = true): PlanRecord {
@@ -86,8 +97,8 @@ describe("membership plan contracts", () => {
     }
   });
 
-  it("contains exactly the approved eleven-plan catalog", () => {
-    expect(PLAN_CATALOG).toHaveLength(11);
+  it("contains the approved catalogue including administrative Transit Free", () => {
+    expect(PLAN_CATALOG).toHaveLength(12);
     expect(Object.isFrozen(PLAN_CATALOG)).toBe(true);
     expect(PLAN_CATALOG).toEqual(
       expectedCatalog.map(
@@ -427,5 +438,29 @@ describe("membership plan contracts", () => {
     expect(code("town-kids-2x", at("teens", "Town", "class", 1))).toBe("ALLOWED");
     expect(code("town-kids-2x", at("kids", "Town", "class", 2))).toBe("WEEKLY_LIMIT_REACHED");
     expect(code("town-kids-2x", at("kids", "Town", "openMat", 2))).toBe("ALLOWED");
+  });
+});
+
+describe("Transit Free access", () => {
+  it("covers every participant, site and session type without a weekly fee or limit", () => {
+    const plan = record(PLAN_CATALOG.find((candidate) => candidate.planId === "transit-free")!);
+    for (const participantType of participantTypes) {
+      for (const site of siteValues) {
+        for (const sessionType of sessionTypes) {
+          expect(
+            evaluatePlanAccess(plan, {
+              participantType,
+              site,
+              sessionType,
+              weeklyClassesUsed: 999,
+            }),
+          ).toEqual({
+            allowed: true,
+            code: "ALLOWED",
+            feeMinor: 0,
+          });
+        }
+      }
+    }
   });
 });

@@ -1,4 +1,7 @@
-import { createMemberAccessService, memberAccessDependenciesInTransaction } from "../members/member-access-service.js";
+import {
+  createMemberAccessService,
+  memberAccessDependenciesInTransaction,
+} from "../members/member-access-service.js";
 import { canonicalMemberIdentityIds } from "../members/member-identity-resolution.js";
 import { createMemberDirectoryReadTransaction } from "../members/member-directory-firestore.js";
 import { getAuth } from "firebase-admin/auth";
@@ -10,7 +13,7 @@ import {
   type MembershipRecord,
   type MembershipStatus,
 } from "@bpt-jersey/domain/memberships/lifecycle";
-import { planIds, type PlanId } from "@bpt-jersey/domain/memberships";
+import { administrativePlanIds, planIds, type PlanId } from "@bpt-jersey/domain/memberships";
 import { parseStudentProfile } from "@bpt-jersey/domain/profiles";
 import type { UserActorContext } from "@bpt-jersey/domain";
 import type { StaffFamilyProjection } from "@bpt-jersey/domain/families";
@@ -204,7 +207,8 @@ async function requireReader(
   if (!["owner", "administrator", "guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
     permissionDenied();
   }
-  if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) await requireMemberAccountActor(request);
+  if (["guardian", "adultStudent", "teenStudent"].includes(actor.role))
+    await requireMemberAccountActor(request);
   return actor;
 }
 
@@ -241,9 +245,14 @@ async function readerScope(
   }
   if (["guardian", "adultStudent", "teenStudent"].includes(actor.role)) {
     const allowed = await services.memberStudentIds(actor.academyId, actor.userId);
+    if (!allowed.length) permissionDenied();
     if (studentId && !allowed.includes(studentId)) permissionDenied();
-    return Object.freeze({ academyId: actor.academyId, memberActorId: actor.userId, studentIds: studentId ? [studentId] : allowed,
-      ...(familyId ? { familyIds: [familyId] } : {}) });
+    return Object.freeze({
+      academyId: actor.academyId,
+      memberActorId: actor.userId,
+      studentIds: studentId ? [studentId] : allowed,
+      ...(familyId ? { familyIds: [familyId] } : {}),
+    });
   }
   return permissionDenied();
 }
@@ -328,7 +337,13 @@ export async function createMembershipHandler(
             studentIds: Object.freeze([payload.studentId]),
           })
         : await readerScope(actor, services, payload.familyId, payload.studentId);
-    if (actor.role !== "owner" && actor.role !== "administrator" && payload.status !== "trial") {
+    if (
+      actor.role !== "owner" &&
+      actor.role !== "administrator" &&
+      (actor.role === "teenStudent" ||
+        payload.status !== "trial" ||
+        administrativePlanIds.includes(payload.planId))
+    ) {
       permissionDenied();
     }
     const record = await services.store.createMembership({
@@ -457,12 +472,26 @@ function membershipCallableServices(): MembershipCallableServices {
       },
       firestore: firestore as unknown as Parameters<typeof createFamilyStore>[0]["firestore"],
     }),
-    memberStudentIds: (academyId, actorId) => firestore.runTransaction(async (tx) => {
-      const profiles = await createMemberAccessService(memberAccessDependenciesInTransaction(firestore, tx)).listProfiles(academyId, actorId);
-      const ids = (await Promise.all(profiles.map((profile) => canonicalMemberIdentityIds(createMemberDirectoryReadTransaction(firestore, tx), academyId, profile.studentId)))).flat();
-      if (ids.length > 100) throw new HttpsError("failed-precondition", "Member history requires office review");
-      return [...new Set(ids)];
-    }),
+    memberStudentIds: (academyId, actorId) =>
+      firestore.runTransaction(async (tx) => {
+        const profiles = await createMemberAccessService(
+          memberAccessDependenciesInTransaction(firestore, tx),
+        ).listProfiles(academyId, actorId);
+        const ids = (
+          await Promise.all(
+            profiles.map((profile) =>
+              canonicalMemberIdentityIds(
+                createMemberDirectoryReadTransaction(firestore, tx),
+                academyId,
+                profile.studentId,
+              ),
+            ),
+          )
+        ).flat();
+        if (ids.length > 100)
+          throw new HttpsError("failed-precondition", "Member history requires office review");
+        return [...new Set(ids)];
+      }),
     findStudentByUserId,
     isActorActive: async (actor) => !(await getAuth().getUser(actor.userId)).disabled,
   };

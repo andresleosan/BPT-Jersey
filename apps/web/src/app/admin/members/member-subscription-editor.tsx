@@ -113,7 +113,7 @@ function SubscriptionForm({
   );
   const [noEndDate, setNoEndDate] = useState(subscription?.endsAt === null);
   const [kind, setKind] = useState<ManualSubscriptionInput["settlement"]["kind"]>(
-    subscription ? "unchanged" : "paid",
+    subscription?.planId === "transit-free" ? "complimentary" : subscription ? "unchanged" : "paid",
   );
   const [amount, setAmount] = useState(
     (
@@ -125,7 +125,11 @@ function SubscriptionForm({
   const [method, setMethod] = useState<"cash" | "bank_transfer" | "other">("cash");
   const [reference, setReference] = useState("");
   const [receivedAt, setReceivedAt] = useState(localDateTime(initialNow));
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(
+    subscription?.planId === "transit-free"
+      ? (billing?.reason ?? "Transit Free indefinite access")
+      : "",
+  );
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -137,11 +141,12 @@ function SubscriptionForm({
     currentInvoice?.status === "open" || currentInvoice?.status === "partially_paid";
   const cancelled = subscription?.status === "cancelled";
   const selectedPlan = plans.find((plan) => plan.planId === planId);
+  const isTransitFree = planId === "transit-free";
   const paymentLocked = operation === "update" && paidHistory;
 
   function chooseOperation(next: "update" | "renew") {
     setOperation(next);
-    setKind(next === "update" ? "unchanged" : "paid");
+    setKind(isTransitFree ? "complimentary" : next === "update" ? "unchanged" : "paid");
     setError("");
     if (next === "renew") {
       const start = new Date(
@@ -158,6 +163,24 @@ function SubscriptionForm({
       setAmount(((currentInvoice?.totalMinor ?? selectedPlan?.priceMinor ?? 0) / 100).toFixed(2));
     }
   }
+  function choosePlan(next: PlanId) {
+    setPlanId(next);
+    const nextPlan = plans.find((plan) => plan.planId === next);
+    setAmount(((nextPlan?.priceMinor ?? 0) / 100).toFixed(2));
+    if (next === "transit-free") {
+      setNoEndDate(true);
+      setKind("complimentary");
+      setReason("Transit Free indefinite access");
+      return;
+    }
+    if (isTransitFree) {
+      setNoEndDate(false);
+      setEndsAt(localDateTime(addSubscriptionMonth(new Date(startsAt).toISOString())));
+      setKind("paid");
+      setReason("");
+    }
+  }
+
   async function save() {
     if (lock.current || !planId) return;
     setError("");
@@ -304,7 +327,7 @@ function SubscriptionForm({
               onChange={(event) => chooseOperation(event.target.value as "update" | "renew")}
             >
               <option value="update">Change current subscription</option>
-              <option value="renew" disabled={outstanding}>
+              <option value="renew" disabled={outstanding || isTransitFree}>
                 Renew for a new period
               </option>
             </select>
@@ -316,14 +339,7 @@ function SubscriptionForm({
             id={`${id}-plan`}
             required
             value={planId}
-            onChange={(event) => {
-              const value = event.target.value as PlanId;
-              setPlanId(value);
-              if (operation !== "update" || !currentInvoice)
-                setAmount(
-                  ((plans.find((plan) => plan.planId === value)?.priceMinor ?? 0) / 100).toFixed(2),
-                );
-            }}
+            onChange={(event) => choosePlan(event.target.value as PlanId)}
           >
             {!selectedPlan ? (
               <option value={planId} disabled>
@@ -332,7 +348,13 @@ function SubscriptionForm({
             ) : null}
             {plans.map((plan) => (
               <option key={plan.planId} value={plan.planId}>
-                {plan.displayName} · {money(plan.priceMinor)} / {plan.billingPeriod}
+                {plan.planId === "transit-free" ? (
+                  "Transit Free · unlimited, indefinite"
+                ) : (
+                  <>
+                    {plan.displayName} · {money(plan.priceMinor)} / {plan.billingPeriod}
+                  </>
+                )}
               </option>
             ))}
           </select>
@@ -368,19 +390,22 @@ function SubscriptionForm({
           <input
             type="checkbox"
             checked={noEndDate}
+            disabled={isTransitFree}
             onChange={(event) => setNoEndDate(event.target.checked)}
           />
           No end date
         </label>
         <p className="member-subscription-help">
-          Times use your device&apos;s time zone. Set an end date to receive an expiry reminder.
+          {isTransitFree
+            ? "Transit Free never expires and has no recurring charge."
+            : "Times use your device’s time zone. Set an end date to receive an expiry reminder."}
         </p>
         <label className="member-subscription-field" htmlFor={`${id}-settlement`}>
           Payment for this period
           <select
             id={`${id}-settlement`}
             value={kind}
-            disabled={paymentLocked}
+            disabled={paymentLocked || isTransitFree}
             onChange={(event) => {
               const next = event.target.value as typeof kind;
               setKind(next);

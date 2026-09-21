@@ -13,8 +13,11 @@ export const planIds = Object.freeze([
   "town-kids-1x",
   "town-kids-2x",
   "town-teens",
+  "transit-free",
 ] as const);
 export type PlanId = (typeof planIds)[number];
+
+export const administrativePlanIds: readonly PlanId[] = Object.freeze(["transit-free"]);
 
 export const participantTypes = Object.freeze(["adult", "kids", "teens"] as const);
 export type ParticipantType = (typeof participantTypes)[number];
@@ -496,6 +499,17 @@ export const PLAN_CATALOG: readonly PlanDraft[] = Object.freeze([
     null,
   ),
   draft("town-teens", "Town Teens", 4500, "monthly", ["teens"], ["Town"], 2, ["Town"], 750),
+  draft(
+    "transit-free",
+    "Transit Free",
+    0,
+    "monthly",
+    ["adult", "kids", "teens"],
+    ["Town", "West"],
+    null,
+    ["Town", "West"],
+    0,
+  ),
 ]);
 
 // ponytail: retired plans stay in the catalog so existing memberships still resolve; T047V2 replaces
