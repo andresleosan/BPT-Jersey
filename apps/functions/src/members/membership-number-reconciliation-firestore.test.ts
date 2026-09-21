@@ -49,6 +49,12 @@ function fakeStore(initial: Record<string, Stored>) {
         const creates = new Set<string>();
         const transaction = {
           get: async (reference: Readonly<{ id: string; path: string }>) => {
+            // Real Firestore rejects this; the first production apply failed on it (2026-09-21).
+            if (staged.size > 0) {
+              throw new Error(
+                "Firestore transactions require all reads to be executed before all writes.",
+              );
+            }
             const stored = records.get(reference.path);
             return {
               id: reference.id,
